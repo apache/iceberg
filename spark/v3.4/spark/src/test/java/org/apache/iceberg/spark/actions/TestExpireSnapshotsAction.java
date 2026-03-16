@@ -47,6 +47,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
@@ -628,8 +629,10 @@ public class TestExpireSnapshotsAction extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB
-        .addedDataFiles(table.io())
+    SnapshotChanges.builderFor(table)
+        .snapshot(snapshotB)
+        .build()
+        .addedDataFiles()
         .forEach(
             i -> {
               expectedDeletes.add(i.location());
@@ -699,7 +702,10 @@ public class TestExpireSnapshotsAction extends TestBase {
     Lists.newArrayList(snapshotB, snapshotC, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -748,7 +754,10 @@ public class TestExpireSnapshotsAction extends TestBase {
     Lists.newArrayList(snapshotB)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -768,7 +777,10 @@ public class TestExpireSnapshotsAction extends TestBase {
     Lists.newArrayList(snapshotB, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              SnapshotChanges.builderFor(table)
+                  .snapshot(i)
+                  .build()
+                  .addedDataFiles()
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -894,7 +906,6 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(secondSnapshot.allManifests(table.io()))
         .as("Should replace manifest with a rewritten manifest")
         .hasSize(1);
-
     table
         .newFastAppend() // do not merge to keep the last snapshot's manifest valid
         .appendFile(FILE_C)
@@ -999,7 +1010,6 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     assertThat(firstSnapshot.allManifests(table.io())).as("Should create one manifest").hasSize(1);
-
     rightAfterSnapshot();
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -1158,6 +1168,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(table.snapshot(firstSnapshot.snapshotId()))
         .as("Should remove the oldest snapshot")
         .isNull();
+    assertThat(pending).as("Pending deletes should contain one row").hasSize(1);
 
     assertThat(pending.get(0).getPath())
         .as("Pending delete should be the expired manifest list location")

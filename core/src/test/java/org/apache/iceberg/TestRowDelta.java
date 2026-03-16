@@ -1946,7 +1946,10 @@ public class TestRowDelta extends TestBase {
     commit(table, rowDelta1, branch);
 
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     assertThat(Iterables.size(addedDeleteFiles)).isEqualTo(1);
     DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
 
@@ -2004,7 +2007,8 @@ public class TestRowDelta extends TestBase {
 
     Snapshot snapshot = latestSnapshot(table, branch);
     // Expect 3 merged DVs, one per data file
-    Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDeleteFiles();
     List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
     assertThat(mergedDVs).hasSize(3);
     // Should be a Puffin produced per merged DV spec
@@ -2067,7 +2071,10 @@ public class TestRowDelta extends TestBase {
 
     // Expect two merged DVs, one per data file
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
 
     assertThat(mergedDVs).hasSize(2);
@@ -2119,7 +2126,10 @@ public class TestRowDelta extends TestBase {
 
     // Expect two DVs: one merged for dataFile1 and deleteFile2
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> committedDVs = Lists.newArrayList(addedDeleteFiles);
 
     assertThat(committedDVs).hasSize(2);
@@ -2167,7 +2177,10 @@ public class TestRowDelta extends TestBase {
     commit(table, rowDelta, branch);
 
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> committedDeletes = Lists.newArrayList(addedDeleteFiles);
 
     // 1 DV + 1 equality delete

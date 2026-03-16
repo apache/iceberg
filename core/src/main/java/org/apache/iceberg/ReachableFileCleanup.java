@@ -81,7 +81,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
 
       if (!manifestsToDelete.isEmpty()) {
         if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
-          Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
+          Set<String> dataFilesToDelete =
+              findFilesToDelete(manifestsToDelete, currentManifests, afterExpiration);
           LOG.debug("Deleting {} data files", dataFilesToDelete.size());
           deleteFiles(dataFilesToDelete, "data");
         }
@@ -165,9 +166,10 @@ class ReachableFileCleanup extends FileCleanupStrategy {
     return manifestFiles;
   }
 
-  // Helper to determine data files to delete
   private Set<String> findFilesToDelete(
-      Set<ManifestFile> manifestFilesToDelete, Set<ManifestFile> currentManifestFiles) {
+      Set<ManifestFile> manifestFilesToDelete,
+      Set<ManifestFile> currentManifestFiles,
+      TableMetadata metadata) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
 
     Tasks.foreach(manifestFilesToDelete)
@@ -180,7 +182,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                     "Failed to determine live files in manifest {}. Retrying", item.path(), exc))
         .run(
             manifest -> {
-              try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
+              try (CloseableIterable<String> paths =
+                  ManifestFiles.readPaths(manifest, fileIO, metadata.specsById())) {
                 paths.forEach(filesToDelete::add);
               } catch (IOException e) {
                 throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
@@ -208,7 +211,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 }
 
                 // Remove all the live files from the candidate deletion set
-                try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
+                try (CloseableIterable<String> paths =
+                    ManifestFiles.readPaths(manifest, fileIO, metadata.specsById())) {
                   paths.forEach(filesToDelete::remove);
                 } catch (IOException e) {
                   throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);

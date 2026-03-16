@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -50,12 +52,17 @@ public class TestRefreshTable extends CatalogTestBase {
     // We are not allowed to change the session catalog after it has been initialized, so build a
     // new one
     if (Set.of(
-            SparkCatalogConfig.SPARK.catalogName(),
+            SparkCatalogConfig.SPARK_SESSION.catalogName(),
             SparkCatalogConfig.HADOOP.catalogName(),
             SparkCatalogConfig.REST.catalogName())
         .contains(catalogName)) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", true);
-      spark = spark.cloneSession();
+
+      Preconditions.checkArgument(
+          spark instanceof org.apache.spark.sql.classic.SparkSession,
+          "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
+          spark.getClass().getName());
+      spark = ((org.apache.spark.sql.classic.SparkSession) spark).cloneSession();
     }
 
     List<Object[]> originalExpected = ImmutableList.of(row(1, 1));
@@ -65,7 +72,7 @@ public class TestRefreshTable extends CatalogTestBase {
     // Modify table outside of spark, it should be cached so Spark should see the same value after
     // mutation
     Table table = validationCatalog.loadTable(tableIdent);
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
     table.newDelete().deleteFile(file).commit();
 
     List<Object[]> cachedActual = sql("SELECT * FROM %s", tableName);

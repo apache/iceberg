@@ -28,6 +28,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -284,8 +285,8 @@ public class SnapshotUtil {
   }
 
   /**
-   * @deprecated will be removed in 1.12.0, use {@link #newFilesBetween(Long, long, Function,
-   *     FileIO)} instead.
+   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
+   *     #ancestorsBetween(long, Long, Function)} instead.
    */
   @Deprecated
   public static List<DataFile> newFiles(
@@ -310,9 +311,34 @@ public class SnapshotUtil {
     return newFiles;
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
+   *     #ancestorsBetween(long, Long, Function)} instead.
+   */
+  @Deprecated
   public static CloseableIterable<DataFile> newFilesBetween(
       Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
+    List<Snapshot> snapshots = snapshotsBetween(startSnapshotId, endSnapshotId, lookup);
+    return new ParallelIterable<>(
+        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
+        ThreadPools.getWorkerPool());
+  }
 
+  /**
+   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
+   *     #ancestorsBetween(long, Long, Function)} instead.
+   */
+  @Deprecated
+  public static CloseableIterable<DataFile> newFilesBetween(
+      Long startSnapshotId, long endSnapshotId, TableMetadata metadata, FileIO io) {
+    List<Snapshot> snapshots = snapshotsBetween(startSnapshotId, endSnapshotId, metadata::snapshot);
+    return new ParallelIterable<>(
+        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
+        ThreadPools.getWorkerPool());
+  }
+
+  private static List<Snapshot> snapshotsBetween(
+      Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup) {
     List<Snapshot> snapshots = Lists.newArrayList();
     Snapshot lastSnapshot = null;
     for (Snapshot currentSnapshot : ancestorsOf(endSnapshotId, lookup)) {
@@ -333,9 +359,7 @@ public class SnapshotUtil {
           lastSnapshot.snapshotId());
     }
 
-    return new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
-        ThreadPools.getWorkerPool());
+    return snapshots;
   }
 
   /**

@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
@@ -51,6 +52,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -127,6 +129,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -1719,7 +1722,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
 
@@ -1798,7 +1801,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
 
@@ -1828,6 +1831,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testZOrderAllTypesSort() {
+    spark.conf().set("spark.sql.ansi.enabled", "false");
     Table table = createTypeTestTable();
     shouldHaveFiles(table, 10);
 
@@ -1863,7 +1867,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 1 file")
         .hasSize(1);
 
@@ -2096,6 +2100,35 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertEquals("Rows must match", expectedRecords, actualRecordsWithLineage);
   }
 
+  @TestTemplate
+  public void testExecutorCacheForDeleteFilesDisabled() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+
+    // The constructor should have set the configuration to false
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
+    assertThat(readConf.cacheDeleteFilesOnExecutors())
+        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
+        .isFalse();
+  }
+
+  @TestTemplate
+  public void testZOrderUDFWithDateType() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+    Dataset<Row> result =
+        spark
+            .sql("SELECT DATE '2025-01-01' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.DateType));
+
+    assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
+    byte[] zorderBytes = row.getAs("zorder_result");
+    assertThat(zorderBytes).isNotNull().isNotEmpty();
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
@@ -2154,8 +2187,10 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected void shouldHaveFiles(Table table, int numExpected) {
     table.refresh();
-    int numFiles = Iterables.size(table.newScan().planFiles());
-    assertThat(numFiles).as("Did not have the expected number of files").isEqualTo(numExpected);
+    List<FileScanTask> files =
+        StreamSupport.stream(table.newScan().planFiles().spliterator(), false)
+            .collect(Collectors.toList());
+    assertThat(files.size()).as("Did not have the expected number of files").isEqualTo(numExpected);
   }
 
   protected long shouldHaveMinSequenceNumberInPartition(
@@ -2595,18 +2630,6 @@ public class TestRewriteDataFilesAction extends TestBase {
         .addAll(manager.fetchSetIds(table))
         .addAll(coordinator.fetchSetIds(table))
         .build();
-  }
-
-  @TestTemplate
-  public void testExecutorCacheForDeleteFilesDisabled() {
-    Table table = createTablePartitioned(1, 1);
-    RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
-
-    // The constructor should have set the configuration to false
-    SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
-    assertThat(readConf.cacheDeleteFilesOnExecutors())
-        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
-        .isFalse();
   }
 
   private double percentFilesRequired(Table table, String col, String value) {

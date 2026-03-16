@@ -30,6 +30,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
@@ -64,6 +65,7 @@ public class TestMergeOnReadUpdate extends TestUpdate {
 
   @TestTemplate
   public void testPositionDeletesAreMaintainedDuringUpdate() {
+    assumeThat(formatVersion).isEqualTo(2);
     // Range distribution will produce partition scoped deletes which will not be cleaned up
     assumeThat(distributionMode).isNotEqualToIgnoringCase("range");
 
@@ -74,7 +76,12 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     String expectedDeleteFilesCount = "2";
     validateMergeOnRead(currentSnapshot, "2", expectedDeleteFilesCount, "2");
 
-    assertThat(currentSnapshot.removedDeleteFiles(table.io())).hasSize(2);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(currentSnapshot)
+                .build()
+                .removedDeleteFiles())
+        .hasSize(2);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
@@ -122,7 +129,12 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     expectedDeleteFilesCount = "2";
 
     validateMergeOnRead(currentSnapshot, "1", expectedDeleteFilesCount, "1");
-    assertThat(currentSnapshot.removedDeleteFiles(table.io())).hasSize(2);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(currentSnapshot)
+                .build()
+                .removedDeleteFiles())
+        .hasSize(2);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
@@ -134,6 +146,32 @@ public class TestMergeOnReadUpdate extends TestUpdate {
             row(2, "it"),
             row(2, "it"),
             row(5, "it")),
+        sql("SELECT * FROM %s ORDER BY dep ASC, id ASC", selectTarget()));
+  }
+
+  private void checkUpdateFileGranularity(DeleteGranularity deleteGranularity) {
+    initTable("PARTITIONED BY (dep)", deleteGranularity);
+
+    sql("UPDATE %s SET id = id - 1 WHERE id = 1 OR id = 3", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).hasSize(5);
+
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    String expectedDeleteFilesCount = deleteGranularity == DeleteGranularity.FILE ? "4" : "2";
+    validateMergeOnRead(currentSnapshot, "2", expectedDeleteFilesCount, "2");
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(0, "hr"),
+            row(2, "hr"),
+            row(2, "hr"),
+            row(4, "hr"),
+            row(0, "it"),
+            row(2, "it"),
+            row(2, "it"),
+            row(4, "it")),
         sql("SELECT * FROM %s ORDER BY dep ASC, id ASC", selectTarget()));
   }
 
@@ -186,38 +224,8 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
   }
 
-  private void checkUpdateFileGranularity(DeleteGranularity deleteGranularity) {
-    initTable("PARTITIONED BY (dep)", deleteGranularity);
-
-    sql("UPDATE %s SET id = id - 1 WHERE id = 1 OR id = 3", commitTarget());
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    assertThat(table.snapshots()).hasSize(5);
-
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
-    String expectedDeleteFilesCount = deleteGranularity == DeleteGranularity.FILE ? "4" : "2";
-    validateMergeOnRead(currentSnapshot, "2", expectedDeleteFilesCount, "2");
-
-    assertEquals(
-        "Should have expected rows",
-        ImmutableList.of(
-            row(0, "hr"),
-            row(2, "hr"),
-            row(2, "hr"),
-            row(4, "hr"),
-            row(0, "it"),
-            row(2, "it"),
-            row(2, "it"),
-            row(4, "it")),
-        sql("SELECT * FROM %s ORDER BY dep ASC, id ASC", selectTarget()));
-  }
-
   private void initTable(String partitionedBy, DeleteGranularity deleteGranularity) {
     createTableWithDeleteGranularity("id INT, dep STRING", partitionedBy, deleteGranularity);
-
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
-        tableName, TableProperties.DELETE_GRANULARITY, deleteGranularity);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
     append(tableName, "{ \"id\": 3, \"dep\": \"hr\" }\n" + "{ \"id\": 4, \"dep\": \"hr\" }");

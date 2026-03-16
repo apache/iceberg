@@ -30,6 +30,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RewriteTablePathUtil;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.data.FileHelpers;
@@ -126,14 +127,16 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_table_path('%s')", catalogName, tableIdent))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Missing required parameters: [source_prefix,target_prefix]");
+        .hasMessageContaining(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `rewrite_table_path` because the parameter named `source_prefix` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
     assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_table_path('%s','%s')",
                     catalogName, tableIdent, targetLocation))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Missing required parameters: [target_prefix]");
+        .hasMessageContaining(
+            "[REQUIRED_PARAMETER_NOT_FOUND] Cannot invoke routine `rewrite_table_path` because the parameter named `target_prefix` is required, but the routine call did not supply a value. Please update the routine call to supply an argument value (either positionally at index 0 or by name) and retry the query again. SQLSTATE: 4274K");
     assertThatThrownBy(
             () ->
                 sql(
@@ -211,7 +214,12 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     List<Pair<CharSequence, Long>> rowsToDelete =
         Lists.newArrayList(
             Pair.of(
-                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                SnapshotChanges.builderFor(table)
+                    .build()
+                    .addedDataFiles()
+                    .iterator()
+                    .next()
+                    .location(),
                 0L));
 
     File file = new File(removePrefix(table.location()) + "/data/deletes.parquet");
