@@ -342,7 +342,7 @@ flinkConf.put("flink-maintenance.expire-snapshots.max-snapshot-age-seconds", "60
 // Configure delete orphan files
 flinkConf.put("flink-maintenance.delete-orphan-files.min-age-seconds", "259200");
 
-// Configure JDBC lock settings
+// Configure JDBC lock settings (deprecated, lock configuration is no longer required for a single Flink job)
 flinkConf.put("flink-maintenance.lock.type", "jdbc");
 flinkConf.put("flink-maintenance.lock.jdbc.uri", "jdbc:postgresql://localhost:5432/iceberg");
 flinkConf.put("flink-maintenance.lock.lock-id", "catalog.db.table");
