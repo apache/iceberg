@@ -378,6 +378,32 @@ can be set instead. CDC can be combined with multi-table fan-out.
 CDC mode writes equality deletes to handle updates and deletes. During reads, the query engine must
 apply equality deletes by scanning data files that may contain matching rows based on the identifier columns.
 
+#### Delete behavior by table format version
+
+| Table Format | Delete Method | Within-Batch Dedup | Cross-Batch Dedup | DV Support |
+| ------------ | ------------- | ------------------ | ----------------- | ---------- |
+| V1           | Not supported | N/A                | N/A               | No         |
+| V2           | Equality deletes | Position deletes | Equality deletes (MOR) | No |
+| V3+          | Delete Vectors | Delete vectors (position-based) | Equality deletes (MOR) | Yes |
+
+Within a single commit batch, the writer uses position deletes (or delete vectors on V3+) for
+efficient same-key deduplication. Across batches, equality deletes ensure record-level correctness
+by removing stale rows from prior snapshots. Compaction resolves equality deletes at read time.
+
+#### Exactly-once semantics
+
+The connector provides exactly-once delivery through three layers:
+
+1. **Transactional source offset commits**: Source offsets are committed atomically with control
+   topic events via `sendOffsetsToTransaction()`, preventing the Kafka Connect framework from
+   re-delivering records after a successful commit.
+2. **Control topic offset filtering**: The coordinator stores committed control topic offsets in
+   Iceberg snapshot properties. On recovery, it filters already-committed file sets, preventing
+   duplicate table commits.
+3. **Equality deletes for record-level correctness**: In upsert/CDC mode, each INSERT emits an
+   equality delete targeting the key's prior value (if any). This ensures that even if a key is
+   re-inserted across commit cycles, only the latest version survives after compaction.
+
 #### Production recommendations
 
 **Compaction is required**: For production CDC workloads, periodic compaction is essential to maintain
@@ -393,7 +419,16 @@ time-series data).
 deletes. These should be:
 
 * Unique or form a composite unique key for the data
+* Not nullable — null values in identifier columns will cause incorrect delete behavior
 * Included in the table's partition spec when possible to limit delete scope
+
+**Commit interval tuning**: Longer commit intervals (`iceberg.control.commit.interval-ms`) group
+more records per batch, increasing within-batch deduplication via position deletes and reducing
+the number of equality delete files written across batches.
+
+**Kafka partition routing**: In multi-task deployments, records for the same key must route to the
+same Kafka partition. Use a key-based partitioner in your source connector to ensure that updates
+and deletes for a given key are processed by the same sink task.
 
 #### Compaction
 
@@ -424,7 +459,6 @@ SparkActions.get(spark)
 
 For automated compaction, consider scheduling these operations via a workflow orchestrator or
 using managed Iceberg services that provide automatic compaction.
-
 
 #### Create the destination table
 See above for creating the table

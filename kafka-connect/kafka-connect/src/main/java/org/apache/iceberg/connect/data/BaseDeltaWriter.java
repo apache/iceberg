@@ -82,6 +82,9 @@ abstract class BaseDeltaWriter extends BaseTaskWriter<Record> {
 
     switch (op) {
       case INSERT:
+        if (upsert) {
+          writer.deleteKey(keyProjection.wrap(row));
+        }
         writer.write(row);
         break;
       case UPDATE:

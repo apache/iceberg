@@ -24,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
@@ -48,7 +49,7 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
 
   @ParameterizedTest
   @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
-  public void testPartitionedDeltaWriterDVMode(String format, int formatVersion) {
+  public void testCDCInsertOperations(String format, int formatVersion) {
     mockTableFormatVersion(formatVersion);
 
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
@@ -67,10 +68,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
     WriteResult result =
         writeTest(ImmutableList.of(row1, row2, row3), config, PartitionedDeltaWriter.class);
 
-    // With DV mode, no delete files should be created
+    // INSERT in upsert mode produces equality deletes (one per partition for cross-batch safety)
     assertThat(result.dataFiles()).hasSize(2); // 2 partitions
     assertThat(result.dataFiles()).allMatch(file -> file.format() == FileFormat.fromString(format));
-    assertThat(result.deleteFiles()).hasSize(0);
+    assertThat(result.deleteFiles()).hasSize(2);
   }
 
   @ParameterizedTest
@@ -99,9 +100,9 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
             config,
             PartitionedDeltaWriter.class);
 
-    // 2 partitions with data files and delete files
+    // 2 partitions: each has equality delete (from INSERT) + position delete (from UPDATE/DELETE)
     assertThat(result.dataFiles()).hasSize(2);
-    assertThat(result.deleteFiles()).hasSize(2);
+    assertThat(result.deleteFiles()).hasSize(4);
   }
 
   @ParameterizedTest
@@ -130,9 +131,9 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
             config,
             PartitionedDeltaWriter.class);
 
-    // Single partition with all operations
+    // Single partition: equality delete (from INSERTs) + position delete (from UPDATEs)
     assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.deleteFiles()).hasSize(1);
+    assertThat(result.deleteFiles()).hasSize(2);
   }
 
   @ParameterizedTest
@@ -161,7 +162,8 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
             PartitionedDeltaWriter.class);
 
     assertThat(result.dataFiles()).hasSize(3);
-    assertThat(result.deleteFiles()).hasSize(0);
+    // INSERT in upsert mode produces equality deletes (one per partition)
+    assertThat(result.deleteFiles()).hasSize(3);
 
     Arrays.asList(result.dataFiles())
         .forEach(
@@ -196,9 +198,9 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
             config,
             PartitionedDeltaWriter.class);
 
-    // 2 partitions with data and delete files
+    // 2 partitions: each has equality delete (from INSERT) + position delete (from DELETE)
     assertThat(result.dataFiles()).hasSize(2);
-    assertThat(result.deleteFiles()).hasSize(2);
+    assertThat(result.deleteFiles()).hasSize(4);
   }
 
   @ParameterizedTest
@@ -228,9 +230,9 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
             config,
             PartitionedDeltaWriter.class);
 
-    // Single partition with all operations
+    // Single partition: equality delete (from INSERTs) + position delete (from UPDATE/DELETE)
     assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.deleteFiles()).hasSize(1);
+    assertThat(result.deleteFiles()).hasSize(2);
   }
 
   @ParameterizedTest
@@ -318,5 +320,31 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
     // Multiple partitions with mixed operations
     assertThat(result.dataFiles()).isNotEmpty();
     assertThat(result.deleteFiles()).isNotEmpty();
+  }
+
+  @ParameterizedTest
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testUpsertInsertProducesDeleteFilePartitioned(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
+    when(config.isUpsertMode()).thenReturn(true);
+    when(config.tablesDefaultIdColumns()).thenReturn("id,id2");
+    when(config.tablesCdcField()).thenReturn("_op");
+
+    when(table.spec()).thenReturn(SPEC);
+
+    // INSERTs in upsert mode across partitions should produce equality delete files
+    Record insert1 = createCDCRecord(1L, "part-a", "C");
+    Record insert2 = createCDCRecord(2L, "part-b", "C");
+
+    WriteResult result =
+        writeTest(ImmutableList.of(insert1, insert2), config, PartitionedDeltaWriter.class);
+
+    assertThat(result.dataFiles()).hasSize(2);
+    assertThat(result.deleteFiles()).isNotEmpty();
+    assertThat(result.deleteFiles()).allMatch(f -> f.content() == FileContent.EQUALITY_DELETES);
   }
 }

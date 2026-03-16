@@ -24,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
@@ -65,7 +66,8 @@ public class TestUnpartitionedDeltaWriter extends DeltaWriterTestBase {
         writeTest(ImmutableList.of(row1, row2, row3), config, UnpartitionedDeltaWriter.class);
 
     assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.deleteFiles()).hasSize(0);
+    // INSERT in upsert mode now produces equality deletes (one per batch, for cross-batch safety)
+    assertThat(result.deleteFiles()).hasSize(1);
 
     Arrays.asList(result.dataFiles())
         .forEach(
@@ -94,9 +96,9 @@ public class TestUnpartitionedDeltaWriter extends DeltaWriterTestBase {
     WriteResult result =
         writeTest(ImmutableList.of(row1Insert, row1Update), config, UnpartitionedDeltaWriter.class);
 
-    // In upsert mode, UPDATE = delete by key + insert
+    // In upsert mode: INSERT produces equality delete, UPDATE produces position delete
     assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.deleteFiles()).hasSize(1);
+    assertThat(result.deleteFiles()).hasSize(2);
   }
 
   @ParameterizedTest
@@ -118,9 +120,9 @@ public class TestUnpartitionedDeltaWriter extends DeltaWriterTestBase {
     WriteResult result =
         writeTest(ImmutableList.of(row1Insert, row1Delete), config, UnpartitionedDeltaWriter.class);
 
-    // In upsert mode, DELETE = delete by key (no insert)
+    // In upsert mode: INSERT produces equality delete, DELETE produces position delete
     assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.deleteFiles()).hasSize(1);
+    assertThat(result.deleteFiles()).hasSize(2);
   }
 
   @ParameterizedTest
@@ -149,7 +151,9 @@ public class TestUnpartitionedDeltaWriter extends DeltaWriterTestBase {
             UnpartitionedDeltaWriter.class);
 
     assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.deleteFiles()).hasSize(1);
+    // Equality delete file (from INSERTs' deleteKey) + position delete file (from within-batch
+    // dedup)
+    assertThat(result.deleteFiles()).hasSize(2);
   }
 
   @ParameterizedTest
@@ -197,7 +201,9 @@ public class TestUnpartitionedDeltaWriter extends DeltaWriterTestBase {
             ImmutableList.of(insert1, insert2, update1), config, UnpartitionedDeltaWriter.class);
 
     assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.deleteFiles()).hasSize(1);
+    // Equality delete (from INSERTs' deleteKey) + position delete (from UPDATE's within-batch
+    // dedup)
+    assertThat(result.deleteFiles()).hasSize(2);
 
     Arrays.asList(result.dataFiles())
         .forEach(
@@ -255,6 +261,61 @@ public class TestUnpartitionedDeltaWriter extends DeltaWriterTestBase {
             UnpartitionedDeltaWriter.class);
 
     assertThat(result.dataFiles()).hasSize(1);
+    // Equality delete (from INSERTs' deleteKey) + position delete (from within-batch dedup)
+    assertThat(result.deleteFiles()).hasSize(2);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testUpsertInsertProducesDeleteFile(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
+    when(config.isUpsertMode()).thenReturn(true);
+    when(config.tablesDefaultIdColumns()).thenReturn("id,id2");
+    when(config.tablesCdcField()).thenReturn("_op");
+
+    // A single INSERT in upsert mode should produce an equality delete file,
+    // because the key might exist from a prior batch/snapshot.
+    Record insert = createCDCRecord(1L, "data1", "C");
+
+    WriteResult result =
+        writeTest(ImmutableList.of(insert), config, UnpartitionedDeltaWriter.class);
+
+    assertThat(result.dataFiles()).hasSize(1);
     assertThat(result.deleteFiles()).hasSize(1);
+    assertThat(result.deleteFiles()).anyMatch(f -> f.content() == FileContent.EQUALITY_DELETES);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testInsertThenUpdateSameKeyProducesEqualityDelete(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
+    when(config.isUpsertMode()).thenReturn(true);
+    when(config.tablesDefaultIdColumns()).thenReturn("id,id2");
+    when(config.tablesCdcField()).thenReturn("_op");
+
+    // Regression test for the "shielding" bug: INSERT(key=1) followed by UPDATE(key=1)
+    // in the same batch. Without the fix, only UPDATE called deleteKey(), but INSERT's
+    // prior write() had already populated insertedRowMap, so UPDATE's deleteKey() took
+    // the position-delete path — no equality delete was emitted for cross-batch safety.
+    // With the fix, INSERT calls deleteKey() BEFORE write(), producing the equality
+    // delete while insertedRowMap is still empty. UPDATE's deleteKey() still takes the
+    // position-delete path (which is correct for within-batch dedup).
+    Record insert = createCDCRecord(1L, "original", "C");
+    Record update = createCDCRecord(1L, "updated", "U");
+
+    WriteResult result =
+        writeTest(ImmutableList.of(insert, update), config, UnpartitionedDeltaWriter.class);
+
+    assertThat(result.dataFiles()).hasSize(1);
+    // Must have an equality delete file (from INSERT's deleteKey) to cover prior batches
+    assertThat(result.deleteFiles()).anyMatch(f -> f.content() == FileContent.EQUALITY_DELETES);
   }
 }
