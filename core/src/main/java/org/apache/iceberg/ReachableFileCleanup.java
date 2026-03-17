@@ -83,7 +83,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
       if (!manifestsToDelete.isEmpty()) {
         if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
           Set<String> dataFilesToDelete =
-              findFilesToDelete(manifestsToDelete, currentManifests, afterExpiration.specsById());
+              findFilesToDelete(manifestsToDelete, currentManifests, beforeExpiration.specsById());
           LOG.debug("Deleting {} data files", dataFilesToDelete.size());
           deleteFiles(dataFilesToDelete, "data");
         }
