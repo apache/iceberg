@@ -30,6 +30,7 @@ import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -64,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
@@ -72,6 +74,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 public class TestRESTScanPlanning extends TestBaseWithRESTServer {
@@ -624,6 +627,42 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       assertThat(fileBTask.deletes().get(0).location())
           .isEqualTo(FILE_B_EQUALITY_DELETES.location());
     }
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void scanPlanningWithMinRowsRequested(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    configurePlanningBehavior(planMode);
+    Table table = restTableFor(restCatalog, "min_rows_requested_table");
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+    setParserContext(table);
+
+    ArgumentCaptor<HTTPRequest> requestCaptor = ArgumentCaptor.forClass(HTTPRequest.class);
+
+    assertThat(table.newScan().minRowsRequested(1L).planFiles()).hasSize(1);
+    Mockito.verify(adapterForRESTServer, Mockito.atLeastOnce())
+        .execute(requestCaptor.capture(), any(), any(), any(), any());
+    assertThat(
+            requestCaptor.getAllValues().stream()
+                .filter(req -> req.body() instanceof PlanTableScanRequest)
+                .map(req -> (PlanTableScanRequest) req.body())
+                .reduce((first, second) -> second)
+                .get()
+                .minRowsRequested())
+        .isEqualTo(1L);
+
+    assertThat(table.newScan().minRowsRequested(100L).planFiles()).hasSize(3);
+    Mockito.verify(adapterForRESTServer, Mockito.atLeastOnce())
+        .execute(requestCaptor.capture(), any(), any(), any(), any());
+    assertThat(
+            requestCaptor.getAllValues().stream()
+                .filter(req -> req.body() instanceof PlanTableScanRequest)
+                .map(req -> (PlanTableScanRequest) req.body())
+                .reduce((first, second) -> second)
+                .get()
+                .minRowsRequested())
+        .isEqualTo(100L);
   }
 
   @ParameterizedTest

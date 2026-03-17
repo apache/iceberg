@@ -156,7 +156,8 @@ class RESTTableScan extends DataTableScan {
             .withSelect(selectedColumns)
             .withFilter(filter())
             .withCaseSensitive(isCaseSensitive())
-            .withStatsFields(statsFields);
+            .withStatsFields(statsFields)
+            .withMinRowsRequested(context().minRowsRequested());
 
     if (startSnapshotId != null && endSnapshotId != null) {
       builder
