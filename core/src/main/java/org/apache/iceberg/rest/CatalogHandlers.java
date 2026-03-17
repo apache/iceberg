@@ -969,6 +969,9 @@ public class CatalogHandlers {
     if (request.statsFields() != null) {
       configuredScan = configuredScan.includeColumnStats(request.statsFields());
     }
+    if (request.minRowsRequested() != null) {
+      configuredScan = configuredScan.minRowsRequested(request.minRowsRequested());
+    }
     configuredScan = configuredScan.caseSensitive(request.caseSensitive());
 
     return configuredScan;
@@ -1004,24 +1007,24 @@ public class CatalogHandlers {
         return Pair.of(Collections.emptyList(), planTaskKey);
       }
 
-      Iterable<List<FileScanTask>> taskGroupings = Iterables.partition(planTasks, tasksPerPlanTask);
+      Iterable<FileScanTask> limitedTasks =
+          null != minRowsRequested
+              ? Iterables.limit(planTasks, (int) Math.min(minRowsRequested, Integer.MAX_VALUE))
+              : planTasks;
+      Iterable<List<FileScanTask>> taskGroupings =
+          Iterables.partition(limitedTasks, tasksPerPlanTask);
       int planTaskSequence = 0;
       String previousPlanTask = null;
       String firstPlanTaskKey = null;
       List<FileScanTask> initialFileScanTasks = null;
       for (List<FileScanTask> taskGrouping : taskGroupings) {
-        List<FileScanTask> tasks = taskGrouping;
-        if (null != minRowsRequested) {
-          tasks = taskGrouping.stream().limit(minRowsRequested).toList();
-        }
-
         String planTaskKey = planTaskPrefix + planTaskSequence++;
-        IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, tasks);
+        IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, taskGrouping);
         if (previousPlanTask != null) {
           IN_MEMORY_PLANNING_STATE.addNextPlanTask(previousPlanTask, planTaskKey);
         } else {
           firstPlanTaskKey = planTaskKey;
-          initialFileScanTasks = tasks;
+          initialFileScanTasks = taskGrouping;
         }
 
         previousPlanTask = planTaskKey;
