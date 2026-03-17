@@ -47,48 +47,83 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestProjection {
   private static final Schema SCHEMA = new Schema(optional(16, "id", Types.LongType.get()));
 
-  @Test
-  public void testIdentityProjection() {
-    List<UnboundPredicate<?>> predicates =
-        Lists.newArrayList(
-            Expressions.notNull("id"),
-            Expressions.isNull("id"),
-            Expressions.lessThan("id", 100),
-            Expressions.lessThanOrEqual("id", 101),
-            Expressions.greaterThan("id", 102),
-            Expressions.greaterThanOrEqual("id", 103),
-            Expressions.equal("id", 104),
-            Expressions.notEqual("id", 105));
+  private static List<UnboundPredicate<?>> predicatesWithReference() {
+    return List.of(
+        Expressions.notNull("id"),
+        Expressions.isNull("id"),
+        Expressions.lessThan("id", 100),
+        Expressions.lessThanOrEqual("id", 101),
+        Expressions.greaterThan("id", 102),
+        Expressions.greaterThanOrEqual("id", 103),
+        Expressions.equal("id", 104),
+        Expressions.notEqual("id", 105));
+  }
 
+  private static List<UnboundPredicate<?>> predicatesWithTransform() {
+    return List.of(
+        Expressions.notNull(Expressions.truncate("id", 1)),
+        Expressions.isNull(Expressions.truncate("id", 1)),
+        Expressions.lessThan(Expressions.truncate("id", 1), 100),
+        Expressions.lessThanOrEqual(Expressions.truncate("id", 1), 101),
+        Expressions.greaterThan(Expressions.truncate("id", 1), 102),
+        Expressions.greaterThanOrEqual(Expressions.truncate("id", 1), 103),
+        Expressions.equal(Expressions.truncate("id", 1), 104),
+        Expressions.notEqual(Expressions.truncate("id", 1), 105));
+  }
+
+  @ParameterizedTest
+  @MethodSource("predicatesWithReference")
+  public void testIdentityProjection(UnboundPredicate<?> predicate) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
-    for (UnboundPredicate<?> predicate : predicates) {
-      // get the projected predicate
-      Expression expr = Projections.inclusive(spec).project(predicate);
-      UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
+    // get the projected predicate
+    Expression expr = Projections.inclusive(spec).project(predicate);
+    UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
 
-      // check inclusive the bound predicate to ensure the types are correct
-      BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), true));
+    // check inclusive the bound predicate to ensure the types are correct
+    BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), true));
 
-      assertThat(projected.ref().name())
-          .as("Field name should match partition struct field")
-          .isEqualTo("id");
-      assertThat(projected.op()).isEqualTo(bound.op());
+    assertThat(projected.ref().name())
+        .as("Field name should match partition struct field")
+        .isEqualTo("id");
+    assertThat(projected.op()).isEqualTo(bound.op());
 
-      if (bound.isLiteralPredicate()) {
-        assertThat(projected.literal().value())
-            .isEqualTo(bound.asLiteralPredicate().literal().value());
-      } else {
-        assertThat(projected.literal()).isNull();
-      }
+    if (bound.isLiteralPredicate()) {
+      assertThat(projected.literal().value())
+          .isEqualTo(bound.asLiteralPredicate().literal().value());
+    } else {
+      assertThat(projected.literal()).isNull();
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("predicatesWithTransform")
+  public void testPredicateWithTransformIdentityProjection(UnboundPredicate<?> predicate) {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+
+    // get the inclusively projected predicate
+    Expression inclusiveProjection = Projections.inclusive(spec).project(predicate);
+
+    // transforms cannot be safely projected so an inclusive projection should be always true
+    assertThat(Expressions.alwaysTrue().isEquivalentTo(inclusiveProjection))
+        .as("Inclusive projections of unsupported transforms should be always true")
+        .isTrue();
+
+    // get the strictly projected predicate
+    Expression strictProjection = Projections.strict(spec).project(predicate);
+
+    // transforms cannot be safely projected so a strict projection should be always false
+    assertThat(Expressions.alwaysFalse().isEquivalentTo(strictProjection))
+        .as("Strict projections of unsupported transforms should be always false")
+        .isTrue();
   }
 
   @Test
@@ -113,40 +148,28 @@ public class TestProjection {
         .isEqualTo(1658837594123456789L);
   }
 
-  @Test
-  public void testCaseInsensitiveIdentityProjection() {
-    List<UnboundPredicate<?>> predicates =
-        Lists.newArrayList(
-            Expressions.notNull("ID"),
-            Expressions.isNull("ID"),
-            Expressions.lessThan("ID", 100),
-            Expressions.lessThanOrEqual("ID", 101),
-            Expressions.greaterThan("ID", 102),
-            Expressions.greaterThanOrEqual("ID", 103),
-            Expressions.equal("ID", 104),
-            Expressions.notEqual("ID", 105));
-
+  @ParameterizedTest
+  @MethodSource("predicatesWithReference")
+  public void testCaseInsensitiveIdentityProjection(UnboundPredicate<?> predicate) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
-    for (UnboundPredicate<?> predicate : predicates) {
-      // get the projected predicate
-      Expression expr = Projections.inclusive(spec, false).project(predicate);
-      UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
+    // get the projected predicate
+    Expression expr = Projections.inclusive(spec, false).project(predicate);
+    UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
 
-      // check inclusive the bound predicate to ensure the types are correct
-      BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
+    // check inclusive the bound predicate to ensure the types are correct
+    BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
 
-      assertThat(projected.ref().name())
-          .as("Field name should match partition struct field")
-          .isEqualTo("id");
-      assertThat(projected.op()).isEqualTo(bound.op());
+    assertThat(projected.ref().name())
+        .as("Field name should match partition struct field")
+        .isEqualTo("id");
+    assertThat(projected.op()).isEqualTo(bound.op());
 
-      if (bound.isLiteralPredicate()) {
-        assertThat(projected.literal().value())
-            .isEqualTo(bound.asLiteralPredicate().literal().value());
-      } else {
-        assertThat(projected.literal()).isNull();
-      }
+    if (bound.isLiteralPredicate()) {
+      assertThat(projected.literal().value())
+          .isEqualTo(bound.asLiteralPredicate().literal().value());
+    } else {
+      assertThat(projected.literal()).isNull();
     }
   }
 
@@ -158,77 +181,54 @@ public class TestProjection {
         .hasMessageContaining("Cannot find field 'ID' in struct");
   }
 
-  @Test
-  public void testStrictIdentityProjection() {
-    List<UnboundPredicate<?>> predicates =
-        Lists.newArrayList(
-            Expressions.notNull("id"),
-            Expressions.isNull("id"),
-            Expressions.lessThan("id", 100),
-            Expressions.lessThanOrEqual("id", 101),
-            Expressions.greaterThan("id", 102),
-            Expressions.greaterThanOrEqual("id", 103),
-            Expressions.equal("id", 104),
-            Expressions.notEqual("id", 105));
-
+  @ParameterizedTest
+  @MethodSource("predicatesWithReference")
+  public void testStrictIdentityProjection(UnboundPredicate<?> predicate) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
-    for (UnboundPredicate<?> predicate : predicates) {
-      // get the projected predicate
-      Expression expr = Projections.strict(spec).project(predicate);
-      UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
+    // get the projected predicate
+    Expression expr = Projections.strict(spec).project(predicate);
+    UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
 
-      // check inclusive the bound predicate to ensure the types are correct
-      BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), true));
+    // check inclusive the bound predicate to ensure the types are correct
+    BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), true));
 
-      assertThat(projected.ref().name())
-          .as("Field name should match partition struct field")
-          .isEqualTo("id");
-      assertThat(projected.op()).isEqualTo(bound.op());
+    assertThat(projected.ref().name())
+        .as("Field name should match partition struct field")
+        .isEqualTo("id");
+    assertThat(projected.op()).isEqualTo(bound.op());
 
-      if (bound.isLiteralPredicate()) {
-        assertThat(projected.literal().value())
-            .isEqualTo(bound.asLiteralPredicate().literal().value());
-      } else {
-        assertThat(projected.literal()).isNull();
-      }
+    if (bound.isLiteralPredicate()) {
+      assertThat(projected.literal().value())
+          .isEqualTo(bound.asLiteralPredicate().literal().value());
+    } else {
+      assertThat(projected.literal()).isNull();
     }
   }
 
-  @Test
-  public void testCaseInsensitiveStrictIdentityProjection() {
-    List<UnboundPredicate<?>> predicates =
-        Lists.newArrayList(
-            Expressions.notNull("ID"),
-            Expressions.isNull("ID"),
-            Expressions.lessThan("ID", 100),
-            Expressions.lessThanOrEqual("ID", 101),
-            Expressions.greaterThan("ID", 102),
-            Expressions.greaterThanOrEqual("ID", 103),
-            Expressions.equal("ID", 104),
-            Expressions.notEqual("ID", 105));
+  @ParameterizedTest
+  @MethodSource("predicatesWithReference")
+  public void testCaseInsensitiveStrictIdentityProjection(UnboundPredicate<?> predicate) {
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
-    for (UnboundPredicate<?> predicate : predicates) {
-      // get the projected predicate
-      Expression expr = Projections.strict(spec, false).project(predicate);
-      UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
+    // get the projected predicate
+    Expression expr = Projections.strict(spec, false).project(predicate);
+    UnboundPredicate<?> projected = assertAndUnwrapUnbound(expr);
 
-      // check inclusive the bound predicate to ensure the types are correct
-      BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
+    // check inclusive the bound predicate to ensure the types are correct
+    BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
 
-      assertThat(projected.ref().name())
-          .as("Field name should match partition struct field")
-          .isEqualTo("id");
-      assertThat(projected.op()).isEqualTo(bound.op());
+    assertThat(projected.ref().name())
+        .as("Field name should match partition struct field")
+        .isEqualTo("id");
+    assertThat(projected.op()).isEqualTo(bound.op());
 
-      if (bound.isLiteralPredicate()) {
-        assertThat(projected.literal().value())
-            .isEqualTo(bound.asLiteralPredicate().literal().value());
-      } else {
-        assertThat(projected.literal()).isNull();
-      }
+    if (bound.isLiteralPredicate()) {
+      assertThat(projected.literal().value())
+          .isEqualTo(bound.asLiteralPredicate().literal().value());
+    } else {
+      assertThat(projected.literal()).isNull();
     }
   }
 
