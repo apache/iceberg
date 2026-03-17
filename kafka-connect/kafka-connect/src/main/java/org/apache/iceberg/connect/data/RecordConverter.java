@@ -73,6 +73,7 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 
@@ -496,6 +497,12 @@ class RecordConverter {
     if (value == null) {
       return;
     }
+    if (value instanceof Collection) {
+      for (Object element : (Collection<?>) value) {
+        collectFieldNames(element, names);
+      }
+      return;
+    }
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
       for (Map.Entry<?, ?> entry : map.entrySet()) {
@@ -507,9 +514,11 @@ class RecordConverter {
       }
       return;
     }
-    if (value instanceof Collection) {
-      for (Object element : (Collection<?>) value) {
-        collectFieldNames(element, names);
+    if (value instanceof Struct) {
+      Struct struct = (Struct) value;
+      for (Field field : struct.schema().fields()) {
+        names.add(field.name());
+        collectFieldNames(struct.get(field), names);
       }
     }
   }
@@ -542,6 +551,14 @@ class RecordConverter {
               object.put((String) key, objectToVariantValue(val, metadata));
             }
           });
+      return object;
+    }
+    if (value instanceof Struct) {
+      Struct struct = (Struct) value;
+      ShreddedObject object = Variants.object(metadata);
+      for (Field field : struct.schema().fields()) {
+        object.put(field.name(), objectToVariantValue(struct.get(field), metadata));
+      }
       return object;
     }
     throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
