@@ -28,23 +28,25 @@ public class TestPropertyUtil {
   @Test
   void propertiesWithPrefixHandlesRegexSpecialChars() {
     // prefix[0]. is a valid regex where [0] matches char '0' and . matches any char,
-    // so replaceFirst would silently fail to strip the literal prefix "prefix[0]."
+    // so replaceFirst (used by the older propertiesWithPrefix) would silently fail to strip the
+    // literal prefix "prefix[0]."
     Map<String, String> properties = Map.of("prefix[0].key", "value");
 
     Map<String, String> result = PropertyUtil.propertiesWithPrefix(properties, "prefix[0].");
 
-    assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of("key", "value"));
+    assertThat(result).containsExactly(Map.entry("key", "value"));
   }
 
   @Test
   void propertiesWithPrefixHandlesUnclosedRegexChars() {
     // prefix[0. contains an unclosed character class which would cause
-    // PatternSyntaxException with replaceFirst but works correctly with substring
+    // PatternSyntaxException with replaceFirst (used by the older propertiesWithPrefix) but works
+    // correctly with substring
     Map<String, String> properties = Map.of("prefix[0.key", "value");
 
     Map<String, String> result = PropertyUtil.propertiesWithPrefix(properties, "prefix[0.");
 
-    assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of("key", "value"));
+    assertThat(result).containsExactly(Map.entry("key", "value"));
   }
 
   @Test
