@@ -370,7 +370,8 @@ See above for creating two tables.
 ### Change data capture
 This example applies inserts, updates, and deletes based on the value of a field in the record.
 For example, if the `cdc-field` is set to `I` or `R` then the record is inserted, if `U` then it is
-upserted, and if `D` then it is deleted. This requires that the table `format-version` to be greater than 2.
+upserted, and if `D` then it is deleted. This requires that the table `format-version` to be greater
+than or equal to 2.  
 The Iceberg identifier field(s) are used to identify a row, if that is not set for the table,
 then the `iceberg.tables.default-id-columns` or `iceberg.table.\<table name\>.id-columns` configuration
 can be set instead. CDC can be combined with multi-table fan-out.
@@ -380,11 +381,10 @@ apply equality deletes by scanning data files that may contain matching rows bas
 
 #### Delete behavior by table format version
 
-| Table Format | Delete Method | Within-Batch Dedup | Cross-Batch Dedup | DV Support |
-| ------------ | ------------- | ------------------ | ----------------- | ---------- |
-| V1           | Not supported | N/A                | N/A               | No         |
-| V2           | Equality deletes | Position deletes | Equality deletes (MOR) | No |
-| V3+          | Delete Vectors | Delete vectors (position-based) | Equality deletes (MOR) | Yes |
+| Table Format | Same-Batch Duplicates | Prior-Batch Updates/Deletes | Delete Vectors |
+| ------------ | --------------------- | --------------------------- | -------------- |
+| V2           | Position deletes      | Equality deletes            | No             |
+| V3+          | Delete vectors        | Equality deletes            | Yes            |
 
 Within a single commit batch, the writer uses position deletes (or delete vectors on V3+) for
 efficient same-key deduplication. Across batches, equality deletes ensure record-level correctness
@@ -405,6 +405,14 @@ The connector provides exactly-once delivery through three layers:
    re-inserted across commit cycles, only the latest version survives after compaction.
 
 #### Production recommendations
+
+**Table format-version >= 2 required**: CDC mode writes equality deletes, which require
+format-version 2 or later. Tables using format-version 1 do not support CDC.
+
+**Use merge-on-read (MOR) mode**: The connector writes equality deletes — it does not perform copy-on-write
+rewrites. Tables configured with `write.delete.mode=copy-on-write` will still receive equality delete files from
+the connector, and compaction will be the only path to resolving them into rewritten data files. Set
+`write.delete.mode=merge-on-read`for CDC workloads.
 
 **Compaction is required**: For production CDC workloads, periodic compaction is essential to maintain
 query performance. Compaction merges equality deletes with their corresponding data files, reducing
@@ -427,12 +435,20 @@ more records per batch, increasing within-batch deduplication via position delet
 the number of equality delete files written across batches.
 
 **Kafka partition routing**: In multi-task deployments, records for the same key must route to the
-same Kafka partition. Use a key-based partitioner in your source connector to ensure that updates
-and deletes for a given key are processed by the same sink task.
+same Kafka partition. Use a key-based partitioner in your source connector to ensure that updates and deletes for
+a given key are processed by the same sink task. Note that increasing `tasks.max` only helps if the source topic
+has enough partitions to distribute across tasks — if all keys for a table land in a single Kafka partition, only
+one task will process that table's records.
+
+**Monitor delete file accumulation**: Track the number and size of equality delete files per
+partition. A growing ratio of delete files to data files indicates compaction is falling behind, which degrades
+read performance. Most Iceberg catalogs expose snapshot-level metadata that can be queried to monitor this.
 
 #### Compaction
 
-Run compaction periodically to merge equality deletes with data files. This can be done using Spark:
+Run compaction when the ratio of delete files to data files exceeds a threshold (e.g., `delete-file-threshold` of
+10), or on a time-based interval aligned with your commit frequency.
+This can be done using Spark:
 
 ```sql
 -- Run compaction on the table
@@ -444,7 +460,7 @@ CALL catalog_name.system.rewrite_data_files(
   options => map('delete-file-threshold', '10')
 )
 
--- Remove orphan delete files after compaction
+-- Consolidate small delete files after compaction
 CALL catalog_name.system.rewrite_deletes('db.events')
 ```
 
@@ -579,10 +595,10 @@ Example json:
 Will become the following if `json.root` is true:
 
 ```
-SinkRecord.schema: 
+SinkRecord.schema:
   "payload" : (Optional) Map<String, String>
   
-Sinkrecord.value (Struct): 
+Sinkrecord.value (Struct):
   "payload"  : Map(
     "key" : "1",
     "array" : "[1,"two",3]"
@@ -594,15 +610,15 @@ Sinkrecord.value (Struct):
 Will become the following if `json.root` is false
 
 ```
-SinkRecord.schema: 
+SinkRecord.schema:
   "key": (Optional) Int32,
   "array": (Optional) Array<String>,
   "nested_object": (Optional) Map<string, String>
   
 SinkRecord.value (Struct):
-  "key" 1, 
-  "array" ["1", "two", "3"] 
-  "nested_object" Map ("some_key" : "["one", "two"]") 
+  "key" 1,
+  "array" ["1", "two", "3"]
+  "nested_object" Map ("some_key" : "["one", "two"]")
 ```
 
 ### KafkaMetadataTransform
