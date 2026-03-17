@@ -34,6 +34,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskParser;
 import org.apache.iceberg.flink.util.SerializerHelper;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -50,14 +51,19 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   private int fileOffset;
   private long recordOffset;
 
+  /** FileIO from the scan */
+  @Nullable private final FileIO fileIO;
+
   // The splits are frequently serialized into checkpoints.
   // Caching the byte representation makes repeated serialization cheap.
   @Nullable private transient byte[] serializedBytesCache;
 
-  private IcebergSourceSplit(CombinedScanTask task, int fileOffset, long recordOffset) {
+  private IcebergSourceSplit(
+      CombinedScanTask task, int fileOffset, long recordOffset, @Nullable FileIO fileIO) {
     this.task = task;
     this.fileOffset = fileOffset;
     this.recordOffset = recordOffset;
+    this.fileIO = fileIO;
   }
 
   public static IcebergSourceSplit fromCombinedScanTask(CombinedScanTask combinedScanTask) {
@@ -66,7 +72,18 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
   public static IcebergSourceSplit fromCombinedScanTask(
       CombinedScanTask combinedScanTask, int fileOffset, long recordOffset) {
-    return new IcebergSourceSplit(combinedScanTask, fileOffset, recordOffset);
+    return new IcebergSourceSplit(combinedScanTask, fileOffset, recordOffset, null);
+  }
+
+  public static IcebergSourceSplit fromCombinedScanTask(
+      CombinedScanTask combinedScanTask, @Nullable FileIO fileIO) {
+    return new IcebergSourceSplit(combinedScanTask, 0, 0L, fileIO);
+  }
+
+  /** Returns the FileIO from the scan */
+  @Nullable
+  public FileIO fileIO() {
+    return fileIO;
   }
 
   public CombinedScanTask task() {
@@ -140,6 +157,10 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     return serialize(3);
   }
 
+  byte[] serializeV4() throws IOException {
+    return serialize(4);
+  }
+
   private byte[] serialize(int version) throws IOException {
     if (serializedBytesCache == null) {
       DataOutputSerializer out = SERIALIZER_CACHE.get();
@@ -159,6 +180,17 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
         writeTaskJson(out, taskJson, version);
       }
 
+      if (version >= 4) {
+        if (fileIO != null) {
+          out.writeBoolean(true);
+          byte[] fileIOBytes = InstantiationUtil.serializeObject(fileIO);
+          out.writeInt(fileIOBytes.length);
+          out.write(fileIOBytes);
+        } else {
+          out.writeBoolean(false);
+        }
+      }
+
       serializedBytesCache = out.getCopyOfBuffer();
       out.clear();
     }
@@ -173,6 +205,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
         out.writeUTF(taskJson);
         break;
       case 3:
+      case 4:
         SerializerHelper.writeLongUTF(out, taskJson);
         break;
       default:
@@ -190,6 +223,11 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     return deserialize(serialized, caseSensitive, 3);
   }
 
+  static IcebergSourceSplit deserializeV4(byte[] serialized, boolean caseSensitive)
+      throws IOException {
+    return deserialize(serialized, caseSensitive, 4);
+  }
+
   private static IcebergSourceSplit deserialize(
       byte[] serialized, boolean caseSensitive, int version) throws IOException {
     DataInputDeserializer in = new DataInputDeserializer(serialized);
@@ -204,8 +242,24 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
       tasks.add(task);
     }
 
-    CombinedScanTask combinedScanTask = new BaseCombinedScanTask(tasks);
-    return IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, fileOffset, recordOffset);
+    FileIO fileIO = null;
+    if (version >= 4) {
+      if (in.readBoolean()) {
+        int length = in.readInt();
+        byte[] fileIOBytes = new byte[length];
+        in.read(fileIOBytes);
+        try {
+          fileIO =
+              InstantiationUtil.deserializeObject(
+                  fileIOBytes, IcebergSourceSplit.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
+          throw new RuntimeException("Failed to deserialize FileIO from split", e);
+        }
+      }
+    }
+
+    return new IcebergSourceSplit(
+        new BaseCombinedScanTask(tasks), fileOffset, recordOffset, fileIO);
   }
 
   private static String readTaskJson(DataInputDeserializer in, int version) throws IOException {
@@ -213,6 +267,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
       case 2:
         return in.readUTF();
       case 3:
+      case 4:
         return SerializerHelper.readLongUTF(in);
       default:
         throw new IllegalArgumentException("Unsupported version: " + version);

@@ -89,10 +89,11 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
 
   @Override
   protected DataIterator<GenericRecord> createDataIterator(IcebergSourceSplit split) {
+    FileIO ioForSplit = split.fileIO() != null ? split.fileIO() : io;
     return new DataIterator<>(
         new AvroGenericRecordFileScanTaskReader(rowDataReader, lazyConverter()),
         split.task(),
-        io,
+        ioForSplit,
         encryption);
   }
 

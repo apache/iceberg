@@ -73,12 +73,13 @@ public class ConverterReaderFunction<T> extends DataIteratorReaderFunction<T> {
 
   @Override
   protected DataIterator<T> createDataIterator(IcebergSourceSplit split) {
+    FileIO ioForSplit = split.fileIO() != null ? split.fileIO() : io;
     RowDataFileScanTaskReader rowDataReader =
         new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters);
     return new LimitableDataIterator<>(
         new ConverterFileScanTaskReader<>(rowDataReader, converter),
         split.task(),
-        io,
+        ioForSplit,
         encryption,
         lazyLimiter());
   }

@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
@@ -34,6 +36,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -45,11 +48,11 @@ public class FlinkSplitPlanner {
 
   static FlinkInputSplit[] planInputSplits(
       Table table, ScanContext context, ExecutorService workerPool) {
-    try (CloseableIterable<CombinedScanTask> tasksIterable =
-        planTasks(table, context, workerPool)) {
-      List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
+    try (PlanResult planResult = planTasks(table, context, workerPool)) {
+      List<CombinedScanTask> tasks = Lists.newArrayList(planResult.tasks());
       FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
       boolean exposeLocality = context.exposeLocality();
+      Supplier<FileIO> fileIO = planResult.fileIO();
 
       Tasks.range(tasks.size())
           .stopOnFailure()
@@ -59,7 +62,7 @@ public class FlinkSplitPlanner {
                 CombinedScanTask task = tasks.get(index);
                 String[] hostnames = null;
                 if (exposeLocality) {
-                  hostnames = Util.blockLocations(table.io(), task);
+                  hostnames = Util.blockLocations(fileIO.get(), task);
                 }
                 splits[index] = new FlinkInputSplit(index, task, hostnames);
               });
@@ -72,17 +75,41 @@ public class FlinkSplitPlanner {
   /** This returns splits for the FLIP-27 source */
   public static List<IcebergSourceSplit> planIcebergSourceSplits(
       Table table, ScanContext context, ExecutorService workerPool) {
-    try (CloseableIterable<CombinedScanTask> tasksIterable =
-        planTasks(table, context, workerPool)) {
+    try (PlanResult planResult = planTasks(table, context, workerPool)) {
       return Lists.newArrayList(
-          CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
+          CloseableIterable.transform(
+              planResult.tasks(),
+              task -> IcebergSourceSplit.fromCombinedScanTask(task, planResult.fileIO().get())));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process task iterable: ", e);
     }
   }
 
-  static CloseableIterable<CombinedScanTask> planTasks(
-      Table table, ScanContext context, ExecutorService workerPool) {
+  /** Result of planning that includes the scan's FileIO for use when reading. */
+  private static class PlanResult implements Closeable {
+    private final CloseableIterable<CombinedScanTask> tasks;
+    private final Supplier<FileIO> fileIO;
+
+    PlanResult(CloseableIterable<CombinedScanTask> tasks, Supplier<FileIO> fileIO) {
+      this.tasks = tasks;
+      this.fileIO = fileIO;
+    }
+
+    CloseableIterable<CombinedScanTask> tasks() {
+      return tasks;
+    }
+
+    Supplier<FileIO> fileIO() {
+      return fileIO;
+    }
+
+    @Override
+    public void close() throws IOException {
+      tasks.close();
+    }
+  }
+
+  static PlanResult planTasks(Table table, ScanContext context, ExecutorService workerPool) {
     ScanMode scanMode = checkScanMode(context);
     if (scanMode == ScanMode.INCREMENTAL_APPEND_SCAN) {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
@@ -116,7 +143,7 @@ public class FlinkSplitPlanner {
         scan = scan.toSnapshot(context.endSnapshotId());
       }
 
-      return scan.planTasks();
+      return new PlanResult(scan.planTasks(), scan.fileIO());
     } else {
       TableScan scan = table.newScan();
       scan = refineScanWithBaseConfigs(scan, context, workerPool);
@@ -133,7 +160,7 @@ public class FlinkSplitPlanner {
         scan = scan.asOfTime(context.asOfTimestamp());
       }
 
-      return scan.planTasks();
+      return new PlanResult(scan.planTasks(), scan.fileIO());
     }
   }
 

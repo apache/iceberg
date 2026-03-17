@@ -91,10 +91,11 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
 
   @Override
   public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
+    FileIO ioForSplit = split.fileIO() != null ? split.fileIO() : io;
     return new LimitableDataIterator<>(
         new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters),
         split.task(),
-        io,
+        ioForSplit,
         encryption,
         lazyLimiter());
   }

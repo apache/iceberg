@@ -55,7 +55,8 @@ public class MetaDataReaderFunction extends DataIteratorReaderFunction<RowData> 
 
   @Override
   public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
-    return new DataIterator<>(new DataTaskReader(readSchema), split.task(), io, encryption);
+    FileIO ioForSplit = split.fileIO() != null ? split.fileIO() : io;
+    return new DataIterator<>(new DataTaskReader(readSchema), split.task(), ioForSplit, encryption);
   }
 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
