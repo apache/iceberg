@@ -35,12 +35,6 @@ interface Tracking {
           "snapshot_id",
           Types.LongType.get(),
           "Snapshot ID where the file was added or deleted");
-  Types.NestedField DV_SNAPSHOT_ID =
-      Types.NestedField.optional(
-          157,
-          "dv_snapshot_id",
-          Types.LongType.get(),
-          "Snapshot ID where the DV was added; null if there is no DV");
   Types.NestedField SEQUENCE_NUMBER =
       Types.NestedField.optional(
           3, "sequence_number", Types.LongType.get(), "Data sequence number of the file");
@@ -50,18 +44,24 @@ interface Tracking {
           "file_sequence_number",
           Types.LongType.get(),
           "File sequence number indicating when the file was added");
+  Types.NestedField DV_SNAPSHOT_ID =
+      Types.NestedField.optional(
+          5,
+          "dv_snapshot_id",
+          Types.LongType.get(),
+          "Snapshot ID where the DV was added; null if there is no DV");
   Types.NestedField FIRST_ROW_ID =
       Types.NestedField.optional(
           142, "first_row_id", Types.LongType.get(), "ID of the first row in the data file");
   Types.NestedField DELETED_POSITIONS =
       Types.NestedField.optional(
-          158,
+          6,
           "deleted_positions",
           Types.BinaryType.get(),
           "Bitmap of positions deleted in this snapshot");
   Types.NestedField REPLACED_POSITIONS =
       Types.NestedField.optional(
-          159,
+          7,
           "replaced_positions",
           Types.BinaryType.get(),
           "Bitmap of positions replaced in this snapshot");
@@ -70,9 +70,9 @@ interface Tracking {
     return Types.StructType.of(
         STATUS,
         SNAPSHOT_ID,
-        DV_SNAPSHOT_ID,
         SEQUENCE_NUMBER,
         FILE_SEQUENCE_NUMBER,
+        DV_SNAPSHOT_ID,
         FIRST_ROW_ID,
         DELETED_POSITIONS,
         REPLACED_POSITIONS);
@@ -81,17 +81,22 @@ interface Tracking {
   /** Returns the status of the entry. */
   EntryStatus status();
 
+  /** Returns whether this entry is live. */
+  default boolean isLive() {
+    return status() == EntryStatus.ADDED || status() == EntryStatus.EXISTING;
+  }
+
   /** Returns the snapshot ID where the file was added or deleted. */
   Long snapshotId();
-
-  /** Returns the snapshot ID where the DV was added; null if there is no DV. */
-  Long dvSnapshotId();
 
   /** Returns the data sequence number of the file. */
   Long dataSequenceNumber();
 
   /** Returns the file sequence number indicating when the file was added. */
   Long fileSequenceNumber();
+
+  /** Returns the snapshot ID where the DV was added; null if there is no DV. */
+  Long dvSnapshotId();
 
   /** Returns the ID of the first row in the data file. */
   Long firstRowId();
@@ -101,10 +106,4 @@ interface Tracking {
 
   /** Returns the bitmap of positions replaced in this snapshot. */
   ByteBuffer replacedPositions();
-
-  /** Returns the path of the manifest which this entry was read from. */
-  String manifestLocation();
-
-  /** Returns the ordinal position of this entry within the manifest. */
-  long manifestPos();
 }

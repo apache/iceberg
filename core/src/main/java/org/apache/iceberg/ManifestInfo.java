@@ -34,7 +34,7 @@ interface ManifestInfo {
           506, "deleted_files_count", Types.IntegerType.get(), "Number of deleted files");
   Types.NestedField REPLACED_FILES_COUNT =
       Types.NestedField.required(
-          160, "replaced_files_count", Types.IntegerType.get(), "Number of replaced files");
+          520, "replaced_files_count", Types.IntegerType.get(), "Number of replaced files");
   Types.NestedField ADDED_ROWS_COUNT =
       Types.NestedField.required(
           512, "added_rows_count", Types.LongType.get(), "Number of rows in added files");
@@ -46,7 +46,7 @@ interface ManifestInfo {
           514, "deleted_rows_count", Types.LongType.get(), "Number of rows in deleted files");
   Types.NestedField REPLACED_ROWS_COUNT =
       Types.NestedField.required(
-          161, "replaced_rows_count", Types.LongType.get(), "Number of rows in replaced files");
+          521, "replaced_rows_count", Types.LongType.get(), "Number of rows in replaced files");
   Types.NestedField MIN_SEQUENCE_NUMBER =
       Types.NestedField.required(
           516,
@@ -55,10 +55,10 @@ interface ManifestInfo {
           "Minimum sequence number of files in this manifest");
   Types.NestedField DV =
       Types.NestedField.optional(
-          162, "dv", Types.BinaryType.get(), "Deletion vector for manifest entries");
+          522, "dv", Types.BinaryType.get(), "Deletion vector for manifest entries");
   Types.NestedField DV_CARDINALITY =
       Types.NestedField.optional(
-          163,
+          523,
           "dv_cardinality",
           Types.LongType.get(),
           "Number of entries marked as deleted in the DV");
