@@ -318,27 +318,7 @@ public class SnapshotUtil {
   @Deprecated
   public static CloseableIterable<DataFile> newFilesBetween(
       Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
-    List<Snapshot> snapshots = snapshotsBetween(startSnapshotId, endSnapshotId, lookup);
-    return new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
-        ThreadPools.getWorkerPool());
-  }
 
-  /**
-   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
-   *     #ancestorsBetween(long, Long, Function)} instead.
-   */
-  @Deprecated
-  public static CloseableIterable<DataFile> newFilesBetween(
-      Long startSnapshotId, long endSnapshotId, TableMetadata metadata, FileIO io) {
-    List<Snapshot> snapshots = snapshotsBetween(startSnapshotId, endSnapshotId, metadata::snapshot);
-    return new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
-        ThreadPools.getWorkerPool());
-  }
-
-  private static List<Snapshot> snapshotsBetween(
-      Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup) {
     List<Snapshot> snapshots = Lists.newArrayList();
     Snapshot lastSnapshot = null;
     for (Snapshot currentSnapshot : ancestorsOf(endSnapshotId, lookup)) {
@@ -359,7 +339,9 @@ public class SnapshotUtil {
           lastSnapshot.snapshotId());
     }
 
-    return snapshots;
+    return new ParallelIterable<>(
+        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
+        ThreadPools.getWorkerPool());
   }
 
   /**
