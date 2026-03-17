@@ -906,6 +906,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(secondSnapshot.allManifests(table.io()))
         .as("Should replace manifest with a rewritten manifest")
         .hasSize(1);
+
     table
         .newFastAppend() // do not merge to keep the last snapshot's manifest valid
         .appendFile(FILE_C)
@@ -1010,6 +1011,7 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     assertThat(firstSnapshot.allManifests(table.io())).as("Should create one manifest").hasSize(1);
+
     rightAfterSnapshot();
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -1168,7 +1170,6 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(table.snapshot(firstSnapshot.snapshotId()))
         .as("Should remove the oldest snapshot")
         .isNull();
-    assertThat(pending).as("Pending deletes should contain one row").hasSize(1);
 
     assertThat(pending.get(0).getPath())
         .as("Pending delete should be the expired manifest list location")

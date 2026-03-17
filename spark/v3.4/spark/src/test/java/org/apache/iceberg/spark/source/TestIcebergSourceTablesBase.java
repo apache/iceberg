@@ -30,13 +30,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -105,9 +103,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public abstract class TestIcebergSourceTablesBase extends TestBase {
-
-  private static final SimpleDateFormat TIMESTAMP_FORMAT =
-      new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
   private static final Schema SCHEMA =
       new Schema(
@@ -417,7 +412,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     assertThat(expected).as("Entries table should have 3 rows").hasSize(3);
     assertThat(actual).as("Actual results should have 3 rows").hasSize(3);
-
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
           TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(i), actual.get(i));
@@ -1444,7 +1438,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.VERSION_AS_OF, String.valueOf(firstCommitId))
+            .option(SparkReadOptions.SNAPSHOT_ID, String.valueOf(firstCommitId))
             .load(loadLocation(tableIdentifier, "partitions"))
             .orderBy("partition.id")
             .collectAsList();
@@ -1461,7 +1455,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2")
             .collectAsList();
-
     assertThat(filtered).as("Actual results should have one row").hasSize(1);
     TestHelpers.assertEqualsSafe(
         partitionsTable.schema().asStruct(), expected.get(0), filtered.get(0));
@@ -1473,7 +1466,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .load(loadLocation(tableIdentifier, "partitions"))
             .filter("partition.id < 2 or record_count=1")
             .collectAsList();
-
     assertThat(nonFiltered).as("Actual results should have two rows").hasSize(2);
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
@@ -1821,7 +1813,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.VERSION_AS_OF, snapshotBeforeAddColumn.snapshotId())
+            .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1860,9 +1852,6 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.updateSchema().deleteColumn("data").commit();
     long tsAfterDropColumn = waitUntilAfter(System.currentTimeMillis());
 
-    String formattedTsBeforeDropColumn = TIMESTAMP_FORMAT.format(new Date(tsBeforeDropColumn));
-    String formattedTsAfterDropColumn = TIMESTAMP_FORMAT.format(new Date(tsAfterDropColumn));
-
     List<Row> newRecords = Lists.newArrayList(RowFactory.create(4, "B"), RowFactory.create(5, "C"));
 
     StructType newSparkSchema = SparkSchemaUtil.convert(SCHEMA3);
@@ -1893,7 +1882,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTsBeforeDropColumn)
+            .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1906,7 +1895,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTsAfterDropColumn)
+            .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1989,7 +1978,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.VERSION_AS_OF, snapshotBeforeAddColumn.snapshotId())
+            .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
@@ -2353,7 +2342,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     withSQLConf(
         // set read option through session configuration
-        ImmutableMap.of("spark.datasource.iceberg.versionAsOf", String.valueOf(s1)),
+        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(s1)),
         () -> {
           Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
           List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();

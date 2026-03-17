@@ -2106,7 +2106,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
 
     // The constructor should have set the configuration to false
-    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
     assertThat(readConf.cacheDeleteFilesOnExecutors())
         .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
         .isFalse();

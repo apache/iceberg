@@ -244,6 +244,10 @@ public class TestMergeOnReadDelete extends TestDelete {
     createTableWithDeleteGranularity(
         "id INT, dep STRING", "PARTITIONED BY (dep)", deleteGranularity);
 
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
+        tableName, TableProperties.DELETE_GRANULARITY, deleteGranularity);
+
     append(tableName, new Employee(1, "hr"), new Employee(2, "hr"));
     append(tableName, new Employee(3, "hr"), new Employee(4, "hr"));
     append(tableName, new Employee(1, "hardware"), new Employee(2, "hardware"));
@@ -297,7 +301,7 @@ public class TestMergeOnReadDelete extends TestDelete {
     Table spyTable = spy(table);
     when(spyTable.newRowDelta()).thenReturn(spyNewRowDelta);
     SparkTable sparkTable =
-        branch == null ? new SparkTable(spyTable) : SparkTable.create(spyTable, branch);
+        branch == null ? new SparkTable(spyTable, false) : new SparkTable(spyTable, branch, false);
 
     ImmutableMap<String, String> config =
         ImmutableMap.of(
@@ -315,11 +319,6 @@ public class TestMergeOnReadDelete extends TestDelete {
     assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith("Datacenter on Fire");
-
-    // Manually refresh Spark table because it always pins snapshot
-    sparkTable = branch == null ? new SparkTable(spyTable) : SparkTable.create(spyTable, branch);
-    TestSparkCatalog.unsetTable(ident);
-    TestSparkCatalog.setTable(ident, sparkTable);
 
     // Since write and commit succeeded, the rows should be readable
     assertEquals(

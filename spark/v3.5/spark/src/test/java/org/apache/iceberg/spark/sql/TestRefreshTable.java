@@ -24,7 +24,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -57,12 +56,7 @@ public class TestRefreshTable extends CatalogTestBase {
             SparkCatalogConfig.REST.catalogName())
         .contains(catalogName)) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", true);
-
-      Preconditions.checkArgument(
-          spark instanceof org.apache.spark.sql.classic.SparkSession,
-          "Expected instance of org.apache.spark.sql.classic.SparkSession, but got: %s",
-          spark.getClass().getName());
-      spark = ((org.apache.spark.sql.classic.SparkSession) spark).cloneSession();
+      spark = spark.cloneSession();
     }
 
     List<Object[]> originalExpected = ImmutableList.of(row(1, 1));
