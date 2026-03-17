@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Collections;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.iceberg.Table;
@@ -86,7 +85,7 @@ public class TestDeleteOrphanFilesConfig extends OperatorTestBase {
     assertThat(config.usePrefixListing()).isTrue();
     assertThat(config.planningWorkerPoolSize()).isEqualTo(ThreadPools.WORKER_THREAD_POOL_SIZE);
     assertThat(config.equalSchemes()).containsEntry("s3n", "s3").containsEntry("s3a", "s3");
-    assertThat(config.equalAuthorities()).isEqualTo(Collections.emptyMap());
+    assertThat(config.equalAuthorities()).isEqualTo(Map.of());
     assertThat(config.prefixMismatchMode()).isEqualTo(PrefixMismatchMode.ERROR);
   }
 }

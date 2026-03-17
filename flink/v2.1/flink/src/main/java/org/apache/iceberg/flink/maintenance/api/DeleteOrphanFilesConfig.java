@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.ConfigOption;
@@ -190,7 +189,7 @@ public class DeleteOrphanFilesConfig {
             .flinkConfig(EQUAL_AUTHORITIES_OPTION)
             .parseOptional();
 
-    return equalAuthorities != null ? parseKeyValuePairs(equalAuthorities) : Collections.emptyMap();
+    return equalAuthorities != null ? parseKeyValuePairs(equalAuthorities) : Map.of();
   }
 
   public PrefixMismatchMode prefixMismatchMode() {
