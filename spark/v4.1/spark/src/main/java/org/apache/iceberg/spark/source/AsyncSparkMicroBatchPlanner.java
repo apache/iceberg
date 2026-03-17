@@ -23,7 +23,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -52,7 +52,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   private final Cache<Pair<StreamingOffset, StreamingOffset>, List<FileScanTask>> planFilesCache;
 
   // Queue to buffer pre-fetched file scan tasks
-  private final LinkedBlockingQueue<Pair<StreamingOffset, FileScanTask>> queue;
+  private final LinkedBlockingDeque<Pair<StreamingOffset, FileScanTask>> queue;
 
   // Background executor for async operations
   private final ScheduledExecutorService executor;
@@ -64,7 +64,6 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   // Tracking queue state
   private final AtomicLong queuedFileCount = new AtomicLong(0);
   private final AtomicLong queuedRowCount = new AtomicLong(0);
-  private volatile Pair<StreamingOffset, FileScanTask> tail;
   private Snapshot lastQueuedSnapshot;
   private boolean stopped;
 
@@ -90,13 +89,13 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     this.minQueuedRows = readConf().maxRecordsPerMicroBatch();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
     this.planFilesCache = Caffeine.newBuilder().maximumSize(PLAN_FILES_CACHE_MAX_SIZE).build();
-    this.queue = new LinkedBlockingQueue<>();
+    this.queue = new LinkedBlockingDeque<>();
 
     table().refresh();
 
     // Synchronously add data to the queue to meet our initial constraints.
-    // For Trigger.AvailableNow, constructor-time preload is normally initialized from latestOffset(...)
-    // with no explicit end offset, so bounded preload must stop at the cap.
+    // For Trigger.AvailableNow, constructor-time preload is normally initialized from
+    // latestOffset(...) with no explicit end offset, so bounded preload must stop at the cap.
     fillQueue(initialOffset, maybeEndOffset);
 
     this.executor =
@@ -175,17 +174,11 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           long rowsInPlan = 0;
 
           do {
-            // Synchronize here since we are polling, checking for empty and updating tail
-            synchronized (queue) {
-              try {
-                elem = queue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-              } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Interrupted while polling queue", e);
-              }
-              if (queue.isEmpty()) {
-                tail = null;
-              }
+            try {
+              elem = queue.pollFirst(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+              throw new RuntimeException("Interrupted while polling queue", e);
             }
 
             if (elem != null) {
@@ -200,7 +193,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
               result.add(currentTask);
 
               // try to peek at the next entry of the queue and see if we should stop
-              Pair<StreamingOffset, FileScanTask> nextElem = queue.peek();
+              Pair<StreamingOffset, FileScanTask> nextElem = queue.peekFirst();
               boolean endOffsetPeek = false;
               if (nextElem != null) {
                 endOffsetPeek = endOffset.equals(nextElem.first());
@@ -213,7 +206,9 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
             } else {
               LOG.trace("planFiles hasn't reached {}, waiting", endOffset);
             }
-          } while (!shouldTerminate && refreshFailedThrowable == null && fillQueueFailedThrowable == null);
+          } while (!shouldTerminate
+              && refreshFailedThrowable == null
+              && fillQueueFailedThrowable == null);
 
           if (refreshFailedThrowable != null) {
             throw new RuntimeException("Table refresh failed", refreshFailedThrowable);
@@ -360,6 +355,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     }
 
     // if we got here there aren't enough files to exceed our limits
+    Pair<StreamingOffset, FileScanTask> tail = queue.peekLast();
     if (tail != null) {
       StreamingOffset tailOffset = tail.first();
       // we have to increment the position by 1 since we want to include the tail in the read and
@@ -412,11 +408,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           Pair.of(new StreamingOffset(microBatch.snapshotId(), position, shouldScanAllFile), task);
       queuedFileCount.incrementAndGet();
       queuedRowCount.addAndGet(task.file().recordCount());
-      // I have to synchronize here so queue and tail can never be out of sync
-      synchronized (queue) {
-        queue.add(elem);
-        tail = elem;
-      }
+      queue.addLast(elem);
       position += 1;
     }
     if (LOG.isDebugEnabled()) {
@@ -485,7 +477,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     // Continue loading more snapshots within safety limits
     if (current != null) {
       while ((queuedRowCount.get() < targetRows || queuedFileCount.get() < targetFiles)
-              && current.snapshotId() != preloadEndSnapshot.snapshotId()) {
+          && current.snapshotId() != preloadEndSnapshot.snapshotId()) {
         current = nextValidSnapshot(current);
         if (current != null) {
           addMicroBatchToQueue(

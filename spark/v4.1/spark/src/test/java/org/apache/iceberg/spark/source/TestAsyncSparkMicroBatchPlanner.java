@@ -34,15 +34,13 @@ class TestAsyncSparkMicroBatchPlanner {
     Snapshot laterSnapshotWithLowerId = mockSnapshot(5L);
     StreamingOffset capOffset = new StreamingOffset(10L, 3L, false);
 
-    assertThat(AsyncSparkMicroBatchPlanner.reachedAvailableNowCap(capSnapshot, capOffset))
-        .isTrue();
+    assertThat(AsyncSparkMicroBatchPlanner.reachedAvailableNowCap(capSnapshot, capOffset)).isTrue();
     assertThat(
             AsyncSparkMicroBatchPlanner.reachedAvailableNowCap(
                 laterSnapshotWithHigherId, capOffset))
         .isFalse();
     assertThat(
-            AsyncSparkMicroBatchPlanner.reachedAvailableNowCap(
-                laterSnapshotWithLowerId, capOffset))
+            AsyncSparkMicroBatchPlanner.reachedAvailableNowCap(laterSnapshotWithLowerId, capOffset))
         .isFalse();
   }
 
