@@ -109,19 +109,16 @@ public class ExpireSnapshots {
     }
 
     public Builder config(ExpireSnapshotsConfig expireSnapshotsConfig) {
-      this.scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount())
-          .scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()));
-
-      this.deleteBatchSize(expireSnapshotsConfig.deleteBatchSize());
-      this.maxSnapshotAge(
-          Optional.ofNullable(expireSnapshotsConfig.maxSnapshotAgeSeconds())
-              .map(Duration::ofSeconds)
-              .orElse(null));
-      this.retainLast(expireSnapshotsConfig.retainLast());
-      this.cleanExpiredMetadata(expireSnapshotsConfig.cleanExpiredMetadata());
-      this.planningWorkerPoolSize(expireSnapshotsConfig.planningWorkerPoolSize());
-
-      return this;
+      return this.scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount())
+          .scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()))
+          .deleteBatchSize(expireSnapshotsConfig.deleteBatchSize())
+          .maxSnapshotAge(
+              Optional.ofNullable(expireSnapshotsConfig.maxSnapshotAgeSeconds())
+                  .map(Duration::ofSeconds)
+                  .orElse(null))
+          .retainLast(expireSnapshotsConfig.retainLast())
+          .cleanExpiredMetadata(expireSnapshotsConfig.cleanExpiredMetadata())
+          .planningWorkerPoolSize(expireSnapshotsConfig.planningWorkerPoolSize());
     }
 
     @Override

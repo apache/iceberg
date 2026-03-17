@@ -191,20 +191,16 @@ public class DeleteOrphanFiles {
     }
 
     public Builder config(DeleteOrphanFilesConfig deleteOrphanFilesConfig) {
-      this.scheduleOnInterval(
-          Duration.ofSeconds(deleteOrphanFilesConfig.scheduleOnIntervalSecond()));
-
-      this.minAge(Duration.ofSeconds(deleteOrphanFilesConfig.minAgeSeconds()))
+      return this.scheduleOnInterval(
+              Duration.ofSeconds(deleteOrphanFilesConfig.scheduleOnIntervalSecond()))
+          .minAge(Duration.ofSeconds(deleteOrphanFilesConfig.minAgeSeconds()))
           .deleteBatchSize(deleteOrphanFilesConfig.deleteBatchSize())
           .usePrefixListing(deleteOrphanFilesConfig.usePrefixListing())
-          .prefixMismatchMode(deleteOrphanFilesConfig.prefixMismatchMode());
-
-      this.location(deleteOrphanFilesConfig.location());
-      this.planningWorkerPoolSize(deleteOrphanFilesConfig.planningWorkerPoolSize());
-      this.equalSchemes(deleteOrphanFilesConfig.equalSchemes());
-      this.equalAuthorities(deleteOrphanFilesConfig.equalAuthorities());
-
-      return this;
+          .prefixMismatchMode(deleteOrphanFilesConfig.prefixMismatchMode())
+          .location(deleteOrphanFilesConfig.location())
+          .planningWorkerPoolSize(deleteOrphanFilesConfig.planningWorkerPoolSize())
+          .equalSchemes(deleteOrphanFilesConfig.equalSchemes())
+          .equalAuthorities(deleteOrphanFilesConfig.equalAuthorities());
     }
 
     @Override
