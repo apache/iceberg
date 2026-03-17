@@ -299,8 +299,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
         tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertThatThrownBy(
-            () -> sql("CALL %s.system.migrate('%s')", catalogName, tableName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate('%s')", catalogName, tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot create an Iceberg table from a bucketed source table: "
