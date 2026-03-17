@@ -47,6 +47,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -64,6 +65,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -1778,6 +1781,115 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
   }
 
   @Test
+  public void testPartitionsTableDeleteStatsWithDVs() throws IOException {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_dv_test");
+    Table table =
+        createTable(
+            tableIdentifier, SCHEMA, SPEC, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+    Table partitionsTable = loadTable(tableIdentifier, "partitions");
+
+    Dataset<Row> df1 =
+        spark.createDataFrame(
+            Lists.newArrayList(
+                new SimpleRecord(1, "a"), new SimpleRecord(1, "b"), new SimpleRecord(1, "c")),
+            SimpleRecord.class);
+    Dataset<Row> df2 =
+        spark.createDataFrame(
+            Lists.newArrayList(
+                new SimpleRecord(2, "d"), new SimpleRecord(2, "e"), new SimpleRecord(2, "f")),
+            SimpleRecord.class);
+
+    df1.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    long firstCommitId = table.currentSnapshot().snapshotId();
+
+    // add a second file
+    df2.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    long secondCommitId = table.currentSnapshot().snapshotId();
+
+    // write DVs against the data file in partition id=2
+    DataFile dataFile =
+        Iterables.getFirst(table.snapshot(secondCommitId).addedDataFiles(table.io()), null);
+    List<DeleteFile> dvs = writeDV(table, dataFile.partition(), dataFile.location(), 2);
+    table.newRowDelta().addDeletes(dvs.get(0)).commit();
+    table.refresh();
+    long dvCommitId = table.currentSnapshot().snapshotId();
+
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .orderBy("partition.id")
+            .collectAsList();
+    assertThat(actual).as("Actual results should have two rows").hasSize(2);
+
+    GenericRecordBuilder builder =
+        new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
+    GenericRecordBuilder partitionBuilder =
+        new GenericRecordBuilder(
+            AvroSchemaUtil.convert(
+                partitionsTable.schema().findType("partition").asStructType(), "partition"));
+    List<GenericData.Record> expected = Lists.newArrayList();
+    expected.add(
+        builder
+            .set("partition", partitionBuilder.set("id", 1).build())
+            .set("record_count", 3L)
+            .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
+            .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", firstCommitId)
+            .build());
+    expected.add(
+        builder
+            .set("partition", partitionBuilder.set("id", 2).build())
+            .set("record_count", 3L)
+            .set("file_count", 1)
+            .set(
+                "total_data_file_size_in_bytes",
+                totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
+            .set("position_delete_record_count", 2L)
+            .set("position_delete_file_count", 1)
+            .set(
+                "total_position_delete_file_size_in_bytes",
+                totalDeleteFileSizeInBytes(
+                    table.snapshot(dvCommitId).addedDeleteFiles(table.io()),
+                    FileContent.POSITION_DELETES))
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
+            .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(dvCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", dvCommitId)
+            .build());
+
+    for (int i = 0; i < 2; i += 1) {
+      TestHelpers.assertEqualsSafe(
+          partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
+  }
+
+  @Test
   public synchronized void testSnapshotReadAfterAddColumn() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
@@ -2507,5 +2619,19 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
           .as("Data file should have partition of id " + expectedPartitionIds.get(i))
           .isEqualTo(expectedPartitionIds.get(i).intValue());
     }
+  }
+
+  private List<DeleteFile> writeDV(
+      Table table, StructLike partition, String path, int numPositionsToDelete) throws IOException {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (int row = 0; row < numPositionsToDelete; row++) {
+        closeableWriter.delete(path, row, table.spec(), partition);
+      }
+    }
+
+    return writer.result().deleteFiles();
   }
 }

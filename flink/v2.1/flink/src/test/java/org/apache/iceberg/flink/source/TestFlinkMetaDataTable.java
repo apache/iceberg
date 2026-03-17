@@ -37,6 +37,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -51,6 +52,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.avro.Avro;
@@ -59,11 +61,15 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.CatalogTestBase;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -696,6 +702,60 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testPartitionsTableWithDVs() throws IOException {
+    assumeThat(isPartition).isTrue();
+
+    String dvTableName = "test_dv_table";
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR,d DOUBLE) PARTITIONED BY (data) WITH ('format-version'='3', 'write.format.default'='%s')",
+        dvTableName, format.name());
+    try {
+      sql("INSERT INTO %s VALUES (1,'a',10),(2,'a',20)", dvTableName);
+      sql("INSERT INTO %s VALUES (1,'b',10),(2,'b',20)", dvTableName);
+
+      Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, dvTableName));
+
+      // Write DV against the data file in partition 'b'
+      DataFile dataFile =
+          Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
+      List<DeleteFile> dvs = writeDV(table, dataFile.partition(), dataFile.location(), 1);
+      table.newRowDelta().addDeletes(dvs.get(0)).commit();
+      table.refresh();
+
+      List<Row> partitions =
+          sql("SELECT * FROM %s$partitions ORDER BY `partition`.`data`", dvTableName);
+      assertThat(partitions).hasSize(2);
+
+      // partition 'a' should have no deletes
+      Row partitionA = partitions.get(0);
+      assertThat(partitionA.getField("partition")).isEqualTo(Row.of("a"));
+      assertThat(partitionA.getField("record_count")).isEqualTo(2L);
+      assertThat(partitionA.getField("file_count")).isEqualTo(1);
+      assertThat(partitionA.getField("position_delete_record_count")).isEqualTo(0L);
+      assertThat(partitionA.getField("position_delete_file_count")).isEqualTo(0);
+      assertThat(partitionA.getField("total_position_delete_file_size_in_bytes")).isEqualTo(0L);
+      assertThat(partitionA.getField("equality_delete_record_count")).isEqualTo(0L);
+      assertThat(partitionA.getField("equality_delete_file_count")).isEqualTo(0);
+      assertThat(partitionA.getField("total_equality_delete_file_size_in_bytes")).isEqualTo(0L);
+
+      // partition 'b' should have DV delete stats
+      Row partitionB = partitions.get(1);
+      assertThat(partitionB.getField("partition")).isEqualTo(Row.of("b"));
+      assertThat(partitionB.getField("record_count")).isEqualTo(2L);
+      assertThat(partitionB.getField("file_count")).isEqualTo(1);
+      assertThat(partitionB.getField("position_delete_record_count")).isEqualTo(1L);
+      assertThat(partitionB.getField("position_delete_file_count")).isEqualTo(1);
+      assertThat((Long) partitionB.getField("total_position_delete_file_size_in_bytes"))
+          .isGreaterThan(0L);
+      assertThat(partitionB.getField("equality_delete_record_count")).isEqualTo(0L);
+      assertThat(partitionB.getField("equality_delete_file_count")).isEqualTo(0);
+      assertThat(partitionB.getField("total_equality_delete_file_size_in_bytes")).isEqualTo(0L);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", dvTableName);
+    }
+  }
+
+  @TestTemplate
   public void testPartitionsTableForUnpartitionedTable() {
     assumeThat(isPartition).isFalse();
 
@@ -938,5 +998,19 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
 
   private List<ManifestFile> deleteManifests(Table table) {
     return table.currentSnapshot().deleteManifests(table.io());
+  }
+
+  private List<DeleteFile> writeDV(
+      Table table, StructLike partition, String path, int numPositionsToDelete) throws IOException {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (int row = 0; row < numPositionsToDelete; row++) {
+        closeableWriter.delete(path, row, table.spec(), partition);
+      }
+    }
+
+    return writer.result().deleteFiles();
   }
 }
