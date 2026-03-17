@@ -976,7 +976,6 @@ public class TestRecordConverter {
     assertThat(variant.value().asObject().get("hello").asPrimitive().get()).isEqualTo(1);
   }
 
-
   @Test
   public void testConvertVariantValueFromStructNested() {
     Schema innerSchema =
