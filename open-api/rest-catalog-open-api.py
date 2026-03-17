@@ -1059,6 +1059,44 @@ class RenameTableRequest(BaseModel):
     destination: TableIdentifier
 
 
+class BatchLoadRequestedTable(BaseModel):
+    identifier: TableIdentifier
+    if_non_match: str | None = Field(
+        None,
+        alias='if-non-match',
+        description='ETag value. if it matches the current table ETag, the server can skip table metadata in response',
+    )
+
+
+class BatchLoadTablesForbiddenResponseResult(ErrorModel):
+    """
+    Results used when the batch load request is forbidden due to lack of permissions on one or more tables.
+
+    The response contains a list of table identifiers that were not accessible.
+
+    """
+
+    forbidden_tables: list[TableIdentifier] = Field(..., alias='forbidden-tables')
+
+
+class BatchLoadViewsForbiddenResponseResult(ErrorModel):
+    """
+    Results used when the batch load request is forbidden due to lack of permissions on one or more views.
+
+    The response contains a list of view identifiers that were not accessible.
+
+    """
+
+    forbidden_views: list[TableIdentifier] = Field(..., alias='forbidden-views')
+
+
+class BatchLoadViewsRequest(BaseModel):
+    views: list[TableIdentifier] = Field(
+        ...,
+        description='List of views to load. The `identifier` field for each view must be unique across all items in the array',
+    )
+
+
 class TransformTerm(BaseModel):
     type: Literal['transform']
     transform: Transform
@@ -1150,6 +1188,13 @@ class DeleteFile(RootModel[PositionDeleteFile | EqualityDeleteFile]):
 
 class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
+
+
+class BatchLoadTablesRequest(BaseModel):
+    tables: list[BatchLoadRequestedTable] = Field(
+        ...,
+        description='List of tables to load. The `identifier` field for each table must be unique across all items in the array',
+    )
 
 
 class Term(RootModel[Reference | TransformTerm]):
@@ -1259,6 +1304,62 @@ class SetExpression(BaseModel):
     )
     term: Term
     values: list[PrimitiveTypeValue]
+
+
+class BatchLoadTablesResultItem(BaseModel):
+    """
+    Result item for a single table in a batch load response
+    """
+
+    identifier: TableIdentifier
+    status: Literal[200, 304, 404] = Field(
+        ...,
+        description="Load table status.\n200 indicates the table was loaded successfully and the `result` field is populated. 304 indicates the table hasn't changed since the provided ETag, and the `result` field is omitted. 404 indicates the table identifier does not exist, and the `result` field is omitted.",
+    )
+    etag: str | None = Field(
+        None, description='Identifies a unique version of the table metadata'
+    )
+    result: LoadTableResult | None = None
+
+
+class BatchLoadTablesResult(BaseModel):
+    """
+    Results used when a batch of tables are successfully loaded.
+
+    Each table in the request will have a corresponding item in the results list.
+    Each item has an individual status field indicate the load result: Ok, NotModified, NotFound.
+
+    """
+
+    results: list[BatchLoadTablesResultItem]
+    unprocessed_tables: list[BatchLoadRequestedTable] | None = Field(
+        None, alias='unprocessed-tables'
+    )
+
+
+class BatchLoadViewsResultItem(BaseModel):
+    """
+    Result item for a single view in a batch load response
+    """
+
+    identifier: TableIdentifier
+    status: Literal[200, 404] = Field(
+        ...,
+        description='Load view status.\n200 indicates the view was loaded successfully and the `result` field is populated. 404 indicates the view identifier does not exist, and the `result` field is omitted.',
+    )
+    result: LoadViewResult | None = None
+
+
+class BatchLoadViewsResult(BaseModel):
+    """
+    Results used when a batch of views are successfully loaded.
+
+    Each view in the request will have a corresponding item in the results list.
+    Each item has an individual status code that indicates the load result: 200 (Ok), 404 (NotFound).
+
+    """
+
+    views: list[BatchLoadViewsResultItem]
 
 
 class StructField(BaseModel):
@@ -1804,6 +1905,8 @@ class PlanTableScanResult(
     )
 
 
+BatchLoadTablesResultItem.model_rebuild()
+BatchLoadViewsResultItem.model_rebuild()
 StructField.model_rebuild()
 ListType.model_rebuild()
 MapType.model_rebuild()
