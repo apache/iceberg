@@ -285,12 +285,9 @@ public class IcebergSink
         builder = TableMaintenance.forChangeStream(tableChangeStream, tableLoader);
       }
 
-      builder.uidSuffix(tableMaintenanceUid);
-      for (MaintenanceTaskBuilder<?> task : maintenanceTasks) {
-        builder.add(task);
-      }
-
       builder
+          .uidSuffix(tableMaintenanceUid)
+          .add(maintenanceTasks)
           .rateLimit(Duration.ofSeconds(flinkMaintenanceConfig.rateLimit()))
           .lockCheckDelay(Duration.ofSeconds(flinkMaintenanceConfig.lockCheckDelay()))
           .slotSharingGroup(flinkMaintenanceConfig.slotSharingGroup())
