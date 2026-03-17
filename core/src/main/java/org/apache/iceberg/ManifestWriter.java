@@ -269,18 +269,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
       try {
-        InternalData.WriteBuilder builder =
-            InternalData.write(FileFormat.AVRO, file)
-                .schema(manifestSchema)
-                .named("manifest_entry")
-                .meta("schema", SchemaParser.toJson(spec.schema()))
-                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-                .meta("partition-spec-id", String.valueOf(spec.specId()))
-                .meta("format-version", "4")
-                .meta("content", "data")
-                .overwrite();
-        builder.set(writerProperties());
-        return builder.build();
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "4")
+            .meta("content", "data")
+            .set(writerProperties())
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());
@@ -310,18 +309,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
       try {
-        InternalData.WriteBuilder builder =
-            InternalData.write(FileFormat.AVRO, file)
-                .schema(manifestSchema)
-                .named("manifest_entry")
-                .meta("schema", SchemaParser.toJson(spec.schema()))
-                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-                .meta("partition-spec-id", String.valueOf(spec.specId()))
-                .meta("format-version", "4")
-                .meta("content", "deletes")
-                .overwrite();
-        builder.set(writerProperties());
-        return builder.build();
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "4")
+            .meta("content", "deletes")
+            .set(writerProperties())
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());
@@ -357,18 +355,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
       try {
-        InternalData.WriteBuilder builder =
-            InternalData.write(FileFormat.AVRO, file)
-                .schema(manifestSchema)
-                .named("manifest_entry")
-                .meta("schema", SchemaParser.toJson(spec.schema()))
-                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-                .meta("partition-spec-id", String.valueOf(spec.specId()))
-                .meta("format-version", "3")
-                .meta("content", "data")
-                .overwrite();
-        builder.set(writerProperties());
-        return builder.build();
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "3")
+            .meta("content", "data")
+            .set(writerProperties())
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());
@@ -398,18 +395,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
       try {
-        InternalData.WriteBuilder builder =
-            InternalData.write(FileFormat.AVRO, file)
-                .schema(manifestSchema)
-                .named("manifest_entry")
-                .meta("schema", SchemaParser.toJson(spec.schema()))
-                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-                .meta("partition-spec-id", String.valueOf(spec.specId()))
-                .meta("format-version", "3")
-                .meta("content", "deletes")
-                .overwrite();
-        builder.set(writerProperties());
-        return builder.build();
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "3")
+            .meta("content", "deletes")
+            .set(writerProperties())
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());
@@ -444,18 +440,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        InternalData.WriteBuilder builder =
-            InternalData.write(FileFormat.AVRO, file)
-                .schema(manifestSchema)
-                .named("manifest_entry")
-                .meta("schema", SchemaParser.toJson(spec.schema()))
-                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-                .meta("partition-spec-id", String.valueOf(spec.specId()))
-                .meta("format-version", "2")
-                .meta("content", "data")
-                .overwrite();
-        builder.set(writerProperties());
-        return builder.build();
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "2")
+            .meta("content", "data")
+            .set(writerProperties())
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());
@@ -485,18 +480,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        InternalData.WriteBuilder builder =
-            InternalData.write(FileFormat.AVRO, file)
-                .schema(manifestSchema)
-                .named("manifest_entry")
-                .meta("schema", SchemaParser.toJson(spec.schema()))
-                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-                .meta("partition-spec-id", String.valueOf(spec.specId()))
-                .meta("format-version", "2")
-                .meta("content", "deletes")
-                .overwrite();
-        builder.set(writerProperties());
-        return builder.build();
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "2")
+            .meta("content", "deletes")
+            .set(writerProperties())
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());
@@ -531,17 +525,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
       try {
-        InternalData.WriteBuilder builder =
-            InternalData.write(FileFormat.AVRO, file)
-                .schema(manifestSchema)
-                .named("manifest_entry")
-                .meta("schema", SchemaParser.toJson(spec.schema()))
-                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-                .meta("partition-spec-id", String.valueOf(spec.specId()))
-                .meta("format-version", "1")
-                .overwrite();
-        builder.set(writerProperties());
-        return builder.build();
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "1")
+            .set(writerProperties())
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());

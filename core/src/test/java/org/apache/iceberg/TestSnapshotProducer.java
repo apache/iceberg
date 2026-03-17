@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.SnapshotSummary.PUBLISHED_WAP_ID_PROP;
+import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -28,9 +29,6 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import org.apache.avro.file.DataFileReader;
-import org.apache.avro.file.SeekableFileInput;
-import org.apache.avro.generic.GenericDatumReader;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
@@ -244,12 +242,5 @@ public class TestSnapshotProducer extends TestBase {
 
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
     assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("snappy");
-  }
-
-  private static String readAvroCodec(File file) throws IOException {
-    try (DataFileReader<?> reader =
-        new DataFileReader<>(new SeekableFileInput(file), new GenericDatumReader<>())) {
-      return reader.getMetaString("avro.codec");
-    }
   }
 }

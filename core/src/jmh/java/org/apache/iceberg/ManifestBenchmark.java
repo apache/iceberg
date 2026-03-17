@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -113,15 +115,15 @@ public class ManifestBenchmark {
     this.spec = Boolean.parseBoolean(partitioned) ? SPEC : PartitionSpec.unpartitioned();
     this.specsById = Map.of(spec.specId(), spec);
     this.writerProperties = Map.of(TableProperties.AVRO_COMPRESSION, codec);
-    this.numEntries = entriesForColumnCount(numCols);
+    // ENTRY_BASE / cols: empirically calibrated — 300_000 → ~8 MB, 15_000 → ~400 KB manifests
+    this.numEntries = ENTRY_BASE / numCols;
     this.dataFiles = generateDataFiles();
     setupReadManifest();
   }
 
   @Setup(Level.Invocation)
   public void setupWriteInvocation() throws IOException {
-    this.writeBaseDir =
-        java.nio.file.Files.createTempDirectory("bench-write-").toAbsolutePath().toString();
+    this.writeBaseDir = Files.createTempDirectory("bench-write-").toAbsolutePath().toString();
     this.writeOutputFile =
         org.apache.iceberg.Files.localOutput(
             String.format(Locale.ROOT, "%s/manifest.avro", writeBaseDir));
@@ -191,8 +193,7 @@ public class ManifestBenchmark {
 
   private void setupReadManifest() {
     try {
-      this.readBaseDir =
-          java.nio.file.Files.createTempDirectory("bench-read-").toAbsolutePath().toString();
+      this.readBaseDir = Files.createTempDirectory("bench-read-").toAbsolutePath().toString();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -235,11 +236,8 @@ public class ManifestBenchmark {
 
       files.add(builder.build());
     }
-    return files;
-  }
 
-  static int entriesForColumnCount(int cols) {
-    return ENTRY_BASE / cols;
+    return files;
   }
 
   static Metrics randomMetrics(Random random, int cols) {
@@ -275,7 +273,7 @@ public class ManifestBenchmark {
 
   private static void cleanDir(String dir) {
     if (dir != null) {
-      FileUtils.deleteQuietly(new java.io.File(dir));
+      FileUtils.deleteQuietly(new File(dir));
     }
   }
 }

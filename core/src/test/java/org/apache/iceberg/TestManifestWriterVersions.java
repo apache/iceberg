@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,9 +29,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.file.DataFileReader;
-import org.apache.avro.file.SeekableFileInput;
-import org.apache.avro.generic.GenericDatumReader;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -323,12 +321,9 @@ public class TestManifestWriterVersions {
     File manifestFile = temp.resolve("default-v" + formatVersion + ".avro").toFile();
     OutputFile outputFile = Files.localOutput(manifestFile);
 
-    ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID);
-    try {
+    try (ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID)) {
       writer.add(DATA_FILE);
-    } finally {
-      writer.close();
     }
 
     assertThat(readAvroCodec(manifestFile)).isEqualTo("deflate");
@@ -341,22 +336,12 @@ public class TestManifestWriterVersions {
     File manifestFile = temp.resolve("snappy-v" + formatVersion + ".avro").toFile();
     OutputFile outputFile = Files.localOutput(manifestFile);
 
-    ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID, props);
-    try {
+    try (ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID, props)) {
       writer.add(DATA_FILE);
-    } finally {
-      writer.close();
     }
 
     assertThat(readAvroCodec(manifestFile)).isEqualTo("snappy");
-  }
-
-  private static String readAvroCodec(File file) throws IOException {
-    try (DataFileReader<?> reader =
-        new DataFileReader<>(new SeekableFileInput(file), new GenericDatumReader<>())) {
-      return reader.getMetaString("avro.codec");
-    }
   }
 
   void checkEntry(
