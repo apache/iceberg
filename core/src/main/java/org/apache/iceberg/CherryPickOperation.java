@@ -231,22 +231,10 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
             Iterables.concat(
                 Iterables.transform(
                     snapshots,
-                    snap -> {
-                      Iterable<ManifestFile> ownedManifests =
-                          Iterables.filter(
-                              snap.dataManifests(io),
-                              m -> Objects.equals(m.snapshotId(), snap.snapshotId()));
-                      return Iterables.transform(
-                          ownedManifests,
-                          manifest -> {
-                            CloseableIterable<ManifestEntry<DataFile>> entries =
-                                ManifestFiles.read(manifest, io, meta.specsById()).entries();
-                            CloseableIterable<ManifestEntry<DataFile>> added =
-                                CloseableIterable.filter(
-                                    entries, e -> e.status() == ManifestEntry.Status.ADDED);
-                            return CloseableIterable.transform(added, e -> e.file().copy());
-                          });
-                    }));
+                    snap ->
+                        Iterables.transform(
+                            manifestsCreatedBy(snap, io),
+                            manifest -> addedDataFiles(manifest, io, meta.specsById()))));
 
         try (CloseableIterable<DataFile> newFiles =
             new ParallelIterable<>(addedFileTasks, ThreadPools.getWorkerPool())) {
@@ -261,6 +249,20 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
         }
       }
     }
+  }
+
+  private static Iterable<ManifestFile> manifestsCreatedBy(Snapshot snapshot, FileIO io) {
+    return Iterables.filter(
+        snapshot.dataManifests(io), m -> Objects.equals(m.snapshotId(), snapshot.snapshotId()));
+  }
+
+  private static CloseableIterable<DataFile> addedDataFiles(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    CloseableIterable<ManifestEntry<DataFile>> entries =
+        ManifestFiles.read(manifest, io, specsById).entries();
+    CloseableIterable<ManifestEntry<DataFile>> added =
+        CloseableIterable.filter(entries, e -> e.status() == ManifestEntry.Status.ADDED);
+    return CloseableIterable.transform(added, e -> e.file().copy());
   }
 
   private static Long lookupAncestorBySourceSnapshot(TableMetadata meta, long snapshotId) {

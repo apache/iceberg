@@ -309,12 +309,7 @@ class TestMonitorSource extends OperatorTestBase {
 
     // Create a DataOperations.REPLACE snapshot
     DataFile dataFile =
-        SnapshotChanges.builderFor(table)
-            .snapshot(table.snapshots().iterator().next())
-            .build()
-            .addedDataFiles()
-            .iterator()
-            .next();
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
     RewriteFiles rewrite = tableLoader.loadTable().newRewrite();
     // Replace the file with itself for testing purposes
     rewrite.deleteFile(dataFile);
