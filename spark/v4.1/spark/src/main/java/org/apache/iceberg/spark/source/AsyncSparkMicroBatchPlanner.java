@@ -93,8 +93,13 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     this.queue = new LinkedBlockingQueue<>();
 
     table().refresh();
-    // Synchronously add data to the queue to meet our initial constraints
-    fillQueue(initialOffset, maybeEndOffset);
+    if (lastOffsetForTriggerAvailableNow != null) {
+      // Do not fill queue beyond cap
+      fillQueue(initialOffset, lastOffsetForTriggerAvailableNow);
+    } else {
+      // Synchronously add data to the queue to meet our initial constraints
+      fillQueue(initialOffset, maybeEndOffset);
+    }
 
     this.executor =
         Executors.newSingleThreadScheduledExecutor(
@@ -210,10 +215,14 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
             } else {
               LOG.trace("planFiles hasn't reached {}, waiting", endOffset);
             }
-          } while (!shouldTerminate && refreshFailedThrowable == null);
+          } while (!shouldTerminate && refreshFailedThrowable == null && fillQueueFailedThrowable == null);
 
           if (refreshFailedThrowable != null) {
             throw new RuntimeException("Table refresh failed", refreshFailedThrowable);
+          }
+
+          if (fillQueueFailedThrowable != null) {
+            throw new RuntimeException("Queue filling failed", fillQueueFailedThrowable);
           }
 
           LOG.info(
@@ -495,7 +504,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     // Don't add beyond cap for Trigger.AvailableNow
     if (this.lastOffsetForTriggerAvailableNow != null
         && readFrom != null
-        && readFrom.snapshotId() >= this.lastOffsetForTriggerAvailableNow.snapshotId()) {
+        && readFrom.snapshotId() == this.lastOffsetForTriggerAvailableNow.snapshotId()) {
       LOG.debug(
           "Reached cap snapshot {}, not adding more",
           this.lastOffsetForTriggerAvailableNow.snapshotId());
