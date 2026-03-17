@@ -935,8 +935,9 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             () ->
                 catalog.buildTable(TableIdentifier.of(NS, "no_planning_support"), SCHEMA).create())
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Server requires server-side scan planning")
-        .hasMessageContaining(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN.toString());
+        .hasMessage(
+            "Server requires server-side scan planning for table %s but does not support endpoint %s",
+            TableIdentifier.of(NS, "no_planning_support"), Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
   }
 
   @Test
@@ -1137,8 +1138,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .buildTable(TableIdentifier.of(NS, "mismatch_test"), SCHEMA)
             .create();
 
-    assertThat(table1).isNotInstanceOf(RESTTable.class);
-    assertThat(table1).isInstanceOf(BaseTable.class);
+    assertThat(table1).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
 
     // Client=CLIENT, Server=SERVER
     CatalogWithAdapter catalogWithAdapter2 =
@@ -1169,8 +1169,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .buildTable(TableIdentifier.of(NS, "client_explicit_test"), SCHEMA)
             .create();
 
-    assertThat(table).isNotInstanceOf(RESTTable.class);
-    assertThat(table).isInstanceOf(BaseTable.class);
+    assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
   }
 
   @Test
