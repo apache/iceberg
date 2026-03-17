@@ -93,13 +93,11 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     this.queue = new LinkedBlockingQueue<>();
 
     table().refresh();
-    if (lastOffsetForTriggerAvailableNow != null) {
-      // Do not fill queue beyond cap
-      fillQueue(initialOffset, lastOffsetForTriggerAvailableNow);
-    } else {
-      // Synchronously add data to the queue to meet our initial constraints
-      fillQueue(initialOffset, maybeEndOffset);
-    }
+
+    // Synchronously add data to the queue to meet our initial constraints.
+    // For Trigger.AvailableNow, constructor-time preload is normally initialized from latestOffset(...)
+    // with no explicit end offset, so bounded preload must stop at the cap.
+    fillQueue(initialOffset, maybeEndOffset);
 
     this.executor =
         Executors.newSingleThreadScheduledExecutor(
@@ -470,8 +468,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     long targetRows = readConf().asyncQueuePreloadRowLimit();
     long targetFiles = readConf().asyncQueuePreloadFileLimit();
 
-    Snapshot tableCurrentSnapshot = table().currentSnapshot();
-    if (tableCurrentSnapshot == null) {
+    Snapshot preloadEndSnapshot = initialPreloadEndSnapshot();
+    if (preloadEndSnapshot == null) {
       return; // Empty table
     }
 
@@ -487,7 +485,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     // Continue loading more snapshots within safety limits
     if (current != null) {
       while ((queuedRowCount.get() < targetRows || queuedFileCount.get() < targetFiles)
-          && current.snapshotId() != tableCurrentSnapshot.snapshotId()) {
+              && current.snapshotId() != preloadEndSnapshot.snapshotId()) {
         current = nextValidSnapshot(current);
         if (current != null) {
           addMicroBatchToQueue(
@@ -497,6 +495,14 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         }
       }
     }
+  }
+
+  private Snapshot initialPreloadEndSnapshot() {
+    if (lastOffsetForTriggerAvailableNow != null) {
+      return table().snapshot(lastOffsetForTriggerAvailableNow.snapshotId());
+    }
+
+    return table().currentSnapshot();
   }
 
   /** Try to populate the queue with data from unread snapshots */
