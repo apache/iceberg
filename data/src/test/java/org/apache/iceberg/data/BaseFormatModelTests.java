@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -53,6 +54,7 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,6 +76,11 @@ public abstract class BaseFormatModelTests<T> {
   private static final FileFormat[] FILE_FORMATS =
       new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
 
+  private static final List<Arguments> FORMAT_AND_DEFAULT_GENERATOR =
+      Arrays.stream(FILE_FORMATS)
+          .map(format -> Arguments.of(format, new DataGenerators.DefaultSchema()))
+          .toList();
+
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
           .flatMap(
@@ -81,6 +88,11 @@ public abstract class BaseFormatModelTests<T> {
                   Arrays.stream(DataGenerators.ALL)
                       .map(generator -> Arguments.of(format, generator)))
           .toList();
+
+  private static final ImmutableMap<FileFormat, String[]> MISSING_FEATURES =
+      ImmutableMap.of(
+          FileFormat.AVRO, new String[] {"filter", "caseSensitive", "recordsPerBatch"},
+          FileFormat.ORC, new String[] {"reuseContainers"});
 
   @TempDir protected Path temp;
 
@@ -100,7 +112,7 @@ public abstract class BaseFormatModelTests<T> {
     try {
       fileIO.deleteFile(encryptedFile.encryptingOutputFile());
     } catch (NotFoundException ignored) {
-      // ignore if file not create
+      // ignore if the file is not created
     }
 
     this.encryptedFile = null;
@@ -111,7 +123,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /** Write with engine type T, read with Generic Record */
+  /* Write with engine type T, read with Generic Record */
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
@@ -174,7 +186,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /** Write with Generic Record, read with engine type T */
+  /* Write with Generic Record, read with engine type T */
   void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
@@ -197,7 +209,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /** Write with engine type T, read with Generic Record */
+  /* Write with engine type T, read with Generic Record */
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
@@ -271,7 +283,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /** Write with Generic Record, read with engine type T */
+  /* Write with Generic Record, read with engine type T */
   void testEqualityDeleteWriterGenericWriteEngineRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
@@ -315,7 +327,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  /** Write position deletes, read with Generic Record */
+  /* Write position deletes, read with Generic Record */
   void testPositionDeleteWriterEngineWriteGenericRead(FileFormat fileFormat) throws IOException {
     Schema positionDeleteSchema = DeleteSchemaUtil.pathPosSchema();
 
@@ -365,14 +377,23 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_GENERATOR")
-  /** Write with Generic Record, read with projected engine type T (narrow schema) */
+  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  /* Write with Generic Record, read with projected engine type T (narrow schema) */
   void testReaderBuilderProjection(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema fullSchema = dataGenerator.schema();
 
     List<Types.NestedField> columns = fullSchema.columns();
-    Schema projectedSchema = new Schema(columns.get(columns.size() - 1));
+    List<Types.NestedField> projectedColumns =
+        IntStream.range(0, columns.size())
+            .filter(i -> i % 2 == 1)
+            .mapToObj(columns::get)
+            .collect(Collectors.toList());
+    if (projectedColumns.isEmpty()) {
+      projectedColumns = ImmutableList.of(columns.get(columns.size() - 1));
+    }
+
+    Schema projectedSchema = new Schema(projectedColumns);
 
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, fullSchema, genericRecords);
@@ -395,13 +416,11 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_GENERATOR")
+  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
   void testReaderBuilderFilter(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
 
-    // Avro does not support filter push down
-    // Skip this test for Avro to avoid false failures.
-    assumeThat(fileFormat != FileFormat.AVRO).isTrue();
+    assumeSupports(fileFormat, "filter");
 
     Schema schema = dataGenerator.schema();
 
@@ -428,17 +447,15 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_GENERATOR")
-  /**
+  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  /*
    * Write with Generic Record, then read using an upper-cased column name in the filter to verify
    * caseSensitive behavior.
    */
   void testReaderBuilderCaseSensitive(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
 
-    // Avro does not support filter push down; caseSensitive has no effect on it.
-    // Skip this test for Avro to avoid false failures.
-    assumeThat(fileFormat != FileFormat.AVRO).isTrue();
+    assumeSupports(fileFormat, "caseSensitive");
 
     Schema schema = dataGenerator.schema();
 
@@ -484,8 +501,8 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_GENERATOR")
-  /**
+  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  /*
    * Write with Generic Record, then read using split to verify that the split range is respected.
    * Reading with a zero-length split at the end of the file should return no records, while reading
    * with the full file range should return all records.
@@ -528,16 +545,15 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_GENERATOR")
-  /**
+  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  /*
    * Verifies the contract of recordsPerBatch: recordsPerBatch is a hint for vectorized readers. The
    * total number of records returned must be unaffected regardless of the batch size value.
    */
   void testReaderBuilderRecordsPerBatch(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
 
-    // Avro does not support batch reading.
-    assumeThat(fileFormat != FileFormat.AVRO).isTrue();
+    assumeSupports(fileFormat, "recordsPerBatch");
 
     Schema schema = dataGenerator.schema();
 
@@ -573,16 +589,14 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_GENERATOR")
-  /** Verifies the contract of reuseContainers */
+  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  /* Verifies the contract of reuseContainers */
   void testReaderBuilderReuseContainers(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
 
-    // Orc does not support batch reading.
-    assumeThat(fileFormat != FileFormat.ORC).isTrue();
+    assumeSupports(fileFormat, "reuseContainers");
 
     Schema schema = dataGenerator.schema();
-
     List<Record> genericRecords = dataGenerator.generateRecords();
     // Need at least 2 records to verify container reuse
     assumeThat(genericRecords.size() >= 2).isTrue();
@@ -666,5 +680,12 @@ public abstract class BaseFormatModelTests<T> {
 
   private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
     return records.stream().map(r -> convertToEngine(r, schema)).collect(Collectors.toList());
+  }
+
+  private static void assumeSupports(FileFormat fileFormat, String feature) {
+    String[] missing = MISSING_FEATURES.get(fileFormat);
+    if (missing != null) {
+      assumeThat(Arrays.stream(missing).noneMatch(f -> f.equals(feature))).isTrue();
+    }
   }
 }
