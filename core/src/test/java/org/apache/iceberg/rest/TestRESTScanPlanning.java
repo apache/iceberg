@@ -880,7 +880,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     table.manageSnapshots().createBranch("test-branch", snapshotId).commit();
 
     // Test 1: Scanning current snapshot without time travel should NOT set useSnapshotSchema
-    Mockito.clearInvocations(adapterForRESTServer);
     try (CloseableIterable<FileScanTask> ignored = table.newScan().planFiles()) {
       PlanTableScanRequest request = captureLastPlanRequest();
       assertThat(request.useSnapshotSchema())
@@ -889,7 +888,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     }
 
     // Test 2: useSnapshot() should set useSnapshotSchema=true
-    Mockito.clearInvocations(adapterForRESTServer);
     try (CloseableIterable<FileScanTask> ignored =
         table.newScan().useSnapshot(snapshotId).planFiles()) {
       PlanTableScanRequest request = captureLastPlanRequest();
@@ -899,7 +897,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     }
 
     // Test 3: useRef() with a tag should set useSnapshotSchema=true
-    Mockito.clearInvocations(adapterForRESTServer);
     try (CloseableIterable<FileScanTask> ignored = table.newScan().useRef("test-tag").planFiles()) {
       PlanTableScanRequest request = captureLastPlanRequest();
       assertThat(request.useSnapshotSchema())
@@ -908,7 +905,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     }
 
     // Test 4: useRef() with a branch should NOT set useSnapshotSchema
-    Mockito.clearInvocations(adapterForRESTServer);
     try (CloseableIterable<FileScanTask> ignored =
         table.newScan().useRef("test-branch").planFiles()) {
       PlanTableScanRequest request = captureLastPlanRequest();
@@ -941,7 +937,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     setParserContext(table);
 
     // Select a nested field — the server needs the fully qualified name "address.city"
-    Mockito.clearInvocations(adapterForRESTServer);
     try (CloseableIterable<FileScanTask> ignored =
         table.newScan().select("address.city").planFiles()) {
       PlanTableScanRequest request = captureLastPlanRequest();
