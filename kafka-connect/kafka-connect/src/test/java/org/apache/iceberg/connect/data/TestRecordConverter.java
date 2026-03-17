@@ -976,6 +976,28 @@ public class TestRecordConverter {
     assertThat(variant.value().asObject().get("hello").asPrimitive().get()).isEqualTo(1);
   }
 
+
+  @Test
+  public void testConvertVariantValueFromStructNested() {
+    Schema innerSchema =
+        SchemaBuilder.struct().field("x", Schema.INT32_SCHEMA).field("y", Schema.STRING_SCHEMA);
+    Schema outerSchema =
+        SchemaBuilder.struct().field("inner", innerSchema).field("id", Schema.INT64_SCHEMA);
+    Struct inner = new Struct(innerSchema).put("x", 1).put("y", "world");
+    Struct outer = new Struct(outerSchema).put("inner", inner).put("id", 100L);
+
+    Variant variant = variantConverter().convertVariantValue(outer);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(4);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().get("id").asPrimitive().get()).isEqualTo(100L);
+    VariantValue innerVal = variant.value().asObject().get("inner");
+    assertThat(innerVal.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(innerVal.asObject().get("x").asPrimitive().get()).isEqualTo(1);
+    assertThat(innerVal.asObject().get("y").asPrimitive().get()).isEqualTo("world");
+  }
+
   @Test
   public void testConvertVariantValueFromMapNested() {
     Variant variant =
