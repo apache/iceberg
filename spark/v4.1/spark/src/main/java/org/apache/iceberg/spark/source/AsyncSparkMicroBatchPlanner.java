@@ -505,12 +505,17 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     return table().currentSnapshot();
   }
 
+  static boolean reachedAvailableNowCap(
+      Snapshot readFrom, StreamingOffset lastOffsetForTriggerAvailableNow) {
+    return lastOffsetForTriggerAvailableNow != null
+        && readFrom != null
+        && readFrom.snapshotId() == lastOffsetForTriggerAvailableNow.snapshotId();
+  }
+
   /** Try to populate the queue with data from unread snapshots */
   private void fillQueue(Snapshot readFrom) {
     // Don't add beyond cap for Trigger.AvailableNow
-    if (this.lastOffsetForTriggerAvailableNow != null
-        && readFrom != null
-        && readFrom.snapshotId() == this.lastOffsetForTriggerAvailableNow.snapshotId()) {
+    if (reachedAvailableNowCap(readFrom, lastOffsetForTriggerAvailableNow)) {
       LOG.debug(
           "Reached cap snapshot {}, not adding more",
           this.lastOffsetForTriggerAvailableNow.snapshotId());

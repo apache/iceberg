@@ -59,16 +59,20 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.VoidFunction2;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -463,6 +467,60 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     // Verify only the initial data was processed
     assertThat(actualResults.size()).isEqualTo(expectedRecordCount);
     assertThat(actualResults).containsExactlyInAnyOrderElementsOf(Iterables.concat(expectedData));
+  }
+
+  @TestTemplate
+  public void testTriggerAvailableNowCapsAsyncPreloadAfterPrepare() {
+    List<List<SimpleRecord>> initialData =
+        List.of(
+            List.of(new SimpleRecord(1, "one")),
+            List.of(new SimpleRecord(2, "two")));
+    appendDataAsMultipleSnapshots(initialData);
+
+    table.refresh();
+    long expectedCapSnapshotId = table.currentSnapshot().snapshotId();
+
+    SparkMicroBatchStream stream =
+        new SparkMicroBatchStream(
+            JavaSparkContext.fromSparkContext(spark.sparkContext()),
+            table,
+            new SparkReadConf(
+                spark,
+                table,
+                new CaseInsensitiveStringMap(
+                    ImmutableMap.of(
+                        SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED,
+                        async.toString(),
+                        SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
+                        "1",
+                        SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS,
+                        "1",
+                        SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT,
+                        "10",
+                        SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT,
+                        "10"))),
+            table.schema(),
+            temp.resolve("available-now-cap-checkpoint").toString());
+
+    try {
+      stream.prepareForTriggerAvailableNow();
+
+      appendData(List.of(new SimpleRecord(3, "three")));
+
+      Offset startOffset = stream.initialOffset();
+      Offset firstEndOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+      assertThat(firstEndOffset).isNotNull();
+      stream.planInputPartitions(startOffset, firstEndOffset);
+
+      Offset secondEndOffset = stream.latestOffset(firstEndOffset, stream.getDefaultReadLimit());
+      assertThat(secondEndOffset).isNotNull();
+      stream.planInputPartitions(firstEndOffset, secondEndOffset);
+
+      assertThat(stream.latestOffset(secondEndOffset, stream.getDefaultReadLimit())).isNull();
+      assertThat(((StreamingOffset) secondEndOffset).snapshotId()).isEqualTo(expectedCapSnapshotId);
+    } finally {
+      stream.stop();
+    }
   }
 
   @TestTemplate
