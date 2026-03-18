@@ -86,23 +86,9 @@ class ParquetConversions {
       } else if (icebergType.typeId() == Type.TypeID.DOUBLE
           && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
-      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP
-          && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
-        LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
-        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
-            && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType)
-                .isAdjustedToUTC()) {
-          return fromParquet;
-        }
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP && parquetType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
         return value -> (long) ((Integer) fromParquet.apply(value)) * TimeUnit.DAYS.toMicros(1);
-      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO
-          && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
-        LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
-        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
-            && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType)
-                .isAdjustedToUTC()) {
-          return fromParquet;
-        }
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO && parquetType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
         return value -> (long) ((Integer) fromParquet.apply(value)) * TimeUnit.DAYS.toNanos(1);
       } else if (icebergType.typeId() == Type.TypeID.UUID) {
         return binary -> UUIDUtil.convert(((Binary) binary).toByteBuffer());

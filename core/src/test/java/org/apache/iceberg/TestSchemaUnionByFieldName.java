@@ -419,7 +419,7 @@ public class TestSchemaUnionByFieldName {
     Schema currentSchema = new Schema(required(1, "aCol", DateType.get()));
     Schema newSchema = new Schema(required(1, "aCol", TimestampType.withoutZone()));
 
-    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    Schema applied = new SchemaUpdate(currentSchema, 1, 3).unionByNameWith(newSchema).apply();
     assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
     assertThat(applied.asStruct().fields()).hasSize(1);
     assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(TimestampType.withoutZone());
