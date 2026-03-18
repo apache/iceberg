@@ -369,14 +369,6 @@ public class SparkReadConf {
         .parse();
   }
 
-  public ParquetReaderType parquetReaderType() {
-    return confParser
-        .enumConf(ParquetReaderType::fromString)
-        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
-        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
-        .parse();
-  }
-
   public boolean identifierFieldsRely() {
     return confParser
         .booleanConf()

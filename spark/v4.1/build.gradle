@@ -84,9 +84,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'org.roaringbitmap'
     }
 
-    // TODO: datafusion-comet Spark 4.1 support
-    compileOnly "org.apache.datafusion:comet-spark-spark4.0_2.13:${libs.versions.comet.get()}"
-
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
 
@@ -195,8 +192,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
     testImplementation libs.awaitility
-    // TODO: datafusion-comet Spark 4.1 support
-    testImplementation "org.apache.datafusion:comet-spark-spark4.0_2.13:${libs.versions.comet.get()}"
     testImplementation(testFixtures(project(':iceberg-parquet')))
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
