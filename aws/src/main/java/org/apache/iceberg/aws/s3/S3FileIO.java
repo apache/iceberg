@@ -504,7 +504,8 @@ public class S3FileIO
 
       // if the fileio is closed or no credentials provided, ignore the results and don't reschedule
       if (!refreshedCredentials.isEmpty() && !isResourceClosed.get()) {
-        this.setCredentials(refreshedCredentials);
+        // copy credentials into a modifiable collection for Kryo serde
+        this.storageCredentials = Lists.newArrayList(refreshedCredentials);
         scheduleRefresh();
       }
     } catch (Exception e) {
@@ -663,8 +664,21 @@ public class S3FileIO
   @Override
   public void setCredentials(List<StorageCredential> credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    // stop any refresh that might be scheduled
+    if (refreshFuture != null) {
+      refreshFuture.cancel(true);
+    }
+
     // copy credentials into a modifiable collection for Kryo serde
     this.storageCredentials = Lists.newArrayList(credentials);
+
+    // if the clients are already initialized, we need to close and allow them to be recreated
+    synchronized (this) {
+      if (clientByPrefix != null) {
+        clientByPrefix.values().forEach(PrefixedS3Client::close);
+        this.clientByPrefix = null;
+      }
+    }
   }
 
   @Override
