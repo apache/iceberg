@@ -73,7 +73,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
-import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.spark.data.RandomData;
@@ -672,11 +671,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             TableProperties.SPLIT_LOOKBACK_DEFAULT,
             TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
-    ParquetBatchReadConf conf =
-        ImmutableParquetBatchReadConf.builder()
-            .batchSize(7)
-            .readerType(ParquetReaderType.ICEBERG)
-            .build();
+    ParquetBatchReadConf conf = ImmutableParquetBatchReadConf.builder().batchSize(7).build();
 
     for (CombinedScanTask task : tasks) {
       try (BatchDataReader reader =
