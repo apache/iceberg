@@ -55,7 +55,8 @@ class RewriteUtil {
                     11,
                     10_000_000L,
                     rewriterOptions,
-                    Expressions.alwaysTrue()))) {
+                    Expressions.alwaysTrue(),
+                    null))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

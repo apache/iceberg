@@ -308,7 +308,8 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                         "2",
                         TARGET_FILE_SIZE_BYTES,
                         String.valueOf(targetFileSize)),
-                    Expressions.alwaysTrue()))) {
+                    Expressions.alwaysTrue(),
+                    null))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

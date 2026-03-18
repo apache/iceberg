@@ -225,7 +225,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
             OperatorTestBase.DUMMY_TABLE_NAME,
             OperatorTestBase.DUMMY_TABLE_NAME,
             0,
-            tableLoader()));
+            tableLoader(),
+            null));
   }
 
   private static DataFileRewriteRunner.ExecutedGroup setBatchSizeToTwo(
