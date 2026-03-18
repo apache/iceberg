@@ -18,18 +18,25 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -53,6 +60,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.rest.ErrorHandlers;
+import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -94,7 +110,7 @@ public class S3FileIO
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
   private static final String ROOT_PREFIX = "s3";
-  private static volatile ExecutorService executorService;
+  private static volatile ScheduledExecutorService executorService;
 
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
@@ -104,8 +120,9 @@ public class S3FileIO
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
   // use modifiable collection for Kryo serde
-  private List<StorageCredential> storageCredentials = Lists.newArrayList();
+  private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
+  private transient volatile ScheduledFuture<?> refreshFuture;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -419,7 +436,11 @@ public class S3FileIO
                         new PrefixedS3Client(
                             storageCredential.prefix(), propertiesWithCredentials, s3, s3Async));
                   });
+
           this.clientByPrefix = localClientByPrefix;
+          // Note: the s3 clients separately refresh via the VendedCredentialsProvider but are
+          //       not directly referencable from the FileIO
+          scheduleRefresh();
         }
       }
     }
@@ -427,14 +448,93 @@ public class S3FileIO
     return clientByPrefix;
   }
 
-  private ExecutorService executorService() {
+  private void scheduleRefresh() {
+    storageCredentials.stream()
+        .map(
+            storageCredential ->
+                storageCredential.config().get(S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS))
+        .filter(Objects::nonNull)
+        .map(expiresAtString -> Instant.ofEpochMilli(Long.parseLong(expiresAtString)))
+        .min(Comparator.naturalOrder())
+        .ifPresent(
+            expiresAt -> {
+              Instant prefetchAt = expiresAt.minus(5, ChronoUnit.MINUTES);
+              long delay = Duration.between(Instant.now(), prefetchAt).toMillis();
+              this.refreshFuture =
+                  executorService()
+                      .schedule(this::refreshStorageCredentials, delay, TimeUnit.MILLISECONDS);
+            });
+  }
+
+  private void refreshStorageCredentials() {
+    String credentialsEndpoint = properties.get(VendedCredentialsProvider.URI);
+    String catalogEndpoint = properties.get(CatalogProperties.URI);
+    if (credentialsEndpoint == null || catalogEndpoint == null) {
+      return;
+    }
+
+    // Refresh should be infrequent, so single use http client here is acceptable
+    AuthManager authManager = null;
+    AuthSession authSession = null;
+    HTTPClient httpClient = null;
+    try {
+      authManager = AuthManagers.loadAuthManager("s3-credentials-refresh", properties);
+      httpClient =
+          HTTPClient.builder(properties)
+              .uri(catalogEndpoint)
+              .withHeaders(RESTUtil.configHeaders(properties))
+              .build();
+      authSession = authManager.catalogSession(httpClient, properties);
+      RESTClient restClient = httpClient.withAuthSession(authSession);
+      String planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
+
+      LoadCredentialsResponse response =
+          restClient.get(
+              credentialsEndpoint,
+              null != planId ? Map.of("planId", planId) : null,
+              LoadCredentialsResponse.class,
+              Map.of(),
+              ErrorHandlers.defaultErrorHandler());
+
+      List<StorageCredential> refreshedCredentials =
+          response.credentials().stream()
+              .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
+              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .collect(Collectors.toList());
+
+      // if the fileio is closed or no credentials provided, ignore the results and don't reschedule
+      if (!refreshedCredentials.isEmpty() && !isResourceClosed.get()) {
+        this.setCredentials(refreshedCredentials);
+        scheduleRefresh();
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to refresh storage credentials", e);
+    } finally {
+      closeQuietly(authSession);
+      closeQuietly(authManager);
+      closeQuietly(httpClient);
+    }
+  }
+
+  private static void closeQuietly(AutoCloseable closeable) {
+    if (closeable != null) {
+      try {
+        closeable.close();
+      } catch (Exception e) {
+        LOG.warn("Failed to close resource", e);
+      }
+    }
+  }
+
+  private ScheduledExecutorService executorService() {
     if (executorService == null) {
       synchronized (S3FileIO.class) {
         if (executorService == null) {
           executorService =
-              ThreadPools.newExitingWorkerPool(
-                  "iceberg-s3fileio-delete",
-                  clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads());
+              ThreadPools.newExitingScheduledPool(
+                  "iceberg-s3fileio-tasks",
+                  clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads(),
+                  Duration.ofSeconds(10));
         }
       }
     }
@@ -490,6 +590,10 @@ public class S3FileIO
       if (clientByPrefix != null) {
         clientByPrefix.values().forEach(PrefixedS3Client::close);
         this.clientByPrefix = null;
+      }
+      if (refreshFuture != null) {
+        refreshFuture.cancel(true);
+        refreshFuture = null;
       }
     }
   }
