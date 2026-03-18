@@ -51,6 +51,8 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -169,6 +171,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
+  private KeyManagementClient keyManagementClient = null;
   private String namespaceSeparator = null;
 
   private RESTTableCache tableCache;
@@ -274,6 +277,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
+        || mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
+      this.keyManagementClient = EncryptionUtil.createKmsClient(mergedProps);
+      this.closeables.addCloseable(this.keyManagementClient);
+    }
+
     this.namespaceSeparator =
         PropertyUtil.propertyAsString(
             mergedProps,
@@ -572,6 +582,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               Map::of,
               mutationHeaders,
               tableFileIO(context, tableConf, credentials),
+              keyManagementClient,
               tableMetadata,
               endpoints);
 
@@ -705,6 +716,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             Map::of,
             mutationHeaders,
             tableFileIO(context, tableConf, response.credentials()),
+            keyManagementClient,
             response.tableMetadata(),
             endpoints);
 
@@ -974,6 +986,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               Map::of,
               mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
+              keyManagementClient,
               response.tableMetadata(),
               endpoints);
 
@@ -1007,6 +1020,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               Map::of,
               mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
+              keyManagementClient,
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
@@ -1072,6 +1086,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               Map::of,
               mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
+              keyManagementClient,
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
@@ -1212,6 +1227,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
    *     requests (POST/DELETE)
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
+   * @param kmsClient the {@link KeyManagementClient} for encrypted tables
    * @param current the current table metadata
    * @param supportedEndpoints the set of supported REST endpoints
    * @return a new RESTTableOperations instance
@@ -1222,10 +1238,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Supplier<Map<String, String>> readHeaders,
       Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
+      KeyManagementClient kmsClient,
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
-        restClient, path, readHeaders, mutationHeaderSupplier, fileIO, current, supportedEndpoints);
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        kmsClient,
+        current,
+        supportedEndpoints);
   }
 
   /**
@@ -1242,6 +1266,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
    *     requests (POST/DELETE)
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
+   * @param kmsClient the {@link KeyManagementClient} for encrypted tables
    * @param updateType the {@link RESTTableOperations.UpdateType} being performed
    * @param createChanges the list of metadata updates to apply during table creation or replacement
    * @param current the current table metadata (may be null for CREATE operations)
@@ -1254,6 +1279,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Supplier<Map<String, String>> readHeaders,
       Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
+      KeyManagementClient kmsClient,
       RESTTableOperations.UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
@@ -1264,6 +1290,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         readHeaders,
         mutationHeaderSupplier,
         fileIO,
+        kmsClient,
         updateType,
         createChanges,
         current,

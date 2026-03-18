@@ -69,7 +69,9 @@ public abstract class TestBaseWithCatalog extends TestBase {
               // status even belonging to the same catalog. Reference:
               // https://www.sqlite.org/inmemorydb.html
               CatalogProperties.CLIENT_POOL_SIZE,
-              "1"));
+              "1",
+              CatalogProperties.ENCRYPTION_KMS_IMPL,
+              "org.apache.iceberg.encryption.UnitestKMS"));
 
   protected static RESTCatalog restCatalog;
 

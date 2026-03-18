@@ -24,18 +24,35 @@ import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
 import java.sql.SQLWarning;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +66,13 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final JdbcClientPool connections;
   private final Map<String, String> catalogProperties;
   private final JdbcUtil.SchemaVersion schemaVersion;
+  private final KeyManagementClient keyManagementClient;
+
+  private EncryptionManager encryptionManager;
+  private EncryptingFileIO encryptingFileIO;
+  private String tableKeyId;
+  private int encryptionDekLength;
+  private List<EncryptedKey> encryptedKeys = List.of();
 
   protected JdbcTableOperations(
       JdbcClientPool dbConnPool,
@@ -56,13 +80,55 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       String catalogName,
       TableIdentifier tableIdentifier,
       Map<String, String> catalogProperties,
-      JdbcUtil.SchemaVersion schemaVersion) {
+      JdbcUtil.SchemaVersion schemaVersion,
+      KeyManagementClient keyManagementClient) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
     this.connections = dbConnPool;
     this.catalogProperties = catalogProperties;
     this.schemaVersion = schemaVersion;
+    this.keyManagementClient = keyManagementClient;
+  }
+
+  @Override
+  public FileIO io() {
+    if (tableKeyId == null) {
+      return fileIO;
+    }
+
+    if (encryptingFileIO == null) {
+      encryptingFileIO = EncryptingFileIO.combine(fileIO, encryption());
+    }
+
+    return encryptingFileIO;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    if (encryptionManager != null) {
+      return encryptionManager;
+    }
+
+    if (tableKeyId != null) {
+      if (keyManagementClient == null) {
+        throw new RuntimeException(
+            "Can't create encryption manager, because key management client is not set");
+      }
+
+      Map<String, String> encryptionProperties = Maps.newHashMap();
+      encryptionProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, tableKeyId);
+      encryptionProperties.put(
+          TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
+
+      encryptionManager =
+          EncryptionUtil.createEncryptionManager(
+              encryptedKeys, encryptionProperties, keyManagementClient);
+    } else {
+      return PlaintextEncryptionManager.instance();
+    }
+
+    return encryptionManager;
   }
 
   @Override
@@ -97,12 +163,82 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         "Invalid table %s: metadata location is null",
         tableIdentifier);
     refreshFromMetadataLocation(newMetadataLocation);
+
+    // TODO: Store a metadata hash in iceberg_tables and verify it here, like Hive does with HMS,
+    //  to protect against tampering with the unencrypted metadata.json file in untrusted storage.
+    TableMetadata metadata = current();
+    if (metadata != null) {
+      String tableKeyIdFromMetadata =
+          metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY);
+      if (tableKeyIdFromMetadata != null) {
+        tableKeyId = tableKeyIdFromMetadata;
+        encryptionDekLength =
+            PropertyUtil.propertyAsInt(
+                metadata.properties(),
+                TableProperties.ENCRYPTION_DEK_LENGTH,
+                TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+
+        encryptedKeys =
+            Optional.ofNullable(metadata.encryptionKeys())
+                .map(Lists::newLinkedList)
+                .orElseGet(Lists::newLinkedList);
+
+        if (encryptionManager != null) {
+          Set<String> keyIdsFromMetadata =
+              encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
+
+          for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
+            if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
+              encryptedKeys.add(keyFromEM);
+            }
+          }
+        }
+
+        // Force re-creation of encryption manager with updated keys
+        encryptingFileIO = null;
+        encryptionManager = null;
+      }
+    }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
-    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
+    encryptionPropsFromMetadata(metadata.properties());
+
+    final TableMetadata tableMetadata;
+    EncryptionManager encrManager = encryption();
+    if (encrManager instanceof StandardEncryptionManager) {
+      TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
+      for (Map.Entry<String, EncryptedKey> entry :
+          EncryptionUtil.encryptionKeys(encrManager).entrySet()) {
+        builder.addEncryptionKey(entry.getValue());
+      }
+
+      tableMetadata = builder.build();
+    } else {
+      tableMetadata = metadata;
+    }
+
+    if (base != null) {
+      Set<String> removedProps =
+          base.properties().keySet().stream()
+              .filter(key -> !metadata.properties().containsKey(key))
+              .collect(Collectors.toSet());
+
+      if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
+        throw new IllegalArgumentException("Cannot remove key in encrypted table");
+      }
+
+      if (!Objects.equals(
+          base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
+          metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY))) {
+        throw new IllegalArgumentException("Cannot modify key in encrypted table");
+      }
+    }
+
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, tableMetadata);
     try {
       Map<String, String> table =
           JdbcUtil.loadTable(schemaVersion, connections, catalogName, tableIdentifier);
@@ -140,6 +276,68 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted during commit");
+    }
+  }
+
+  @Override
+  public TableOperations temp(TableMetadata uncommittedMetadata) {
+    return new TableOperations() {
+      @Override
+      public TableMetadata current() {
+        return uncommittedMetadata;
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        throw new UnsupportedOperationException(
+            "Cannot call refresh on temporary table operations");
+      }
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata metadata) {
+        throw new UnsupportedOperationException("Cannot call commit on temporary table operations");
+      }
+
+      @Override
+      public String metadataFileLocation(String fileName) {
+        return JdbcTableOperations.this.metadataFileLocation(uncommittedMetadata, fileName);
+      }
+
+      @Override
+      public LocationProvider locationProvider() {
+        return LocationProviders.locationsFor(
+            uncommittedMetadata.location(), uncommittedMetadata.properties());
+      }
+
+      @Override
+      public FileIO io() {
+        JdbcTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata.properties());
+        return JdbcTableOperations.this.io();
+      }
+
+      @Override
+      public EncryptionManager encryption() {
+        return JdbcTableOperations.this.encryption();
+      }
+
+      @Override
+      public long newSnapshotId() {
+        return JdbcTableOperations.this.newSnapshotId();
+      }
+    };
+  }
+
+  private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
+    if (tableKeyId == null) {
+      tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+    }
+
+    if (tableKeyId != null && encryptionDekLength <= 0) {
+      encryptionDekLength =
+          PropertyUtil.propertyAsInt(
+              tableProperties,
+              TableProperties.ENCRYPTION_DEK_LENGTH,
+              TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
     }
   }
 
@@ -206,11 +404,6 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
           "Cannot commit %s: metadata location %s has changed from %s",
           tableIdentifier, baseMetadataLocation, catalogMetadataLocation);
     }
-  }
-
-  @Override
-  public FileIO io() {
-    return fileIO;
   }
 
   @Override
