@@ -779,6 +779,59 @@ public class TestRewriteFiles extends TestBase {
   }
 
   @TestTemplate
+  public void danglingDVDetectionSkipsNonOverlappingPartitions() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // Commit data files + DVs to two separate partitions in separate commits
+    // so they end up in separate delete manifests
+    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()), branch);
+    Snapshot snap1 = latestSnapshot(table, branch);
+
+    commit(table, table.newRowDelta().addRows(FILE_B).addDeletes(fileBDeletes()), branch);
+    Snapshot snap2 = latestSnapshot(table, branch);
+
+    // Verify we have 2 separate delete manifests (one per partition)
+    assertThat(snap2.deleteManifests(table.io())).hasSize(2);
+    ManifestFile deleteManifestForB = snap2.deleteManifests(table.io()).get(0);
+    ManifestFile deleteManifestForA = snap2.deleteManifests(table.io()).get(1);
+
+    // Remove only FILE_A (partition bucket=0) — this should make its DV dangling
+    commit(
+        table,
+        table.newRewrite().validateFromSnapshot(snap2.snapshotId()).deleteFile(FILE_A),
+        branch);
+
+    Snapshot rewriteSnap = latestSnapshot(table, branch);
+
+    // Verify the delete manifest for partition bucket=0 was rewritten
+    // (DV for FILE_A should be marked DELETED)
+    // and the delete manifest for partition bucket=1 was NOT rewritten
+    // (it should be the same manifest object, untouched)
+    List<ManifestFile> deleteManifests = rewriteSnap.deleteManifests(table.io());
+    assertThat(deleteManifests).hasSize(2);
+
+    // The delete manifest for FILE_B's partition should be unchanged (not rewritten)
+    assertThat(deleteManifests).contains(deleteManifestForB);
+
+    // The delete manifest for FILE_A's partition should be rewritten (different path)
+    assertThat(deleteManifests).doesNotContain(deleteManifestForA);
+
+    // Verify the rewritten manifest has FILE_A's DV as DELETED
+    ManifestFile rewrittenManifest =
+        deleteManifests.stream()
+            .filter(m -> !m.path().equals(deleteManifestForB.path()))
+            .findFirst()
+            .orElseThrow();
+    validateDeleteManifest(
+        rewrittenManifest,
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(rewriteSnap.snapshotId()),
+        files(fileADeletes()),
+        statuses(ManifestEntry.Status.DELETED));
+  }
+
+  @TestTemplate
   public void removingDataFileAlsoRemovesDV() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     commit(
