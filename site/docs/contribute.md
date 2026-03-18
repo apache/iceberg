@@ -111,6 +111,7 @@ Iceberg is built using Gradle with Java 17 or 21.
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
 * To fix code style: `./gradlew spotlessApply`
+* To fix Scala unused imports: `./gradlew scalafix`
 * To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.4,3.5 -DflinkVersions=1.14`
 
 Iceberg table support is organized in library modules:
@@ -302,6 +303,12 @@ In order to automatically fix Java code style issues, please use `./gradlew spot
 **NOTE**: The **google-java-format** plugin will always use the latest version of the **google-java-format**. However, `spotless` itself is configured to use **google-java-format** 1.7
 since that version is compatible with JDK 8. When formatting the code in the IDE, there is a slight chance that it will produce slightly different results. In such a case please run `./gradlew spotlessApply`
 as CI will check the style against **google-java-format** 1.7.
+
+For Scala code, unused imports are treated as compilation errors. To automatically remove unused imports, run [Scalafix](https://scalacenter.github.io/scalafix/):
+
+```bash
+./gradlew scalafix -DsparkVersions=4.0 -DscalaVersion=2.13
+```
 
 ### Copyright
 

@@ -187,6 +187,21 @@ subprojects {
   }
 
   pluginManager.withPlugin('scala') {
+    apply plugin: 'io.github.cosmicsilence.scalafix'
+
+    scalafix {
+      configFile = file("${rootDir}/.baseline/scala/.scalafix.conf")
+      semanticdb {
+        autoConfigure = true
+      }
+    }
+
+    // When running scalafix, downgrade unused import errors to warnings so that
+    // compilation succeeds and SemanticDB is produced for Scalafix to process.
+    boolean scalafixRun = gradle.startParameter.taskNames.any {
+      it.toLowerCase().contains('scalafix')
+    }
+
     tasks.withType(ScalaCompile).configureEach { scalaCompile ->
       if (scalaVersion?.startsWith("2.12")) {
         scalaCompile.scalaCompileOptions.additionalParameters = [
@@ -196,8 +211,8 @@ subprojects {
         ]
       } else if (scalaVersion?.startsWith("2.13")) {
         scalaCompile.scalaCompileOptions.additionalParameters = [
-                "-Wconf:cat=unused:error",
-                "-Wunused:imports"
+                "-Wunused:imports",
+                scalafixRun ? "-Wconf:cat=unused:warning" : "-Wconf:cat=unused:error",
         ]
       }
     }
