@@ -25,13 +25,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
@@ -79,7 +77,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
@@ -596,86 +593,78 @@ public class SparkCatalog extends BaseCatalog {
     throw new NoSuchViewException(ident);
   }
 
-  // Candidate to be moved to org.apache.iceberg.view.View
   private boolean isMaterializedView(org.apache.iceberg.view.View view) {
-    return Optional.of(view.properties().get(MaterializedViewUtil.MATERIALIZED_VIEW_PROPERTY_KEY))
-        .orElse("false")
-        .equals("true");
+    return view.currentVersion().storageTable() != null;
   }
 
-  // Candidate to be moved to org.apache.iceberg.view.View
-  private String getStorageTableIdentifier(org.apache.iceberg.view.View view) {
-    String identifier =
-        view.properties().get(MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY);
+  private org.apache.iceberg.catalog.TableIdentifier getStorageTableId(
+      org.apache.iceberg.view.View view) {
+    org.apache.iceberg.catalog.TableIdentifier storageTable =
+        view.currentVersion().storageTable();
     Preconditions.checkState(
-        identifier != null, "Storage table identifier is not set for materialized view.");
-    return identifier;
+        storageTable != null, "Storage table identifier is not set for materialized view.");
+    return storageTable;
   }
 
-  // Candidate to be moved to org.apache.iceberg.view.View but requires loadTable
-  private org.apache.iceberg.Table loadStorageTable(org.apache.iceberg.view.View view) {
-    String storageTableIdentifier = vie
-    String storageTableIdentifier = getStorageTableIdentifier(view);
+  private Table loadStorageTable(org.apache.iceberg.view.View view) {
+    org.apache.iceberg.catalog.TableIdentifier storageTableId = getStorageTableId(view);
     try {
-      SparkSession session = SparkSession.active();
-      Table storageTable =
-          loadTable(Spark3Util.catalogAndIdentifier(session, storageTableIdentifier).identifier());
-      return storageTable;
-    } catch (ParseException | NoSuchTableException e) {
+      Identifier sparkIdent =
+          Identifier.of(storageTableId.namespace().levels(), storageTableId.name());
+      return loadTable(sparkIdent);
+    } catch (NoSuchTableException e) {
       throw new IllegalStateException("Unable to load storage table for materialized view.", e);
     }
   }
 
-  // Candidate to be moved to org.apache.iceberg.view.View but requires loadTable
-  // Second option is to move to SparkMaterializedView
   private boolean isFresh(org.apache.iceberg.view.View view) {
-    Table storageTable = loadStorageTable(view);
-    Map<String, String> storageTableProperties = storageTable.properties();
-
-    // Get the parent view version id from the storage table properties
-    String storageTableViewVersionIdPropertyValue =
-        storageTableProperties.get(
-            MaterializedViewUtil.MATERIALIZED_VIEW_VERSION_PROPERTY_KEY);
-    if (storageTableViewVersionIdPropertyValue == null) {
-      throw new IllegalStateException(
-          "Storage table properties do not contain the virtual view version id property.");
-    }
-    int storageTableViewVersionId = Integer.parseInt(storageTableViewVersionIdPropertyValue);
-
-    // If the storage table view version id is different from the current version id, the
-    // materialized view is not fresh
-    if (storageTableViewVersionId != view.currentVersion().versionId()) {
+    Table sparkStorageTable = loadStorageTable(view);
+    org.apache.iceberg.Table storageTable = ((SparkTable) sparkStorageTable).table();
+    if (storageTable.currentSnapshot() == null) {
       return false;
     }
 
-    // Get the base table snapshot ids from the storage table properties
-    Map<String, String> baseTableSnapshotsProperties =
-        storageTableProperties.entrySet().stream()
-            .filter(
-                entry ->
-                    entry
-                        .getKey()
-                        .startsWith(
-                            MaterializedViewUtil
-                                .MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    List<Table> baseTables = MaterializedViewUtil.extractBaseTables(view.sqlFor("spark").sql());
+    String refreshStateJson =
+        storageTable
+            .currentSnapshot()
+            .summary()
+            .get(org.apache.iceberg.view.RefreshState.REFRESH_STATE_SUMMARY_KEY);
+    if (refreshStateJson == null) {
+      return false;
+    }
 
-    for (Table baseTable : baseTables) {
-      org.apache.iceberg.Table icebergBaseTable = ((SparkTable) baseTable).table();
-      String snapshotId =
-          String.valueOf(
-              icebergBaseTable.currentSnapshot() == null
-                  ? 0
-                  : icebergBaseTable.currentSnapshot().snapshotId());
-      if (!baseTableSnapshotsProperties
-          .get(
-              MaterializedViewUtil.MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX
-                  + icebergBaseTable.uuid())
-          .equals(snapshotId)) {
-        return false;
+    org.apache.iceberg.view.RefreshState refreshState =
+        org.apache.iceberg.view.RefreshStateParser.fromJson(refreshStateJson);
+
+    // If the refresh was performed against a different view version, the MV is not fresh
+    if (refreshState.viewVersionId() != view.currentVersion().versionId()) {
+      return false;
+    }
+
+    // Check each source table state against the current state
+    for (org.apache.iceberg.view.SourceState sourceState : refreshState.sourceStates()) {
+      if (sourceState instanceof org.apache.iceberg.view.SourceTableState) {
+        org.apache.iceberg.view.SourceTableState tableState =
+            (org.apache.iceberg.view.SourceTableState) sourceState;
+        org.apache.iceberg.catalog.TableIdentifier sourceId =
+            org.apache.iceberg.catalog.TableIdentifier.of(
+                org.apache.iceberg.catalog.Namespace.of(
+                    tableState.namespace().toArray(new String[0])),
+                tableState.name());
+        try {
+          org.apache.iceberg.Table sourceTable =
+              ((org.apache.iceberg.catalog.Catalog) icebergCatalog()).loadTable(sourceId);
+          long currentSnapshotId =
+              sourceTable.currentSnapshot() == null ? -1 : sourceTable.currentSnapshot().snapshotId();
+          if (currentSnapshotId != tableState.snapshotId()) {
+            return false;
+          }
+        } catch (Exception e) {
+          return false;
+        }
       }
     }
+
     return true;
   }
 

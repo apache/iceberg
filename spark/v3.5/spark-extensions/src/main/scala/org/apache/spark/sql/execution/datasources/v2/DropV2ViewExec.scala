@@ -21,11 +21,8 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.exceptions
-import org.apache.iceberg.spark.MaterializedViewUtil
-import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.view.View
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -50,23 +47,14 @@ case class DropV2ViewExec(catalog: ViewCatalog, ident: Identifier, ifExists: Boo
         }
       }
     }
-    // if view is not null read the properties and check if it is a materialized view
+    // if view is a materialized view, drop the storage table first
     view match {
-      case Some(v) => {
-        val viewProperties = v.properties();
-        if (Option(
-            viewProperties.get(MaterializedViewUtil.MATERIALIZED_VIEW_PROPERTY_KEY
-            )).getOrElse("false").equals("true")) {
-          // get the storage table location then drop the storage table
-          val storageTableLocation = viewProperties.get(
-            MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY
-          )
-          val storageTableIdentifier = Spark3Util.catalogAndIdentifier(
-            SparkSession.active, storageTableLocation).identifier()
-          // get active spark session
-          catalog.asInstanceOf[SparkCatalog].dropTable(storageTableIdentifier)
+      case Some(v) =>
+        val storageTable = v.currentVersion().storageTable()
+        if (storageTable != null) {
+          val storageIdent = Identifier.of(storageTable.namespace().levels(), storageTable.name())
+          catalog.asInstanceOf[SparkCatalog].dropTable(storageIdent)
         }
-      }
       case _ =>
     }
 

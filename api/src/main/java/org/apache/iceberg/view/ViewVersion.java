@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 
 /**
  * A version of the view at a point in time.
@@ -78,4 +79,15 @@ public interface ViewVersion {
 
   /** The default namespace to use when the SQL does not contain a namespace. */
   Namespace defaultNamespace();
+
+  /**
+   * The storage table identifier for materialized views.
+   *
+   * <p>When null, the entity is a regular view. When set, the entity is a materialized view and
+   * this identifies the storage table that holds the precomputed data. The storage table must be in
+   * the same catalog as the materialized view.
+   */
+  default TableIdentifier storageTable() {
+    return null;
+  }
 }

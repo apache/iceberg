@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateLocation;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BaseView implements View, Serializable {
@@ -84,11 +83,6 @@ public class BaseView implements View, Serializable {
   @Override
   public String location() {
     return operations().current().location();
-  }
-
-  @Override
-  public TableIdentifier storageTableIdentifier() {
-    return operations().current().storageTableIdentifier();
   }
 
   @Override
