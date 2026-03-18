@@ -88,6 +88,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
   // data file paths
   private Set<String> removedDataFilePaths = Sets.newHashSet();
+  private final PartitionSet removedDataFilePartitions;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -103,6 +104,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
+    this.removedDataFilePartitions = PartitionSet.create(specsById);
     this.workerPoolSupplier = executorSupplier;
   }
 
@@ -170,6 +172,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   protected void removeDanglingDeletesFor(Set<DataFile> dataFiles) {
     this.removedDataFilePaths =
         dataFiles.stream().map(ContentFile::location).collect(Collectors.toSet());
+    dataFiles.forEach(file -> removedDataFilePartitions.add(file.specId(), file.partition()));
   }
 
   /** Add a specific path to be deleted in the new snapshot. */
@@ -440,7 +443,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     } else if (!deleteFiles.isEmpty()) {
       return ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
     } else if (!removedDataFilePaths.isEmpty()) {
-      return true;
+      return ManifestFileUtil.canContainAny(manifest, removedDataFilePartitions, specsById);
     }
 
     return false;
