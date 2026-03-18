@@ -169,8 +169,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
   }
 
   private def getCreateMaterializedViewStatement(sqlText: String): String = {
-    val replace1 = CREATE_MATERIALIZED_VIEW_PATTERN.replaceAllIn(sqlText, m => m.group(1) + " " + m.group(2))
-    MATERIALIZED_VIEW_STORED_AS_PATTERN.replaceAllIn(replace1, "")
+    val createViewSql = CREATE_MATERIALIZED_VIEW_PATTERN.replaceAllIn(sqlText, m => m.group(1) + " " + m.group(2))
+    MATERIALIZED_VIEW_STORED_AS_PATTERN.replaceAllIn(createViewSql, "")
   }
 
   private def getMaterializedViewOptions(sqlText: String): MaterializedViewOptions = {

@@ -18,36 +18,25 @@
  */
 package org.apache.iceberg.view;
 
+import java.util.List;
 import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.immutables.value.Value;
 
-/**
- * A version of the view at a point in time.
- *
- * <p>A version consists of a view metadata file.
- *
- * <p>Versions are created by view operations, like Create and Replace.
- */
-@Value.Immutable
-@SuppressWarnings("ImmutablesStyle")
-@Value.Style(
-    typeImmutable = "ImmutableViewVersion",
-    visibilityString = "PUBLIC",
-    builderVisibilityString = "PUBLIC")
-interface BaseViewVersion extends ViewVersion {
+/** Base type for source state records in a materialized view's refresh state. */
+public interface SourceState {
 
-  @Override
-  @Value.Lazy
-  default String operation() {
-    return ViewVersion.super.operation();
-  }
+  /** The type discriminator for this source state record. */
+  String type();
 
-  @Override
+  /** The name of the source object. */
+  String name();
+
+  /** The namespace levels of the source object. */
+  List<String> namespace();
+
+  /** The catalog of the source object, or null if the same as the materialized view's catalog. */
   @Nullable
-  String defaultCatalog();
+  String catalog();
 
-  @Override
-  @Nullable
-  TableIdentifier storageTable();
+  /** The UUID of the source object. */
+  String uuid();
 }

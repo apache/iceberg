@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.fail;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableOperations;
@@ -37,9 +38,14 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.MaterializedViewUtil;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SparkMaterializedView;
 import org.apache.iceberg.spark.source.SparkView;
+import org.apache.iceberg.view.RefreshState;
+import org.apache.iceberg.view.RefreshStateParser;
+import org.apache.iceberg.view.SourceTableState;
+import org.apache.iceberg.view.View;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -89,7 +95,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
   private static String getTempWarehouseDir() {
     try {
       File tempDir = Files.createTempDirectory("warehouse-").toFile();
-      tempDir.delete();
+      tempDir.deleteOnExit();
       return tempDir.getAbsolutePath();
 
     } catch (IOException e) {
@@ -103,65 +109,95 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void assertReadFromStorageTableWhenFresh() throws IOException {
-    sql("DROP VIEW IF EXISTS %s", materializedViewName);
+  public void testStorageTableFieldOnViewVersion() {
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
 
-    // Assert that number of records in the materialized view is the same as the number of records
-    // in the table
-    assertThat(sql("SELECT * FROM %s", materializedViewName).size())
-        .isEqualTo(sql("SELECT * FROM %s", tableName).size());
-
-    // Assert that the catalog loadView method throws IllegalStateException because the view is
-    // fresh
-    assertThatThrownBy(() -> sparkViewCatalog().loadView(viewIdentifier()))
-        .isInstanceOf(IllegalStateException.class);
-
-    // Assert that the catalog loadTable method returns an object, and its type is
-    // SparkMaterializedView
-    try {
-      assertThat(sparkTableCatalog().loadTable(viewIdentifier()))
-          .isInstanceOf(SparkMaterializedView.class);
-    } catch (NoSuchTableException e) {
-      fail("Materialized view storage table not found");
-    }
+    View view = loadIcebergView();
+    // storage-table should be set on the view version, not as a property
+    assertThat(view.currentVersion().storageTable()).isNotNull();
+    assertThat(view.currentVersion().storageTable().name())
+        .isEqualTo(materializedViewName + "__storage");
+    assertThat(view.currentVersion().storageTable().namespace())
+        .isEqualTo(NAMESPACE);
   }
 
   @Test
-  public void assertNotReadFromStorageTableWhenStale() throws IOException {
+  public void testNeverRefreshedMvIsNotFresh() {
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
 
-    // Insert one row to the table so the materialized view becomes stale
-    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
-
-    // Assert that number of records in the materialized view is the same as the number of records
-    // in the table
-    assertThat(sql("SELECT * FROM %s", materializedViewName).size())
-        .isEqualTo(sql("SELECT * FROM %s", tableName).size());
-
-    // Assert that the catalog loadView method returns an object, and of type SparkView
+    // A newly created MV has no snapshots on its storage table, so it's not fresh.
+    // loadView should succeed (returns stale view)
     try {
       assertThat(sparkViewCatalog().loadView(viewIdentifier())).isInstanceOf(SparkView.class);
     } catch (NoSuchViewException e) {
       fail("Materialized view not found");
     }
+  }
 
-    // Assert that the catalog loadTable fails with NoSuchTableException because the view is stale
+  @Test
+  public void testReadFromStorageTableWhenFresh() {
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
+
+    simulateRefresh();
+
+    // Fresh MV: loadTable should return SparkMaterializedView
+    try {
+      assertThat(sparkTableCatalog().loadTable(viewIdentifier()))
+          .isInstanceOf(SparkMaterializedView.class);
+    } catch (NoSuchTableException e) {
+      fail("Fresh materialized view should be loadable as a table");
+    }
+
+    // Fresh MV: loadView should throw since the engine should use loadTable instead
+    assertThatThrownBy(() -> sparkViewCatalog().loadView(viewIdentifier()))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  public void testFallbackToViewWhenStale() {
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
+
+    simulateRefresh();
+
+    // Insert more data to invalidate the refresh
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    // Stale MV: loadView should return SparkView (falls back to query execution)
+    try {
+      assertThat(sparkViewCatalog().loadView(viewIdentifier()))
+          .isInstanceOf(SparkView.class);
+    } catch (NoSuchViewException e) {
+      fail("Stale materialized view should be loadable as a view");
+    }
+
+    // Stale MV: loadTable should not resolve to the MV's storage table
     assertThatThrownBy(() -> sparkTableCatalog().loadTable(viewIdentifier()))
         .isInstanceOf(NoSuchTableException.class);
   }
 
   @Test
-  public void testDefaultStorageTableIdentifier() {
+  public void testStorageTableCreatedBeforeMvMetadata() {
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
 
-    // Assert that the storage table is in the list of tables
-    final String materializedViewStorageTableName =
+    // The storage table should exist
+    String storageTableName =
         MaterializedViewUtil.getDefaultMaterializedViewStorageTableIdentifier(
                 Identifier.of(new String[] {NAMESPACE.toString()}, materializedViewName))
             .name();
     assertThat(sql("SHOW TABLES"))
-        .anySatisfy(row -> assertThat(row[1]).isEqualTo(materializedViewStorageTableName));
+        .anySatisfy(row -> assertThat(row[1]).isEqualTo(storageTableName));
+  }
+
+  @Test
+  public void testDefaultStorageTableNaming() {
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
+
+    // Default naming should be <name>__storage
+    String expectedStorageTableName = materializedViewName + "__storage";
+    assertThat(sql("SHOW TABLES"))
+        .anySatisfy(row -> assertThat(row[1]).isEqualTo(expectedStorageTableName));
   }
 
   @Test
@@ -173,6 +209,49 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
 
     // Assert that the storage table with the custom name is in the list of tables
     assertThat(sql("SHOW TABLES")).anySatisfy(row -> assertThat(row[1]).isEqualTo(customTableName));
+  }
+
+  private void simulateRefresh() {
+    View view = loadIcebergView();
+    org.apache.iceberg.catalog.TableIdentifier storageTableId =
+        view.currentVersion().storageTable();
+
+    // Get the base table's current snapshot ID
+    long baseSnapshotId =
+        (Long)
+            sql(
+                    "SELECT snapshot_id FROM %s.%s.%s.snapshots ORDER BY committed_at DESC LIMIT 1",
+                    catalogName, NAMESPACE, tableName)
+                .get(0)[0];
+
+    // Build refresh state matching the current view version and source table state
+    RefreshState refreshState =
+        new RefreshState(
+            view.currentVersion().versionId(),
+            Arrays.<org.apache.iceberg.view.SourceState>asList(
+                new SourceTableState(
+                    tableName,
+                    Arrays.asList(NAMESPACE.levels()),
+                    null,
+                    "test-uuid",
+                    baseSnapshotId,
+                    null)),
+            System.currentTimeMillis());
+    String refreshStateJson = RefreshStateParser.toJson(refreshState);
+
+    // Write data to storage table with refresh-state in the snapshot summary
+    String storageTableRef =
+        String.format("%s.%s.%s", catalogName, NAMESPACE, storageTableId.name());
+    try {
+      spark
+          .sql(String.format("SELECT id, data FROM %s.%s.%s", catalogName, NAMESPACE, tableName))
+          .writeTo(storageTableRef)
+          .option(
+              "snapshot-property." + RefreshState.REFRESH_STATE_SUMMARY_KEY, refreshStateJson)
+          .append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException("Storage table not found during simulated refresh", e);
+    }
   }
 
   private ViewCatalog sparkViewCatalog() {
@@ -187,6 +266,17 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
 
   private Identifier viewIdentifier() {
     return Identifier.of(new String[] {NAMESPACE.toString()}, materializedViewName);
+  }
+
+  private SparkCatalog sparkCatalog() {
+    return (SparkCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+  }
+
+  private View loadIcebergView() {
+    org.apache.iceberg.catalog.ViewCatalog icebergViewCatalog =
+        (org.apache.iceberg.catalog.ViewCatalog) sparkCatalog().icebergCatalog();
+    return icebergViewCatalog.loadView(
+        TableIdentifier.of(NAMESPACE, materializedViewName));
   }
 
   // Required to be public since it is loaded by org.apache.iceberg.CatalogUtil.loadCatalog
@@ -212,25 +302,30 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
 
   private static class LocalFileIO implements FileIO {
 
+    private static String stripFilePrefix(String path) {
+      return path.startsWith("file:") ? path.substring(5) : path;
+    }
+
     @Override
     public InputFile newInputFile(String path) {
-      return org.apache.iceberg.Files.localInput(path);
+      return org.apache.iceberg.Files.localInput(stripFilePrefix(path));
     }
 
     @Override
     public OutputFile newOutputFile(String path) {
-      return org.apache.iceberg.Files.localOutput(path);
+      String stripped = stripFilePrefix(path);
+      java.io.File parent = new java.io.File(stripped).getParentFile();
+      if (!parent.isDirectory()) {
+        parent.mkdirs();
+      }
+      return org.apache.iceberg.Files.localOutput(stripped);
     }
 
     @Override
     public void deleteFile(String path) {
-      if (!new File(path).delete()) {
+      if (!new File(stripFilePrefix(path)).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
     }
   }
-
-  // TODO Add DROP MATERIALIZED VIEW test
-  // TODO Assert materialized view creation fails when the location is not provided
-  // TODO Test cannot replace a materialized view with a new version
 }

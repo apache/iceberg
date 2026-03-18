@@ -20,20 +20,15 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 
-import org.apache.iceberg.{SnapshotUpdate, catalog}
-
-import java.util.UUID
 import org.apache.iceberg.catalog.{Namespace, TableIdentifier}
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap
 import org.apache.iceberg.spark.{MaterializedViewUtil, Spark3Util, SparkCatalog, SparkSchemaUtil}
-import org.apache.iceberg.spark.source.{SparkTable, SparkView}
+import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
-import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.catalog.TableChange
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.connector.expressions.Transform
@@ -75,40 +70,32 @@ case class CreateMaterializedViewExec(
       case None => MaterializedViewUtil.getDefaultMaterializedViewStorageTableIdentifier(ident)
     }
 
-    val view = createView(sparkStorageTableIdentifier.toString)
+    // Step 1: Create the storage table BEFORE the MV view metadata.
+    // Per spec: "The storage table must exist and be accessible before the
+    // materialized view metadata is committed."
+    // A newly created MV has a storage table with no snapshots until a refresh is performed.
+    catalog.asInstanceOf[SparkCatalog].createTable(
+      sparkStorageTableIdentifier,
+      viewSchema, new Array[Transform](0), ImmutableMap.of[String, String]()
+    )
 
-    view match {
-      case Some(v) => {
-        // TODO: Add support for partitioning the storage table
-        catalog.asInstanceOf[SparkCatalog].createTable(
-          sparkStorageTableIdentifier,
-          viewSchema, new Array[Transform](0), ImmutableMap.of[String, String]()
-        )
-
-        // Capture base table state before inserting into the storage table
-        val baseTables = MaterializedViewUtil.extractBaseTables(queryText).asScala.toList
-        val baseTableSnapshots = getBaseTableSnapshots(baseTables)
-        val baseTableSnapshotsProperties = baseTableSnapshots.map {
-          case (key, value) => (
-            MaterializedViewUtil.MATERIALIZED_VIEW_BASE_SNAPSHOT_PROPERTY_KEY_PREFIX + key.toString
-            ) -> value.toString
-        }
-
-
-        val storageTableProperties = baseTableSnapshotsProperties +
-          (MaterializedViewUtil.MATERIALIZED_VIEW_VERSION_PROPERTY_KEY -> getViewVersion(v).toString)
-
-        // Insert into the storage table
-        session.sql("INSERT INTO " + sparkStorageTableIdentifier + " " + queryText)
-
-        // Load the storage table as an Iceberg table
-        val icebergStorageTable = catalog.asInstanceOf[org.apache.iceberg.catalog.Catalog].loadTable(TableIdentifier.parse(sparkStorageTableIdentifier.toString))
-        val replaceSnapshot = icebergStorageTable.newRewrite()
-        replaceSnapshot.set("mv-base-table-snapshots", baseTableSnapshots.asJava.toString)
-        replaceSnapshot.commit()
+    // Step 2: Create the MV view metadata with a storage-table reference
+    try {
+      createView(sparkStorageTableIdentifier.toString) match {
+        case Some(_) => // success
+        case None => // allowExisting and view already exists
       }
-      case None =>
+    } catch {
+      case e: Exception =>
+        // If view creation fails, clean up the storage table
+        try {
+          catalog.asInstanceOf[SparkCatalog].dropTable(sparkStorageTableIdentifier)
+        } catch {
+          case _: Exception => // best effort cleanup
+        }
+        throw e
     }
+
     Nil
   }
 
@@ -127,8 +114,6 @@ case class CreateMaterializedViewExec(
       comment.map(ViewCatalog.PROP_COMMENT -> _) +
       (ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
         ViewCatalog.PROP_ENGINE_VERSION -> engineVersion) +
-      (MaterializedViewUtil.MATERIALIZED_VIEW_PROPERTY_KEY -> "true") +
-      (MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY -> storageTableIdentifier) +
       ("queryColumnNames" -> queryColumnNames.mkString(","))
 
 
@@ -138,7 +123,7 @@ case class CreateMaterializedViewExec(
         catalog.dropView(ident)
       }
       // FIXME: replaceView API doesn't exist in Spark 3.5
-      val icebergView = catalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
+      val icebergView = catalog.asInstanceOf[SparkCatalog].icebergCatalog().asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
         Spark3Util.identifierToTableIdentifier(ident))
         .withDefaultCatalog(currentCatalog)
         .withDefaultNamespace(Namespace.of(currentNamespace: _*))
@@ -153,7 +138,7 @@ case class CreateMaterializedViewExec(
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
-        val icebergView = catalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
+        val icebergView = catalog.asInstanceOf[SparkCatalog].icebergCatalog().asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
           Spark3Util.identifierToTableIdentifier(ident))
           .withDefaultCatalog(currentCatalog)
           .withDefaultNamespace(Namespace.of(currentNamespace: _*))
@@ -171,23 +156,4 @@ case class CreateMaterializedViewExec(
     }
   }
 
-  private def getBaseTableSnapshots(baseTables: List[Table]): Map[UUID, Long] = {
-    baseTables.map {
-      case sparkTable: SparkTable =>
-        val snapshot = Option(sparkTable.table().currentSnapshot())
-        val snapshotId = snapshot.map(_.snapshotId().longValue()).getOrElse(0L)
-        (sparkTable.table().uuid(), snapshotId)
-      case _ =>
-        throw new UnsupportedOperationException("Only Spark tables are supported")
-    }.toMap
-  }
-
-  private def getViewVersion(view: View): Long = {
-    view match {
-      case sparkView: SparkView =>
-        sparkView.view().currentVersion().versionId()
-      case _ =>
-        throw new UnsupportedOperationException("Only Spark views are supported")
-    }
-  }
 }
