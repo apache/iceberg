@@ -36,6 +36,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -86,7 +87,7 @@ public abstract class BaseFormatModelTests<T> {
 
   private static final ImmutableMap<FileFormat, String[]> MISSING_FEATURES =
       ImmutableMap.of(
-          FileFormat.AVRO, new String[] {"filter", "caseSensitive", "recordsPerBatch"},
+          FileFormat.AVRO, new String[] {"filter", "caseSensitive", "recordsPerBatch", "split"},
           FileFormat.ORC, new String[] {"reuseContainers"});
 
   @TempDir protected Path temp;
@@ -116,9 +117,9 @@ public abstract class BaseFormatModelTests<T> {
     }
   }
 
+  /** Write with engine type T, read with Generic Record */
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /* Write with engine type T, read with Generic Record */
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
@@ -179,9 +180,9 @@ public abstract class BaseFormatModelTests<T> {
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
+  /** Write with Generic Record, read with engine type T */
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /* Write with Generic Record, read with engine type T */
   void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
@@ -202,9 +203,9 @@ public abstract class BaseFormatModelTests<T> {
     assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
+  /** Write with engine type T, read with Generic Record */
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /* Write with engine type T, read with Generic Record */
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
@@ -276,9 +277,9 @@ public abstract class BaseFormatModelTests<T> {
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
+  /** Write with Generic Record, read with engine type T */
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  /* Write with Generic Record, read with engine type T */
   void testEqualityDeleteWriterGenericWriteEngineRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
@@ -320,9 +321,9 @@ public abstract class BaseFormatModelTests<T> {
     assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
+  /** Write position deletes, read with Generic Record */
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  /* Write position deletes, read with Generic Record */
   void testPositionDeleteWriterEngineWriteGenericRead(FileFormat fileFormat) throws IOException {
     Schema positionDeleteSchema = DeleteSchemaUtil.pathPosSchema();
 
@@ -371,9 +372,9 @@ public abstract class BaseFormatModelTests<T> {
     DataTestHelpers.assertEquals(schema.asStruct(), expected, readRecords);
   }
 
+  /** Write with Generic Record, read with projected engine type T (narrow schema) */
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  /* Write with Generic Record, read with projected engine type T (narrow schema) */
   void testReaderBuilderProjection(FileFormat fileFormat) throws IOException {
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema fullSchema = dataGenerator.schema();
@@ -419,13 +420,14 @@ public abstract class BaseFormatModelTests<T> {
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
-    writeGenericRecords(fileFormat, schema, genericRecords);
+    List<Record> genericRecords = dataGenerator.generateRecords(10000);
+    writeRecordsForSplit(fileFormat, schema, genericRecords);
 
     // Construct a filter condition that is smaller than the minimum value to achieve file-level
     // filtering.
     Types.NestedField firstField = schema.columns().get(0);
-    Expression filter = filterFieldExpression(firstField, schema, genericRecords);
+    Object minValue = minFilterField(firstField, genericRecords);
+    Expression lessThanFilter = Expressions.lessThan(firstField.name(), minValue);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<T> readRecords;
@@ -433,20 +435,35 @@ public abstract class BaseFormatModelTests<T> {
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
             .engineProjection(engineSchema(schema))
-            .filter(filter)
+            .filter(lessThanFilter)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
     assertThat(readRecords).isEmpty();
+
+    Object maxFilterField = maxFilterField(firstField, genericRecords);
+    Expression greaterThanFilter =
+        Expressions.greaterThanOrEqual(firstField.name(), maxFilterField);
+
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .filter(greaterThanFilter)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(readRecords).hasSizeGreaterThan(0).hasSizeLessThan(genericRecords.size());
   }
 
-  @ParameterizedTest
-  @FieldSource("FILE_FORMATS")
-  /*
+  /**
    * Write with Generic Record, then read using an upper-cased column name in the filter to verify
    * caseSensitive behavior.
    */
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testReaderBuilderCaseSensitive(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, "caseSensitive");
@@ -461,6 +478,7 @@ public abstract class BaseFormatModelTests<T> {
     Types.NestedField firstField = schema.columns().get(0);
     Object filterValue = genericRecords.get(0).getField(firstField.name());
     Expression upperCaseFilter = Expressions.equal(firstField.name().toUpperCase(), filterValue);
+    assertThat(firstField.name()).isNotEqualTo(firstField.name().toUpperCase());
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
 
@@ -495,22 +513,44 @@ public abstract class BaseFormatModelTests<T> {
         .hasMessageContaining("Cannot find field '%s'", firstField.name().toUpperCase());
   }
 
+  /**
+   * Write with Generic Record, then read using split to verify that the split range is respected.
+   * The test writes enough records to produce multiple split so that {@link
+   * DataFile#splitOffsets()} contains at least two offsets. It then reads only the first row-group
+   * split {@code [splitOffsets[0], splitOffsets[1])} and asserts that the returned record count is
+   * greater than zero but less than the total, confirming that the split boundary is honoured. A
+   * second read over the full file range {@code [0, fileLength)} must return all records.
+   */
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  /*
-   * Write with Generic Record, then read using split to verify that the split range is respected.
-   * Reading with a zero-length split at the end of the file should return no records, while reading
-   * with the full file range should return all records.
-   */
   void testReaderBuilderSplit(FileFormat fileFormat) throws IOException {
+
+    assumeSupports(fileFormat, "split");
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
+    List<Record> records = dataGenerator.generateRecords(10000);
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
-    writeGenericRecords(fileFormat, schema, genericRecords);
+    DataFile dataFile = writeRecordsForSplit(fileFormat, schema, records);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     long fileLength = inputFile.getLength();
+
+    List<Long> splitOffsets = dataFile.splitOffsets();
+    long firstSplitStart = splitOffsets.get(0);
+    long firstSplitLength = splitOffsets.get(1) - splitOffsets.get(0);
+
+    List<T> readRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .split(firstSplitStart, firstSplitLength)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(readRecords).hasSizeGreaterThan(0).hasSizeLessThan(records.size());
 
     // split(fileLength, 0): empty range at the end of the file → no records should be returned
     List<T> emptyReadRecords;
@@ -526,25 +566,24 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(emptyReadRecords).isEmpty();
 
     // split(0, fileLength): full file range → all records should be returned
-    List<T> fullReadRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
             .engineProjection(engineSchema(schema))
             .split(0, fileLength)
             .build()) {
-      fullReadRecords = ImmutableList.copyOf(reader);
+      readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertEquals(schema, convertToEngineRecords(genericRecords, schema), fullReadRecords);
+    assertThat(readRecords).hasSize(records.size());
   }
 
-  @ParameterizedTest
-  @FieldSource("FILE_FORMATS")
-  /*
+  /**
    * Verifies the contract of recordsPerBatch: recordsPerBatch is a hint for vectorized readers. The
    * total number of records returned must be unaffected regardless of the batch size value.
    */
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testReaderBuilderRecordsPerBatch(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, "recordsPerBatch");
@@ -583,9 +622,9 @@ public abstract class BaseFormatModelTests<T> {
     assertEquals(schema, expectedEngineRecords, largeBatchRecords);
   }
 
+  /** Verifies the contract of reuseContainers */
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  /* Verifies the contract of reuseContainers */
   void testReaderBuilderReuseContainers(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, "reuseContainers");
@@ -655,26 +694,35 @@ public abstract class BaseFormatModelTests<T> {
         .map(
             record -> {
               Record projected = GenericRecord.create(projectedSchema.asStruct());
-              for (Types.NestedField field : projectedSchema.columns()) {
-                projected.setField(field.name(), record.getField(field.name()));
-              }
+              projectedSchema
+                  .columns()
+                  .forEach(
+                      field -> projected.setField(field.name(), record.getField(field.name())));
               return projected;
             })
-        .collect(Collectors.toList());
+        .toList();
   }
 
-  private Expression filterFieldExpression(
-      Types.NestedField firstField, Schema schema, List<Record> records) {
+  private Object minFilterField(Types.NestedField firstField, List<Record> records) {
     Object minValue =
         records.stream()
-            .map(r -> (Comparable) r.getField(firstField.name()))
+            .map(r -> (Comparable<Object>) r.getField(firstField.name()))
             .min(Comparator.naturalOrder())
-            .get();
-    return Expressions.lessThan(firstField.name(), minValue);
+            .orElseThrow();
+    return minValue;
+  }
+
+  private Object maxFilterField(Types.NestedField firstField, List<Record> records) {
+    Object minValue =
+        records.stream()
+            .map(r -> (Comparable<Object>) r.getField(firstField.name()))
+            .max(Comparator.naturalOrder())
+            .orElseThrow();
+    return minValue;
   }
 
   private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
-    return records.stream().map(r -> convertToEngine(r, schema)).collect(Collectors.toList());
+    return records.stream().map(r -> convertToEngine(r, schema)).toList();
   }
 
   private static void assumeSupports(FileFormat fileFormat, String feature) {
@@ -682,5 +730,40 @@ public abstract class BaseFormatModelTests<T> {
     if (missing != null) {
       assumeThat(Arrays.stream(missing).noneMatch(f -> f.equals(feature))).isTrue();
     }
+  }
+
+  private DataFile writeRecordsForSplit(FileFormat fileFormat, Schema schema, List<Record> records)
+      throws IOException {
+
+    String splitSizeProperty = splitSizeProperty(fileFormat);
+    DataWriter<Record> writer =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile)
+            .schema(schema)
+            .spec(PartitionSpec.unpartitioned())
+            .set(splitSizeProperty, "1")
+            .build();
+
+    try (writer) {
+      for (Record record : records) {
+        writer.write(record);
+      }
+    }
+
+    DataFile dataFile = writer.toDataFile();
+    List<Long> splitOffsets = dataFile.splitOffsets();
+    assertThat(splitOffsets).hasSizeGreaterThan(1);
+
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+    return dataFile;
+  }
+
+  private static String splitSizeProperty(FileFormat fileFormat) {
+    return switch (fileFormat) {
+      case PARQUET -> TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+      case ORC -> TableProperties.ORC_STRIPE_SIZE_BYTES;
+      default ->
+          throw new UnsupportedOperationException(
+              "No split size property defined for format: " + fileFormat);
+    };
   }
 }
