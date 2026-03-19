@@ -400,6 +400,8 @@ project(':iceberg-core') {
     }
     testImplementation libs.awaitility
     testImplementation libs.bouncycastle.bcpkix
+    testImplementation libs.bouncycastle.bcutil
+    testImplementation libs.bouncycastle.bcprov
   }
 }
 
