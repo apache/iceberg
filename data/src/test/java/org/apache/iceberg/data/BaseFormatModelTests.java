@@ -76,11 +76,6 @@ public abstract class BaseFormatModelTests<T> {
   private static final FileFormat[] FILE_FORMATS =
       new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
 
-  private static final List<Arguments> FORMAT_AND_DEFAULT_GENERATOR =
-      Arrays.stream(FILE_FORMATS)
-          .map(format -> Arguments.of(format, new DataGenerators.DefaultSchema()))
-          .toList();
-
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
           .flatMap(
@@ -377,10 +372,10 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  @FieldSource("FILE_FORMATS")
   /* Write with Generic Record, read with projected engine type T (narrow schema) */
-  void testReaderBuilderProjection(FileFormat fileFormat, DataGenerator dataGenerator)
-      throws IOException {
+  void testReaderBuilderProjection(FileFormat fileFormat) throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema fullSchema = dataGenerator.schema();
 
     List<Types.NestedField> columns = fullSchema.columns();
@@ -416,12 +411,12 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
-  void testReaderBuilderFilter(FileFormat fileFormat, DataGenerator dataGenerator)
-      throws IOException {
+  @FieldSource("FILE_FORMATS")
+  void testReaderBuilderFilter(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, "filter");
 
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -447,16 +442,16 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  @FieldSource("FILE_FORMATS")
   /*
    * Write with Generic Record, then read using an upper-cased column name in the filter to verify
    * caseSensitive behavior.
    */
-  void testReaderBuilderCaseSensitive(FileFormat fileFormat, DataGenerator dataGenerator)
-      throws IOException {
+  void testReaderBuilderCaseSensitive(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, "caseSensitive");
 
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -501,14 +496,14 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  @FieldSource("FILE_FORMATS")
   /*
    * Write with Generic Record, then read using split to verify that the split range is respected.
    * Reading with a zero-length split at the end of the file should return no records, while reading
    * with the full file range should return all records.
    */
-  void testReaderBuilderSplit(FileFormat fileFormat, DataGenerator dataGenerator)
-      throws IOException {
+  void testReaderBuilderSplit(FileFormat fileFormat) throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -545,16 +540,16 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  @FieldSource("FILE_FORMATS")
   /*
    * Verifies the contract of recordsPerBatch: recordsPerBatch is a hint for vectorized readers. The
    * total number of records returned must be unaffected regardless of the batch size value.
    */
-  void testReaderBuilderRecordsPerBatch(FileFormat fileFormat, DataGenerator dataGenerator)
-      throws IOException {
+  void testReaderBuilderRecordsPerBatch(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, "recordsPerBatch");
 
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -589,13 +584,13 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_DEFAULT_GENERATOR")
+  @FieldSource("FILE_FORMATS")
   /* Verifies the contract of reuseContainers */
-  void testReaderBuilderReuseContainers(FileFormat fileFormat, DataGenerator dataGenerator)
-      throws IOException {
+  void testReaderBuilderReuseContainers(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, "reuseContainers");
 
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     // Need at least 2 records to verify container reuse
