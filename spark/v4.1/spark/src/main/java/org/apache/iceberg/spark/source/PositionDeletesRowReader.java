@@ -19,8 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.PositionDeletesScanTask;
@@ -85,12 +83,13 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
     // Retain predicates on non-constant fields for row reader filter
     Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
-    Set<Integer> nonConstantFieldIds =
+    int[] nonConstantFieldIds =
         expectedSchema().idToName().keySet().stream()
             .filter(id -> !idToConstant.containsKey(id))
-            .collect(Collectors.toSet());
+            .mapToInt(Integer::intValue)
+            .toArray();
     Expression residualWithoutConstants =
-        ExpressionUtil.retainPredicatesWithReferencedIds(
+        ExpressionUtil.extractByIdInclusive(
             task.residual(), expectedSchema(), caseSensitive(), nonConstantFieldIds);
 
     if (ContentFileUtil.isDV(task.file())) {

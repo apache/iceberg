@@ -146,44 +146,30 @@ public class ExpressionUtil {
   }
 
   /**
-   * Extracts an expression that references only the given column IDs from the given expression.
-   *
-   * <p>The result is inclusive. If a row would match the original filter, it must match the result
-   * filter.
-   *
-   * @param expression a filter Expression
-   * @param schema a Schema
-   * @param caseSensitive whether binding is case sensitive
-   * @param ids field IDs used to match predicates to extract from the expression
-   * @return an Expression that selects at least the same rows as the original using only the IDs
-   * @deprecated since 1.10 use {@link #retainPredicatesWithReferencedIds} instead; this method uses
-   *     identitySpec and can throw when ids include fields nested under map/array.
-   */
-  @Deprecated
-  public static Expression extractByIdInclusive(
-      Expression expression, Schema schema, boolean caseSensitive, int... ids) {
-    PartitionSpec spec = identitySpec(schema, ids);
-    return Projections.inclusive(spec, caseSensitive).project(Expressions.rewriteNot(expression));
-  }
-
-  /**
    * Returns an expression that retains only predicates which reference one of the given field IDs.
-   * Predicates that do not reference any of the given IDs are replaced with alwaysTrue().
+   *
+   * <p>Predicates that do not reference any of the given IDs are replaced with {@code alwaysTrue()}.
+   * This does not use partition projection, so it is safe for field IDs nested under map or array
+   * types.
    *
    * @param expression a filter expression
    * @param schema schema for binding references
    * @param caseSensitive whether binding is case sensitive
-   * @param retainFieldIds field IDs to retain predicates for
+   * @param ids field IDs to retain predicates for
    * @return expression containing only predicates that reference the given IDs
    */
-  public static Expression retainPredicatesWithReferencedIds(
-      Expression expression, Schema schema, boolean caseSensitive, Set<Integer> retainFieldIds) {
-    if (retainFieldIds == null || retainFieldIds.isEmpty()) {
+  public static Expression extractByIdInclusive(
+      Expression expression, Schema schema, boolean caseSensitive, int... ids) {
+    if (ids == null || ids.length == 0) {
       return Expressions.alwaysTrue();
+    }
+    ImmutableSet.Builder<Integer> retainIds = ImmutableSet.builder();
+    for (int id : ids) {
+      retainIds.add(id);
     }
     return ExpressionVisitors.visit(
         Expressions.rewriteNot(expression),
-        new RetainPredicatesByFieldIdVisitor(schema, caseSensitive, retainFieldIds));
+        new RetainPredicatesByFieldIdVisitor(schema, caseSensitive, retainIds.build()));
   }
 
   /**
@@ -775,15 +761,5 @@ public class ExpressionUtil {
         break;
     }
     return builder.toString();
-  }
-
-  private static PartitionSpec identitySpec(Schema schema, int... ids) {
-    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema);
-
-    for (int id : ids) {
-      specBuilder.identity(schema.findColumnName(id));
-    }
-
-    return specBuilder.build();
   }
 }
