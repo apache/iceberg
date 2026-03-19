@@ -64,7 +64,7 @@ class SerializableFileIOWithSize
   @Override
   public void close() {
     if (null == serializationMarker) {
-      LOG.info("Closing FileIO");
+      LOG.debug("Closing FileIO");
       fileIO.close();
     }
   }
