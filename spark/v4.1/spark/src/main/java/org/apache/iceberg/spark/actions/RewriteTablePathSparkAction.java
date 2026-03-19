@@ -314,10 +314,6 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         rewriteManifests(deltaSnapshots, endMetadata, metaFiles);
 
     // rebuild position delete files
-    // Use DeleteFileSet to ensure proper equality comparison based on file location, content
-    // offset, and content size. This is particularly important for deletion vectors (DV files)
-    // where the same file can appear with different content, and for avoiding duplicate
-    // processing of the same delete file that appears in multiple manifests.
     Set<DeleteFile> deleteFiles =
         rewriteManifestResult.toRewrite().stream()
             .filter(e -> e instanceof DeleteFile)
