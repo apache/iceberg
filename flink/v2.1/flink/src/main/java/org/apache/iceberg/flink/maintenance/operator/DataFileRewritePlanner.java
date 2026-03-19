@@ -80,6 +80,7 @@ public class DataFileRewritePlanner
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
     Preconditions.checkNotNull(rewriterOptions, "Options map should no be null");
+    Preconditions.checkNotNull(branch, "Branch should no be null");
 
     this.tableName = tableName;
     this.taskName = taskName;
