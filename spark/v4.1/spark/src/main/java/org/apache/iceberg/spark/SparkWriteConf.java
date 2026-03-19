@@ -98,6 +98,11 @@ public class SparkWriteConf {
     this(spark, table, null, options);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #SparkWriteConf(SparkSession,
+   *     Table, CaseInsensitiveStringMap)} instead.
+   */
+  @Deprecated
   public SparkWriteConf(
       SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;

@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -225,7 +226,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
             OperatorTestBase.DUMMY_TABLE_NAME,
             OperatorTestBase.DUMMY_TABLE_NAME,
             0,
-            tableLoader()));
+            tableLoader(),
+            SnapshotRef.MAIN_BRANCH));
   }
 
   private static DataFileRewriteRunner.ExecutedGroup setBatchSizeToTwo(

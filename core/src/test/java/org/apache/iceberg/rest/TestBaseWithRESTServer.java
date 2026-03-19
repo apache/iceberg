@@ -81,7 +81,7 @@ public abstract class TestBaseWithRESTServer {
     httpServer.setHandler(servletContext);
     httpServer.start();
 
-    restCatalog = initCatalog(catalogName(), ImmutableMap.of());
+    restCatalog = initCatalog(catalogName(), additionalCatalogProperties());
   }
 
   @AfterEach
@@ -118,6 +118,10 @@ public abstract class TestBaseWithRESTServer {
   }
 
   protected abstract String catalogName();
+
+  protected Map<String, String> additionalCatalogProperties() {
+    return ImmutableMap.of();
+  }
 
   @SuppressWarnings("unchecked")
   protected <T> T roundTripSerialize(T payload, String description) {

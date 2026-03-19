@@ -81,15 +81,29 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   }
 
   /**
-   * Get the next snapshot skipping over rewrite and delete snapshots.
+   * Get the next snapshot skipping over rewrite and delete snapshots. Async must handle nulls.
    *
    * @param curSnapshot the current snapshot
    * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
    *     remaining snapshots should be skipped.
    */
   protected Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-
+    Snapshot nextSnapshot;
+    // if there were no valid snapshots, check for an initialOffset again
+    if (curSnapshot == null) {
+      StreamingOffset startingOffset =
+          MicroBatchUtils.determineStartingOffset(table, readConf.streamFromTimestamp());
+      LOG.debug("determineStartingOffset picked startingOffset: {}", startingOffset);
+      if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
+        return null;
+      }
+      nextSnapshot = table.snapshot(startingOffset.snapshotId());
+    } else {
+      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+        return null;
+      }
+      nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    }
     // skip over rewrite and delete snapshots
     while (!shouldProcess(nextSnapshot)) {
       LOG.debug("Skipping snapshot: {}", nextSnapshot);

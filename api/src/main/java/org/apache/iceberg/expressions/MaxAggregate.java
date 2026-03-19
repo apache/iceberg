@@ -40,6 +40,10 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
+    // Can't determine max from metadata when NaN values are present since it could be -NaN or +NaN
+    if (containsNan(file, fieldId)) {
+      return false;
+    }
     boolean hasBound = safeContainsKey(file.upperBounds(), fieldId);
     Long valueCount = safeGet(file.valueCounts(), fieldId);
     Long nullCount = safeGet(file.nullValueCounts(), fieldId);

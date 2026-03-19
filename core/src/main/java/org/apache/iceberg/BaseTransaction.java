@@ -376,11 +376,11 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (PendingUpdateFailedException e) {
-      cleanUpOnCommitFailure();
+      cleanUp();
       throw e.wrapped();
     } catch (RuntimeException e) {
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanUpOnCommitFailure();
+        cleanUp();
       }
 
       throw e;
@@ -417,7 +417,7 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  private void cleanUpOnCommitFailure() {
+  protected void cleanUp() {
     // the commit failed and no files were committed. clean up each update.
     cleanAllUpdates();
 

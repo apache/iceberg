@@ -187,6 +187,15 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
               if (curRecordCount >= maxRows) {
                 // we included the file, so increment the number of files
                 // read in the current snapshot.
+                if (curFilesAdded == 1 && curRecordCount > maxRows) {
+                  LOG.warn(
+                      "File {} contains {} records, exceeding maxRecordsPerMicroBatch limit of {}. "
+                          + "This file will be processed entirely to guarantee forward progress. "
+                          + "Consider increasing the limit or writing smaller files to avoid unexpected memory usage.",
+                      task.file().location(),
+                      task.file().recordCount(),
+                      maxRows);
+                }
                 ++curPos;
                 shouldContinueReading = false;
                 break;

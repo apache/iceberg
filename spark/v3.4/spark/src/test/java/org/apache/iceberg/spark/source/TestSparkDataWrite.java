@@ -148,7 +148,7 @@ public class TestSparkDataWrite {
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
           assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
@@ -397,7 +397,7 @@ public class TestSparkDataWrite {
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }
@@ -624,7 +624,7 @@ public class TestSparkDataWrite {
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }

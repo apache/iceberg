@@ -75,7 +75,6 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         tableIdentifier,
         resourcePaths,
         supportedEndpoints,
-        io(),
         catalogProperties,
         hadoopConf);
   }

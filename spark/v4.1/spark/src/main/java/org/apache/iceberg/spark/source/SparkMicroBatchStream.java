@@ -26,6 +26,7 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
@@ -61,10 +62,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
+  private final Supplier<FileIO> fileIO;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
   private final String projection;
   private final Broadcast<Table> tableBroadcast;
+  private final Broadcast<FileIO> fileIOBroadcast;
   private final long splitSize;
   private final int splitLookback;
   private final long splitOpenFileCost;
@@ -80,15 +83,18 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
       Table table,
+      Supplier<FileIO> fileIO,
       SparkReadConf readConf,
       Schema projection,
       String checkpointLocation) {
     this.table = table;
+    this.fileIO = fileIO;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
     this.projection = SchemaParser.toJson(projection);
     this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    this.fileIOBroadcast = sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
@@ -158,6 +164,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               EMPTY_GROUPING_KEY_TYPE,
               combinedScanTasks.get(index),
               tableBroadcast,
+              fileIOBroadcast,
               projection,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
@@ -168,7 +175,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private String[][] computePreferredLocations(List<CombinedScanTask> taskGroups) {
-    return localityPreferred ? SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups) : null;
+    return localityPreferred
+        ? SparkPlanningUtil.fetchBlockLocations(fileIO.get(), taskGroups)
+        : null;
   }
 
   @Override
@@ -197,13 +206,18 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private void initializePlanner(StreamingOffset startOffset, StreamingOffset endOffset) {
-    this.planner =
-        new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
+    if (readConf.asyncMicroBatchPlanningEnabled()) {
+      this.planner =
+          new AsyncSparkMicroBatchPlanner(
+              table, readConf, startOffset, endOffset, lastOffsetForTriggerAvailableNow);
+    } else {
+      this.planner =
+          new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
+    }
   }
 
   @Override
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
-    // calculate end offset get snapshotId from the startOffset
     Preconditions.checkArgument(
         startOffset instanceof StreamingOffset,
         "Invalid start offset: %s is not a StreamingOffset",

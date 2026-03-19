@@ -216,6 +216,15 @@ Here are the catalog properties related to locking. They are used by some catalo
 
 ## Hadoop configuration
 
+### HadoopTables Lock Configuration
+
+When using `HadoopTables` (tables without a catalog), lock properties from the [Lock catalog properties](#lock-catalog-properties) section can be configured by prefixing them with `iceberg.tables.hadoop.`. This ensures atomic commits on file systems like S3 that lack native write mutual exclusion.
+
+!!! info
+    To use DynamoDB as a lock manager with `HadoopTables`, set `iceberg.tables.hadoop.lock-impl` to `org.apache.iceberg.aws.dynamodb.DynamoDbLockManager` and `iceberg.tables.hadoop.lock.table` to your DynamoDB table name. See [DynamoDB Lock Manager](aws.md#dynamodb-lock-manager) for more details.
+
+### Hive Metastore Configuration
+
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 The HMS table locking is a 2-step process:
 

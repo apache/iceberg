@@ -66,14 +66,6 @@ public class SparkFormatModels {
                     icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        ParquetFormatModel.create(
-            VectorizedSparkParquetReaders.CometColumnarBatch.class,
-            StructType.class,
-            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                VectorizedSparkParquetReaders.buildCometReader(
-                    icebergSchema, fileSchema, idToConstant)));
-
-    FormatModelRegistry.register(
         ORCFormatModel.create(
             InternalRow.class,
             StructType.class,
