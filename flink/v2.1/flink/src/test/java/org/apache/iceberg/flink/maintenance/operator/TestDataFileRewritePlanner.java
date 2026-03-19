@@ -33,6 +33,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -107,7 +108,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     1L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
                     Expressions.alwaysTrue(),
-                    null))) {
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       // Cause an exception
@@ -174,7 +175,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     maxRewriteBytes,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
                     Expressions.alwaysTrue(),
-                    null))) {
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

@@ -35,7 +35,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.RewriteFileGroup;
@@ -123,12 +122,11 @@ public class DataFileRewriteRunner
 
         Set<DataFile> dataFiles = Sets.newHashSet(writer.dataFiles());
         value.group().setOutputFiles(dataFiles);
-        Snapshot snapshot =
-            value.branch() != null
-                ? value.table().snapshot(value.branch())
-                : value.table().currentSnapshot();
         out.collect(
-            new ExecutedGroup(snapshot.snapshotId(), value.groupsPerCommit(), value.group()));
+            new ExecutedGroup(
+                value.table().snapshot(value.branch()).snapshotId(),
+                value.groupsPerCommit(),
+                value.group()));
         if (LOG.isDebugEnabled()) {
           LOG.debug(
               DataFileRewritePlanner.MESSAGE_PREFIX + "Rewritten files {} from {} to {}",

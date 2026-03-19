@@ -69,6 +69,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
+    Preconditions.checkNotNull(branch, "Branch should not be null");
 
     this.tableName = tableName;
     this.taskName = taskName;

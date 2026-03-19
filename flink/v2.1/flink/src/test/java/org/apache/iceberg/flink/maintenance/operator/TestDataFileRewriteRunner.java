@@ -38,6 +38,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -309,7 +310,7 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                         TARGET_FILE_SIZE_BYTES,
                         String.valueOf(targetFileSize)),
                     Expressions.alwaysTrue(),
-                    null))) {
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

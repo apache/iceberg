@@ -112,7 +112,7 @@ public class DataFileRewritePlanner
     try {
       SerializableTable table =
           (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable());
-      Snapshot snapshot = branch != null ? table.snapshot(branch) : table.currentSnapshot();
+      Snapshot snapshot = table.snapshot(branch);
       if (snapshot == null) {
         LOG.info(
             DataFileRewritePlanner.MESSAGE_PREFIX + "Nothing to plan for in an empty table",
