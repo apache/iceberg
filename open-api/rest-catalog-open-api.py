@@ -94,6 +94,13 @@ class Namespace(RootModel[list[str]]):
     )
 
 
+class CatalogObjectType(RootModel[Literal['table', 'view']]):
+    root: Literal['table', 'view'] = Field(
+        ...,
+        description='The type of a named catalog object within a namespace. Identifiers MUST be unique across all catalog object types within the same namespace; a table and a view with the same name in the same namespace are not allowed. Known types are listed below.',
+    )
+
+
 class PageToken(RootModel[str | None]):
     root: str | None = Field(
         None,
