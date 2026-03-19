@@ -36,7 +36,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -60,15 +59,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.rest.ErrorHandlers;
-import org.apache.iceberg.rest.HTTPClient;
-import org.apache.iceberg.rest.RESTCatalogProperties;
-import org.apache.iceberg.rest.RESTClient;
-import org.apache.iceberg.rest.RESTUtil;
-import org.apache.iceberg.rest.auth.AuthManager;
-import org.apache.iceberg.rest.auth.AuthManagers;
-import org.apache.iceberg.rest.auth.AuthSession;
-import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -440,7 +430,7 @@ public class S3FileIO
           this.clientByPrefix = localClientByPrefix;
           // Note: the s3 clients separately refresh via the VendedCredentialsProvider but are
           //       not directly referencable from the FileIO
-          scheduleRefresh();
+          scheduleCredentialRefresh();
         }
       }
     }
@@ -448,7 +438,7 @@ public class S3FileIO
     return clientByPrefix;
   }
 
-  private void scheduleRefresh() {
+  private void scheduleCredentialRefresh() {
     storageCredentials.stream()
         .map(
             storageCredential ->
@@ -467,63 +457,22 @@ public class S3FileIO
   }
 
   private void refreshStorageCredentials() {
-    String credentialsEndpoint = properties.get(VendedCredentialsProvider.URI);
-    String catalogEndpoint = properties.get(CatalogProperties.URI);
-    if (credentialsEndpoint == null || catalogEndpoint == null) {
+    if (isResourceClosed.get()) {
       return;
     }
 
-    // Refresh should be infrequent, so single use http client here is acceptable
-    AuthManager authManager = null;
-    AuthSession authSession = null;
-    HTTPClient httpClient = null;
-    try {
-      authManager = AuthManagers.loadAuthManager("s3-credentials-refresh", properties);
-      httpClient =
-          HTTPClient.builder(properties)
-              .uri(catalogEndpoint)
-              .withHeaders(RESTUtil.configHeaders(properties))
-              .build();
-      authSession = authManager.catalogSession(httpClient, properties);
-      RESTClient restClient = httpClient.withAuthSession(authSession);
-      String planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
-
-      LoadCredentialsResponse response =
-          restClient.get(
-              credentialsEndpoint,
-              null != planId ? Map.of("planId", planId) : null,
-              LoadCredentialsResponse.class,
-              Map.of(),
-              ErrorHandlers.defaultErrorHandler());
-
-      List<StorageCredential> refreshedCredentials =
-          response.credentials().stream()
+    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(properties)) {
+      List<StorageCredential> refreshed =
+          provider.fetchCredentials().credentials().stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
               .map(c -> StorageCredential.create(c.prefix(), c.config()))
               .collect(Collectors.toList());
 
-      // if the fileio is closed or no credentials provided, ignore the results and don't reschedule
-      if (!refreshedCredentials.isEmpty() && !isResourceClosed.get()) {
-        // copy credentials into a modifiable collection for Kryo serde
-        this.storageCredentials = Lists.newArrayList(refreshedCredentials);
-        scheduleRefresh();
+      if (!refreshed.isEmpty() && !isResourceClosed.get()) {
+        this.storageCredentials = Lists.newArrayList(refreshed);
       }
     } catch (Exception e) {
       LOG.warn("Failed to refresh storage credentials", e);
-    } finally {
-      closeQuietly(authSession);
-      closeQuietly(authManager);
-      closeQuietly(httpClient);
-    }
-  }
-
-  private static void closeQuietly(AutoCloseable closeable) {
-    if (closeable != null) {
-      try {
-        closeable.close();
-      } catch (Exception e) {
-        LOG.warn("Failed to close resource", e);
-      }
     }
   }
 
