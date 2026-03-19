@@ -24,7 +24,6 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -38,8 +37,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
@@ -782,28 +779,11 @@ public class ExpressionUtil {
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema);
-    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
 
     for (int id : ids) {
-      String columnName = schema.findColumnName(id);
-      if (columnName != null && canBePartitionSource(id, schema, idToParent)) {
-        specBuilder.identity(columnName);
-      }
+      specBuilder.identity(schema.findColumnName(id));
     }
 
     return specBuilder.build();
-  }
-
-  private static boolean canBePartitionSource(
-      int fieldId, Schema schema, Map<Integer, Integer> idToParent) {
-    Integer parentId = idToParent.get(fieldId);
-    while (parentId != null) {
-      Type parentType = schema.findType(parentId);
-      if (parentType == null || !parentType.isStructType()) {
-        return false;
-      }
-      parentId = idToParent.get(parentId);
-    }
-    return true;
   }
 }
