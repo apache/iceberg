@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -381,10 +380,7 @@ public abstract class BaseFormatModelTests<T> {
 
     List<Types.NestedField> columns = fullSchema.columns();
     List<Types.NestedField> projectedColumns =
-        IntStream.range(0, columns.size())
-            .filter(i -> i % 2 == 1)
-            .mapToObj(columns::get)
-            .collect(Collectors.toList());
+        IntStream.range(0, columns.size()).filter(i -> i % 2 == 1).mapToObj(columns::get).toList();
     if (projectedColumns.isEmpty()) {
       projectedColumns = ImmutableList.of(columns.get(columns.size() - 1));
     }
