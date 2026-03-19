@@ -529,6 +529,41 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(4, "d")));
   }
 
+  @Test
+  void testBranch() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    // Create branch based on above inserts
+    String branchName = "test-branch";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    // Insert another file on main only (main has 3 files, branch stays at 2)
+    insert(table, 3, "c");
+
+    appendRewriteDataFiles(RewriteDataFiles.builder().rewriteAll(true).branch(branchName));
+
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    table.refresh();
+
+    // Branch should be compacted from 2 files to 1
+    assertThat(
+            table.snapshot(branchName).dataManifests(table.io()).stream()
+                .flatMap(
+                    m ->
+                        StreamSupport.stream(
+                            ManifestFiles.read(m, table.io(), table.specs()).spliterator(), false))
+                .count())
+        .isEqualTo(1);
+    SimpleDataUtil.assertTableRecords(
+        table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")), branchName);
+
+    // Main should be untouched with 3 files
+    assertFileNum(table, 3, 0);
+  }
+
   private void appendRewriteDataFiles() {
     appendRewriteDataFiles(RewriteDataFiles.builder().rewriteAll(true));
   }

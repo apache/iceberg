@@ -769,7 +769,10 @@ public class IcebergSink
       if (flinkWriteConf.compactMode()) {
         RewriteDataFilesConfig rewriteDataFilesConfig =
             flinkMaintenanceConfig.createRewriteDataFilesConfig();
-        maintenanceTasks.add(RewriteDataFiles.builder().config(rewriteDataFilesConfig));
+        maintenanceTasks.add(
+            RewriteDataFiles.builder()
+                .branch(flinkWriteConf.branch())
+                .config(rewriteDataFilesConfig));
       }
 
       if (flinkWriteConf.expireSnapshotsMode()) {
