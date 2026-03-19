@@ -429,7 +429,7 @@ public class S3FileIO
 
           this.clientByPrefix = localClientByPrefix;
           // Note: the s3 clients separately refresh via the VendedCredentialsProvider but are
-          //       not directly referencable from the FileIO
+          // not directly referencable from the FileIO
           scheduleCredentialRefresh();
         }
       }
