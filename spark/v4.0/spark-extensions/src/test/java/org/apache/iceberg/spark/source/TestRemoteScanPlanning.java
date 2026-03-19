@@ -16,15 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.extensions;
+package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.function.Supplier;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.sql.TestSelect;
+import org.apache.spark.sql.connector.read.Batch;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -38,8 +49,6 @@ public class TestRemoteScanPlanning extends TestSelect {
         ImmutableMap.builder()
             .putAll(SparkCatalogConfig.REST.properties())
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
-            // this flag is typically only set by the server, but we set it from the client for
-            // testing
             .put(
                 RESTCatalogProperties.SCAN_PLANNING_MODE,
                 RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
@@ -47,5 +56,37 @@ public class TestRemoteScanPlanning extends TestSelect {
         SparkCatalogConfig.REST.catalogName() + ".default.binary_table"
       }
     };
+  }
+
+  @TestTemplate
+  public void fileIOIsPropagated() {
+    RESTCatalog catalog = new RESTCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize(
+        "test",
+        ImmutableMap.<String, String>builder()
+            .putAll(restCatalog.properties())
+            .put(
+                RESTCatalogProperties.SCAN_PLANNING_MODE,
+                RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
+            .build());
+    Table table = catalog.loadTable(tableIdent);
+
+    SparkScanBuilder builder = new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    verifyFileIOHasPlanId(builder.build().toBatch(), table);
+    verifyFileIOHasPlanId(builder.buildCopyOnWriteScan().toBatch(), table);
+  }
+
+  private void verifyFileIOHasPlanId(Batch batch, Table table) {
+    FileIO fileIOForScan =
+        (FileIO)
+            assertThat(batch)
+                .extracting("fileIO")
+                .isInstanceOf(Supplier.class)
+                .asInstanceOf(InstanceOfAssertFactories.type(Supplier.class))
+                .actual()
+                .get();
+    assertThat(fileIOForScan.properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
   }
 }

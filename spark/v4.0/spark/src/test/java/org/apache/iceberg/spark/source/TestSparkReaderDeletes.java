@@ -329,7 +329,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     for (CombinedScanTask task : tasks) {
       try (EqualityDeleteRowReader reader =
-          new EqualityDeleteRowReader(task, table, table.schema(), table.schema(), false, true)) {
+          new EqualityDeleteRowReader(
+              task, table, table.io(), table.schema(), table.schema(), false, true)) {
         while (reader.next()) {
           actualRowSet.add(
               new InternalRowWrapper(
@@ -675,6 +676,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
           new BatchDataReader(
               // expected column is id, while the equality filter column is dt
               dateTable,
+              dateTable.io(),
               task,
               dateTable.schema(),
               dateTable.schema().select("id"),
