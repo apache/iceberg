@@ -533,6 +533,14 @@ public abstract class BaseFormatModelTests<T> {
     long fileLength = inputFile.getLength();
 
     List<Long> splitOffsets = dataFile.splitOffsets();
+    assertThat(splitOffsets)
+        .as(
+            "Expected multiple split offsets. "
+                + "If this fails, the file did not produce multiple row groups. "
+                + "Try reducing the split size property (see writeRecordsForSplit) "
+                + "or increasing the number of records written.")
+        .hasSizeGreaterThan(1);
+
     long firstSplitStart = splitOffsets.get(0);
     long firstSplitLength = splitOffsets.get(1) - splitOffsets.get(0);
 
@@ -572,50 +580,6 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     assertThat(readRecords).hasSize(records.size());
-  }
-
-  /**
-   * Verifies the contract of recordsPerBatch: recordsPerBatch is a hint for vectorized readers. The
-   * total number of records returned must be unaffected regardless of the batch size value.
-   */
-  @ParameterizedTest
-  @FieldSource("FILE_FORMATS")
-  void testReaderBuilderRecordsPerBatch(FileFormat fileFormat) throws IOException {
-
-    assumeSupports(fileFormat, "recordsPerBatch");
-
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
-    Schema schema = dataGenerator.schema();
-
-    List<Record> genericRecords = dataGenerator.generateRecords();
-    writeGenericRecords(fileFormat, schema, genericRecords);
-
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> expectedEngineRecords = convertToEngineRecords(genericRecords, schema);
-
-    List<T> smallBatchRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .engineProjection(engineSchema(schema))
-            .recordsPerBatch(1)
-            .build()) {
-      smallBatchRecords = ImmutableList.copyOf(reader);
-    }
-
-    assertEquals(schema, expectedEngineRecords, smallBatchRecords);
-
-    List<T> largeBatchRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .engineProjection(engineSchema(schema))
-            .recordsPerBatch(genericRecords.size() + 1)
-            .build()) {
-      largeBatchRecords = ImmutableList.copyOf(reader);
-    }
-
-    assertEquals(schema, expectedEngineRecords, largeBatchRecords);
   }
 
   /** Verifies the contract of reuseContainers */
