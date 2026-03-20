@@ -21,9 +21,13 @@ package org.apache.iceberg.rest;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -55,8 +59,11 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
@@ -76,10 +83,16 @@ import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.requests.BatchLoadRequestedTable;
+import org.apache.iceberg.rest.requests.BatchLoadTablesRequest;
+import org.apache.iceberg.rest.requests.BatchLoadViewsRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableBatchLoadRequestedTable;
+import org.apache.iceberg.rest.requests.ImmutableBatchLoadTablesRequest;
+import org.apache.iceberg.rest.requests.ImmutableBatchLoadViewsRequest;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
@@ -88,6 +101,10 @@ import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadTablesResponse;
+import org.apache.iceberg.rest.responses.BatchLoadTablesResultItem;
+import org.apache.iceberg.rest.responses.BatchLoadViewsResponse;
+import org.apache.iceberg.rest.responses.BatchLoadViewsResultItem;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
@@ -400,6 +417,60 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     invalidateTable(context, from);
   }
 
+  CloseableIterable<BatchLoadTablesResultItem> batchLoadTables(
+      SessionContext context, List<BatchLoadRequestedTable> tables) {
+    Endpoint.check(endpoints, Endpoint.V1_BATCH_LOAD_TABLES);
+
+    return new CloseableIterable<BatchLoadTablesResultItem>() {
+      @Override
+      public CloseableIterator<BatchLoadTablesResultItem> iterator() {
+        return new BatchLoadTablesIterator(context, tables);
+      }
+
+      @Override
+      public void close() {}
+    };
+  }
+
+  @Override
+  public CloseableIterable<Table> batchLoadTables(
+      SessionContext context, Iterable<TableIdentifier> identifiers) {
+    List<BatchLoadRequestedTable> tables = Lists.newArrayList();
+    for (TableIdentifier identifier : identifiers) {
+      tables.add(ImmutableBatchLoadRequestedTable.builder().identifier(identifier).build());
+    }
+
+    return CloseableIterable.transform(
+        batchLoadTables(context, tables), item -> tableFromBatchLoadResult(context, item));
+  }
+
+  CloseableIterable<BatchLoadViewsResultItem> batchLoadViews(
+      SessionContext context, List<TableIdentifier> views) {
+    Endpoint.check(endpoints, Endpoint.V1_BATCH_LOAD_VIEWS);
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    BatchLoadViewsRequest request = ImmutableBatchLoadViewsRequest.builder().views(views).build();
+    BatchLoadViewsResponse response =
+        client
+            .withAuthSession(contextualSession)
+            .post(
+                paths.batchLoadViews(),
+                request,
+                BatchLoadViewsResponse.class,
+                Map.of(),
+                ErrorHandlers.defaultErrorHandler());
+
+    return CloseableIterable.withNoopClose(response.views());
+  }
+
+  @Override
+  public CloseableIterable<View> batchLoadViews(
+      SessionContext context, Iterable<TableIdentifier> identifiers) {
+    return CloseableIterable.transform(
+        batchLoadViews(context, Lists.newArrayList(identifiers)),
+        item -> viewFromBatchLoadResult(context, item));
+  }
+
   @Override
   public boolean tableExists(SessionContext context, TableIdentifier identifier) {
     try {
@@ -428,6 +499,72 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static Map<String, String> snapshotModeToParam(SnapshotMode mode) {
     return ImmutableMap.of(
         RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER, mode.name().toLowerCase(Locale.US));
+  }
+
+  private Table tableFromBatchLoadResult(
+      SessionContext context, BatchLoadTablesResultItem batchResult) {
+    TableIdentifier identifier = batchResult.identifier();
+    if (batchResult.status() == 404) {
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
+    }
+
+    Preconditions.checkState(
+        batchResult.status() == 200, "Invalid batch load table status: %s", batchResult.status());
+    Preconditions.checkState(batchResult.result() != null, "Invalid batch load table result: null");
+
+    LoadTableResponse response = batchResult.result();
+    Map<String, String> tableConf = response.config();
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
+    RESTClient tableClient = client.withAuthSession(tableSession);
+    TableMetadata tableMetadata;
+
+    if (snapshotMode == SnapshotMode.REFS) {
+      tableMetadata =
+          TableMetadata.buildFrom(response.tableMetadata())
+              .withMetadataLocation(response.metadataLocation())
+              .setPreviousFileLocation(null)
+              .setSnapshotsSupplier(
+                  () ->
+                      loadInternal(context, identifier, SnapshotMode.ALL, Map.of(), h -> {})
+                          .tableMetadata()
+                          .snapshots())
+              .discardChanges()
+              .build();
+    } else {
+      tableMetadata = response.tableMetadata();
+    }
+
+    return createTableSupplier(
+            identifier, tableMetadata, context, tableClient, tableConf, response.credentials())
+        .get();
+  }
+
+  private View viewFromBatchLoadResult(
+      SessionContext context, BatchLoadViewsResultItem batchResult) {
+    TableIdentifier identifier = batchResult.identifier();
+    if (batchResult.status() == 404) {
+      throw new NoSuchViewException("View does not exist: %s", identifier);
+    }
+
+    Preconditions.checkState(
+        batchResult.status() == 200, "Invalid batch load view status: %s", batchResult.status());
+    Preconditions.checkState(batchResult.result() != null, "Invalid batch load view result: null");
+
+    LoadViewResponse response = batchResult.result();
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession tableSession =
+        authManager.tableSession(identifier, response.config(), contextualSession);
+    RESTViewOperations ops =
+        newViewOps(
+            client.withAuthSession(tableSession),
+            paths.view(identifier),
+            Map::of,
+            mutationHeaders,
+            response.metadata(),
+            endpoints);
+
+    return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
   }
 
   private LoadTableResponse loadInternal(
@@ -1751,5 +1888,86 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
     }
+  }
+
+  private class BatchLoadTablesIterator implements CloseableIterator<BatchLoadTablesResultItem> {
+    private final SessionContext context;
+    private final Map<String, String> queryParams;
+    private final Set<List<BatchLoadRequestedTable>> seenPending;
+    private Iterator<BatchLoadTablesResultItem> currentBatch;
+    private List<BatchLoadRequestedTable> pending;
+
+    BatchLoadTablesIterator(SessionContext context, List<BatchLoadRequestedTable> tables) {
+      this.context = context;
+      this.queryParams = snapshotModeToParam(snapshotMode);
+      this.seenPending = new HashSet<>();
+      this.pending = ImmutableList.copyOf(tables);
+      this.seenPending.add(this.pending);
+      fetchNextBatch();
+    }
+
+    private void fetchNextBatch() {
+      if (pending == null || pending.isEmpty()) {
+        this.currentBatch = Collections.emptyIterator();
+        this.pending = null;
+        return;
+      }
+
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      BatchLoadTablesRequest request =
+          ImmutableBatchLoadTablesRequest.builder().tables(pending).build();
+      BatchLoadTablesResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .post(
+                  paths.batchLoadTables(),
+                  request,
+                  BatchLoadTablesResponse.class,
+                  queryParams,
+                  Map.of(),
+                  ErrorHandlers.defaultErrorHandler());
+
+      this.currentBatch = response.results().iterator();
+
+      List<BatchLoadRequestedTable> unprocessed = response.unprocessedTables();
+      if (unprocessed != null && !unprocessed.isEmpty()) {
+        List<BatchLoadRequestedTable> nextPending = ImmutableList.copyOf(unprocessed);
+        if (!seenPending.add(nextPending)) {
+          throw new RESTException(
+              "Invalid batch load response: server did not make progress for tables: %s",
+              unprocessed);
+        }
+
+        this.pending = nextPending;
+      } else {
+        this.pending = null;
+      }
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (currentBatch.hasNext()) {
+        return true;
+      }
+
+      if (pending != null && !pending.isEmpty()) {
+        fetchNextBatch();
+        return currentBatch.hasNext();
+      }
+
+      return false;
+    }
+
+    @Override
+    public BatchLoadTablesResultItem next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      return currentBatch.next();
+    }
+
+    @Override
+    public void close() {}
   }
 }

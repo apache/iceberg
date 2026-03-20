@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
@@ -53,6 +54,25 @@ public interface ViewSessionCatalog {
    * @throws NoSuchViewException if the view does not exist
    */
   View loadView(SessionCatalog.SessionContext context, TableIdentifier identifier);
+
+  /**
+   * Loads multiple views, typically in fewer round trips than repeated {@link #loadView} calls,
+   * when the catalog supports a batch load operation.
+   *
+   * <p>Underlying implementations often use a batch protocol where each requested identifier has
+   * its own outcome (for example an HTTP status per item: loaded or not found) rather than failing
+   * the entire batch when one view is missing.
+   *
+   * @param context session context
+   * @param identifiers view identifiers
+   * @return a closeable iterable produced by this batch load; how missing identifiers are
+   *     represented depends on the catalog implementation
+   * @throws UnsupportedOperationException if batch view loading is not supported
+   */
+  default CloseableIterable<View> batchLoadViews(
+      SessionCatalog.SessionContext context, Iterable<TableIdentifier> identifiers) {
+    throw new UnsupportedOperationException("Batch view loading is not supported");
+  }
 
   /**
    * Check whether view exists.

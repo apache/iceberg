@@ -28,6 +28,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /** A Catalog API for table and namespace operations that includes session context. */
@@ -195,6 +196,24 @@ public interface SessionCatalog {
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(SessionContext context, TableIdentifier ident);
+
+  /**
+   * Loads multiple tables, typically in fewer round trips than repeated {@link #loadTable} calls,
+   * when the catalog supports a batch load operation.
+   *
+   * <p>Underlying implementations often use a batch protocol where each requested identifier has
+   * its own outcome rather than failing the entire batch when one table is missing.
+   *
+   * @param context session context
+   * @param idents table identifiers
+   * @return a closeable iterable produced by this batch load; how missing or not-modified
+   *     identifiers are represented depends on the catalog implementation
+   * @throws UnsupportedOperationException if batch table loading is not supported
+   */
+  default CloseableIterable<Table> batchLoadTables(
+      SessionContext context, Iterable<TableIdentifier> idents) {
+    throw new UnsupportedOperationException("Batch table loading is not supported");
+  }
 
   /**
    * Drop a table, without requesting that files are immediately deleted.

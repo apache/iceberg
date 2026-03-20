@@ -39,6 +39,7 @@ public class ResourcePaths {
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
   public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
+  public static final String V1_TABLES_BATCH_LOAD = "/v1/{prefix}/tables/batch-load";
   public static final String V1_TABLE_SCAN_PLAN_SUBMIT =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan";
   public static final String V1_TABLE_SCAN_PLAN =
@@ -49,6 +50,7 @@ public class ResourcePaths {
   public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
   public static final String V1_VIEW_RENAME = "/v1/{prefix}/views/rename";
+  public static final String V1_VIEWS_BATCH_LOAD = "/v1/{prefix}/views/batch-load";
   public static final String V1_VIEW_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register-view";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
@@ -119,6 +121,10 @@ public class ResourcePaths {
     return SLASH.join("v1", prefix, "tables", "rename");
   }
 
+  public String batchLoadTables() {
+    return SLASH.join("v1", prefix, "tables", "batch-load");
+  }
+
   public String metrics(TableIdentifier identifier) {
     return SLASH.join(
         "v1",
@@ -150,6 +156,10 @@ public class ResourcePaths {
 
   public String renameView() {
     return SLASH.join("v1", prefix, "views", "rename");
+  }
+
+  public String batchLoadViews() {
+    return SLASH.join("v1", prefix, "views", "batch-load");
   }
 
   public String registerView(Namespace ns) {

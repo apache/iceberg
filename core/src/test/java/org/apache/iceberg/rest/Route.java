@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.requests.BatchLoadTablesRequest;
+import org.apache.iceberg.rest.requests.BatchLoadViewsRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -34,6 +36,8 @@ import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadTablesResponse;
+import org.apache.iceberg.rest.responses.BatchLoadViewsResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
@@ -90,6 +94,11 @@ enum Route {
   DROP_TABLE(HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE),
   RENAME_TABLE(
       HTTPRequest.HTTPMethod.POST, ResourcePaths.V1_TABLE_RENAME, RenameTableRequest.class, null),
+  BATCH_LOAD_TABLES(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_TABLES_BATCH_LOAD,
+      BatchLoadTablesRequest.class,
+      BatchLoadTablesResponse.class),
   REPORT_METRICS(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE_METRICS,
@@ -121,6 +130,11 @@ enum Route {
       ResourcePaths.V1_VIEW_REGISTER,
       RegisterViewRequest.class,
       LoadViewResponse.class),
+  BATCH_LOAD_VIEWS(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_VIEWS_BATCH_LOAD,
+      BatchLoadViewsRequest.class,
+      BatchLoadViewsResponse.class),
   PLAN_TABLE_SCAN(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT,

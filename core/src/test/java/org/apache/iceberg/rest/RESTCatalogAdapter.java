@@ -63,6 +63,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.requests.BatchLoadTablesRequest;
+import org.apache.iceberg.rest.requests.BatchLoadViewsRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -433,6 +435,14 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           return null;
         }
 
+      case BATCH_LOAD_TABLES:
+        {
+          BatchLoadTablesRequest request = castRequest(BatchLoadTablesRequest.class, body);
+          SnapshotMode mode = snapshotModeFromQueryParams(httpRequest.queryParameters());
+          return castResponse(
+              responseType, CatalogHandlers.batchLoadTables(catalog, request, mode));
+        }
+
       case LIST_VIEWS:
         {
           if (null != asViewCatalog) {
@@ -527,6 +537,16 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             RegisterViewRequest request = castRequest(RegisterViewRequest.class, body);
             return castResponse(
                 responseType, CatalogHandlers.registerView(asViewCatalog, namespace, request));
+          }
+          break;
+        }
+
+      case BATCH_LOAD_VIEWS:
+        {
+          if (null != asViewCatalog) {
+            BatchLoadViewsRequest request = castRequest(BatchLoadViewsRequest.class, body);
+            return castResponse(
+                responseType, CatalogHandlers.batchLoadViews(asViewCatalog, request));
           }
           break;
         }

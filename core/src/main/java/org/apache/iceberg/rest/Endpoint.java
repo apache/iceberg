@@ -64,6 +64,8 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_TABLE_REGISTER);
   public static final Endpoint V1_REPORT_METRICS =
       Endpoint.create("POST", ResourcePaths.V1_TABLE_METRICS);
+  public static final Endpoint V1_BATCH_LOAD_TABLES =
+      Endpoint.create("POST", ResourcePaths.V1_TABLES_BATCH_LOAD);
   public static final Endpoint V1_TABLE_CREDENTIALS =
       Endpoint.create("GET", ResourcePaths.V1_TABLE_CREDENTIALS);
 
@@ -88,6 +90,8 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_VIEW_RENAME);
   public static final Endpoint V1_REGISTER_VIEW =
       Endpoint.create("POST", ResourcePaths.V1_VIEW_REGISTER);
+  public static final Endpoint V1_BATCH_LOAD_VIEWS =
+      Endpoint.create("POST", ResourcePaths.V1_VIEWS_BATCH_LOAD);
 
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");

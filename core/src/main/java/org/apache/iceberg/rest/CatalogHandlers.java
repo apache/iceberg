@@ -31,6 +31,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -76,10 +77,15 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
+import org.apache.iceberg.rest.requests.BatchLoadRequestedTable;
+import org.apache.iceberg.rest.requests.BatchLoadTablesRequest;
+import org.apache.iceberg.rest.requests.BatchLoadViewsRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -90,10 +96,18 @@ import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadTablesResponse;
+import org.apache.iceberg.rest.responses.BatchLoadTablesResultItem;
+import org.apache.iceberg.rest.responses.BatchLoadViewsResponse;
+import org.apache.iceberg.rest.responses.BatchLoadViewsResultItem;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ImmutableBatchLoadTablesResponse;
+import org.apache.iceberg.rest.responses.ImmutableBatchLoadTablesResultItem;
+import org.apache.iceberg.rest.responses.ImmutableBatchLoadViewsResponse;
+import org.apache.iceberg.rest.responses.ImmutableBatchLoadViewsResultItem;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
@@ -572,6 +586,62 @@ public class CatalogHandlers {
 
   public static void renameTable(Catalog catalog, RenameTableRequest request) {
     catalog.renameTable(request.source(), request.destination());
+  }
+
+  public static BatchLoadTablesResponse batchLoadTables(
+      Catalog catalog, BatchLoadTablesRequest request, SnapshotMode mode) {
+    ImmutableList.Builder<BatchLoadTablesResultItem> results = ImmutableList.builder();
+
+    for (BatchLoadRequestedTable requested : request.tables()) {
+      TableIdentifier ident = requested.identifier();
+      ImmutableBatchLoadTablesResultItem.Builder itemBuilder =
+          ImmutableBatchLoadTablesResultItem.builder().identifier(ident);
+
+      try {
+        LoadTableResponse tableResponse = loadTable(catalog, ident, mode);
+
+        String etag =
+            ETagProvider.of(tableResponse.metadataLocation(), snapshotModeToQueryParam(mode));
+
+        if (null != requested.ifNonMatch() && etag.equals(requested.ifNonMatch())) {
+          itemBuilder.status(304).etag(etag);
+        } else {
+          itemBuilder.status(200).etag(etag).result(tableResponse);
+        }
+      } catch (NoSuchTableException e) {
+        itemBuilder.status(404);
+      }
+
+      results.add(itemBuilder.build());
+    }
+
+    return ImmutableBatchLoadTablesResponse.builder().results(results.build()).build();
+  }
+
+  public static BatchLoadViewsResponse batchLoadViews(
+      ViewCatalog catalog, BatchLoadViewsRequest request) {
+    ImmutableList.Builder<BatchLoadViewsResultItem> results = ImmutableList.builder();
+
+    for (TableIdentifier ident : request.views()) {
+      ImmutableBatchLoadViewsResultItem.Builder itemBuilder =
+          ImmutableBatchLoadViewsResultItem.builder().identifier(ident);
+
+      try {
+        LoadViewResponse viewResponse = loadView(catalog, ident);
+        itemBuilder.status(200).result(viewResponse);
+      } catch (NoSuchViewException e) {
+        itemBuilder.status(404);
+      }
+
+      results.add(itemBuilder.build());
+    }
+
+    return ImmutableBatchLoadViewsResponse.builder().views(results.build()).build();
+  }
+
+  private static Map<String, String> snapshotModeToQueryParam(SnapshotMode mode) {
+    return ImmutableMap.of(
+        RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER, mode.name().toLowerCase(Locale.ROOT));
   }
 
   private static boolean isCreate(UpdateTableRequest request) {

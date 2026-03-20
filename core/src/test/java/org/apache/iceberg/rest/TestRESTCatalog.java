@@ -37,6 +37,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -48,6 +49,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -76,15 +78,20 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.ViewSessionCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -99,18 +106,25 @@ import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.BatchLoadRequestedTable;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableBatchLoadRequestedTable;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadTablesResponse;
+import org.apache.iceberg.rest.responses.BatchLoadTablesResultItem;
+import org.apache.iceberg.rest.responses.BatchLoadViewsResultItem;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ImmutableBatchLoadTablesResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.view.View;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
@@ -3773,5 +3787,459 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
     verify(adapter, atLeastOnce()).execute(captor.capture(), any(), any(), any());
     return captor.getAllValues();
+  }
+
+  @Test
+  public void testBatchLoadTablesRoundTrip() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+
+    TableIdentifier missingTable = TableIdentifier.of(TABLE.namespace(), "missing_table");
+
+    RESTSessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+
+    List<BatchLoadRequestedTable> tables =
+        ImmutableList.of(
+            ImmutableBatchLoadRequestedTable.builder().identifier(TABLE).build(),
+            ImmutableBatchLoadRequestedTable.builder().identifier(missingTable).build());
+
+    List<BatchLoadTablesResultItem> results;
+    try (CloseableIterable<BatchLoadTablesResultItem> iterable =
+        sessionCatalog.batchLoadTables(context, tables)) {
+      results = Lists.newArrayList(iterable);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    assertThat(results).hasSize(2);
+
+    BatchLoadTablesResultItem foundItem =
+        results.stream().filter(r -> r.identifier().equals(TABLE)).findFirst().orElseThrow();
+    assertThat(foundItem.status()).isEqualTo(200);
+    assertThat(foundItem.result()).isNotNull();
+    assertThat(foundItem.result().tableMetadata()).isNotNull();
+
+    BatchLoadTablesResultItem missingItem =
+        results.stream().filter(r -> r.identifier().equals(missingTable)).findFirst().orElseThrow();
+    assertThat(missingItem.status()).isEqualTo(404);
+    assertThat(missingItem.result()).isNull();
+  }
+
+  @Test
+  public void testBatchLoadTablesRetryUnprocessed() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+
+    TableIdentifier tbl1 = TableIdentifier.of(TABLE.namespace(), "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of(TABLE.namespace(), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(TABLE.namespace(), "tbl3");
+    catalog.createTable(tbl1, SCHEMA);
+    catalog.createTable(tbl2, SCHEMA);
+    catalog.createTable(tbl3, SCHEMA);
+
+    AtomicInteger batchCallCount = new AtomicInteger(0);
+
+    Mockito.doAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              BatchLoadTablesResponse realResponse =
+                  (BatchLoadTablesResponse) invocation.callRealMethod();
+
+              int call = batchCallCount.incrementAndGet();
+              if (call == 1) {
+                // first call: return only tbl1's result, mark tbl2 and tbl3 as unprocessed
+                BatchLoadTablesResultItem tbl1Result =
+                    realResponse.results().stream()
+                        .filter(r -> r.identifier().equals(tbl1))
+                        .findFirst()
+                        .orElseThrow();
+
+                return ImmutableBatchLoadTablesResponse.builder()
+                    .addResults(tbl1Result)
+                    .addUnprocessedTables(
+                        ImmutableBatchLoadRequestedTable.builder().identifier(tbl2).build(),
+                        ImmutableBatchLoadRequestedTable.builder().identifier(tbl3).build())
+                    .build();
+              }
+
+              // second call: return remaining tables normally
+              return realResponse;
+            })
+        .when(adapter)
+        .execute(
+            RequestMatcher.matches(HTTPMethod.POST, RESOURCE_PATHS.batchLoadTables()),
+            eq(BatchLoadTablesResponse.class),
+            any(),
+            any());
+
+    RESTSessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+
+    List<BatchLoadRequestedTable> tables =
+        ImmutableList.of(
+            ImmutableBatchLoadRequestedTable.builder().identifier(tbl1).build(),
+            ImmutableBatchLoadRequestedTable.builder().identifier(tbl2).build(),
+            ImmutableBatchLoadRequestedTable.builder().identifier(tbl3).build());
+
+    List<BatchLoadTablesResultItem> results;
+    try (CloseableIterable<BatchLoadTablesResultItem> iterable =
+        sessionCatalog.batchLoadTables(context, tables)) {
+      results = Lists.newArrayList(iterable);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    assertThat(batchCallCount.get()).isEqualTo(2);
+    assertThat(results).hasSize(3);
+
+    for (TableIdentifier ident : ImmutableList.of(tbl1, tbl2, tbl3)) {
+      BatchLoadTablesResultItem item =
+          results.stream().filter(r -> r.identifier().equals(ident)).findFirst().orElseThrow();
+      assertThat(item.status()).isEqualTo(200);
+      assertThat(item.result()).isNotNull();
+      assertThat(item.result().tableMetadata()).isNotNull();
+    }
+  }
+
+  @Test
+  public void testBatchLoadTablesNotModified() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+
+    RESTSessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+
+    BatchLoadTablesResultItem initialResult;
+    try (CloseableIterable<BatchLoadTablesResultItem> iterable =
+        sessionCatalog.batchLoadTables(
+            context,
+            ImmutableList.of(
+                ImmutableBatchLoadRequestedTable.builder().identifier(TABLE).build()))) {
+      initialResult = Lists.newArrayList(iterable).get(0);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    assertThat(initialResult.status()).isEqualTo(200);
+    assertThat(initialResult.etag()).isNotNull();
+
+    BatchLoadTablesResultItem cachedResult;
+    try (CloseableIterable<BatchLoadTablesResultItem> iterable =
+        sessionCatalog.batchLoadTables(
+            context,
+            ImmutableList.of(
+                ImmutableBatchLoadRequestedTable.builder()
+                    .identifier(TABLE)
+                    .ifNonMatch(initialResult.etag())
+                    .build()))) {
+      cachedResult = Lists.newArrayList(iterable).get(0);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    assertThat(cachedResult.status()).isEqualTo(304);
+    assertThat(cachedResult.etag()).isEqualTo(initialResult.etag());
+    assertThat(cachedResult.result()).isNull();
+  }
+
+  @Test
+  public void testBatchLoadTablesUsesSnapshotLoadingMode() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), config -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            SnapshotMode.REFS.name()));
+
+    catalog.createNamespace(TABLE.namespace());
+    Table table = catalog.createTable(TABLE, SCHEMA);
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/batch-load-a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/batch-load-b.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    RESTSessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+
+    BatchLoadTablesResultItem result;
+    try (CloseableIterable<BatchLoadTablesResultItem> iterable =
+        sessionCatalog.batchLoadTables(
+            context,
+            ImmutableList.of(
+                ImmutableBatchLoadRequestedTable.builder().identifier(TABLE).build()))) {
+      result = Lists.newArrayList(iterable).get(0);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    assertThat(result.status()).isEqualTo(200);
+    assertThat(result.result()).isNotNull();
+    assertThat(result.result().tableMetadata().snapshots()).hasSize(1);
+
+    verify(adapter, times(1))
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.batchLoadTables(),
+                Map.of(),
+                Map.of("snapshots", "refs")),
+            eq(BatchLoadTablesResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testBatchLoadTablesViaSessionCatalogInterface() throws IOException {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+
+    SessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+    TableIdentifier missingTable = TableIdentifier.of(TABLE.namespace(), "missing_table");
+
+    try (CloseableIterable<Table> iterable =
+        sessionCatalog.batchLoadTables(context, ImmutableList.of(TABLE, missingTable))) {
+      CloseableIterator<Table> iterator = iterable.iterator();
+      Table loadedTable = iterator.next();
+      assertThat(loadedTable.name()).isEqualTo(String.format("%s.%s", catalog.name(), TABLE));
+      assertThatThrownBy(iterator::next)
+          .isInstanceOf(NoSuchTableException.class)
+          .hasMessage("Table does not exist: %s", missingTable);
+    }
+  }
+
+  @Test
+  public void testBatchLoadTablesFailsWhenUnprocessedTablesDoNotMakeProgress() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+
+    AtomicInteger batchCallCount = new AtomicInteger(0);
+    Mockito.doAnswer(
+            invocation -> {
+              batchCallCount.incrementAndGet();
+              return ImmutableBatchLoadTablesResponse.builder()
+                  .results(ImmutableList.of())
+                  .addUnprocessedTables(
+                      ImmutableBatchLoadRequestedTable.builder().identifier(TABLE).build())
+                  .build();
+            })
+        .when(adapter)
+        .execute(
+            RequestMatcher.matches(HTTPMethod.POST, RESOURCE_PATHS.batchLoadTables()),
+            eq(BatchLoadTablesResponse.class),
+            any(),
+            any());
+
+    RESTSessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+
+    assertThatThrownBy(
+            () -> {
+              try (CloseableIterable<BatchLoadTablesResultItem> iterable =
+                  sessionCatalog.batchLoadTables(
+                      context,
+                      ImmutableList.of(
+                          ImmutableBatchLoadRequestedTable.builder().identifier(TABLE).build()))) {
+                Lists.newArrayList(iterable);
+              }
+            })
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("server did not make progress");
+
+    assertThat(batchCallCount.get()).isEqualTo(1);
+  }
+
+  @Test
+  public void testBatchLoadTablesFailsWhenUnprocessedTablesRepeat() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+
+    TableIdentifier tbl1 = TableIdentifier.of(TABLE.namespace(), "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of(TABLE.namespace(), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(TABLE.namespace(), "tbl3");
+    catalog.createTable(tbl1, SCHEMA);
+    catalog.createTable(tbl2, SCHEMA);
+    catalog.createTable(tbl3, SCHEMA);
+
+    AtomicInteger batchCallCount = new AtomicInteger(0);
+    Mockito.doAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              BatchLoadTablesResponse realResponse =
+                  (BatchLoadTablesResponse) invocation.callRealMethod();
+              int call = batchCallCount.incrementAndGet();
+              if (call == 1) {
+                BatchLoadTablesResultItem tbl1Result =
+                    realResponse.results().stream()
+                        .filter(r -> r.identifier().equals(tbl1))
+                        .findFirst()
+                        .orElseThrow();
+                return ImmutableBatchLoadTablesResponse.builder()
+                    .addResults(tbl1Result)
+                    .addUnprocessedTables(
+                        ImmutableBatchLoadRequestedTable.builder().identifier(tbl2).build(),
+                        ImmutableBatchLoadRequestedTable.builder().identifier(tbl3).build())
+                    .build();
+              } else if (call == 2) {
+                BatchLoadTablesResultItem tbl2Result =
+                    realResponse.results().stream()
+                        .filter(r -> r.identifier().equals(tbl2))
+                        .findFirst()
+                        .orElseThrow();
+                return ImmutableBatchLoadTablesResponse.builder()
+                    .addResults(tbl2Result)
+                    .addUnprocessedTables(
+                        ImmutableBatchLoadRequestedTable.builder().identifier(tbl3).build())
+                    .build();
+              } else {
+                BatchLoadTablesResultItem tbl3Result =
+                    realResponse.results().stream()
+                        .filter(r -> r.identifier().equals(tbl3))
+                        .findFirst()
+                        .orElseThrow();
+                return ImmutableBatchLoadTablesResponse.builder()
+                    .addResults(tbl3Result)
+                    .addUnprocessedTables(
+                        ImmutableBatchLoadRequestedTable.builder().identifier(tbl2).build(),
+                        ImmutableBatchLoadRequestedTable.builder().identifier(tbl3).build())
+                    .build();
+              }
+            })
+        .when(adapter)
+        .execute(
+            RequestMatcher.matches(HTTPMethod.POST, RESOURCE_PATHS.batchLoadTables()),
+            eq(BatchLoadTablesResponse.class),
+            any(),
+            any());
+
+    RESTSessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+
+    assertThatThrownBy(
+            () -> {
+              try (CloseableIterable<BatchLoadTablesResultItem> iterable =
+                  sessionCatalog.batchLoadTables(
+                      context,
+                      ImmutableList.of(
+                          ImmutableBatchLoadRequestedTable.builder().identifier(tbl1).build(),
+                          ImmutableBatchLoadRequestedTable.builder().identifier(tbl2).build(),
+                          ImmutableBatchLoadRequestedTable.builder().identifier(tbl3).build()))) {
+                Lists.newArrayList(iterable);
+              }
+            })
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("server did not make progress");
+
+    assertThat(batchCallCount.get()).isEqualTo(3);
+  }
+
+  @Test
+  public void testBatchLoadViewsRoundTrip() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+
+    TableIdentifier viewIdent = TableIdentifier.of(TABLE.namespace(), "test_view");
+    catalog
+        .buildView(viewIdent)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(TABLE.namespace())
+        .withQuery("spark", "SELECT * FROM tbl")
+        .create();
+
+    TableIdentifier missingView = TableIdentifier.of(TABLE.namespace(), "missing_view");
+
+    RESTSessionCatalog sessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+
+    List<TableIdentifier> views = ImmutableList.of(viewIdent, missingView);
+
+    List<BatchLoadViewsResultItem> results;
+    try (CloseableIterable<BatchLoadViewsResultItem> iterable =
+        sessionCatalog.batchLoadViews(context, views)) {
+      results = Lists.newArrayList(iterable);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    assertThat(results).hasSize(2);
+
+    BatchLoadViewsResultItem foundItem =
+        results.stream().filter(r -> r.identifier().equals(viewIdent)).findFirst().orElseThrow();
+    assertThat(foundItem.status()).isEqualTo(200);
+    assertThat(foundItem.result()).isNotNull();
+
+    BatchLoadViewsResultItem missingItem =
+        results.stream().filter(r -> r.identifier().equals(missingView)).findFirst().orElseThrow();
+    assertThat(missingItem.status()).isEqualTo(404);
+    assertThat(missingItem.result()).isNull();
+  }
+
+  @Test
+  public void testBatchLoadViewsViaViewSessionCatalogInterface() throws IOException {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+
+    TableIdentifier viewIdent = TableIdentifier.of(TABLE.namespace(), "test_view");
+    catalog
+        .buildView(viewIdent)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(TABLE.namespace())
+        .withQuery("spark", "SELECT * FROM tbl")
+        .create();
+
+    ViewSessionCatalog viewSessionCatalog = catalog.sessionCatalog();
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+    TableIdentifier missingView = TableIdentifier.of(TABLE.namespace(), "missing_view");
+
+    try (CloseableIterable<View> iterable =
+        viewSessionCatalog.batchLoadViews(context, ImmutableList.of(viewIdent, missingView))) {
+      CloseableIterator<View> iterator = iterable.iterator();
+      View loadedView = iterator.next();
+      assertThat(loadedView.name()).isEqualTo(String.format("%s.%s", catalog.name(), viewIdent));
+      assertThatThrownBy(iterator::next)
+          .isInstanceOf(NoSuchViewException.class)
+          .hasMessage("View does not exist: %s", missingView);
+    }
   }
 }
