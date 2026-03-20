@@ -148,10 +148,6 @@ public class ExpressionUtil {
   /**
    * Returns an expression that retains only predicates which reference one of the given field IDs.
    *
-   * <p>Predicates that do not reference any of the given IDs are replaced with {@code alwaysTrue()}.
-   * This does not use partition projection, so it is safe for field IDs nested under map or array
-   * types.
-   *
    * @param expression a filter expression
    * @param schema schema for binding references
    * @param caseSensitive whether binding is case sensitive
