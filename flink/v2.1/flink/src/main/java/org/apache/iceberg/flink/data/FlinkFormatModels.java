@@ -40,7 +40,7 @@ public class FlinkFormatModels {
             RowData.class,
             RowType.class,
             (icebergSchema, fileSchema, engineSchema) ->
-                FlinkAvroWriter.buildWriter(icebergSchema, engineSchema),
+                new FlinkAvroWriter(icebergSchema, engineSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 FlinkPlannedAvroReader.create(icebergSchema, idToConstant)));
 

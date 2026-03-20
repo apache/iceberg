@@ -45,6 +45,7 @@ import org.apache.flink.table.types.logical.VariantType;
 import org.apache.flink.types.variant.BinaryVariant;
 import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -82,7 +83,7 @@ public class FlinkParquetWriters {
   private FlinkParquetWriters() {}
 
   public static <T> ParquetValueWriter<T> buildWriter(
-      org.apache.iceberg.Schema icebergSchema, MessageType type, RowType engineSchema) {
+      Schema icebergSchema, MessageType type, RowType engineSchema) {
     return buildWriter(
         engineSchema != null ? engineSchema : FlinkSchemaUtil.convert(icebergSchema), type);
   }

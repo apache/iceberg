@@ -44,10 +44,8 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
     this.rowType = rowType;
   }
 
-  public static FlinkAvroWriter buildWriter(
-      org.apache.iceberg.Schema icebergSchema, RowType engineSchema) {
-    return new FlinkAvroWriter(
-        engineSchema != null ? engineSchema : FlinkSchemaUtil.convert(icebergSchema));
+  public FlinkAvroWriter(org.apache.iceberg.Schema icebergSchema, RowType engineSchema) {
+    this(engineSchema != null ? engineSchema : FlinkSchemaUtil.convert(icebergSchema));
   }
 
   @Override

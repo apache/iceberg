@@ -41,7 +41,7 @@ public class SparkFormatModels {
             InternalRow.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema) ->
-                SparkAvroWriter.buildWriter(icebergSchema, engineSchema),
+                new SparkAvroWriter(icebergSchema, engineSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkPlannedAvroReader.create(icebergSchema, idToConstant)));
 
