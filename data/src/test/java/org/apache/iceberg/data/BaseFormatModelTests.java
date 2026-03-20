@@ -264,12 +264,12 @@ public abstract class BaseFormatModelTests<T> {
     DataTestHelpers.assertEquals(schema.asStruct(), genericRecords, readRecords);
   }
 
-  @ParameterizedTest
-  @FieldSource("FORMAT_AND_GENERATOR")
   /**
    * Write equality deletes with engine type T without explicit engineSchema, read with Generic
    * Record
    */
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
