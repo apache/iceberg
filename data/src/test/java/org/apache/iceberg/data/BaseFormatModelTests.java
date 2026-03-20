@@ -536,7 +536,7 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(splitOffsets)
         .as(
             "Expected multiple split offsets. "
-                + "If this fails, the file did not produce multiple row groups. "
+                + "If this fails, the file did not produce multiple splits. "
                 + "Try reducing the split size property (see writeRecordsForSplit) "
                 + "or increasing the number of records written.")
         .hasSizeGreaterThan(1);
