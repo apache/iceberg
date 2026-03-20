@@ -409,7 +409,7 @@ public abstract class BaseFormatModelTests<T> {
 
     writeRecordsForSplit(fileFormat, schema, genericRecords);
 
-    // Filter: id < 0 → no record matches, file-level filtering should eliminate all rows
+    // Filter: id < 0, so no record matches, file-level filtering should eliminate all rows
     Expression lessThanFilter = Expressions.lessThan("id", 0);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
@@ -425,7 +425,7 @@ public abstract class BaseFormatModelTests<T> {
 
     assertThat(readRecords).isEmpty();
 
-    // Filter: id >= count - 1 → only the last record matches across all row groups
+    // Filter: id >= count - 1, so only the last record matches across all row groups
     Expression greaterThanFilter = Expressions.greaterThanOrEqual("id", count - 1);
 
     try (CloseableIterable<T> reader =
@@ -478,7 +478,7 @@ public abstract class BaseFormatModelTests<T> {
 
     assertThat(readRecords).isNotEmpty();
 
-    // caseSensitive=true: upper-cased column name cannot be resolved → must throw.
+    // caseSensitive=true: upper-cased column name cannot be resolved, so must throw.
     assertThatThrownBy(
             () -> {
               try (CloseableIterable<T> reader =
@@ -535,7 +535,7 @@ public abstract class BaseFormatModelTests<T> {
 
     assertThat(readRecords).hasSizeGreaterThan(0).hasSizeLessThan(records.size());
 
-    // split(fileLength, 0): empty range at the end of the file → no records should be returned
+    // split(fileLength, 0): empty range at the end of the file, so no records should be returned
     List<T> emptyReadRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
@@ -548,7 +548,7 @@ public abstract class BaseFormatModelTests<T> {
 
     assertThat(emptyReadRecords).isEmpty();
 
-    // split(0, fileLength): full file range → all records should be returned
+    // split(0, fileLength): full file range, so all records should be returned
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
