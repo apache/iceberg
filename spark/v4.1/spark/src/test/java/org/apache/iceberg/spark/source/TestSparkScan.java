@@ -147,6 +147,79 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testEstimatedSizeInBytes() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING) USING iceberg TBLPROPERTIES('%s' = '%s')",
+        tableName, TableProperties.DEFAULT_FILE_FORMAT, format);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    // verify snapshot summary has total-files-size
+    String totalFilesSize = table.currentSnapshot().summary().get("total-files-size");
+    assertThat(totalFilesSize).isNotNull();
+    long expectedSize = Long.parseLong(totalFilesSize);
+    assertThat(expectedSize).isGreaterThan(0L);
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+    Statistics stats = scan.estimateStatistics();
+
+    // sizeInBytes should reflect real file sizes, not type-based estimates
+    assertThat(stats.sizeInBytes().isPresent()).isTrue();
+    assertThat(stats.sizeInBytes().getAsLong()).isGreaterThan(0L);
+    // it should not be the old type-based estimate (defaultSize * rows)
+    // the real file size for 4 small records should be much smaller than type-based estimate
+    assertThat(stats.sizeInBytes().getAsLong()).isNotEqualTo(Long.MAX_VALUE);
+  }
+
+  @TestTemplate
+  public void testEstimatedSizeMatchesRealFileSize() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT, date DATE) USING iceberg TBLPROPERTIES('%s' = '%s')",
+        tableName, TableProperties.DEFAULT_FILE_FORMAT, format);
+
+    Dataset<Row> df =
+        spark
+            .range(10000)
+            .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id AS INT)")))
+            .select("id", "date");
+
+    df.coalesce(1).writeTo(tableName).append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    // get the real total file size from snapshot summary
+    long expectedTotalFilesSize =
+        Long.parseLong(table.currentSnapshot().summary().get("total-files-size"));
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+    Statistics stats = scan.estimateStatistics();
+
+    // sizeInBytes should be based on real file sizes, not type-based estimation
+    // for an unpartitioned table, it uses taskGroups().sizeBytes() which reflects actual file sizes
+    assertThat(stats.sizeInBytes().getAsLong()).isGreaterThan(0L);
+    assertThat(stats.sizeInBytes().getAsLong()).isLessThan(Long.MAX_VALUE);
+    // the estimated size should be in the same ballpark as real file size
+    // (not orders of magnitude off like the old type-based estimate)
+    assertThat(stats.sizeInBytes().getAsLong()).isLessThanOrEqualTo(expectedTotalFilesSize * 2);
+  }
+
+  @TestTemplate
   public void testTableWithoutColStats() throws NoSuchTableException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 

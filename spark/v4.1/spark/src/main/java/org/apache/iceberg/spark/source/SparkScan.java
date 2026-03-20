@@ -211,7 +211,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Statistics estimateStatistics() {
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
-    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
+    long sizeInBytes = taskGroups().stream().mapToLong(ScanTaskGroup::sizeBytes).sum();
     return new Stats(sizeInBytes, rowsCount, Collections.emptyMap());
   }
 
@@ -273,18 +273,24 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           snapshot.snapshotId(),
           table.name());
       long totalRecords = totalRecords(snapshot);
-      return new Stats(
-          SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords, colStatsMap);
+      long sizeInBytes = totalFilesSize(snapshot);
+      return new Stats(sizeInBytes, totalRecords, colStatsMap);
     }
 
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
-    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
+    long sizeInBytes = taskGroups().stream().mapToLong(ScanTaskGroup::sizeBytes).sum();
     return new Stats(sizeInBytes, rowsCount, colStatsMap);
   }
 
   private long totalRecords(Snapshot snapshot) {
     Map<String, String> summary = snapshot.summary();
     return PropertyUtil.propertyAsLong(summary, SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+  }
+
+  private long totalFilesSize(Snapshot snapshot) {
+    Map<String, String> summary = snapshot.summary();
+    return PropertyUtil.propertyAsLong(
+        summary, SnapshotSummary.TOTAL_FILE_SIZE_PROP, Long.MAX_VALUE);
   }
 
   @Override
