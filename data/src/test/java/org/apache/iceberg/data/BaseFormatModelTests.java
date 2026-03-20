@@ -24,6 +24,7 @@ import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,6 +72,10 @@ public abstract class BaseFormatModelTests<T> {
   protected abstract T convertToEngine(Record record, Schema schema);
 
   protected abstract void assertEquals(Schema schema, List<T> expected, List<T> actual);
+
+  protected boolean supportsBatchReads() {
+    return false;
+  }
 
   private static final FileFormat[] FILE_FORMATS =
       new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
@@ -605,6 +610,26 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     reuseRecords.forEach(r -> assertThat(r).isSameAs(reuseRecords.get(0)));
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testReaderBuilderRecordsPerBatchNotSupported(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_RECORDS_PER_BATCH);
+    assumeFalse(supportsBatchReads(), engineType().getSimpleName() + " supports batch reads");
+
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    writeGenericRecords(fileFormat, schema, genericRecords);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    assertThatThrownBy(
+            () ->
+                FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+                    .recordsPerBatch(100))
+        .hasMessageContaining("Batch reading is not supported")
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   private void readAndAssertGenericRecords(
