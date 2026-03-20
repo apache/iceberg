@@ -94,7 +94,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
     this.taskGroup = taskGroup;
-    this.currentIterator = CloseableIterator.empty();
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
     this.tasks = taskGroup.tasks().iterator();
@@ -118,6 +117,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       this.parallelIterator =
           new ParallelIterable<>(taskIterables, ThreadPools.getWorkerPool()).iterator();
     } else {
+      this.currentIterator = CloseableIterator.empty();
       this.parallelIterator = null;
     }
   }
@@ -152,18 +152,18 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   public boolean next() throws IOException {
     try {
+      if (isAsyncEnabled) {
+        if (parallelIterator.hasNext()) {
+          this.current = parallelIterator.next();
+          return true;
+        }
+        return false;
+      }
+
       while (true) {
         if (currentIterator.hasNext()) {
           this.current = currentIterator.next();
           return true;
-        } else if (isAsyncEnabled) {
-          this.currentIterator.close();
-
-          if (parallelIterator.hasNext()) {
-            this.current = parallelIterator.next();
-            return true;
-          }
-          return false;
         } else if (tasks.hasNext()) {
           this.currentIterator.close();
           this.currentTask = tasks.next();
@@ -193,13 +193,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   public void close() throws IOException {
     InputFileBlockHolder.unset();
 
-    // close the current iterator
-    this.currentIterator.close();
-
-    if (parallelIterator != null) {
+    if (isAsyncEnabled) {
       parallelIterator.close();
     } else {
-      // exhaust the task iterator
+      // close the current iterator and exhaust remaining tasks
+      this.currentIterator.close();
       while (tasks.hasNext()) {
         tasks.next();
       }

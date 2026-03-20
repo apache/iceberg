@@ -18,23 +18,13 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.concat;
-import static org.apache.spark.sql.functions.lit;
-
 import com.google.errorprone.annotations.FormatMethod;
 import com.google.errorprone.annotations.FormatString;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -52,7 +42,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * Benchmark to evaluate performance of spark reader sync (current) vs async
+ * Benchmark to evaluate performance of spark reader sync (current) vs async.
+ *
+ * <p>Requires S3 tables to be pre-populated once before running.
  *
  * <p>To run this benchmark for spark-4.1: <code>
  *   ./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:jmh
@@ -73,42 +65,24 @@ import org.openjdk.jmh.infra.Blackhole;
 @Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
 public class RewriteDataFilesProcedureBenchmark {
 
-  private static final String TABLE_NAME = "test_table";
-
-  @Param({"100", "500", "1000"})
-  private int numFiles;
+  private static final String WAREHOUSE = "s3a://iceberg-spark-readers-poc/iceberg-benchmark";
+  private static final String CATALOG = "iceberg";
 
   @Param({"true", "false"})
   private boolean isAsyncEnabled;
 
-  private final Configuration hadoopConf = new Configuration();
   private SparkSession spark;
   private Table table;
 
+  private String tableName;
+
+  private String bareTableName;
+
   @Setup
-  public void setupBenchmark() throws NoSuchTableException, ParseException {
-    setupSpark();
-    createTable();
-    insertData(numFiles);
-    this.table = Spark3Util.loadIcebergTable(spark, TABLE_NAME);
-  }
+  public void setupBenchmark() throws ParseException {
+    this.bareTableName = isAsyncEnabled ? "test_table_async_on" : "test_table_async_off";
+    this.tableName = CATALOG + "." + bareTableName;
 
-  @TearDown
-  public void tearDownBenchmark() {
-    dropTable();
-    tearDownSpark();
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void rewriteDataFiles(Blackhole blackhole) {
-    long snapshotId = currentSnapshotId();
-    blackhole.consume(
-        sql("CALL spark_catalog.system.rewrite_data_files(table => '%s')", TABLE_NAME));
-    rollback(snapshotId);
-  }
-
-  private void setupSpark() {
     this.spark =
         SparkSession.builder()
             .config("spark.ui.enabled", false)
@@ -121,39 +95,40 @@ public class RewriteDataFilesProcedureBenchmark {
             .config(
                 "spark.executor.extraJavaOptions",
                 "--add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED")
-            .config("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName())
-            .config("spark.sql.catalog.spark_catalog.type", "hadoop")
-            .config("spark.sql.catalog.spark_catalog.warehouse", newWarehouseDir())
+            .config("spark.sql.catalog." + CATALOG, SparkCatalog.class.getName())
+            .config(
+                "spark.sql.catalog." + CATALOG + ".catalog-impl",
+                "org.apache.iceberg.jdbc.JdbcCatalog")
+            .config(
+                "spark.sql.catalog." + CATALOG + ".uri",
+                "jdbc:sqlite:/tmp/iceberg-benchmark-catalog.db")
+            .config("spark.sql.catalog." + CATALOG + ".warehouse", WAREHOUSE)
+            .config(
+                "spark.sql.catalog." + CATALOG + ".io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+            .config("spark.sql.catalog." + CATALOG + ".http-client.apache.max-connections", "200")
             .master("local[*]")
             .getOrCreate();
+
+    try {
+      this.table = Spark3Util.loadIcebergTable(spark, tableName);
+    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+      throw new RuntimeException(
+          "Table not found: " + tableName + ". Run GenerateParquetData first.", e);
+    }
   }
 
-  private void tearDownSpark() {
+  @TearDown
+  public void tearDownBenchmark() {
     spark.stop();
   }
 
-  private void createTable() {
-    sql(
-        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg TBLPROPERTIES ('%s' = '%s')",
-        TABLE_NAME, TableProperties.ASYNC_READER_ENABLED, isAsyncEnabled);
-  }
-
-  private void insertData(int filesCount) {
-    //    Making approx 2000 rows per file
-    long totalRecords = (long) filesCount * 2000;
-    Dataset<Row> df =
-        spark
-            .range(0, totalRecords)
-            .withColumn("c1", col("id").cast("int"))
-            .withColumn("c2", concat(lit("foo_"), col("id")))
-            .withColumn("c3", lit(null).cast("string"))
-            .drop("id")
-            .repartition(filesCount);
-    try {
-      df.writeTo(TABLE_NAME).append();
-    } catch (NoSuchTableException e) {
-      throw new RuntimeException(e);
-    }
+  @Benchmark
+  @Threads(1)
+  public void rewriteDataFiles(Blackhole blackhole) {
+    long snapshotId = currentSnapshotId();
+    blackhole.consume(
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", CATALOG, bareTableName));
+    rollback(snapshotId);
   }
 
   private long currentSnapshotId() {
@@ -163,14 +138,6 @@ public class RewriteDataFilesProcedureBenchmark {
 
   private void rollback(long snapshotId) {
     table.manageSnapshots().rollbackTo(snapshotId).commit();
-  }
-
-  private void dropTable() {
-    sql("DROP TABLE IF EXISTS %s PURGE", TABLE_NAME);
-  }
-
-  private String newWarehouseDir() {
-    return hadoopConf.get("hadoop.tmp.dir") + UUID.randomUUID();
   }
 
   @FormatMethod
