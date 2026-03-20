@@ -42,6 +42,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_VERSION;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_VERSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
@@ -168,7 +170,7 @@ public class Parquet {
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
-    private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
+    private WriterVersion writerVersion = null;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
@@ -266,6 +268,7 @@ public class Parquet {
     }
 
     public WriteBuilder writerVersion(WriterVersion version) {
+      Preconditions.checkNotNull(version, "Writer version cannot be null");
       this.writerVersion = version;
       return this;
     }
@@ -297,6 +300,7 @@ public class Parquet {
      */
     @VisibleForTesting
     WriteBuilder withWriterVersion(WriterVersion version) {
+      Preconditions.checkNotNull(version, "Writer version cannot be null");
       this.writerVersion = version;
       return this;
     }
@@ -364,6 +368,8 @@ public class Parquet {
 
       // Map Iceberg properties to pass down to the Parquet writer
       Context context = createContextFunc.apply(config);
+      WriterVersion parquetWriterVersion =
+          writerVersion != null ? writerVersion : context.writerVersion();
 
       int rowGroupSize = context.rowGroupSize();
       int pageSize = context.pageSize();
@@ -433,7 +439,7 @@ public class Parquet {
 
         ParquetProperties.Builder propsBuilder =
             ParquetProperties.builder()
-                .withWriterVersion(writerVersion)
+                .withWriterVersion(parquetWriterVersion)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryEncoding(dictionaryEnabled)
@@ -469,7 +475,7 @@ public class Parquet {
       } else {
         ParquetWriteBuilder<D> parquetWriteBuilder =
             new ParquetWriteBuilder<D>(ParquetIO.file(file))
-                .withWriterVersion(writerVersion)
+                .withWriterVersion(parquetWriterVersion)
                 .setType(type)
                 .setConfig(config)
                 .setKeyValueMetadata(metadata)
@@ -502,6 +508,7 @@ public class Parquet {
       private final int pageSize;
       private final int pageRowLimit;
       private final int dictionaryPageSize;
+      private final WriterVersion writerVersion;
       private final CompressionCodecName codec;
       private final String compressionLevel;
       private final int rowGroupCheckMinRecordCount;
@@ -518,6 +525,7 @@ public class Parquet {
           int pageSize,
           int pageRowLimit,
           int dictionaryPageSize,
+          WriterVersion writerVersion,
           CompressionCodecName codec,
           String compressionLevel,
           int rowGroupCheckMinRecordCount,
@@ -532,6 +540,7 @@ public class Parquet {
         this.pageSize = pageSize;
         this.pageRowLimit = pageRowLimit;
         this.dictionaryPageSize = dictionaryPageSize;
+        this.writerVersion = writerVersion;
         this.codec = codec;
         this.compressionLevel = compressionLevel;
         this.rowGroupCheckMinRecordCount = rowGroupCheckMinRecordCount;
@@ -564,6 +573,10 @@ public class Parquet {
             PropertyUtil.propertyAsInt(
                 config, PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
         Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
+
+        WriterVersion writerVersion =
+            toWriterVersion(
+                config.getOrDefault(PARQUET_PAGE_VERSION, PARQUET_PAGE_VERSION_DEFAULT));
 
         String codecAsString =
             config.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
@@ -616,6 +629,7 @@ public class Parquet {
             pageSize,
             pageRowLimit,
             dictionaryPageSize,
+            writerVersion,
             codec,
             compressionLevel,
             rowGroupCheckMinRecordCount,
@@ -652,6 +666,8 @@ public class Parquet {
                 config, DELETE_PARQUET_DICT_SIZE_BYTES, dataContext.dictionaryPageSize());
         Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
 
+        WriterVersion writerVersion = dataContext.writerVersion();
+
         String codecAsString = config.get(DELETE_PARQUET_COMPRESSION);
         CompressionCodecName codec =
             codecAsString != null ? toCodec(codecAsString) : dataContext.codec();
@@ -686,6 +702,7 @@ public class Parquet {
             pageSize,
             pageRowLimit,
             dictionaryPageSize,
+            writerVersion,
             codec,
             compressionLevel,
             rowGroupCheckMinRecordCount,
@@ -706,6 +723,18 @@ public class Parquet {
         }
       }
 
+      private static WriterVersion toWriterVersion(String pageVersion) {
+        switch (pageVersion) {
+          case "1":
+            return WriterVersion.PARQUET_1_0;
+          case "2":
+            return WriterVersion.PARQUET_2_0;
+          default:
+            throw new IllegalArgumentException(
+                "Unsupported Parquet page version: " + pageVersion + " (must be 1 or 2)");
+        }
+      }
+
       int rowGroupSize() {
         return rowGroupSize;
       }
@@ -720,6 +749,10 @@ public class Parquet {
 
       int dictionaryPageSize() {
         return dictionaryPageSize;
+      }
+
+      WriterVersion writerVersion() {
+        return writerVersion;
       }
 
       CompressionCodecName codec() {
