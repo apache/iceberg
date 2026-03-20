@@ -32,12 +32,12 @@ import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructType;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 
 public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
   private final StructType dsSchema;
