@@ -159,10 +159,12 @@ public class ExpressionUtil {
     if (ids == null || ids.length == 0) {
       return Expressions.alwaysTrue();
     }
+
     ImmutableSet.Builder<Integer> retainIds = ImmutableSet.builder();
     for (int id : ids) {
       retainIds.add(id);
     }
+
     return ExpressionVisitors.visit(
         Expressions.rewriteNot(expression),
         new RetainPredicatesByFieldIdVisitor(schema, caseSensitive, retainIds.build()));
