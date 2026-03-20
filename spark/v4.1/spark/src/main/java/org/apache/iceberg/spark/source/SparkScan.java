@@ -216,6 +216,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected Statistics estimateStatistics(Snapshot snapshot) {
+    // Note: sizeInBytes reports total physical file size across all columns. For projected scans
+    // on wide tables, this may overestimate and miss BroadcastHashJoin opportunities. This matches
+    // Spark's native Parquet source behavior which also uses full file sizes.
+
     // its a fresh table, no data
     if (snapshot == null) {
       return new Stats(0L, 0L, Collections.emptyMap());
