@@ -500,6 +500,79 @@ public class TestHTTPClient {
     }
   }
 
+  /**
+   * A TLSConfigurer that overrides sslContext() and hostnameVerifier() but does NOT override
+   * hostnameVerificationPolicy(), relying on the default (CLIENT). This directly tests that the
+   * default hostname verification policy allows the NoopHostnameVerifier to take effect.
+   */
+  public static class ClientPolicyTLSConfigurer implements TLSConfigurer {
+
+    @Override
+    public SSLContext sslContext() {
+      try {
+        KeyStore keyStore =
+            new KeyStoreFactory(Configuration.configuration(), new MockServerLogger())
+                .loadOrCreateKeyStore();
+        TrustManagerFactory tmf =
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(keyStore);
+        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext.init(null, tmf.getTrustManagers(), null);
+        return sslContext;
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to create SSLContext", e);
+      }
+    }
+
+    @Override
+    public HostnameVerifier hostnameVerifier() {
+      return NoopHostnameVerifier.INSTANCE;
+    }
+  }
+
+  @Test
+  public void testTLSConfigurerDefaultHostnameVerificationPolicy(@TempDir Path temp)
+      throws IOException {
+
+    // Start a dedicated MockServer with a certificate that does NOT include 127.0.0.1 or localhost
+    // in its SANs. The default hostname verification policy (CLIENT) should allow the
+    // NoopHostnameVerifier to bypass hostname verification, so the request should succeed.
+    Configuration tlsConfig = Configuration.configuration();
+    tlsConfig.proactivelyInitialiseTLS(true);
+    tlsConfig.preventCertificateDynamicUpdate(true);
+    tlsConfig.sslCertificateDomainName("example.com");
+    tlsConfig.sslSubjectAlternativeNameIps(Sets.newHashSet("1.2.3.4"));
+    tlsConfig.sslSubjectAlternativeNameDomains(Sets.newHashSet("example.com"));
+    tlsConfig.directoryToSaveDynamicSSLCertificate(temp.toFile().getAbsolutePath());
+
+    int tlsPort = PORT + 1;
+    try (ClientAndServer server = startClientAndServer(tlsConfig, tlsPort)) {
+
+      String path = "tls/default-policy/path";
+      HttpRequest mockRequest =
+          request()
+              .withPath("/" + path)
+              .withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      HttpResponse mockResponse = response().withStatusCode(200).withBody("TLS response");
+      server.when(mockRequest).respond(mockResponse);
+
+      Map<String, String> properties =
+          Map.of(HTTPClient.REST_TLS_CONFIGURER, ClientPolicyTLSConfigurer.class.getName());
+
+      try (HTTPClient client =
+          HTTPClient.builder(properties)
+              .uri(String.format("https://127.0.0.1:%d", tlsPort))
+              .withAuthSession(AuthSession.EMPTY)
+              .build()) {
+
+        // With the default hostname verification policy (CLIENT) and NoopHostnameVerifier,
+        // the request should succeed even though the certificate SANs don't match 127.0.0.1
+        assertThatCode(() -> client.head(path, Map.of(), (unused) -> {}))
+            .doesNotThrowAnyException();
+      }
+    }
+  }
+
   @Test
   public void testSocketTimeout() throws IOException {
     long socketTimeoutMs = 2000L;
