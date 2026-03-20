@@ -37,6 +37,7 @@ import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructType;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 
 public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
   private final StructType dsSchema;
@@ -44,6 +45,10 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
 
   public SparkAvroWriter(StructType dsSchema) {
     this.dsSchema = dsSchema;
+  }
+
+  public SparkAvroWriter(org.apache.iceberg.Schema icebergSchema, StructType dsSchema) {
+    this(dsSchema != null ? dsSchema : SparkSchemaUtil.convert(icebergSchema));
   }
 
   @Override

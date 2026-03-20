@@ -40,7 +40,8 @@ public class SparkFormatModels {
         AvroFormatModel.create(
             InternalRow.class,
             StructType.class,
-            (icebergSchema, fileSchema, engineSchema) -> new SparkAvroWriter(engineSchema),
+            (icebergSchema, fileSchema, engineSchema) ->
+                new SparkAvroWriter(icebergSchema, engineSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkPlannedAvroReader.create(icebergSchema, idToConstant)));
 

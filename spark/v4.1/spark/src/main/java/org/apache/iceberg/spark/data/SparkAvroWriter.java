@@ -47,8 +47,8 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
     this.dsSchema = dsSchema;
   }
 
-  public SparkAvroWriter(org.apache.iceberg.Schema icebergSchema, StructType engineSchema) {
-    this(engineSchema != null ? engineSchema : SparkSchemaUtil.convert(icebergSchema));
+  public SparkAvroWriter(org.apache.iceberg.Schema icebergSchema, StructType dsSchema) {
+    this(dsSchema != null ? dsSchema : SparkSchemaUtil.convert(icebergSchema));
   }
 
   @Override
