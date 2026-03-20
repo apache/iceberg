@@ -37,6 +37,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -63,7 +64,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnot
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.apache.iceberg.Schema;
 
 public class FlinkParquetWriters {
   private FlinkParquetWriters() {}
