@@ -127,17 +127,7 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
     assertThat(dataFile.format()).isEqualTo(fileFormat);
 
-    // Read back and verify
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<Record> readRecords;
-    try (CloseableIterable<Record> reader =
-        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
-    DataTestHelpers.assertEquals(schema.asStruct(), genericRecords, readRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
   /** Write with engine type T without explicit engineSchema, read with Generic Record */
@@ -166,17 +156,7 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
     assertThat(dataFile.format()).isEqualTo(fileFormat);
 
-    // Read back and verify
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<Record> readRecords;
-    try (CloseableIterable<Record> reader =
-        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
-    DataTestHelpers.assertEquals(schema.asStruct(), genericRecords, readRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
   @ParameterizedTest
@@ -251,17 +231,7 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(deleteFile.format()).isEqualTo(fileFormat);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1);
 
-    // Read back and verify
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<Record> readRecords;
-    try (CloseableIterable<Record> reader =
-        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
-    DataTestHelpers.assertEquals(schema.asStruct(), genericRecords, readRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
   /**
@@ -299,17 +269,7 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(deleteFile.format()).isEqualTo(fileFormat);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1);
 
-    // Read back and verify
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<Record> readRecords;
-    try (CloseableIterable<Record> reader =
-        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
-    DataTestHelpers.assertEquals(schema.asStruct(), genericRecords, readRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
   @ParameterizedTest
@@ -391,17 +351,20 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(deleteFile.recordCount()).isEqualTo(2);
     assertThat(deleteFile.format()).isEqualTo(fileFormat);
 
-    // Read back and verify
+    readAndAssertGenericRecords(fileFormat, positionDeleteSchema, records);
+  }
+
+  private void readAndAssertGenericRecords(
+      FileFormat fileFormat, Schema schema, List<Record> expected) throws IOException {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<Record> readRecords;
     try (CloseableIterable<Record> reader =
         FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(positionDeleteSchema)
+            .project(schema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
-
-    DataTestHelpers.assertEquals(positionDeleteSchema.asStruct(), records, readRecords);
+    DataTestHelpers.assertEquals(schema.asStruct(), expected, readRecords);
   }
 
   private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
