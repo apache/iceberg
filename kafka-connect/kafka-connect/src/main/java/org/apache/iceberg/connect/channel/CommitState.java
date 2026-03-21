@@ -19,9 +19,9 @@
 package org.apache.iceberg.connect.channel;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -178,8 +178,7 @@ class CommitState {
 
     // Current commitId last — ensures highest sequence number
     if (currentCommitId != null) {
-      List<Envelope> currentEnvelopes =
-          byCommitId.getOrDefault(currentCommitId, new ArrayList<>());
+      List<Envelope> currentEnvelopes = byCommitId.getOrDefault(currentCommitId, new ArrayList<>());
       if (!currentEnvelopes.isEmpty()) {
         result.add(toTableMap(currentEnvelopes));
       }

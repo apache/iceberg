@@ -82,8 +82,7 @@ public class TestCoordinatorPartialCommit extends ChannelTestBase {
                 "member0",
                 "client0",
                 "host0",
-                new MemberAssignment(
-                    ImmutableSet.of(new TopicPartition("topic", 1)))));
+                new MemberAssignment(ImmutableSet.of(new TopicPartition("topic", 1)))));
 
     SinkTaskContext context = mock(SinkTaskContext.class);
     Coordinator coordinator = new Coordinator(catalog, config, members, clientFactory, context);
@@ -124,8 +123,7 @@ public class TestCoordinatorPartialCommit extends ChannelTestBase {
     DataFile dataFileA = EventTestUtil.createDataFile("path/to/data-a.parquet");
     DeleteFile deleteFileA = EventTestUtil.createDeleteFile("path/to/delete-a.parquet");
 
-    TableReference tableRef =
-        TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null);
+    TableReference tableRef = TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null);
     Event staleDataWrittenA =
         new Event(
             config.connectGroupId(),
@@ -136,14 +134,12 @@ public class TestCoordinatorPartialCommit extends ChannelTestBase {
                 ImmutableList.of(dataFileA),
                 ImmutableList.of(deleteFileA)));
 
-    OffsetDateTime tsA =
-        OffsetDateTime.ofInstant(Instant.ofEpochMilli(1000L), ZoneOffset.UTC);
+    OffsetDateTime tsA = OffsetDateTime.ofInstant(Instant.ofEpochMilli(1000L), ZoneOffset.UTC);
     Event staleDataCompleteA =
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitIdA,
-                ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, tsA))));
+                commitIdA, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, tsA))));
 
     // Current cycle B's DataWritten and DataComplete
     DataFile dataFileB = EventTestUtil.createDataFile("path/to/data-b.parquet");
@@ -159,21 +155,21 @@ public class TestCoordinatorPartialCommit extends ChannelTestBase {
                 ImmutableList.of(dataFileB),
                 ImmutableList.of(deleteFileB)));
 
-    OffsetDateTime tsB =
-        OffsetDateTime.ofInstant(Instant.ofEpochMilli(2000L), ZoneOffset.UTC);
+    OffsetDateTime tsB = OffsetDateTime.ofInstant(Instant.ofEpochMilli(2000L), ZoneOffset.UTC);
     Event dataCompleteB =
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitIdB,
-                ImmutableList.of(new TopicPartitionOffset("topic", 1, 2L, tsB))));
+                commitIdB, ImmutableList.of(new TopicPartitionOffset("topic", 1, 2L, tsB))));
 
     // Control topic order: A's events arrive before B's (single partition, producer ordering)
     int offset = 1;
     consumer.addRecord(
-        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, offset++, "key", AvroUtil.encode(staleDataWrittenA)));
+        new ConsumerRecord<>(
+            CTL_TOPIC_NAME, 0, offset++, "key", AvroUtil.encode(staleDataWrittenA)));
     consumer.addRecord(
-        new ConsumerRecord<>(CTL_TOPIC_NAME, 0, offset++, "key", AvroUtil.encode(staleDataCompleteA)));
+        new ConsumerRecord<>(
+            CTL_TOPIC_NAME, 0, offset++, "key", AvroUtil.encode(staleDataCompleteA)));
     consumer.addRecord(
         new ConsumerRecord<>(CTL_TOPIC_NAME, 0, offset++, "key", AvroUtil.encode(dataWrittenB)));
     consumer.addRecord(
