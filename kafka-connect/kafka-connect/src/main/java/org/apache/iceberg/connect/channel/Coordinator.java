@@ -170,17 +170,37 @@ class Coordinator extends Channel {
   }
 
   private void doCommit(boolean partialCommit) {
-    Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
+    List<Map<TableReference, List<Envelope>>> commitMaps = commitState.tableCommitMaps();
     OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
 
-    Tasks.foreach(commitMap.entrySet())
-        .executeWith(exec)
-        .stopOnFailure()
-        .run(
-            entry ->
-                commitToTable(
-                    entry.getKey(), entry.getValue(), controlTopicOffsets(), validThroughTs));
+    Map<Integer, Long> offsets = controlTopicOffsets();
+    int tableCount = 0;
 
+    // Commit each batch in a separate RowDelta to preserve sequence number ordering.
+    // Stale batches (from previous partial commit cycles) are committed first with lower
+    // sequence numbers, ensuring equality deletes from the current cycle apply correctly.
+    for (int i = 0; i < commitMaps.size(); i++) {
+      Map<TableReference, List<Envelope>> commitMap = commitMaps.get(i);
+      boolean isLastBatch = (i == commitMaps.size() - 1);
+
+      // Only store offsets and vtts on the last batch (current commitId).
+      // Storing on intermediate batches would cause the next batch's
+      // lastCommittedOffsetsForTable() to filter out its own envelopes.
+      final Map<Integer, Long> batchOffsets = isLastBatch ? offsets : null;
+      final OffsetDateTime batchVtts = isLastBatch ? validThroughTs : null;
+
+      Tasks.foreach(commitMap.entrySet())
+          .executeWith(exec)
+          .stopOnFailure()
+          .run(
+              entry -> {
+                commitToTable(
+                    entry.getKey(), entry.getValue(), batchOffsets, batchVtts);
+              });
+
+      tableCount += commitMap.size();
+    }
+    
     // we should only get here if all tables committed successfully...
     commitConsumerOffsets();
     commitState.clearResponses();
@@ -192,10 +212,11 @@ class Coordinator extends Channel {
     send(event);
 
     LOG.info(
-        "Coordinator {} completed commit {}, committed to {} table(s), valid-through {}",
+        "Coordinator {} completed commit {} complete, committed to {} table(s) in {} batch(es), valid-through {}",
         taskId,
         commitState.currentCommitId(),
-        commitMap.size(),
+        tableCount,
+        commitMaps.size(),
         validThroughTs);
   }
 
@@ -233,15 +254,18 @@ class Coordinator extends Channel {
 
     String branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
 
-    // Control topic partition offsets may include a subset of partition ids if there were no
-    // records for other partitions.  Merge the updated topic partitions with the last committed
-    // offsets.
     Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch);
-    Map<Integer, Long> mergedOffsets =
-        Stream.of(committedOffsets, controlTopicOffsets)
-            .flatMap(map -> map.entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::max));
-    String offsetsJson = offsetsToJson(mergedOffsets);
+
+    // controlTopicOffsets is null for intermediate (stale) batches — offsets and vtts
+    // are only stored on the last batch to avoid interfering with subsequent batches.
+    String offsetsJson = null;
+    if (controlTopicOffsets != null) {
+      Map<Integer, Long> mergedOffsets =
+          Stream.of(committedOffsets, controlTopicOffsets)
+              .flatMap(map -> map.entrySet().stream())
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::max));
+      offsetsJson = offsetsToJson(mergedOffsets);
+    }
 
     List<DataWritten> payloads =
         envelopeList.stream()
@@ -284,7 +308,9 @@ class Coordinator extends Channel {
         if (branch != null) {
           appendOp.toBranch(branch);
         }
-        appendOp.set(snapshotOffsetsProp, offsetsJson);
+        if (offsetsJson != null) {
+          appendOp.set(snapshotOffsetsProp, offsetsJson);
+        }
         appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         appendOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
@@ -298,7 +324,9 @@ class Coordinator extends Channel {
         if (branch != null) {
           deltaOp.toBranch(branch);
         }
-        deltaOp.set(snapshotOffsetsProp, offsetsJson);
+        if (offsetsJson != null) {
+          deltaOp.set(snapshotOffsetsProp, offsetsJson);
+        }
         deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         deltaOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
