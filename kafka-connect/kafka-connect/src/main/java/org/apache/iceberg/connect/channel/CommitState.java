@@ -20,6 +20,8 @@ package org.apache.iceberg.connect.channel;
 
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -137,8 +139,57 @@ class CommitState {
     return false;
   }
 
-  Map<TableReference, List<Envelope>> tableCommitMap() {
-    return commitBuffer.stream()
+  /**
+   * Returns commit buffer entries grouped by table, separated by commitId.
+   *
+   * <p>After a partial commit (timeout), late-arriving DataWritten events from the previous cycle
+   * may be present in the buffer alongside current cycle events. Merging them into a single
+   * RowDelta would assign the same sequence number to both, breaking equality delete semantics
+   * (which require {@code data_sequence_number < delete_sequence_number}).
+   *
+   * <p>This method separates entries by commitId and returns them as an ordered list: stale
+   * commitIds first (in control topic consumption order), current commitId last. Each map in the
+   * list should be committed in a separate RowDelta to preserve sequence number ordering.
+   */
+  List<Map<TableReference, List<Envelope>>> tableCommitMaps() {
+    // LinkedHashMap preserves insertion order from control topic consumption
+    Map<UUID, List<Envelope>> byCommitId = new LinkedHashMap<>();
+    for (Envelope envelope : commitBuffer) {
+      UUID commitId = ((DataWritten) envelope.event().payload()).commitId();
+      byCommitId.computeIfAbsent(commitId, k -> new ArrayList<>()).add(envelope);
+    }
+
+    List<Map<TableReference, List<Envelope>>> result = new ArrayList<>();
+
+    // Stale commitIds first (in control topic consumption order)
+    for (Map.Entry<UUID, List<Envelope>> entry : byCommitId.entrySet()) {
+      UUID commitId = entry.getKey();
+      if (currentCommitId != null && commitId.equals(currentCommitId)) {
+        continue;
+      }
+      LOG.warn(
+          "Stale DataWritten detected: commitId={} (current={}), envelopes={}, "
+              + "will commit in separate RowDelta to preserve sequence number ordering",
+          commitId,
+          currentCommitId,
+          entry.getValue().size());
+      result.add(toTableMap(entry.getValue()));
+    }
+
+    // Current commitId last — ensures highest sequence number
+    if (currentCommitId != null) {
+      List<Envelope> currentEnvelopes =
+          byCommitId.getOrDefault(currentCommitId, new ArrayList<>());
+      if (!currentEnvelopes.isEmpty()) {
+        result.add(toTableMap(currentEnvelopes));
+      }
+    }
+
+    return result;
+  }
+
+  private Map<TableReference, List<Envelope>> toTableMap(List<Envelope> envelopes) {
+    return envelopes.stream()
         .collect(
             Collectors.groupingBy(
                 envelope -> ((DataWritten) envelope.event().payload()).tableReference()));
