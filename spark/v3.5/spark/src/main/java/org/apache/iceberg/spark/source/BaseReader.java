@@ -209,6 +209,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       this.asStructLike =
           new InternalRowWrapper(
               SparkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
+      // Preload delete files to avoid deadlocking the connection pool:
+      // data file loading holds a connection while
+      // lazy delete file loading tries to acquire another.
+      deletedRowPositions();
+      eqDeletedRowFilter();
     }
 
     @Override
