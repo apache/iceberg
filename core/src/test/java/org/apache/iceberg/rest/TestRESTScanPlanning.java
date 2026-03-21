@@ -1099,32 +1099,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   }
 
   @Test
-  public void serverSupportsPlanningButNotPagination() {
-    // Server supports planning but not task pagination endpoint
-    // Use synchronousWithPagination (tasksPerPage=1) to trigger pagination, which will hit
-    // Endpoint.check()
-    CatalogWithAdapter catalogWithAdapter =
-        catalogWithEndpoints(
-            endpointsWithPlanning(
-                Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
-                Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
-                Endpoint.V1_CANCEL_TABLE_SCAN_PLAN),
-            TestPlanningBehavior.builder().synchronousWithPagination().build());
-
-    RESTCatalog catalog = catalogWithAdapter.catalog;
-    RESTTable table = restTableFor(catalog, "pagination_not_supported");
-    table.newAppend().appendFile(FILE_B).commit();
-    setParserContext(table);
-    RESTTableScan scan = restTableScanFor(table);
-
-    // Should fail with IllegalStateException when trying to fetch paginated tasks
-    // because the server does not support fetching scan tasks
-    assertThatThrownBy(scan::planFiles)
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Server returned plan tasks but does not support fetching scan tasks");
-  }
-
-  @Test
   public void serverSupportsPlanningButNotCancellation() throws IOException {
     // Server supports planning but not the cancel endpoint
     CatalogWithAdapter catalogWithAdapter =

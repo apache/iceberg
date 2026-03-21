@@ -19,39 +19,37 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.rest.credentials.Credential;
 
-/** Encapsulates REST scan planning context passed from the catalog to the scan. */
-class RESTScanContext {
+/**
+ * Encapsulates table-level resource paths and endpoint support for REST operations. Constructed
+ * from catalog-level ResourcePaths and table-specific identifiers.
+ */
+class TableResource {
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
-  private final boolean supportsAsync;
-  private final boolean supportsCancel;
-  private final boolean supportsFetchTasks;
+  private final Set<Endpoint> supportedEndpoints;
   private final long pollTimeoutMs;
   private final BiFunction<List<Credential>, String, FileIO> fileIOFactory;
 
-  RESTScanContext(
+  TableResource(
       ResourcePaths resourcePaths,
       TableIdentifier tableIdentifier,
-      boolean supportsAsync,
-      boolean supportsCancel,
-      boolean supportsFetchTasks,
+      Set<Endpoint> supportedEndpoints,
       long pollTimeoutMs,
       BiFunction<List<Credential>, String, FileIO> fileIOFactory) {
     this.resourcePaths = resourcePaths;
     this.tableIdentifier = tableIdentifier;
-    this.supportsAsync = supportsAsync;
-    this.supportsCancel = supportsCancel;
-    this.supportsFetchTasks = supportsFetchTasks;
+    this.supportedEndpoints = supportedEndpoints;
     this.pollTimeoutMs = pollTimeoutMs;
     this.fileIOFactory = fileIOFactory;
   }
 
-  String planTableScanPath() {
+  String planPath() {
     return resourcePaths.planTableScan(tableIdentifier);
   }
 
@@ -59,20 +57,16 @@ class RESTScanContext {
     return resourcePaths.plan(tableIdentifier, planId);
   }
 
-  String fetchScanTasksPath() {
+  String fetchPath() {
     return resourcePaths.fetchScanTasks(tableIdentifier);
   }
 
   boolean supportsAsync() {
-    return supportsAsync;
+    return supportedEndpoints.contains(Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
   }
 
   boolean supportsCancel() {
-    return supportsCancel;
-  }
-
-  boolean supportsFetchTasks() {
-    return supportsFetchTasks;
+    return supportedEndpoints.contains(Endpoint.V1_CANCEL_TABLE_SCAN_PLAN);
   }
 
   long pollTimeoutMs() {

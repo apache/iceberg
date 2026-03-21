@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -48,9 +49,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final MetricsReporter reporter;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
-  private final boolean supportsAsync;
-  private final boolean supportsCancel;
-  private final boolean supportsFetchTasks;
+  private final Set<Endpoint> supportedEndpoints;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
 
@@ -62,9 +61,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       Supplier<Map<String, String>> headers,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
-      boolean supportsAsync,
-      boolean supportsCancel,
-      boolean supportsFetchTasks,
+      Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
       Object hadoopConf) {
     super(ops, name, reporter);
@@ -73,9 +70,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
     this.headers = headers;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
-    this.supportsAsync = supportsAsync;
-    this.supportsCancel = supportsCancel;
-    this.supportsFetchTasks = supportsFetchTasks;
+    this.supportedEndpoints = supportedEndpoints;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
   }
@@ -102,13 +97,11 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
               storageCredentials);
         };
 
-    RESTScanContext scanContext =
-        new RESTScanContext(
+    TableResource tableResource =
+        new TableResource(
             resourcePaths,
             tableIdentifier,
-            supportsAsync,
-            supportsCancel,
-            supportsFetchTasks,
+            supportedEndpoints,
             PropertyUtil.propertyAsLong(
                 catalogProperties,
                 RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
@@ -121,7 +114,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
         client,
         headers,
-        scanContext);
+        tableResource);
   }
 
   @Override

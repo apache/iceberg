@@ -624,9 +624,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           finalIdentifier,
           Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
 
-      boolean supportsAsync = endpoints.contains(Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
-      boolean supportsCancel = endpoints.contains(Endpoint.V1_CANCEL_TABLE_SCAN_PLAN);
-      boolean supportsFetchTasks = endpoints.contains(Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
@@ -635,9 +632,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           Map::of,
           finalIdentifier,
           paths,
-          supportsAsync,
-          supportsCancel,
-          supportsFetchTasks,
+          endpoints,
           properties(),
           conf);
     }

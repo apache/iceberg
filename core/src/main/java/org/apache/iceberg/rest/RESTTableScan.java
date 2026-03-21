@@ -69,8 +69,8 @@ class RESTTableScan extends DataTableScan {
 
   private final RESTClient client;
   private final Supplier<Map<String, String>> headers;
-  private final RESTScanContext scanContext;
-  private volatile ParserContext parserContext;
+  private final TableResource tableResource;
+  private volatile ParserContext lazyParserContext;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -81,22 +81,22 @@ class RESTTableScan extends DataTableScan {
       TableScanContext context,
       RESTClient client,
       Supplier<Map<String, String>> headers,
-      RESTScanContext scanContext) {
+      TableResource tableResource) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
-    this.scanContext = scanContext;
+    this.tableResource = tableResource;
   }
 
-  private ParserContext parserContext() {
-    if (parserContext == null) {
-      this.parserContext =
+  private ParserContext lazyParserContext() {
+    if (lazyParserContext == null) {
+      this.lazyParserContext =
           ParserContext.builder()
               .add("specsById", table().specs())
               .add("caseSensitive", context().caseSensitive())
               .build();
     }
-    return parserContext;
+    return lazyParserContext;
   }
 
   @Override
@@ -104,7 +104,7 @@ class RESTTableScan extends DataTableScan {
       Table refinedTable, Schema refinedSchema, TableScanContext refinedContext) {
     RESTTableScan scan =
         new RESTTableScan(
-            refinedTable, refinedSchema, refinedContext, client, headers, scanContext);
+            refinedTable, refinedSchema, refinedContext, client, headers, tableResource);
     scan.useSnapshotSchema = useSnapshotSchema;
     return scan;
   }
@@ -171,13 +171,13 @@ class RESTTableScan extends DataTableScan {
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
     PlanTableScanResponse response =
         client.post(
-            scanContext.planTableScanPath(),
+            tableResource.planPath(),
             planTableScanRequest,
             PlanTableScanResponse.class,
             headers.get(),
             ErrorHandlers.tableErrorHandler(),
             stringStringMap -> {},
-            parserContext());
+            lazyParserContext());
 
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
@@ -189,7 +189,7 @@ class RESTTableScan extends DataTableScan {
         return scanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         Preconditions.checkState(
-            scanContext.supportsAsync(),
+            tableResource.supportsAsync(),
             "Invalid plan status %s: server does not support async scan planning",
             PlanStatus.SUBMITTED);
         return fetchPlanningResult();
@@ -202,13 +202,13 @@ class RESTTableScan extends DataTableScan {
   }
 
   private FileIO scanFileIO(List<Credential> credentials) {
-    FileIO ioForScan = scanContext.createFileIO(credentials, planId);
+    FileIO ioForScan = tableResource.createFileIO(credentials, planId);
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult() {
-    long maxWaitTimeMs = scanContext.pollTimeoutMs();
+    long maxWaitTimeMs = tableResource.pollTimeoutMs();
     Preconditions.checkArgument(
         maxWaitTimeMs > 0,
         "Invalid value for %s: %s (must be positive)",
@@ -231,12 +231,12 @@ class RESTTableScan extends DataTableScan {
               id -> {
                 FetchPlanningResultResponse response =
                     client.get(
-                        scanContext.planPath(id),
+                        tableResource.planPath(id),
                         headers.get(),
                         FetchPlanningResultResponse.class,
                         headers.get(),
                         ErrorHandlers.planErrorHandler(),
-                        parserContext());
+                        lazyParserContext());
 
                 switch (response.planStatus()) {
                   case COMPLETED:
@@ -296,21 +296,15 @@ class RESTTableScan extends DataTableScan {
 
   private CloseableIterable<FileScanTask> scanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
-    if (planTasks != null && !planTasks.isEmpty()) {
-      Preconditions.checkState(
-          scanContext.supportsFetchTasks(),
-          "Server returned plan tasks but does not support fetching scan tasks");
-    }
-
     return CloseableIterable.whenComplete(
         new ScanTaskIterable(
             planTasks,
             fileScanTasks == null ? List.of() : fileScanTasks,
             client,
-            scanContext.fetchScanTasksPath(),
+            tableResource.fetchPath(),
             headers,
             planExecutor(),
-            parserContext()),
+            lazyParserContext()),
         this::cancelPlan);
   }
 
@@ -324,13 +318,13 @@ class RESTTableScan extends DataTableScan {
   @VisibleForTesting
   @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
-    if (planId == null || !scanContext.supportsCancel()) {
+    if (planId == null || !tableResource.supportsCancel()) {
       return false;
     }
 
     try {
       client.delete(
-          scanContext.planPath(planId),
+          tableResource.planPath(planId),
           Map.of(),
           null,
           headers.get(),
