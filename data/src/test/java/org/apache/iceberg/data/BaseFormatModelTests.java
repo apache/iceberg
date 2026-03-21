@@ -90,16 +90,13 @@ public abstract class BaseFormatModelTests<T> {
 
   static final String FEATURE_FILTER = "filter";
   static final String FEATURE_CASE_SENSITIVE = "caseSensitive";
-  static final String FEATURE_RECORDS_PER_BATCH = "recordsPerBatch";
   static final String FEATURE_SPLIT = "split";
   static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
           FileFormat.AVRO,
-          new String[] {
-            FEATURE_FILTER, FEATURE_CASE_SENSITIVE, FEATURE_RECORDS_PER_BATCH, FEATURE_SPLIT
-          },
+          new String[] {FEATURE_FILTER, FEATURE_CASE_SENSITIVE, FEATURE_SPLIT},
           FileFormat.ORC,
           new String[] {FEATURE_REUSE_CONTAINERS});
 
