@@ -615,7 +615,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderRecordsPerBatchNotSupported(FileFormat fileFormat) throws IOException {
-    assumeSupports(fileFormat, FEATURE_RECORDS_PER_BATCH);
     assumeFalse(supportsBatchReads(), engineType().getSimpleName() + " supports batch reads");
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
