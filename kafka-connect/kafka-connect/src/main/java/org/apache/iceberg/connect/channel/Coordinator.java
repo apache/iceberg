@@ -194,8 +194,7 @@ class Coordinator extends Channel {
           .stopOnFailure()
           .run(
               entry -> {
-                commitToTable(
-                    entry.getKey(), entry.getValue(), batchOffsets, batchVtts);
+                commitToTable(entry.getKey(), entry.getValue(), batchOffsets, batchVtts);
               });
 
       tableCount += commitMap.size();
