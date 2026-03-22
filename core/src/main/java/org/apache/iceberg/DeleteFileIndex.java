@@ -205,12 +205,8 @@ class DeleteFileIndex {
     }
 
     DeleteFile dv = dvByPath.get(dataFile.location());
-    if (dv != null) {
-      ValidationException.check(
-          dv.dataSequenceNumber() >= seq,
-          "DV data sequence number (%s) must be greater than or equal to data file sequence number (%s)",
-          dv.dataSequenceNumber(),
-          seq);
+    if (dv != null && dv.dataSequenceNumber() < seq) {
+      return null;
     }
     return dv;
   }
