@@ -81,6 +81,9 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
 | iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                     |
+| iceberg.control.commit.stale-ttl-ms                | Time-to-live for stale commit events in the buffer (msec), default is 3,600,000 (1 hr). Set 0 to disable. |
+| iceberg.control.commit.stale-max-blocking-retries  | Number of retries before a stale group transitions to the configured failure policy, default is 3.         |
+| iceberg.control.commit.stale-failure-policy        | Policy after max retries: `fail` (default, stop connector) or `non-blocking` (proceed, may duplicate).    |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |
@@ -363,6 +366,46 @@ See above for creating two tables.
   }
 }
 ```
+
+## Commit behavior
+
+The coordinator commits data to Iceberg tables in cycles. Each cycle, the coordinator
+sends a `StartCommit` to the control topic, waits for worker responses (`DataWritten`
+and `DataComplete`), and then commits the collected data files to Iceberg.
+
+### Partial commits and stale events
+
+When a commit times out (a worker hasn't responded within `commit.timeout-ms`), the
+coordinator performs a **partial commit** with the data files received so far. Workers
+that finish after the timeout send their `DataWritten` events to the control topic,
+which are consumed in the next commit cycle.
+
+These late-arriving ("stale") events carry the previous cycle's `commitId`. The
+coordinator separates them from current-cycle events and commits each group in a
+separate `RowDelta` with its own Iceberg sequence number. This ensures equality
+deletes from the current cycle correctly apply to stale data files (because
+`data_sequence_number < delete_sequence_number` is required).
+
+### Stale event error handling
+
+If a stale group fails to commit, the coordinator uses a three-stage escalation:
+
+1. **Blocking retries** (`stale-max-blocking-retries`, default 3): The stale group
+   blocks the current group for the same table to preserve sequence number ordering.
+2. **Failure policy** (`stale-failure-policy`):
+   * `fail` (default): Throws a `ConnectException`, moving the connector to `FAILED` state.
+   * `non-blocking`: Proceeds with the current group, accepting ordering inversion risk.
+3. **TTL eviction** (`stale-ttl-ms`, default 1 hour): Stale events older than the TTL
+   are evicted with an `ERROR` log containing the orphaned file paths for manual recovery.
+
+### JMX monitoring
+
+The coordinator registers a `CommitStateMXBean` under
+`org.apache.iceberg.connect:type=CommitState,connector=<name>` exposing:
+
+- `EvictedStaleEventCount`: Cumulative count of stale events evicted by TTL.
+- `StaleGroupCount`: Number of distinct stale commitId groups in the buffer.
+- `BufferSize`: Total number of envelopes in the commit buffer.
 
 ## SMTs for the Apache Iceberg Sink Connector
 
