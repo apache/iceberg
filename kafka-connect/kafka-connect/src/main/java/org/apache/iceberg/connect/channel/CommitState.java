@@ -19,11 +19,17 @@
 package org.apache.iceberg.connect.channel;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -35,12 +41,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class CommitState {
+class CommitState implements CommitStateMXBean {
   private static final Logger LOG = LoggerFactory.getLogger(CommitState.class);
+
+  static final String STALE_FAILURE_POLICY_FAIL = "fail";
+  static final String STALE_FAILURE_POLICY_NON_BLOCKING = "non-blocking";
 
   private final List<Envelope> commitBuffer = Lists.newArrayList();
   private final List<DataComplete> readyBuffer = Lists.newArrayList();
   private int receivedPartitionCount = 0;
+  private final Map<UUID, Integer> groupRetryCount = new HashMap<>();
+  private final Map<UUID, Long> groupFirstSeenMs = new HashMap<>();
+  private long evictedStaleEventCount;
   private long startTime;
   private UUID currentCommitId;
   private final IcebergSinkConfig config;
@@ -51,8 +63,9 @@ class CommitState {
 
   void addResponse(Envelope envelope) {
     commitBuffer.add(envelope);
+    DataWritten dataWritten = (DataWritten) envelope.event().payload();
+    groupFirstSeenMs.putIfAbsent(dataWritten.commitId(), System.currentTimeMillis());
     if (!isCommitInProgress()) {
-      DataWritten dataWritten = (DataWritten) envelope.event().payload();
       LOG.warn(
           "Received commit response when no commit in progress, this can happen during recovery. Commit ID: {}",
           dataWritten.commitId());
@@ -89,6 +102,9 @@ class CommitState {
   }
 
   void startNewCommit() {
+    // Do NOT clear commitBuffer. Stale events from prior failed or timed-out cycles are
+    // retained for retry. Successfully committed groups are removed selectively by
+    // removeEnvelopes() after each group's RowDelta commit succeeds.
     currentCommitId = UUID.randomUUID();
     startTime = System.currentTimeMillis();
   }
@@ -101,6 +117,47 @@ class CommitState {
 
   void clearResponses() {
     commitBuffer.clear();
+  }
+
+  /**
+   * Removes only the specified envelopes from the commit buffer. Used after per-group RowDelta
+   * commits to selectively drain successfully committed events while retaining events from failed
+   * or skipped groups for retry next cycle.
+   */
+  void removeEnvelopes(Collection<Envelope> committed) {
+    commitBuffer.removeAll(new HashSet<>(committed));
+
+    // Clean up tracking maps for commitIds no longer in the buffer.
+    Set<UUID> remainingIds =
+        commitBuffer.stream()
+            .map(env -> ((DataWritten) env.event().payload()).commitId())
+            .collect(Collectors.toSet());
+    groupRetryCount.keySet().retainAll(remainingIds);
+    groupFirstSeenMs.keySet().retainAll(remainingIds);
+  }
+
+  void recordGroupFailure(UUID commitId) {
+    groupRetryCount.merge(commitId, 1, Integer::sum);
+  }
+
+  void recordGroupSuccess(UUID commitId) {
+    groupRetryCount.remove(commitId);
+  }
+
+  boolean isGroupBlocking(UUID commitId) {
+    return groupRetryCount.getOrDefault(commitId, 0) < config.commitStaleMaxBlockingRetries();
+  }
+
+  boolean isStaleFailurePolicyFail() {
+    return STALE_FAILURE_POLICY_FAIL.equalsIgnoreCase(config.commitStaleFailurePolicy());
+  }
+
+  int getRetryCount(UUID commitId) {
+    return groupRetryCount.getOrDefault(commitId, 0);
+  }
+
+  boolean isBufferEmpty() {
+    return commitBuffer.isEmpty();
   }
 
   boolean isCommitTimedOut() {
@@ -137,6 +194,121 @@ class CommitState {
     return false;
   }
 
+  // ── MXBean interface methods ──
+
+  @Override
+  public long getEvictedStaleEventCount() {
+    return evictedStaleEventCount;
+  }
+
+  @Override
+  public int getStaleGroupCount() {
+    return staleGroupCount();
+  }
+
+  @Override
+  public int getBufferSize() {
+    return bufferSize();
+  }
+
+  // ── Internal accessors ──
+
+  long evictedStaleEventCount() {
+    return evictedStaleEventCount;
+  }
+
+  int staleGroupCount() {
+    if (currentCommitId == null) {
+      return 0;
+    }
+    return (int)
+        commitBuffer.stream()
+            .map(env -> ((DataWritten) env.event().payload()).commitId())
+            .filter(cid -> !cid.equals(currentCommitId))
+            .distinct()
+            .count();
+  }
+
+  int bufferSize() {
+    return commitBuffer.size();
+  }
+
+  /**
+   * Returns the minimum control topic offset per partition among uncommitted envelopes remaining in
+   * the buffer. Used for partial consumer offset advancement: advancing to these offsets ensures
+   * uncommitted events survive a restart while already-committed events are not re-consumed.
+   */
+  Map<Integer, Long> remainingEnvelopeMinOffsets() {
+    Map<Integer, Long> minOffsets = new HashMap<>();
+    for (Envelope env : commitBuffer) {
+      minOffsets.merge(env.partition(), env.offset(), Long::min);
+    }
+    return minOffsets;
+  }
+
+  private void evictExpiredStaleEvents() {
+    long ttlMs = config.commitStaleTtlMs();
+    if (ttlMs <= 0) {
+      return;
+    }
+
+    long now = System.currentTimeMillis();
+    // Collect stale commitIds that have exceeded the TTL.
+    Set<UUID> expiredIds = new HashSet<>();
+    groupFirstSeenMs.forEach(
+        (commitId, firstSeenMs) -> {
+          boolean isStale = currentCommitId == null || !commitId.equals(currentCommitId);
+          if (isStale && (now - firstSeenMs) > ttlMs) {
+            expiredIds.add(commitId);
+          }
+        });
+
+    if (expiredIds.isEmpty()) {
+      return;
+    }
+
+    // Log orphaned file paths at ERROR level for each evicted event.
+    commitBuffer.stream()
+        .filter(
+            env -> {
+              DataWritten dw = (DataWritten) env.event().payload();
+              return expiredIds.contains(dw.commitId());
+            })
+        .forEach(
+            env -> {
+              DataWritten dw = (DataWritten) env.event().payload();
+              long age = now - groupFirstSeenMs.getOrDefault(dw.commitId(), now);
+              List<String> dataFilePaths =
+                  dw.dataFiles() != null
+                      ? dw.dataFiles().stream()
+                          .map(f -> f.path().toString())
+                          .collect(Collectors.toList())
+                      : Collections.emptyList();
+              List<String> deleteFilePaths =
+                  dw.deleteFiles() != null
+                      ? dw.deleteFiles().stream()
+                          .map(f -> f.path().toString())
+                          .collect(Collectors.toList())
+                      : Collections.emptyList();
+              LOG.error(
+                  "Evicting stale DataWritten past TTL ({}ms): commitId={}, table={}, age={}ms. "
+                      + "Orphaned data files: {}. Orphaned delete files: {}. "
+                      + "These files exist on storage but are not registered in the Iceberg table.",
+                  ttlMs,
+                  dw.commitId(),
+                  dw.tableReference().identifier(),
+                  age,
+                  dataFilePaths,
+                  deleteFilePaths);
+              evictedStaleEventCount++;
+            });
+
+    commitBuffer.removeIf(
+        env -> expiredIds.contains(((DataWritten) env.event().payload()).commitId()));
+    expiredIds.forEach(groupRetryCount::remove);
+    expiredIds.forEach(groupFirstSeenMs::remove);
+  }
+
   /**
    * Returns commit buffer entries grouped by table, separated by commitId.
    *
@@ -150,6 +322,8 @@ class CommitState {
    * list should be committed in a separate RowDelta to preserve sequence number ordering.
    */
   List<Map<TableReference, List<Envelope>>> tableCommitMaps() {
+    evictExpiredStaleEvents();
+
     // LinkedHashMap preserves insertion order from control topic consumption
     Map<UUID, List<Envelope>> byCommitId = new LinkedHashMap<>();
     for (Envelope envelope : commitBuffer) {
@@ -176,13 +350,66 @@ class CommitState {
 
     // Current commitId last — ensures highest sequence number
     if (currentCommitId != null) {
-      List<Envelope> currentEnvelopes = byCommitId.getOrDefault(currentCommitId, Lists.newArrayList());
+      List<Envelope> currentEnvelopes =
+          byCommitId.getOrDefault(currentCommitId, Lists.newArrayList());
       if (!currentEnvelopes.isEmpty()) {
         result.add(toTableMap(currentEnvelopes));
       }
     }
 
     return result;
+  }
+
+  /**
+   * Groups commit buffer entries by table, then by commitId within each table. CommitId groups are
+   * ordered by first appearance in the buffer (insertion order), which matches control topic
+   * consumption order. This ensures stale groups from prior failed or timed-out cycles sort before
+   * the current cycle's group.
+   *
+   * <p>Each group becomes a separate RowDelta commit with its own Iceberg sequence number, allowing
+   * equality deletes from newer groups to apply to data files from older groups.
+   */
+  Map<TableReference, List<CommitGroup>> tableCommitGroups() {
+    evictExpiredStaleEvents();
+
+    Map<TableReference, List<Envelope>> byTable =
+        commitBuffer.stream()
+            .collect(
+                Collectors.groupingBy(
+                    envelope -> ((DataWritten) envelope.event().payload()).tableReference()));
+
+    Map<TableReference, List<CommitGroup>> result = new LinkedHashMap<>();
+    for (Map.Entry<TableReference, List<Envelope>> entry : byTable.entrySet()) {
+      LinkedHashMap<UUID, List<Envelope>> byCommitId = new LinkedHashMap<>();
+      for (Envelope env : entry.getValue()) {
+        UUID cid = ((DataWritten) env.event().payload()).commitId();
+        byCommitId.computeIfAbsent(cid, k -> new ArrayList<>()).add(env);
+      }
+      List<CommitGroup> groups =
+          byCommitId.entrySet().stream()
+              .map(e -> new CommitGroup(e.getKey(), e.getValue()))
+              .collect(Collectors.toList());
+      result.put(entry.getKey(), groups);
+    }
+    return result;
+  }
+
+  static class CommitGroup {
+    private final UUID commitId;
+    private final List<Envelope> envelopes;
+
+    CommitGroup(UUID commitId, List<Envelope> envelopes) {
+      this.commitId = commitId;
+      this.envelopes = envelopes;
+    }
+
+    UUID commitId() {
+      return commitId;
+    }
+
+    List<Envelope> envelopes() {
+      return envelopes;
+    }
   }
 
   private Map<TableReference, List<Envelope>> toTableMap(List<Envelope> envelopes) {

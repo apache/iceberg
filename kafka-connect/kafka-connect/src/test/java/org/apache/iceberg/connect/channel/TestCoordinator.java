@@ -371,4 +371,172 @@ public class TestCoordinator extends ChannelTestBase {
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
   }
+
+  @Test
+  public void testStaleGroupFailureSkipsCurrentGroup() {
+    // If a stale group fails to commit, remaining groups for that table must be
+    // skipped to preserve sequence number ordering. No snapshots should be created.
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    // Inject a stale DataWritten with a bad partition spec (will fail validation).
+    UUID staleCommitId = UUID.randomUUID();
+    PartitionSpec badPartitionSpec =
+        PartitionSpec.builderFor(SCHEMA).withSpecId(1).identity("id").build();
+    DataFile badDataFile =
+        DataFiles.builder(badPartitionSpec)
+            .withPath(UUID.randomUUID() + ".parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(100L)
+            .withRecordCount(5)
+            .build();
+    Event staleResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                staleCommitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(badDataFile),
+                ImmutableList.of()));
+    byte[] staleBytes = AvroUtil.encode(staleResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 0, "key", staleBytes));
+
+    // First process(): starts commit, consumes stale event.
+    coordinator.process();
+
+    byte[] bytes = producer.history().get(0).value();
+    Event startEvent = AvroUtil.decode(bytes);
+    UUID currentCommitId = ((StartCommit) startEvent.payload()).commitId();
+
+    // Add valid current-cycle events.
+    Event currentResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                currentCommitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    bytes = AvroUtil.encode(currentResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+
+    Event currentReady =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                currentCommitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, null))));
+    bytes = AvroUtil.encode(currentReady);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
+
+    // Second process(): stale group fails → current group skipped for this table.
+    coordinator.process();
+
+    table.refresh();
+    // No snapshots: both groups skipped due to stale failure.
+    assertThat(table.snapshots()).isEmpty();
+
+    // No CommitComplete sent (buffer not empty).
+    boolean hasCommitComplete =
+        producer.history().stream()
+            .anyMatch(
+                r -> {
+                  Event e = AvroUtil.decode(r.value());
+                  return e.type() == PayloadType.COMMIT_COMPLETE;
+                });
+    assertThat(hasCommitComplete).isFalse();
+  }
+
+  @Test
+  public void testStaleSucceedsCurrentFails() {
+    // When a stale group commits but the current group fails, the stale group's
+    // envelopes should be removed and its snapshot should exist. The current group's
+    // envelopes remain in the buffer for retry. No CommitComplete is sent.
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+    initConsumer();
+
+    // Inject a stale DataWritten with valid data.
+    UUID staleCommitId = UUID.randomUUID();
+    Event staleResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                staleCommitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    byte[] staleBytes = AvroUtil.encode(staleResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 0, "key", staleBytes));
+
+    // First process(): starts commit, consumes stale event.
+    coordinator.process();
+
+    byte[] bytes = producer.history().get(0).value();
+    Event startEvent = AvroUtil.decode(bytes);
+    UUID currentCommitId = ((StartCommit) startEvent.payload()).commitId();
+
+    // Add current-cycle DataWritten with a bad partition spec (will fail).
+    PartitionSpec badPartitionSpec =
+        PartitionSpec.builderFor(SCHEMA).withSpecId(1).identity("id").build();
+    DataFile badDataFile =
+        DataFiles.builder(badPartitionSpec)
+            .withPath(UUID.randomUUID() + ".parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(100L)
+            .withRecordCount(5)
+            .build();
+    Event currentResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                currentCommitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(badDataFile),
+                ImmutableList.of()));
+    bytes = AvroUtil.encode(currentResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+
+    Event currentReady =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                currentCommitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, null))));
+    bytes = AvroUtil.encode(currentReady);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
+
+    // Second process(): stale group succeeds, current group fails.
+    coordinator.process();
+
+    table.refresh();
+    // Stale group committed: 1 snapshot with stale commitId.
+    List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
+    assertThat(snapshots).hasSize(1);
+    assertThat(snapshots.get(0).summary())
+        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, staleCommitId.toString());
+
+    // No CommitComplete sent (buffer not fully drained — current group's envelopes remain).
+    boolean hasCommitComplete =
+        producer.history().stream()
+            .anyMatch(
+                r -> {
+                  Event e = AvroUtil.decode(r.value());
+                  return e.type() == PayloadType.COMMIT_COMPLETE;
+                });
+    assertThat(hasCommitComplete).isFalse();
+  }
 }

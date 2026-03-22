@@ -143,11 +143,14 @@ abstract class Channel {
   }
 
   protected void commitConsumerOffsets() {
+    commitConsumerOffsetsTo(controlTopicOffsets());
+  }
+
+  protected void commitConsumerOffsetsTo(Map<Integer, Long> specificOffsets) {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
-    controlTopicOffsets()
-        .forEach(
-            (k, v) ->
-                offsetsToCommit.put(new TopicPartition(controlTopic, k), new OffsetAndMetadata(v)));
+    specificOffsets.forEach(
+        (k, v) ->
+            offsetsToCommit.put(new TopicPartition(controlTopic, k), new OffsetAndMetadata(v)));
     consumer.commitSync(offsetsToCommit);
   }
 
