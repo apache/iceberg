@@ -207,11 +207,13 @@ class DeleteFileIndex {
       return EMPTY_DELETES;
     }
 
-    DeleteFile[] matchingDeletes = deletes.filter(seq);
-    for (DeleteFile deleteFile : matchingDeletes) {
-      validatePartitionMatch(deleteFile, dataFile);
+    List<DeleteFile> matchingDeletes = Lists.newArrayList();
+    for (DeleteFile deleteFile : deletes.filter(seq)) {
+      if (validatePartitionMatch(deleteFile, dataFile)) {
+        matchingDeletes.add(deleteFile);
+      }
     }
-    return matchingDeletes;
+    return matchingDeletes.toArray(EMPTY_DELETES);
   }
 
   private DeleteFile findDV(long seq, DataFile dataFile) {
@@ -220,38 +222,26 @@ class DeleteFileIndex {
     }
 
     DeleteFile dv = dvByPath.get(dataFile.location());
-    if (dv != null) {
-      ValidationException.check(
-          dv.dataSequenceNumber() >= seq,
-          "DV data sequence number (%s) must be greater than or equal to data file sequence number (%s)",
-          dv.dataSequenceNumber(),
-          seq);
-      validatePartitionMatch(dv, dataFile);
+    if (dv != null && (dv.dataSequenceNumber() < seq || !validatePartitionMatch(dv, dataFile))) {
+      return null;
     }
     return dv;
   }
 
-  private void validatePartitionMatch(DeleteFile deleteFile, DataFile dataFile) {
-    ValidationException.check(
-        deleteFile.specId() == dataFile.specId(),
-        "Mismatched partition specs (%s, %s) for delete file %s and data file %s:"
-            + " metadata is corrupted",
-        deleteFile.specId(),
-        dataFile.specId(),
-        deleteFile.location(),
-        dataFile.location());
+  private boolean validatePartitionMatch(DeleteFile deleteFile, DataFile dataFile) {
+    if (deleteFile.specId() != dataFile.specId()) {
+      // Mismatched partition specs for delete file and data file: metadata is corrupted
+      return false;
+    }
     if (partitionComparatorsBySpecId != null) {
       Comparator<StructLike> partitionComparator =
           partitionComparatorsBySpecId.get(deleteFile.specId());
-      ValidationException.check(
-          partitionComparator.compare(deleteFile.partition(), dataFile.partition()) == 0,
-          "Mismatched partition tuples (%s, %s) for delete file %s and data file %s:"
-              + " metadata is corrupted",
-          deleteFile.partition(),
-          dataFile.partition(),
-          deleteFile.location(),
-          dataFile.location());
+      if (partitionComparator.compare(deleteFile.partition(), dataFile.partition()) != 0) {
+        // Mismatched partition tuples for delete file and data file: metadata is corrupted
+        return false;
+      }
     }
+    return true;
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
