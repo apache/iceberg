@@ -34,10 +34,12 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
 
   private final RowType rowType;
   private final Map<String, String> writeProperties;
+  private final Map<String, Integer> fieldNameToPosition;
 
   public DynamicTableRecordGenerator(RowType rowType, Map<String, String> writeProperties) {
     this.rowType = rowType;
     this.writeProperties = writeProperties;
+    this.fieldNameToPosition = fieldNameToPositionMapping(rowType);
   }
 
   protected RowType rowType() {
@@ -48,7 +50,29 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
     return writeProperties;
   }
 
-  protected Map<String, Integer> fieldNameToPositionMapping() {
+  protected Map<String, Integer> fieldNameToPosition() {
+    return fieldNameToPosition;
+  }
+
+  protected void validateRequiredFieldAndType(String columnName, LogicalType expectedType) {
+    int fieldIndex = rowType.getFieldIndex(columnName);
+    Preconditions.checkArgument(
+        fieldIndex != -1,
+        "Missing column %s. Expected column %s of type %s.",
+        columnName,
+        columnName,
+        expectedType);
+
+    LogicalType actualType = rowType.getTypeAt(fieldIndex);
+    Preconditions.checkArgument(
+        actualType.is(expectedType.getTypeRoot()),
+        "Invalid column type for %s:%s. Expected column type: %s",
+        columnName,
+        actualType,
+        expectedType);
+  }
+
+  private Map<String, Integer> fieldNameToPositionMapping(RowType rowType) {
     Map<String, Integer> fieldNameToPosition = Maps.newHashMap();
     List<RowType.RowField> fields = rowType.getFields();
 
@@ -58,24 +82,5 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
     }
 
     return fieldNameToPosition;
-  }
-
-  protected void validateRequiredFieldAndType(String columnName, LogicalType expectedType) {
-    int fieldIndex = rowType.getFieldIndex(columnName);
-
-    Preconditions.checkArgument(
-        fieldIndex != -1,
-        "Missing column %s.Expected column %s of type %s.",
-        columnName,
-        columnName,
-        expectedType);
-
-    LogicalType actualType = rowType.getTypeAt(fieldIndex);
-    Preconditions.checkArgument(
-        actualType.is(expectedType.getTypeRoot()),
-        "Invalid column type for %s:%s. Expected column type:%s",
-        columnName,
-        actualType,
-        expectedType);
   }
 }

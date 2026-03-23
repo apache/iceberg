@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.util.Map;
 import org.apache.avro.Schema.Parser;
 import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
@@ -43,14 +44,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 
 public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGenerator {
 
-  private transient Map<String, Integer> fieldNameToPosition;
   private static final Splitter COMMA = Splitter.on(',');
-  private transient int maxCacheSize;
-  private transient Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache;
   @VisibleForTesting static final String DATA_COLUMN = "data";
   @VisibleForTesting static final String AVRO_SCHEMA_COLUMN = "avro_schema";
   @VisibleForTesting static final String AVRO_SCHEMA_ID_COLUMN = "avro_schema_id";
   @VisibleForTesting static final String PARTITION_COLUMNS = "partition_columns";
+
+  private transient int maxCacheSize;
+  private transient Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache;
 
   public VariantAvroDynamicTableRecordGenerator(
       RowType rowType, Map<String, String> writeProperties) {
@@ -60,7 +61,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     Preconditions.checkArgument(
         rowType.getFieldIndex(catalogDatabaseColumn) != -1
             || writeProperties().containsKey(catalogDatabaseColumn),
-        "Invalid %s:null.Either %s column should be passed in Row or set in table options",
+        "Invalid %s:null. Either %s column should be passed in Row or set in table options",
         catalogDatabaseColumn,
         catalogDatabaseColumn);
 
@@ -68,7 +69,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     Preconditions.checkArgument(
         rowType.getFieldIndex(catalogTableColumn) != -1
             || writeProperties().containsKey(catalogTableColumn),
-        "Invalid %s:null.Either %s column should be passed in Row or set in table options",
+        "Invalid %s:null. Either %s column should be passed in Row or set in table options",
         catalogTableColumn,
         catalogTableColumn);
 
@@ -81,49 +82,29 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
 
-    this.fieldNameToPosition = fieldNameToPositionMapping();
-
     String value = writeProperties().get(FlinkWriteOptions.CACHE_MAX_SIZE.key());
-    if (value != null) {
-      maxCacheSize = Integer.parseInt(value);
-    } else {
-      maxCacheSize = FlinkWriteOptions.CACHE_MAX_SIZE.defaultValue();
-    }
-
+    this.maxCacheSize =
+            value != null ? Integer.parseInt(value) : FlinkWriteOptions.CACHE_MAX_SIZE.defaultValue();
     this.tableCache = new LRUCache<>(maxCacheSize);
   }
 
   @Override
   public void generate(RowData inputRecord, Collector<DynamicRecord> out) throws Exception {
-    String catalogDatabaseColumn = FlinkCreateTableOptions.CATALOG_DATABASE.key();
-    String catalogDb =
-        stringTypedColumnValue(
-            inputRecord, catalogDatabaseColumn, writeProperties().get(catalogDatabaseColumn));
+    String catalogDb = columnValueAsString(inputRecord, FlinkCreateTableOptions.CATALOG_DATABASE, writeProperties());
+    String catalogTable = columnValueAsString(inputRecord, FlinkCreateTableOptions.CATALOG_TABLE, writeProperties());
 
-    String catalogTableColumn = FlinkCreateTableOptions.CATALOG_TABLE.key();
-    String catalogTable =
-        stringTypedColumnValue(
-            inputRecord, catalogTableColumn, writeProperties().get(catalogTableColumn));
+    // All write options overrides will be inferred in DynamicIcebergSink
+    String branch = columnValueAsString(inputRecord, FlinkWriteOptions.BRANCH);
+    String distributionModeStr = columnValueAsString(inputRecord, FlinkWriteOptions.DISTRIBUTION_MODE);
+    DistributionMode distributionMode =
+            distributionModeStr != null ? DistributionMode.fromName(distributionModeStr) : null;
 
-    // All write options overrides should be inferred in DynamicIcebergSink
-    String branch = stringTypedColumnValue(inputRecord, FlinkWriteOptions.BRANCH.key());
+    Integer pos = fieldNameToPosition().get(FlinkWriteOptions.WRITE_PARALLELISM.key());
+    int writeParallelism = pos != null ? inputRecord.getInt(pos) : -1;
 
-    DistributionMode distributionMode = null;
-    String distributionModeStr =
-        stringTypedColumnValue(inputRecord, FlinkWriteOptions.DISTRIBUTION_MODE.key());
-    if (distributionModeStr != null) {
-      distributionMode = DistributionMode.fromName(distributionModeStr);
-    }
-
-    int writeParallelism = -1;
-    Integer pos = fieldNameToPosition.get(FlinkWriteOptions.WRITE_PARALLELISM.key());
-    if (pos != null) {
-      writeParallelism = inputRecord.getInt(pos);
-    }
-
-    Variant variantData = inputRecord.getVariant(fieldNameToPosition.get(DATA_COLUMN));
-    String avroSchema = stringTypedColumnValue(inputRecord, AVRO_SCHEMA_COLUMN);
-    String avroSchemaId = stringTypedColumnValue(inputRecord, AVRO_SCHEMA_ID_COLUMN);
+    Variant variantData = inputRecord.getVariant(fieldNameToPosition().get(DATA_COLUMN));
+    String avroSchema = columnValueAsString(inputRecord, AVRO_SCHEMA_COLUMN);
+    String avroSchemaId = columnValueAsString(inputRecord, AVRO_SCHEMA_ID_COLUMN);
 
     TableIdentifier tableIdentifier = TableIdentifier.of(catalogDb, catalogTable);
     SchemaAndPartitionSpecCacheItem cacheItem =
@@ -133,7 +114,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     SchemaCacheItem schemaCacheItem = cacheItem.schema(avroSchemaId, avroSchema);
 
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
-    String partitionCols = stringTypedColumnValue(inputRecord, PARTITION_COLUMNS, null);
+    String partitionCols = columnValueAsString(inputRecord, PARTITION_COLUMNS, null);
     if (partitionCols != null) {
       partitionSpec = cacheItem.partitionSpec(partitionCols, schemaCacheItem.tableSchema());
     }
@@ -149,13 +130,20 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
             writeParallelism));
   }
 
-  @VisibleForTesting
-  Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache() {
-    return tableCache;
+  private String columnValueAsString(RowData rowData, ConfigOption<String> config, Map<String, String> writeProperties) {
+    return columnValueAsString(rowData, config.key(), writeProperties.get(config.key()));
   }
 
-  private String stringTypedColumnValue(RowData rowData, String column, String defaultValue) {
-    Integer pos = fieldNameToPosition.get(column);
+  private String columnValueAsString(RowData rowData, ConfigOption<String> config) {
+    return columnValueAsString(rowData, config.key());
+  }
+
+  private String columnValueAsString(RowData rowData, String columnName) {
+    return columnValueAsString(rowData, columnName, null);
+  }
+
+  private String columnValueAsString(RowData rowData, String column, String defaultValue) {
+    Integer pos = fieldNameToPosition().get(column);
     if (pos != null) {
       StringData value = rowData.getString(pos);
       return value == null ? defaultValue : value.toString();
@@ -164,8 +152,9 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     return defaultValue;
   }
 
-  private String stringTypedColumnValue(RowData rowData, String column) {
-    return stringTypedColumnValue(rowData, column, null);
+  @VisibleForTesting
+  Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache() {
+    return tableCache;
   }
 
   @VisibleForTesting
@@ -178,7 +167,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
       this.partitionSpecCache = new LRUCache<>(maximumSize);
     }
 
-    SchemaCacheItem schema(String avroSchemaId, String avroSchema) {
+    private SchemaCacheItem schema(String avroSchemaId, String avroSchema) {
       SchemaCacheItem schemaCacheItem = schemaCache.get(avroSchemaId);
       if (schemaCacheItem == null) {
         Schema icebergTableSchema = AvroSchemaUtil.toIceberg(new Parser().parse(avroSchema));
@@ -191,7 +180,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
       return schemaCacheItem;
     }
 
-    PartitionSpec partitionSpec(String partitionCols, Schema schema) {
+    private PartitionSpec partitionSpec(String partitionCols, Schema schema) {
       PartitionSpec partitionSpec = partitionSpecCache.get(partitionCols);
 
       if (partitionSpec == null) {
