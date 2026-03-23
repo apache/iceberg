@@ -94,11 +94,11 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
   private SeekableInputStream newGoogleCloudStorageInputStream() throws IOException {
     if (null == blobSize) {
       return new GcsInputStreamWrapper(
-          GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsItemId()), metrics());
+          GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsItemId()), blobId(), metrics());
     }
 
     return new GcsInputStreamWrapper(
-        GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsFileInfo()), metrics());
+        GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsFileInfo()), blobId(), metrics());
   }
 
   private GcsItemId gcsItemId() {
