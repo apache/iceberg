@@ -55,7 +55,10 @@ import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -330,5 +333,88 @@ public class TestParquetDataWriter {
 
     testDataWriter(
         variantSchema, (id, name) -> ParquetVariantUtil.toParquetSchema(variant.value()));
+  }
+
+  @Test
+  public void testWithFileSchemaOverride() throws IOException {
+    Schema variantSchema =
+        new Schema(
+            ImmutableList.<Types.NestedField>builder()
+                .addAll(SCHEMA.columns())
+                .add(Types.NestedField.optional(4, "variant", Types.VariantType.get()))
+                .build());
+    MessageType customSchema =
+        org.apache.parquet.schema.Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .id(1)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .id(2)
+            .named("data")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .id(3)
+            .named("binary")
+            .addField(
+                org.apache.parquet.schema.Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .id(4)
+                    .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+                    .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                    .named("metadata")
+                    .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                    .named("value")
+                    .optional(PrimitiveType.PrimitiveTypeName.INT32)
+                    .named("typed_value")
+                    .named("variant"))
+            .named("table");
+    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(ImmutableList.of("a"), true);
+    VariantMetadata metadata = Variants.metadata(metadataBuffer);
+    ByteBuffer objectBuffer =
+        VariantTestUtil.createObject(metadataBuffer, ImmutableMap.of("a", Variants.of(42)));
+    Variant variant = Variant.of(metadata, Variants.value(metadata, objectBuffer));
+
+    GenericRecord record = GenericRecord.create(variantSchema);
+    List<Record> variantRecords =
+        ImmutableList.of(
+            record.copy(ImmutableMap.of("id", 1L, "variant", variant)),
+            record.copy(ImmutableMap.of("id", 2L, "variant", variant)));
+
+    OutputFile file = Files.localOutput(createTempFile(temp));
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .schema(variantSchema)
+            .withFileSchema(customSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+
+    try (dataWriter) {
+      for (Record rec : variantRecords) {
+        dataWriter.write(rec);
+      }
+    }
+
+    // Verify physical schema matches the override
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file.toInputFile()))) {
+      MessageType actualSchema = reader.getFooter().getFileMetaData().getSchema();
+      assertThat(actualSchema).isEqualTo(customSchema);
+    }
+
+    // Verify data round-trips correctly
+    List<Record> writtenRecords;
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file.toInputFile())
+            .project(variantSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(variantSchema, fileSchema))
+            .build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    assertThat(writtenRecords).hasSameSizeAs(variantRecords);
+    for (int i = 0; i < variantRecords.size(); i++) {
+      InternalTestHelpers.assertEquals(
+          variantSchema.asStruct(), variantRecords.get(i), writtenRecords.get(i));
+    }
   }
 }

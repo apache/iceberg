@@ -105,24 +105,6 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
      * @return a writer configured for the given schemas
      */
     W write(Schema icebergSchema, F fileSchema, S engineSchema);
-
-    /**
-     * Creates a writer for the given schemas and write properties. Implementations can use
-     * properties to customize writer behavior, such as enabling variant shredding.
-     *
-     * <p>The default implementation ignores properties and delegates to {@link #write(Schema,
-     * Object, Object)}.
-     *
-     * @param icebergSchema the Iceberg schema defining the table structure
-     * @param fileSchema the file format specific target schema for the output files
-     * @param engineSchema the engine-specific schema for the input data (optional)
-     * @param writeProperties writer configuration properties
-     * @return a writer configured for the given schemas
-     */
-    default W write(
-        Schema icebergSchema, F fileSchema, S engineSchema, Map<String, String> writeProperties) {
-      return write(icebergSchema, fileSchema, engineSchema);
-    }
   }
 
   /**

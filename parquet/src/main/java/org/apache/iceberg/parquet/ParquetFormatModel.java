@@ -40,7 +40,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 
@@ -99,7 +98,6 @@ public class ParquetFormatModel<D, S, R>
     private Schema schema;
     private S engineSchema;
     private FileContent content;
-    private final Map<String, String> collectedProperties = Maps.newHashMap();
 
     private WriteBuilderWrapper(
         EncryptedOutputFile outputFile,
@@ -123,7 +121,6 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> set(String property, String value) {
-      collectedProperties.put(property, value);
       if (WRITER_VERSION_KEY.equals(property)) {
         internal.writerVersion(ParquetProperties.WriterVersion.valueOf(value));
       }
@@ -134,7 +131,6 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> setAll(Map<String, String> properties) {
-      collectedProperties.putAll(properties);
       internal.setAll(properties);
       return this;
     }
@@ -188,15 +184,13 @@ public class ParquetFormatModel<D, S, R>
           internal.createContextFunc(Parquet.WriteBuilder.Context::dataContext);
           internal.createWriterFunc(
               (icebergSchema, messageType) ->
-                  writerFunction.write(
-                      icebergSchema, messageType, engineSchema, collectedProperties));
+                  writerFunction.write(icebergSchema, messageType, engineSchema));
           break;
         case EQUALITY_DELETES:
           internal.createContextFunc(Parquet.WriteBuilder.Context::deleteContext);
           internal.createWriterFunc(
               (icebergSchema, messageType) ->
-                  writerFunction.write(
-                      icebergSchema, messageType, engineSchema, collectedProperties));
+                  writerFunction.write(icebergSchema, messageType, engineSchema));
           break;
         case POSITION_DELETES:
           Preconditions.checkState(
