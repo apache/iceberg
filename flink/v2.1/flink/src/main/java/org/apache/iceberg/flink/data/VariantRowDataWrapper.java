@@ -121,18 +121,13 @@ public class VariantRowDataWrapper implements RowData {
   @Override
   public StringData getString(int pos) {
     Variant value = fieldByIndex(pos);
-    return value == null
-        ? null
-        : StringData.fromString(value.getString());
+    return value == null ? null : StringData.fromString(value.getString());
   }
 
   @Override
   public DecimalData getDecimal(int pos, int precision, int scale) {
     Variant value = fieldByIndex(pos);
-    return value == null
-        ? null
-        : DecimalData.fromBigDecimal(
-            value.getDecimal(), precision, scale);
+    return value == null ? null : DecimalData.fromBigDecimal(value.getDecimal(), precision, scale);
   }
 
   @Override
@@ -181,30 +176,31 @@ public class VariantRowDataWrapper implements RowData {
   private Object element(Variant variant, LogicalType elementType) {
     LogicalTypeRoot root = elementType.getTypeRoot();
 
-      return switch (root) {
-          case NULL -> null;
-          case BOOLEAN -> variant.getBoolean();
-          case TINYINT -> variant.getByte();
-          case SMALLINT -> variant.getShort();
-          case INTEGER -> intValue(variant);
-          case BIGINT -> longValue(variant);
-          case FLOAT -> variant.getFloat();
-          case DOUBLE -> doubleValue(variant);
-          case DECIMAL -> decimalDataValue(variant, (DecimalType) elementType);
-          case CHAR, VARCHAR -> StringData.fromString(variant.getString());
-          case TIMESTAMP_WITHOUT_TIME_ZONE, TIMESTAMP_WITH_LOCAL_TIME_ZONE -> timestampValue(variant);
-          case BINARY, VARBINARY -> variant.getBytes();
-          case ARRAY -> arrayDataValue(variant, ((ArrayType) elementType).getElementType());
-          case MAP -> mapDataValue(variant, (MapType) elementType);
-          case ROW -> new VariantRowDataWrapper((RowType) elementType).wrap(variant);
-          default -> throw new UnsupportedOperationException(
-                  "Unsupported Element type in Array/Map type:" + elementType);
-      };
+    return switch (root) {
+      case NULL -> null;
+      case BOOLEAN -> variant.getBoolean();
+      case TINYINT -> variant.getByte();
+      case SMALLINT -> variant.getShort();
+      case INTEGER -> intValue(variant);
+      case BIGINT -> longValue(variant);
+      case FLOAT -> variant.getFloat();
+      case DOUBLE -> doubleValue(variant);
+      case DECIMAL -> decimalDataValue(variant, (DecimalType) elementType);
+      case CHAR, VARCHAR -> StringData.fromString(variant.getString());
+      case TIMESTAMP_WITHOUT_TIME_ZONE, TIMESTAMP_WITH_LOCAL_TIME_ZONE -> timestampValue(variant);
+      case BINARY, VARBINARY -> variant.getBytes();
+      case ARRAY -> arrayDataValue(variant, ((ArrayType) elementType).getElementType());
+      case MAP -> mapDataValue(variant, (MapType) elementType);
+      case ROW -> new VariantRowDataWrapper((RowType) elementType).wrap(variant);
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported Element type in Array/Map type:" + elementType);
+    };
   }
 
   private static DecimalData decimalDataValue(Variant variant, DecimalType decimalType) {
     return DecimalData.fromBigDecimal(
-            variant.getDecimal(), decimalType.getPrecision(), decimalType.getScale());
+        variant.getDecimal(), decimalType.getPrecision(), decimalType.getScale());
   }
 
   private MapData mapDataValue(Variant variant, MapType mapType) {
@@ -248,39 +244,39 @@ public class VariantRowDataWrapper implements RowData {
   }
 
   private int intValue(Variant variant) {
-      return switch (variant.getType()) {
-          case TINYINT -> variant.getByte();
-          case SMALLINT -> variant.getShort();
-          case INT -> variant.getInt();
-          default -> throw new UnsupportedOperationException(errMsg(variant, "int"));
-      };
+    return switch (variant.getType()) {
+      case TINYINT -> variant.getByte();
+      case SMALLINT -> variant.getShort();
+      case INT -> variant.getInt();
+      default -> throw new UnsupportedOperationException(errMsg(variant, "int"));
+    };
   }
 
   private long longValue(Variant variant) {
-      return switch (variant.getType()) {
-          case TINYINT -> variant.getByte();
-          case SMALLINT -> variant.getShort();
-          case INT -> variant.getInt();
-          case BIGINT -> variant.getLong();
-          default -> throw new UnsupportedOperationException(errMsg(variant, "long"));
-      };
+    return switch (variant.getType()) {
+      case TINYINT -> variant.getByte();
+      case SMALLINT -> variant.getShort();
+      case INT -> variant.getInt();
+      case BIGINT -> variant.getLong();
+      default -> throw new UnsupportedOperationException(errMsg(variant, "long"));
+    };
   }
 
   private double doubleValue(Variant variant) {
-      return switch (variant.getType()) {
-          case FLOAT -> variant.getFloat();
-          case DOUBLE -> variant.getDouble();
-          default -> throw new UnsupportedOperationException(errMsg(variant, "double"));
-      };
+    return switch (variant.getType()) {
+      case FLOAT -> variant.getFloat();
+      case DOUBLE -> variant.getDouble();
+      default -> throw new UnsupportedOperationException(errMsg(variant, "double"));
+    };
   }
 
   private TimestampData timestampValue(Variant variant) {
-      return switch (variant.getType()) {
-          case TIMESTAMP -> TimestampData.fromLocalDateTime(variant.getDateTime());
-          case TIMESTAMP_LTZ -> TimestampData.fromInstant(variant.getInstant());
-          case BIGINT -> timestampDataValue(variant.getLong());
-          default -> throw new UnsupportedOperationException(errMsg(variant, "timestamp"));
-      };
+    return switch (variant.getType()) {
+      case TIMESTAMP -> TimestampData.fromLocalDateTime(variant.getDateTime());
+      case TIMESTAMP_LTZ -> TimestampData.fromInstant(variant.getInstant());
+      case BIGINT -> timestampDataValue(variant.getLong());
+      default -> throw new UnsupportedOperationException(errMsg(variant, "timestamp"));
+    };
   }
 
   private static TimestampData timestampDataValue(long timeLong) {
