@@ -20,6 +20,8 @@
 import groovy.transform.Memoized
 import java.util.regex.Matcher
 import java.util.regex.Pattern
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+import org.gradle.testing.jacoco.tasks.JacocoReport
 
 buildscript {
   repositories {
@@ -127,6 +129,11 @@ subprojects {
   }
 
   apply plugin: 'java-library'
+  apply plugin: 'jacoco'
+
+  jacoco {
+    toolVersion = '0.8.13'
+  }
 
   if (project.name in REVAPI_PROJECTS) {
     apply plugin: 'org.revapi.revapi-gradle-plugin'
@@ -268,6 +275,60 @@ subprojects {
       targetCompatibility = "17"
       scalaCompileOptions.additionalParameters.add("-release:17")
     }
+  }
+
+  tasks.register('jacocoAllTestsReport', JacocoReport) {
+    group = 'verification'
+    description = "Generates JaCoCo coverage reports for ${project.path}."
+
+    def testTasks = tasks.withType(Test)
+    dependsOn(testTasks)
+
+    executionData.from(testTasks.collect { task ->
+      task.extensions.getByType(JacocoTaskExtension).destinationFile
+    })
+
+    sourceDirectories.from(sourceSets.main.allSource.srcDirs)
+    classDirectories.from(sourceSets.main.output)
+
+    reports {
+      xml.required = true
+      html.required = true
+      csv.required = false
+    }
+
+    onlyIf {
+      executionData.files.any { it.exists() }
+    }
+  }
+}
+
+tasks.register('jacocoRootReport', JacocoReport) {
+  group = 'verification'
+  description = 'Generates an aggregate JaCoCo coverage report for all modules.'
+
+  def coverageProjects = subprojects.findAll { it.name != 'iceberg-bom' }
+  dependsOn(coverageProjects.collect { it.tasks.withType(Test) })
+
+  executionData.from(coverageProjects.collect { project ->
+    project.fileTree(dir: "${project.buildDir}/jacoco", includes: ['*.exec', '*.ec'])
+  })
+
+  sourceDirectories.from(files(coverageProjects.collect { project ->
+    project.sourceSets.main.allSource.srcDirs
+  }))
+  classDirectories.from(files(coverageProjects.collect { project ->
+    project.sourceSets.main.output
+  }))
+
+  reports {
+    xml.required = true
+    html.required = true
+    csv.required = false
+  }
+
+  onlyIf {
+    executionData.files.any { it.exists() }
   }
 }
 

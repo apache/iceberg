@@ -90,6 +90,14 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew check -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc
+    - run: ./gradlew :iceberg-core:jacocoAllTestsReport -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true
+      if: matrix.jvm == 17
+    - uses: codecov/codecov-action@v5
+      if: matrix.jvm == 17
+      with:
+        files: ./core/build/reports/jacoco/jacocoAllTestsReport/jacocoAllTestsReport.xml
+        flags: core
+        name: java-core-jdk17
     - uses: actions/upload-artifact@v7
       if: failure()
       with:
