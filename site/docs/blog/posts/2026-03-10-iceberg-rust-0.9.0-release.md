@@ -102,6 +102,13 @@ This release includes several breaking changes:
 - **Faster tests**: [Adopted nextest](https://github.com/apache/iceberg-rust/pull/2078) for faster test execution with [parallel integration tests](https://github.com/apache/iceberg-rust/pull/2076)
 - **Python tooling**: [Switched to uv](https://github.com/apache/iceberg-rust/pull/2129) for Python dependency management
 
+## What's Next
+
+Work is already underway on several features for upcoming releases:
+
+- **Storage trait expansion**: With the new trait-based storage architecture landed in 0.9.0, the community is [building additional native storage backends](https://github.com/apache/iceberg-rust/issues/2208) beyond LocalFs and Memory, reducing reliance on external dependencies for common object stores.
+- **Table encryption**: [AES-GCM encryption support](https://github.com/apache/iceberg-rust/pull/2026) is in progress, bringing Iceberg's table-level encryption spec to Rust with Java-compatible ciphertext formats. This is the first in a series of PRs to enable encrypted Iceberg tables.
+
 ## Getting Involved
 
 The `iceberg-rust` project welcomes contributions. We use GitHub [issues](https://github.com/apache/iceberg-rust/issues) for tracking work and the [Apache Iceberg Community Slack](https://iceberg.apache.org/community/#slack) for discussions.
