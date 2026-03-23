@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.SnapshotSummary.PUBLISHED_WAP_ID_PROP;
+import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -223,5 +224,23 @@ public class TestSnapshotProducer extends TestBase {
         return super.refresh();
       }
     };
+  }
+
+  @TestTemplate
+  public void testDefaultManifestCompression() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("deflate");
+  }
+
+  @TestTemplate
+  public void testManifestCompressionFromTableProperty() throws IOException {
+    table.updateProperties().set(TableProperties.MANIFEST_COMPRESSION, "snappy").commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("snappy");
   }
 }

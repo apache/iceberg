@@ -513,7 +513,8 @@ public class TestSelect extends CatalogTestBase {
             .read()
             .format("iceberg")
             .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedDate)
-            .load(tableName);
+            .load(tableName)
+            .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
   }

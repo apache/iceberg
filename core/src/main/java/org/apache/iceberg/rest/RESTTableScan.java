@@ -32,6 +32,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
@@ -43,11 +44,12 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,6 +85,7 @@ class RESTTableScan extends DataTableScan {
   private final Object hadoopConf;
   private String planId = null;
   private FileIO scanFileIO = null;
+  private boolean useSnapshotSchema = false;
 
   RESTTableScan(
       Table table,
@@ -115,18 +118,34 @@ class RESTTableScan extends DataTableScan {
   @Override
   protected TableScan newRefinedScan(
       Table refinedTable, Schema refinedSchema, TableScanContext refinedContext) {
-    return new RESTTableScan(
-        refinedTable,
-        refinedSchema,
-        refinedContext,
-        client,
-        headers,
-        operations,
-        tableIdentifier,
-        resourcePaths,
-        supportedEndpoints,
-        catalogProperties,
-        hadoopConf);
+    RESTTableScan scan =
+        new RESTTableScan(
+            refinedTable,
+            refinedSchema,
+            refinedContext,
+            client,
+            headers,
+            operations,
+            tableIdentifier,
+            resourcePaths,
+            supportedEndpoints,
+            catalogProperties,
+            hadoopConf);
+    scan.useSnapshotSchema = useSnapshotSchema;
+    return scan;
+  }
+
+  @Override
+  public TableScan useRef(String name) {
+    SnapshotRef ref = table().refs().get(name);
+    this.useSnapshotSchema = ref != null && ref.isTag();
+    return super.useRef(name);
+  }
+
+  @Override
+  public TableScan useSnapshot(long snapshotId) {
+    this.useSnapshotSchema = true;
+    return super.useSnapshot(snapshotId);
   }
 
   @Override
@@ -143,8 +162,9 @@ class RESTTableScan extends DataTableScan {
     Long startSnapshotId = context().fromSnapshotId();
     Long endSnapshotId = context().toSnapshotId();
     Long snapshotId = snapshotId();
+    List<Integer> projectedFieldIds = Lists.newArrayList(TypeUtil.getProjectedIds(schema()));
     List<String> selectedColumns =
-        schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
+        projectedFieldIds.stream().map(schema()::findColumnName).collect(Collectors.toList());
 
     List<String> statsFields = null;
     if (columnsToKeepStats() != null) {
@@ -168,8 +188,7 @@ class RESTTableScan extends DataTableScan {
           .withEndSnapshotId(endSnapshotId)
           .withUseSnapshotSchema(true);
     } else if (snapshotId != null) {
-      boolean useSnapShotSchema = snapshotId != table().currentSnapshot().snapshotId();
-      builder.withSnapshotId(snapshotId).withUseSnapshotSchema(useSnapShotSchema);
+      builder.withSnapshotId(snapshotId).withUseSnapshotSchema(useSnapshotSchema);
     }
 
     return planTableScan(builder.build());

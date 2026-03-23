@@ -49,4 +49,19 @@ class DataGenerators {
       return schema;
     }
   }
+
+  static class DefaultSchema implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col_a", Types.StringType.get()),
+            Types.NestedField.required(2, "col_b", Types.IntegerType.get()),
+            Types.NestedField.required(3, "col_c", Types.LongType.get()),
+            Types.NestedField.required(4, "col_d", Types.FloatType.get()),
+            Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+  }
 }

@@ -115,6 +115,20 @@ public class InternalData {
     WriteBuilder set(String property, String value);
 
     /**
+     * Set writer configuration properties from a Map.
+     *
+     * <p>Write configuration affects writer behavior. To add file metadata properties, use {@link
+     * #meta(Map)}.
+     *
+     * @param properties a map of writer config properties
+     * @return this for method chaining
+     */
+    default WriteBuilder set(Map<String, String> properties) {
+      properties.forEach(this::set);
+      return this;
+    }
+
+    /**
      * Set a file metadata property.
      *
      * <p>Metadata properties are written into file metadata. To alter a writer configuration
