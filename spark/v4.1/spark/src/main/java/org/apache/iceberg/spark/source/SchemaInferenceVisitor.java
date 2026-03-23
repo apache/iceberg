@@ -47,7 +47,7 @@ class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> {
   private final StructType sparkSchema;
   private final SparkVariantShreddingAnalyzer analyzer;
 
-  public SchemaInferenceVisitor(List<InternalRow> bufferedRows, StructType sparkSchema) {
+  SchemaInferenceVisitor(List<InternalRow> bufferedRows, StructType sparkSchema) {
     this.bufferedRows = bufferedRows;
     this.sparkSchema = sparkSchema;
     this.analyzer = new SparkVariantShreddingAnalyzer();

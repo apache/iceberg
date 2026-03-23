@@ -293,17 +293,8 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
                     .overwrite()
                     .build();
 
-            try {
-              for (InternalRow row : bufferedRows) {
-                appender.add(row);
-              }
-            } catch (RuntimeException e) {
-              try {
-                appender.close();
-              } catch (IOException suppressed) {
-                e.addSuppressed(suppressed);
-              }
-              throw e;
+            for (InternalRow row : bufferedRows) {
+              appender.add(row);
             }
 
             return appender;
