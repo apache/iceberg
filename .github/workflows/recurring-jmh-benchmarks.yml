@@ -70,9 +70,16 @@ jobs:
       - name: Run Benchmark
         run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt -PjmhJsonOutputPath=benchmark/${{ matrix.benchmark }}.json
 
+      - name: Build artifact name
+        if: always()
+        run: |
+          name=$(echo -n "${{ matrix.spark_version }}-${{ matrix.benchmark }}")
+          echo "ARTIFACT_NAME=$name" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v7
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: ${{ always() }}
         with:
-          name: benchmark-results
+          name: benchmark-results ${{ env.ARTIFACT_NAME }}
           path: |
             **/benchmark/*
