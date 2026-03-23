@@ -84,20 +84,24 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
 
     String value = writeProperties().get(FlinkWriteOptions.CACHE_MAX_SIZE.key());
     this.maxCacheSize =
-            value != null ? Integer.parseInt(value) : FlinkWriteOptions.CACHE_MAX_SIZE.defaultValue();
+        value != null ? Integer.parseInt(value) : FlinkWriteOptions.CACHE_MAX_SIZE.defaultValue();
     this.tableCache = new LRUCache<>(maxCacheSize);
   }
 
   @Override
   public void generate(RowData inputRecord, Collector<DynamicRecord> out) throws Exception {
-    String catalogDb = columnValueAsString(inputRecord, FlinkCreateTableOptions.CATALOG_DATABASE, writeProperties());
-    String catalogTable = columnValueAsString(inputRecord, FlinkCreateTableOptions.CATALOG_TABLE, writeProperties());
+    String catalogDb =
+        columnValueAsString(
+            inputRecord, FlinkCreateTableOptions.CATALOG_DATABASE, writeProperties());
+    String catalogTable =
+        columnValueAsString(inputRecord, FlinkCreateTableOptions.CATALOG_TABLE, writeProperties());
 
     // All write options overrides will be inferred in DynamicIcebergSink
     String branch = columnValueAsString(inputRecord, FlinkWriteOptions.BRANCH);
-    String distributionModeStr = columnValueAsString(inputRecord, FlinkWriteOptions.DISTRIBUTION_MODE);
+    String distributionModeStr =
+        columnValueAsString(inputRecord, FlinkWriteOptions.DISTRIBUTION_MODE);
     DistributionMode distributionMode =
-            distributionModeStr != null ? DistributionMode.fromName(distributionModeStr) : null;
+        distributionModeStr != null ? DistributionMode.fromName(distributionModeStr) : null;
 
     Integer pos = fieldNameToPosition().get(FlinkWriteOptions.WRITE_PARALLELISM.key());
     int writeParallelism = pos != null ? inputRecord.getInt(pos) : -1;
@@ -130,7 +134,8 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
             writeParallelism));
   }
 
-  private String columnValueAsString(RowData rowData, ConfigOption<String> config, Map<String, String> writeProperties) {
+  private String columnValueAsString(
+      RowData rowData, ConfigOption<String> config, Map<String, String> writeProperties) {
     return columnValueAsString(rowData, config.key(), writeProperties.get(config.key()));
   }
 

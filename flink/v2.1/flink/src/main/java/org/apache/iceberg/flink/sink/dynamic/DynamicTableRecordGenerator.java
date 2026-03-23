@@ -39,7 +39,7 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
   public DynamicTableRecordGenerator(RowType rowType, Map<String, String> writeProperties) {
     this.rowType = rowType;
     this.writeProperties = writeProperties;
-    this.fieldNameToPosition = fieldNameToPositionMapping(rowType);
+    this.fieldNameToPosition = fieldNameToPositionMapping();
   }
 
   protected RowType rowType() {
@@ -72,15 +72,15 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
         expectedType);
   }
 
-  private Map<String, Integer> fieldNameToPositionMapping(RowType rowType) {
-    Map<String, Integer> fieldNameToPosition = Maps.newHashMap();
-    List<RowType.RowField> fields = rowType.getFields();
+  private Map<String, Integer> fieldNameToPositionMapping() {
+    Map<String, Integer> fieldNameToPositionMap = Maps.newHashMap();
+    List<RowType.RowField> fields = this.rowType.getFields();
 
     for (int i = 0; i < fields.size(); i++) {
       RowType.RowField field = fields.get(i);
-      fieldNameToPosition.put(field.getName(), i);
+      fieldNameToPositionMap.put(field.getName(), i);
     }
 
-    return fieldNameToPosition;
+    return fieldNameToPositionMap;
   }
 }
