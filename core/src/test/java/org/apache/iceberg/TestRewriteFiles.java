@@ -791,9 +791,19 @@ public class TestRewriteFiles extends TestBase {
     Snapshot snap2 = latestSnapshot(table, branch);
 
     // Verify we have 2 separate delete manifests (one per partition)
-    assertThat(snap2.deleteManifests(table.io())).hasSize(2);
-    ManifestFile deleteManifestForB = snap2.deleteManifests(table.io()).get(0);
-    ManifestFile deleteManifestForA = snap2.deleteManifests(table.io()).get(1);
+    List<ManifestFile> deleteManifestsBefore = snap2.deleteManifests(table.io());
+    assertThat(deleteManifestsBefore).hasSize(2);
+
+    ManifestFile deleteManifestForA =
+        deleteManifestsBefore.stream()
+            .filter(m -> m.snapshotId() == snap1.snapshotId())
+            .findFirst()
+            .orElseThrow();
+    ManifestFile deleteManifestForB =
+        deleteManifestsBefore.stream()
+            .filter(m -> m.snapshotId() == snap2.snapshotId())
+            .findFirst()
+            .orElseThrow();
 
     // Remove only FILE_A (partition bucket=0) — this should make its DV dangling
     commit(
