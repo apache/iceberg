@@ -470,6 +470,7 @@ public class S3FileIO
 
       if (!refreshed.isEmpty() && !isResourceClosed.get()) {
         this.storageCredentials = Lists.newArrayList(refreshed);
+        scheduleCredentialRefresh();
       }
     } catch (Exception e) {
       LOG.warn("Failed to refresh storage credentials", e);

@@ -71,6 +71,115 @@ public class TestS3FileIOCredentialRefresh {
   }
 
   @Test
+  public void credentialRefreshSchedulesNextRefresh() {
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "s3://bucket/path",
+            ImmutableMap.of(
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "initialAccessKey",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "initialSecretKey",
+                S3FileIOProperties.SESSION_TOKEN,
+                "initialToken",
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                nearExpiryMs));
+
+    String firstRefreshExpiryMs =
+        Long.toString(Instant.now().plus(2, ChronoUnit.MINUTES).toEpochMilli());
+    String secondRefreshExpiryMs =
+        Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+
+    LoadCredentialsResponse firstRefreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/path")
+                    .config(
+                        ImmutableMap.of(
+                            S3FileIOProperties.ACCESS_KEY_ID,
+                            "firstRefreshedAccessKey",
+                            S3FileIOProperties.SECRET_ACCESS_KEY,
+                            "firstRefreshedSecretKey",
+                            S3FileIOProperties.SESSION_TOKEN,
+                            "firstRefreshedToken",
+                            S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                            firstRefreshExpiryMs))
+                    .build())
+            .build();
+
+    LoadCredentialsResponse secondRefreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/path")
+                    .config(
+                        ImmutableMap.of(
+                            S3FileIOProperties.ACCESS_KEY_ID,
+                            "secondRefreshedAccessKey",
+                            S3FileIOProperties.SECRET_ACCESS_KEY,
+                            "secondRefreshedSecretKey",
+                            S3FileIOProperties.SESSION_TOKEN,
+                            "secondRefreshedToken",
+                            S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                            secondRefreshExpiryMs))
+                    .build())
+            .build();
+
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    mockServer
+        .when(mockRequest, org.mockserver.matchers.Times.once())
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(firstRefreshResponse))
+                .withStatusCode(200));
+    mockServer
+        .when(mockRequest, org.mockserver.matchers.Times.unlimited())
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(secondRefreshResponse))
+                .withStatusCode(200));
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.CLIENT_FACTORY,
+            StaticClientFactory.class.getName(),
+            VendedCredentialsProvider.URI,
+            CREDENTIALS_URI,
+            CatalogProperties.URI,
+            CATALOG_URI,
+            "init-creation-stacktrace",
+            "false");
+
+    StaticClientFactory.client = null;
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      fileIO.client();
+
+      // the first refresh returns near-expiry credentials, which should schedule a second refresh
+      Awaitility.await()
+          .atMost(30, TimeUnit.SECONDS)
+          .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.atLeast(2)));
+
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(
+              () -> {
+                List<StorageCredential> credentials = fileIO.credentials();
+                assertThat(credentials).hasSize(1);
+                assertThat(credentials.get(0).config())
+                    .containsEntry(S3FileIOProperties.ACCESS_KEY_ID, "secondRefreshedAccessKey")
+                    .containsEntry(S3FileIOProperties.SECRET_ACCESS_KEY, "secondRefreshedSecretKey")
+                    .containsEntry(S3FileIOProperties.SESSION_TOKEN, "secondRefreshedToken")
+                    .containsEntry(
+                        S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS, secondRefreshExpiryMs);
+              });
+    }
+  }
+
+  @Test
   public void credentialRefreshWithinFiveMinuteWindow() {
     // Set up credentials expiring within the next 5 minutes so the refresh triggers immediately
     String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
