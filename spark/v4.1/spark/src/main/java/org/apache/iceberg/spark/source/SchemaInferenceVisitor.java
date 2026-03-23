@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.spark.data.ParquetWithSparkSchemaVisitor;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
@@ -41,18 +40,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A visitor that infers variant shredding schemas by analyzing buffered rows of data. */
-public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> {
+class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaInferenceVisitor.class);
 
   private final List<InternalRow> bufferedRows;
   private final StructType sparkSchema;
-  private final VariantShreddingAnalyzer analyzer;
+  private final SparkVariantShreddingAnalyzer analyzer;
 
-  public SchemaInferenceVisitor(
-      List<InternalRow> bufferedRows, StructType sparkSchema, Map<String, String> properties) {
+  public SchemaInferenceVisitor(List<InternalRow> bufferedRows, StructType sparkSchema) {
     this.bufferedRows = bufferedRows;
     this.sparkSchema = sparkSchema;
-    this.analyzer = new VariantShreddingAnalyzer();
+    this.analyzer = new SparkVariantShreddingAnalyzer();
   }
 
   @Override
@@ -92,35 +90,45 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
 
   @Override
   public Type list(ArrayType sArray, GroupType array, Type element) {
+    if (element == null) {
+      return array;
+    }
+
+    GroupType repeatedGroup = array.getType(0).asGroupType();
+    Types.GroupBuilder<GroupType> repeatedBuilder =
+        Types.buildGroup(repeatedGroup.getRepetition()).addField(element);
+
     Types.GroupBuilder<GroupType> builder =
         Types.buildGroup(array.getRepetition()).as(LogicalTypeAnnotation.listType());
-
     if (array.getId() != null) {
       builder = builder.id(array.getId().intValue());
     }
-
-    if (element != null) {
-      builder = builder.addField(element);
-    }
+    builder = builder.addField(repeatedBuilder.named(repeatedGroup.getName()));
 
     return builder.named(array.getName());
   }
 
   @Override
   public Type map(MapType sMap, GroupType map, Type key, Type value) {
+    if (key == null && value == null) {
+      return map;
+    }
+
+    GroupType repeatedGroup = map.getType(0).asGroupType();
+    Types.GroupBuilder<GroupType> repeatedBuilder = Types.buildGroup(repeatedGroup.getRepetition());
+    if (key != null) {
+      repeatedBuilder = repeatedBuilder.addField(key);
+    }
+    if (value != null) {
+      repeatedBuilder = repeatedBuilder.addField(value);
+    }
+
     Types.GroupBuilder<GroupType> builder =
         Types.buildGroup(map.getRepetition()).as(LogicalTypeAnnotation.mapType());
-
     if (map.getId() != null) {
       builder = builder.id(map.getId().intValue());
     }
-
-    if (key != null) {
-      builder = builder.addField(key);
-    }
-    if (value != null) {
-      builder = builder.addField(value);
-    }
+    builder = builder.addField(repeatedBuilder.named(repeatedGroup.getName()));
 
     return builder.named(map.getName());
   }
@@ -132,9 +140,13 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
     if (!bufferedRows.isEmpty() && variantFieldIndex >= 0) {
       Type shreddedType = analyzer.analyzeAndCreateSchema(bufferedRows, variantFieldIndex);
       if (shreddedType != null) {
-        return Types.buildGroup(variant.getRepetition())
-            .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
-            .id(variant.getId().intValue())
+        Types.GroupBuilder<GroupType> builder =
+            Types.buildGroup(variant.getRepetition())
+                .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION));
+        if (variant.getId() != null) {
+          builder = builder.id(variant.getId().intValue());
+        }
+        return builder
             .required(BINARY)
             .named("metadata")
             .optional(BINARY)

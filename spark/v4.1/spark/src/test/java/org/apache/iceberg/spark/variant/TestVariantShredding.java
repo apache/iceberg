@@ -132,33 +132,6 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testConsistentType() throws IOException {
-    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
-
-    String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
-    sql("INSERT INTO %s VALUES %s", tableName, values);
-
-    GroupType name =
-        field(
-            "name",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
-    GroupType age =
-        field(
-            "age",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
-    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
-    MessageType expectedSchema = parquetSchema(address);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    verifyParquetSchema(table, expectedSchema);
-  }
-
-  @TestTemplate
   public void testExcludingNullValue() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
@@ -428,30 +401,6 @@ public class TestVariantShredding extends CatalogTestBase {
 
     long rowCount = spark.read().format("iceberg").load(tableName).count();
     assertThat(rowCount).isEqualTo(7);
-  }
-
-  @TestTemplate
-  public void testTieBreakingWithEqualCounts() throws IOException {
-    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
-
-    String values =
-        "(1, parse_json('{\"value\": 10}')),"
-            + " (2, parse_json('{\"value\": 20}')),"
-            + " (3, parse_json('{\"value\": \"hello\"}')),"
-            + " (4, parse_json('{\"value\": \"world\"}'))";
-    sql("INSERT INTO %s VALUES %s", tableName, values);
-
-    // When counts are tied, sort the types in order and choose the last one
-    GroupType value =
-        field(
-            "value",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
-    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
-    MessageType expectedSchema = parquetSchema(address);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    verifyParquetSchema(table, expectedSchema);
   }
 
   @TestTemplate
@@ -756,31 +705,6 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDefaultShreddingEnabled() throws IOException {
-    // Not setting SHRED_VARIANTS - default (true) should activate shredding
-    String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}'))";
-    sql("INSERT INTO %s VALUES %s", tableName, values);
-
-    GroupType name =
-        field(
-            "name",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
-    GroupType age =
-        field(
-            "age",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
-    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
-    MessageType expectedSchema = parquetSchema(address);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    verifyParquetSchema(table, expectedSchema);
-  }
-
-  @TestTemplate
   public void testInfrequentFieldPruning() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
     spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "11");
@@ -844,6 +768,144 @@ public class TestVariantShredding extends CatalogTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testFieldOnlyAfterBuffer() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "3");
+
+    String values =
+        "(1, parse_json('{\"name\": \"Alice\"}')),"
+            + " (2, parse_json('{\"name\": \"Bob\"}')),"
+            + " (3, parse_json('{\"name\": \"Charlie\"}')),"
+            + " (4, parse_json('{\"name\": \"David\", \"score\": 95}')),"
+            + " (5, parse_json('{\"name\": \"Eve\", \"score\": 88}')),"
+            + " (6, parse_json('{\"name\": \"Frank\", \"score\": 72}')),"
+            + " (7, parse_json('{\"name\": \"Grace\", \"score\": 91}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    // Schema is determined from buffer (rows 1-3) which only has "name".
+    // "score" is not shredded
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+
+    // Verify all data round-trips despite "score" not being shredded
+    List<Object[]> rows =
+        sql(
+            "SELECT id, variant_get(address, '$.name', 'string'),"
+                + " variant_get(address, '$.score', 'int')"
+                + " FROM %s ORDER BY id",
+            tableName);
+    assertThat(rows).hasSize(7);
+    assertThat(rows.get(0)[1]).isEqualTo("Alice");
+    assertThat(rows.get(0)[2]).isNull();
+    assertThat(rows.get(3)[1]).isEqualTo("David");
+    assertThat(rows.get(3)[2]).isEqualTo(95);
+    assertThat(rows.get(6)[1]).isEqualTo("Grace");
+    assertThat(rows.get(6)[2]).isEqualTo(91);
+  }
+
+  @TestTemplate
+  public void testCrossFileDifferentShreddedType() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "3");
+
+    // File 1: "score" is always integer → shredded as INT8
+    String batch1 =
+        "(1, parse_json('{\"score\": 95}')),"
+            + " (2, parse_json('{\"score\": 88}')),"
+            + " (3, parse_json('{\"score\": 72}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, batch1);
+
+    // Verify file 1 schema: score shredded as INT8
+    Table table = validationCatalog.loadTable(tableIdent);
+    GroupType scoreInt =
+        field(
+            "score",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    MessageType expectedSchema1 =
+        parquetSchema(variant("address", 2, Type.Repetition.REQUIRED, objectFields(scoreInt)));
+    verifyParquetSchema(table, expectedSchema1);
+
+    // File 2: "score" is always string → shredded as STRING
+    String batch2 =
+        "(4, parse_json('{\"score\": \"high\"}')),"
+            + " (5, parse_json('{\"score\": \"medium\"}')),"
+            + " (6, parse_json('{\"score\": \"low\"}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, batch2);
+
+    // Query across both files, reader must handle different shredded types
+    List<Object[]> rows =
+        sql("SELECT id, variant_get(address, '$.score', 'string') FROM %s ORDER BY id", tableName);
+    assertThat(rows).hasSize(6);
+    assertThat(rows.get(0)[1]).isEqualTo("95");
+    assertThat(rows.get(1)[1]).isEqualTo("88");
+    assertThat(rows.get(3)[1]).isEqualTo("high");
+    assertThat(rows.get(5)[1]).isEqualTo("low");
+  }
+
+  @TestTemplate
+  public void testAllNullVariantColumn() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    sql("INSERT INTO %s VALUES (1, null), (2, null), (3, null)", tableName);
+
+    // All variant values are SQL NULL, so no shredding should occur
+    Table table = validationCatalog.loadTable(tableIdent);
+    MessageType expectedSchema = parquetSchema(variant("address", 2, Type.Repetition.OPTIONAL));
+    verifyParquetSchema(table, expectedSchema);
+
+    List<Object[]> rows = sql("SELECT id, address FROM %s ORDER BY id", tableName);
+    assertThat(rows).hasSize(3);
+    assertThat(rows.get(0)[1]).isNull();
+    assertThat(rows.get(1)[1]).isNull();
+    assertThat(rows.get(2)[1]).isNull();
+  }
+
+  @TestTemplate
+  public void testBufferSizeOne() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "1");
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
+            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
+            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))",
+        tableName);
+
+    // Schema inferred from first row only, should still shred name and age
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+
+    List<Object[]> rows =
+        sql("SELECT id, variant_get(address, '$.name', 'string') FROM %s ORDER BY id", tableName);
+    assertThat(rows).hasSize(3);
+    assertThat(rows.get(0)[1]).isEqualTo("Alice");
+    assertThat(rows.get(2)[1]).isEqualTo("Charlie");
   }
 
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {

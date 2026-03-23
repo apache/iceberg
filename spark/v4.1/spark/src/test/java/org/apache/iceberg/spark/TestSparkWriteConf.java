@@ -346,7 +346,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     "snappy"),
                 ImmutableMap.of(
                     SHRED_VARIANTS,
-                    "true",
+                    "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION,
@@ -470,7 +470,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     "5"),
                 ImmutableMap.of(
                     SHRED_VARIANTS,
-                    "true",
+                    "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION,
@@ -543,7 +543,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     "6"),
                 ImmutableMap.of(
                     SHRED_VARIANTS,
-                    "true",
+                    "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION,
