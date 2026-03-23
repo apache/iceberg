@@ -72,6 +72,97 @@ class TestGCSFileIOCredentialRefresh {
   }
 
   @Test
+  void credentialRefreshSchedulesNextRefresh() {
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "gs://bucket/path",
+            ImmutableMap.of(
+                GCPProperties.GCS_OAUTH2_TOKEN,
+                "initialToken",
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                nearExpiryMs));
+
+    // return credentials that also expire within 5 minutes so the next refresh fires immediately
+    String firstRefreshExpiryMs =
+        Long.toString(Instant.now().plus(2, ChronoUnit.MINUTES).toEpochMilli());
+    String secondRefreshExpiryMs =
+        Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+
+    LoadCredentialsResponse firstRefreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("gs://bucket/path")
+                    .config(
+                        ImmutableMap.of(
+                            GCPProperties.GCS_OAUTH2_TOKEN,
+                            "firstRefreshedToken",
+                            GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                            firstRefreshExpiryMs))
+                    .build())
+            .build();
+
+    LoadCredentialsResponse secondRefreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("gs://bucket/path")
+                    .config(
+                        ImmutableMap.of(
+                            GCPProperties.GCS_OAUTH2_TOKEN,
+                            "secondRefreshedToken",
+                            GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                            secondRefreshExpiryMs))
+                    .build())
+            .build();
+
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    mockServer
+        .when(mockRequest, org.mockserver.matchers.Times.once())
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(firstRefreshResponse))
+                .withStatusCode(200));
+    mockServer
+        .when(mockRequest, org.mockserver.matchers.Times.unlimited())
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(secondRefreshResponse))
+                .withStatusCode(200));
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+            credentialsUri,
+            CatalogProperties.URI,
+            catalogUri);
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      fileIO.client();
+
+      // the first refresh returns near-expiry credentials, which should schedule a second refresh
+      Awaitility.await()
+          .atMost(30, TimeUnit.SECONDS)
+          .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.atLeast(2)));
+
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(
+              () -> {
+                List<StorageCredential> credentials = fileIO.credentials();
+                assertThat(credentials).hasSize(1);
+                assertThat(credentials.get(0).config())
+                    .containsEntry(GCPProperties.GCS_OAUTH2_TOKEN, "secondRefreshedToken")
+                    .containsEntry(
+                        GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT, secondRefreshExpiryMs);
+              });
+    }
+  }
+
+  @Test
   void credentialRefreshWithinFiveMinuteWindow() {
     String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
 
