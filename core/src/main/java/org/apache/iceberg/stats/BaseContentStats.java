@@ -244,7 +244,7 @@ public class BaseContentStats implements ContentStats, Serializable {
       return this;
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings("rawtypes")
     public BaseContentStats build() {
       Preconditions.checkArgument(
           null != statsStruct || null != schema, "Either stats struct or table schema must be set");

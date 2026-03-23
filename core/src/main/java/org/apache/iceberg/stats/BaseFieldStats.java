@@ -18,17 +18,18 @@
  */
 package org.apache.iceberg.stats;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.util.Objects;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
-public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
+public class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T> {
+  private static final int[] IDENTITY_MAPPING = identityMapping();
   private final int fieldId;
   private final Type type;
   private final Long valueCount;
@@ -39,12 +40,6 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   private final T lowerBound;
   private final T upperBound;
   private final boolean hasExactBounds;
-
-  /**
-   * Maps each projected position to the corresponding base position (0-based) in the full 8-field
-   * stats struct. When null, positions map 1:1 (all 8 fields present).
-   */
-  private final int[] fromProjectionPos;
 
   private BaseFieldStats(
       int fieldId,
@@ -58,8 +53,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
       T lowerBound,
       T upperBound,
       boolean hasExactBounds) {
+    super(fromProjectionPos != null ? fromProjectionPos : IDENTITY_MAPPING);
     this.fieldId = fieldId;
-    this.fromProjectionPos = fromProjectionPos;
     this.type = type;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
@@ -69,6 +64,16 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
     this.hasExactBounds = hasExactBounds;
+  }
+
+  private static int[] identityMapping() {
+    int numStats = FieldStatistic.values().length;
+    int[] mapping = new int[numStats];
+    for (int i = 0; i < numStats; i++) {
+      mapping[i] = i;
+    }
+
+    return mapping;
   }
 
   /**
@@ -173,14 +178,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   }
 
   @Override
-  public int size() {
-    return fromProjectionPos != null ? fromProjectionPos.length : FieldStatistic.values().length;
-  }
-
-  @Override
-  public <X> X get(int pos, Class<X> javaClass) {
-    int position = fromProjectionPos != null ? fromProjectionPos[pos] : pos;
-    return switch (FieldStatistic.fromPosition(position)) {
+  protected <X> X internalGet(int pos, Class<X> javaClass) {
+    return switch (FieldStatistic.fromPosition(pos)) {
       case VALUE_COUNT -> javaClass.cast(valueCount);
       case NULL_VALUE_COUNT -> javaClass.cast(nullValueCount);
       case NAN_VALUE_COUNT -> javaClass.cast(nanValueCount);
@@ -194,7 +193,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   }
 
   @Override
-  public void set(int pos, Object value) {
+  protected <X> void internalSet(int pos, X value) {
     throw new UnsupportedOperationException("set() not supported");
   }
 
