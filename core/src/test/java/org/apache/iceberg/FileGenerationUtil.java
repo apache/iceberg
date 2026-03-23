@@ -280,6 +280,10 @@ public class FileGenerationUtil {
   }
 
   private static Pair<ByteBuffer, ByteBuffer> generateBounds(PrimitiveType type, MetricsMode mode) {
+    if (mode instanceof None || mode instanceof Counts) {
+      return Pair.of(null, null);
+    }
+
     Comparator<Object> cmp = Comparators.forType(type);
     Object value1 = generateBound(type, mode);
     Object value2 = generateBound(type, mode);

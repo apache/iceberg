@@ -31,6 +31,8 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class TestFileGenerationUtil {
 
@@ -43,6 +45,21 @@ public class TestFileGenerationUtil {
           required(5, "timestamp_col", Types.TimestampType.withoutZone()),
           required(6, "timestamp_tz_col", Types.TimestampType.withZone()),
           required(7, "str_col", Types.StringType.get()));
+
+  enum MetricsModeCase {
+    NONE("none", false),
+    COUNTS("counts", false),
+    TRUNCATE("truncate(16)", true),
+    FULL("full", true);
+
+    final String modeName;
+    final boolean hasBounds;
+
+    MetricsModeCase(String modeName, boolean hasBounds) {
+      this.modeName = modeName;
+      this.hasBounds = hasBounds;
+    }
+  }
 
   @Test
   public void testBoundsWithDefaultMetricsConfig() {
@@ -83,6 +100,41 @@ public class TestFileGenerationUtil {
     ByteBuffer actualIntUpper = metrics.upperBounds().get(intField.fieldId());
     assertThat(actualIntLower).isEqualTo(intLower);
     assertThat(actualIntUpper).isEqualTo(intUpper);
+  }
+
+  @ParameterizedTest
+  @EnumSource(MetricsModeCase.class)
+  @SuppressWarnings("deprecation")
+  void testBoundsForAllMetricsModes(MetricsModeCase modeCase) {
+    MetricsConfig metricsConfig =
+        MetricsConfig.fromProperties(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, modeCase.modeName));
+    Metrics metrics =
+        FileGenerationUtil.generateRandomMetrics(
+            SCHEMA,
+            metricsConfig,
+            ImmutableMap.of() /* no lower bounds */,
+            ImmutableMap.of() /* no upper bounds */);
+
+    for (NestedField field : SCHEMA.columns()) {
+      ByteBuffer lower = metrics.lowerBounds().get(field.fieldId());
+      ByteBuffer upper = metrics.upperBounds().get(field.fieldId());
+      if (modeCase.hasBounds) {
+        assertThat(lower)
+            .as("lower bound for %s in mode %s", field.name(), modeCase.modeName)
+            .isNotNull();
+        assertThat(upper)
+            .as("upper bound for %s in mode %s", field.name(), modeCase.modeName)
+            .isNotNull();
+      } else {
+        assertThat(lower)
+            .as("lower bound for %s in mode %s", field.name(), modeCase.modeName)
+            .isNull();
+        assertThat(upper)
+            .as("upper bound for %s in mode %s", field.name(), modeCase.modeName)
+            .isNull();
+      }
+    }
   }
 
   private void checkBounds(Metrics metrics, MetricsConfig metricsConfig) {
