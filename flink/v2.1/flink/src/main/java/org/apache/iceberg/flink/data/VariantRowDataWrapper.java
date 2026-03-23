@@ -79,74 +79,66 @@ public class VariantRowDataWrapper implements RowData {
 
   @Override
   public boolean isNullAt(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    Variant value = variantData.getField(fieldName);
+    Variant value = fieldByIndex(pos);
     return value == null || value.isNull();
   }
 
   @Override
   public boolean getBoolean(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return variantData.getField(fieldName).getBoolean();
+    return fieldByIndex(pos).getBoolean();
   }
 
   @Override
   public byte getByte(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return variantData.getField(fieldName).getByte();
+    return fieldByIndex(pos).getByte();
   }
 
   @Override
   public short getShort(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return variantData.getField(fieldName).getShort();
+    return fieldByIndex(pos).getShort();
   }
 
   @Override
   public int getInt(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return getIntValue(variantData.getField(fieldName));
+    return intValue(fieldByIndex(pos));
   }
 
   @Override
   public long getLong(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return getLongValue(variantData.getField(fieldName));
+    return longValue(fieldByIndex(pos));
   }
 
   @Override
   public float getFloat(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return variantData.getField(fieldName).getFloat();
+    return fieldByIndex(pos).getFloat();
   }
 
   @Override
   public double getDouble(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return getDoubleValue(variantData.getField(fieldName));
+    return doubleValue(fieldByIndex(pos));
   }
 
   @Override
   public StringData getString(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return isNullAt(pos)
+    Variant value = fieldByIndex(pos);
+    return value == null
         ? null
-        : StringData.fromString(variantData.getField(fieldName).getString());
+        : StringData.fromString(value.getString());
   }
 
   @Override
   public DecimalData getDecimal(int pos, int precision, int scale) {
-    String fieldName = getFieldNameByIndex(pos);
-    return isNullAt(pos)
+    Variant value = fieldByIndex(pos);
+    return value == null
         ? null
         : DecimalData.fromBigDecimal(
-            variantData.getField(fieldName).getDecimal(), precision, scale);
+            value.getDecimal(), precision, scale);
   }
 
   @Override
   public TimestampData getTimestamp(int pos, int precision) {
-    String fieldName = getFieldNameByIndex(pos);
-    return isNullAt(pos) ? null : getTimestamp(variantData.getField(fieldName));
+    Variant value = fieldByIndex(pos);
+    return value == null ? null : timestampValue(value);
   }
 
   @Override
@@ -156,94 +148,66 @@ public class VariantRowDataWrapper implements RowData {
 
   @Override
   public byte[] getBinary(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return variantData.getField(fieldName).getBytes();
+    return fieldByIndex(pos).getBytes();
   }
 
   @Override
   public ArrayData getArray(int pos) {
     ArrayType arrayType = (ArrayType) rowType.getTypeAt(pos);
     LogicalType elementType = arrayType.getElementType();
-
-    String fieldName = getFieldNameByIndex(pos);
-    Variant arrayVariant = variantData.getField(fieldName);
-
-    return getArrayData(arrayVariant, elementType);
+    Variant arrayVariant = fieldByIndex(pos);
+    return arrayDataValue(arrayVariant, elementType);
   }
 
   @Override
   public MapData getMap(int pos) {
     MapType mapType = (MapType) rowType.getTypeAt(pos);
-
-    String mapFieldName = getFieldNameByIndex(pos);
-    Variant mapVariant = variantData.getField(mapFieldName);
-
-    return getMapData(mapVariant, mapType);
+    Variant mapVariant = fieldByIndex(pos);
+    return mapDataValue(mapVariant, mapType);
   }
 
   @Override
   public RowData getRow(int pos, int numFields) {
-    String fieldName = getFieldNameByIndex(pos);
     VariantRowDataWrapper rowDataWrapper =
         new VariantRowDataWrapper((RowType) rowType.getTypeAt(pos));
-    return rowDataWrapper.wrap(variantData.getField(fieldName));
+    return rowDataWrapper.wrap(fieldByIndex(pos));
   }
 
   @Override
   public Variant getVariant(int pos) {
-    String fieldName = getFieldNameByIndex(pos);
-    return variantData.getField(fieldName);
+    return fieldByIndex(pos);
   }
 
-  private Object getElementValue(LogicalType elementType, Variant variant) {
+  private Object element(Variant variant, LogicalType elementType) {
     LogicalTypeRoot root = elementType.getTypeRoot();
 
-    switch (root) {
-      case NULL:
-        return null;
-      case BOOLEAN:
-        return variant.getBoolean();
-      case TINYINT:
-        return variant.getByte();
-      case SMALLINT:
-        return variant.getShort();
-      case INTEGER:
-        return getIntValue(variant);
-      case BIGINT:
-        return getLongValue(variant);
-      case FLOAT:
-        return variant.getFloat();
-      case DOUBLE:
-        return getDoubleValue(variant);
-      case DECIMAL:
-        DecimalType decimalType = (DecimalType) elementType;
-        return DecimalData.fromBigDecimal(
-            variant.getDecimal(), decimalType.getPrecision(), decimalType.getScale());
-      case CHAR:
-      case VARCHAR:
-        return StringData.fromString(variant.getString());
-      case TIMESTAMP_WITHOUT_TIME_ZONE:
-      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-        return getTimestamp(variant);
-      case BINARY:
-      case VARBINARY:
-        return variant.getBytes();
-      case ARRAY:
-        ArrayType arrayType = (ArrayType) elementType;
-        LogicalType innerElementType = arrayType.getElementType();
-        return getArrayData(variant, innerElementType);
-      case MAP:
-        return getMapData(variant, (MapType) elementType);
-      case ROW:
-        VariantRowDataWrapper rowDataWrapper = new VariantRowDataWrapper((RowType) elementType);
-        return rowDataWrapper.wrap(variant);
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported Element type in Array/Map type:" + elementType);
-    }
+      return switch (root) {
+          case NULL -> null;
+          case BOOLEAN -> variant.getBoolean();
+          case TINYINT -> variant.getByte();
+          case SMALLINT -> variant.getShort();
+          case INTEGER -> intValue(variant);
+          case BIGINT -> longValue(variant);
+          case FLOAT -> variant.getFloat();
+          case DOUBLE -> doubleValue(variant);
+          case DECIMAL -> decimalDataValue(variant, (DecimalType) elementType);
+          case CHAR, VARCHAR -> StringData.fromString(variant.getString());
+          case TIMESTAMP_WITHOUT_TIME_ZONE, TIMESTAMP_WITH_LOCAL_TIME_ZONE -> timestampValue(variant);
+          case BINARY, VARBINARY -> variant.getBytes();
+          case ARRAY -> arrayDataValue(variant, ((ArrayType) elementType).getElementType());
+          case MAP -> mapDataValue(variant, (MapType) elementType);
+          case ROW -> new VariantRowDataWrapper((RowType) elementType).wrap(variant);
+          default -> throw new UnsupportedOperationException(
+                  "Unsupported Element type in Array/Map type:" + elementType);
+      };
   }
 
-  private MapData getMapData(Variant variant, MapType mapType) {
+  private static DecimalData decimalDataValue(Variant variant, DecimalType decimalType) {
+    return DecimalData.fromBigDecimal(
+            variant.getDecimal(), decimalType.getPrecision(), decimalType.getScale());
+  }
+
+  private MapData mapDataValue(Variant variant, MapType mapType) {
     LogicalType keyType = mapType.getKeyType();
     LogicalType valueType = mapType.getValueType();
 
@@ -255,7 +219,7 @@ public class VariantRowDataWrapper implements RowData {
     if (variant != null) {
       List<String> keys = BinaryVariantAccessorUtils.fieldNames(variant);
       for (String key : keys) {
-        mapData.put(StringData.fromString(key), getElementValue(valueType, variant.getField(key)));
+        mapData.put(StringData.fromString(key), element(variant.getField(key), valueType));
       }
 
       return new GenericMapData(mapData);
@@ -264,7 +228,7 @@ public class VariantRowDataWrapper implements RowData {
     return null;
   }
 
-  private ArrayData getArrayData(Variant variant, LogicalType innerElementType) {
+  private ArrayData arrayDataValue(Variant variant, LogicalType innerElementType) {
     if (variant != null) {
       Preconditions.checkArgument(
           variant.getType().equals(Variant.Type.ARRAY),
@@ -274,65 +238,53 @@ public class VariantRowDataWrapper implements RowData {
 
       for (int i = 0; i < arraySize; i++) {
         Variant element = variant.getElement(i);
-        elements[i] = element == null ? null : getElementValue(innerElementType, element);
+        elements[i] = element == null ? null : element(element, innerElementType);
       }
 
       return new GenericArrayData(elements);
     }
+
     return null;
   }
 
-  private int getIntValue(Variant variant) {
-    switch (variant.getType()) {
-      case TINYINT:
-        return variant.getByte();
-      case SMALLINT:
-        return variant.getShort();
-      case INT:
-        return variant.getInt();
-      default:
-        throw new UnsupportedOperationException(errMsg(variant, "int"));
-    }
+  private int intValue(Variant variant) {
+      return switch (variant.getType()) {
+          case TINYINT -> variant.getByte();
+          case SMALLINT -> variant.getShort();
+          case INT -> variant.getInt();
+          default -> throw new UnsupportedOperationException(errMsg(variant, "int"));
+      };
   }
 
-  private long getLongValue(Variant variant) {
-    switch (variant.getType()) {
-      case TINYINT:
-        return variant.getByte();
-      case SMALLINT:
-        return variant.getShort();
-      case INT:
-        return variant.getInt();
-      case BIGINT:
-        return variant.getLong();
-      default:
-        throw new UnsupportedOperationException(errMsg(variant, "long"));
-    }
+  private long longValue(Variant variant) {
+      return switch (variant.getType()) {
+          case TINYINT -> variant.getByte();
+          case SMALLINT -> variant.getShort();
+          case INT -> variant.getInt();
+          case BIGINT -> variant.getLong();
+          default -> throw new UnsupportedOperationException(errMsg(variant, "long"));
+      };
   }
 
-  private double getDoubleValue(Variant variant) {
-    switch (variant.getType()) {
-      case FLOAT:
-        return variant.getFloat();
-      case DOUBLE:
-        return variant.getDouble();
-      default:
-        throw new UnsupportedOperationException(errMsg(variant, "double"));
-    }
+  private double doubleValue(Variant variant) {
+      return switch (variant.getType()) {
+          case FLOAT -> variant.getFloat();
+          case DOUBLE -> variant.getDouble();
+          default -> throw new UnsupportedOperationException(errMsg(variant, "double"));
+      };
   }
 
-  private TimestampData getTimestamp(Variant variant) {
-    switch (variant.getType()) {
-      case TIMESTAMP:
-        return TimestampData.fromLocalDateTime(variant.getDateTime());
-      case TIMESTAMP_LTZ:
-        return TimestampData.fromInstant(variant.getInstant());
-      case BIGINT:
-        long timeLong = variant.getLong();
-        return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
-      default:
-        throw new UnsupportedOperationException(errMsg(variant, "timestamp"));
-    }
+  private TimestampData timestampValue(Variant variant) {
+      return switch (variant.getType()) {
+          case TIMESTAMP -> TimestampData.fromLocalDateTime(variant.getDateTime());
+          case TIMESTAMP_LTZ -> TimestampData.fromInstant(variant.getInstant());
+          case BIGINT -> timestampDataValue(variant.getLong());
+          default -> throw new UnsupportedOperationException(errMsg(variant, "timestamp"));
+      };
+  }
+
+  private static TimestampData timestampDataValue(long timeLong) {
+    return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
   }
 
   private static String errMsg(Variant variant, String type) {
@@ -340,7 +292,8 @@ public class VariantRowDataWrapper implements RowData {
         "Failed to read Variant %s of type %s as %s", variant.toJson(), variant.getType(), type);
   }
 
-  private String getFieldNameByIndex(int pos) {
-    return rowType.getFields().get(pos).getName();
+  private Variant fieldByIndex(int pos) {
+    String fieldName = rowType.getFields().get(pos).getName();
+    return variantData.getField(fieldName);
   }
 }

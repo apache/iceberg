@@ -106,11 +106,11 @@ public class TestVariantRowDataWrapper {
     RowType rowType = dataGenerator.flinkRowType();
     Variant variant = dataGenerator.generateFlinkVariantData();
     RowData rowData = dataGenerator.generateFlinkRowData();
-    VariantRowDataWrapper variantRowDataWrapper = getVariantRowDataWrapper(rowType, variant);
+    VariantRowDataWrapper variantRowDataWrapper = variantRowDataWrapper(rowType, variant);
     compareData(rowType, variantRowDataWrapper, rowData);
   }
 
-  private static VariantRowDataWrapper getVariantRowDataWrapper(RowType rowType, Variant variant) {
+  private static VariantRowDataWrapper variantRowDataWrapper(RowType rowType, Variant variant) {
     VariantRowDataWrapper wrapper = new VariantRowDataWrapper(rowType);
     return wrapper.wrap(variant);
   }
