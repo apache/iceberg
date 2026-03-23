@@ -51,6 +51,14 @@ writing filters that match Iceberg partition transforms. These functions are ava
 [Iceberg catalog](spark-configuration.md#catalog-configuration); they are not registered in Spark's
 built-in catalog.
 
+!!! note
+    In Spark versions before 4.2.0, `SparkSessionCatalog` does not expose Iceberg's `system`
+    namespace (see SPARK-54760). Queries such as `SELECT spark_catalog.system.bucket(16, id)`
+    fail even when `spark_catalog` is configured with
+    `org.apache.iceberg.spark.SparkSessionCatalog`.
+    To use Iceberg SQL functions, call them through a catalog configured with
+    `org.apache.iceberg.spark.SparkCatalog`.
+
 Use the `system` namespace when calling these functions:
 
 ```sql

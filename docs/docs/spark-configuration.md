@@ -112,6 +112,13 @@ Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Me
 
 This configuration can use same Hive Metastore for both Iceberg and non-Iceberg tables.
 
+`SparkSessionCatalog` is useful when you want `spark_catalog` to work with both Iceberg and non-Iceberg
+tables in the same metastore. It is not a full replacement for a dedicated Iceberg catalog, though.
+In Spark versions before 4.2.0, `SparkSessionCatalog` does not expose Iceberg's `system` namespace
+(see SPARK-54760), so catalog-scoped SQL functions such as `system.bucket`, `system.days`, and
+`system.iceberg_version` are not available through `spark_catalog`. To use those functions, configure a
+separate Iceberg catalog with `org.apache.iceberg.spark.SparkCatalog` and call them through that catalog.
+
 ### Using catalog specific Hadoop configuration values
 
 Similar to configuring Hadoop properties by using `spark.hadoop.*`, it's possible to set per-catalog Hadoop configuration values when using Spark by adding the property for the catalog with the prefix `spark.sql.catalog.(catalog-name).hadoop.*`. These properties will take precedence over values configured globally using `spark.hadoop.*` and will only affect Iceberg tables.
