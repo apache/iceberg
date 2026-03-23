@@ -572,8 +572,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     executeDynamicSink(rows, env, true, 1, commitHook);
   }
 
-  }
-
   @Test
   void testOperatorUidsAreDeterministic() {
     assertThat(createSinkAndReturnUIds("test")).isEqualTo(createSinkAndReturnUIds("test"));
@@ -633,6 +631,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         // We are not interested in the source
         .filter(uid -> !uid.equals("source"))
         .collect(Collectors.toSet());
+  }
+
   private static class AppendRightBeforeCommit implements CommitHook {
 
     final String tableIdentifier;
