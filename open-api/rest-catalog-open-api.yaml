@@ -3734,6 +3734,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        labels:
+          $ref: '#/components/schemas/Labels'
+
+    Labels:
+      type: object
+      description: |
+        Catalog-specific metadata enrichment returned alongside table metadata.
+        Labels are ephemeral API-level annotations — they are NOT part of table state,
+        do not modify table metadata files, and do not create commits or snapshots.
+
+        Catalogs MAY populate labels in LoadTableResult to provide operational context
+        such as ownership, data classification, cost attribution, or semantic hints.
+        Engines MAY use labels for operational decisions or ignore them entirely.
+
+        Labels are scoped to the catalog that serves them. Different catalogs serving
+        the same table may return different labels, reflecting each catalog's context.
+
+        The spec defines no registry of label keys. Each catalog publishes its own
+        label schema. Interoperability comes from bilateral agreements and community
+        conventions, not a centralized registry.
+      properties:
+        table:
+          type: object
+          description: Table-level metadata labels as string key-value pairs
+          additionalProperties:
+            type: string
+        columns:
+          type: array
+          description: Column-level metadata labels, keyed by field-id for stability across schema evolution
+          items:
+            $ref: '#/components/schemas/ColumnLabels'
+
+    ColumnLabels:
+      type: object
+      required:
+        - field-id
+        - labels
+      properties:
+        field-id:
+          type: integer
+          description: Field ID from the table's current schema
+        labels:
+          type: object
+          description: Metadata labels for this column as string key-value pairs
+          additionalProperties:
+            type: string
 
     ScanTasks:
       type: object
