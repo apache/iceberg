@@ -382,7 +382,7 @@ public class TestSparkMetadataColumns extends TestBase {
         mapTableName);
 
     sql("DELETE FROM %s WHERE ts < 9999999999999999", mapTableName);
-    assertThat(sql("SELECT id FROM %s", mapTableName)).hasSize(1);
+    assertThat(sql("SELECT id, _partition FROM %s", mapTableName)).hasSize(1);
   }
 
   @TestTemplate
@@ -422,7 +422,7 @@ public class TestSparkMetadataColumns extends TestBase {
         listTableName);
 
     sql("DELETE FROM %s WHERE ts < 9999999999999999", listTableName);
-    assertThat(sql("SELECT id FROM %s", listTableName)).hasSize(1);
+    assertThat(sql("SELECT id, _partition FROM %s", listTableName)).hasSize(1);
   }
 
   private void createAndInitTable() throws IOException {
