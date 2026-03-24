@@ -56,7 +56,7 @@ DataFusion integration continues to expand with DDL and query optimization impro
 - **DROP TABLE**: [Support for dropping tables](https://github.com/apache/iceberg-rust/pull/2033) through DataFusion SQL
 - **LIMIT pushdown**: [Pushes row limits](https://github.com/apache/iceberg-rust/pull/2006) into Iceberg scans to avoid reading unnecessary data
 - **Predicate pushdown**: Added support for [Boolean](https://github.com/apache/iceberg-rust/pull/2082), [IsNaN](https://github.com/apache/iceberg-rust/pull/2142), [Timestamp](https://github.com/apache/iceberg-rust/pull/2069), [Binary](https://github.com/apache/iceberg-rust/pull/2048), and [LIKE/StartsWith](https://github.com/apache/iceberg-rust/pull/2014) predicates
-- **Clustered writes**: [Applied SortExec](https://github.com/apache/iceberg-rust/pull/2005) when writing clustered data
+- **INSERT INTO**: [Support for inserting data](https://github.com/apache/iceberg-rust/pull/2005) into Iceberg tables through DataFusion SQL, with automatic sort-based clustering for partitioned writes
 
 ### Reader Performance Improvements
 
@@ -106,8 +106,8 @@ This release includes several breaking changes:
 
 Work is already underway on several features for upcoming releases:
 
-- **Storage trait expansion**: With the new trait-based storage architecture landed in 0.9.0, the community is [building additional native storage backends](https://github.com/apache/iceberg-rust/issues/2208) beyond LocalFs and Memory, reducing reliance on external dependencies for common object stores.
-- **Table encryption**: [AES-GCM encryption support](https://github.com/apache/iceberg-rust/pull/2026) is in progress, bringing Iceberg's table-level encryption spec to Rust with Java-compatible ciphertext formats. This is the first in a series of PRs to enable encrypted Iceberg tables.
+- **Storage trait expansion**: With the new trait-based storage architecture landed in 0.9.0, the community is looking to [integrate additional storage backends](https://github.com/apache/iceberg-rust/issues/2208), such as `object_store`, making it easy for users to opt into alternative storage implementations.
+- **Table encryption**: [AES-GCM encryption support](https://github.com/apache/iceberg-rust/pull/2026) is in progress, bringing Iceberg's table-level encryption spec to Rust with Java-compatible ciphertext formats. See the [table encryption RFC](https://github.com/apache/iceberg-rust/pull/2183) for the full design, including envelope encryption with a chained key hierarchy and KMS integration.
 
 ## Getting Involved
 
