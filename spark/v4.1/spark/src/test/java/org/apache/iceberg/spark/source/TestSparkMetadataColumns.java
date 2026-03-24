@@ -343,18 +343,11 @@ public class TestSparkMetadataColumns extends TestBase {
     }
   }
 
-  /**
-   * Regression test for a NPE in PruneColumns.isStruct() caused by a _partition child field ID
-   * being assigned the same ID as a MAP/LIST column.
-   */
   @TestTemplate
-  public void testPartitionMetadataColumnWithMapColumnDoesNotNPE() throws IOException {
+  public void testPartitionMetadataColumnWithMapColumn() throws IOException {
     assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    // Schema: id(1) and ts(2) are the only primitives before the MAP.
-    // getProjectedIds returns {1, 2, 4, 5} — omitting id=3 (MAP container).
-    // bucket(1, id) partition spec field id=1000 is reassigned to id=3, colliding with tags.
     Schema mapSchema =
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get()),
@@ -383,15 +376,53 @@ public class TestSparkMetadataColumns extends TestBase {
 
     // Both rows in a single INSERT so they land in the same Parquet file.
     // With both rows sharing a file, Spark uses merge-on-read which adds _partition to the scan
-    // projection,
-    // triggering BatchDataReader.open() → ReadConf → PruneColumns → NPE.
+    // projection.
     sql(
         "INSERT INTO TABLE %s VALUES (1, 1000, map('env', 'prod')), (2, 9999999999999999, map('env', 'dev'))",
         mapTableName);
 
-    // ensure NPE is not thrown
     sql("DELETE FROM %s WHERE ts < 9999999999999999", mapTableName);
     assertThat(sql("SELECT id FROM %s", mapTableName)).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testPartitionMetadataColumnWithListColumn() throws IOException {
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    Schema listSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "ts", Types.LongType.get()),
+            Types.NestedField.optional(
+                3, "tags", Types.ListType.ofOptional(4, Types.StringType.get())));
+    PartitionSpec bucketSpec = PartitionSpec.builderFor(listSchema).bucket("id", 1).build();
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(FORMAT_VERSION, String.valueOf(formatVersion));
+    properties.put(DEFAULT_FILE_FORMAT, FileFormat.PARQUET.name());
+    properties.put(PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized));
+    // merge-on-read: DELETE writes position delete files instead of rewriting data files.
+    // This routes through SupportsDelta which adds _partition to the scan projection.
+    properties.put("write.delete.mode", "merge-on-read");
+
+    String listTableName = "test_list_partition_collision";
+    TestTables.create(
+        Files.createTempDirectory(temp, "junit").toFile(),
+        listTableName,
+        listSchema,
+        bucketSpec,
+        properties);
+
+    // Both rows in a single INSERT so they land in the same Parquet file.
+    // With both rows sharing a file, Spark uses merge-on-read which adds _partition to the scan
+    // projection.
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1000, array('prod')), (2, 9999999999999999, array('dev'))",
+        listTableName);
+
+    sql("DELETE FROM %s WHERE ts < 9999999999999999", listTableName);
+    assertThat(sql("SELECT id FROM %s", listTableName)).hasSize(1);
   }
 
   private void createAndInitTable() throws IOException {
