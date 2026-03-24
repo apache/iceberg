@@ -21,7 +21,6 @@ package org.apache.iceberg.connect.channel;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.DataComplete;
@@ -43,14 +43,9 @@ import org.slf4j.LoggerFactory;
 class CommitState implements CommitStateMXBean {
   private static final Logger LOG = LoggerFactory.getLogger(CommitState.class);
 
-  static final String STALE_FAILURE_POLICY_FAIL = "fail";
-  static final String STALE_FAILURE_POLICY_NON_BLOCKING = "non-blocking";
-
   private final List<Envelope> commitBuffer = Lists.newArrayList();
   private final List<DataComplete> readyBuffer = Lists.newArrayList();
-  private final Map<UUID, Integer> groupRetryCount = new HashMap<>();
-  private final Map<UUID, Long> groupFirstSeenMs = new HashMap<>();
-  private long evictedStaleEventCount;
+  private final Map<UUID, Integer> groupRetryCount = new ConcurrentHashMap<>();
   private long startTime;
   private UUID currentCommitId;
   private final IcebergSinkConfig config;
@@ -62,7 +57,6 @@ class CommitState implements CommitStateMXBean {
   void addResponse(Envelope envelope) {
     commitBuffer.add(envelope);
     DataWritten dataWritten = (DataWritten) envelope.event().payload();
-    groupFirstSeenMs.putIfAbsent(dataWritten.commitId(), System.currentTimeMillis());
     if (!isCommitInProgress()) {
       LOG.warn(
           "Received commit response when no commit in progress, this can happen during recovery. Commit ID: {}",
@@ -128,7 +122,6 @@ class CommitState implements CommitStateMXBean {
             .map(env -> ((DataWritten) env.event().payload()).commitId())
             .collect(Collectors.toSet());
     groupRetryCount.keySet().retainAll(remainingIds);
-    groupFirstSeenMs.keySet().retainAll(remainingIds);
   }
 
   void recordGroupFailure(UUID commitId) {
@@ -140,11 +133,7 @@ class CommitState implements CommitStateMXBean {
   }
 
   boolean isGroupBlocking(UUID commitId) {
-    return groupRetryCount.getOrDefault(commitId, 0) < config.commitStaleMaxBlockingRetries();
-  }
-
-  boolean isStaleFailurePolicyFail() {
-    return STALE_FAILURE_POLICY_FAIL.equalsIgnoreCase(config.commitStaleFailurePolicy());
+    return groupRetryCount.getOrDefault(commitId, 0) <= config.commitStaleMaxBlockingRetries();
   }
 
   int getRetryCount(UUID commitId) {
@@ -198,11 +187,6 @@ class CommitState implements CommitStateMXBean {
   // ── MXBean interface methods ──
 
   @Override
-  public long getEvictedStaleEventCount() {
-    return evictedStaleEventCount;
-  }
-
-  @Override
   public int getStaleGroupCount() {
     return staleGroupCount();
   }
@@ -213,10 +197,6 @@ class CommitState implements CommitStateMXBean {
   }
 
   // ── Internal accessors ──
-
-  long evictedStaleEventCount() {
-    return evictedStaleEventCount;
-  }
 
   int staleGroupCount() {
     if (currentCommitId == null) {
@@ -247,69 +227,6 @@ class CommitState implements CommitStateMXBean {
     return minOffsets;
   }
 
-  private void evictExpiredStaleEvents() {
-    long ttlMs = config.commitStaleTtlMs();
-    if (ttlMs <= 0) {
-      return;
-    }
-
-    long now = System.currentTimeMillis();
-    // Collect stale commitIds that have exceeded the TTL.
-    Set<UUID> expiredIds = new HashSet<>();
-    groupFirstSeenMs.forEach(
-        (commitId, firstSeenMs) -> {
-          boolean isStale = currentCommitId == null || !commitId.equals(currentCommitId);
-          if (isStale && (now - firstSeenMs) > ttlMs) {
-            expiredIds.add(commitId);
-          }
-        });
-
-    if (expiredIds.isEmpty()) {
-      return;
-    }
-
-    // Log orphaned file paths at ERROR level for each evicted event.
-    commitBuffer.stream()
-        .filter(
-            env -> {
-              DataWritten dw = (DataWritten) env.event().payload();
-              return expiredIds.contains(dw.commitId());
-            })
-        .forEach(
-            env -> {
-              DataWritten dw = (DataWritten) env.event().payload();
-              long age = now - groupFirstSeenMs.getOrDefault(dw.commitId(), now);
-              List<String> dataFilePaths =
-                  dw.dataFiles() != null
-                      ? dw.dataFiles().stream()
-                          .map(f -> f.path().toString())
-                          .collect(Collectors.toList())
-                      : Collections.emptyList();
-              List<String> deleteFilePaths =
-                  dw.deleteFiles() != null
-                      ? dw.deleteFiles().stream()
-                          .map(f -> f.path().toString())
-                          .collect(Collectors.toList())
-                      : Collections.emptyList();
-              LOG.error(
-                  "Evicting stale DataWritten past TTL ({}ms): commitId={}, table={}, age={}ms. "
-                      + "Orphaned data files: {}. Orphaned delete files: {}. "
-                      + "These files exist on storage but are not registered in the Iceberg table.",
-                  ttlMs,
-                  dw.commitId(),
-                  dw.tableReference().identifier(),
-                  age,
-                  dataFilePaths,
-                  deleteFilePaths);
-              evictedStaleEventCount++;
-            });
-
-    commitBuffer.removeIf(
-        env -> expiredIds.contains(((DataWritten) env.event().payload()).commitId()));
-    expiredIds.forEach(groupRetryCount::remove);
-    expiredIds.forEach(groupFirstSeenMs::remove);
-  }
-
   /**
    * Returns commit buffer entries grouped by table, separated by commitId.
    *
@@ -323,8 +240,6 @@ class CommitState implements CommitStateMXBean {
    * list should be committed in a separate RowDelta to preserve sequence number ordering.
    */
   List<Map<TableReference, List<Envelope>>> tableCommitMaps() {
-    evictExpiredStaleEvents();
-
     // LinkedHashMap preserves insertion order from control topic consumption
     Map<UUID, List<Envelope>> byCommitId = new LinkedHashMap<>();
     for (Envelope envelope : commitBuffer) {
@@ -371,8 +286,6 @@ class CommitState implements CommitStateMXBean {
    * equality deletes from newer groups to apply to data files from older groups.
    */
   Map<TableReference, List<CommitGroup>> tableCommitGroups() {
-    evictExpiredStaleEvents();
-
     Map<TableReference, List<Envelope>> byTable =
         commitBuffer.stream()
             .collect(

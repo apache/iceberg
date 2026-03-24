@@ -36,14 +36,14 @@ import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestCommitState {
 
   private IcebergSinkConfig mockConfig() {
     IcebergSinkConfig cfg = mock(IcebergSinkConfig.class);
-    when(cfg.commitStaleTtlMs()).thenReturn(3_600_000);
     when(cfg.commitStaleMaxBlockingRetries()).thenReturn(3);
-    when(cfg.commitStaleFailurePolicy()).thenReturn("fail");
     return cfg;
   }
 
@@ -226,6 +226,32 @@ public class TestCommitState {
 
     commitState.clearResponses();
     assertThat(commitState.isBufferEmpty()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 3})
+  public void testStaleGroupBlocksForNRetriesThenStopsBlocking(int maxRetries) {
+    // With maxRetries=N, the group blocks for N attempts (failures 1..N).
+    // On attempt N+1, isGroupBlocking returns false → ConnectException path.
+    // retries=0: fail immediately (1st attempt). retries=3: pass 3 times, fail on 4th.
+    IcebergSinkConfig cfg = mock(IcebergSinkConfig.class);
+    when(cfg.commitStaleMaxBlockingRetries()).thenReturn(maxRetries);
+    CommitState commitState = new CommitState(cfg);
+
+    UUID staleId = UUID.randomUUID();
+    commitState.addResponse(createDataWrittenEnvelope(staleId));
+    commitState.startNewCommit();
+
+    // Group blocks for exactly maxRetries failures.
+    for (int i = 0; i < maxRetries; i++) {
+      commitState.recordGroupFailure(staleId);
+      assertThat(commitState.isGroupBlocking(staleId)).isTrue();
+    }
+
+    // The (maxRetries + 1)-th failure exhausts the budget.
+    commitState.recordGroupFailure(staleId);
+    assertThat(commitState.isGroupBlocking(staleId)).isFalse();
+    assertThat(commitState.getRetryCount(staleId)).isEqualTo(maxRetries + 1);
   }
 
   private Envelope createDataWrittenEnvelope(UUID commitId) {
