@@ -65,7 +65,8 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     assertThatThrownBy(() -> new VariantAvroDynamicTableRecordGenerator(rowType, Maps.newHashMap()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Missing column data. Expected column data of type VARIANT NOT NULL.");
+        .hasMessageContaining(
+            "Missing column data. Expected column data of type VARIANT NOT NULL.");
   }
 
   @Test
