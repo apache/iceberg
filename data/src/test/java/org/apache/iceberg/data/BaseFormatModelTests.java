@@ -105,6 +105,14 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
+  /**
+   * Hook for subclasses to declare whether they support all types in the given schema. Default is
+   * to support all schemas. If false is returned, the test will be skipped using assumeTrue.
+   */
+  protected boolean supports(Schema schema) {
+    return true;
+  }
+
   private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
@@ -171,6 +179,12 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
+    assumeThat(supports(schema)).isTrue();
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+
+    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
+
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
@@ -183,6 +197,12 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
+    assumeThat(supports(schema)).isTrue();
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+
+    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
+
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
@@ -195,6 +215,7 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
+    assumeThat(supports(schema)).isTrue();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -230,6 +251,7 @@ public abstract class BaseFormatModelTests<T> {
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
+    assumeThat(supports(schema)).isTrue();
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -266,6 +288,7 @@ public abstract class BaseFormatModelTests<T> {
   void testEqualityDeleteWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
+    assumeThat(supports(schema)).isTrue();
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -299,6 +322,7 @@ public abstract class BaseFormatModelTests<T> {
   void testEqualityDeleteWriterGenericWriteEngineRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
+    assumeThat(supports(schema)).isTrue();
     FileWriterBuilder<EqualityDeleteWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 

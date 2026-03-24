@@ -32,6 +32,13 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
 
   @Override
+  protected boolean supports(Schema schema) {
+    // Spark does not support Time types
+    return schema.columns().stream()
+        .noneMatch(c -> c.type().typeId() == org.apache.iceberg.types.Type.TypeID.TIME);
+  }
+
+  @Override
   protected Class<InternalRow> engineType() {
     return InternalRow.class;
   }

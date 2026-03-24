@@ -29,9 +29,53 @@ import org.apache.iceberg.types.Types;
  */
 class DataGenerators {
 
-  static final DataGenerator[] ALL = new DataGenerator[] {new StructOfPrimitive(), new Decimals()};
+  static final DataGenerator[] ALL =
+      new DataGenerator[] {
+        new StructOfPrimitive(), new Decimals(), new DefaultSchema(), new AllTypes()
+      };
 
   private DataGenerators() {}
+
+  static class AllTypes implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "boolean_col", Types.BooleanType.get()),
+            Types.NestedField.required(2, "int_col", Types.IntegerType.get()),
+            Types.NestedField.required(3, "long_col", Types.LongType.get()),
+            Types.NestedField.required(4, "float_col", Types.FloatType.get()),
+            Types.NestedField.required(5, "double_col", Types.DoubleType.get()),
+            Types.NestedField.required(6, "decimal_col", Types.DecimalType.of(9, 2)),
+            Types.NestedField.required(7, "date_col", Types.DateType.get()),
+            Types.NestedField.required(8, "time_col", Types.TimeType.get()),
+            Types.NestedField.required(9, "timestamp_col", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(10, "timestamp_tz_col", Types.TimestampType.withZone()),
+            Types.NestedField.required(11, "string_col", Types.StringType.get()),
+            Types.NestedField.required(12, "uuid_col", Types.UUIDType.get()),
+            Types.NestedField.required(13, "fixed_col", Types.FixedType.ofLength(16)),
+            Types.NestedField.required(14, "binary_col", Types.BinaryType.get()),
+            Types.NestedField.required(
+                15, "list_col", Types.ListType.ofRequired(16, Types.StringType.get())),
+            Types.NestedField.required(
+                17,
+                "map_col",
+                Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get())),
+            Types.NestedField.required(
+                20,
+                "struct_col",
+                Types.StructType.of(
+                    Types.NestedField.required(21, "nested_int", Types.IntegerType.get()),
+                    Types.NestedField.required(22, "nested_string", Types.StringType.get()))));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "AllTypes";
+    }
+  }
 
   static class StructOfPrimitive implements DataGenerator {
     private final Schema schema =
