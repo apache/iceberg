@@ -33,11 +33,7 @@ public class SourceViewState implements SourceState {
   private final int versionId;
 
   public SourceViewState(
-      String name,
-      List<String> namespace,
-      @Nullable String catalog,
-      String uuid,
-      int versionId) {
+      String name, List<String> namespace, @Nullable String catalog, String uuid, int versionId) {
     Preconditions.checkArgument(name != null, "Source view name is required");
     Preconditions.checkArgument(
         namespace != null && !namespace.isEmpty(), "Source view namespace is required");
