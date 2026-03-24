@@ -19,11 +19,16 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import scala.jdk.CollectionConverters._
 
-import org.apache.iceberg.catalog.{Namespace, TableIdentifier}
+import org.apache.iceberg.catalog.Namespace
+import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap
-import org.apache.iceberg.spark.{MaterializedViewUtil, Spark3Util, SparkCatalog, SparkSchemaUtil}
+import org.apache.iceberg.spark.MaterializedViewUtil
+import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.SparkCatalog
+import org.apache.iceberg.spark.SparkSchemaUtil
 import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
@@ -33,8 +38,6 @@ import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.types.StructType
-
-import scala.jdk.CollectionConverters._
 
 case class CreateMaterializedViewExec(
                                        catalog: ViewCatalog,
@@ -123,7 +126,10 @@ case class CreateMaterializedViewExec(
         catalog.dropView(ident)
       }
       // FIXME: replaceView API doesn't exist in Spark 3.5
-      val icebergView = catalog.asInstanceOf[SparkCatalog].icebergCatalog().asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
+      val viewCatalog = catalog.asInstanceOf[SparkCatalog]
+        .icebergCatalog()
+        .asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
+      val icebergView = viewCatalog.buildView(
         Spark3Util.identifierToTableIdentifier(ident))
         .withDefaultCatalog(currentCatalog)
         .withDefaultNamespace(Namespace.of(currentNamespace: _*))
@@ -138,7 +144,10 @@ case class CreateMaterializedViewExec(
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
-        val icebergView = catalog.asInstanceOf[SparkCatalog].icebergCatalog().asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
+        val viewCatalog = catalog.asInstanceOf[SparkCatalog]
+          .icebergCatalog()
+          .asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
+        val icebergView = viewCatalog.buildView(
           Spark3Util.identifierToTableIdentifier(ident))
           .withDefaultCatalog(currentCatalog)
           .withDefaultNamespace(Namespace.of(currentNamespace: _*))
