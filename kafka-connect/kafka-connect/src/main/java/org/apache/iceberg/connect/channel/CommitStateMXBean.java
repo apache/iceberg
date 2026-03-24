@@ -19,14 +19,11 @@
 package org.apache.iceberg.connect.channel;
 
 /**
- * JMX MXBean interface for monitoring the commit buffer state. Exposes metrics for stale event
- * eviction, buffer size, and stale group count. Registered under {@code
+ * JMX MXBean interface for monitoring the commit buffer state. Exposes metrics for buffer size and
+ * stale group count. Registered under {@code
  * org.apache.iceberg.connect:type=CommitState,connector=<name>}.
  */
 public interface CommitStateMXBean {
-  /** Cumulative count of stale events evicted by TTL. */
-  long getEvictedStaleEventCount();
-
   /** Number of distinct stale commitId groups currently in the buffer. */
   int getStaleGroupCount();
 

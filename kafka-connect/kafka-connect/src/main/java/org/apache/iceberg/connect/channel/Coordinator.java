@@ -174,18 +174,27 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       doCommit(partialCommit);
+    } catch (ConnectException e) {
+      // Deliberate failure (e.g., stale group retries exhausted) — must propagate
+      // to stop the connector. CoordinatorThread catches this and terminates.
+      throw e;
     } catch (RuntimeException e) {
       if (partialCommit) {
         partialCommitFailures.incrementAndGet();
         LOG.warn(
-            "Partial commit {} failed for task {}, will retry",
+            "Partial commit {} failed for task {}",
             commitState.currentCommitId(),
             taskId,
             e);
       } else {
-        LOG.error("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
-        throw e;
+        LOG.warn(
+            "Commit {} failed for task {}",
+            commitState.currentCommitId(),
+            taskId,
+            e);
       }
+    } catch (Exception e) {
+      LOG.warn("Commit failed, will try again next cycle", e);
     } finally {
       commitState.endCurrentCommit();
     }
@@ -218,47 +227,52 @@ class Coordinator extends Channel {
     // Inner: commitId groups sequentially per table, oldest first.
     // If a group fails for a table, remaining groups for that table are skipped
     // to preserve sequence number ordering. Other tables are unaffected.
-    Tasks.foreach(commitGroups.entrySet())
-        .executeWith(exec)
-        .run(
-            entry -> {
-              TableReference tableRef = entry.getKey();
-              List<CommitState.CommitGroup> groups = entry.getValue();
+    // Capture exception from parallel table commits so cleanup always runs.
+    // Without this, a ConnectException from one table's exhausted retries would
+    // skip removeEnvelopes(), leaving successfully committed envelopes in the buffer
+    // indefinitely (memory leak + wasted retry work on subsequent cycles).
+    RuntimeException taskException = null;
+    try {
+      Tasks.foreach(commitGroups.entrySet())
+          .executeWith(exec)
+          .run(
+              entry -> {
+                TableReference tableRef = entry.getKey();
+                List<CommitState.CommitGroup> groups = entry.getValue();
 
-              for (int i = 0; i < groups.size(); i++) {
-                CommitState.CommitGroup group = groups.get(i);
-                boolean isCurrentGroup = group.commitId().equals(commitState.currentCommitId());
+                for (int i = 0; i < groups.size(); i++) {
+                  CommitState.CommitGroup group = groups.get(i);
+                  boolean isCurrentGroup = group.commitId().equals(commitState.currentCommitId());
 
-                // Stale groups must only write their own envelope offsets to the snapshot,
-                // not the global consumer position. Otherwise the global offsets "poison"
-                // subsequent groups: their envelopes appear already-committed and get
-                // filtered out. The current (last) group writes the global offsets.
-                Map<Integer, Long> groupOffsets;
-                if (isCurrentGroup) {
-                  groupOffsets = ctlOffsets;
-                } else {
-                  groupOffsets = Maps.newHashMap();
-                  for (Envelope env : group.envelopes()) {
-                    groupOffsets.merge(env.partition(), env.offset() + 1, Long::max);
+                  // Stale groups must only write their own envelope offsets to the snapshot,
+                  // not the global consumer position. Otherwise the global offsets "poison"
+                  // subsequent groups: their envelopes appear already-committed and get
+                  // filtered out. The current (last) group writes the global offsets.
+                  Map<Integer, Long> groupOffsets;
+                  if (isCurrentGroup) {
+                    groupOffsets = ctlOffsets;
+                  } else {
+                    groupOffsets = Maps.newHashMap();
+                    for (Envelope env : group.envelopes()) {
+                      groupOffsets.merge(env.partition(), env.offset() + 1, Long::max);
+                    }
                   }
-                }
 
-                try {
-                  commitToTable(
-                      tableRef,
-                      group.envelopes(),
-                      group.commitId(),
-                      groupOffsets,
-                      isCurrentGroup ? validThroughTs : null);
-                  committedEnvelopes.addAll(group.envelopes());
-                  commitState.recordGroupSuccess(group.commitId());
-                } catch (Exception e) {
-                  commitState.recordGroupFailure(group.commitId());
-                  int remaining = groups.size() - i - 1;
+                  try {
+                    commitToTable(
+                        tableRef,
+                        group.envelopes(),
+                        group.commitId(),
+                        groupOffsets,
+                        isCurrentGroup ? validThroughTs : null);
+                    committedEnvelopes.addAll(group.envelopes());
+                    commitState.recordGroupSuccess(group.commitId());
+                  } catch (Exception e) {
+                    commitState.recordGroupFailure(group.commitId());
+                    int remaining = groups.size() - i - 1;
 
-                  if (!isCurrentGroup && !commitState.isGroupBlocking(group.commitId())) {
-                    if (commitState.isStaleFailurePolicyFail()) {
-                      // Fail policy: throw to move the connector to FAILED state.
+                    if (!isCurrentGroup && !commitState.isRetryAllowed(group.commitId())) {
+                      // Stale group exceeded max blocking retries - fail the connector.
                       throw new ConnectException(
                           "Stale group "
                               + group.commitId()
@@ -266,25 +280,11 @@ class Coordinator extends Channel {
                               + tableRef.identifier()
                               + " failed after "
                               + commitState.getRetryCount(group.commitId())
-                              + " retries (policy=fail). Connector stopping.",
+                              + " retries. Connector stopping.",
                           e);
                     }
-                    // Non-blocking policy: proceed with remaining groups.
-                    // Accepting ordering inversion risk to unblock current data.
-                    LOG.warn(
-                        "Stale group {} for table {} failed (attempt {}, exceeded {} "
-                            + "blocking retries, policy=non-blocking), proceeding with "
-                            + "remaining {} group(s). Ordering inversion may produce "
-                            + "duplicates for overlapping keys.",
-                        group.commitId(),
-                        tableRef.identifier(),
-                        commitState.getRetryCount(group.commitId()),
-                        config.commitStaleMaxBlockingRetries(),
-                        remaining,
-                        e);
-                    // Don't break — continue with next group
-                  } else {
-                    // Blocking mode: skip remaining groups to preserve ordering.
+
+                    // Blocking: skip remaining groups to preserve ordering.
                     LOG.warn(
                         "Commit failed for table {} group {} ({}, attempt {}), "
                             + "skipping {} remaining group(s) for this table",
@@ -297,8 +297,10 @@ class Coordinator extends Channel {
                     break;
                   }
                 }
-              }
-            });
+              });
+    } catch (RuntimeException e) {
+      taskException = e;
+    }
 
     // Remove only the envelopes whose groups committed successfully.
     if (!committedEnvelopes.isEmpty()) {
@@ -347,6 +349,11 @@ class Coordinator extends Channel {
           commitState.currentCommitId(),
           commitState.bufferSize(),
           minUncommitted);
+    }
+
+    // Re-throw after cleanup so the commit() wrapper can log it.
+    if (taskException != null) {
+      throw taskException;
     }
   }
 
