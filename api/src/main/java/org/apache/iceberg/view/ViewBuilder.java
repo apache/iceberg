@@ -63,8 +63,7 @@ public interface ViewBuilder extends VersionBuilder<ViewBuilder> {
    * @return this for method chaining
    */
   default ViewBuilder withStorageTableIdentifier(TableIdentifier storageTableIdentifier) {
-    throw new UnsupportedOperationException(
-        "Setting a storage table identifier is not supported");
+    throw new UnsupportedOperationException("Setting a storage table identifier is not supported");
   }
 
   /**
