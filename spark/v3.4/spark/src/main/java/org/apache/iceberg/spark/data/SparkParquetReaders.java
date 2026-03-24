@@ -190,8 +190,8 @@ public class SparkParquetReaders {
           ParquetValueReaders.resolveList(
               type, array, currentPath(), path(elementType.getName()), elementReader);
 
-      return new ArrayReader<>(resolved.definitionLevel(), resolved.repetitionLevel(),
-          resolved.reader());
+      return new ArrayReader<>(
+          resolved.definitionLevel(), resolved.repetitionLevel(), resolved.reader());
     }
 
     @Override
