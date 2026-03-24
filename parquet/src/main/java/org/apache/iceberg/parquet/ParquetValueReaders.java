@@ -43,11 +43,13 @@ import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
@@ -60,6 +62,54 @@ public class ParquetValueReaders {
       return new OptionReader<>(definitionLevel, reader);
     }
     return reader;
+  }
+
+  /**
+   * Resolves def/rep levels and element reader for a list, handling 2-level and 3-level encodings.
+   */
+  public static <E> ResolvedList<E> resolveList(
+      MessageType fileType,
+      GroupType array,
+      String[] repeatedPath,
+      String[] elementPath,
+      ParquetValueReader<E> elementReader) {
+    Type elementType = ParquetSchemaUtil.determineListElementType(array);
+    int elementD = fileType.getMaxDefinitionLevel(elementPath) - 1;
+
+    if (ParquetSchemaUtil.isOldListElementType(array)) {
+      // 2-level list: use element path for levels and skip OptionReader (elements are non-null)
+      int elementR = fileType.getMaxRepetitionLevel(elementPath) - 1;
+      return new ResolvedList<>(elementD, elementR, elementReader);
+    } else {
+      int repeatedD = fileType.getMaxDefinitionLevel(repeatedPath) - 1;
+      int repeatedR = fileType.getMaxRepetitionLevel(repeatedPath) - 1;
+      return new ResolvedList<>(repeatedD, repeatedR, option(elementType, elementD, elementReader));
+    }
+  }
+
+  /** Holds the resolved definition level, repetition level, and reader for a list column. */
+  public static class ResolvedList<E> {
+    private final int definitionLevel;
+    private final int repetitionLevel;
+    private final ParquetValueReader<E> reader;
+
+    ResolvedList(int definitionLevel, int repetitionLevel, ParquetValueReader<E> reader) {
+      this.definitionLevel = definitionLevel;
+      this.repetitionLevel = repetitionLevel;
+      this.reader = reader;
+    }
+
+    public int definitionLevel() {
+      return definitionLevel;
+    }
+
+    public int repetitionLevel() {
+      return repetitionLevel;
+    }
+
+    public ParquetValueReader<E> reader() {
+      return reader;
+    }
   }
 
   public static ParquetValueReader<Integer> unboxed(ColumnDescriptor desc) {

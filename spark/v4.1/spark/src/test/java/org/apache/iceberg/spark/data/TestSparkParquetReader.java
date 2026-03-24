@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.data;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,9 +51,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -260,5 +266,108 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     assertThatThrownBy(super::testUnknownMapType)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot convert value Parquet: unknown");
+  }
+
+  /** Verifies reading 2-level (Thrift) encoded lists with empty lists interspersed */
+  @Test
+  public void testTwoLevelThriftListWithStrings() throws IOException {
+    // Parquet schema: 2-level Thrift-style list with _tuple naming convention
+    MessageType parquetSchema =
+        MessageTypeParser.parseMessageType(
+            "message root {\n"
+                + "  optional group names (LIST) {\n"
+                + "    repeated binary names_tuple (UTF8);\n"
+                + "  }\n"
+                + "  optional binary label (UTF8);\n"
+                + "}\n");
+
+    // Iceberg schema matching the Parquet structure
+    Schema icebergSchema =
+        new Schema(
+            optional(1, "names", Types.ListType.ofRequired(3, Types.StringType.get())),
+            optional(2, "label", Types.StringType.get()));
+
+    // Write a 2-level Parquet file using the example writer
+    java.io.File testFile = temp.resolve("test-two-level-thrift-" + System.nanoTime()).toFile();
+    SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new org.apache.hadoop.fs.Path(testFile.toURI()))
+            .withType(parquetSchema)
+            .build()) {
+
+      // Row 0: single element list
+      Group row0 = factory.newGroup();
+      row0.addGroup("names").append("names_tuple", "alice");
+      row0.append("label", "row0");
+      writer.write(row0);
+
+      // Row 1: empty list — critical for triggering the bug
+      Group row1 = factory.newGroup();
+      row1.addGroup("names"); // group present, no repeated elements = empty list
+      row1.append("label", "row1");
+      writer.write(row1);
+
+      // Row 2: single element
+      Group row2 = factory.newGroup();
+      row2.addGroup("names").append("names_tuple", "bob");
+      row2.append("label", "row2");
+      writer.write(row2);
+
+      // Row 3: multi-element list
+      Group row3 = factory.newGroup();
+      Group names3 = row3.addGroup("names");
+      names3.append("names_tuple", "carol");
+      names3.append("names_tuple", "dave");
+      row3.append("label", "row3");
+      writer.write(row3);
+
+      // Row 4: empty list again
+      Group row4 = factory.newGroup();
+      row4.addGroup("names");
+      row4.append("label", "row4");
+      writer.write(row4);
+
+      // Row 5: single element after empty
+      Group row5 = factory.newGroup();
+      row5.addGroup("names").append("names_tuple", "eve");
+      row5.append("label", "row5");
+      writer.write(row5);
+    }
+
+    // Read through the Iceberg Spark reader
+    List<InternalRow> rows = rowsFromFile(Files.localInput(testFile), icebergSchema);
+    assertThat(rows).hasSize(6);
+
+    // Row 0: ["alice"]
+    assertThat(rows.get(0).getArray(0).numElements()).isEqualTo(1);
+    assertThat(rows.get(0).getArray(0).getUTF8String(0).toString()).isEqualTo("alice");
+    assertThat(rows.get(0).getString(1)).isEqualTo("row0");
+
+    // Row 1: [] — empty list, not null
+    assertThat(rows.get(1).isNullAt(0)).isFalse();
+    assertThat(rows.get(1).getArray(0).numElements()).isEqualTo(0);
+    assertThat(rows.get(1).getString(1)).isEqualTo("row1");
+
+    // Row 2: ["bob"]
+    assertThat(rows.get(2).getArray(0).numElements()).isEqualTo(1);
+    assertThat(rows.get(2).getArray(0).getUTF8String(0).toString()).isEqualTo("bob");
+    assertThat(rows.get(2).getString(1)).isEqualTo("row2");
+
+    // Row 3: ["carol", "dave"]
+    assertThat(rows.get(3).getArray(0).numElements()).isEqualTo(2);
+    assertThat(rows.get(3).getArray(0).getUTF8String(0).toString()).isEqualTo("carol");
+    assertThat(rows.get(3).getArray(0).getUTF8String(1).toString()).isEqualTo("dave");
+    assertThat(rows.get(3).getString(1)).isEqualTo("row3");
+
+    // Row 4: [] — empty list
+    assertThat(rows.get(4).isNullAt(0)).isFalse();
+    assertThat(rows.get(4).getArray(0).numElements()).isEqualTo(0);
+    assertThat(rows.get(4).getString(1)).isEqualTo("row4");
+
+    // Row 5: ["eve"]
+    assertThat(rows.get(5).getArray(0).numElements()).isEqualTo(1);
+    assertThat(rows.get(5).getArray(0).getUTF8String(0).toString()).isEqualTo("eve");
+    assertThat(rows.get(5).getString(1)).isEqualTo("row5");
   }
 }

@@ -233,7 +233,7 @@ public class ParquetSchemaUtil {
 
   // Parquet LIST backwards-compatibility rules.
   // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#backward-compatibility-rules
-  static boolean isOldListElementType(GroupType list) {
+  public static boolean isOldListElementType(GroupType list) {
     Type repeatedType = list.getFields().get(0);
     String parentName = list.getName();
 

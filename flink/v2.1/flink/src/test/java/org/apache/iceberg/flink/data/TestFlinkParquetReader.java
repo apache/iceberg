@@ -32,6 +32,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -51,7 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -188,7 +188,7 @@ public class TestFlinkParquetReader extends DataTestBase {
     assertThat(testFile.delete()).isTrue();
 
     ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new LocalOutputFile(testFile.toPath()))
+        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .config("parquet.avro.add-list-element-records", "true")
@@ -217,6 +217,63 @@ public class TestFlinkParquetReader extends DataTestBase {
       RowData rowData = rows.next();
       assertThat(rowData.getArray(0).getBinary(0)).isEqualTo(expectedByte);
       assertThat(rowData.getBinary(1)).isEqualTo(expectedByte);
+      assertThat(rows).isExhausted();
+    }
+  }
+
+  @Test
+  public void testTwoLevelListWithEmptyLists() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "names", Types.ListType.ofRequired(3, Types.StringType.get())),
+            optional(2, "label", Types.StringType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
+
+    ParquetWriter<GenericRecord> writer =
+        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .config("parquet.avro.add-list-element-records", "true")
+            .config("parquet.avro.write-old-list-structure", "true")
+            .build();
+
+    GenericRecordBuilder rb = new GenericRecordBuilder(avroSchema);
+    writer.write(rb.set("names", java.util.Arrays.asList("alice")).set("label", "row0").build());
+    writer.write(rb.set("names", java.util.Collections.emptyList()).set("label", "row1").build());
+    writer.write(rb.set("names", java.util.Arrays.asList("bob")).set("label", "row2").build());
+    writer.write(
+        rb.set("names", java.util.Arrays.asList("carol", "dave")).set("label", "row3").build());
+    writer.close();
+
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .build()) {
+      Iterator<RowData> rows = reader.iterator();
+
+      RowData row0 = rows.next();
+      assertThat(row0.getArray(0).getString(0).toString()).isEqualTo("alice");
+      assertThat(row0.getString(1).toString()).isEqualTo("row0");
+
+      RowData row1 = rows.next();
+      assertThat(row1.isNullAt(0)).isFalse();
+      assertThat(row1.getArray(0).size()).isEqualTo(0);
+      assertThat(row1.getString(1).toString()).isEqualTo("row1");
+
+      RowData row2 = rows.next();
+      assertThat(row2.getArray(0).getString(0).toString()).isEqualTo("bob");
+      assertThat(row2.getString(1).toString()).isEqualTo("row2");
+
+      RowData row3 = rows.next();
+      assertThat(row3.getArray(0).size()).isEqualTo(2);
+      assertThat(row3.getArray(0).getString(0).toString()).isEqualTo("carol");
+      assertThat(row3.getArray(0).getString(1).toString()).isEqualTo("dave");
+      assertThat(row3.getString(1).toString()).isEqualTo("row3");
+
       assertThat(rows).isExhausted();
     }
   }
