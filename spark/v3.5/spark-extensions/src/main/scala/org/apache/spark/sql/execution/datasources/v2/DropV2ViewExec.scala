@@ -35,27 +35,29 @@ case class DropV2ViewExec(catalog: ViewCatalog, ident: Identifier, ifExists: Boo
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    val icebergCatalog = catalog.asInstanceOf[SparkCatalog].icebergCatalog()
-    val icebergViewCatalog = icebergCatalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
-    var view: Option[View] = None
-    try {
-      view = Some(icebergViewCatalog.loadView(TableIdentifier.of(Namespace.of(ident.namespace(): _*), ident.name())))
-    } catch {
-      case e: exceptions.NoSuchViewException => {
-        if (!ifExists) {
-          throw new NoSuchViewException(ident)
+    // If the catalog is a SparkCatalog, check for materialized view storage table cleanup
+    catalog match {
+      case sparkCatalog: SparkCatalog =>
+        val icebergCatalog = sparkCatalog.icebergCatalog()
+        val icebergViewCatalog = icebergCatalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
+        var view: Option[View] = None
+        try {
+          view = Some(icebergViewCatalog.loadView(TableIdentifier.of(Namespace.of(ident.namespace(): _*), ident.name())))
+        } catch {
+          case _: exceptions.NoSuchViewException =>
+            if (!ifExists) {
+              throw new NoSuchViewException(ident)
+            }
         }
-      }
-    }
-    // if view is a materialized view, drop the storage table first
-    view match {
-      case Some(v) =>
-        val storageTable = v.currentVersion().storageTable()
-        if (storageTable != null) {
-          val storageIdent = Identifier.of(storageTable.namespace().levels(), storageTable.name())
-          catalog.asInstanceOf[SparkCatalog].dropTable(storageIdent)
+        // if view is a materialized view, drop the storage table first
+        view.foreach { v =>
+          val storageTable = v.currentVersion().storageTable()
+          if (storageTable != null) {
+            val storageIdent = Identifier.of(storageTable.namespace().levels(), storageTable.name())
+            sparkCatalog.dropTable(storageIdent)
+          }
         }
-      case _ =>
+      case _ => // not a SparkCatalog, skip MV cleanup
     }
 
     val dropped = catalog.dropView(ident)

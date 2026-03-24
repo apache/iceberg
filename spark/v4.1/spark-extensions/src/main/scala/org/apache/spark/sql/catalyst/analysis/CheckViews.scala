@@ -49,6 +49,7 @@ object CheckViews extends (LogicalPlan => Unit) {
             _,
             replace,
             _,
+            _,
             _) =>
         verifyColumnCount(resolvedIdent, columnAliases, query)
         SchemaUtils.checkColumnNameDuplication(
