@@ -37,6 +37,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -67,6 +68,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -86,6 +88,8 @@ import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -99,6 +103,8 @@ import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -3738,6 +3744,71 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             () -> catalog.loadTable(TABLE).newFastAppend().appendFile(anotherFileOnMain).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Validation failed, please retry");
+  }
+
+  @Test
+  public void testIoBuilderReceivesStorageCredentials() {
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3://test-bucket/")
+            .putConfig("s3.access-key-id", "test-access-key")
+            .putConfig("s3.secret-access-key", "test-secret-key")
+            .build();
+
+    // Adapter that injects storage credentials into LoadTableResponse
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @SuppressWarnings("unchecked")
+          @Override
+          public <T extends RESTResponse> T handleRequest(
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            T response =
+                super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+            if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
+              return (T)
+                  LoadTableResponse.builder()
+                      .withTableMetadata(loadResponse.tableMetadata())
+                      .addAllConfig(loadResponse.config())
+                      .addCredential(credential)
+                      .build();
+            }
+            return response;
+          }
+        };
+
+    AtomicReference<FileIO> createdFileIO = new AtomicReference<>();
+
+    try (RESTCatalog catalog =
+        catalog(
+            adapter,
+            clientBuilder ->
+                new RESTSessionCatalog(
+                    clientBuilder,
+                    (context, config) -> {
+                      TestCatalogUtil.TestFileIOWithStorageCredentials fileIO =
+                          new TestCatalogUtil.TestFileIOWithStorageCredentials();
+                      createdFileIO.set(fileIO);
+                      return fileIO;
+                    }))) {
+      catalog.createNamespace(NS);
+      catalog.createTable(TABLE, SCHEMA);
+      catalog.loadTable(TABLE);
+
+      assertThat(createdFileIO.get()).isInstanceOf(SupportsStorageCredentials.class);
+      List<StorageCredential> creds =
+          ((SupportsStorageCredentials) createdFileIO.get()).credentials();
+      assertThat(creds).hasSize(1);
+      assertThat(creds.get(0).prefix()).isEqualTo("s3://test-bucket/");
+      assertThat(creds.get(0).config())
+          .containsEntry("s3.access-key-id", "test-access-key")
+          .containsEntry("s3.secret-access-key", "test-secret-key");
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

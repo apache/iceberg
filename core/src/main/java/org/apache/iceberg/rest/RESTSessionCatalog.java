@@ -60,6 +60,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -1175,7 +1176,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO newFileIO(
       SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
-      return ioBuilder.apply(context, properties);
+      FileIO fileIO = ioBuilder.apply(context, properties);
+      if (!storageCredentials.isEmpty()
+          && fileIO instanceof SupportsStorageCredentials ioWithCredentials) {
+        ioWithCredentials.setCredentials(
+            storageCredentials.stream()
+                .map(c -> StorageCredential.create(c.prefix(), c.config()))
+                .collect(Collectors.toList()));
+      }
+      return fileIO;
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
       return CatalogUtil.loadFileIO(
