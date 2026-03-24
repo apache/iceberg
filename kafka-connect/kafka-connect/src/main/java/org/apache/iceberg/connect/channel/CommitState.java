@@ -177,7 +177,8 @@ class CommitState {
 
     // Current commitId last — ensures highest sequence number
     if (currentCommitId != null) {
-      List<Envelope> currentEnvelopes = byCommitId.getOrDefault(currentCommitId, Lists.newArrayList());
+      List<Envelope> currentEnvelopes =
+          byCommitId.getOrDefault(currentCommitId, Lists.newArrayList());
       if (!currentEnvelopes.isEmpty()) {
         result.add(toTableMap(currentEnvelopes));
       }
