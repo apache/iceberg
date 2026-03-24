@@ -54,10 +54,6 @@ interface TrackedFile {
       Types.NestedField.optional(
           141, "spec_id", Types.IntegerType.get(), "Spec ID used to partition the file");
 
-  int PARTITION_ID = 102;
-  String PARTITION_NAME = "partition";
-  String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
-
   int CONTENT_STATS_ID = 146;
   String CONTENT_STATS_NAME = "content_stats";
   String CONTENT_STATS_DOC = "Content statistics for this entry";
@@ -93,7 +89,7 @@ interface TrackedFile {
           Types.ListType.ofRequired(136, Types.IntegerType.get()),
           "Field ids used to determine row equality in equality delete files");
 
-  static Types.StructType getType(Types.StructType partitionType) {
+  static Types.StructType schemaWithContentStats(Types.StructType contentStatsType) {
     return Types.StructType.of(
         TRACKING,
         CONTENT_TYPE,
@@ -102,9 +98,8 @@ interface TrackedFile {
         RECORD_COUNT,
         FILE_SIZE_IN_BYTES,
         SPEC_ID,
-        Types.NestedField.optional(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
         Types.NestedField.optional(
-            CONTENT_STATS_ID, CONTENT_STATS_NAME, Types.StructType.of(), CONTENT_STATS_DOC),
+            CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC),
         SORT_ORDER_ID,
         DELETION_VECTOR,
         MANIFEST_INFO,
