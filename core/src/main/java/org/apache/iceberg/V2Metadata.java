@@ -30,6 +30,24 @@ import org.apache.iceberg.types.Types;
 class V2Metadata {
   private V2Metadata() {}
 
+  private static int validContentId(ManifestContent content) {
+    Preconditions.checkArgument(
+        content == ManifestContent.DATA || content == ManifestContent.DELETES,
+        "Unsupported manifest content type for v2: %s",
+        content);
+    return content.id();
+  }
+
+  private static int validContentId(FileContent content) {
+    Preconditions.checkArgument(
+        content == FileContent.DATA
+            || content == FileContent.POSITION_DELETES
+            || content == FileContent.EQUALITY_DELETES,
+        "Unsupported file content type for v2: %s",
+        content);
+    return content.id();
+  }
+
   static final Schema MANIFEST_LIST_SCHEMA =
       new Schema(
           ManifestFile.PATH,
@@ -93,7 +111,7 @@ class V2Metadata {
         case 2:
           return wrapped.partitionSpecId();
         case 3:
-          return wrapped.content().id();
+          return validContentId(wrapped.content());
         case 4:
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // if the sequence number is being assigned here, then the manifest must be created by
@@ -428,7 +446,7 @@ class V2Metadata {
     private Object get(int pos) {
       switch (pos) {
         case 0:
-          return wrapped.content().id();
+          return validContentId(wrapped.content());
         case 1:
           return wrapped.location();
         case 2:
