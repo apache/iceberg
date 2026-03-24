@@ -57,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
+import org.apache.iceberg.spark.source.SparkMaterializedView;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
@@ -515,13 +516,93 @@ public class SparkCatalog extends BaseCatalog {
     if (null != asViewCatalog) {
       try {
         org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
-        return new SparkView(catalogName, view);
+        if (isMaterializedView(view) && isFresh(view)) {
+          throw new IllegalStateException(
+              "Materialized view is fresh. loadTable should be attempted instead.");
+        } else {
+          return new SparkView(catalogName, view);
+        }
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
       }
     }
 
     throw new NoSuchViewException(ident);
+  }
+
+  private boolean isMaterializedView(org.apache.iceberg.view.View view) {
+    return view.currentVersion().storageTable() != null;
+  }
+
+  private org.apache.iceberg.catalog.TableIdentifier getStorageTableId(
+      org.apache.iceberg.view.View view) {
+    org.apache.iceberg.catalog.TableIdentifier storageTable =
+        view.currentVersion().storageTable();
+    Preconditions.checkState(
+        storageTable != null, "Storage table identifier is not set for materialized view.");
+    return storageTable;
+  }
+
+  private Table loadStorageTable(org.apache.iceberg.view.View view) {
+    org.apache.iceberg.catalog.TableIdentifier storageTableId = getStorageTableId(view);
+    try {
+      Identifier sparkIdent =
+          Identifier.of(storageTableId.namespace().levels(), storageTableId.name());
+      return loadTable(sparkIdent);
+    } catch (NoSuchTableException e) {
+      throw new IllegalStateException("Unable to load storage table for materialized view.", e);
+    }
+  }
+
+  private boolean isFresh(org.apache.iceberg.view.View view) {
+    Table sparkStorageTable = loadStorageTable(view);
+    org.apache.iceberg.Table storageTable = ((SparkTable) sparkStorageTable).table();
+    if (storageTable.currentSnapshot() == null) {
+      return false;
+    }
+
+    String refreshStateJson =
+        storageTable
+            .currentSnapshot()
+            .summary()
+            .get(org.apache.iceberg.view.RefreshState.REFRESH_STATE_SUMMARY_KEY);
+    if (refreshStateJson == null) {
+      return false;
+    }
+
+    org.apache.iceberg.view.RefreshState refreshState =
+        org.apache.iceberg.view.RefreshStateParser.fromJson(refreshStateJson);
+
+    if (refreshState.viewVersionId() != view.currentVersion().versionId()) {
+      return false;
+    }
+
+    for (org.apache.iceberg.view.SourceState sourceState : refreshState.sourceStates()) {
+      if (sourceState instanceof org.apache.iceberg.view.SourceTableState) {
+        org.apache.iceberg.view.SourceTableState tableState =
+            (org.apache.iceberg.view.SourceTableState) sourceState;
+        org.apache.iceberg.catalog.TableIdentifier sourceId =
+            org.apache.iceberg.catalog.TableIdentifier.of(
+                org.apache.iceberg.catalog.Namespace.of(
+                    tableState.namespace().toArray(new String[0])),
+                tableState.name());
+        try {
+          org.apache.iceberg.Table sourceTable =
+              ((org.apache.iceberg.catalog.Catalog) icebergCatalog()).loadTable(sourceId);
+          long currentSnapshotId =
+              sourceTable.currentSnapshot() == null
+                  ? -1
+                  : sourceTable.currentSnapshot().snapshotId();
+          if (currentSnapshotId != tableState.snapshotId()) {
+            return false;
+          }
+        } catch (Exception e) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   @Override
@@ -799,6 +880,19 @@ public class SparkCatalog extends BaseCatalog {
   private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
+    }
+
+    // Check if materialized view. If fresh, return the SparkMaterializedView.
+    if (null != asViewCatalog) {
+      try {
+        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+        if (isMaterializedView(view) && isFresh(view)) {
+          Table storageTable = loadStorageTable(view);
+          return new SparkMaterializedView(catalogName, view, storageTable);
+        }
+      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+        // Ignore. Just process as a normal table.
+      }
     }
 
     try {

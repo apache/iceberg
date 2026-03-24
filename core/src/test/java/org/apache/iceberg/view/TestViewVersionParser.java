@@ -143,15 +143,15 @@ public class TestViewVersionParser {
             .build();
 
     String json = ViewVersionParser.toJson(viewVersion);
-    Assertions.assertThat(json).contains("\"storage-table\":{");
-    Assertions.assertThat(json).contains("\"namespace\":[\"default\"]");
-    Assertions.assertThat(json).contains("\"name\":\"mv__storage\"");
+    assertThat(json).contains("\"storage-table\":{");
+    assertThat(json).contains("\"namespace\":[\"default\"]");
+    assertThat(json).contains("\"name\":\"mv__storage\"");
 
     ViewVersion parsed = ViewVersionParser.fromJson(json);
-    Assertions.assertThat(parsed.storageTable()).isNotNull();
-    Assertions.assertThat(parsed.storageTable().namespace()).isEqualTo(Namespace.of("default"));
-    Assertions.assertThat(parsed.storageTable().name()).isEqualTo("mv__storage");
-    Assertions.assertThat(parsed).isEqualTo(viewVersion);
+    assertThat(parsed.storageTable()).isNotNull();
+    assertThat(parsed.storageTable().namespace()).isEqualTo(Namespace.of("default"));
+    assertThat(parsed.storageTable().name()).isEqualTo("mv__storage");
+    assertThat(parsed).isEqualTo(viewVersion);
   }
 
   @Test
@@ -173,10 +173,10 @@ public class TestViewVersionParser {
             .build();
 
     String json = ViewVersionParser.toJson(viewVersion);
-    Assertions.assertThat(json).doesNotContain("storage-table");
+    assertThat(json).doesNotContain("storage-table");
 
     ViewVersion parsed = ViewVersionParser.fromJson(json);
-    Assertions.assertThat(parsed.storageTable()).isNull();
+    assertThat(parsed.storageTable()).isNull();
   }
 
   @Test
@@ -190,9 +190,9 @@ public class TestViewVersionParser {
             + "\"storage-table\":{\"namespace\":[\"default\"],\"name\":\"event_agg_mv__storage\"}}";
 
     ViewVersion parsed = ViewVersionParser.fromJson(json);
-    Assertions.assertThat(parsed.storageTable()).isNotNull();
-    Assertions.assertThat(parsed.storageTable().namespace()).isEqualTo(Namespace.of("default"));
-    Assertions.assertThat(parsed.storageTable().name()).isEqualTo("event_agg_mv__storage");
+    assertThat(parsed.storageTable()).isNotNull();
+    assertThat(parsed.storageTable().namespace()).isEqualTo(Namespace.of("default"));
+    assertThat(parsed.storageTable().name()).isEqualTo("event_agg_mv__storage");
   }
 
   @Test

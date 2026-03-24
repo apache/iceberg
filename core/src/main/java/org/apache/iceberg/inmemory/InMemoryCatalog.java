@@ -97,7 +97,6 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     closeableGroup.setSuppressCloseFailure(true);
   }
 
-  // protected for testing
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     return new InMemoryTableOperations(io, tableIdentifier);
@@ -337,7 +336,6 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
         .collect(Collectors.toList());
   }
 
-  // protected for testing
   @Override
   protected ViewOperations newViewOps(TableIdentifier identifier) {
     return new InMemoryViewOperations(io, identifier);
@@ -385,7 +383,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 
-  public class InMemoryTableOperations extends BaseMetastoreTableOperations {
+  protected class InMemoryTableOperations extends BaseMetastoreTableOperations {
     private final FileIO fileIO;
     private final TableIdentifier tableIdentifier;
     private final String fullTableName;
@@ -456,7 +454,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  public class InMemoryViewOperations extends BaseViewOperations {
+  protected class InMemoryViewOperations extends BaseViewOperations {
     private final FileIO io;
     private final TableIdentifier identifier;
     private final String fullViewName;

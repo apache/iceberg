@@ -141,6 +141,35 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           allowExisting,
           replace,
           _,
+          Some(materializedViewOptions),
+          _) =>
+      CreateMaterializedViewExec(
+        catalog = viewCatalog,
+        ident = ident,
+        queryText = queryText,
+        columnAliases = columnAliases,
+        columnComments = columnComments,
+        queryColumnNames = queryColumnNames,
+        viewSchema = query.schema,
+        comment = comment,
+        properties = properties,
+        allowExisting = allowExisting,
+        replace = replace,
+        storageTableIdentifier = materializedViewOptions.storageTableIdentifier) :: Nil
+
+    case CreateIcebergView(
+          ResolvedIdentifier(viewCatalog: ViewCatalog, ident),
+          queryText,
+          query,
+          columnAliases,
+          columnComments,
+          queryColumnNames,
+          comment,
+          properties,
+          allowExisting,
+          replace,
+          _,
+          None,
           _) =>
       CreateV2ViewExec(
         catalog = viewCatalog,

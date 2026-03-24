@@ -18,6 +18,11 @@
  */
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.catalog.Namespace
+import org.apache.iceberg.catalog.TableIdentifier
+import org.apache.iceberg.exceptions
+import org.apache.iceberg.spark.SparkCatalog
+import org.apache.iceberg.view.View
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -30,6 +35,31 @@ case class DropV2ViewExec(catalog: ViewCatalog, ident: Identifier, ifExists: Boo
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
+    // If the catalog is a SparkCatalog, check for materialized view storage table cleanup
+    catalog match {
+      case sparkCatalog: SparkCatalog =>
+        val icebergCatalog = sparkCatalog.icebergCatalog()
+        val icebergViewCatalog = icebergCatalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
+        var view: Option[View] = None
+        try {
+          view = Some(icebergViewCatalog.loadView(TableIdentifier.of(Namespace.of(ident.namespace(): _*), ident.name())))
+        } catch {
+          case _: exceptions.NoSuchViewException =>
+            if (!ifExists) {
+              throw new NoSuchViewException(ident)
+            }
+        }
+        // if view is a materialized view, drop the storage table first
+        view.foreach { v =>
+          val storageTable = v.currentVersion().storageTable()
+          if (storageTable != null) {
+            val storageIdent = Identifier.of(storageTable.namespace().levels(), storageTable.name())
+            sparkCatalog.dropTable(storageIdent)
+          }
+        }
+      case _ => // not a SparkCatalog, skip MV cleanup
+    }
+
     val dropped = catalog.dropView(ident)
     if (!dropped && !ifExists) {
       throw new NoSuchViewException(ident)
