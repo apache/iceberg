@@ -42,7 +42,9 @@ case class DropV2ViewExec(catalog: ViewCatalog, ident: Identifier, ifExists: Boo
         val icebergViewCatalog = icebergCatalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
         var view: Option[View] = None
         try {
-          view = Some(icebergViewCatalog.loadView(TableIdentifier.of(Namespace.of(ident.namespace(): _*), ident.name())))
+          val ns = Namespace.of(ident.namespace(): _*)
+          val viewId = TableIdentifier.of(ns, ident.name())
+          view = Some(icebergViewCatalog.loadView(viewId))
         } catch {
           case _: exceptions.NoSuchViewException =>
             if (!ifExists) {
