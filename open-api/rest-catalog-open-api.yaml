@@ -598,7 +598,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The identifier is already used by an existing catalog object (see `CatalogObjectType`)
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -918,7 +918,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The identifier is already used by an existing catalog object (see `CatalogObjectType`)
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -1304,7 +1304,7 @@ paths:
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
-          description: Conflict - The target identifier to rename to is already used by an existing catalog object (see `CatalogObjectType`)
+          description: Conflict - The target identifier to rename to already exists as a table or view
           content:
             application/json:
               schema:
@@ -1550,7 +1550,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The identifier is already used by an existing catalog object (see `CatalogObjectType`)
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -1828,7 +1828,7 @@ paths:
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
-          description: Conflict - The target identifier to rename to is already used by an existing catalog object (see `CatalogObjectType`)
+          description: Conflict - The target identifier to rename to already exists as a table or view
           content:
             application/json:
               schema:
@@ -1882,7 +1882,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The identifier is already used by an existing catalog object (see `CatalogObjectType`)
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -2190,16 +2190,6 @@ components:
       items:
         type: string
       example: [ "accounting", "tax" ]
-
-    CatalogObjectType:
-      type: string
-      description:
-        The type of a named catalog object within a namespace. Identifiers MUST be unique
-        across all catalog object types within the same namespace; a table and a view with
-        the same name in the same namespace are not allowed. Known types are listed below.
-      enum:
-        - table
-        - view
 
     PageToken:
       description:
