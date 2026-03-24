@@ -34,9 +34,6 @@ import org.apache.iceberg.types.Types;
  */
 final class ManifestBenchmarkUtil {
 
-  /** Scale factor for entry counts. 300_000 yields ~8 MB manifests; 15_000 yields ~400 KB. */
-  static final int ENTRY_BASE = 300_000;
-
   static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -49,11 +46,16 @@ final class ManifestBenchmarkUtil {
   private ManifestBenchmarkUtil() {}
 
   /**
-   * Returns the number of manifest entries for the given column count, scaled by {@link
-   * #ENTRY_BASE}.
+   * Returns the number of manifest entries for the given column count. The result is {@code
+   * entryBase / cols}.
+   *
+   * <p>The linear ratio was determined empirically by writing manifests at various column counts
+   * and measuring the resulting file sizes. An {@code entryBase} of 300,000 produces ~8 MB
+   * manifests (matching the default {@code commit.manifest.target-size-bytes}); 15,000 produces
+   * ~400 KB.
    */
-  static int entriesForColumnCount(int cols) {
-    return ENTRY_BASE / cols;
+  static int entriesForColumnCount(int entryBase, int cols) {
+    return entryBase / cols;
   }
 
   static List<DataFile> generateDataFiles(PartitionSpec spec, int numEntries, int numCols) {

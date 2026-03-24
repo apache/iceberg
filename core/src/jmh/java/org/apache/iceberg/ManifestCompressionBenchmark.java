@@ -46,9 +46,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /**
  * A benchmark that measures manifest read/write performance across compression codecs.
  *
- * <p>Entry counts are calibrated per column count via {@link ManifestBenchmarkUtil#ENTRY_BASE}. Set
- * to 300_000 for ~8 MB manifests (matching the default {@code commit.manifest.target-size-bytes})
- * or 15_000 for ~400 KB.
+ * <p>Entry counts are calibrated per column count via {@link #ENTRY_BASE}. Set to 300_000 for ~8 MB
+ * manifests (matching the default {@code commit.manifest.target-size-bytes}) or 15_000 for ~400 KB.
  *
  * <p>To run this benchmark:
  *
@@ -68,6 +67,8 @@ import org.openjdk.jmh.infra.Blackhole;
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
 public class ManifestCompressionBenchmark {
+
+  static final int ENTRY_BASE = 300_000;
 
   private static final int FORMAT_VERSION = 4;
 
@@ -99,7 +100,7 @@ public class ManifestCompressionBenchmark {
             : PartitionSpec.unpartitioned();
     this.specsById = Map.of(spec.specId(), spec);
     this.writerProperties = Map.of(TableProperties.AVRO_COMPRESSION, codec);
-    int numEntries = ManifestBenchmarkUtil.entriesForColumnCount(numCols);
+    int numEntries = ManifestBenchmarkUtil.entriesForColumnCount(ENTRY_BASE, numCols);
     this.dataFiles = ManifestBenchmarkUtil.generateDataFiles(spec, numEntries, numCols);
     setupReadManifest();
   }

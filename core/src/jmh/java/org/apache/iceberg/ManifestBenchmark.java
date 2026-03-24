@@ -51,9 +51,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * versionFormat} parameter encodes valid combinations as {@code "<version>_<format>"} (e.g. {@code
  * "4_PARQUET"}) so that only meaningful pairings are benchmarked.
  *
- * <p>Entry counts are calibrated per column count via {@link ManifestBenchmarkUtil#ENTRY_BASE}. Set
- * to 300_000 for ~8 MB manifests (matching the default {@code commit.manifest.target-size-bytes})
- * or 15_000 for ~400 KB.
+ * <p>Entry counts are calibrated per column count via {@link #ENTRY_BASE}. Set to 300_000 for ~8 MB
+ * manifests (matching the default {@code commit.manifest.target-size-bytes}) or 15_000 for ~400 KB.
  *
  * <p>To run this benchmark:
  *
@@ -86,6 +85,8 @@ import org.openjdk.jmh.infra.Blackhole;
 @Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
 public class ManifestBenchmark {
 
+  static final int ENTRY_BASE = 300_000;
+
   @Param({"1_AVRO", "2_AVRO", "3_AVRO", "4_AVRO", "4_PARQUET"})
   private String versionFormat;
 
@@ -117,7 +118,7 @@ public class ManifestBenchmark {
             ? ManifestBenchmarkUtil.SPEC
             : PartitionSpec.unpartitioned();
     this.specsById = ImmutableMap.of(spec.specId(), spec);
-    int numEntries = ManifestBenchmarkUtil.entriesForColumnCount(numCols);
+    int numEntries = ManifestBenchmarkUtil.entriesForColumnCount(ENTRY_BASE, numCols);
     this.dataFiles = ManifestBenchmarkUtil.generateDataFiles(spec, numEntries, numCols);
     setupReadManifest();
   }
