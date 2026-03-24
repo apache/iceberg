@@ -961,6 +961,46 @@ project(':iceberg-arrow') {
   }
 }
 
+project(':iceberg-lance') {
+  test {
+    useJUnitPlatform()
+    jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  }
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-arrow')
+
+    implementation(libs.arrow.vector) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    implementation(libs.arrow.memory.netty) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'io.netty', module: 'netty-buffer'
+    }
+
+    // Lance Java SDK (external dependency)
+    implementation 'org.lance:lance-core:4.1.0-beta.0'
+
+    // Spark (compileOnly — provided at runtime by Spark environment)
+    compileOnly("org.apache.spark:spark-hive_2.13:${libs.versions.spark41.get()}") {
+      exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'org.roaringbitmap'
+    }
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+  }
+}
+
 project(':iceberg-nessie') {
   test {
     useJUnitPlatform()

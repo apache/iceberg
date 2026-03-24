@@ -326,6 +326,14 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
     relocate 'org.apache.datasketches', 'org.apache.iceberg.shaded.org.apache.datasketches'
 
+    // Exclude Lance module and its dependencies from the shadow jar.
+    // Lance SDK uses JNI with hardcoded Arrow class names — relocating Arrow breaks it.
+    // Users must add iceberg-lance.jar and lance-core.jar separately to the classpath.
+    exclude 'org/apache/iceberg/lance/**'
+    exclude 'org/lance/**'
+    exclude 'nativelib/**'
+    exclude 'io/questdb/**'
+
     archiveClassifier.set(null)
   }
 
