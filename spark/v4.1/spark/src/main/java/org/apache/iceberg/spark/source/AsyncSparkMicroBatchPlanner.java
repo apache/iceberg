@@ -295,8 +295,10 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         queuedFileCount.get(),
         queuedRowCount.get());
 
-    // Convert to list for indexed access
     List<Pair<StreamingOffset, FileScanTask>> queueList = Lists.newArrayList(queue);
+    Pair<StreamingOffset, FileScanTask> queueTail =
+        queueList.isEmpty() ? null : queueList.get(queueList.size() - 1);
+
     for (int i = 0; i < queueList.size(); i++) {
       Pair<StreamingOffset, FileScanTask> elem = queueList.get(i);
       long fileRows = elem.second().file().recordCount();
@@ -355,9 +357,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     }
 
     // if we got here there aren't enough files to exceed our limits
-    Pair<StreamingOffset, FileScanTask> tail = queue.peekLast();
-    if (tail != null) {
-      StreamingOffset tailOffset = tail.first();
+    if (queueTail != null) {
+      StreamingOffset tailOffset = queueTail.first();
       // we have to increment the position by 1 since we want to include the tail in the read and
       // position is non-inclusive
       StreamingOffset latestOffset =
