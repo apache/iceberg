@@ -91,21 +91,10 @@ public class TestRefreshStateParser {
   @Test
   public void testRoundTripMixedSourceStates() {
     SourceTableState tableState =
-        new SourceTableState(
-            "events",
-            Arrays.asList("default"),
-            null,
-            "uuid-1",
-            100L,
-            "main");
+        new SourceTableState("events", Arrays.asList("default"), null, "uuid-1", 100L, "main");
 
     SourceViewState viewState =
-        new SourceViewState(
-            "event_summary",
-            Arrays.asList("default"),
-            null,
-            "uuid-2",
-            3);
+        new SourceViewState("event_summary", Arrays.asList("default"), null, "uuid-2", 3);
 
     RefreshState refreshState =
         new RefreshState(1, Arrays.asList(tableState, viewState), 1573518435000L);
@@ -145,15 +134,13 @@ public class TestRefreshStateParser {
     SourceTableState tableState = (SourceTableState) parsed.sourceStates().get(0);
     Assertions.assertThat(tableState.name()).isEqualTo("events");
     Assertions.assertThat(tableState.namespace()).containsExactly("default");
-    Assertions.assertThat(tableState.uuid())
-        .isEqualTo("d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d");
+    Assertions.assertThat(tableState.uuid()).isEqualTo("d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d");
     Assertions.assertThat(tableState.snapshotId()).isEqualTo(6148331192489823102L);
   }
 
   @Test
   public void testEmptySourceStates() {
-    RefreshState refreshState =
-        new RefreshState(1, Collections.emptyList(), 1573518435000L);
+    RefreshState refreshState = new RefreshState(1, Collections.emptyList(), 1573518435000L);
 
     String json = RefreshStateParser.toJson(refreshState);
     RefreshState parsed = RefreshStateParser.fromJson(json);

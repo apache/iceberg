@@ -58,8 +58,7 @@ public class RefreshStateParser {
     generator.writeStartObject();
 
     generator.writeNumberField(VIEW_VERSION_ID, refreshState.viewVersionId());
-    generator.writeNumberField(
-        REFRESH_START_TIMESTAMP_MS, refreshState.refreshStartTimestampMs());
+    generator.writeNumberField(REFRESH_START_TIMESTAMP_MS, refreshState.refreshStartTimestampMs());
 
     generator.writeArrayFieldStart(SOURCE_STATES);
     for (SourceState sourceState : refreshState.sourceStates()) {
@@ -124,8 +123,7 @@ public class RefreshStateParser {
   private static SourceState parseSourceState(JsonNode node) {
     String type = JsonUtil.getString(TYPE, node);
     String name = JsonUtil.getString(NAME, node);
-    List<String> namespace =
-        Arrays.asList(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, node)));
+    List<String> namespace = Arrays.asList(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, node)));
     String catalog = JsonUtil.getStringOrNull(CATALOG, node);
     String uuid = JsonUtil.getString(UUID, node);
 
