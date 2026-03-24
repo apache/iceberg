@@ -597,6 +597,15 @@ class LoadCredentialsResponse(BaseModel):
     )
 
 
+class ColumnLabels(BaseModel):
+    field_id: int = Field(
+        ..., alias='field-id', description="Field ID from the table's current schema"
+    )
+    labels: dict[str, str] = Field(
+        ..., description='Metadata labels for this column as string key-value pairs'
+    )
+
+
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -1154,6 +1163,34 @@ class ViewRequirement(RootModel[AssertViewUUID]):
     root: AssertViewUUID = Field(..., discriminator='type')
 
 
+class Labels(BaseModel):
+    """
+    Catalog-specific metadata enrichment returned alongside table metadata.
+    Labels are ephemeral API-level annotations — they are NOT part of table state,
+    do not modify table metadata files, and do not create commits or snapshots.
+
+    Catalogs MAY populate labels in LoadTableResult to provide operational context
+    such as ownership, data classification, cost attribution, or semantic hints.
+    Engines MAY use labels for operational decisions or ignore them entirely.
+
+    Labels are scoped to the catalog that serves them. Different catalogs serving
+    the same table may return different labels, reflecting each catalog's context.
+
+    The spec defines no registry of label keys. Each catalog publishes its own
+    label schema. Interoperability comes from bilateral agreements and community
+    conventions, not a centralized registry.
+
+    """
+
+    table: dict[str, str] | None = Field(
+        None, description='Table-level metadata labels as string key-value pairs'
+    )
+    columns: list[ColumnLabels] | None = Field(
+        None,
+        description='Column-level metadata labels, keyed by field-id for stability across schema evolution',
+    )
+
+
 class FailedPlanningResult(IcebergErrorResponse):
     """
     Failed server-side planning result
@@ -1582,6 +1619,7 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
+    labels: Labels | None = None
 
 
 class ScanTasks(BaseModel):
