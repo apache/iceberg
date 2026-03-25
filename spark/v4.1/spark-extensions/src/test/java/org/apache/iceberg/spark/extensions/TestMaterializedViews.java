@@ -160,7 +160,8 @@ public class TestMaterializedViews extends ExtensionsTestBase {
 
     // Fresh MV: loadView should throw since the engine should use loadTable instead
     assertThatThrownBy(() -> sparkViewCatalog().loadView(viewIdentifier()))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("fresh");
   }
 
   @TestTemplate
@@ -182,7 +183,8 @@ public class TestMaterializedViews extends ExtensionsTestBase {
 
     // Stale MV: loadTable should not resolve to the MV's storage table
     assertThatThrownBy(() -> sparkTableCatalog().loadTable(viewIdentifier()))
-        .isInstanceOf(NoSuchTableException.class);
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining(materializedViewName);
   }
 
   @TestTemplate
