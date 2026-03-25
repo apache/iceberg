@@ -59,6 +59,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
+  private static final Types.NestedField UNPARTITIONED_PARTITION_FIELD =
+      Types.NestedField.optional(
+          DataFile.PARTITION_ID,
+          DataFile.PARTITION_NAME,
+          Types.StructType.of(),
+          DataFile.PARTITION_DOC);
+
   private static final Set<String> STATS_COLUMNS =
       ImmutableSet.of(
           "value_counts",
@@ -289,8 +296,20 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     boolean unpartitioned = spec.rawPartitionType().fields().isEmpty();
 
+    // V4+ manifests omit the partition field when unpartitioned (Parquet cannot represent
+    // empty structs, and the field is meaningless regardless of format). Mark it optional so
+    // the reader returns null for the missing field instead of throwing. The field must stay
+    // in the projection to preserve positional access for callers like StructProjection.
+    // For older versions where the empty struct is present, making it optional is harmless.
     List<Types.NestedField> fields = Lists.newArrayList();
-    fields.addAll(projection.asStruct().fields());
+    for (Types.NestedField field : projection.asStruct().fields()) {
+      if (unpartitioned && field.fieldId() == DataFile.PARTITION_ID) {
+        fields.add(UNPARTITIONED_PARTITION_FIELD);
+      } else {
+        fields.add(field);
+      }
+    }
+
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
       fields.add(DataFile.RECORD_COUNT);
     }
@@ -299,22 +318,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     }
     fields.add(MetadataColumns.ROW_POSITION);
 
-    // V4+ manifests omit the partition field when unpartitioned (Parquet cannot represent
-    // empty structs, and the field is meaningless regardless of format). For older versions
-    // the empty struct is present but safe to skip.
-    if (unpartitioned) {
-      fields.removeIf(f -> f.fieldId() == DataFile.PARTITION_ID);
-    }
-
     InternalData.ReadBuilder readBuilder =
         InternalData.read(format, file)
             .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
             .setRootType(GenericManifestEntry.class)
-            .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass());
-
-    if (!unpartitioned) {
-      readBuilder.setCustomType(DataFile.PARTITION_ID, PartitionData.class);
-    }
+            .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
+            .setCustomType(DataFile.PARTITION_ID, PartitionData.class);
 
     readBuilder.reuseContainers();
 
