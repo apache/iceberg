@@ -108,7 +108,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       // If retries occurred, an earlier attempt may have succeeded. If we got a
       // RuntimeIOException, we have no way of knowing if the request reached the server.
       // In either case, check whether the commit actually succeeded.
-      if (isRuntimeIOException || retryDetector.retried()) {
+      if ((isRuntimeIOException || retryDetector.retried()) && newMetadataLocation != null) {
         LOG.warn(
             "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
             tableName(),

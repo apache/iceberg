@@ -49,8 +49,8 @@ public class TestRetryDetector {
               })
           .call();
     } catch (Exception e) {
-      // an exception is expected, we're verifying the counter increments before the callable
-      // executes
+      // an exception is expected, we're verifying the counter increments even when the callable
+      // throws an exception
     }
     assertThat(detector.attempts()).isEqualTo(1);
     assertThat(detector.retried()).isFalse();
