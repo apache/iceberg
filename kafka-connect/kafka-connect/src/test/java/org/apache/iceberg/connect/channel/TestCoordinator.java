@@ -451,8 +451,8 @@ public class TestCoordinator extends ChannelTestBase {
         producer.history().stream()
             .anyMatch(
                 r -> {
-                  Event e = AvroUtil.decode(r.value());
-                  return e.type() == PayloadType.COMMIT_COMPLETE;
+                  Event event = AvroUtil.decode(r.value());
+                  return event.type() == PayloadType.COMMIT_COMPLETE;
                 });
     assertThat(hasCommitComplete).isFalse();
   }
@@ -548,7 +548,7 @@ public class TestCoordinator extends ChannelTestBase {
               .map(r -> AvroUtil.decode(r.value()))
               .filter(e -> e.type() == PayloadType.START_COMMIT)
               .reduce((first, second) -> second) // last element
-              .map(e -> ((StartCommit) e.payload()).commitId())
+              .map(ev -> ((StartCommit) ev.payload()).commitId())
               .orElseThrow(() -> new AssertionError("No StartCommit found in producer history"));
 
       // Inject DataComplete so the next cycle's commit is ready to fire.
@@ -562,7 +562,9 @@ public class TestCoordinator extends ChannelTestBase {
     }
 
     // On the next process() the stale group has exceeded its retry budget — must throw.
-    assertThatThrownBy(coordinator::process).isInstanceOf(ConnectException.class);
+    assertThatThrownBy(coordinator::process)
+        .isInstanceOf(ConnectException.class)
+        .hasMessageContaining("Connector stopping");
   }
 
   @Test
@@ -642,8 +644,8 @@ public class TestCoordinator extends ChannelTestBase {
         producer.history().stream()
             .anyMatch(
                 r -> {
-                  Event e = AvroUtil.decode(r.value());
-                  return e.type() == PayloadType.COMMIT_COMPLETE;
+                  Event event = AvroUtil.decode(r.value());
+                  return event.type() == PayloadType.COMMIT_COMPLETE;
                 });
     assertThat(hasCommitComplete).isFalse();
   }
@@ -719,7 +721,9 @@ public class TestCoordinator extends ChannelTestBase {
 
     // Second process(): tbl's current group commits successfully, then tbl2's stale group
     // exhausts retries (maxRetries=0) and throws ConnectException.
-    assertThatThrownBy(coordinator::process).isInstanceOf(ConnectException.class);
+    assertThatThrownBy(coordinator::process)
+        .isInstanceOf(ConnectException.class)
+        .hasMessageContaining("Connector stopping");
 
     // db.tbl must have 1 snapshot — committed before the exception was thrown.
     table.refresh();
@@ -846,7 +850,9 @@ public class TestCoordinator extends ChannelTestBase {
     byte[] finalReadyBytes = AvroUtil.encode(finalReady);
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, offset++, "key", finalReadyBytes));
 
-    assertThatThrownBy(coordinator::process).isInstanceOf(ConnectException.class);
+    assertThatThrownBy(coordinator::process)
+        .isInstanceOf(ConnectException.class)
+        .hasMessageContaining("Connector stopping");
 
     // db.tbl has 4 snapshots: 3 from blocking cycles + 1 from the final cycle
     // (good table commits in parallel before the bad table's exception propagates).
@@ -938,8 +944,8 @@ public class TestCoordinator extends ChannelTestBase {
         producer.history().stream()
             .anyMatch(
                 r -> {
-                  Event e = AvroUtil.decode(r.value());
-                  return e.type() == PayloadType.COMMIT_COMPLETE;
+                  Event event = AvroUtil.decode(r.value());
+                  return event.type() == PayloadType.COMMIT_COMPLETE;
                 });
     assertThat(hasCommitComplete).isFalse();
   }

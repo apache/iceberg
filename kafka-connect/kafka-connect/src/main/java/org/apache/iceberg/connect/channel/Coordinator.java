@@ -200,7 +200,7 @@ class Coordinator extends Channel {
     }
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   private void doCommit(boolean partialCommit) {
     Map<TableReference, List<CommitState.CommitGroup>> commitGroups =
         commitState.tableCommitGroups();
