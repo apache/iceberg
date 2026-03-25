@@ -877,15 +877,28 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return manifests;
     }
 
+    // if any concurrent manifest was written with a different partition spec, skip pruning
+    // to avoid incorrectly excluding manifests when a spec change happened during validation
+    int defaultSpecId = base.defaultSpecId();
+    if (manifests.stream().anyMatch(m -> m.partitionSpecId() != defaultSpecId)) {
+      return manifests;
+    }
+
     Map<Integer, PartitionSpec> specsById = base.specsById();
+    Map<Integer, ManifestEvaluator> evaluators = Maps.newHashMap();
     return Iterables.filter(
         manifests,
         manifest -> {
-          PartitionSpec spec = specsById.get(manifest.partitionSpecId());
-          Expression partitionFilter =
-              Projections.inclusive(spec, caseSensitive).project(conflictDetectionFilter);
           ManifestEvaluator evaluator =
-              ManifestEvaluator.forPartitionFilter(partitionFilter, spec, caseSensitive);
+              evaluators.computeIfAbsent(
+                  manifest.partitionSpecId(),
+                  specId -> {
+                    PartitionSpec spec = specsById.get(specId);
+                    Expression partitionFilter =
+                        Projections.inclusive(spec, caseSensitive).project(conflictDetectionFilter);
+                    return ManifestEvaluator.forPartitionFilter(
+                        partitionFilter, spec, caseSensitive);
+                  });
           return evaluator.eval(manifest);
         });
   }
