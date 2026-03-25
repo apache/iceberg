@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -61,7 +62,8 @@ class MicroBatchUtils {
     long addedFilesCount =
         PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
     return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
+        ? Iterables.size(
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles())
         : addedFilesCount;
   }
 }

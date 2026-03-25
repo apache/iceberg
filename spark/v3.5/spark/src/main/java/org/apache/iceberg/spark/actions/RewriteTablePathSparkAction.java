@@ -72,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.function.ForeachFunction;
@@ -317,7 +318,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         rewriteManifestResult.toRewrite().stream()
             .filter(e -> e instanceof DeleteFile)
             .map(e -> (DeleteFile) e)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toCollection(DeleteFileSet::create));
     rewritePositionDeletes(deleteFiles);
 
     ImmutableRewriteTablePath.Result.Builder builder =

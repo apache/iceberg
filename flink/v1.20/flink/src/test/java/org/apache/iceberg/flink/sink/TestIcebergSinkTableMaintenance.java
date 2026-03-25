@@ -42,6 +42,8 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
+import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
 import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
@@ -51,7 +53,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
-class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
+class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
   private static final String[] LOCK_TYPES = new String[] {LockConfig.JdbcLockConfig.JDBC, ""};
 
   private Map<String, String> flinkConf;
@@ -59,9 +61,6 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
   @BeforeEach
   void before() throws IOException {
     this.flinkConf = Maps.newHashMap();
-    flinkConf.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
-    flinkConf.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "1");
-    flinkConf.put(RewriteDataFilesConfig.PREFIX + SizeBasedFileRewritePlanner.REWRITE_ALL, "true");
 
     table =
         CATALOG_EXTENSION
@@ -84,6 +83,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
   @FieldSource("LOCK_TYPES")
   public void testCompactFileE2e(String lockType) throws Exception {
     setupLockConfig(lockType);
+    setupCompactionConfig();
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
     DataStream<RowData> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
@@ -124,6 +124,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
   @FieldSource("LOCK_TYPES")
   public void testTableMaintenanceOperatorAdded(String lockType) {
     setupLockConfig(lockType);
+    setupCompactionConfig();
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
     DataStream<RowData> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
@@ -147,6 +148,22 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
     assertThat(containRewrite).isTrue();
   }
 
+  private void setupCompactionConfig() {
+    flinkConf.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
+    flinkConf.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "1");
+    flinkConf.put(RewriteDataFilesConfig.PREFIX + SizeBasedFileRewritePlanner.REWRITE_ALL, "true");
+  }
+
+  private void setupExpireSnapshotsConfig() {
+    flinkConf.put(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.key(), "true");
+    flinkConf.put(ExpireSnapshotsConfig.RETAIN_LAST, "5");
+  }
+
+  private void setupDeleteOrphanFilesConfig() {
+    flinkConf.put(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.key(), "true");
+    flinkConf.put(DeleteOrphanFilesConfig.MIN_AGE_SECONDS, "86400");
+  }
+
   private void setupLockConfig(String lockType) {
     if (lockType.equals(LockConfig.JdbcLockConfig.JDBC)) {
       flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
@@ -158,5 +175,147 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
     } else {
       flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), "");
     }
+  }
+
+  @ParameterizedTest(name = "lockType = {0}")
+  @FieldSource("LOCK_TYPES")
+  public void testExpireSnapshotsEnabled(String lockType) {
+    setupLockConfig(lockType);
+    setupExpireSnapshotsConfig();
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .setAll(flinkConf)
+        .append();
+
+    StreamGraph streamGraph = env.getStreamGraph();
+    boolean containExpire = false;
+    for (JobVertex vertex : streamGraph.getJobGraph().getVertices()) {
+      if (vertex.getName().contains("Expire")) {
+        containExpire = true;
+        break;
+      }
+    }
+
+    assertThat(containExpire).isTrue();
+  }
+
+  @ParameterizedTest(name = "lockType = {0}")
+  @FieldSource("LOCK_TYPES")
+  public void testDeleteOrphanFilesEnabled(String lockType) {
+    setupLockConfig(lockType);
+    setupDeleteOrphanFilesConfig();
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .setAll(flinkConf)
+        .append();
+
+    StreamGraph streamGraph = env.getStreamGraph();
+    boolean containOrphan = false;
+    for (JobVertex vertex : streamGraph.getJobGraph().getVertices()) {
+      if (vertex.getName().contains("Orphan")) {
+        containOrphan = true;
+        break;
+      }
+    }
+
+    assertThat(containOrphan).isTrue();
+  }
+
+  @ParameterizedTest(name = "lockType = {0}")
+  @FieldSource("LOCK_TYPES")
+  public void testAllMaintenanceTasksCombined(String lockType) {
+    setupLockConfig(lockType);
+    setupCompactionConfig();
+    setupExpireSnapshotsConfig();
+    setupDeleteOrphanFilesConfig();
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .setAll(flinkConf)
+        .append();
+
+    StreamGraph streamGraph = env.getStreamGraph();
+    boolean containRewrite = false;
+    boolean containExpire = false;
+    boolean containOrphan = false;
+    for (JobVertex vertex : streamGraph.getJobGraph().getVertices()) {
+      if (vertex.getName().contains("Rewrite")) {
+        containRewrite = true;
+      }
+
+      if (vertex.getName().contains("Expire")) {
+        containExpire = true;
+      }
+
+      if (vertex.getName().contains("Orphan")) {
+        containOrphan = true;
+      }
+    }
+
+    assertThat(containRewrite).isTrue();
+    assertThat(containExpire).isTrue();
+    assertThat(containOrphan).isTrue();
+  }
+
+  @ParameterizedTest(name = "lockType = {0}")
+  @FieldSource("LOCK_TYPES")
+  public void testAllMaintenanceE2e(String lockType) throws Exception {
+    setupLockConfig(lockType);
+
+    Map<String, String> compactionConfig = Maps.newHashMap();
+    compactionConfig.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "1");
+    compactionConfig.put(
+        RewriteDataFilesConfig.PREFIX + SizeBasedFileRewritePlanner.REWRITE_ALL, "true");
+
+    Map<String, String> expireConfig = Maps.newHashMap();
+    expireConfig.put(ExpireSnapshotsConfig.RETAIN_LAST, "5");
+
+    Map<String, String> orphanConfig = Maps.newHashMap();
+    orphanConfig.put(DeleteOrphanFilesConfig.MIN_AGE_SECONDS, "86400");
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    IcebergSink.forRowData(dataStream)
+        .setAll(flinkConf)
+        .table(table)
+        .tableLoader(tableLoader)
+        .rewriteDataFiles(compactionConfig)
+        .expireSnapshots(expireConfig)
+        .deleteOrphanFiles(orphanConfig)
+        .append();
+
+    env.execute("Test All Maintenance E2E");
+
+    table.refresh();
+    // Compaction should have merged the 3 data files into 1
+    List<DataFile> afterCompactDataFiles = getDataFiles(table.currentSnapshot(), table);
+    assertThat(afterCompactDataFiles).hasSize(1);
+
+    List<DataFile> preCompactDataFiles =
+        getDataFiles(table.snapshot(table.currentSnapshot().parentId()), table);
+    assertThat(preCompactDataFiles).hasSize(3);
   }
 }

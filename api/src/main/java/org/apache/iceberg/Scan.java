@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -211,7 +212,7 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   }
 
   /** Returns the {@link FileIO} instance to use when reading data files for this scan. */
-  default FileIO io() {
-    throw new UnsupportedOperationException("io() is not implemented: added in 1.11.0");
+  default Supplier<FileIO> fileIO() {
+    throw new UnsupportedOperationException("fileIO() is not implemented: added in 1.11.0");
   }
 }

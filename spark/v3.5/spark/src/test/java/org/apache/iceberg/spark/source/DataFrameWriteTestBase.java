@@ -32,6 +32,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
@@ -125,9 +126,9 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
 
     writeRecords(table, RandomData.generateList(table.schema(), 100, 87112L));
 
-    table
-        .currentSnapshot()
-        .addedDataFiles(table.io())
+    SnapshotChanges.builderFor(table)
+        .build()
+        .addedDataFiles()
         .forEach(
             dataFile ->
                 assertThat(dataFile.location())

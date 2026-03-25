@@ -29,6 +29,11 @@ interface DataGenerator {
 
   /** Generates test records using RandomGenericData. */
   default List<Record> generateRecords() {
-    return RandomGenericData.generate(schema(), 10, 1L);
+    return generateRecords(10);
+  }
+
+  /** Generates test records using RandomGenericData. */
+  default List<Record> generateRecords(int count) {
+    return RandomGenericData.generate(schema(), count, 1L);
   }
 }

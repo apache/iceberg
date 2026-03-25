@@ -1722,7 +1722,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
 
@@ -1801,7 +1801,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
 
@@ -1867,7 +1867,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 1 file")
         .hasSize(1);
 

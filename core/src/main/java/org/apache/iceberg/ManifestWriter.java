@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
@@ -47,6 +48,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
   private final Long firstRowId;
+  private final Map<String, String> writerProperties;
 
   private boolean closed = false;
   private int addedFiles = 0;
@@ -58,9 +60,14 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private Long minDataSequenceNumber = null;
 
   private ManifestWriter(
-      PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
+      PartitionSpec spec,
+      EncryptedOutputFile file,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
     this.file = file.encryptingOutputFile();
     this.specId = spec.specId();
+    this.writerProperties = writerProperties;
     this.writer = newAppender(spec, this.file);
     this.snapshotId = snapshotId;
     this.reused =
@@ -74,6 +81,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
+
+  protected Map<String, String> writerProperties() {
+    return writerProperties;
+  }
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
@@ -238,8 +249,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V4Writer extends ManifestWriter<DataFile> {
     private final V4Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
-    V4Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
-      super(spec, file, snapshotId, firstRowId);
+    V4Writer(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Long firstRowId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, firstRowId, writerProperties);
       this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -261,6 +277,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "4")
             .meta("content", "data")
+            .set(writerProperties())
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -273,8 +290,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V4DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V4Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
 
-    V4DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
+    V4DeleteWriter(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, null, writerProperties);
       this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -296,6 +317,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "4")
             .meta("content", "deletes")
+            .set(writerProperties())
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -313,8 +335,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V3Writer extends ManifestWriter<DataFile> {
     private final V3Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
-    V3Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
-      super(spec, file, snapshotId, firstRowId);
+    V3Writer(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Long firstRowId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, firstRowId, writerProperties);
       this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -336,6 +363,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "3")
             .meta("content", "data")
+            .set(writerProperties())
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -348,8 +376,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V3DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V3Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
 
-    V3DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
+    V3DeleteWriter(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, null, writerProperties);
       this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -371,6 +403,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "3")
             .meta("content", "deletes")
+            .set(writerProperties())
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -388,8 +421,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2Writer extends ManifestWriter<DataFile> {
     private final V2Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
-    V2Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
+    V2Writer(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, null, writerProperties);
       this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -411,6 +448,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "2")
             .meta("content", "data")
+            .set(writerProperties())
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -423,8 +461,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V2Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
 
-    V2DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
+    V2DeleteWriter(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, null, writerProperties);
       this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -446,6 +488,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "2")
             .meta("content", "deletes")
+            .set(writerProperties())
             .overwrite()
             .build();
       } catch (IOException e) {
@@ -463,8 +506,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.ManifestEntryWrapper entryWrapper;
 
-    V1Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
+    V1Writer(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, null, writerProperties);
       this.entryWrapper = new V1Metadata.ManifestEntryWrapper();
     }
 
@@ -485,6 +532,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "1")
+            .set(writerProperties())
             .overwrite()
             .build();
       } catch (IOException e) {

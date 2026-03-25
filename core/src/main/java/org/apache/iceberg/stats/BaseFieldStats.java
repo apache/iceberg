@@ -18,16 +18,18 @@
  */
 package org.apache.iceberg.stats;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.util.Objects;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
-public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
+public class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T> {
+  private static final int[] IDENTITY_MAPPING = identityMapping();
   private final int fieldId;
   private final Type type;
   private final Long valueCount;
@@ -41,6 +43,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
   private BaseFieldStats(
       int fieldId,
+      int[] fromProjectionPos,
       Type type,
       Long valueCount,
       Long nullValueCount,
@@ -50,6 +53,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
       T lowerBound,
       T upperBound,
       boolean hasExactBounds) {
+    super(fromProjectionPos != null ? fromProjectionPos : IDENTITY_MAPPING);
     this.fieldId = fieldId;
     this.type = type;
     this.valueCount = valueCount;
@@ -60,6 +64,36 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
     this.hasExactBounds = hasExactBounds;
+  }
+
+  private static int[] identityMapping() {
+    int numStats = FieldStatistic.values().length;
+    int[] mapping = new int[numStats];
+    for (int i = 0; i < numStats; i++) {
+      mapping[i] = i;
+    }
+
+    return mapping;
+  }
+
+  /**
+   * Computes a position mapping from the column-specific stats struct to the full 8-field struct.
+   * Each entry maps a projected position to its base position (0-based) using the field ID offsets
+   * from the column's base stats field ID.
+   */
+  private static int[] projectionMapping(Types.StructType statsStruct, int dataFieldId) {
+    if (statsStruct == null) {
+      return null;
+    }
+
+    int baseStatsFieldId = StatsUtil.statsFieldIdForField(dataFieldId);
+    int[] mapping = new int[statsStruct.fields().size()];
+    for (int i = 0; i < mapping.length; i++) {
+      // offset is 1-based (matching FieldStatistic.offset()), position is 0-based
+      mapping[i] = statsStruct.fields().get(i).fieldId() - baseStatsFieldId - 1;
+    }
+
+    return mapping;
   }
 
   @Override
@@ -144,12 +178,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   }
 
   @Override
-  public int size() {
-    return 8;
-  }
-
-  @Override
-  public <X> X get(int pos, Class<X> javaClass) {
+  protected <X> X internalGet(int pos, Class<X> javaClass) {
     return switch (FieldStatistic.fromPosition(pos)) {
       case VALUE_COUNT -> javaClass.cast(valueCount);
       case NULL_VALUE_COUNT -> javaClass.cast(nullValueCount);
@@ -164,7 +193,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   }
 
   @Override
-  public void set(int pos, Object value) {
+  protected <X> void internalSet(int pos, X value) {
     throw new UnsupportedOperationException("set() not supported");
   }
 
@@ -239,6 +268,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
   public static class Builder<T> {
     private int fieldId;
+    private int[] fromProjectionPos;
     private Type type;
     private Long valueCount;
     private Long nullValueCount;
@@ -250,6 +280,11 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     private boolean hasExactBounds;
 
     private Builder() {}
+
+    public Builder<T> statsStruct(Types.StructType statsStruct) {
+      this.fromProjectionPos = projectionMapping(statsStruct, fieldId);
+      return this;
+    }
 
     public Builder<T> type(Type newType) {
       this.type = newType;
@@ -333,6 +368,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
       return new BaseFieldStats<>(
           fieldId,
+          fromProjectionPos,
           type,
           valueCount,
           nullValueCount,

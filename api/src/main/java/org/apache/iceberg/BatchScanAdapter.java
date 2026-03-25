@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -40,8 +41,8 @@ public class BatchScanAdapter implements BatchScan {
   }
 
   @Override
-  public FileIO io() {
-    return scan.io();
+  public Supplier<FileIO> fileIO() {
+    return scan.fileIO();
   }
 
   @Override

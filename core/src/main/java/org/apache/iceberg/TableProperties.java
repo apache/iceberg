@@ -191,6 +191,12 @@ public class TableProperties {
   public static final String DELETE_AVRO_COMPRESSION_LEVEL = "write.delete.avro.compression-level";
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
 
+  public static final String MANIFEST_COMPRESSION = "write.manifest.compression-codec";
+  public static final String MANIFEST_COMPRESSION_DEFAULT = "gzip";
+
+  public static final String MANIFEST_COMPRESSION_LEVEL = "write.manifest.compression-level";
+  public static final String MANIFEST_COMPRESSION_LEVEL_DEFAULT = null;
+
   public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
 
   public static final String ORC_BLOOM_FILTER_COLUMNS = "write.orc.bloom.filter.columns";
