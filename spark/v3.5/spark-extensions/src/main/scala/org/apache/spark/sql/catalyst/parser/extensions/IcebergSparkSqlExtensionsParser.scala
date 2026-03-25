@@ -54,7 +54,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
 
   private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
-  private lazy final val CREATE_MATERIALIZED_VIEW_PATTERN = "(?i)(CREATE)\\s+MATERIALIZED\\s+(VIEW)".r
+  private lazy final val CREATE_MATERIALIZED_VIEW_PATTERN =
+    "(?i)(CREATE)\\s+MATERIALIZED\\s+(VIEW)".r
   private lazy final val MATERIALIZED_VIEW_STORED_AS_PATTERN = "(?i)STORED AS\\s*'(\\w+)'\\s*".r
 
   /**
@@ -122,9 +123,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }
         .asInstanceOf[LogicalPlan]
     } else if (isCreateMaterializedView(sqlText)) {
-      RewriteViewCommands(SparkSession.active, Option(getMaterializedViewOptions(sqlText))).apply(
-        delegate.parsePlan(getCreateMaterializedViewStatement(sqlText))
-      )
+      RewriteViewCommands(SparkSession.active, Option(getMaterializedViewOptions(sqlText)))
+        .apply(delegate.parsePlan(getCreateMaterializedViewStatement(sqlText)))
     } else {
       RewriteViewCommands(SparkSession.active, None).apply(delegate.parsePlan(sqlText))
     }
@@ -169,7 +169,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
   }
 
   private def getCreateMaterializedViewStatement(sqlText: String): String = {
-    val createViewSql = CREATE_MATERIALIZED_VIEW_PATTERN.replaceAllIn(sqlText, m => m.group(1) + " " + m.group(2))
+    val createViewSql =
+      CREATE_MATERIALIZED_VIEW_PATTERN.replaceAllIn(sqlText, m => m.group(1) + " " + m.group(2))
     MATERIALIZED_VIEW_STORED_AS_PATTERN.replaceAllIn(createViewSql, "")
   }
 
