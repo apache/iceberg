@@ -28,6 +28,8 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -52,32 +54,35 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestMaterializedViews extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestMaterializedViews extends ExtensionsTestBase {
   private static final Namespace NAMESPACE = Namespace.of("default");
   private final String tableName = "table";
   private final String materializedViewName = "materialized_view";
 
-  @Before
+  @BeforeEach
+  @Override
   public void before() {
+    super.before();
     spark.conf().set("spark.sql.defaultCatalog", catalogName);
     sql("USE %s", catalogName);
     sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
     sql("CREATE TABLE %s (id INT, data STRING)", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTable() {
     sql("USE %s", catalogName);
     sql("DROP VIEW IF EXISTS %s", materializedViewName);
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     Map<String, String> properties =
         Maps.newHashMap(SparkCatalogConfig.SPARK_WITH_MATERIALIZED_VIEWS.properties());
@@ -103,12 +108,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
     }
   }
 
-  public TestMaterializedViews(
-      String catalog, String implementation, Map<String, String> properties) {
-    super(catalog, implementation, properties);
-  }
-
-  @Test
+  @TestTemplate
   public void testStorageTableFieldOnViewVersion() {
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
 
@@ -120,7 +120,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
     assertThat(view.currentVersion().storageTable().namespace()).isEqualTo(NAMESPACE);
   }
 
-  @Test
+  @TestTemplate
   public void testNeverRefreshedMvIsNotFresh() {
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
 
@@ -133,7 +133,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReadFromStorageTableWhenFresh() {
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
@@ -153,7 +153,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalStateException.class);
   }
 
-  @Test
+  @TestTemplate
   public void testFallbackToViewWhenStale() {
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
@@ -175,7 +175,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
         .isInstanceOf(NoSuchTableException.class);
   }
 
-  @Test
+  @TestTemplate
   public void testStorageTableCreatedBeforeMvMetadata() {
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
 
@@ -188,7 +188,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
         .anySatisfy(row -> assertThat(row[1]).isEqualTo(storageTableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultStorageTableNaming() {
     sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
 
@@ -198,7 +198,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
         .anySatisfy(row -> assertThat(row[1]).isEqualTo(expectedStorageTableName));
   }
 
-  @Test
+  @TestTemplate
   public void testStoredAsClause() {
     String customTableName = "custom_table_name";
     sql(
