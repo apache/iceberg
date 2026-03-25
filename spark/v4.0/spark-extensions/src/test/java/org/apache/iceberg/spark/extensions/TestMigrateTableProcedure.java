@@ -288,4 +288,21 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
         ImmutableList.of(row("a", 1L), row("b", 2L)),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
+
+  @TestTemplate
+  public void testMigrateBucketedTable() throws IOException {
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet "
+            + "CLUSTERED BY (id) INTO 4 BUCKETS LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate('%s')", catalogName, tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot create an Iceberg table from a bucketed source table: "
+                + "4 buckets, bucket columns: [id]");
+  }
 }

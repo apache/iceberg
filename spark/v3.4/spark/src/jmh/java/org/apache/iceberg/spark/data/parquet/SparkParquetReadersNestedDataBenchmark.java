@@ -25,9 +25,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -58,8 +60,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * A benchmark that evaluates the performance of reading nested Parquet data using Iceberg and Spark
  * Parquet readers.
  *
- * <p>To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
+ * <p>To run this benchmark for spark-3.4: <code>
+ *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetReadersNestedDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-readers-nested-data-benchmark-result.txt
  * </code>
@@ -111,9 +113,9 @@ public class SparkParquetReadersNestedDataBenchmark {
   @Threads(1)
   public void readUsingIcebergReader(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows =
-        Parquet.read(Files.localInput(dataFile))
+        FormatModelRegistry.readBuilder(
+                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
             .project(SCHEMA)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
             .build()) {
 
       for (InternalRow row : rows) {
@@ -169,9 +171,9 @@ public class SparkParquetReadersNestedDataBenchmark {
   @Threads(1)
   public void readWithProjectionUsingIcebergReader(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows =
-        Parquet.read(Files.localInput(dataFile))
+        FormatModelRegistry.readBuilder(
+                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
             .project(PROJECTED_SCHEMA)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
             .build()) {
 
       for (InternalRow row : rows) {

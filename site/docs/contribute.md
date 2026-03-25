@@ -190,7 +190,7 @@ being difficult to orchestrate, it is up to the committers to decide if deprecat
 All interfaces, classes, and methods targeted for deprecation must include the following:
 
 1. `@Deprecated` annotation on the appropriate element
-2. `@depreceted` javadoc comment including: the version for removal, the appropriate alternative for usage
+2. `@deprecated` javadoc comment including: the version for removal, the appropriate alternative for usage
 3. Replacement of existing code paths that use the deprecated behavior
 
 Example:
@@ -279,7 +279,7 @@ Execution failed for task ':iceberg-api:revapi'.
 
 ### Adding a default implementation
 
-To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:`
+To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:
 
 ```java
 public interface ManageSnapshots extends PendingUpdate<Snapshot> {
@@ -429,7 +429,7 @@ Use `this` when assigning values to instance variables, making it clear when the
 #### Config naming
 
 1. Use `-` to link words in one concept
-    * For example, preferred convection `access-key-id` rather than `access.key.id`
+    * For example, preferred convention `access-key-id` rather than `access.key.id`
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
 

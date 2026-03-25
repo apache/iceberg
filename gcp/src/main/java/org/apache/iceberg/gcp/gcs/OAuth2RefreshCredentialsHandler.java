@@ -68,14 +68,7 @@ public class OAuth2RefreshCredentialsHandler
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   @Override
   public AccessToken refreshAccessToken() {
-    LoadCredentialsResponse response =
-        httpClient()
-            .get(
-                credentialsEndpoint,
-                null != planId ? Map.of("planId", planId) : null,
-                LoadCredentialsResponse.class,
-                Map.of(),
-                ErrorHandlers.defaultErrorHandler());
+    LoadCredentialsResponse response = fetchCredentials();
 
     List<Credential> gcsCredentials =
         response.credentials().stream()
@@ -94,6 +87,16 @@ public class OAuth2RefreshCredentialsHandler
     String expiresAt = gcsCredential.config().get(GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT);
 
     return new AccessToken(token, new Date(Long.parseLong(expiresAt)));
+  }
+
+  LoadCredentialsResponse fetchCredentials() {
+    return httpClient()
+        .get(
+            credentialsEndpoint,
+            null != planId ? Map.of("planId", planId) : null,
+            LoadCredentialsResponse.class,
+            Map.of(),
+            ErrorHandlers.defaultErrorHandler());
   }
 
   private void checkCredential(Credential gcsCredential, String gcsOauth2Token) {

@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -229,6 +230,34 @@ class ManifestGroup {
    */
   public CloseableIterable<ManifestEntry<DataFile>> entries() {
     return CloseableIterable.concat(entries((manifest, entries) -> entries));
+  }
+
+  /**
+   * Returns a transformed iterable over manifest entries in the set of manifests.
+   *
+   * <p>The provided function is applied to the entries of each manifest to produce the output
+   * elements. When parallel execution is enabled via {@link #planWith(ExecutorService)}, manifests
+   * are scanned in parallel and the function is invoked in worker threads.
+   *
+   * <p>Since the underlying {@link ManifestReader} reuses entry objects during iteration, the
+   * provided function must make defensive copies of any entry data it needs to retain beyond the
+   * current iteration step.
+   *
+   * @param entryTransform a function that transforms each manifest's entries into the desired
+   *     output
+   * @param <T> the output element type
+   * @return a {@link CloseableIterable} of transformed elements
+   */
+  public <T> CloseableIterable<T> entries(
+      Function<CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryTransform) {
+    Iterable<CloseableIterable<T>> iterables =
+        entries((manifest, entries) -> entryTransform.apply(entries));
+
+    if (executorService != null) {
+      return new ParallelIterable<>(iterables, executorService);
+    } else {
+      return CloseableIterable.concat(iterables);
+    }
   }
 
   /**

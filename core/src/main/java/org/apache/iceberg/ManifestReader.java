@@ -45,6 +45,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base reader for data and delete manifest files.
@@ -53,6 +55,8 @@ import org.apache.iceberg.util.PartitionSet;
  */
 public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     implements CloseableIterable<F> {
+  private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
+
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
   private static final Set<String> STATS_COLUMNS =
@@ -126,6 +130,10 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     if (specsById != null) {
       this.spec = specsById.get(specId);
     } else {
+      LOG.warn(
+          "Reading partition spec from manifest file metadata is deprecated and will be "
+              + "removed in the 1.12.0 release. Pass specsById to avoid reading from file metadata: {}",
+          file.location());
       this.spec = readPartitionSpec(file);
     }
 

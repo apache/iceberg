@@ -1990,4 +1990,82 @@ public class TestTableMetadata {
 
     assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
   }
+
+  @Test
+  public void testAddSnapshotWithStaleSequenceNumberIsRetryable() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, PartitionSpec.unpartitioned(), "location", ImmutableMap.of());
+
+    // Advance lastSequenceNumber to 1 by adding a root snapshot
+    Snapshot s1 =
+        new BaseSnapshot(
+            1,
+            1L,
+            null,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s1.avro",
+            null,
+            null,
+            null);
+    TableMetadata withS1 = TableMetadata.buildFrom(base).addSnapshot(s1).build();
+
+    // A snapshot with seqNum=1 and non-null parentId is stale (1 is not > lastSequenceNumber=1)
+    Snapshot staleSnapshot =
+        new BaseSnapshot(
+            1,
+            2L,
+            1L,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s2.avro",
+            null,
+            null,
+            null);
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(withS1).addSnapshot(staleSnapshot))
+        .isInstanceOf(RetryableValidationException.class)
+        .hasMessageContaining("Cannot add snapshot with sequence number");
+  }
+
+  @Test
+  public void testAddSnapshotWithStaleFirstRowIdIsRetryable() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            "location",
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+
+    // Advance nextRowId to 5 by adding a snapshot that allocates 5 rows
+    Snapshot s1 =
+        new BaseSnapshot(
+            1,
+            1L,
+            null,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s1.avro",
+            0L,
+            5L,
+            null);
+    TableMetadata withS1 = TableMetadata.buildFrom(base).addSnapshot(s1).build();
+    // nextRowId is now 5
+
+    // A snapshot with firstRowId=0 is stale (0 < nextRowId=5)
+    Snapshot staleSnapshot =
+        new BaseSnapshot(
+            2, 2L, 1L, System.currentTimeMillis(), null, null, null, "file:/s2.avro", 0L, 1L, null);
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(withS1).addSnapshot(staleSnapshot))
+        .isInstanceOf(RetryableValidationException.class)
+        .hasMessageContaining("Cannot add a snapshot, first-row-id is behind table next-row-id");
+  }
 }

@@ -19,7 +19,15 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -33,9 +41,11 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
@@ -280,6 +290,34 @@ public class TestCatalogUtil {
     String pathStyleCatalogName = "/test/db";
     assertThat(CatalogUtil.fullTableName(pathStyleCatalogName, tableIdentifier))
         .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
+  }
+
+  @Test
+  public void noFailureWhenBulkDeletingMetadataFiles() {
+    FileIO io = mock(FileIO.class, withSettings().extraInterfaces(SupportsBulkOperations.class));
+
+    doThrow(new RuntimeException("Simulated bulk delete failure"))
+        .when((SupportsBulkOperations) io)
+        .deleteFiles(any());
+
+    TableMetadata.MetadataLogEntry entry1 =
+        new TableMetadata.MetadataLogEntry(
+            System.currentTimeMillis(), "s3://bucket/metadata/v1.json");
+    TableMetadata.MetadataLogEntry entry2 =
+        new TableMetadata.MetadataLogEntry(
+            System.currentTimeMillis(), "s3://bucket/metadata/v2.json");
+
+    TableMetadata base = mock(TableMetadata.class);
+    TableMetadata metadata = mock(TableMetadata.class);
+
+    when(metadata.propertyAsBoolean(
+            eq(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED), anyBoolean()))
+        .thenReturn(true);
+    when(base.previousFiles()).thenReturn(ImmutableList.of(entry1, entry2));
+    when(metadata.previousFiles()).thenReturn(ImmutableList.of());
+
+    assertThatCode(() -> CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata))
+        .doesNotThrowAnyException();
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {

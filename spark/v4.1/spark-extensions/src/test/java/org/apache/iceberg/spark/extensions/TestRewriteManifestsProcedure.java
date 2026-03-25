@@ -395,6 +395,101 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteManifestsWithSortBy() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string, category string) USING iceberg PARTITIONED BY (data, category)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 'y')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (4, 'd', 'y')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 4 manifests")
+        .hasSize(4);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array('category', 'data'))",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(4, 1)), output);
+
+    table.refresh();
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsWithSortBySingleColumn() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string, category string) USING iceberg PARTITIONED BY (data, category)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 'y')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c', 'x')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (4, 'd', 'y')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 4 manifests")
+        .hasSize(4);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array('category'))",
+            catalogName, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(4, 1)), output);
+
+    table.refresh();
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsWithInvalidSortBy() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array('nonexistent'))",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not found in current partition spec");
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsWithEmptySortBy() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array())",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("sort_by must not be empty when provided");
+  }
+
+  @TestTemplate
   public void testPartitionStatsIncrementalCompute() throws IOException {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",

@@ -35,6 +35,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -50,20 +51,23 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   ChangelogRowReader(SparkInputPartition partition) {
     this(
         partition.table(),
+        partition.io(),
         partition.taskGroup(),
-        partition.expectedSchema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         partition.cacheDeleteFilesOnExecutors());
   }
 
   ChangelogRowReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<ChangelogScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
+        fileIO,
         taskGroup,
         ChangelogUtil.dropChangelogMetadata(expectedSchema),
         caseSensitive,

@@ -66,7 +66,9 @@ plugins:
         rss_created: rss.xml
   - macros
   - monorepo
-  - privacy
+  - privacy:
+      assets_exclude:
+        - '*bladepipe.com/*'
   - offline:
       enabled: !ENV [OFFLINE, false]
   - redirects:

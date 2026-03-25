@@ -73,6 +73,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -1721,7 +1722,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
 
@@ -1800,7 +1801,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
 
@@ -1866,7 +1867,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 1 file")
         .hasSize(1);
 
@@ -2267,7 +2268,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Map<StructLike, List<DataFile>> filesByPartition =
-        Streams.stream(snapshot.addedDataFiles(table.io()))
+        Streams.stream(
+                SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles())
             .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

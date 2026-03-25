@@ -401,7 +401,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
 | `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
-| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
+| `partial-progress.max-failed-commits` | value of `partial-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
 | `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
@@ -491,6 +491,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | `table`       | ✔️  | string | Name of the table to update                                   |
 | `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
 | `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
+| `sort_by`     | ️   | array<string> | List of partition transform names to cluster manifests by. Choosing frequently queried partition transforms can reduce planning time by skipping unnecessary manifests. If not set, manifests will be sorted by all partition transforms in spec order. |
 
 #### Output
 
@@ -509,6 +510,12 @@ CALL catalog_name.system.rewrite_manifests('db.sample');
 Rewrite the manifests on the partition spec `1` in table `db.sample`.
 ```sql
 CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
+```
+
+Rewrite the manifests in table `db.sample` and cluster manifest entries by partition field `category`.
+This can improve scan planning performance when queries frequently filter on `category`.
+```sql
+CALL catalog_name.system.rewrite_manifests(table => 'db.sample', sort_by => array('category'));
 ```
 
 ### `rewrite_position_delete_files`

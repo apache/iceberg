@@ -18,10 +18,19 @@
  */
 package org.apache.iceberg.stats;
 
+import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.EXACT_BOUNDS;
+import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
+import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
+import static org.apache.iceberg.stats.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.stats.FieldStatistic.UPPER_BOUND;
+import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
@@ -139,37 +148,38 @@ public class TestStatsUtil {
 
   @Test
   public void contentStatsForSimpleSchema() {
-    Schema schema =
-        new Schema(
-            required(0, "i", Types.IntegerType.get()),
-            required(2, "f", Types.FloatType.get()),
-            required(4, "s", Types.StringType.get()),
-            required(6, "b", Types.BooleanType.get()),
-            required(1_000_000, "u", Types.UUIDType.get()));
+    Types.NestedField intField = required(0, "i", Types.IntegerType.get());
+    Types.NestedField floatField = required(2, "f", Types.FloatType.get());
+    Types.NestedField stringField = required(4, "s", Types.StringType.get());
+    Types.NestedField booleanField = required(6, "b", Types.BooleanType.get());
+    Types.NestedField uuidField = required(1_000_000, "u", Types.UUIDType.get());
+    Schema schema = new Schema(intField, floatField, stringField, booleanField, uuidField);
     Schema expectedStatsSchema =
         new Schema(
             optional(
                 146,
                 "content_stats",
                 Types.StructType.of(
-                    optional(
-                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),
-                    optional(
-                        10400, "2", FieldStatistic.fieldStatsFor(Types.FloatType.get(), 10401)),
-                    optional(
-                        10800, "4", FieldStatistic.fieldStatsFor(Types.StringType.get(), 10801)),
-                    optional(
-                        11200, "6", FieldStatistic.fieldStatsFor(Types.BooleanType.get(), 11201)),
+                    optional(10000, "0", FieldStatistic.fieldStatsFor(intField, 10000)),
+                    optional(10400, "2", FieldStatistic.fieldStatsFor(floatField, 10400)),
+                    optional(10800, "4", FieldStatistic.fieldStatsFor(stringField, 10800)),
+                    optional(11200, "6", FieldStatistic.fieldStatsFor(booleanField, 11200)),
                     optional(
                         200010000,
                         "1000000",
-                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 200010001)))));
+                        FieldStatistic.fieldStatsFor(uuidField, 200010000)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
 
   @Test
   public void contentStatsForComplexSchema() {
+    Types.NestedField listElement = optional(3, "element", Types.IntegerType.get());
+    Types.NestedField structInt = optional(7, "int", Types.IntegerType.get());
+    Types.NestedField structString = optional(8, "string", Types.StringType.get());
+    Types.NestedField mapKey = required(22, "key", Types.IntegerType.get());
+    Types.NestedField mapValue = optional(24, "value", Types.StringType.get());
+    Types.NestedField uuidField = required(100_000, "u", Types.UUIDType.get());
     Schema schema =
         new Schema(
             required(0, "i", Types.IntegerType.get()),
@@ -185,7 +195,7 @@ public class TestStatsUtil {
                 "b",
                 Types.MapType.ofOptional(22, 24, Types.IntegerType.get(), Types.StringType.get())),
             required(30, "variant", Types.VariantType.get()),
-            required(100_000, "u", Types.UUIDType.get()));
+            uuidField);
     Schema expectedStatsSchema =
         new Schema(
             optional(
@@ -193,22 +203,132 @@ public class TestStatsUtil {
                 "content_stats",
                 Types.StructType.of(
                     optional(
-                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),
+                        10000,
+                        "0",
+                        FieldStatistic.fieldStatsFor(
+                            required(0, "i", Types.IntegerType.get()), 10000)),
+                    optional(10600, "3", FieldStatistic.fieldStatsFor(listElement, 10600)),
+                    optional(11400, "7", FieldStatistic.fieldStatsFor(structInt, 11400)),
+                    optional(11600, "8", FieldStatistic.fieldStatsFor(structString, 11600)),
+                    optional(14400, "22", FieldStatistic.fieldStatsFor(mapKey, 14400)),
+                    optional(14800, "24", FieldStatistic.fieldStatsFor(mapValue, 14800)),
                     optional(
-                        10600, "3", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10601)),
-                    optional(
-                        11400, "7", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 11401)),
-                    optional(
-                        11600, "8", FieldStatistic.fieldStatsFor(Types.StringType.get(), 11601)),
-                    optional(
-                        14400, "22", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 14401)),
-                    optional(
-                        14800, "24", FieldStatistic.fieldStatsFor(Types.StringType.get(), 14801)),
-                    optional(
-                        20010000,
-                        "100000",
-                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 20010001)))));
+                        20010000, "100000", FieldStatistic.fieldStatsFor(uuidField, 20010000)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
+  }
+
+  @Test
+  public void conditionalFieldInclusionForInteger() {
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(required(1, "x", Types.IntegerType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName())
+        .doesNotContain(
+            NULL_VALUE_COUNT.fieldName(),
+            NAN_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE.fieldName(),
+            MAX_VALUE_SIZE.fieldName());
+
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(optional(1, "x", Types.IntegerType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName())
+        .doesNotContain(
+            NAN_VALUE_COUNT.fieldName(), AVG_VALUE_SIZE.fieldName(), MAX_VALUE_SIZE.fieldName());
+  }
+
+  @Test
+  public void conditionalFieldInclusionForFloatAndDouble() {
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(required(1, "x", Types.FloatType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            NAN_VALUE_COUNT.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName())
+        .doesNotContain(
+            NULL_VALUE_COUNT.fieldName(), AVG_VALUE_SIZE.fieldName(), MAX_VALUE_SIZE.fieldName());
+
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(optional(1, "x", Types.DoubleType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            NAN_VALUE_COUNT.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName());
+  }
+
+  @Test
+  public void conditionalFieldInclusionForString() {
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(required(1, "x", Types.StringType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE.fieldName(),
+            MAX_VALUE_SIZE.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName())
+        .doesNotContain(NULL_VALUE_COUNT.fieldName(), NAN_VALUE_COUNT.fieldName());
+
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(optional(1, "x", Types.StringType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE.fieldName(),
+            MAX_VALUE_SIZE.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName());
+  }
+
+  @Test
+  public void conditionalFieldInclusionForBinary() {
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(optional(1, "x", Types.BinaryType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE.fieldName(),
+            MAX_VALUE_SIZE.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName())
+        .doesNotContain(NAN_VALUE_COUNT.fieldName());
+
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(required(1, "x", Types.BinaryType.get()), 10000)))
+        .containsExactly(
+            VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE.fieldName(),
+            MAX_VALUE_SIZE.fieldName(),
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            EXACT_BOUNDS.fieldName())
+        .doesNotContain(NULL_VALUE_COUNT.fieldName(), NAN_VALUE_COUNT.fieldName());
+  }
+
+  private List<String> fieldStatsNames(Types.StructType structType) {
+    return structType.fields().stream().map(Types.NestedField::name).toList();
   }
 }

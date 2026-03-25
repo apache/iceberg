@@ -241,34 +241,93 @@ public class TestContentStats {
   }
 
   @Test
-  public void setByPosition() {
+  public void setByPositionOptionalString() {
+    Schema tableSchema = new Schema(optional(1, "s", Types.StringType.get()));
+    Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
+    Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
+    assertThat(statsStructForFieldId.fields()).hasSize(7);
+
+    GenericRecord record = GenericRecord.create(statsStructForFieldId);
+    BaseFieldStats<String> fieldStats =
+        BaseFieldStats.<String>builder()
+            .type(Types.StringType.get())
+            .fieldId(1)
+            .valueCount(10L)
+            .nullValueCount(2L)
+            .avgValueSize(3)
+            .maxValueSize(10)
+            .lowerBound("aa")
+            .upperBound("zzz")
+            .hasExactBounds()
+            .build();
+
+    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
+    record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
+    record.setField(AVG_VALUE_SIZE.fieldName(), fieldStats.avgValueSize());
+    record.setField(MAX_VALUE_SIZE.fieldName(), fieldStats.maxValueSize());
+    record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
+    record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
+    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
+
+    BaseContentStats stats = new BaseContentStats(rootStatsStruct);
+    stats.set(0, record);
+    assertThat(stats.fieldStats()).containsExactly(fieldStats);
+  }
+
+  @Test
+  public void setByPositionOptionalDouble() {
+    Schema tableSchema = new Schema(optional(1, "d", Types.DoubleType.get()));
+    Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
+    Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
+    assertThat(statsStructForFieldId.fields()).hasSize(6);
+
+    GenericRecord record = GenericRecord.create(statsStructForFieldId);
+    BaseFieldStats<Double> fieldStats =
+        BaseFieldStats.<Double>builder()
+            .type(Types.DoubleType.get())
+            .fieldId(1)
+            .valueCount(10L)
+            .nullValueCount(2L)
+            .nanValueCount(3L)
+            .lowerBound(5.0)
+            .upperBound(20.0)
+            .hasExactBounds()
+            .build();
+
+    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
+    record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
+    record.setField(NAN_VALUE_COUNT.fieldName(), fieldStats.nanValueCount());
+    record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
+    record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
+    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
+
+    BaseContentStats stats = new BaseContentStats(rootStatsStruct);
+    stats.set(0, record);
+    assertThat(stats.fieldStats()).containsExactly(fieldStats);
+  }
+
+  @Test
+  public void setByPositionRequiredInteger() {
     Schema tableSchema = new Schema(required(1, "id", Types.IntegerType.get()));
     Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
-    Types.StructType statsStructForIdField = rootStatsStruct.fields().get(0).type().asStructType();
+    Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
+    assertThat(statsStructForFieldId.fields()).hasSize(4);
 
-    GenericRecord record = GenericRecord.create(statsStructForIdField);
+    GenericRecord record = GenericRecord.create(statsStructForFieldId);
     BaseFieldStats<Integer> fieldStats =
         BaseFieldStats.<Integer>builder()
             .type(Types.IntegerType.get())
             .fieldId(1)
             .valueCount(10L)
-            .nullValueCount(2L)
-            .nanValueCount(3L)
-            .avgValueSize(30)
-            .maxValueSize(70)
             .lowerBound(5)
             .upperBound(20)
             .hasExactBounds()
             .build();
 
-    record.set(VALUE_COUNT.offset(), fieldStats.valueCount());
-    record.set(NULL_VALUE_COUNT.offset(), fieldStats.nullValueCount());
-    record.set(NAN_VALUE_COUNT.offset(), fieldStats.nanValueCount());
-    record.set(AVG_VALUE_SIZE.offset(), fieldStats.avgValueSize());
-    record.set(MAX_VALUE_SIZE.offset(), fieldStats.maxValueSize());
-    record.set(LOWER_BOUND.offset(), fieldStats.lowerBound());
-    record.set(UPPER_BOUND.offset(), fieldStats.upperBound());
-    record.set(EXACT_BOUNDS.offset(), fieldStats.hasExactBounds());
+    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
+    record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
+    record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
+    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
 
     // this is typically called by Avro reflection code
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
@@ -287,17 +346,17 @@ public class TestContentStats {
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
 
     // invalid lower bound
-    record.set(LOWER_BOUND.offset(), 5.0);
+    record.setField(LOWER_BOUND.fieldName(), 5.0);
     assertThatThrownBy(() -> stats.set(0, record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid lower bound type, expected a subtype of class java.lang.Integer: java.lang.Double");
 
     // set valid lower bound so that upper bound is evaluated
-    record.set(LOWER_BOUND.offset(), 5);
+    record.setField(LOWER_BOUND.fieldName(), 5);
 
     // invalid upper bound
-    record.set(UPPER_BOUND.offset(), "20");
+    record.setField(UPPER_BOUND.fieldName(), "20");
     assertThatThrownBy(() -> stats.set(0, record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
