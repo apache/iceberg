@@ -101,12 +101,12 @@ public class AuthSessionCache implements AutoCloseable {
     } finally {
       if (executor instanceof ExecutorService) {
         ExecutorService service = (ExecutorService) executor;
-        ManagedThreadPools.remove(service);
         service.shutdown();
         if (!Uninterruptibles.awaitTerminationUninterruptibly(service, 10, TimeUnit.SECONDS)) {
           LOG.warn("Timed out waiting for eviction executor to terminate");
         }
         service.shutdownNow();
+        ManagedThreadPools.remove(service);
       }
     }
   }
