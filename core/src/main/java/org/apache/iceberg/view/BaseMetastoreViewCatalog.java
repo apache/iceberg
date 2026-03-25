@@ -161,8 +161,8 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     }
 
     @Override
-    public ViewBuilder withStorageTableIdentifier(TableIdentifier storageTableIdentifier) {
-      this.storageTableIdentifier = storageTableIdentifier;
+    public ViewBuilder withStorageTableIdentifier(TableIdentifier newStorageTableIdentifier) {
+      this.storageTableIdentifier = newStorageTableIdentifier;
       return this;
     }
 
