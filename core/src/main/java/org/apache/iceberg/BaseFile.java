@@ -32,6 +32,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -329,7 +330,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 4:
-        this.partitionData = (PartitionData) value;
+        if (value != null) {
+          this.partitionData = (PartitionData) value;
+        }
         return;
       case 5:
         this.recordCount = (Long) value;
@@ -581,9 +584,33 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   private static Map<Integer, ByteBuffer> copyByteBufferMap(
       Map<Integer, ByteBuffer> map, Set<Integer> keys) {
-    return SerializableByteBufferMap.wrap(copyMap(map, keys));
+    if (map == null) {
+      return null;
+    }
+
+    // This is required as long as we have Map<Integer, ByteBuffer> in the API since Parquet is
+    // re-using buffers.
+    Map<Integer, ByteBuffer> deepCopy = Maps.newHashMapWithExpectedSize(map.size());
+    for (Map.Entry<Integer, ByteBuffer> entry : map.entrySet()) {
+      if (keys == null || keys.contains(entry.getKey())) {
+        ByteBuffer buf = entry.getValue();
+        if (buf != null) {
+          ByteBuffer copy = ByteBuffer.allocate(buf.remaining());
+          copy.put(buf.duplicate());
+          copy.flip();
+          deepCopy.put(entry.getKey(), copy);
+        } else {
+          deepCopy.put(entry.getKey(), null);
+        }
+      }
+    }
+
+    return SerializableByteBufferMap.wrap(deepCopy);
   }
 
+  // Returns an unmodifiable view of the map. The SerializableMap check is needed because
+  // internal maps may be wrapped for serialization after being populated by a format reader
+  // with container reuse enabled, and immutableMap() provides a stable snapshot.
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {
     if (map == null) {
       return null;
@@ -594,6 +621,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     }
   }
 
+  // Separate from toReadableMap because SerializableByteBufferMap is its own wrapper type
+  // (not a SerializableMap subclass) to handle ByteBuffer-specific serialization. ByteBuffer
+  // values are mutable and can be overwritten by Parquet container reuse, so callers that
+  // retain references must use copyByteBufferMap to get independent copies.
   private static Map<Integer, ByteBuffer> toReadableByteBufferMap(Map<Integer, ByteBuffer> map) {
     if (map == null) {
       return null;
