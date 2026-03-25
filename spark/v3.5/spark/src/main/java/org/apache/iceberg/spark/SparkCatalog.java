@@ -599,8 +599,7 @@ public class SparkCatalog extends BaseCatalog {
 
   private org.apache.iceberg.catalog.TableIdentifier getStorageTableId(
       org.apache.iceberg.view.View view) {
-    org.apache.iceberg.catalog.TableIdentifier storageTable =
-        view.currentVersion().storageTable();
+    org.apache.iceberg.catalog.TableIdentifier storageTable = view.currentVersion().storageTable();
     Preconditions.checkState(
         storageTable != null, "Storage table identifier is not set for materialized view.");
     return storageTable;
@@ -655,7 +654,9 @@ public class SparkCatalog extends BaseCatalog {
           org.apache.iceberg.Table sourceTable =
               ((org.apache.iceberg.catalog.Catalog) icebergCatalog()).loadTable(sourceId);
           long currentSnapshotId =
-              sourceTable.currentSnapshot() == null ? -1 : sourceTable.currentSnapshot().snapshotId();
+              sourceTable.currentSnapshot() == null
+                  ? -1
+                  : sourceTable.currentSnapshot().snapshotId();
           if (currentSnapshotId != tableState.snapshotId()) {
             return false;
           }

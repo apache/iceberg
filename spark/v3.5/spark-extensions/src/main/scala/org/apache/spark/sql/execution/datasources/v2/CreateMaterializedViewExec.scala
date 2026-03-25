@@ -16,10 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
-
-import scala.collection.JavaConverters._
 
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
@@ -38,20 +35,22 @@ import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.types.StructType
+import scala.collection.JavaConverters._
 
 case class CreateMaterializedViewExec(
-                                       catalog: ViewCatalog,
-                                       ident: Identifier,
-                                       queryText: String,
-                                       viewSchema: StructType,
-                                       columnAliases: Seq[String],
-                                       columnComments: Seq[Option[String]],
-                                       queryColumnNames: Seq[String],
-                                       comment: Option[String],
-                                       properties: Map[String, String],
-                                       allowExisting: Boolean,
-                                       replace: Boolean,
-                                       storageTableIdentifier: Option[String]) extends LeafV2CommandExec {
+    catalog: ViewCatalog,
+    ident: Identifier,
+    queryText: String,
+    viewSchema: StructType,
+    columnAliases: Seq[String],
+    columnComments: Seq[Option[String]],
+    queryColumnNames: Seq[String],
+    comment: Option[String],
+    properties: Map[String, String],
+    allowExisting: Boolean,
+    replace: Boolean,
+    storageTableIdentifier: Option[String])
+    extends LeafV2CommandExec {
 
   override def output: Seq[Attribute] = Nil
 
@@ -66,8 +65,7 @@ case class CreateMaterializedViewExec(
           storageTableCatalogName.equals(catalog.name()),
           "Storage table identifier must be in the same catalog as the view." +
             " Found storage table in catalog: %s, expected: %s.",
-          Array[Object](storageTableCatalogName, catalog.name())
-        )
+          Array[Object](storageTableCatalogName, catalog.name()))
         catalogAndIdentifier.identifier()
       }
       case None => MaterializedViewUtil.getDefaultMaterializedViewStorageTableIdentifier(ident)
@@ -77,10 +75,13 @@ case class CreateMaterializedViewExec(
     // Per spec: "The storage table must exist and be accessible before the
     // materialized view metadata is committed."
     // A newly created MV has a storage table with no snapshots until a refresh is performed.
-    catalog.asInstanceOf[SparkCatalog].createTable(
-      sparkStorageTableIdentifier,
-      viewSchema, new Array[Transform](0), ImmutableMap.of[String, String]()
-    )
+    catalog
+      .asInstanceOf[SparkCatalog]
+      .createTable(
+        sparkStorageTableIdentifier,
+        viewSchema,
+        new Array[Transform](0),
+        ImmutableMap.of[String, String]())
 
     // Step 2: Create the MV view metadata with a storage-table reference
     try {
@@ -109,16 +110,17 @@ case class CreateMaterializedViewExec(
   private def createView(storageTableIdentifier: String): Option[View] = {
     val icebergSchema = SparkSchemaUtil.convert(viewSchema)
     val currentCatalogName = session.sessionState.catalogManager.currentCatalog.name
-    val currentCatalog = if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
+    val currentCatalog =
+      if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
     val currentNamespace = session.sessionState.catalogManager.currentNamespace
 
     val engineVersion = "Spark " + org.apache.spark.SPARK_VERSION
     val newProperties = properties ++
       comment.map(ViewCatalog.PROP_COMMENT -> _) +
-      (ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
+      (
+        ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
         ViewCatalog.PROP_ENGINE_VERSION -> engineVersion) +
       ("queryColumnNames" -> queryColumnNames.mkString(","))
-
 
     if (replace) {
       // CREATE OR REPLACE VIEW
@@ -126,11 +128,12 @@ case class CreateMaterializedViewExec(
         catalog.dropView(ident)
       }
       // FIXME: replaceView API doesn't exist in Spark 3.5
-      val viewCatalog = catalog.asInstanceOf[SparkCatalog]
+      val viewCatalog = catalog
+        .asInstanceOf[SparkCatalog]
         .icebergCatalog()
         .asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
-      val icebergView = viewCatalog.buildView(
-        Spark3Util.identifierToTableIdentifier(ident))
+      val icebergView = viewCatalog
+        .buildView(Spark3Util.identifierToTableIdentifier(ident))
         .withDefaultCatalog(currentCatalog)
         .withDefaultNamespace(Namespace.of(currentNamespace: _*))
         .withQuery("spark", queryText)
@@ -144,11 +147,12 @@ case class CreateMaterializedViewExec(
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
-        val viewCatalog = catalog.asInstanceOf[SparkCatalog]
+        val viewCatalog = catalog
+          .asInstanceOf[SparkCatalog]
           .icebergCatalog()
           .asInstanceOf[org.apache.iceberg.catalog.ViewCatalog]
-        val icebergView = viewCatalog.buildView(
-          Spark3Util.identifierToTableIdentifier(ident))
+        val icebergView = viewCatalog
+          .buildView(Spark3Util.identifierToTableIdentifier(ident))
           .withDefaultCatalog(currentCatalog)
           .withDefaultNamespace(Namespace.of(currentNamespace: _*))
           .withQuery("spark", queryText)

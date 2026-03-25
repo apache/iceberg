@@ -18,8 +18,6 @@
  */
 package org.apache.spark.sql.execution.datasources.v2
 
-import scala.jdk.CollectionConverters._
-
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
@@ -37,6 +35,7 @@ import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.types.StructType
+import scala.jdk.CollectionConverters._
 
 case class CreateMaterializedViewExec(
     catalog: ViewCatalog,

@@ -117,8 +117,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
     assertThat(view.currentVersion().storageTable()).isNotNull();
     assertThat(view.currentVersion().storageTable().name())
         .isEqualTo(materializedViewName + "__storage");
-    assertThat(view.currentVersion().storageTable().namespace())
-        .isEqualTo(NAMESPACE);
+    assertThat(view.currentVersion().storageTable().namespace()).isEqualTo(NAMESPACE);
   }
 
   @Test
@@ -166,8 +165,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
 
     // Stale MV: loadView should return SparkView (falls back to query execution)
     try {
-      assertThat(sparkViewCatalog().loadView(viewIdentifier()))
-          .isInstanceOf(SparkView.class);
+      assertThat(sparkViewCatalog().loadView(viewIdentifier())).isInstanceOf(SparkView.class);
     } catch (NoSuchViewException e) {
       fail("Stale materialized view should be loadable as a view");
     }
@@ -246,8 +244,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
       spark
           .sql(String.format("SELECT id, data FROM %s.%s.%s", catalogName, NAMESPACE, tableName))
           .writeTo(storageTableRef)
-          .option(
-              "snapshot-property." + RefreshState.REFRESH_STATE_SUMMARY_KEY, refreshStateJson)
+          .option("snapshot-property." + RefreshState.REFRESH_STATE_SUMMARY_KEY, refreshStateJson)
           .append();
     } catch (NoSuchTableException e) {
       throw new RuntimeException("Storage table not found during simulated refresh", e);
@@ -275,8 +272,7 @@ public class TestMaterializedViews extends SparkExtensionsTestBase {
   private View loadIcebergView() {
     org.apache.iceberg.catalog.ViewCatalog icebergViewCatalog =
         (org.apache.iceberg.catalog.ViewCatalog) sparkCatalog().icebergCatalog();
-    return icebergViewCatalog.loadView(
-        TableIdentifier.of(NAMESPACE, materializedViewName));
+    return icebergViewCatalog.loadView(TableIdentifier.of(NAMESPACE, materializedViewName));
   }
 
   // Required to be public since it is loaded by org.apache.iceberg.CatalogUtil.loadCatalog
