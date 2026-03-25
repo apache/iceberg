@@ -19,17 +19,13 @@
 package org.apache.iceberg.connect.channel;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.DataComplete;
@@ -37,6 +33,8 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +43,7 @@ class CommitState implements CommitStateMXBean {
 
   private final List<Envelope> commitBuffer = Lists.newArrayList();
   private final List<DataComplete> readyBuffer = Lists.newArrayList();
-  private final Map<UUID, Integer> groupRetryCount = new ConcurrentHashMap<>();
+  private final Map<UUID, Integer> groupRetryCount = Maps.newConcurrentMap();
   private long startTime;
   private UUID currentCommitId;
   private final IcebergSinkConfig config;
@@ -114,7 +112,7 @@ class CommitState implements CommitStateMXBean {
    * or skipped groups for retry next cycle.
    */
   void removeEnvelopes(Collection<Envelope> committed) {
-    commitBuffer.removeAll(new HashSet<>(committed));
+    commitBuffer.removeAll(Sets.newHashSet(committed));
 
     // Clean up tracking maps for commitIds no longer in the buffer.
     Set<UUID> remainingIds =
@@ -220,7 +218,7 @@ class CommitState implements CommitStateMXBean {
    * uncommitted events survive a restart while already-committed events are not re-consumed.
    */
   Map<Integer, Long> remainingEnvelopeMinOffsets() {
-    Map<Integer, Long> minOffsets = new HashMap<>();
+    Map<Integer, Long> minOffsets = Maps.newHashMap();
     for (Envelope env : commitBuffer) {
       minOffsets.merge(env.partition(), env.offset(), Long::min);
     }
@@ -294,10 +292,10 @@ class CommitState implements CommitStateMXBean {
 
     Map<TableReference, List<CommitGroup>> result = new LinkedHashMap<>();
     for (Map.Entry<TableReference, List<Envelope>> entry : byTable.entrySet()) {
-      LinkedHashMap<UUID, List<Envelope>> byCommitId = new LinkedHashMap<>();
+      Map<UUID, List<Envelope>> byCommitId = new LinkedHashMap<>();
       for (Envelope env : entry.getValue()) {
         UUID cid = ((DataWritten) env.event().payload()).commitId();
-        byCommitId.computeIfAbsent(cid, k -> new ArrayList<>()).add(env);
+        byCommitId.computeIfAbsent(cid, k -> Lists.newArrayList()).add(env);
       }
       List<CommitGroup> groups =
           byCommitId.entrySet().stream()
