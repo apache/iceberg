@@ -163,7 +163,14 @@ paths:
         403:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
-          $ref: '#/components/responses/NoSuchWarehouseResponse'
+          description: Not Found - Warehouse provided in the `warehouse` query parameter is not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchWarehouseExample:
+                  $ref: '#/components/examples/NoSuchWarehouseError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -4662,20 +4669,6 @@ components:
             }
           }
 
-    NoSuchWarehouseResponse:
-      description: Not Found - The given warehouse does not exist.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/IcebergErrorResponse'
-          example: {
-            "error": {
-              "message": "The given warehouse does not exist",
-              "type": "NoSuchWarehouseException",
-              "code": 404
-            }
-          }
-
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
     UnsupportedOperationResponse:
@@ -4974,6 +4967,16 @@ components:
         "error": {
           "message": "The given view does not exist",
           "type": "NoSuchViewException",
+          "code": 404
+        }
+      }
+
+    NoSuchWarehouseError:
+      summary: The requested warehouse does not exist
+      value: {
+        "error": {
+          "message": "The given warehouse does not exist",
+          "type": "NoSuchWarehouseException",
           "code": 404
         }
       }
