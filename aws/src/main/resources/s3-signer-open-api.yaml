@@ -17,8 +17,8 @@
 # under the License.
 #
 
-# ⚠️ WARNING: this API is deprecated since 1.11.0, and will be removed in 1.12.0.
-# Use the new remote signing endpoint instead, see open-api/rest-catalog-open-api.yaml.
+# ⚠️ WARNING: this API is deprecated. Use the new remote signing endpoint instead,
+# see open-api/rest-catalog-open-api.yaml.
 
 ---
 openapi: 3.0.3
