@@ -25,7 +25,6 @@ import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -60,6 +59,7 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -221,7 +221,7 @@ class Coordinator extends Channel {
 
     // Track successfully committed envelopes for selective removal.
     // Synchronized because table commits run in parallel via the exec thread pool.
-    List<Envelope> committedEnvelopes = Collections.synchronizedList(new ArrayList<>());
+    List<Envelope> committedEnvelopes = Collections.synchronizedList(Lists.newArrayList());
 
     // Outer: tables in parallel (via exec thread pool).
     // Inner: commitId groups sequentially per table, oldest first.
