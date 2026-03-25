@@ -86,6 +86,9 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
+  private static final String COMMIT_STALE_MAX_BLOCKING_RETRIES_PROP =
+      "iceberg.control.commit.stale-max-blocking-retries";
+  private static final int COMMIT_STALE_MAX_BLOCKING_RETRIES_DEFAULT = 3;
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
   private static final String TRANSACTIONAL_PREFIX_PROP =
       "iceberg.coordinator.transactional.prefix";
@@ -217,6 +220,14 @@ public class IcebergSinkConfig extends AbstractConfig {
         Runtime.getRuntime().availableProcessors() * 2,
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
+    configDef.define(
+        COMMIT_STALE_MAX_BLOCKING_RETRIES_PROP,
+        ConfigDef.Type.INT,
+        COMMIT_STALE_MAX_BLOCKING_RETRIES_DEFAULT,
+        ConfigDef.Range.atLeast(0),
+        Importance.LOW,
+        "Number of times a stale commit group will block subsequent groups before "
+            + "failing the connector. Set to 0 to fail immediately.");
     configDef.define(
         TRANSACTIONAL_PREFIX_PROP,
         ConfigDef.Type.STRING,
@@ -417,6 +428,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public int commitThreads() {
     return getInt(COMMIT_THREADS_PROP);
+  }
+
+  public int commitStaleMaxBlockingRetries() {
+    return getInt(COMMIT_STALE_MAX_BLOCKING_RETRIES_PROP);
   }
 
   public String transactionalPrefix() {
