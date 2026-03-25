@@ -72,8 +72,9 @@ public class TestCoordinatorPartialCommit extends ChannelTestBase {
   @Test
   public void testStaleDataWrittenFromPartialCommitSeparatedIntoDistinctRowDeltas() {
     when(config.commitIntervalMs()).thenReturn(0);
-    // Timeout = 0 to trigger immediate partial commit
-    when(config.commitTimeoutMs()).thenReturn(0);
+    // Timeout = -1 to guarantee immediate partial commit (strictly-greater check in
+    // isCommitTimedOut means 0 can race when startNewCommit and the check share a millisecond)
+    when(config.commitTimeoutMs()).thenReturn(-1);
 
     // 1 worker with 1 partition so totalPartitionCount = 1
     List<MemberDescription> members =
