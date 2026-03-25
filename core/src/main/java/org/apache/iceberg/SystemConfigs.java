@@ -61,6 +61,19 @@ public class SystemConfigs {
           1,
           Integer::parseUnsignedInt);
 
+  /**
+   * Controls whether a JVM shutdown hook is automatically registered to shut down all thread pools
+   * managed by {@link org.apache.iceberg.util.ManagedThreadPools}. Set to {@code false} to opt out
+   * of the automatic hook and invoke {@code ManagedThreadPools.shutdownAll()} manually from your
+   * own application lifecycle (e.g., a Flink operator {@code close()} method).
+   */
+  public static final ConfigEntry<Boolean> THREAD_POOLS_AUTO_SHUTDOWN =
+      new ConfigEntry<>(
+          "iceberg.thread-pools.auto-shutdown",
+          "ICEBERG_THREAD_POOLS_AUTO_SHUTDOWN",
+          true,
+          Boolean::parseBoolean);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(

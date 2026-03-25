@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -53,8 +54,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Predicates;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CountingOutputStream;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.util.ManagedThreadPools;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,15 +112,16 @@ class S3OutputStream extends PositionOutputStream {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
         if (executorService == null) {
-          executorService =
-              MoreExecutors.getExitingExecutorService(
-                  (ThreadPoolExecutor)
-                      Executors.newFixedThreadPool(
-                          s3FileIOProperties.multipartUploadThreads(),
-                          new ThreadFactoryBuilder()
-                              .setDaemon(true)
-                              .setNameFormat("iceberg-s3fileio-upload-%d")
-                              .build()));
+          ThreadPoolExecutor pool =
+              (ThreadPoolExecutor)
+                  Executors.newFixedThreadPool(
+                      s3FileIOProperties.multipartUploadThreads(),
+                      new ThreadFactoryBuilder()
+                          .setDaemon(true)
+                          .setNameFormat("iceberg-s3fileio-upload-%d")
+                          .build());
+          ManagedThreadPools.add(pool, Duration.ofSeconds(10));
+          executorService = pool;
         }
       }
     }

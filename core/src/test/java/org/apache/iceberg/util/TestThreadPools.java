@@ -37,4 +37,30 @@ public class TestThreadPools {
       assertThat(executor.isShutdown()).as("Executor should be shut down").isTrue();
     }
   }
+
+  @Test
+  public void testShutdownAllClosesAndClearsPools() {
+    ExecutorService e1 = ThreadPools.newExitingWorkerPool("test-shutdown-all-1", 1);
+    ExecutorService e2 = ThreadPools.newExitingWorkerPool("test-shutdown-all-2", 1);
+    assertThat(ManagedThreadPools.getPools()).contains(e1, e2);
+
+    ManagedThreadPools.shutdownAll();
+
+    assertThat(e1.isShutdown()).as("First pool should be shut down").isTrue();
+    assertThat(e2.isShutdown()).as("Second pool should be shut down").isTrue();
+    assertThat(ManagedThreadPools.getPools()).isEmpty();
+  }
+
+  @Test
+  public void testShutdownAllIsIdempotent() {
+    ThreadPools.newExitingWorkerPool("test-idempotent", 1);
+
+    ManagedThreadPools.shutdownAll();
+    assertThat(ManagedThreadPools.getPools()).isEmpty();
+
+    // second call on empty registry must not throw
+    ManagedThreadPools.shutdownAll();
+    assertThat(ManagedThreadPools.getPools()).isEmpty();
+  }
 }
+

@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -59,21 +60,36 @@ public class ManagedThreadPools {
   }
 
   public static void shutdownAll() {
+    List<PoolEntry> snapshot;
     synchronized (POOLS) {
-      for (PoolEntry entry : POOLS) {
-        entry.executor.shutdown();
-        if (entry.terminationTimeoutMs > 0
-            && !Uninterruptibles.awaitTerminationUninterruptibly(
-                entry.executor, entry.terminationTimeoutMs, TimeUnit.MILLISECONDS)) {
-          LOG.warn("Timed out waiting for thread pool to terminate");
-        }
-        entry.executor.shutdownNow();
+      snapshot = ImmutableList.copyOf(POOLS);
+      POOLS.clear();
+    }
+
+    // Phase 1: signal all pools to stop accepting new work so they drain concurrently
+    for (PoolEntry entry : snapshot) {
+      entry.executor.shutdown();
+    }
+
+    // Phase 2: wait for each pool with its own timeout
+    for (PoolEntry entry : snapshot) {
+      if (entry.terminationTimeoutMs > 0
+          && !Uninterruptibles.awaitTerminationUninterruptibly(
+              entry.executor, entry.terminationTimeoutMs, TimeUnit.MILLISECONDS)) {
+        LOG.warn("Timed out waiting for thread pool to terminate");
       }
+    }
+
+    // Phase 3: force-stop any pool that did not drain in time
+    for (PoolEntry entry : snapshot) {
+      entry.executor.shutdownNow();
     }
   }
 
   static {
-    Runtime.getRuntime().addShutdownHook(new Thread(ManagedThreadPools::shutdownAll));
+    if (SystemConfigs.THREAD_POOLS_AUTO_SHUTDOWN.value()) {
+      Runtime.getRuntime().addShutdownHook(new Thread(ManagedThreadPools::shutdownAll));
+    }
   }
 
   @VisibleForTesting
