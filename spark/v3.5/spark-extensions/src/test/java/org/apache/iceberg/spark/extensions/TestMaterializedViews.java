@@ -68,7 +68,17 @@ public class TestMaterializedViews extends ExtensionsTestBase {
   @BeforeEach
   @Override
   public void before() {
-    super.before();
+    // Set up a simple InMemoryCatalog as validation catalog to avoid base class
+    // configureValidationCatalog() failing on our custom catalog-impl.
+    this.validationCatalog = new InMemoryCatalog();
+    this.validationNamespaceCatalog =
+        (org.apache.iceberg.catalog.SupportsNamespaces) validationCatalog;
+
+    spark.conf().set("spark.sql.catalog." + catalogName, implementation);
+    catalogConfig.forEach(
+        (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
+
+    sql("CREATE NAMESPACE IF NOT EXISTS default");
     spark.conf().set("spark.sql.defaultCatalog", catalogName);
     sql("USE %s", catalogName);
     sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
