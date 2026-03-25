@@ -5108,7 +5108,7 @@ components:
       summary: The requested table identifier already exists
       value: {
         "error": {
-          "message": "The given table already exists",
+          "message": "The requested table identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }
@@ -5118,7 +5118,7 @@ components:
       summary: The requested view identifier already exists
       value: {
         "error": {
-          "message": "The given view already exists",
+          "message": "The requested view identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }
