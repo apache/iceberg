@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.view;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Arrays;
 import java.util.Collections;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestRefreshStateParser {
@@ -42,21 +44,21 @@ public class TestRefreshStateParser {
     String json = RefreshStateParser.toJson(refreshState);
     RefreshState parsed = RefreshStateParser.fromJson(json);
 
-    Assertions.assertThat(parsed.viewVersionId()).isEqualTo(1);
-    Assertions.assertThat(parsed.refreshStartTimestampMs()).isEqualTo(1573518435000L);
-    Assertions.assertThat(parsed.sourceStates()).hasSize(1);
+    assertThat(parsed.viewVersionId()).isEqualTo(1);
+    assertThat(parsed.refreshStartTimestampMs()).isEqualTo(1573518435000L);
+    assertThat(parsed.sourceStates()).hasSize(1);
 
     SourceState source = parsed.sourceStates().get(0);
-    Assertions.assertThat(source).isInstanceOf(SourceTableState.class);
-    Assertions.assertThat(source.type()).isEqualTo("table");
-    Assertions.assertThat(source.name()).isEqualTo("events");
-    Assertions.assertThat(source.namespace()).containsExactly("default");
-    Assertions.assertThat(source.catalog()).isNull();
-    Assertions.assertThat(source.uuid()).isEqualTo("d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d");
+    assertThat(source).isInstanceOf(SourceTableState.class);
+    assertThat(source.type()).isEqualTo("table");
+    assertThat(source.name()).isEqualTo("events");
+    assertThat(source.namespace()).containsExactly("default");
+    assertThat(source.catalog()).isNull();
+    assertThat(source.uuid()).isEqualTo("d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d");
 
     SourceTableState parsedTable = (SourceTableState) source;
-    Assertions.assertThat(parsedTable.snapshotId()).isEqualTo(6148331192489823102L);
-    Assertions.assertThat(parsedTable.ref()).isNull();
+    assertThat(parsedTable.snapshotId()).isEqualTo(6148331192489823102L);
+    assertThat(parsedTable.ref()).isNull();
   }
 
   @Test
@@ -75,17 +77,17 @@ public class TestRefreshStateParser {
     String json = RefreshStateParser.toJson(refreshState);
     RefreshState parsed = RefreshStateParser.fromJson(json);
 
-    Assertions.assertThat(parsed.sourceStates()).hasSize(1);
+    assertThat(parsed.sourceStates()).hasSize(1);
 
     SourceState source = parsed.sourceStates().get(0);
-    Assertions.assertThat(source).isInstanceOf(SourceViewState.class);
-    Assertions.assertThat(source.type()).isEqualTo("view");
-    Assertions.assertThat(source.name()).isEqualTo("daily_summary");
-    Assertions.assertThat(source.namespace()).containsExactly("analytics", "views");
-    Assertions.assertThat(source.catalog()).isEqualTo("other_catalog");
+    assertThat(source).isInstanceOf(SourceViewState.class);
+    assertThat(source.type()).isEqualTo("view");
+    assertThat(source.name()).isEqualTo("daily_summary");
+    assertThat(source.namespace()).containsExactly("analytics", "views");
+    assertThat(source.catalog()).isEqualTo("other_catalog");
 
     SourceViewState parsedView = (SourceViewState) source;
-    Assertions.assertThat(parsedView.versionId()).isEqualTo(5);
+    assertThat(parsedView.versionId()).isEqualTo(5);
   }
 
   @Test
@@ -102,12 +104,12 @@ public class TestRefreshStateParser {
     String json = RefreshStateParser.toJson(refreshState);
     RefreshState parsed = RefreshStateParser.fromJson(json);
 
-    Assertions.assertThat(parsed.sourceStates()).hasSize(2);
-    Assertions.assertThat(parsed.sourceStates().get(0)).isInstanceOf(SourceTableState.class);
-    Assertions.assertThat(parsed.sourceStates().get(1)).isInstanceOf(SourceViewState.class);
+    assertThat(parsed.sourceStates()).hasSize(2);
+    assertThat(parsed.sourceStates().get(0)).isInstanceOf(SourceTableState.class);
+    assertThat(parsed.sourceStates().get(1)).isInstanceOf(SourceViewState.class);
 
     SourceTableState parsedTable = (SourceTableState) parsed.sourceStates().get(0);
-    Assertions.assertThat(parsedTable.ref()).isEqualTo("main");
+    assertThat(parsedTable.ref()).isEqualTo("main");
   }
 
   @Test
@@ -127,15 +129,15 @@ public class TestRefreshStateParser {
 
     RefreshState parsed = RefreshStateParser.fromJson(json);
 
-    Assertions.assertThat(parsed.viewVersionId()).isEqualTo(1);
-    Assertions.assertThat(parsed.refreshStartTimestampMs()).isEqualTo(1573518435000L);
-    Assertions.assertThat(parsed.sourceStates()).hasSize(1);
+    assertThat(parsed.viewVersionId()).isEqualTo(1);
+    assertThat(parsed.refreshStartTimestampMs()).isEqualTo(1573518435000L);
+    assertThat(parsed.sourceStates()).hasSize(1);
 
     SourceTableState tableState = (SourceTableState) parsed.sourceStates().get(0);
-    Assertions.assertThat(tableState.name()).isEqualTo("events");
-    Assertions.assertThat(tableState.namespace()).containsExactly("default");
-    Assertions.assertThat(tableState.uuid()).isEqualTo("d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d");
-    Assertions.assertThat(tableState.snapshotId()).isEqualTo(6148331192489823102L);
+    assertThat(tableState.name()).isEqualTo("events");
+    assertThat(tableState.namespace()).containsExactly("default");
+    assertThat(tableState.uuid()).isEqualTo("d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d");
+    assertThat(tableState.snapshotId()).isEqualTo(6148331192489823102L);
   }
 
   @Test
@@ -145,8 +147,8 @@ public class TestRefreshStateParser {
     String json = RefreshStateParser.toJson(refreshState);
     RefreshState parsed = RefreshStateParser.fromJson(json);
 
-    Assertions.assertThat(parsed.sourceStates()).isEmpty();
-    Assertions.assertThat(parsed.viewVersionId()).isEqualTo(1);
+    assertThat(parsed.sourceStates()).isEmpty();
+    assertThat(parsed.viewVersionId()).isEqualTo(1);
   }
 
   @Test
@@ -159,16 +161,16 @@ public class TestRefreshStateParser {
         new RefreshState(1, Collections.singletonList(tableState), 1573518435000L);
 
     String json = RefreshStateParser.toJson(refreshState);
-    Assertions.assertThat(json).contains("\"ref\":\"audit_branch\"");
+    assertThat(json).contains("\"ref\":\"audit_branch\"");
 
     RefreshState parsed = RefreshStateParser.fromJson(json);
     SourceTableState parsedTable = (SourceTableState) parsed.sourceStates().get(0);
-    Assertions.assertThat(parsedTable.ref()).isEqualTo("audit_branch");
+    assertThat(parsedTable.ref()).isEqualTo("audit_branch");
   }
 
   @Test
   public void testNullJsonThrows() {
-    Assertions.assertThatThrownBy(() -> RefreshStateParser.fromJson((String) null))
+    assertThatThrownBy(() -> RefreshStateParser.fromJson((String) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse refresh state from null string");
   }
@@ -187,7 +189,7 @@ public class TestRefreshStateParser {
             + "}]"
             + "}";
 
-    Assertions.assertThatThrownBy(() -> RefreshStateParser.fromJson(json))
+    assertThatThrownBy(() -> RefreshStateParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Unknown source state type: unknown");
   }
