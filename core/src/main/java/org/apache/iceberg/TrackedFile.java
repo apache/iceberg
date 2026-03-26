@@ -25,7 +25,7 @@ import java.util.Set;
 import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 
-/** A file tracked by a v4 manifest. */
+/** A content file with optional deletion vector, tracked by a v4 manifest. */
 interface TrackedFile {
   Types.NestedField TRACKING =
       Types.NestedField.required(
