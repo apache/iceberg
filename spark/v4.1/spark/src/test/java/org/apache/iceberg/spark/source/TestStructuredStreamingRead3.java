@@ -485,6 +485,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         new SparkMicroBatchStream(
             JavaSparkContext.fromSparkContext(spark.sparkContext()),
             table,
+            table::io,
             new SparkReadConf(
                 spark,
                 table,
@@ -1212,6 +1213,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     return new SparkMicroBatchStream(
         JavaSparkContext.fromSparkContext(spark.sparkContext()),
         table,
+        table::io,
         new SparkReadConf(spark, table, new CaseInsensitiveStringMap(allOptions)),
         table.schema(),
         temp.resolve(checkpointDirName).toString());
