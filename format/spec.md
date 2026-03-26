@@ -242,12 +242,12 @@ For `geometry` type, the CRS does not affect geometric calculations, which are a
 
 The default CRS value `OGC:CRS84` means that the objects must be stored in longitude, latitude based on the WGS84 datum.
 
-Custom CRS values can be specified by a string of the format `type:identifier`, where `type` is one of the following values:
+Non-default CRS values can be specified by a string of the format `type:identifier`, where `type` is one of the following values:
 
 * `srid`: [Spatial reference identifier](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), `identifier` is the SRID itself.
 * `projjson`: [PROJJSON](https://proj.org/en/stable/specifications/projjson.html), `identifier` is the name of a table property where the projjson string is stored.
 
-For `geography` types, the custom CRS must be geographic, with longitudes bound by [-180, 180] and latitudes bound by [-90, 90].
+For `geography` types, the non-default CRS must be geographic, with longitudes bound by [-180, 180] and latitudes bound by [-90, 90].
 
 ##### Edge-Interpolation Algorithm
 
