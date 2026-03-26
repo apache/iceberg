@@ -839,7 +839,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<Long> newSnapshotIds = history.second();
 
     Iterable<ManifestFile> matchingManifests =
-        filterManifestsByPartition(base, conflictDetectionFilter, newDeleteManifests);
+        Iterables.filter(
+            filterManifestsByPartition(base, conflictDetectionFilter, newDeleteManifests),
+            ManifestFile::hasAddedFiles);
 
     Tasks.foreach(matchingManifests)
         .stopOnFailure()
