@@ -124,8 +124,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog
-    implements org.apache.spark.sql.connector.catalog.ViewCatalog, SupportsReplaceView {
+public class SparkCatalog extends BaseCatalog {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -239,6 +238,15 @@ public class SparkCatalog extends BaseCatalog
 
     } else {
       throw new IllegalArgumentException("Unknown Spark table type: " + table.getClass().getName());
+    }
+  }
+
+  @Override
+  public boolean tableExists(Identifier ident) {
+    if (isPathIdentifier(ident)) {
+      return tables.exists(((PathIdentifier) ident).location());
+    } else {
+      return icebergCatalog.tableExists(buildIdentifier(ident));
     }
   }
 
@@ -479,6 +487,12 @@ public class SparkCatalog extends BaseCatalog
   }
 
   @Override
+  public boolean namespaceExists(String[] namespace) {
+    return asNamespaceCatalog != null
+        && asNamespaceCatalog.namespaceExists(Namespace.of(namespace));
+  }
+
+  @Override
   public Map<String, String> loadNamespaceMetadata(String[] namespace)
       throws NoSuchNamespaceException {
     if (asNamespaceCatalog != null) {
@@ -572,6 +586,11 @@ public class SparkCatalog extends BaseCatalog
     }
 
     return new Identifier[0];
+  }
+
+  @Override
+  public boolean viewExists(Identifier ident) {
+    return asViewCatalog != null && asViewCatalog.viewExists(buildIdentifier(ident));
   }
 
   @Override
