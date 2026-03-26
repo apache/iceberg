@@ -113,6 +113,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private final long targetManifestSizeBytes;
+  private final FileFormat manifestFormat;
   private final Map<String, String> manifestWriterProps;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
@@ -142,6 +143,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetManifestSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    this.manifestFormat =
+        ops.current().formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS
+            ? FileFormat.PARQUET
+            : FileFormat.AVRO;
     this.manifestWriterProps = manifestWriterProperties(ops.current());
     boolean snapshotIdInheritanceEnabled =
         ops.current()
@@ -601,10 +606,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected EncryptedOutputFile newManifestOutputFile() {
-    FileFormat manifestFormat =
-        ops.current().formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS
-            ? FileFormat.PARQUET
-            : FileFormat.AVRO;
     String manifestFileLocation =
         ops.metadataFileLocation(
             manifestFormat.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));

@@ -849,7 +849,8 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        // reuse containers may come from a different reader (e.g. Avro) with incompatible types
+        // reuse containers may be unmodifiable (e.g. BaseFile.splitOffsets,
+        // BaseFile.equalityFieldIds) and cannot be cleared and reused
         this.lastList = reuse instanceof ArrayList ? reuse : null;
         this.elements = reuse.iterator();
       } else {
@@ -976,7 +977,8 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        // reuse containers may come from a different reader (e.g. Avro) with incompatible types
+        // reuse containers may be wrapped or immutable (e.g. BaseFile.lowerBounds,
+        // BaseFile.upperBounds via SerializableByteBufferMap) and cannot be cleared and reused
         this.lastMap = reuse instanceof LinkedHashMap ? reuse : null;
         this.pairs = reuse.entrySet().iterator();
       } else {

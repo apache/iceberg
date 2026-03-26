@@ -231,7 +231,7 @@ public class TestSnapshotProducer extends TestBase {
   public void testDefaultManifestCompression() throws IOException {
     assumeThat(formatVersion)
         .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
-        .isLessThan(4);
+        .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
 
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -243,7 +243,7 @@ public class TestSnapshotProducer extends TestBase {
   public void testManifestCompressionFromTableProperty() throws IOException {
     assumeThat(formatVersion)
         .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
-        .isLessThan(4);
+        .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
 
     table.updateProperties().set(TableProperties.MANIFEST_COMPRESSION, "snappy").commit();
 
