@@ -58,12 +58,10 @@ class DynamicRecordWithDefaults extends DynamicRecord {
 
   @Override
   public int writeParallelism() {
-    Integer sourceParallelism = super.writeParallelism() != 0 ? super.writeParallelism() : null;
-    return MoreObjects.firstNonNull(sourceParallelism, flinkWriteConf.writeParallelism());
-  }
+    if (super.writeParallelism() != Integer.MAX_VALUE) {
+      return super.writeParallelism();
+    }
 
-  @Override
-  public boolean upsertMode() {
-    return super.upsertMode();
+    return MoreObjects.firstNonNull(flinkWriteConf.writeParallelism(), Integer.MAX_VALUE);
   }
 }
