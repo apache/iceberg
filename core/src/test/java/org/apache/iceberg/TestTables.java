@@ -21,7 +21,9 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -31,6 +33,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -408,6 +411,108 @@ public class TestTables {
     @Override
     public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
       throw new RuntimeException("Expected to mock this function");
+    }
+  }
+
+  /** A {@link FileIO} that enforces a limit on concurrent open input streams. */
+  public static class TrackingFileIO implements FileIO {
+
+    private final FileIO delegate;
+    private final AtomicInteger count = new AtomicInteger(0);
+    private final AtomicInteger peakCount = new AtomicInteger(0);
+
+    TrackingFileIO(FileIO delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return new TrackingInputFile(delegate.newInputFile(path), count, peakCount);
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return delegate.newOutputFile(path);
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      delegate.deleteFile(path);
+    }
+
+    public int peakCount() {
+      return peakCount.get();
+    }
+  }
+
+  private static class TrackingInputFile implements InputFile {
+
+    private final InputFile delegate;
+    private final AtomicInteger count;
+    private final AtomicInteger peakCount;
+
+    TrackingInputFile(InputFile delegate, AtomicInteger count, AtomicInteger peakCount) {
+      this.delegate = delegate;
+      this.count = count;
+      this.peakCount = peakCount;
+    }
+
+    @Override
+    public long getLength() {
+      return delegate.getLength();
+    }
+
+    @Override
+    public SeekableInputStream newStream() {
+      peakCount.accumulateAndGet(count.incrementAndGet(), Math::max);
+      return new TrackingSeekableInputStream(delegate.newStream(), count);
+    }
+
+    @Override
+    public String location() {
+      return delegate.location();
+    }
+
+    @Override
+    public boolean exists() {
+      return delegate.exists();
+    }
+  }
+
+  private static class TrackingSeekableInputStream extends SeekableInputStream {
+
+    private final SeekableInputStream delegate;
+    private final AtomicInteger count;
+
+    TrackingSeekableInputStream(SeekableInputStream delegate, AtomicInteger count) {
+      this.delegate = delegate;
+      this.count = count;
+    }
+
+    @Override
+    public long getPos() throws IOException {
+      return delegate.getPos();
+    }
+
+    @Override
+    public void seek(long newPos) throws IOException {
+      delegate.seek(newPos);
+    }
+
+    @Override
+    public int read() throws IOException {
+      return delegate.read();
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+      return delegate.read(b, off, len);
+    }
+
+    @Override
+    public void close() throws IOException {
+      delegate.close();
+      count.decrementAndGet();
     }
   }
 }
