@@ -40,6 +40,7 @@ import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
@@ -308,6 +309,8 @@ class SparkZOrderUDF implements Serializable {
     } else if (type instanceof BooleanType) {
       return booleanToOrderedBytesUDF().apply(column);
     } else if (type instanceof TimestampType) {
+      return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
+    } else if (type instanceof TimestampNTZType) {
       return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
     } else if (type instanceof DateType) {
       return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
