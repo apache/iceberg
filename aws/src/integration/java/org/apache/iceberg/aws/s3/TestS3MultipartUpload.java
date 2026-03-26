@@ -150,27 +150,28 @@ public class TestS3MultipartUpload {
   public void testMultipartUploadWithChunkedEncoding(boolean chunkedEncodingEnabled)
       throws IOException {
     // Create a new S3FileIO with specified chunked encoding setting
-    S3FileIO testIo = new S3FileIO(() -> s3);
-    testIo.initialize(
-        ImmutableMap.of(
-            S3FileIOProperties.MULTIPART_SIZE,
-            Integer.toString(S3FileIOProperties.MULTIPART_SIZE_MIN),
-            S3FileIOProperties.CHECKSUM_ENABLED,
-            "true",
-            S3FileIOProperties.CHUNKED_ENCODING_ENABLED,
-            Boolean.toString(chunkedEncodingEnabled)));
+    try (S3FileIO testIo = new S3FileIO(() -> s3)) {
+      testIo.initialize(
+          ImmutableMap.of(
+              S3FileIOProperties.MULTIPART_SIZE,
+              Integer.toString(S3FileIOProperties.MULTIPART_SIZE_MIN),
+              S3FileIOProperties.CHECKSUM_ENABLED,
+              "true",
+              S3FileIOProperties.CHUNKED_ENCODING_ENABLED,
+              Boolean.toString(chunkedEncodingEnabled)));
 
-    int parts = 10;
-    long partSize = S3FileIOProperties.MULTIPART_SIZE_MIN;
-    String suffix = chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled";
+      int parts = 10;
+      long partSize = S3FileIOProperties.MULTIPART_SIZE_MIN;
+      String suffix = chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled";
 
-    String intObjectUri = objectUri + suffix + "-int";
-    writeDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
-    verifyDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
+      String intObjectUri = objectUri + suffix + "-int";
+      writeDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
+      verifyDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
 
-    String bytesObjectUri = objectUri + suffix + "-bytes";
-    writeDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
-    verifyDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
+      String bytesObjectUri = objectUri + suffix + "-bytes";
+      writeDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
+      verifyDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
+    }
   }
 
   private void writeInts(String fileUri, int parts, Supplier<Integer> writer) {
