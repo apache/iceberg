@@ -81,29 +81,6 @@ public class CatalogProperties {
   public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
 
   /**
-   * Controls whether engines using a REST Catalog should delegate DROP TABLE PURGE requests to the
-   * catalog server instead of performing client-side file deletion.
-   *
-   * <p>When enabled (true), the engine sends the purge request to the REST catalog, allowing the
-   * catalog to handle deletion. This enables features like UNDROP for REST catalogs that preserve
-   * deleted table metadata.
-   *
-   * <p>When disabled (false, default), the engine lists and deletes files client-side before
-   * dropping the table. This provides parallelized deletion but prevents server-side purge
-   * features.
-   *
-   * <p><b>Deprecation notice:</b> Client-side purge for REST catalogs is deprecated and will be
-   * removed in Apache Iceberg 2.0. The default will change to true in a future release. Non-REST
-   * catalog implementations (Hive, Glue, Hadoop) will maintain client-side behavior for
-   * compatibility.
-   *
-   * <p>Defaults to false for backward compatibility.
-   */
-  public static final String REST_CATALOG_PURGE = "rest.catalog-purge";
-
-  public static final boolean REST_CATALOG_PURGE_DEFAULT = false;
-
-  /**
    * Controls the maximum duration for which an entry stays in the manifest cache.
    *
    * <p>Must be a non-negative value. Following are specific behaviors of this config:
