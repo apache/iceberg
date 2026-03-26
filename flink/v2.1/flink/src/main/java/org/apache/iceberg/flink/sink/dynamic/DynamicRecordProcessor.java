@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
@@ -30,6 +32,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.flink.CatalogLoader;
+import org.apache.iceberg.flink.FlinkDynamicSinkConf;
+import org.apache.iceberg.flink.FlinkWriteConf;
 
 @Internal
 class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal>
@@ -41,6 +45,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
   private final DynamicRecordGenerator<T> generator;
   private final CatalogLoader catalogLoader;
+  private final Map<String, String> writeProperties;
+  private final Configuration flinkConfig;
   private final boolean immediateUpdate;
   private final boolean dropUnusedColumns;
   private final int cacheMaximumSize;
@@ -55,27 +61,30 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private transient OutputTag<DynamicRecordInternal> updateStream;
   private transient OutputTag<DynamicRecordInternal> forwardStream;
   private transient Collector<DynamicRecordInternal> collector;
+  private transient FlinkWriteConf flinkWriteConf;
   private transient Context context;
 
   DynamicRecordProcessor(
       DynamicRecordGenerator<T> generator,
       CatalogLoader catalogLoader,
-      boolean immediateUpdate,
-      int cacheMaximumSize,
-      long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize,
       TableCreator tableCreator,
-      boolean caseSensitive,
-      boolean dropUnusedColumns) {
+      Map<String, String> writeProperties,
+      Configuration flinkConfig) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
-    this.immediateUpdate = immediateUpdate;
-    this.cacheMaximumSize = cacheMaximumSize;
-    this.cacheRefreshMs = cacheRefreshMs;
-    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.writeProperties = writeProperties;
+    this.flinkConfig = flinkConfig;
+
+    FlinkDynamicSinkConf flinkDynamicSinkConf =
+        new FlinkDynamicSinkConf(writeProperties, flinkConfig);
+    this.immediateUpdate = flinkDynamicSinkConf.immediateTableUpdate();
+    this.cacheMaximumSize = flinkDynamicSinkConf.cacheMaxSize();
+    this.cacheRefreshMs = flinkDynamicSinkConf.cacheRefreshMs();
+    this.inputSchemasPerTableCacheMaximumSize =
+        flinkDynamicSinkConf.inputSchemasPerTableCacheMaxSize();
     this.tableCreator = tableCreator;
-    this.caseSensitive = caseSensitive;
-    this.dropUnusedColumns = dropUnusedColumns;
+    this.caseSensitive = flinkDynamicSinkConf.caseSensitive();
+    this.dropUnusedColumns = flinkDynamicSinkConf.dropUnusedColumns();
   }
 
   @Override
@@ -107,6 +116,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
               new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
     }
 
+    this.flinkWriteConf = new FlinkWriteConf(writeProperties, flinkConfig);
     generator.open(openContext);
   }
 
@@ -119,7 +129,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   }
 
   @Override
-  public void collect(DynamicRecord data) {
+  public void collect(DynamicRecord inputData) {
+    DynamicRecordWithDefaults data = new DynamicRecordWithDefaults(inputData, flinkWriteConf);
     boolean isForward = data.distributionMode() == null;
 
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;

@@ -78,6 +78,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
+import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -86,6 +87,7 @@ import org.apache.iceberg.flink.sink.dynamic.TestDynamicCommitter.CommitHook;
 import org.apache.iceberg.flink.sink.dynamic.TestDynamicCommitter.FailBeforeAndAfterCommit;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -379,6 +381,19 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     env.execute();
 
     verifyResults(rows);
+  }
+
+  @Test
+  void testWriteWithNullBranch() throws Exception {
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t1", null, PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t1", null, PartitionSpec.unpartitioned()));
+
+    runTest(
+        rows, this.env, false, 1, ImmutableMap.of(FlinkWriteOptions.BRANCH.key(), "test-branch"));
   }
 
   @Test
@@ -1477,6 +1492,18 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     verifyResults(dynamicData);
   }
 
+  private void runTest(
+      List<DynamicIcebergDataImpl> dynamicData,
+      StreamExecutionEnvironment env,
+      boolean immediateUpdate,
+      int parallelism,
+      Map<String, String> writeProperties)
+      throws Exception {
+    executeDynamicSink(
+        dynamicData, env, immediateUpdate, parallelism, null, false, writeProperties);
+    verifyResults(dynamicData, writeProperties);
+  }
+
   private void executeDynamicSink(
       List<DynamicIcebergDataImpl> dynamicData,
       StreamExecutionEnvironment env,
@@ -1484,7 +1511,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       int parallelism,
       @Nullable CommitHook commitHook)
       throws Exception {
-    executeDynamicSink(dynamicData, env, immediateUpdate, parallelism, commitHook, false);
+    executeDynamicSink(
+        dynamicData, env, immediateUpdate, parallelism, commitHook, false, Maps.newHashMap());
   }
 
   private void executeDynamicSink(
@@ -1494,6 +1522,19 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       int parallelism,
       @Nullable CommitHook commitHook,
       boolean overwrite)
+      throws Exception {
+    executeDynamicSink(
+        dynamicData, env, immediateUpdate, parallelism, commitHook, overwrite, Maps.newHashMap());
+  }
+
+  private void executeDynamicSink(
+      List<DynamicIcebergDataImpl> dynamicData,
+      StreamExecutionEnvironment env,
+      boolean immediateUpdate,
+      int parallelism,
+      @Nullable CommitHook commitHook,
+      boolean overwrite,
+      Map<String, String> writeProperties)
       throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.fromData(dynamicData, TypeInformation.of(new TypeHint<>() {}));
@@ -1508,6 +1549,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .immediateTableUpdate(immediateUpdate)
           .setSnapshotProperty("commit.retry.num-retries", "0")
           .overwrite(overwrite)
+          .setAll(writeProperties)
           .append();
     } else {
       DynamicIcebergSink.forInput(dataStream)
@@ -1516,6 +1558,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
           .overwrite(overwrite)
+          .setAll(writeProperties)
           .append();
     }
 
@@ -1542,7 +1585,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           "uidPrefix",
           writeProperties,
           flinkConfig,
-          100,
           forwardWriteResults);
     }
   }
@@ -1559,7 +1601,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         String uidPrefix,
         Map<String, String> writeProperties,
         Configuration flinkConfig,
-        int cacheMaximumSize,
         DataStream<CommittableMessage<DynamicWriteResult>> forwardWritten) {
       super(
           catalogLoader,
@@ -1567,7 +1608,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           uidPrefix,
           writeProperties,
           flinkConfig,
-          cacheMaximumSize,
           forwardWritten);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
@@ -1587,6 +1627,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   private void verifyResults(List<DynamicIcebergDataImpl> dynamicData) throws IOException {
+    verifyResults(dynamicData, Maps.newHashMap());
+  }
+
+  private void verifyResults(
+      List<DynamicIcebergDataImpl> dynamicData, Map<String, String> writeProperties)
+      throws IOException {
     // Calculate the expected result
     Map<Tuple2<String, String>, List<RowData>> expectedData = Maps.newHashMap();
     Map<String, Schema> expectedSchema = Maps.newHashMap();
@@ -1600,9 +1646,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     dynamicData.forEach(
         r -> {
+          String branch =
+              MoreObjects.firstNonNull(
+                  r.branch, writeProperties.get(FlinkWriteOptions.BRANCH.key()));
           List<RowData> data =
               expectedData.computeIfAbsent(
-                  Tuple2.of(r.tableName, r.branch), unused -> Lists.newArrayList());
+                  Tuple2.of(r.tableName, branch), unused -> Lists.newArrayList());
           data.addAll(
               convertToRowData(expectedSchema.get(r.tableName), ImmutableList.of(r.rowExpected)));
         });
