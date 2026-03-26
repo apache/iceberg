@@ -318,16 +318,14 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     }
     fields.add(MetadataColumns.ROW_POSITION);
 
-    InternalData.ReadBuilder readBuilder =
+    CloseableIterable<ManifestEntry<F>> reader =
         InternalData.read(format, file)
             .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
             .setRootType(GenericManifestEntry.class)
             .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
-            .setCustomType(DataFile.PARTITION_ID, PartitionData.class);
-
-    readBuilder.reuseContainers();
-
-    CloseableIterable<ManifestEntry<F>> reader = readBuilder.build();
+            .setCustomType(DataFile.PARTITION_ID, PartitionData.class)
+            .reuseContainers()
+            .build();
 
     addCloseable(reader);
 

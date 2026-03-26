@@ -20,11 +20,14 @@ package org.apache.iceberg.util;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
@@ -35,24 +38,32 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 
-public class TestManifestFileUtil {
+class TestManifestFileUtil {
+  private static final int MIN_FORMAT_VERSION_PARQUET_MANIFESTS = 4;
+
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()),
           optional(2, "unknown", Types.UnknownType.get()),
           optional(3, "floats", Types.FloatType.get()));
 
+  private final AtomicInteger manifestCounter = new AtomicInteger(0);
+
   @TempDir private Path temp;
 
-  @Test
-  public void canContainWithUnknownTypeOnly() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  void canContainWithUnknownTypeOnly(int formatVersion) throws IOException {
+    // Parquet cannot represent the empty struct produced by an UnknownType-only partition
+    assumeThat(formatVersion).isLessThan(MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("unknown").build();
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, "someValue");
-    ManifestFile manifestFile = writeManifestWithDataFile(spec, partition);
+    ManifestFile manifestFile = writeManifestWithDataFile(formatVersion, spec, partition);
 
     assertThat(
             ManifestFileUtil.canContainAny(
@@ -62,12 +73,13 @@ public class TestManifestFileUtil {
         .isTrue();
   }
 
-  @Test
-  public void canContainWithNaNValueOnly() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  void canContainWithNaNValueOnly(int formatVersion) throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("floats").build();
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, Float.NaN);
-    ManifestFile manifestFile = writeManifestWithDataFile(spec, partition);
+    ManifestFile manifestFile = writeManifestWithDataFile(formatVersion, spec, partition);
 
     assertThat(
             ManifestFileUtil.canContainAny(
@@ -77,12 +89,13 @@ public class TestManifestFileUtil {
         .isTrue();
   }
 
-  @Test
-  public void canContainWithNullValueOnly() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  void canContainWithNullValueOnly(int formatVersion) throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("floats").build();
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, null);
-    ManifestFile manifestFile = writeManifestWithDataFile(spec, partition);
+    ManifestFile manifestFile = writeManifestWithDataFile(formatVersion, spec, partition);
 
     assertThat(
             ManifestFileUtil.canContainAny(
@@ -92,14 +105,15 @@ public class TestManifestFileUtil {
         .isTrue();
   }
 
-  @Test
-  public void canContainWithUnknownType() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  void canContainWithUnknownType(int formatVersion) throws IOException {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA).identity("floats").identity("unknown").build();
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, 1.0f);
     partition.set(1, "someValue");
-    ManifestFile manifestFile = writeManifestWithDataFile(spec, partition);
+    ManifestFile manifestFile = writeManifestWithDataFile(formatVersion, spec, partition);
 
     assertThat(
             ManifestFileUtil.canContainAny(
@@ -109,10 +123,16 @@ public class TestManifestFileUtil {
         .isTrue();
   }
 
-  private ManifestFile writeManifestWithDataFile(PartitionSpec spec, PartitionData partition)
-      throws IOException {
+  private ManifestFile writeManifestWithDataFile(
+      int formatVersion, PartitionSpec spec, PartitionData partition) throws IOException {
+    FileFormat format =
+        formatVersion >= MIN_FORMAT_VERSION_PARQUET_MANIFESTS
+            ? FileFormat.PARQUET
+            : FileFormat.AVRO;
+    String filename = format.addExtension("manifest-" + manifestCounter.getAndIncrement());
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(spec, Files.localOutput(temp.resolve("manifest.avro").toFile()));
+        ManifestFiles.write(
+            formatVersion, spec, Files.localOutput(temp.resolve(filename).toFile()), null);
     try (writer) {
       writer.add(
           DataFiles.builder(spec)
