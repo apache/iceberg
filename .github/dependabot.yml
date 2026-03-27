@@ -25,6 +25,8 @@ updates:
       interval: "weekly"
       day: "sunday"
     open-pull-requests-limit: 50
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
@@ -34,6 +36,8 @@ updates:
       interval: "weekly"
       day: "sunday"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
