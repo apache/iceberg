@@ -572,6 +572,10 @@ class RecordConverter {
     if (value instanceof Boolean) {
       return Variants.of((Boolean) value);
     }
+    if (value instanceof Date) {
+      int days = (int) (((Date) value).getTime() / 1000 / 60 / 60 / 24);
+      return Variants.ofDate(days);
+    }
     if (value instanceof Number) {
       return numberToVariantValue((Number) value);
     }
