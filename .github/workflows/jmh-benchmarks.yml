@@ -28,12 +28,12 @@ on:
         description: 'The branch name'
         required: true
       spark_version:
-        description: 'The Spark version, such as 3.5'
-        default: '3.5'
+        description: 'The Spark version, such as 4.1'
+        default: '4.1'
         required: true
       scala_version:
-        description: 'The Scala version, such as 2.12'
-        default: '2.12'
+        description: 'The Scala version, such as 2.13'
+        default: '2.13'
         required: true
       benchmarks:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
