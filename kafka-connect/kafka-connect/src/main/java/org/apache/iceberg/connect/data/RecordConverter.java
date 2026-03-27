@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -592,6 +593,9 @@ class RecordConverter {
   private static VariantValue numberToVariantValue(Number value) {
     if (value instanceof BigDecimal) {
       return Variants.of((BigDecimal) value);
+    }
+    if (value instanceof BigInteger) {
+      return Variants.of(new BigDecimal((BigInteger) value));
     }
     if (value instanceof Integer) {
       return Variants.of((Integer) value);
