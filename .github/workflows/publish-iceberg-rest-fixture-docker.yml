@@ -39,13 +39,16 @@ jobs:
   build:
     if: github.repository_owner == 'apache'
     runs-on: ubuntu-latest
+    environment: docker-publish
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        persist-credentials: false
     - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
       with:
         distribution: zulu
         java-version: 21
-    - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+    - uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
       with:
         path: |
           ~/.gradle/caches
@@ -55,13 +58,18 @@ jobs:
     - name: Build Iceberg Open API project
       run: ./gradlew :iceberg-open-api:shadowJar
     - name: Login to Docker Hub
+      env:
+        DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
-        docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+        docker login -u "$DOCKERHUB_USER" -p "$DOCKERHUB_TOKEN"
     - name: Set the tagged version
       # for tag 'apache-iceberg-1.7.1', publish image 'apache/iceberg-rest-fixture:1.7.1'
       if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+      env:
+        REF: ${{ github.ref }}
       run: |
-        echo "DOCKER_IMAGE_VERSION=`echo ${{ github.ref }} | tr -d -c 0-9.`" >> "$GITHUB_ENV"
+        echo "DOCKER_IMAGE_VERSION=$(echo "$REF" | tr -d -c 0-9.)" >> "$GITHUB_ENV"
     - name: Set up QEMU
       uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a
     - name: Set up Docker Buildx

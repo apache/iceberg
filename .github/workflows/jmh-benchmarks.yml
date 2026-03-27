@@ -49,9 +49,12 @@ jobs:
         with:
           repository: ${{ github.event.inputs.repo }}
           ref: ${{ github.event.inputs.ref }}
+          persist-credentials: false
       - id: set-matrix
+        env:
+          BENCHMARKS: ${{ github.event.inputs.benchmarks }}
         run: |
-          matrix=$(echo '[${{ github.event.inputs.benchmarks }}]' | jq '.[] | select(endswith("Benchmark")) | .')
+          matrix=$(echo "[$BENCHMARKS]" | jq '.[] | select(endswith("Benchmark")) | .')
           matrix=$(echo $matrix | sed 's/ /,/g' | sed 's/"/\"/g')
           echo "matrix=[$matrix]" >> $GITHUB_OUTPUT
           echo "foundlabel=$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')" >> $GITHUB_OUTPUT
@@ -60,12 +63,18 @@ jobs:
     needs: matrix
     runs-on: ubuntu-24.04
     steps:
-      - run: |
-          echo "Repo: ${{ github.event.inputs.repo }}"
-          echo "Ref: ${{ github.event.inputs.ref }}"
-          echo "Benchmarks: ${{ needs.matrix.outputs.matrix }}"
-          echo "Spark Project Version: ${{ needs.matrix.outputs.spark_version }}"
-          echo "Found Benchmarks? ${{ needs.matrix.outputs.foundlabel }}"
+      - env:
+          REPO: ${{ github.event.inputs.repo }}
+          REF: ${{ github.event.inputs.ref }}
+          BENCHMARKS: ${{ needs.matrix.outputs.matrix }}
+          SPARK_VERSION: ${{ needs.matrix.outputs.spark_version }}
+          FOUND_LABEL: ${{ needs.matrix.outputs.foundlabel }}
+        run: |
+          echo "Repo: $REPO"
+          echo "Ref: $REF"
+          echo "Benchmarks: $BENCHMARKS"
+          echo "Spark Project Version: $SPARK_VERSION"
+          echo "Found Benchmarks? $FOUND_LABEL"
 
   run-benchmark:
     if: ${{ needs.matrix.outputs.foundlabel == 'true' }}
@@ -83,6 +92,7 @@ jobs:
       with:
         repository: ${{ github.event.inputs.repo }}
         ref: ${{ github.event.inputs.ref }}
+        persist-credentials: false
     - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
       with:
         distribution: zulu
@@ -97,7 +107,10 @@ jobs:
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
 
     - name: Run Benchmark
-      run: ./gradlew :iceberg-spark:${{ github.event.inputs.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
+      env:
+        SPARK_VERSION: ${{ github.event.inputs.spark_version }}
+        BENCHMARK: ${{ matrix.benchmark }}
+      run: ./gradlew :iceberg-spark:${SPARK_VERSION}:jmh -PjmhIncludeRegex=${BENCHMARK} -PjmhOutputPath=benchmark/${BENCHMARK}.txt
 
     - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       if: ${{ always() }}
