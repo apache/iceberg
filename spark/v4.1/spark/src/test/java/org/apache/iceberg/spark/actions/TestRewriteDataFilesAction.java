@@ -1720,6 +1720,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testZOrderWithZColumnCollision() {
+    Schema schema =
+        new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "c2", Types.StringType.get()),
+            optional(3, "ICEZVALUE", Types.StringType.get()));
+
+    Table table =
+        TABLES.create(
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    assertThatThrownBy(() -> basicRewrite(table).zOrder("c1", "c2").execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot zorder because the table has a column named 'ICEZVALUE'");
+  }
+
+  @TestTemplate
   public void testZOrderSort() {
     int originalFiles = 20;
     Table table = createTable(originalFiles);
