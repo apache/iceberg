@@ -88,8 +88,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private OutputFile outputFile(EncryptedOutputFile encryptedFile) {
     // Casting to NativeEncryptionOutputFile actually makes the file rely on native encryption
     // rather than whole-file encryption.
-    if (format == FileFormat.PARQUET && encryptedFile instanceof NativeEncryptionOutputFile) {
-      return (NativeEncryptionOutputFile) encryptedFile;
+    if (format == FileFormat.PARQUET
+        && encryptedFile instanceof NativeEncryptionOutputFile nativeFile) {
+      return nativeFile;
     }
     return encryptedFile.encryptingOutputFile();
   }
@@ -248,10 +249,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   private ByteBuffer keyMetadataBuffer() {
-    if (keyMetadata instanceof NativeEncryptionKeyMetadata && format == FileFormat.AVRO) {
+    if (keyMetadata instanceof NativeEncryptionKeyMetadata nativeKeyMetadata
+        && format == FileFormat.AVRO) {
       // Whole-file encryption needs the file length embedded for GCM truncation protection.
       // Formats with native encryption (like Parquet) handle this directly and don't need it.
-      return ((NativeEncryptionKeyMetadata) keyMetadata).copyWithLength(length()).buffer();
+      return nativeKeyMetadata.copyWithLength(length()).buffer();
     } else if (keyMetadata != null) {
       return keyMetadata.buffer();
     }
