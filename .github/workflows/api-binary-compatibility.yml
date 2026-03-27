@@ -59,23 +59,10 @@ jobs:
         with:
           distribution: zulu
           java-version: 17
-      - uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";
       - run: ./gradlew revapi --rerun-tasks
-      - uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
-        if: github.event_name == 'push'
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: failure()
         with:
