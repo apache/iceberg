@@ -17,6 +17,10 @@
 # under the License.
 #
 
+# Verifies all GitHub Actions refs are on the ASF allowlist.
+# Actions not on the allowlist silently fail with "Startup failure" — no logs,
+# no notifications, and PRs may appear green because no checks ran.
+# See https://github.com/apache/infrastructure-actions/issues/574
 name: "ASF Allowlist Check"
 
 on:
@@ -39,4 +43,5 @@ jobs:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       with:
         persist-credentials: false
-    - uses: apache/infrastructure-actions/allowlist-check@main
+    # Intentionally unpinned to always use the latest allowlist from the ASF.
+    - uses: apache/infrastructure-actions/allowlist-check@main # zizmor: ignore[unpinned-uses]
