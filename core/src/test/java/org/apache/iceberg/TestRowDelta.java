@@ -2212,11 +2212,27 @@ public class TestRowDelta extends TestBase {
 
     // concurrently commit a DV in bucket 2
     DeleteFile dvBucket2 = newDeletes(dataFileInBucket2);
-    commit(table, table.newRowDelta().addDeletes(dvBucket2), branch);
+    Snapshot concurrentSnapshot = commit(table, table.newRowDelta().addDeletes(dvBucket2), branch);
 
     // commit should succeed because the concurrent DV is in bucket 2
     // which does not overlap the conflict detection filter
-    commit(table, rowDelta, branch);
+    Snapshot finalSnapshot = commit(table, rowDelta, branch);
+
+    assertThat(finalSnapshot.deleteManifests(table.io())).hasSize(2);
+    validateDeleteManifest(
+        finalSnapshot.deleteManifests(table.io()).get(0),
+        dataSeqs(finalSnapshot.sequenceNumber()),
+        fileSeqs(finalSnapshot.sequenceNumber()),
+        ids(finalSnapshot.snapshotId()),
+        files(dvBucket0),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        finalSnapshot.deleteManifests(table.io()).get(1),
+        dataSeqs(concurrentSnapshot.sequenceNumber()),
+        fileSeqs(concurrentSnapshot.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId()),
+        files(dvBucket2),
+        statuses(Status.ADDED));
   }
 
   @TestTemplate
@@ -2310,10 +2326,28 @@ public class TestRowDelta extends TestBase {
     DataFile newDataFileInBucket5 = newDataFile("data_bucket=5");
     commit(table, table.newRowDelta().addRows(newDataFileInBucket5), branch);
     DeleteFile concurrentDV = newDeletes(newDataFileInBucket5);
-    commit(table, table.newRowDelta().addDeletes(concurrentDV), branch);
+    Snapshot concurrentSnapshot =
+        commit(table, table.newRowDelta().addDeletes(concurrentDV), branch);
 
     // commit should succeed: the concurrent DV is in bucket 5, pruned by the filter
-    commit(table, rowDelta, branch);
+    Snapshot finalSnapshot = commit(table, rowDelta, branch);
+
+    List<ManifestFile> finalDeleteManifests = finalSnapshot.deleteManifests(table.io());
+    // the new DV manifest and the concurrent DV manifest should be present
+    validateDeleteManifest(
+        finalDeleteManifests.get(0),
+        dataSeqs(finalSnapshot.sequenceNumber()),
+        fileSeqs(finalSnapshot.sequenceNumber()),
+        ids(finalSnapshot.snapshotId()),
+        files(newDV),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        finalDeleteManifests.get(1),
+        dataSeqs(concurrentSnapshot.sequenceNumber()),
+        fileSeqs(concurrentSnapshot.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId()),
+        files(concurrentDV),
+        statuses(Status.ADDED));
   }
 
   @TestTemplate
