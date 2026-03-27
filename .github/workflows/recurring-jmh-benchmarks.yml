@@ -18,20 +18,13 @@
 #
 
 name: "Recurring JMH Benchmarks"
-on:
-  workflow_dispatch:
-  schedule:
-    # * is a special character in YAML so you have to quote this string
-    # this schedules a workflow to run at specific UTC times using POSIX cron syntax -> https://crontab.guru/
-    # we're running benchmarks every Sunday at 00:00 UTC
-    - cron:  '0 0 * * 0'
+on: pull_request
 
 permissions:
   contents: read
 
 jobs:
   run-benchmark:
-    if: github.repository_owner == 'apache'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
