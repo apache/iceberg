@@ -117,7 +117,7 @@ jobs:
         SPARK_VERSION: ${{ github.event.inputs.spark_version }}
         SCALA_VERSION: ${{ github.event.inputs.scala_version }}
         BENCHMARK: ${{ matrix.benchmark }}
-      run: ./gradlew -DsparkVersions=${SPARK_VERSION} -DscalaVersion=${SCALA_VERSION} -DflinkVersions= -DkafkaVersions= :iceberg-spark:iceberg-spark-${SPARK_VERSION}_${SCALA_VERSION}:jmh -PjmhIncludeRegex=${BENCHMARK} -PjmhOutputPath=benchmark/${BENCHMARK}.txt
+      run: ./gradlew -DsparkVersions=${SPARK_VERSION} -DscalaVersion=${SCALA_VERSION} :iceberg-spark:iceberg-spark-${SPARK_VERSION}_${SCALA_VERSION}:jmh -PjmhIncludeRegex=${BENCHMARK} -PjmhOutputPath=benchmark/${BENCHMARK}.txt
 
     - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       if: ${{ always() }}
