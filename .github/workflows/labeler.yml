@@ -31,3 +31,23 @@ jobs:
     - uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6
       with:
         sync-labels: true
+
+  # Intentionally vulnerable steps for testing zizmor and CodeQL detection
+  vulnerable-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Script injection via pr title
+      run: |
+        echo "Processing PR: ${{ github.event.pull_request.title }}"
+
+    - name: Script injection via pr body
+      run: |
+        echo "${{ github.event.pull_request.body }}"
+
+    - name: Run untrusted code from PR
+      run: |
+        bash ./scripts/greet.sh
