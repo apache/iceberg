@@ -28,8 +28,8 @@ on:
         description: 'The branch name'
         required: true
       spark_version:
-        description: 'The spark project version to use, such as iceberg-spark-3.5'
-        default: 'iceberg-spark-3.5'
+        description: 'The spark project version to use, such as iceberg-spark-3.5_2.12'
+        default: 'iceberg-spark-3.5_2.12'
         required: true
       benchmarks:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
@@ -67,7 +67,7 @@ jobs:
           REPO: ${{ github.event.inputs.repo }}
           REF: ${{ github.event.inputs.ref }}
           BENCHMARKS: ${{ needs.matrix.outputs.matrix }}
-          SPARK_VERSION: ${{ needs.matrix.outputs.spark_version }}
+          SPARK_VERSION: ${{ github.event.inputs.spark_version }}
           FOUND_LABEL: ${{ needs.matrix.outputs.foundlabel }}
         run: |
           echo "Repo: $REPO"
