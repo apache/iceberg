@@ -578,16 +578,14 @@ class RecordConverter {
       return Variants.ofTimestamptz(DateTimeUtil.microsFromInstant((Instant) value));
     }
     if (value instanceof OffsetDateTime) {
-      return Variants.ofTimestamptz(
-          DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value));
+      return Variants.ofTimestamptz(DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value));
     }
     if (value instanceof ZonedDateTime) {
       return Variants.ofTimestamptz(
           DateTimeUtil.microsFromTimestamptz(((ZonedDateTime) value).toOffsetDateTime()));
     }
     if (value instanceof LocalDateTime) {
-      return Variants.ofTimestampntz(
-          DateTimeUtil.microsFromTimestamp((LocalDateTime) value));
+      return Variants.ofTimestampntz(DateTimeUtil.microsFromTimestamp((LocalDateTime) value));
     }
     if (value instanceof LocalDate) {
       return Variants.ofDate(DateTimeUtil.daysFromDate((LocalDate) value));
