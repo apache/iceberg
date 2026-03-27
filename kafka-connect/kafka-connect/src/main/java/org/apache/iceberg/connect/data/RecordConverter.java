@@ -26,11 +26,13 @@ import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
@@ -571,6 +573,27 @@ class RecordConverter {
   private static VariantValue primitiveToVariantValue(Object value) {
     if (value instanceof Boolean) {
       return Variants.of((Boolean) value);
+    }
+    if (value instanceof Instant) {
+      return Variants.ofTimestamptz(DateTimeUtil.microsFromInstant((Instant) value));
+    }
+    if (value instanceof OffsetDateTime) {
+      return Variants.ofTimestamptz(
+          DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value));
+    }
+    if (value instanceof ZonedDateTime) {
+      return Variants.ofTimestamptz(
+          DateTimeUtil.microsFromTimestamptz(((ZonedDateTime) value).toOffsetDateTime()));
+    }
+    if (value instanceof LocalDateTime) {
+      return Variants.ofTimestampntz(
+          DateTimeUtil.microsFromTimestamp((LocalDateTime) value));
+    }
+    if (value instanceof LocalDate) {
+      return Variants.ofDate(DateTimeUtil.daysFromDate((LocalDate) value));
+    }
+    if (value instanceof LocalTime) {
+      return Variants.ofTime(DateTimeUtil.microsFromTime((LocalTime) value));
     }
     if (value instanceof Date) {
       int days = (int) (((Date) value).getTime() / 1000 / 60 / 60 / 24);
