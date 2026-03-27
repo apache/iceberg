@@ -18,8 +18,12 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,5 +65,37 @@ public final class TestS3InputStream {
     s3InputStream.readTail(new byte[0], 0, 0);
 
     verify(inputStream).close();
+  }
+
+  @Test
+  void testReadRetriesOnPrematureConnectionClose() throws IOException {
+    when(inputStream.read(any(byte[].class), anyInt(), anyInt()))
+        .thenThrow(
+            new ConnectionClosedException(
+                "Premature end of Content-Length delimited message body (expected: 100; received: 50)"))
+        .thenReturn(1);
+
+    assertThat(s3InputStream.read(new byte[1], 0, 1)).isEqualTo(1);
+    verify(s3Client, times(2))
+        .getObject(any(GetObjectRequest.class), any(ResponseTransformer.class));
+  }
+
+  @Test
+  void testReadDoesNotRetryOnOtherConnectionClosedException() throws IOException {
+    when(inputStream.read(any(byte[].class), anyInt(), anyInt()))
+        .thenThrow(new ConnectionClosedException("Connection closed by peer"));
+
+    assertThatThrownBy(() -> s3InputStream.read(new byte[1], 0, 1))
+        .isInstanceOf(ConnectionClosedException.class)
+        .hasMessage("Connection closed by peer");
+    verify(s3Client, times(1))
+        .getObject(any(GetObjectRequest.class), any(ResponseTransformer.class));
+  }
+
+  /** Simulates the shaded {@code org.apache.http.ConnectionClosedException}. */
+  private static class ConnectionClosedException extends IOException {
+    ConnectionClosedException(String message) {
+      super(message);
+    }
   }
 }

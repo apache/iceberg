@@ -55,6 +55,12 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
       ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
 
+  private static boolean isPrematureConnectionClose(Throwable ex) {
+    return ex.getClass().getSimpleName().equals("ConnectionClosedException")
+        && ex.getMessage() != null
+        && ex.getMessage().startsWith("Premature end of Content-Length delimited message body");
+  }
+
   private final StackTraceElement[] createStack;
   private final S3Client s3;
   private final S3URI location;
@@ -72,6 +78,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private RetryPolicy<Object> retryPolicy =
       RetryPolicy.builder()
           .handle(RETRYABLE_EXCEPTIONS)
+          .handleIf(S3InputStream::isPrematureConnectionClose)
           .onRetry(
               e -> {
                 LOG.warn(
