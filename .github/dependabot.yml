@@ -24,6 +24,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
