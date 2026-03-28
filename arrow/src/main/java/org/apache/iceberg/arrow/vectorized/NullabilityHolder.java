@@ -76,6 +76,7 @@ public class NullabilityHolder {
   }
 
   public void reset() {
+    Arrays.fill(isNull, (byte) 0);
     numNulls = 0;
   }
 }
