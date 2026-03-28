@@ -68,6 +68,11 @@ public class TestGenericData extends DataTestBase {
     return true;
   }
 
+  @Override
+  protected boolean supportsRowLineage() {
+    return true;
+  }
+
   /** Orc writers don't have notion of non-null / required fields. */
   @Override
   protected boolean allowsWritingNullValuesForRequiredFields() {
