@@ -85,6 +85,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.orc.CompressionKind;
@@ -787,12 +788,19 @@ public class ORC {
 
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      Set<Integer> idsToExclude =
+      Set<Integer> topLevelIdsToExclude =
           Sets.difference(
               Sets.union(constantFieldIds, MetadataColumns.metadataFieldIds()),
               ImmutableSet.of(
                   MetadataColumns.ROW_ID.fieldId(),
                   MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()));
+
+      Set<Integer> idsToExclude = Sets.newHashSet(topLevelIdsToExclude);
+      for (Types.NestedField field : schema.columns()) {
+        if (topLevelIdsToExclude.contains(field.fieldId())) {
+          idsToExclude.addAll(TypeUtil.getProjectedIds(field.type()));
+        }
+      }
 
       return new OrcIterable<>(
           file,

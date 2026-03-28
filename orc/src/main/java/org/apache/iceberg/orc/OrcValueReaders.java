@@ -146,7 +146,7 @@ public class OrcValueReaders {
         Types.NestedField field = fields.get(pos);
         if (field.equals(MetadataColumns.ROW_ID)) {
           readerIndex += handleRowIdField(pos, field, readers, readerIndex, idToConstant);
-        } else if (field.fieldId() == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+        } else if (field.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER)) {
           readerIndex += handleLastUpdatedSeqField(pos, field, readers, readerIndex, idToConstant);
         } else if (idToConstant.containsKey(field.fieldId())) {
           this.isConstantOrMetadataField[pos] = true;
