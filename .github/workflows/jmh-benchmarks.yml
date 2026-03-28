@@ -28,8 +28,12 @@ on:
         description: 'The branch name'
         required: true
       spark_version:
-        description: 'The spark project version to use, such as iceberg-spark-3.5'
-        default: 'iceberg-spark-3.5'
+        description: 'The Spark version, such as 4.1'
+        default: '4.1'
+        required: true
+      scala_version:
+        description: 'The Scala version, such as 2.13'
+        default: '2.13'
         required: true
       benchmarks:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
@@ -67,13 +71,15 @@ jobs:
           REPO: ${{ github.event.inputs.repo }}
           REF: ${{ github.event.inputs.ref }}
           BENCHMARKS: ${{ needs.matrix.outputs.matrix }}
-          SPARK_VERSION: ${{ needs.matrix.outputs.spark_version }}
+          SPARK_VERSION: ${{ github.event.inputs.spark_version }}
+          SCALA_VERSION: ${{ github.event.inputs.scala_version }}
           FOUND_LABEL: ${{ needs.matrix.outputs.foundlabel }}
         run: |
           echo "Repo: $REPO"
           echo "Ref: $REF"
           echo "Benchmarks: $BENCHMARKS"
-          echo "Spark Project Version: $SPARK_VERSION"
+          echo "Spark Version: $SPARK_VERSION"
+          echo "Scala Version: $SCALA_VERSION"
           echo "Found Benchmarks? $FOUND_LABEL"
 
   run-benchmark:
@@ -103,12 +109,13 @@ jobs:
     - name: Run Benchmark
       env:
         SPARK_VERSION: ${{ github.event.inputs.spark_version }}
+        SCALA_VERSION: ${{ github.event.inputs.scala_version }}
         BENCHMARK: ${{ matrix.benchmark }}
-      run: ./gradlew :iceberg-spark:${SPARK_VERSION}:jmh -PjmhIncludeRegex=${BENCHMARK} -PjmhOutputPath=benchmark/${BENCHMARK}.txt
+      run: ./gradlew -DsparkVersions=${SPARK_VERSION} -DscalaVersion=${SCALA_VERSION} :iceberg-spark:iceberg-spark-${SPARK_VERSION}_${SCALA_VERSION}:jmh -PjmhIncludeRegex=${BENCHMARK} -PjmhOutputPath=benchmark/${BENCHMARK}.txt
 
     - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       if: ${{ always() }}
       with:
-        name: benchmark-results
+        name: benchmark-${{ matrix.benchmark }}
         path: |
           **/benchmark/*.txt
