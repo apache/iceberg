@@ -302,6 +302,13 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST;
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col;
 ```
 
+!!! warning "Hive Catalog Limitation"
+    When using a **Hive catalog**, reordering columns may fail with an error from the Hive Metastore.
+    The Hive Metastore validates schema changes by comparing column types **positionally** — reordering
+    columns causes positional type mismatches, which it rejects as incompatible changes.
+
+    See the [DROP COLUMN section](#alter-table-drop-column) for the workaround and trade-offs.
+
 Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
 ```sql
@@ -322,6 +329,21 @@ To drop columns, use `ALTER TABLE ... DROP COLUMN`:
 ALTER TABLE prod.db.sample DROP COLUMN id;
 ALTER TABLE prod.db.sample DROP COLUMN point.z;
 ```
+
+!!! warning "Hive Catalog Limitation"
+    When using a **Hive catalog**, dropping a column that is not the last column in the table schema
+    may fail with an error from the Hive Metastore (HMS). This occurs because HMS validates schema
+    changes by comparing column types **positionally** — dropping a middle column shifts subsequent
+    columns, which HMS interprets as incompatible type changes
+    (`MetaStoreUtils#throwExceptionIfIncompatibleColTypeChange`).
+
+    To work around this, disable the HMS schema compatibility check by setting
+    `hive.metastore.disallow.incompatible.col.type.changes=false` in `hive-site.xml`, or by passing
+    `--conf spark.hadoop.hive.metastore.disallow.incompatible.col.type.changes=false` when starting Spark.
+
+    **Trade-off:** After applying this workaround, the Hive engine may no longer be able to read the table
+    correctly due to the schema mismatch in the Hive Metastore. Iceberg-aware engines (Spark, Flink, Trino, etc.)
+    will continue to work correctly, as they read schema from Iceberg metadata rather than HMS.
 
 ## `ALTER TABLE` SQL extensions
 
