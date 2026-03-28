@@ -79,6 +79,7 @@ ALTER TABLE prod.db.table CREATE BRANCH `test-branch` RETAIN 7 DAYS WITH SNAPSHO
 ![Audit Branch](assets/images/audit-branch.png)
 
 The above diagram shows an example of using an audit branch for validating a write workflow.
+For a full reference of WAP properties and modes (WAP ID vs. WAP Branch), see [Write-Audit-Publish](spark-writes.md#write-audit-publish-wap).
 
 1. First ensure `write.wap.enabled` is set.
 ```sql

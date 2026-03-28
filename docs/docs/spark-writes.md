@@ -269,6 +269,97 @@ val data: DataFrame = ...
 data.writeTo("prod.db.table.branch_audit").overwritePartitions()
 ```
 
+## Write-Audit-Publish (WAP)
+
+Write-Audit-Publish (WAP) is a workflow that allows writes to be staged and validated before they become visible to
+readers on the main branch. This is useful for data quality gates, auditing, and controlled promotion of data changes.
+
+To enable WAP, set the table property:
+
+```sql
+ALTER TABLE prod.db.table SET TBLPROPERTIES ('write.wap.enabled' = 'true');
+```
+
+WAP supports two mutually exclusive modes: **WAP ID** and **WAP Branch**.
+Setting both `spark.wap.id` and `spark.wap.branch` in the same session will result in a validation error.
+
+### WAP ID Mode
+
+Set `spark.wap.id` in the Spark session to stage a write. The resulting snapshot is added to the table's snapshot list
+but does **not** become the current snapshot — readers will not see the data until it is explicitly published.
+
+```sql
+-- 1. Enable WAP on the table
+ALTER TABLE prod.db.table SET TBLPROPERTIES ('write.wap.enabled' = 'true');
+
+-- 2. Set a WAP ID and write data (the snapshot is staged, not visible to readers)
+SET spark.wap.id = 'audit-job-run-001';
+INSERT INTO prod.db.table VALUES (1, 'a'), (2, 'b');
+
+-- 3. Validate the staged data by inspecting the snapshots metadata table
+SELECT snapshot_id, summary
+FROM prod.db.table.snapshots
+WHERE summary['wap.id'] = 'audit-job-run-001';
+
+-- 4. After validation, publish the staged snapshot to make it visible
+CALL iceberg.system.publish_changes('db.table', 'audit-job-run-001');
+
+-- 5. Clean up the session config
+RESET spark.wap.id;
+```
+
+Only **append** and **dynamic overwrite** snapshots can be published. A WAP ID cannot be published more than once.
+
+If a staged snapshot is never published, it remains in the snapshot list until removed by
+[`expire_snapshots`](spark-procedures.md#expire-snapshots).
+
+### WAP Branch Mode
+
+Set `spark.wap.branch` in the Spark session to direct writes to a named branch. Unlike WAP ID mode, the write **is**
+immediately visible to readers of that branch, but not to readers of the main branch.
+
+The branch must already exist before writing. See [Branching and Tagging DDL](spark-ddl.md#branching-and-tagging-ddl)
+for how to create branches.
+
+```sql
+-- 1. Enable WAP on the table
+ALTER TABLE prod.db.table SET TBLPROPERTIES ('write.wap.enabled' = 'true');
+
+-- 2. Create an audit branch
+ALTER TABLE prod.db.table CREATE BRANCH `audit-branch` RETAIN 7 DAYS;
+
+-- 3. Write to the WAP branch
+SET spark.wap.branch = audit-branch;
+INSERT INTO prod.db.table VALUES (3, 'c');
+
+-- 4. Validate by reading from the branch
+SELECT * FROM prod.db.table VERSION AS OF 'audit-branch';
+
+-- 5. Promote the branch to main
+CALL iceberg.system.fast_forward('db.table', 'main', 'audit-branch');
+
+-- 6. Clean up the session config
+RESET spark.wap.branch;
+```
+
+For a complete audit branch workflow example, see [Branching and Tagging](branching.md#audit-branch).
+
+### WAP ID vs. WAP Branch
+
+| | WAP ID | WAP Branch |
+|---|---|---|
+| Session config | `spark.wap.id` | `spark.wap.branch` |
+| Snapshot visibility | Staged (invisible until published) | Visible on branch immediately |
+| Publish mechanism | [`publish_changes`](spark-procedures.md#publish_changes) procedure | [`fast_forward`](spark-procedures.md#fast_forward) procedure |
+| Best for | Single-write audit gates | Multi-write pipelines with branch isolation |
+
+### Requirements and Constraints
+
+- The table property `write.wap.enabled` must be set to `true` for either WAP mode to take effect.
+- `spark.wap.id` and `spark.wap.branch` **cannot** both be set in the same session.
+- `spark.wap.branch` and a branch identifier (e.g., `prod.db.table.branch_audit`) **cannot** both be specified for the same write.
+- Unpublished staged snapshots (from WAP ID mode) remain in the snapshot list until removed by [`expire_snapshots`](spark-procedures.md#expire-snapshots).
+
 ## Writing with DataFrames
 
 Spark introduced the new `DataFrameWriterV2` API for writing to tables using data frames. The v2 API is recommended for several reasons:
