@@ -188,17 +188,14 @@ flink120-connector-test-utils = { module = "org.apache.flink:flink-connector-tes
 flink120-core = { module = "org.apache.flink:flink-core", version.ref = "flink120" }
 flink120-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink120" }
 flink120-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink120" }
-flink120-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink120" }
 flink20-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink20" }
 flink20-core = { module = "org.apache.flink:flink-core", version.ref = "flink20" }
 flink20-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink20" }
 flink20-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink20" }
-flink20-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink20" }
 flink21-connector-test-utils = { module = "org.apache.flink:flink-connector-test-utils", version.ref = "flink21" }
 flink21-core = { module = "org.apache.flink:flink-core", version.ref = "flink21" }
 flink21-runtime = { module = "org.apache.flink:flink-runtime", version.ref = "flink21" }
 flink21-test-utils = { module = "org.apache.flink:flink-test-utils", version.ref = "flink21" }
-flink21-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink21" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}

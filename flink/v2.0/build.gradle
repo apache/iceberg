@@ -71,9 +71,6 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation libs.flink20.connector.test.utils
     testImplementation libs.flink20.core
     testImplementation libs.flink20.runtime
-    testImplementation(libs.flink20.test.utilsjunit) {
-      exclude group: 'junit'
-    }
     testImplementation(libs.flink20.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
