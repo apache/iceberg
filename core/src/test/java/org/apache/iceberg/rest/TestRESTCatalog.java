@@ -106,6 +106,7 @@ import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -3808,6 +3809,136 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           .containsEntry("s3.secret-access-key", "test-secret-key");
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  @Test
+  public void testRegisterTableOverwriteFalse() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    Table sourceTable = catalog.createTable(TABLE, SCHEMA);
+    String metadataLocation =
+        ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+    TableIdentifier target = TableIdentifier.of(TABLE.namespace(), "table_register_false");
+
+    catalog.registerTable(target, metadataLocation, false);
+
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.register(target.namespace()),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof RegisterTableRequest request
+                        && request.name().equals(target.name())
+                        && request.metadataLocation().equals(metadataLocation)
+                        && !request.overwrite()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRegisterTableOverwriteTrue() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    Table sourceTable = catalog.createTable(TABLE, SCHEMA);
+    String metadataLocation =
+        ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+    TableIdentifier target = TableIdentifier.of(TABLE.namespace(), "table_register_true");
+
+    assertThatThrownBy(() -> catalog.registerTable(target, metadataLocation, true))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Registering tables with overwrite is not supported");
+
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.register(target.namespace()),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof RegisterTableRequest request
+                        && request.name().equals(target.name())
+                        && request.metadataLocation().equals(metadataLocation)
+                        && request.overwrite()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRegisterTableOverwriteTrueSupported() throws Exception {
+    File warehouse = new File(temp.toFile(), "overwrite-supported-warehouse");
+
+    InMemoryCatalog overwriteCatalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table registerTable(
+              TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+            if (overwrite && tableExists(identifier)) {
+              dropTable(identifier, false);
+            }
+
+            return registerTable(identifier, metadataFileLocation);
+          }
+        };
+
+    overwriteCatalog.initialize(
+        "overwrite-catalog",
+        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(overwriteCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    try {
+      catalog.createNamespace(TABLE.namespace());
+
+      Table sourceTable = catalog.createTable(TABLE, SCHEMA);
+      String metadataLocation =
+          ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+
+      TableIdentifier target = TableIdentifier.of(TABLE.namespace(), "table_register_true_success");
+      Table initialTargetTable =
+          catalog.createTable(
+              target,
+              SCHEMA,
+              PartitionSpec.unpartitioned(),
+              ImmutableMap.of("format-version", "2"));
+      String initialMetadataLocation =
+          ((HasTableOperations) initialTargetTable).operations().current().metadataFileLocation();
+
+      Table overwritten = catalog.registerTable(target, metadataLocation, true);
+
+      assertThat(((HasTableOperations) overwritten).operations().current().metadataFileLocation())
+          .isEqualTo(metadataLocation)
+          .isNotEqualTo(initialMetadataLocation);
+
+      verify(adapter)
+          .execute(
+              matches(
+                  HTTPMethod.POST,
+                  RESOURCE_PATHS.register(target.namespace()),
+                  Map.of(),
+                  Map.of(),
+                  requestObj ->
+                      requestObj instanceof RegisterTableRequest request
+                          && request.name().equals(target.name())
+                          && request.metadataLocation().equals(metadataLocation)
+                          && request.overwrite()),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+    } finally {
+      catalog.close();
+      overwriteCatalog.close();
     }
   }
 
