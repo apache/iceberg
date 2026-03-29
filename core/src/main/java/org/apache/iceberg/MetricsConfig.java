@@ -55,6 +55,7 @@ public final class MetricsConfig implements Serializable {
   private static final MetricsMode DEFAULT_MODE =
       MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(), DEFAULT_MODE);
+  private static final MetricsConfig FULL = new MetricsConfig(ImmutableMap.of(), MetricsModes.fromString("full"));
   private static final MetricsConfig POSITION_DELETE_MODE =
       new MetricsConfig(
           ImmutableMap.of(
@@ -74,6 +75,10 @@ public final class MetricsConfig implements Serializable {
 
   public static MetricsConfig getDefault() {
     return DEFAULT;
+  }
+
+  public static MetricsConfig getFull() {
+    return FULL;
   }
 
   public static MetricsConfig forPositionDelete() {
