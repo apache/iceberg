@@ -99,6 +99,8 @@ jobs:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+        with:
+          cache-disabled: true
       - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
           tool-cache: false
