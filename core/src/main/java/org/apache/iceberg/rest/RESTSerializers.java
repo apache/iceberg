@@ -44,6 +44,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.BatchLoadRelationsRequest;
+import org.apache.iceberg.rest.requests.BatchLoadRelationsRequestParser;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -64,6 +66,8 @@ import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequestParser;
+import org.apache.iceberg.rest.responses.BatchLoadRelationsResponse;
+import org.apache.iceberg.rest.responses.BatchLoadRelationsResponseParser;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ConfigResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -76,6 +80,8 @@ import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
+import org.apache.iceberg.rest.responses.LoadRelationResponse;
+import org.apache.iceberg.rest.responses.LoadRelationResponseParser;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponseParser;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
@@ -160,7 +166,16 @@ public class RESTSerializers {
             ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
         .addDeserializer(LoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>())
         .addDeserializer(
-            ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>());
+            ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>())
+        .addSerializer(LoadRelationResponse.class, new LoadRelationResponseSerializer<>())
+        .addDeserializer(LoadRelationResponse.class, new LoadRelationResponseDeserializer<>())
+        .addSerializer(BatchLoadRelationsRequest.class, new BatchLoadRelationsRequestSerializer<>())
+        .addDeserializer(
+            BatchLoadRelationsRequest.class, new BatchLoadRelationsRequestDeserializer<>())
+        .addSerializer(
+            BatchLoadRelationsResponse.class, new BatchLoadRelationsResponseSerializer<>())
+        .addDeserializer(
+            BatchLoadRelationsResponse.class, new BatchLoadRelationsResponseDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -620,6 +635,60 @@ public class RESTSerializers {
       return (T)
           FetchScanTasksResponseParser.fromJson(
               jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+    }
+  }
+
+  static class LoadRelationResponseSerializer<T extends LoadRelationResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      LoadRelationResponseParser.toJson(response, gen);
+    }
+  }
+
+  static class LoadRelationResponseDeserializer<T extends LoadRelationResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) LoadRelationResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  static class BatchLoadRelationsRequestSerializer<T extends BatchLoadRelationsRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      BatchLoadRelationsRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class BatchLoadRelationsRequestDeserializer<T extends BatchLoadRelationsRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) BatchLoadRelationsRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class BatchLoadRelationsResponseSerializer<T extends BatchLoadRelationsResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      BatchLoadRelationsResponseParser.toJson(response, gen);
+    }
+  }
+
+  static class BatchLoadRelationsResponseDeserializer<T extends BatchLoadRelationsResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) BatchLoadRelationsResponseParser.fromJson(jsonNode);
     }
   }
 

@@ -89,6 +89,11 @@ public class Endpoint {
   public static final Endpoint V1_REGISTER_VIEW =
       Endpoint.create("POST", ResourcePaths.V1_VIEW_REGISTER);
 
+  // relation endpoints
+  public static final Endpoint V1_LOAD_RELATION = Endpoint.create("GET", ResourcePaths.V1_RELATION);
+  public static final Endpoint V1_BATCH_LOAD_RELATIONS =
+      Endpoint.create("POST", ResourcePaths.V1_RELATIONS_BATCH_LOAD);
+
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");
   private final String httpMethod;

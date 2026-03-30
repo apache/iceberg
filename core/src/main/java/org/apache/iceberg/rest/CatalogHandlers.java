@@ -80,6 +80,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
+import org.apache.iceberg.rest.requests.BatchLoadRelationRequestItem;
+import org.apache.iceberg.rest.requests.BatchLoadRelationsRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -90,6 +92,8 @@ import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadRelationResultItem;
+import org.apache.iceberg.rest.responses.BatchLoadRelationsResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
@@ -97,6 +101,7 @@ import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadRelationResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
@@ -736,6 +741,64 @@ public class CatalogHandlers {
   public static LoadViewResponse loadView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
     View view = catalog.loadView(viewIdentifier);
     return viewResponse(view);
+  }
+
+  public static LoadRelationResponse loadRelation(
+      Catalog catalog, ViewCatalog viewCatalog, TableIdentifier ident, SnapshotMode mode) {
+    try {
+      LoadTableResponse tableResponse = loadTable(catalog, ident, mode);
+      return LoadRelationResponse.builder().withTableResponse(tableResponse).build();
+    } catch (NoSuchTableException e) {
+      if (viewCatalog != null) {
+        try {
+          LoadViewResponse viewResponse = loadView(viewCatalog, ident);
+          return LoadRelationResponse.builder().withViewResponse(viewResponse).build();
+        } catch (NoSuchViewException ignored) {
+          // fall through to throw not-found
+        }
+      }
+    }
+
+    throw new NoSuchTableException("No table or view exists for identifier: %s", ident);
+  }
+
+  public static BatchLoadRelationsResponse batchLoadRelations(
+      Catalog catalog, ViewCatalog viewCatalog, BatchLoadRelationsRequest request) {
+    BatchLoadRelationsResponse.Builder responseBuilder = BatchLoadRelationsResponse.builder();
+
+    for (BatchLoadRelationRequestItem item : request.identifiers()) {
+      TableIdentifier ident = item.identifier();
+      SnapshotMode mode = snapshotModeFromString(item.snapshots());
+
+      try {
+        LoadRelationResponse result = loadRelation(catalog, viewCatalog, ident, mode);
+        BatchLoadRelationResultItem.Builder itemBuilder =
+            BatchLoadRelationResultItem.builder()
+                .withIdentifier(ident)
+                .withStatus(200)
+                .withResult(result);
+
+        if (result.objectType() == CatalogObjectType.TABLE
+            && result.tableResponse().metadataLocation() != null) {
+          itemBuilder.withEtag(result.tableResponse().metadataLocation());
+        }
+
+        responseBuilder.addResult(itemBuilder.build());
+      } catch (NoSuchTableException | NoSuchViewException e) {
+        responseBuilder.addResult(
+            BatchLoadRelationResultItem.builder().withIdentifier(ident).withStatus(404).build());
+      }
+    }
+
+    return responseBuilder.build();
+  }
+
+  private static SnapshotMode snapshotModeFromString(String value) {
+    if (value == null) {
+      return SnapshotMode.ALL;
+    }
+
+    return SnapshotMode.valueOf(value.toUpperCase(java.util.Locale.ROOT));
   }
 
   public static LoadViewResponse updateView(

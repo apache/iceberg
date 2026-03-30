@@ -77,6 +77,7 @@ import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.requests.BatchLoadRelationsRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -89,11 +90,13 @@ import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadRelationsResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadRelationResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
@@ -1469,6 +1472,40 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+  }
+
+  /**
+   * Load a relation (table or view) using the universal load endpoint. The server resolves the
+   * identifier and returns a discriminated response.
+   */
+  public LoadRelationResponse loadRelation(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_RELATION);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    return client
+        .withAuthSession(contextualSession)
+        .get(
+            paths.relation(identifier),
+            LoadRelationResponse.class,
+            Map.of(),
+            ErrorHandlers.relationErrorHandler());
+  }
+
+  /**
+   * Batch load relations (tables and views) across namespaces using the batch load endpoint.
+   * Returns per-item results with status codes (200, 304, 404).
+   */
+  public BatchLoadRelationsResponse batchLoadRelations(
+      SessionContext context, BatchLoadRelationsRequest request) {
+    Endpoint.check(endpoints, Endpoint.V1_BATCH_LOAD_RELATIONS);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    return client
+        .withAuthSession(contextualSession)
+        .post(
+            paths.batchLoadRelations(),
+            request,
+            BatchLoadRelationsResponse.class,
+            Map.of(),
+            ErrorHandlers.relationErrorHandler());
   }
 
   @Override

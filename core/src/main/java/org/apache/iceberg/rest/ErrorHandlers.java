@@ -72,6 +72,10 @@ public class ErrorHandlers {
     return ViewCommitErrorHandler.INSTANCE;
   }
 
+  public static Consumer<ErrorResponse> relationErrorHandler() {
+    return RelationErrorHandler.INSTANCE;
+  }
+
   public static Consumer<ErrorResponse> tableCommitHandler() {
     return CommitErrorHandler.INSTANCE;
   }
@@ -207,6 +211,27 @@ public class ErrorHandlers {
         } else {
           throw new NoSuchPlanTaskException("%s", error.message());
         }
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Relation level error handler (for universal load that resolves to table or view). */
+  private static class RelationErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new RelationErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 404:
+          if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+            throw new NoSuchNamespaceException("%s", error.message());
+          } else {
+            throw new NotFoundException("%s", error.message());
+          }
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
       }
 
       super.accept(error);

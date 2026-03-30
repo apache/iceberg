@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.requests.BatchLoadRelationsRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -34,6 +35,7 @@ import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadRelationsResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
@@ -41,6 +43,7 @@ import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadRelationResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -121,6 +124,13 @@ enum Route {
       ResourcePaths.V1_VIEW_REGISTER,
       RegisterViewRequest.class,
       LoadViewResponse.class),
+  LOAD_RELATION(
+      HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_RELATION, null, LoadRelationResponse.class),
+  BATCH_LOAD_RELATIONS(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_RELATIONS_BATCH_LOAD,
+      BatchLoadRelationsRequest.class,
+      BatchLoadRelationsResponse.class),
   PLAN_TABLE_SCAN(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT,

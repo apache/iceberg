@@ -50,6 +50,9 @@ public class ResourcePaths {
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
   public static final String V1_VIEW_RENAME = "/v1/{prefix}/views/rename";
   public static final String V1_VIEW_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register-view";
+  public static final String V1_RELATION =
+      "/v1/{prefix}/namespaces/{namespace}/relations/{relation}";
+  public static final String V1_RELATIONS_BATCH_LOAD = "/v1/{prefix}/relations/batch-load";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
     return new ResourcePaths(
@@ -154,6 +157,20 @@ public class ResourcePaths {
 
   public String registerView(Namespace ns) {
     return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "register-view");
+  }
+
+  public String relation(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(ident.namespace()),
+        "relations",
+        RESTUtil.encodeString(ident.name()));
+  }
+
+  public String batchLoadRelations() {
+    return SLASH.join("v1", prefix, "relations", "batch-load");
   }
 
   public String planTableScan(TableIdentifier ident) {
