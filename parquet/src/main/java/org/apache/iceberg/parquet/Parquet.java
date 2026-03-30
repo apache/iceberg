@@ -163,7 +163,6 @@ public class Parquet {
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
     private VariantShreddingFunction variantShreddingFunc = null;
-    private MessageType fileSchema = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
@@ -206,21 +205,6 @@ public class Parquet {
      */
     public WriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
       this.variantShreddingFunc = func;
-      return this;
-    }
-
-    /**
-     * Set a pre-computed Parquet {@link MessageType} to use as the file schema, bypassing the
-     * default conversion from the Iceberg schema.
-     *
-     * <p>The provided schema must have Parquet field IDs that match the Iceberg schema's field IDs.
-     * This method is mutually exclusive with {@link #variantShreddingFunc}.
-     *
-     * @param newFileSchema the Parquet message type to write
-     * @return this for method chaining
-     */
-    public WriteBuilder withFileSchema(MessageType newFileSchema) {
-      this.fileSchema = newFileSchema;
       return this;
     }
 
@@ -411,13 +395,7 @@ public class Parquet {
       }
 
       set("parquet.avro.write-old-list-structure", "false");
-      Preconditions.checkArgument(
-          fileSchema == null || variantShreddingFunc == null,
-          "Cannot set both withFileSchema and variantShreddingFunc");
-      MessageType type =
-          fileSchema != null
-              ? fileSchema
-              : ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
+      MessageType type = ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
 
       FileEncryptionProperties fileEncryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -870,11 +848,6 @@ public class Parquet {
 
     public DataWriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
       appenderBuilder.variantShreddingFunc(func);
-      return this;
-    }
-
-    public DataWriteBuilder withFileSchema(MessageType newFileSchema) {
-      appenderBuilder.withFileSchema(newFileSchema);
       return this;
     }
 

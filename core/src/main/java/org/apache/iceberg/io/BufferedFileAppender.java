@@ -29,11 +29,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 /**
  * A FileAppender that buffers the first N rows, then creates a delegate appender via a factory.
  *
- * <p>The factory receives the buffered rows, is responsible for creating the real appender and
- * writing the buffered rows into it before returning. All subsequent {@link #add} calls delegate
- * directly to the real appender.
+ * <p>The factory receives the buffered rows and is responsible for creating the real appender. Row
+ * replay is handled internally. All subsequent {@link #add} calls delegate directly to the real
+ * appender.
  *
- * <p>If fewer than N rows are written before {@link #close}, the factory is called at close time.
+ * <p>If fewer than {@code bufferSize} rows are written before close, the factory is called with
+ * whatever rows were buffered. If no rows were written, the factory is not called and no file is
+ * created on disk. In this case, {@link #metrics()} returns {@code new Metrics(0L)} and {@link
+ * #length()} returns {@code 0L}.
  *
  * @param <D> the row type
  */
@@ -47,7 +50,16 @@ public class BufferedFileAppender<D> implements FileAppender<D> {
 
   /**
    * @param bufferRowCount number of rows to buffer before creating the delegate appender
-   * @param appenderFactory given the buffered rows, creates the delegate appender and replays them
+   * @param appenderFactory given the buffered rows, creates the delegate appender
+   */
+  public BufferedFileAppender(
+      int bufferRowCount, Function<List<D>, FileAppender<D>> appenderFactory) {
+    this(bufferRowCount, appenderFactory, UnaryOperator.identity());
+  }
+
+  /**
+   * @param bufferRowCount number of rows to buffer before creating the delegate appender
+   * @param appenderFactory given the buffered rows, creates the delegate appender
    * @param copyFunc copies a row before buffering (needed when row objects are reused, e.g. Spark
    *     InternalRow)
    */
@@ -62,7 +74,7 @@ public class BufferedFileAppender<D> implements FileAppender<D> {
     this.bufferRowCount = bufferRowCount;
     this.appenderFactory = appenderFactory;
     this.copyFunc = copyFunc;
-    this.buffer = Lists.newArrayList();
+    this.buffer = Lists.newArrayListWithCapacity(bufferRowCount);
   }
 
   @Override
@@ -81,7 +93,9 @@ public class BufferedFileAppender<D> implements FileAppender<D> {
   @Override
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed appender");
-    Preconditions.checkState(delegate != null, "Delegate appender was never created");
+    if (delegate == null) {
+      return new Metrics(0L);
+    }
     return delegate.metrics();
   }
 
@@ -90,6 +104,8 @@ public class BufferedFileAppender<D> implements FileAppender<D> {
     if (delegate != null) {
       return delegate.length();
     }
+
+    // No bytes written to disk yet; data is buffered in memory
     return 0L;
   }
 
@@ -98,6 +114,7 @@ public class BufferedFileAppender<D> implements FileAppender<D> {
     if (delegate != null) {
       return delegate.splitOffsets();
     }
+
     return null;
   }
 
@@ -105,28 +122,21 @@ public class BufferedFileAppender<D> implements FileAppender<D> {
   public void close() throws IOException {
     if (!closed) {
       this.closed = true;
-      try {
-        if (delegate == null) {
-          initialize();
-        }
-      } catch (RuntimeException e) {
-        // If initialize fails, attempt to close the delegate if it was partially created
-        closeDelegate();
-        throw e;
+      if (delegate == null && buffer != null && !buffer.isEmpty()) {
+        initialize();
       }
-      closeDelegate();
-    }
-  }
-
-  private void closeDelegate() throws IOException {
-    if (delegate != null) {
-      delegate.close();
+      if (delegate != null) {
+        delegate.close();
+      }
     }
   }
 
   private void initialize() {
     delegate = appenderFactory.apply(buffer);
     Preconditions.checkState(delegate != null, "appenderFactory must not return null");
+    for (D row : buffer) {
+      delegate.add(row);
+    }
     buffer = null;
   }
 }

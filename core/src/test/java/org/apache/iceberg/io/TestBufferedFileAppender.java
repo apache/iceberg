@@ -57,12 +57,11 @@ public class TestBufferedFileAppender {
   private Function<List<Record>, FileAppender<Record>> avroFactory(OutputFile out) {
     return bufferedRows -> {
       try {
-        FileAppender<Record> appender =
-            Avro.write(out).createWriterFunc(DataWriter::create).schema(SCHEMA).overwrite().build();
-        for (Record row : bufferedRows) {
-          appender.add(row);
-        }
-        return appender;
+        return Avro.write(out)
+            .createWriterFunc(DataWriter::create)
+            .schema(SCHEMA)
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new org.apache.iceberg.exceptions.RuntimeIOException(e);
       }
@@ -213,5 +212,17 @@ public class TestBufferedFileAppender {
     assertThat(actual).hasSize(4);
     assertThat(actual.get(0).getField("id")).isEqualTo(1L);
     assertThat(actual.get(3).getField("id")).isEqualTo(4L);
+  }
+
+  @Test
+  public void testCloseWithNoData() throws IOException {
+    BufferedFileAppender<Record> appender = createAppender(10);
+    // close immediately with no data written
+    appender.close();
+    // delegate was never created
+    assertThat(appender.length()).isEqualTo(0L);
+    assertThat(appender.metrics()).isNotNull();
+    assertThat(appender.metrics().recordCount()).isEqualTo(0L);
+    assertThat(appender.splitOffsets()).isNull();
   }
 }

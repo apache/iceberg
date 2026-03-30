@@ -22,6 +22,8 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -62,8 +64,9 @@ import org.apache.parquet.schema.Types;
  * {@link VariantValue} instances.
  *
  * @param <T> the engine-specific row type (e.g., Spark InternalRow, Flink RowData)
+ * @param <S> the engine-specific schema type (e.g., Spark StructType, Flink RowType)
  */
-public abstract class VariantShreddingAnalyzer<T> {
+public abstract class VariantShreddingAnalyzer<T, S> {
   private static final String TYPED_VALUE = "typed_value";
   private static final String VALUE = "value";
   private static final String ELEMENT = "element";
@@ -102,6 +105,38 @@ public abstract class VariantShreddingAnalyzer<T> {
 
   protected abstract List<VariantValue> extractVariantValues(
       List<T> bufferedRows, int variantFieldIndex);
+
+  /**
+   * Resolves a column name to its index in the engine-specific schema. Returns -1 if the column is
+   * not found.
+   */
+  protected abstract int resolveColumnIndex(S engineSchema, String columnName);
+
+  /**
+   * Analyzes all variant columns in the schema, resolving column indices via the engine-specific
+   * {@link #resolveColumnIndex} method.
+   *
+   * @param bufferedRows the buffered rows to analyze
+   * @param icebergSchema the Iceberg table schema
+   * @param engineSchema the engine-specific schema used to resolve column indices
+   * @return a map from Iceberg field ID to the shredded Parquet type for each variant column
+   */
+  public Map<Integer, Type> analyzeVariantColumns(
+      List<T> bufferedRows, Schema icebergSchema, S engineSchema) {
+    Map<Integer, Type> shreddedTypes = Maps.newHashMap();
+    for (org.apache.iceberg.types.Types.NestedField col : icebergSchema.columns()) {
+      if (col.type().isVariantType()) {
+        int rowIndex = resolveColumnIndex(engineSchema, col.name());
+        if (rowIndex >= 0) {
+          Type typed = analyzeAndCreateSchema(bufferedRows, rowIndex);
+          if (typed != null) {
+            shreddedTypes.put(col.fieldId(), typed);
+          }
+        }
+      }
+    }
+    return shreddedTypes;
+  }
 
   private static PathNode buildPathTree(List<VariantValue> variantValues) {
     PathNode root = new PathNode(null);
@@ -369,39 +404,40 @@ public abstract class VariantShreddingAnalyzer<T> {
     private int observationCount = 0;
 
     private static final Map<PhysicalType, Integer> INTEGER_PRIORITY =
-        Map.of(
+        ImmutableMap.of(
             PhysicalType.INT8, 0,
             PhysicalType.INT16, 1,
             PhysicalType.INT32, 2,
             PhysicalType.INT64, 3);
 
     private static final Map<PhysicalType, Integer> DECIMAL_PRIORITY =
-        Map.of(
+        ImmutableMap.of(
             PhysicalType.DECIMAL4, 0,
             PhysicalType.DECIMAL8, 1,
             PhysicalType.DECIMAL16, 2);
 
     private static final Map<PhysicalType, Integer> TIE_BREAK_PRIORITY =
-        Map.ofEntries(
-            Map.entry(PhysicalType.BOOLEAN_TRUE, 0),
-            Map.entry(PhysicalType.INT8, 1),
-            Map.entry(PhysicalType.INT16, 2),
-            Map.entry(PhysicalType.INT32, 3),
-            Map.entry(PhysicalType.INT64, 4),
-            Map.entry(PhysicalType.FLOAT, 5),
-            Map.entry(PhysicalType.DOUBLE, 6),
-            Map.entry(PhysicalType.DECIMAL4, 7),
-            Map.entry(PhysicalType.DECIMAL8, 8),
-            Map.entry(PhysicalType.DECIMAL16, 9),
-            Map.entry(PhysicalType.DATE, 10),
-            Map.entry(PhysicalType.TIME, 11),
-            Map.entry(PhysicalType.TIMESTAMPTZ, 12),
-            Map.entry(PhysicalType.TIMESTAMPNTZ, 13),
-            Map.entry(PhysicalType.BINARY, 14),
-            Map.entry(PhysicalType.STRING, 15),
-            Map.entry(PhysicalType.TIMESTAMPTZ_NANOS, 16),
-            Map.entry(PhysicalType.TIMESTAMPNTZ_NANOS, 17),
-            Map.entry(PhysicalType.UUID, 18));
+        ImmutableMap.<PhysicalType, Integer>builder()
+            .put(PhysicalType.BOOLEAN_TRUE, 0)
+            .put(PhysicalType.INT8, 1)
+            .put(PhysicalType.INT16, 2)
+            .put(PhysicalType.INT32, 3)
+            .put(PhysicalType.INT64, 4)
+            .put(PhysicalType.FLOAT, 5)
+            .put(PhysicalType.DOUBLE, 6)
+            .put(PhysicalType.DECIMAL4, 7)
+            .put(PhysicalType.DECIMAL8, 8)
+            .put(PhysicalType.DECIMAL16, 9)
+            .put(PhysicalType.DATE, 10)
+            .put(PhysicalType.TIME, 11)
+            .put(PhysicalType.TIMESTAMPTZ, 12)
+            .put(PhysicalType.TIMESTAMPNTZ, 13)
+            .put(PhysicalType.BINARY, 14)
+            .put(PhysicalType.STRING, 15)
+            .put(PhysicalType.TIMESTAMPTZ_NANOS, 16)
+            .put(PhysicalType.TIMESTAMPNTZ_NANOS, 17)
+            .put(PhysicalType.UUID, 18)
+            .buildOrThrow();
 
     void observe(VariantValue value) {
       observationCount++;

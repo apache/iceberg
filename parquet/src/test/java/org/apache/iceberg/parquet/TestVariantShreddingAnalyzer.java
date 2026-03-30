@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -35,10 +36,15 @@ import org.junit.jupiter.api.Test;
 
 public class TestVariantShreddingAnalyzer {
 
-  private static class DirectAnalyzer extends VariantShreddingAnalyzer<VariantValue> {
+  private static class DirectAnalyzer extends VariantShreddingAnalyzer<VariantValue, Void> {
     @Override
     protected List<VariantValue> extractVariantValues(List<VariantValue> rows, int idx) {
       return rows;
+    }
+
+    @Override
+    protected int resolveColumnIndex(Void engineSchema, String columnName) {
+      throw new UnsupportedOperationException("Not used in direct tests");
     }
   }
 
@@ -228,7 +234,7 @@ public class TestVariantShreddingAnalyzer {
             valPrimitive.getLogicalTypeAnnotation();
     assertThat(decimal).isNotNull();
     assertThat(decimal.getPrecision()).isEqualTo(38);
-    assertThat(decimal.getScale()).isLessThanOrEqualTo(38);
+    assertThat(decimal.getScale()).isEqualTo(20);
     // Scale must not exceed precision
     assertThat(decimal.getScale()).isLessThanOrEqualTo(decimal.getPrecision());
 
@@ -259,6 +265,42 @@ public class TestVariantShreddingAnalyzer {
             valPrimitive.getLogicalTypeAnnotation();
     assertThat(decimal.getPrecision()).isEqualTo(38);
     assertThat(decimal.getScale()).isEqualTo(18);
+  }
+
+  @Test
+  public void testInfrequentFieldsArePruned() {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+
+    VariantMetadata meta = Variants.metadata("common", "rare");
+
+    // 100 rows: "common" in all 100, "rare" in only 5 (< 10% threshold)
+    List<VariantValue> rows = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      ShreddedObject obj = Variants.object(meta);
+      obj.put("common", Variants.of(i));
+      if (i < 5) {
+        obj.put("rare", Variants.of("text"));
+      }
+      rows.add(obj);
+    }
+
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+    assertThat(schema).isNotNull();
+
+    GroupType group = schema.asGroupType();
+    assertThat(group.containsField("common")).isTrue();
+    assertThat(group.containsField("rare")).isFalse();
+  }
+
+  @Test
+  public void testEmptyArrayReturnsNull() {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+
+    // All rows are empty arrays, no element type to infer
+    List<VariantValue> rows = List.of(Variants.array(), Variants.array(), Variants.array());
+
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+    assertThat(schema).isNull();
   }
 
   /** Count typed_value group nesting depth along field "a". */

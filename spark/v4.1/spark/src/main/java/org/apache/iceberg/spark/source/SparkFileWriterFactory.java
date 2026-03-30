@@ -25,9 +25,7 @@ import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -39,23 +37,15 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.io.BufferedFileAppender;
-import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.ParquetWithSparkSchemaVisitor;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
-import org.apache.iceberg.types.Types;
-import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -72,10 +62,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
   private final Table table;
   private final FileFormat deleteFormat;
   private final Map<String, String> writeProperties;
-  private final Schema dataSchema;
-  private final StructType dataSparkType;
-  private final FileFormat dataFileFormat;
-  private final SortOrder dataSortOrder;
 
   /**
    * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
@@ -116,10 +102,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     this.table = table;
     this.deleteFormat = deleteFileFormat;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
-    this.dataSchema = dataSchema;
-    this.dataSparkType = useOrConvert(dataSparkType, dataSchema);
-    this.dataFileFormat = dataFileFormat;
-    this.dataSortOrder = dataSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.positionDeleteSparkType = positionDeleteSparkType;
     this.useDeprecatedPositionDeleteWriter =
@@ -158,10 +140,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     this.table = table;
     this.deleteFormat = deleteFileFormat;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
-    this.dataSchema = dataSchema;
-    this.dataSparkType = useOrConvert(dataSparkType, dataSchema);
-    this.dataFileFormat = dataFileFormat;
-    this.dataSortOrder = dataSortOrder;
     this.positionDeleteRowSchema = null;
     this.useDeprecatedPositionDeleteWriter = false;
   }
@@ -249,71 +227,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         throw new UncheckedIOException("Failed to create new position delete writer", e);
       }
     }
-  }
-
-  @Override
-  public DataWriter<InternalRow> newDataWriter(
-      EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-    if (!shouldUseVariantShredding()) {
-      return super.newDataWriter(file, spec, partition);
-    }
-
-    int bufferSize =
-        Integer.parseInt(
-            writeProperties.getOrDefault(
-                SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE,
-                String.valueOf(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE_DEFAULT)));
-
-    Map<String, String> tableProperties = table != null ? table.properties() : ImmutableMap.of();
-    MetricsConfig metricsConfig =
-        table != null ? MetricsConfig.forTable(table) : MetricsConfig.getDefault();
-
-    Function<List<InternalRow>, FileAppender<InternalRow>> appenderFactory =
-        bufferedRows -> {
-          Preconditions.checkNotNull(bufferedRows, "bufferedRows must not be null");
-          MessageType originalSchema = ParquetSchemaUtil.convert(dataSchema, "table");
-
-          MessageType shreddedSchema =
-              (MessageType)
-                  ParquetWithSparkSchemaVisitor.visit(
-                      dataSparkType,
-                      originalSchema,
-                      new SchemaInferenceVisitor(bufferedRows, dataSparkType));
-
-          try {
-            FileAppender<InternalRow> appender =
-                Parquet.write(file)
-                    .schema(dataSchema)
-                    .withFileSchema(shreddedSchema)
-                    .createWriterFunc(
-                        msgType -> SparkParquetWriters.buildWriter(dataSparkType, msgType))
-                    .setAll(tableProperties)
-                    .setAll(writeProperties)
-                    .metricsConfig(metricsConfig)
-                    .overwrite()
-                    .build();
-
-            for (InternalRow row : bufferedRows) {
-              appender.add(row);
-            }
-
-            return appender;
-          } catch (IOException e) {
-            throw new UncheckedIOException("Failed to create shredded variant writer", e);
-          }
-        };
-
-    BufferedFileAppender<InternalRow> bufferedAppender =
-        new BufferedFileAppender<>(bufferSize, appenderFactory, InternalRow::copy);
-
-    return new DataWriter<>(
-        bufferedAppender,
-        dataFileFormat,
-        file.encryptingOutputFile().location(),
-        spec,
-        partition,
-        file.keyMetadata(),
-        dataSortOrder);
   }
 
   static class Builder {
@@ -447,20 +360,5 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     } else {
       return null;
     }
-  }
-
-  private boolean shouldUseVariantShredding() {
-    // Variant shredding is currently only supported for Parquet files
-    if (dataFileFormat != FileFormat.PARQUET) {
-      return false;
-    }
-
-    boolean shreddingEnabled =
-        Boolean.parseBoolean(writeProperties.get(SparkSQLProperties.SHRED_VARIANTS));
-
-    return shreddingEnabled
-        && dataSchema != null
-        && dataSchema.columns().stream()
-            .anyMatch(field -> field.type() instanceof Types.VariantType);
   }
 }

@@ -26,14 +26,24 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.VariantVal;
 
 /**
  * Spark-specific implementation that extracts variant values from {@link InternalRow} instances.
  */
-class SparkVariantShreddingAnalyzer extends VariantShreddingAnalyzer<InternalRow> {
+class SparkVariantShreddingAnalyzer extends VariantShreddingAnalyzer<InternalRow, StructType> {
 
   SparkVariantShreddingAnalyzer() {}
+
+  @Override
+  protected int resolveColumnIndex(StructType sparkSchema, String columnName) {
+    try {
+      return sparkSchema.fieldIndex(columnName);
+    } catch (IllegalArgumentException e) {
+      return -1;
+    }
+  }
 
   @Override
   protected List<VariantValue> extractVariantValues(

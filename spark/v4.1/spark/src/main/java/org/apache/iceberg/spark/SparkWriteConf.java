@@ -33,6 +33,8 @@ import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_BUFFER_SIZE;
+import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_SHRED;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 
 import java.util.Locale;
@@ -485,16 +487,12 @@ public class SparkWriteConf {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
         boolean shouldShredVariants = shredVariants();
-        writeProperties.put(SparkSQLProperties.SHRED_VARIANTS, String.valueOf(shouldShredVariants));
+        writeProperties.put(PARQUET_VARIANT_SHRED, String.valueOf(shouldShredVariants));
 
         // Add variant shredding configuration properties
         if (shouldShredVariants) {
-          String variantBufferSize =
-              sessionConf.get(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, null);
-          if (variantBufferSize != null) {
-            writeProperties.put(
-                SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, variantBufferSize);
-          }
+          writeProperties.put(
+              PARQUET_VARIANT_BUFFER_SIZE, String.valueOf(variantInferenceBufferSize()));
         }
         break;
 
@@ -722,7 +720,17 @@ public class SparkWriteConf {
         .booleanConf()
         .option(SparkWriteOptions.SHRED_VARIANTS)
         .sessionConf(SparkSQLProperties.SHRED_VARIANTS)
-        .defaultValue(SparkSQLProperties.SHRED_VARIANTS_DEFAULT)
+        .tableProperty(TableProperties.PARQUET_VARIANT_SHRED)
+        .defaultValue(TableProperties.PARQUET_VARIANT_SHRED_DEFAULT)
+        .parse();
+  }
+
+  public int variantInferenceBufferSize() {
+    return confParser
+        .intConf()
+        .sessionConf(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE)
+        .tableProperty(TableProperties.PARQUET_VARIANT_BUFFER_SIZE)
+        .defaultValue(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT)
         .parse();
   }
 }

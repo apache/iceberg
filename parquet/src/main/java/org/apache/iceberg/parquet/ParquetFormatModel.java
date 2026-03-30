@@ -19,13 +19,16 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -33,6 +36,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.BaseFormatModel;
 import org.apache.iceberg.formats.ModelWriteBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
+import org.apache.iceberg.io.BufferedFileAppender;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -42,14 +46,21 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
 
 public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
   public static final String WRITER_VERSION_KEY = "parquet.writer.version";
+  public static final String SHRED_VARIANTS_KEY = TableProperties.PARQUET_VARIANT_SHRED;
+  public static final String VARIANT_BUFFER_SIZE_KEY = TableProperties.PARQUET_VARIANT_BUFFER_SIZE;
+  public static final int DEFAULT_BUFFER_SIZE = TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT;
   private final boolean isBatchReader;
+  private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
+  private final UnaryOperator<D> copyFunc;
 
   public static <D> ParquetFormatModel<PositionDelete<D>, Void, Object> forPositionDeletes() {
-    return new ParquetFormatModel<>(PositionDelete.deleteClass(), Void.class, null, null, false);
+    return new ParquetFormatModel<>(
+        PositionDelete.deleteClass(), Void.class, null, null, false, null, null);
   }
 
   public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
@@ -57,14 +68,26 @@ public class ParquetFormatModel<D, S, R>
       Class<S> schemaType,
       WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
       ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction) {
-    return new ParquetFormatModel<>(type, schemaType, writerFunction, readerFunction, false);
+    return new ParquetFormatModel<>(
+        type, schemaType, writerFunction, readerFunction, false, null, null);
+  }
+
+  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
+      Class<D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
+      VariantShreddingAnalyzer<D, S> variantAnalyzer,
+      UnaryOperator<D> copyFunc) {
+    return new ParquetFormatModel<>(
+        type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFunc);
   }
 
   public static <D, S> ParquetFormatModel<D, S, VectorizedReader<?>> create(
       Class<? extends D> type,
       Class<S> schemaType,
       ReaderFunction<VectorizedReader<?>, S, MessageType> batchReaderFunction) {
-    return new ParquetFormatModel<>(type, schemaType, null, batchReaderFunction, true);
+    return new ParquetFormatModel<>(type, schemaType, null, batchReaderFunction, true, null, null);
   }
 
   private ParquetFormatModel(
@@ -72,9 +95,13 @@ public class ParquetFormatModel<D, S, R>
       Class<S> schemaType,
       WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
       ReaderFunction<R, S, MessageType> readerFunction,
-      boolean isBatchReader) {
+      boolean isBatchReader,
+      VariantShreddingAnalyzer<D, S> variantAnalyzer,
+      UnaryOperator<D> copyFunc) {
     super(type, schemaType, writerFunction, readerFunction);
     this.isBatchReader = isBatchReader;
+    this.variantAnalyzer = variantAnalyzer;
+    this.copyFunc = copyFunc;
   }
 
   @Override
@@ -84,7 +111,7 @@ public class ParquetFormatModel<D, S, R>
 
   @Override
   public ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
-    return new WriteBuilderWrapper<>(outputFile, writerFunction());
+    return new WriteBuilderWrapper<>(outputFile, writerFunction(), variantAnalyzer, copyFunc);
   }
 
   @Override
@@ -95,15 +122,23 @@ public class ParquetFormatModel<D, S, R>
   private static class WriteBuilderWrapper<D, S> implements ModelWriteBuilder<D, S> {
     private final Parquet.WriteBuilder internal;
     private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
+    private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
+    private final UnaryOperator<D> copyFunc;
     private Schema schema;
     private S engineSchema;
     private FileContent content;
+    private boolean shreddingEnabled = false;
+    private int bufferSize = DEFAULT_BUFFER_SIZE;
 
     private WriteBuilderWrapper(
         EncryptedOutputFile outputFile,
-        WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction) {
+        WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+        VariantShreddingAnalyzer<D, S> variantAnalyzer,
+        UnaryOperator<D> copyFunc) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
+      this.variantAnalyzer = variantAnalyzer;
+      this.copyFunc = copyFunc;
     }
 
     @Override
@@ -125,13 +160,15 @@ public class ParquetFormatModel<D, S, R>
         internal.writerVersion(ParquetProperties.WriterVersion.valueOf(value));
       }
 
-      internal.set(property, value);
-      return this;
-    }
+      if (SHRED_VARIANTS_KEY.equals(property)) {
+        shreddingEnabled = Boolean.parseBoolean(value);
+      }
 
-    @Override
-    public ModelWriteBuilder<D, S> setAll(Map<String, String> properties) {
-      internal.setAll(properties);
+      if (VARIANT_BUFFER_SIZE_KEY.equals(property)) {
+        bufferSize = Integer.parseInt(value);
+      }
+
+      internal.set(property, value);
       return this;
     }
 
@@ -179,12 +216,16 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public FileAppender<D> build() throws IOException {
+      Preconditions.checkState(content != null, "File content type must be set before building");
       switch (content) {
         case DATA:
           internal.createContextFunc(Parquet.WriteBuilder.Context::dataContext);
           internal.createWriterFunc(
               (icebergSchema, messageType) ->
                   writerFunction.write(icebergSchema, messageType, engineSchema));
+          if (shreddingEnabled && variantAnalyzer != null && hasVariantColumns(schema)) {
+            return buildShreddedAppender();
+          }
           break;
         case EQUALITY_DELETES:
           internal.createContextFunc(Parquet.WriteBuilder.Context::deleteContext);
@@ -216,6 +257,39 @@ public class ParquetFormatModel<D, S, R>
       }
 
       return internal.build();
+    }
+
+    /**
+     * Creates a {@link BufferedFileAppender} that buffers the first N rows, runs variant shredding
+     * analysis on them, then creates the real Parquet appender with a shredded schema.
+     *
+     * <p>Only top-level variant columns are shredded. Nested variants (inside structs/lists/maps)
+     * fall through to unshredded 2-field layout because column index resolution only applies to
+     * top-level fields.
+     */
+    private FileAppender<D> buildShreddedAppender() {
+      return new BufferedFileAppender<>(
+          bufferSize,
+          bufferedRows -> {
+            Map<Integer, Type> shreddedTypes =
+                variantAnalyzer.analyzeVariantColumns(bufferedRows, schema, engineSchema);
+
+            if (!shreddedTypes.isEmpty()) {
+              internal.variantShreddingFunc((fieldId, name) -> shreddedTypes.get(fieldId));
+            }
+
+            try {
+              return internal.build();
+            } catch (IOException e) {
+              throw new UncheckedIOException("Failed to create shredded variant writer", e);
+            }
+          },
+          copyFunc);
+    }
+
+    private static boolean hasVariantColumns(Schema schema) {
+      return schema != null
+          && schema.columns().stream().anyMatch(field -> field.type().isVariantType());
     }
   }
 

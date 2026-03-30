@@ -136,9 +136,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30, \"dummy\": null}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+        """
+            (1, parse_json('{"name": "Alice", "age": 30, "dummy": null}')),\
+             (2, parse_json('{"name": "Bob", "age": 25}')),\
+             (3, parse_json('{"name": "Charlie", "age": 35}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType name =
@@ -163,9 +165,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"age\": \"25\"}')),"
-            + " (2, parse_json('{\"age\": 30}')),"
-            + " (3, parse_json('{\"age\": \"35\"}'))";
+        """
+            (1, parse_json('{"age": "25"}')),\
+             (2, parse_json('{"age": 30}')),\
+             (3, parse_json('{"age": "35"}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType age =
@@ -178,13 +182,18 @@ public class TestVariantShredding extends CatalogTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     verifyParquetSchema(table, expectedSchema);
+
+    List<Object[]> rows =
+        sql("SELECT variant_get(address, '$.age', 'int') FROM %s WHERE id = 2", tableName);
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0)[0]).isEqualTo(30);
   }
 
   @TestTemplate
   public void testPrimitiveType() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
-    String values = "(1, parse_json('123')), (2, parse_json('\"abc\"')), (3, parse_json('12'))";
+    String values = "(1, parse_json('123')), (2, parse_json('456')), (3, parse_json('789'))";
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType address =
@@ -193,7 +202,7 @@ public class TestVariantShredding extends CatalogTestBase {
             2,
             Type.Repetition.REQUIRED,
             shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(16, true)));
     MessageType expectedSchema = parquetSchema(address);
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -226,9 +235,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"active\": true}')),"
-            + " (2, parse_json('{\"active\": false}')),"
-            + " (3, parse_json('{\"active\": true}'))";
+        """
+            (1, parse_json('{"active": true}')),\
+             (2, parse_json('{"active": false}')),\
+             (3, parse_json('{"active": true}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType active = field("active", shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BOOLEAN));
@@ -244,9 +255,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"price\": 123.456789}')),"
-            + " (2, parse_json('{\"price\": 678.90}')),"
-            + " (3, parse_json('{\"price\": 999.99}'))";
+        """
+            (1, parse_json('{"price": 123.456789}')),\
+             (2, parse_json('{"price": 678.90}')),\
+             (3, parse_json('{"price": 999.99}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType price =
@@ -266,9 +279,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"price\": 123.45}')),"
-            + " (2, parse_json('{\"price\": 678.90}')),"
-            + " (3, parse_json('{\"price\": 999.99}'))";
+        """
+            (1, parse_json('{"price": 123.45}')),\
+             (2, parse_json('{"price": 678.90}')),\
+             (3, parse_json('{"price": 999.99}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType price =
@@ -288,9 +303,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('[\"java\", \"scala\", \"python\"]')),"
-            + " (2, parse_json('[\"rust\", \"go\"]')),"
-            + " (3, parse_json('[\"javascript\"]'))";
+        """
+            (1, parse_json('["java", "scala", "python"]')),\
+             (2, parse_json('["rust", "go"]')),\
+             (3, parse_json('["javascript"]'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType arr =
@@ -310,9 +327,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"tags\": [\"java\", \"scala\", \"python\"]}')),"
-            + " (2, parse_json('{\"tags\": [\"rust\", \"go\"]}')),"
-            + " (3, parse_json('{\"tags\": [\"javascript\"]}'))";
+        """
+            (1, parse_json('{"tags": ["java", "scala", "python"]}')),\
+             (2, parse_json('{"tags": ["rust", "go"]}')),\
+             (3, parse_json('{"tags": ["javascript"]}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType tags =
@@ -335,9 +354,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"location\": {\"city\": \"Seattle\", \"zip\": 98101}, \"tags\": [\"java\", \"scala\", \"python\"]}')),"
-            + " (2, parse_json('{\"location\": {\"city\": \"Portland\", \"zip\": 97201}}')),"
-            + " (3, parse_json('{\"location\": {\"city\": \"NYC\", \"zip\": 10001}}'))";
+        """
+            (1, parse_json('{"location": {"city": "Seattle", "zip": 98101}, "tags": ["java", "scala", "python"]}')),\
+             (2, parse_json('{"location": {"city": "Portland", "zip": 97201}}')),\
+             (3, parse_json('{"location": {"city": "NYC", "zip": 10001}}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType city =
@@ -374,13 +395,15 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "5");
 
     String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}')),"
-            + " (4, parse_json('{\"name\": \"David\", \"age\": 28}')),"
-            + " (5, parse_json('{\"name\": \"Eve\", \"age\": 32}')),"
-            + " (6, parse_json('{\"name\": \"Frank\", \"age\": 40}')),"
-            + " (7, parse_json('{\"name\": \"Grace\", \"age\": 27}'))";
+        """
+            (1, parse_json('{"name": "Alice", "age": 30}')),\
+             (2, parse_json('{"name": "Bob", "age": 25}')),\
+             (3, parse_json('{"name": "Charlie", "age": 35}')),\
+             (4, parse_json('{"name": "David", "age": 28}')),\
+             (5, parse_json('{"name": "Eve", "age": 32}')),\
+             (6, parse_json('{"name": "Frank", "age": 40}')),\
+             (7, parse_json('{"name": "Grace", "age": 27}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType name =
@@ -491,10 +514,12 @@ public class TestVariantShredding extends CatalogTestBase {
 
     // Mix of INT8, INT16, INT32, INT64 - should promote to INT64
     String values =
-        "(1, parse_json('{\"value\": 10}')),"
-            + " (2, parse_json('{\"value\": 1000}')),"
-            + " (3, parse_json('{\"value\": 100000}')),"
-            + " (4, parse_json('{\"value\": 10000000000}'))";
+        """
+            (1, parse_json('{"value": 10}')),\
+             (2, parse_json('{"value": 1000}')),\
+             (3, parse_json('{"value": 100000}')),\
+             (4, parse_json('{"value": 10000000000}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType value =
@@ -515,9 +540,11 @@ public class TestVariantShredding extends CatalogTestBase {
 
     // Test that they get promoted to the most capable decimal type observed
     String values =
-        "(1, parse_json('{\"value\": 1.5}')),"
-            + " (2, parse_json('{\"value\": 123.456789}')),"
-            + " (3, parse_json('{\"value\": 123456789123456.789}'))";
+        """
+            (1, parse_json('{"value": 1.5}')),\
+             (2, parse_json('{"value": 123.456789}')),\
+             (3, parse_json('{"value": 123456789123456.789}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType value =
@@ -539,9 +566,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+        """
+            (1, parse_json('{"name": "Alice", "age": 30}')),\
+             (2, parse_json('{"name": "Bob", "age": 25}')),\
+             (3, parse_json('{"name": "Charlie", "age": 35}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType name =
@@ -589,9 +618,11 @@ public class TestVariantShredding extends CatalogTestBase {
         tableIdent, SCHEMA2, null, Map.of(TableProperties.FORMAT_VERSION, "3"));
 
     String values =
-        "(1, parse_json('{\"city\": \"NYC\"}'), parse_json('{\"source\": \"web\"}')),"
-            + " (2, parse_json('{\"city\": \"LA\"}'), parse_json('{\"source\": \"app\"}')),"
-            + " (3, parse_json('{\"city\": \"SF\"}'), parse_json('{\"source\": \"api\"}'))";
+        """
+            (1, parse_json('{"city": "NYC"}'), parse_json('{"source": "web"}')),\
+             (2, parse_json('{"city": "LA"}'), parse_json('{"source": "app"}')),\
+             (3, parse_json('{"city": "SF"}'), parse_json('{"source": "api"}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType city =
@@ -618,7 +649,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('null'))," + " (2, parse_json('null'))," + " (3, parse_json('null'))";
+        """
+            (1, parse_json('null')),\
+             (2, parse_json('null')),\
+             (3, parse_json('null'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
@@ -650,9 +685,11 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
     String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, null),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+        """
+            (1, parse_json('{"name": "Alice", "age": 30}')),\
+             (2, null),\
+             (3, parse_json('{"name": "Charlie", "age": 35}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     GroupType name =
@@ -768,6 +805,13 @@ public class TestVariantShredding extends CatalogTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     verifyParquetSchema(table, expectedSchema);
+
+    // Verify data round-trips correctly
+    List<Object[]> rows =
+        sql("SELECT id, variant_get(address, '$.val', 'string') FROM %s ORDER BY id", tableName);
+    assertThat(rows).hasSize(10);
+    assertThat(rows.get(0)[1]).isEqualTo("1");
+    assertThat(rows.get(5)[1]).isEqualTo("text6");
   }
 
   @TestTemplate
@@ -776,13 +820,15 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "3");
 
     String values =
-        "(1, parse_json('{\"name\": \"Alice\"}')),"
-            + " (2, parse_json('{\"name\": \"Bob\"}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\"}')),"
-            + " (4, parse_json('{\"name\": \"David\", \"score\": 95}')),"
-            + " (5, parse_json('{\"name\": \"Eve\", \"score\": 88}')),"
-            + " (6, parse_json('{\"name\": \"Frank\", \"score\": 72}')),"
-            + " (7, parse_json('{\"name\": \"Grace\", \"score\": 91}'))";
+        """
+            (1, parse_json('{"name": "Alice"}')),\
+             (2, parse_json('{"name": "Bob"}')),\
+             (3, parse_json('{"name": "Charlie"}')),\
+             (4, parse_json('{"name": "David", "score": 95}')),\
+             (5, parse_json('{"name": "Eve", "score": 88}')),\
+             (6, parse_json('{"name": "Frank", "score": 72}')),\
+             (7, parse_json('{"name": "Grace", "score": 91}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, values);
 
     // Schema is determined from buffer (rows 1-3) which only has "name".
@@ -821,9 +867,11 @@ public class TestVariantShredding extends CatalogTestBase {
 
     // File 1: "score" is always integer → shredded as INT8
     String batch1 =
-        "(1, parse_json('{\"score\": 95}')),"
-            + " (2, parse_json('{\"score\": 88}')),"
-            + " (3, parse_json('{\"score\": 72}'))";
+        """
+            (1, parse_json('{"score": 95}')),\
+             (2, parse_json('{"score": 88}')),\
+             (3, parse_json('{"score": 72}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, batch1);
 
     // Verify file 1 schema: score shredded as INT8
@@ -839,9 +887,11 @@ public class TestVariantShredding extends CatalogTestBase {
 
     // File 2: "score" is always string → shredded as STRING
     String batch2 =
-        "(4, parse_json('{\"score\": \"high\"}')),"
-            + " (5, parse_json('{\"score\": \"medium\"}')),"
-            + " (6, parse_json('{\"score\": \"low\"}'))";
+        """
+            (4, parse_json('{"score": "high"}')),\
+             (5, parse_json('{"score": "medium"}')),\
+             (6, parse_json('{"score": "low"}'))\
+            """;
     sql("INSERT INTO %s VALUES %s", tableName, batch2);
 
     // Query across both files, reader must handle different shredded types
@@ -878,10 +928,12 @@ public class TestVariantShredding extends CatalogTestBase {
     spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "1");
 
     sql(
-        "INSERT INTO %s VALUES "
-            + "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))",
+        """
+            INSERT INTO %s VALUES
+            (1, parse_json('{"name": "Alice", "age": 30}')),
+            (2, parse_json('{"name": "Bob", "age": 25}')),
+            (3, parse_json('{"name": "Charlie", "age": 35}'))
+            """,
         tableName);
 
     // Schema inferred from first row only, should still shred name and age
@@ -912,15 +964,16 @@ public class TestVariantShredding extends CatalogTestBase {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       assertThat(tasks).isNotEmpty();
 
-      FileScanTask task = tasks.iterator().next();
-      String path = task.file().location();
+      for (FileScanTask task : tasks) {
+        String path = task.file().location();
 
-      HadoopInputFile inputFile =
-          HadoopInputFile.fromPath(new org.apache.hadoop.fs.Path(path), new Configuration());
+        HadoopInputFile inputFile =
+            HadoopInputFile.fromPath(new org.apache.hadoop.fs.Path(path), new Configuration());
 
-      try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
-        MessageType actualSchema = reader.getFileMetaData().getSchema();
-        assertThat(actualSchema).isEqualTo(expectedSchema);
+        try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
+          MessageType actualSchema = reader.getFileMetaData().getSchema();
+          assertThat(actualSchema).isEqualTo(expectedSchema);
+        }
       }
     }
   }
