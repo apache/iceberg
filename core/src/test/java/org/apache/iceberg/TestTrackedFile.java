@@ -29,7 +29,8 @@ import org.junit.jupiter.api.Test;
 public class TestTrackedFile {
 
   private static final Schema TABLE_SCHEMA =
-      new Schema(optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
   private static final Types.StructType CONTENT_STATS_TYPE =
       StatsUtil.contentStatsFor(TABLE_SCHEMA).type().asStructType();
