@@ -29,9 +29,7 @@ import org.junit.jupiter.api.Test;
 public class TestTrackedFile {
 
   private static final Schema TABLE_SCHEMA =
-      new Schema(
-          optional(1, "id", Types.IntegerType.get()),
-          optional(2, "data", Types.StringType.get()));
+      new Schema(optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
   private static final Types.StructType CONTENT_STATS_TYPE =
       StatsUtil.contentStatsFor(TABLE_SCHEMA).type().asStructType();
@@ -87,10 +85,8 @@ public class TestTrackedFile {
             optional(2, "data", Types.StringType.get()),
             optional(3, "ts", Types.TimestampType.withoutZone()));
 
-    Types.StructType smallStats =
-        StatsUtil.contentStatsFor(smallSchema).type().asStructType();
-    Types.StructType largeStats =
-        StatsUtil.contentStatsFor(largeSchema).type().asStructType();
+    Types.StructType smallStats = StatsUtil.contentStatsFor(smallSchema).type().asStructType();
+    Types.StructType largeStats = StatsUtil.contentStatsFor(largeSchema).type().asStructType();
 
     Types.StructType smallType = TrackedFile.schemaWithContentStats(smallStats);
     Types.StructType largeType = TrackedFile.schemaWithContentStats(largeStats);
