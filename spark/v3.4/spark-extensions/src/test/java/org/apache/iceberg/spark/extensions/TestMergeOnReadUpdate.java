@@ -30,6 +30,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
@@ -74,7 +75,12 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     String expectedDeleteFilesCount = "2";
     validateMergeOnRead(currentSnapshot, "2", expectedDeleteFilesCount, "2");
 
-    assertThat(currentSnapshot.removedDeleteFiles(table.io())).hasSize(2);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(currentSnapshot)
+                .build()
+                .removedDeleteFiles())
+        .hasSize(2);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
@@ -122,7 +128,12 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     expectedDeleteFilesCount = "2";
 
     validateMergeOnRead(currentSnapshot, "1", expectedDeleteFilesCount, "1");
-    assertThat(currentSnapshot.removedDeleteFiles(table.io())).hasSize(2);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(currentSnapshot)
+                .build()
+                .removedDeleteFiles())
+        .hasSize(2);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(

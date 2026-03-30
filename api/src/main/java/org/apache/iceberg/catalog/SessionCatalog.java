@@ -162,6 +162,9 @@ public interface SessionCatalog {
   /**
    * Register a table if it does not exist.
    *
+   * <p>For overwrite support, see {@link #registerTable(SessionContext, TableIdentifier, String,
+   * boolean)}.
+   *
    * @param context session context
    * @param ident a table identifier
    * @param metadataFileLocation the location of a metadata file
@@ -169,6 +172,29 @@ public interface SessionCatalog {
    * @throws AlreadyExistsException if the table already exists in the catalog.
    */
   Table registerTable(SessionContext context, TableIdentifier ident, String metadataFileLocation);
+
+  /**
+   * Register a table.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @param overwrite whether to overwrite an existing table registration
+   * @return a Table instance
+   * @throws AlreadyExistsException if {@code overwrite} is false and the table already exists in
+   *     the catalog
+   */
+  default Table registerTable(
+      SessionContext context,
+      TableIdentifier ident,
+      String metadataFileLocation,
+      boolean overwrite) {
+    if (!overwrite) {
+      return registerTable(context, ident, metadataFileLocation);
+    }
+
+    throw new UnsupportedOperationException("Registering tables with overwrite is not supported");
+  }
 
   /**
    * Check whether table exists.

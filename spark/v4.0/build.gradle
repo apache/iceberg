@@ -20,12 +20,6 @@
 String sparkMajorVersion = '4.0'
 String scalaVersion = '2.13'
 
-JavaVersion javaVersion = JavaVersion.current()
-Boolean javaVersionSupported = javaVersion == JavaVersion.VERSION_17 || javaVersion == JavaVersion.VERSION_21
-if (!javaVersionSupported) {
-  logger.warn("Skip Spark 4.0 build which requires JDK 17 or 21 but was executed with JDK " + javaVersion)
-}
-
 def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
     project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
@@ -33,9 +27,6 @@ def sparkProjects = [
 ]
 
 configure(sparkProjects) {
-  tasks.configureEach {
-    onlyIf { javaVersionSupported }
-  }
   configurations {
     all {
       resolutionStrategy {

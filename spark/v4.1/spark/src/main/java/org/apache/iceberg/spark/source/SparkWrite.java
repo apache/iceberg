@@ -214,6 +214,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    int sortOrderId = writeConf.outputSortOrderId(writeRequirements);
     return new WriterFactory(
         tableBroadcast,
         queryId,
@@ -223,7 +224,8 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         writeSchema,
         dsSchema,
         useFanoutWriter,
-        writeProperties);
+        writeProperties,
+        sortOrderId);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -708,6 +710,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
     private final boolean useFanoutWriter;
     private final String queryId;
     private final Map<String, String> writeProperties;
+    private final int sortOrderId;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -718,7 +721,8 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         Schema writeSchema,
         StructType dsSchema,
         boolean useFanoutWriter,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        int sortOrderId) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.outputSpecId = outputSpecId;
@@ -728,6 +732,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       this.useFanoutWriter = useFanoutWriter;
       this.queryId = queryId;
       this.writeProperties = writeProperties;
+      this.sortOrderId = sortOrderId;
     }
 
     @Override
@@ -752,6 +757,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
               .writeProperties(writeProperties)
+              .dataSortOrder(table.sortOrders().get(sortOrderId))
               .build();
 
       Function<InternalRow, InternalRow> rowLineageExtractor = new ExtractRowLineage(writeSchema);
