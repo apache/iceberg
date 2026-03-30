@@ -1045,12 +1045,12 @@ class PlanTask(RootModel[str]):
     )
 
 
-class MultiValuedMap(BaseModel):
+class MultiValuedMap(RootModel[dict[str, list[str]]]):
     """
     A map of string keys where each key can map to multiple string values.
     """
 
-    __root__: dict[str, list[str]]
+    root: dict[str, list[str]]
 
 
 class RemoteSignRequest(BaseModel):
