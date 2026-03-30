@@ -17,17 +17,27 @@
 # under the License.
 #
 
-name: "Pull Request Labeler"
-on: pull_request_target # zizmor: ignore[dangerous-triggers]
+name: GitHub Actions Security Analysis with zizmor 🌈
 
-permissions:
-  contents: read
-  pull-requests: write
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["**"]
+
+permissions: {}
 
 jobs:
-  triage:
-    runs-on: ubuntu-slim
+  zizmor:
+    name: Run zizmor 🌈
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # Required for upload-sarif (used by zizmor-action) to upload SARIF files.
     steps:
-    - uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6
-      with:
-        sync-labels: true
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor 🌈
+        uses: zizmorcore/zizmor-action@71321a20a9ded102f6e9ce5718a2fcec2c4f70d8 # v0.5.2

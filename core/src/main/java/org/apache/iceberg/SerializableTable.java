@@ -25,6 +25,7 @@ import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 
@@ -57,6 +58,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final int defaultSpecId;
   private final Map<Integer, String> specAsJsonMap;
   private final String sortOrderAsJson;
+  private final Map<Integer, String> sortOrderAsJsonMap;
   private final FileIO io;
   private final EncryptionManager encryption;
   private final Map<String, SnapshotRef> refs;
@@ -68,6 +70,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
+  private transient volatile Map<Integer, SortOrder> lazySortOrders = null;
 
   protected SerializableTable(Table table) {
     this.name = table.name();
@@ -80,6 +83,10 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     Map<Integer, PartitionSpec> specs = table.specs();
     specs.forEach((specId, spec) -> specAsJsonMap.put(specId, PartitionSpecParser.toJson(spec)));
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
+    this.sortOrderAsJsonMap = Maps.newHashMap();
+    table
+        .sortOrders()
+        .forEach((id, order) -> sortOrderAsJsonMap.put(id, SortOrderParser.toJson(order)));
     this.io = table.io();
     this.encryption = table.encryption();
     this.locationProviderTry = Try.of(table::locationProvider);
@@ -240,7 +247,21 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   @Override
   public Map<Integer, SortOrder> sortOrders() {
-    return lazyTable().sortOrders();
+    if (lazySortOrders == null) {
+      synchronized (this) {
+        if (lazySortOrders == null && lazyTable == null) {
+          ImmutableMap.Builder<Integer, SortOrder> sortOrders =
+              ImmutableMap.builderWithExpectedSize(sortOrderAsJsonMap.size());
+          sortOrderAsJsonMap.forEach(
+              (id, json) -> sortOrders.put(id, SortOrderParser.fromJson(schema(), json)));
+          this.lazySortOrders = sortOrders.build();
+        } else if (lazySortOrders == null) {
+          this.lazySortOrders = lazyTable.sortOrders();
+        }
+      }
+    }
+
+    return lazySortOrders;
   }
 
   @Override

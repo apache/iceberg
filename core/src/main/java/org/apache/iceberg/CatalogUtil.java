@@ -127,7 +127,7 @@ public class CatalogUtil {
 
     if (gcEnabled) {
       // delete data files only if we are sure this won't corrupt other tables
-      deleteFiles(io, manifestsToDelete);
+      deleteFiles(io, manifestsToDelete, metadata.specsById());
     }
 
     deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest");
@@ -163,7 +163,8 @@ public class CatalogUtil {
   }
 
   @SuppressWarnings("DangerousStringInternUsage")
-  private static void deleteFiles(FileIO io, Set<ManifestFile> allManifests) {
+  private static void deleteFiles(
+      FileIO io, Set<ManifestFile> allManifests, Map<Integer, PartitionSpec> specsById) {
     // keep track of deleted files in a map that can be cleaned up when memory runs low
     Map<String, Boolean> deletedFiles =
         new MapMaker().concurrencyLevel(ThreadPools.WORKER_THREAD_POOL_SIZE).weakKeys().makeMap();
@@ -177,7 +178,7 @@ public class CatalogUtil {
                 LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(
             manifest -> {
-              try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
+              try (ManifestReader<?> reader = ManifestFiles.open(manifest, io, specsById)) {
                 List<String> pathsToDelete = Lists.newArrayList();
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // intern the file path because the weak key map uses identity (==) instead of

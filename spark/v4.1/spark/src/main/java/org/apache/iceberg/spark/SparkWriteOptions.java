@@ -54,6 +54,7 @@ public class SparkWriteOptions {
   public static final String CHECK_ORDERING = "check-ordering";
 
   public static final String OUTPUT_SPEC_ID = "output-spec-id";
+  public static final String OUTPUT_SORT_ORDER_ID = "output-sort-order-id";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";
 

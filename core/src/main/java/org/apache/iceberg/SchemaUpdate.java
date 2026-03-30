@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -71,7 +72,7 @@ class SchemaUpdate implements UpdateSchema {
     this(ops, ops.current());
   }
 
-  /** For testing only. */
+  @VisibleForTesting
   SchemaUpdate(Schema schema, int lastColumnId) {
     this(null, null, schema, lastColumnId);
   }

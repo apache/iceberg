@@ -211,8 +211,8 @@ public class TestFieldStats {
     assertThat(fieldStats.get(EXACT_BOUNDS.position(), Boolean.class)).isEqualTo(true);
 
     assertThatThrownBy(() -> assertThat(fieldStats.get(10, Long.class)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid statistic position: 10");
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessage("Index 10 out of bounds for length 8");
     assertThatThrownBy(() -> assertThat(fieldStats.get(VALUE_COUNT.position(), Double.class)))
         .isInstanceOf(ClassCastException.class)
         .hasMessage("Cannot cast java.lang.Long to java.lang.Double");

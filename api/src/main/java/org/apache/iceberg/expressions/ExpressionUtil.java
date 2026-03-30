@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -145,21 +146,28 @@ public class ExpressionUtil {
   }
 
   /**
-   * Extracts an expression that references only the given column IDs from the given expression.
+   * Returns an expression that retains only predicates which reference one of the given field IDs.
    *
-   * <p>The result is inclusive. If a row would match the original filter, it must match the result
-   * filter.
-   *
-   * @param expression a filter Expression
-   * @param schema a Schema
+   * @param expression a filter expression
+   * @param schema schema for binding references
    * @param caseSensitive whether binding is case sensitive
-   * @param ids field IDs used to match predicates to extract from the expression
-   * @return an Expression that selects at least the same rows as the original using only the IDs
+   * @param ids field IDs to retain predicates for
+   * @return expression containing only predicates that reference the given IDs
    */
   public static Expression extractByIdInclusive(
       Expression expression, Schema schema, boolean caseSensitive, int... ids) {
-    PartitionSpec spec = identitySpec(schema, ids);
-    return Projections.inclusive(spec, caseSensitive).project(Expressions.rewriteNot(expression));
+    if (ids == null || ids.length == 0) {
+      return Expressions.alwaysTrue();
+    }
+
+    ImmutableSet.Builder<Integer> retainIds = ImmutableSet.builder();
+    for (int id : ids) {
+      retainIds.add(id);
+    }
+
+    return ExpressionVisitors.visit(
+        Expressions.rewriteNot(expression),
+        new RetainPredicatesByFieldIdVisitor(schema, caseSensitive, retainIds.build()));
   }
 
   /**
@@ -260,6 +268,61 @@ public class ExpressionUtil {
     }
 
     throw new UnsupportedOperationException("Cannot unbind unsupported term: " + term);
+  }
+
+  private static class RetainPredicatesByFieldIdVisitor
+      extends ExpressionVisitors.ExpressionVisitor<Expression> {
+    private final Schema schema;
+    private final boolean caseSensitive;
+    private final Set<Integer> retainFieldIds;
+
+    RetainPredicatesByFieldIdVisitor(
+        Schema schema, boolean caseSensitive, Set<Integer> retainFieldIds) {
+      this.schema = schema;
+      this.caseSensitive = caseSensitive;
+      this.retainFieldIds = retainFieldIds;
+    }
+
+    @Override
+    public Expression alwaysTrue() {
+      return Expressions.alwaysTrue();
+    }
+
+    @Override
+    public Expression alwaysFalse() {
+      return Expressions.alwaysFalse();
+    }
+
+    @Override
+    public Expression not(Expression result) {
+      return Expressions.not(result);
+    }
+
+    @Override
+    public Expression and(Expression leftResult, Expression rightResult) {
+      return Expressions.and(leftResult, rightResult);
+    }
+
+    @Override
+    public Expression or(Expression leftResult, Expression rightResult) {
+      return Expressions.or(leftResult, rightResult);
+    }
+
+    @Override
+    public <T> Expression predicate(BoundPredicate<T> pred) {
+      return retainFieldIds.contains(pred.ref().fieldId()) ? pred : Expressions.alwaysTrue();
+    }
+
+    @Override
+    public <T> Expression predicate(UnboundPredicate<T> pred) {
+      Expression bound = Binder.bind(schema.asStruct(), pred, caseSensitive);
+      if (bound instanceof BoundPredicate) {
+        return retainFieldIds.contains(((BoundPredicate<?>) bound).ref().fieldId())
+            ? pred
+            : Expressions.alwaysTrue();
+      }
+      return Expressions.alwaysTrue();
+    }
   }
 
   private static class ExpressionSanitizer
@@ -696,15 +759,5 @@ public class ExpressionUtil {
         break;
     }
     return builder.toString();
-  }
-
-  private static PartitionSpec identitySpec(Schema schema, int... ids) {
-    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema);
-
-    for (int id : ids) {
-      specBuilder.identity(schema.findColumnName(id));
-    }
-
-    return specBuilder.build();
   }
 }

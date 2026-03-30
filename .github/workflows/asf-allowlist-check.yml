@@ -17,17 +17,31 @@
 # under the License.
 #
 
-name: "Pull Request Labeler"
-on: pull_request_target # zizmor: ignore[dangerous-triggers]
+# Verifies all GitHub Actions refs are on the ASF allowlist.
+# Actions not on the allowlist silently fail with "Startup failure" — no logs,
+# no notifications, and PRs may appear green because no checks ran.
+# See https://github.com/apache/infrastructure-actions/issues/574
+name: "ASF Allowlist Check"
+
+on:
+  pull_request:
+    paths:
+      - ".github/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/**"
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
-  triage:
-    runs-on: ubuntu-slim
+  asf-allowlist-check:
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       with:
-        sync-labels: true
+        persist-credentials: false
+    # Intentionally unpinned to always use the latest allowlist from the ASF.
+    - uses: apache/infrastructure-actions/allowlist-check@main # zizmor: ignore[unpinned-uses]
