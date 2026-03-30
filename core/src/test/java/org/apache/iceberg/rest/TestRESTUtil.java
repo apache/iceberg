@@ -171,6 +171,32 @@ public class TestRESTUtil {
   }
 
   @Test
+  public void testEncodeNamespaceSpacesUsePercentEncoding() {
+    // Spaces in namespace levels must be encoded as %20 (URL path encoding),
+    // not + (application/x-www-form-urlencoded). A server receiving /v1/namespaces/a+b
+    // treats '+' as a literal character, not a space, causing namespace lookup failures.
+    String separator = "%2E";
+
+    // single-level namespace with a space
+    Namespace singleLevel = Namespace.of("a b");
+    String encoded = RESTUtil.encodeNamespace(singleLevel, separator);
+    assertThat(encoded)
+        .as("space must be encoded as %%20, not +")
+        .isEqualTo("a%20b")
+        .doesNotContain("+");
+    assertThat(RESTUtil.decodeNamespace(encoded, separator)).isEqualTo(singleLevel);
+
+    // multi-level namespace where each level contains spaces
+    Namespace multiLevel = Namespace.of("my namespace", "my schema");
+    String encodedMulti = RESTUtil.encodeNamespace(multiLevel, separator);
+    assertThat(encodedMulti)
+        .as("spaces in every level must be encoded as %%20, not +")
+        .isEqualTo("my%20namespace%2Emy%20schema")
+        .doesNotContain("+");
+    assertThat(RESTUtil.decodeNamespace(encodedMulti, separator)).isEqualTo(multiLevel);
+  }
+
+  @Test
   public void testNullEndpointPath() {
     assertThat(RESTUtil.resolveEndpoint("http://catalog-uri", null)).isNull();
   }

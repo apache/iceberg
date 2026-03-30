@@ -293,7 +293,7 @@ public class RESTUtil {
     String[] encodedLevels = new String[levels.length];
 
     for (int i = 0; i < levels.length; i++) {
-      encodedLevels[i] = encodeString(levels[i]);
+      encodedLevels[i] = encodeString(levels[i]).replace("+", "%20");
     }
 
     return Joiner.on(separator).join(encodedLevels);
