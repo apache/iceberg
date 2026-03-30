@@ -22,7 +22,6 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
@@ -39,7 +38,6 @@ import org.apache.iceberg.spark.source.SparkWriteBuilder.Mode.CopyOnWriteOperati
 import org.apache.iceberg.spark.source.SparkWriteBuilder.Mode.DynamicOverwrite;
 import org.apache.iceberg.spark.source.SparkWriteBuilder.Mode.OverwriteByFilter;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
@@ -131,7 +129,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     validateRowLineage();
-    validateAutoSchemaEvolution();
     Schema writeSchema = mergeSchema ? mergeAndValidateWriteSchema() : validateWriteSchema();
     SparkUtil.validatePartitionTransforms(table.spec());
     String appId = spark.sparkContext().applicationId();
@@ -189,20 +186,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         writeIncludesRowLineage() || !writeNeedsRowLineage(),
         "Row lineage information is missing for write in mode: %s",
         mode);
-  }
-
-  private void validateAutoSchemaEvolution() {
-    if (mergeSchema) {
-      boolean autoSchemaEvolution =
-          PropertyUtil.propertyAsBoolean(
-              table.properties(),
-              TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION,
-              TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT);
-      Preconditions.checkArgument(
-          autoSchemaEvolution,
-          "Schema evolution is disabled for this table via '%s'",
-          TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION);
-    }
   }
 
   private Schema validateWriteSchema() {
