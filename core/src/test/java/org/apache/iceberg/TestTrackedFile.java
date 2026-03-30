@@ -22,16 +22,19 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestTrackedFile {
 
+  private static final Schema TABLE_SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()),
+          optional(2, "data", Types.StringType.get()));
+
   private static final Types.StructType CONTENT_STATS_TYPE =
-      Types.StructType.of(
-          optional(200, "col_1_value_count", Types.LongType.get()),
-          optional(201, "col_1_null_count", Types.LongType.get()),
-          optional(202, "col_2_value_count", Types.LongType.get()));
+      StatsUtil.contentStatsFor(TABLE_SCHEMA).type().asStructType();
 
   @Test
   public void schemaWithContentStatsFieldOrder() {
@@ -77,14 +80,17 @@ public class TestTrackedFile {
 
   @Test
   public void schemaWithContentStatsReflectsInput() {
+    Schema smallSchema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema largeSchema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "data", Types.StringType.get()),
+            optional(3, "ts", Types.TimestampType.withoutZone()));
+
     Types.StructType smallStats =
-        Types.StructType.of(optional(200, "col_1_value_count", Types.LongType.get()));
+        StatsUtil.contentStatsFor(smallSchema).type().asStructType();
     Types.StructType largeStats =
-        Types.StructType.of(
-            optional(200, "col_1_value_count", Types.LongType.get()),
-            optional(201, "col_1_null_count", Types.LongType.get()),
-            optional(202, "col_2_value_count", Types.LongType.get()),
-            optional(203, "col_2_null_count", Types.LongType.get()));
+        StatsUtil.contentStatsFor(largeSchema).type().asStructType();
 
     Types.StructType smallType = TrackedFile.schemaWithContentStats(smallStats);
     Types.StructType largeType = TrackedFile.schemaWithContentStats(largeStats);
@@ -95,6 +101,6 @@ public class TestTrackedFile {
         largeType.field(TrackedFile.CONTENT_STATS_ID).type().asStructType();
 
     assertThat(smallResult.fields()).hasSize(1);
-    assertThat(largeResult.fields()).hasSize(4);
+    assertThat(largeResult.fields()).hasSize(3);
   }
 }

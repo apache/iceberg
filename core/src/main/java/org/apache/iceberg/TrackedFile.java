@@ -156,7 +156,7 @@ interface TrackedFile {
   /**
    * Copies this tracked file with stats only for specific columns.
    *
-   * @param requestedColumnIds column IDs for which to keep stats
+   * @param requestedColumnIds table field IDs for which to keep stats
    */
   TrackedFile copyWithStats(Set<Integer> requestedColumnIds);
 
