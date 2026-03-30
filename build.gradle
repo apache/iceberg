@@ -184,11 +184,11 @@ subprojects {
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
 
       resolutionStrategy {
-        dependencySubstitution {
-          substitute module("io.airlift:aircompressor") using module(libs.aircompressor.get().toString()) because("Enforce aircompressor that contains CVE-2025-67721 fix")
-        }
+        def ds = dependencySubstitution
+        ds.substitute(ds.module("io.airlift:aircompressor"))
+            .using(ds.module(libs.aircompressor.get().toString()))
+            .because("Enforce aircompressor that contains CVE-2025-67721 fix")
       }
-
     }
 
     testArtifacts
