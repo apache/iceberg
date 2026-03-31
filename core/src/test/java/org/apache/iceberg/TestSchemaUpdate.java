@@ -1077,6 +1077,45 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testDeleteAllFieldsFromNestedStruct() {
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .deleteColumn("preferences.feature1")
+                    .deleteColumn("preferences.feature2")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot delete all fields from a struct. To remove the struct, delete the struct column instead");
+  }
+
+  @Test
+  public void testDeleteAllFieldsFromMapValueStruct() {
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .deleteColumn("locations.lat")
+                    .deleteColumn("locations.long")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot delete all fields from a struct. To remove the struct, delete the struct column instead");
+  }
+
+  @Test
+  public void testDeleteAllFieldsFromListElementStruct() {
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .deleteColumn("points.x")
+                    .deleteColumn("points.y")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot delete all fields from a struct. To remove the struct, delete the struct column instead");
+  }
+
+  @Test
   public void testRenameMissingColumn() {
     assertThatThrownBy(
             () -> {

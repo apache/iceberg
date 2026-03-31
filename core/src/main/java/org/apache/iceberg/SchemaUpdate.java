@@ -646,7 +646,6 @@ class SchemaUpdate implements UpdateSchema {
       }
 
       if (hasChange) {
-        // TODO: What happens if there are no fields left?
         return Types.StructType.of(newFields);
       }
 
@@ -682,6 +681,10 @@ class SchemaUpdate implements UpdateSchema {
           return Types.StructType.of(fields);
         }
       }
+
+      Preconditions.checkArgument(
+          !fieldResult.isStructType() || !fieldResult.asStructType().fields().isEmpty(),
+          "Cannot delete all fields from a struct. To remove the struct, delete the struct column instead");
 
       return fieldResult;
     }
