@@ -52,7 +52,6 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
-import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
@@ -407,136 +406,50 @@ public class TestHTTPClient {
         .hasMessageContaining("does not implement TLSConfigurer");
   }
 
-  public static class LaxTLSConfigurer implements TLSConfigurer {
-
-    private static HostnameVerificationPolicy policy = HostnameVerificationPolicy.BUILTIN;
-
-    static void setPolicy(HostnameVerificationPolicy policy) {
-      LaxTLSConfigurer.policy = policy;
-    }
+  /** A TLSConfigurer that relies on the default (built-in) JSSE verifier. */
+  public static class BuiltInHostnameVerifierTLSConfigurer implements TLSConfigurer {
 
     @Override
     public SSLContext sslContext() {
-      // Create an SSLContext that trusts MockServer's CA certificate but still performs hostname
-      // verification during SSL handshake
-      try {
-        KeyStore keyStore =
-            new KeyStoreFactory(Configuration.configuration(), new MockServerLogger())
-                .loadOrCreateKeyStore();
-        TrustManagerFactory tmf =
-            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        tmf.init(keyStore);
-        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(null, tmf.getTrustManagers(), null);
-        return sslContext;
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to create SSLContext", e);
-      }
-    }
-
-    @Override
-    public HostnameVerificationPolicy hostnameVerificationPolicy() {
-      return policy;
-    }
-
-    @Override
-    public HostnameVerifier hostnameVerifier() {
-      // Disable hostname verification at HttpClient level (post SSL handshake)
-      return NoopHostnameVerifier.INSTANCE;
+      return mockServerSSLContext();
     }
   }
 
-  @ParameterizedTest
-  @EnumSource(HostnameVerificationPolicy.class)
-  public void testTLSConfigurerHostnameVerificationPolicy(
-      HostnameVerificationPolicy policy, @TempDir Path temp) throws IOException {
-
-    // Start a dedicated MockServer with a certificate that does NOT include 127.0.0.1 or localhost
-    // in its SANs. Hostname verification must be disabled for this test to pass.
-    Configuration tlsConfig = Configuration.configuration();
-    tlsConfig.proactivelyInitialiseTLS(true);
-    tlsConfig.preventCertificateDynamicUpdate(true);
-    tlsConfig.sslCertificateDomainName("example.com");
-    tlsConfig.sslSubjectAlternativeNameIps(Sets.newHashSet("1.2.3.4"));
-    tlsConfig.sslSubjectAlternativeNameDomains(Sets.newHashSet("example.com"));
-    tlsConfig.directoryToSaveDynamicSSLCertificate(temp.toFile().getAbsolutePath());
-
-    int tlsPort = PORT + 1;
-    try (ClientAndServer server = startClientAndServer(tlsConfig, tlsPort)) {
-
-      String path = "tls/path";
-      HttpRequest mockRequest =
-          request()
-              .withPath("/" + path)
-              .withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
-      HttpResponse mockResponse = response().withStatusCode(200).withBody("TLS response");
-      server.when(mockRequest).respond(mockResponse);
-
-      LaxTLSConfigurer.setPolicy(policy);
-
-      Map<String, String> properties =
-          Map.of(HTTPClient.REST_TLS_CONFIGURER, LaxTLSConfigurer.class.getName());
-
-      try (HTTPClient client =
-          HTTPClient.builder(properties)
-              .uri(String.format("https://127.0.0.1:%d", tlsPort))
-              .withAuthSession(AuthSession.EMPTY)
-              .build()) {
-
-        if (policy == HostnameVerificationPolicy.CLIENT) {
-          // With hostname verification performed by the HttpClient *only*,
-          // the request should succeed
-          assertThatCode(() -> client.head(path, Map.of(), (unused) -> {}))
-              .doesNotThrowAnyException();
-        } else {
-          // With hostname verification performed by the JSSE provider,
-          // the request should fail with a CertificateException
-          assertThatThrownBy(() -> client.head(path, Map.of(), (unused) -> {}))
-              .rootCause()
-              .isInstanceOf(CertificateException.class)
-              .hasMessage("No subject alternative names matching IP address 127.0.0.1 found");
-        }
-      }
-    }
-  }
-
-  /**
-   * A TLSConfigurer that overrides sslContext() and hostnameVerifier() but does NOT override
-   * hostnameVerificationPolicy(), relying on the default (CLIENT). This directly tests that the
-   * default hostname verification policy allows the NoopHostnameVerifier to take effect.
-   */
-  public static class ClientPolicyTLSConfigurer implements TLSConfigurer {
+  /** A TLSConfigurer that overrides hostnameVerifier() to return a custom verifier. */
+  public static class CustomHostnameVerifierTLSConfigurer implements TLSConfigurer {
 
     @Override
     public SSLContext sslContext() {
-      try {
-        KeyStore keyStore =
-            new KeyStoreFactory(Configuration.configuration(), new MockServerLogger())
-                .loadOrCreateKeyStore();
-        TrustManagerFactory tmf =
-            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        tmf.init(keyStore);
-        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(null, tmf.getTrustManagers(), null);
-        return sslContext;
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to create SSLContext", e);
-      }
+      return mockServerSSLContext();
     }
 
     @Override
     public HostnameVerifier hostnameVerifier() {
       return NoopHostnameVerifier.INSTANCE;
+    }
+  }
+
+  private static SSLContext mockServerSSLContext() {
+    try {
+      KeyStore keyStore =
+          new KeyStoreFactory(Configuration.configuration(), new MockServerLogger())
+              .loadOrCreateKeyStore();
+      TrustManagerFactory tmf =
+          TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+      tmf.init(keyStore);
+      SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+      sslContext.init(null, tmf.getTrustManagers(), null);
+      return sslContext;
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to create SSLContext", e);
     }
   }
 
   @Test
-  public void testTLSConfigurerDefaultHostnameVerificationPolicy(@TempDir Path temp)
-      throws IOException {
+  public void testTLSConfigurerHostnameVerifier(@TempDir Path temp) throws IOException {
 
-    // Start a dedicated MockServer with a certificate that does NOT include 127.0.0.1 or localhost
-    // in its SANs. The default hostname verification policy (CLIENT) should allow the
-    // NoopHostnameVerifier to bypass hostname verification, so the request should succeed.
+    // Start a dedicated MockServer with a certificate that does NOT include
+    // 127.0.0.1 or localhost in its SANs.
     Configuration tlsConfig = Configuration.configuration();
     tlsConfig.proactivelyInitialiseTLS(true);
     tlsConfig.preventCertificateDynamicUpdate(true);
@@ -548,7 +461,7 @@ public class TestHTTPClient {
     int tlsPort = PORT + 1;
     try (ClientAndServer server = startClientAndServer(tlsConfig, tlsPort)) {
 
-      String path = "tls/default-policy/path";
+      String path = "tls/hostname-verifier/path";
       HttpRequest mockRequest =
           request()
               .withPath("/" + path)
@@ -556,18 +469,33 @@ public class TestHTTPClient {
       HttpResponse mockResponse = response().withStatusCode(200).withBody("TLS response");
       server.when(mockRequest).respond(mockResponse);
 
-      Map<String, String> properties =
-          Map.of(HTTPClient.REST_TLS_CONFIGURER, ClientPolicyTLSConfigurer.class.getName());
+      try (HTTPClient builtInVerifierClient =
+              HTTPClient.builder(
+                      Map.of(
+                          HTTPClient.REST_TLS_CONFIGURER,
+                          BuiltInHostnameVerifierTLSConfigurer.class.getName()))
+                  .uri(String.format("https://127.0.0.1:%d", tlsPort))
+                  .withAuthSession(AuthSession.EMPTY)
+                  .build();
+          HTTPClient customVerifierClient =
+              HTTPClient.builder(
+                      Map.of(
+                          HTTPClient.REST_TLS_CONFIGURER,
+                          CustomHostnameVerifierTLSConfigurer.class.getName()))
+                  .uri(String.format("https://127.0.0.1:%d", tlsPort))
+                  .withAuthSession(AuthSession.EMPTY)
+                  .build()) {
 
-      try (HTTPClient client =
-          HTTPClient.builder(properties)
-              .uri(String.format("https://127.0.0.1:%d", tlsPort))
-              .withAuthSession(AuthSession.EMPTY)
-              .build()) {
+        // With no custom hostnameVerifier (null), the BUILTIN policy is used automatically,
+        // so the JSSE built-in verifier rejects the connection because the SANs don't match
+        assertThatThrownBy(() -> builtInVerifierClient.head(path, Map.of(), (unused) -> {}))
+            .rootCause()
+            .isInstanceOf(CertificateException.class)
+            .hasMessage("No subject alternative names matching IP address 127.0.0.1 found");
 
-        // With the default hostname verification policy (CLIENT) and NoopHostnameVerifier,
-        // the request should succeed even though the certificate SANs don't match 127.0.0.1
-        assertThatCode(() -> client.head(path, Map.of(), (unused) -> {}))
+        // With a custom hostnameVerifier (NoopHostnameVerifier), the CLIENT policy is used
+        // automatically, so hostname verification is bypassed and the request succeeds
+        assertThatCode(() -> customVerifierClient.head(path, Map.of(), (unused) -> {}))
             .doesNotThrowAnyException();
       }
     }

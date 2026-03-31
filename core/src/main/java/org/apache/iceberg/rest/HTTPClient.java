@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import javax.net.ssl.HostnameVerifier;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
@@ -43,6 +44,7 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -410,14 +412,19 @@ public class HTTPClient extends BaseHTTPClient {
 
     TLSConfigurer tlsConfigurer = loadTlsConfigurer(properties);
     if (tlsConfigurer != null) {
+      HostnameVerifier customVerifier = tlsConfigurer.hostnameVerifier();
+      HostnameVerificationPolicy verificationPolicy =
+          customVerifier != null
+              ? HostnameVerificationPolicy.CLIENT
+              : HostnameVerificationPolicy.BUILTIN;
       connectionManagerBuilder.setTlsSocketStrategy(
           new DefaultClientTlsStrategy(
               tlsConfigurer.sslContext(),
               tlsConfigurer.supportedProtocols(),
               tlsConfigurer.supportedCipherSuites(),
               SSLBufferMode.STATIC,
-              tlsConfigurer.hostnameVerificationPolicy(),
-              tlsConfigurer.hostnameVerifier()));
+              verificationPolicy,
+              customVerifier));
     }
 
     return connectionManagerBuilder.build();
