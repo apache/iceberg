@@ -288,8 +288,7 @@ The storage table must exist and be accessible before the materialized view meta
 
 A storage table that has not yet been refreshed has no snapshots. After a refresh, even if the query result is empty, the storage table will contain a snapshot with the `refresh-state` property in its summary. Consumers can use the presence of a snapshot with `refresh-state` to distinguish a never-refreshed storage table from one that was refreshed with an empty result.
 
-Materialized view storage tables support all standard Iceberg table configurations such as partitioning, sort order, and compression.
-These configurations are stored as part of the storage table metadata, just as they are for regular Iceberg tables.
+Materialized view storage tables are Iceberg tables and configurations like partitioning, sort order, compression, etc. must be defined in the table metadata of the storage table.
 
 ## Appendix A: Examples
 
