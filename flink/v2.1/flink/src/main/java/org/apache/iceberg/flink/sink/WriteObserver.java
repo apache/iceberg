@@ -66,4 +66,20 @@ public interface WriteObserver extends Serializable {
   default Map<String, String> snapshotMetadata() {
     return Collections.emptyMap();
   }
+
+  /**
+   * Merges a metadata value when the same key appears from multiple writer subtasks.
+   *
+   * <p>Called by the aggregator when accumulating metadata from parallel writers. The default
+   * returns {@code incoming}, matching last-writer-wins behavior. Override for semantics like
+   * {@code Math.min} (watermarks) or {@code Math.max} (high watermarks).
+   *
+   * @param key the metadata key that appears in both the existing and incoming maps
+   * @param existing the previously accumulated value for this key
+   * @param incoming the new value from the current writer subtask
+   * @return the merged value to keep
+   */
+  default String mergeValue(String key, String existing, String incoming) {
+    return incoming;
+  }
 }

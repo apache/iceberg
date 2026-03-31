@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -54,6 +55,7 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   private final Collection<WriteResult> results;
   private final TableLoader tableLoader;
+  @Nullable private final WriteObserver writeObserver;
   private final Map<String, String> accumulatedObserverMetadata = Maps.newHashMap();
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
@@ -62,8 +64,13 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
   private transient Table table;
 
   IcebergWriteAggregator(TableLoader tableLoader) {
+    this(tableLoader, null);
+  }
+
+  IcebergWriteAggregator(TableLoader tableLoader, @Nullable WriteObserver writeObserver) {
     this.results = Sets.newHashSet();
     this.tableLoader = tableLoader;
+    this.writeObserver = writeObserver;
   }
 
   @Override
@@ -160,10 +167,18 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
       results.add(((CommittableWithLineage<WriteResult>) element.getValue()).getCommittable());
 
       // Read observer metadata set by WriteResultSerializer.deserialize() on this thread.
-      // Merge across parallel writer subtasks — last value wins for duplicate keys.
+      // Merge across parallel writer subtasks using the observer's merge strategy.
       Map<String, String> metadata = WriteObserverMetadataHolder.getAndClear();
       if (metadata != null && !metadata.isEmpty()) {
-        accumulatedObserverMetadata.putAll(metadata);
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+          accumulatedObserverMetadata.merge(
+              entry.getKey(),
+              entry.getValue(),
+              (existing, incoming) ->
+                  writeObserver != null
+                      ? writeObserver.mergeValue(entry.getKey(), existing, incoming)
+                      : incoming);
+        }
       }
     }
   }

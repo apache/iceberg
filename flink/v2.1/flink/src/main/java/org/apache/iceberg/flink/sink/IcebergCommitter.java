@@ -303,10 +303,17 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       long checkpointId,
       @Nullable Map<String, String> observerMetadata) {
 
-    snapshotProperties.forEach(operation::set);
     if (observerMetadata != null) {
+      if (!snapshotProperties.isEmpty()) {
+        for (String key : observerMetadata.keySet()) {
+          if (snapshotProperties.containsKey(key)) {
+            LOG.warn("Observer metadata key '{}' will be overridden by snapshot property", key);
+          }
+        }
+      }
       observerMetadata.forEach(operation::set);
     }
+    snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
     operation.set(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
