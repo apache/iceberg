@@ -483,7 +483,7 @@ We need the following information (DynamicRecord) for every record:
 | `Schema`           | The schema of the record.                                                                 |
 | `Spec`             | The expected partitioning specification for the record.                                   |
 | `RowData`          | The actual row data to be written.                                                        |
-| `DistributionMode` | The distribution mode for writing the record (NONE, HASH or optional). When unspecified, the record won't be shuffled at all. |
+| `DistributionMode` | The distribution mode for writing the record (NONE, HASH or `null`). When `null`, the record won't be shuffled at all. |
 | `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
 | `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
 | `EqualityFields`   | The equality fields for the table(optional).                                                        |
@@ -554,7 +554,7 @@ The `DistributionMode` set on each `DynamicRecord` controls how that record is r
 |---------------|----------|
 | `NONE`        | Records are distributed across writer subtasks in a round-robin fashion (or by equality fields if set). |
 | `HASH`        | Records are distributed by partition key (partitioned tables) or equality fields (unpartitioned tables). Ensures that records for the same partition are handled by the same writer subtask. |
-| (unspecified) | Forward mode: bypasses distribution entirely and sends records directly via a forward edge (see below). |
+| `null` | Forward mode: bypasses distribution entirely and sends records directly via a forward edge (see below). |
 
 #### Forward Mode
 

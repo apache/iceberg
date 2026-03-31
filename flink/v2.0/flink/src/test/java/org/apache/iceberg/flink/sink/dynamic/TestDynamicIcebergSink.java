@@ -46,6 +46,7 @@ import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.OperatorIDPair;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.jobgraph.JobVertex;
+import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -1522,7 +1523,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     @Override
     DynamicIcebergSink instantiateSink(
-        Map<String, String> writeProperties, Configuration flinkConfig) {
+        Map<String, String> writeProperties,
+        Configuration flinkConfig,
+        DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults) {
       return new CommitHookDynamicIcebergSink(
           commitHook,
           CATALOG_EXTENSION.catalogLoader(),
@@ -1530,7 +1533,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           "uidPrefix",
           writeProperties,
           flinkConfig,
-          100);
+          100,
+          forwardWriteResults);
     }
   }
 
@@ -1546,14 +1550,16 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         String uidPrefix,
         Map<String, String> writeProperties,
         Configuration flinkConfig,
-        int cacheMaximumSize) {
+        int cacheMaximumSize,
+        DataStream<CommittableMessage<DynamicWriteResult>> forwardWritten) {
       super(
           catalogLoader,
           snapshotProperties,
           uidPrefix,
           writeProperties,
           flinkConfig,
-          cacheMaximumSize);
+          cacheMaximumSize,
+          forwardWritten);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
     }
