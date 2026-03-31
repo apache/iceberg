@@ -31,6 +31,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -95,7 +96,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
 
     // Synchronously add data to the queue to meet our initial constraints.
     // For Trigger.AvailableNow, constructor-time preload is normally initialized from
-    // latestOffset(...) with no explicit end offset, so bounded preload must stop at the cap.
+    // latestOffset(...) with no explicit end offset, so bounded preload must stop at Trigger.AvailableNow snapshot.
     fillQueue(initialOffset, maybeEndOffset);
 
     this.executor =
@@ -498,6 +499,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     return table().currentSnapshot();
   }
 
+  @VisibleForTesting
   static boolean reachedAvailableNowCap(
       Snapshot readFrom, StreamingOffset lastOffsetForTriggerAvailableNow) {
     return lastOffsetForTriggerAvailableNow != null

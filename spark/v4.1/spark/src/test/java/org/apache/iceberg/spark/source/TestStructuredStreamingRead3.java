@@ -526,17 +526,13 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testLatestOffsetReturnsNullAfterFinalBatchIsConsumed() {
+  public void testLatestOffsetReturnsNullAfterFinalBatchIsConsumed() throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     table.refresh();
-    int expectedBatchCount = 0;
+    int expectedBatchCount;
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      for (FileScanTask task : tasks) {
-        expectedBatchCount += 1;
-      }
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to count planned data files", e);
+      expectedBatchCount = Iterables.size(tasks);
     }
 
     SparkMicroBatchStream stream =
