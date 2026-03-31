@@ -148,7 +148,8 @@ class Identity<T> implements Transform<T, T> {
   @Override
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
     if (!(predicate.term() instanceof BoundReference)) {
-      // Not all visitors support non-reference terms. So it's not safe to project predicates containing one.
+      // Not all visitors support non-reference terms. So it's not safe to project predicates
+      // containing one.
       return null;
     }
     if (predicate.isUnaryPredicate()) {
