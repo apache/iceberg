@@ -149,8 +149,8 @@ public class DynamicRecord {
     }
 
     return flinkWriteConf == null
-        ? Integer.MAX_VALUE
-        : MoreObjects.firstNonNull(flinkWriteConf.writeParallelism(), Integer.MAX_VALUE);
+        ? writeParallelism
+        : MoreObjects.firstNonNull(flinkWriteConf.writeParallelism(), writeParallelism);
   }
 
   public void writeParallelism(int parallelism) {
