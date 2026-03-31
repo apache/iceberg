@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest;
+package org.apache.iceberg.catalog;
 
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * The type of a catalog object returned by the universal load relation endpoints. Currently {@link
- * #TABLE} and {@link #VIEW} are defined. Future spec versions may add values such as {@code
- * MATERIALIZED_VIEW}.
+ * The type of a catalog object. Currently {@link #TABLE} and {@link #VIEW} are defined. Future spec
+ * versions may add values such as {@code MATERIALIZED_VIEW}.
  */
 public enum CatalogObjectType {
   TABLE("table"),

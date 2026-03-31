@@ -37,6 +37,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -535,7 +536,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
       case LOAD_RELATION:
         {
-          TableIdentifier ident = tableIdentFromPathVars(vars);
+          TableIdentifier ident = relationIdentFromPathVars(vars);
           LoadRelationResponse response =
               CatalogHandlers.loadRelation(
                   catalog,
@@ -772,6 +773,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static TableIdentifier relationIdentFromPathVars(Map<String, String> pathVars) {
+    return TableIdentifier.of(
+        namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("relation")));
   }
 
   private static String planIDFromPathVars(Map<String, String> pathVars) {

@@ -48,7 +48,9 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.Relation;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -77,6 +79,7 @@ import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.requests.BatchLoadRelationRequestItem;
 import org.apache.iceberg.rest.requests.BatchLoadRelationsRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
@@ -90,6 +93,7 @@ import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BatchLoadRelationResultItem;
 import org.apache.iceberg.rest.responses.BatchLoadRelationsResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -1474,27 +1478,49 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
   }
 
-  /**
-   * Load a relation (table or view) using the universal load endpoint. The server resolves the
-   * identifier and returns a discriminated response.
-   */
-  public LoadRelationResponse loadRelation(SessionContext context, TableIdentifier identifier) {
+  private LoadRelationResponse loadRelationInternal(
+      SessionContext context,
+      TableIdentifier identifier,
+      Map<String, String> headers,
+      Consumer<Map<String, String>> responseHeaders) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_RELATION);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     return client
         .withAuthSession(contextualSession)
         .get(
             paths.relation(identifier),
+            ImmutableMap.of(),
             LoadRelationResponse.class,
-            Map.of(),
-            ErrorHandlers.relationErrorHandler());
+            headers,
+            ErrorHandlers.relationErrorHandler(),
+            responseHeaders);
   }
 
   /**
-   * Batch load relations (tables and views) across namespaces using the batch load endpoint.
-   * Returns per-item results with status codes (200, 304, 404).
+   * Load a relation (table or view) using the universal load endpoint and construct the
+   * corresponding {@link Table} or {@link View} object.
    */
-  public BatchLoadRelationsResponse batchLoadRelations(
+  public Relation loadRelation(SessionContext context, TableIdentifier identifier) {
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    TableWithETag cachedTable = tableCache.getIfPresent(context.sessionId(), identifier);
+
+    LoadRelationResponse response =
+        loadRelationInternal(
+            context, identifier, headersForLoadTable(cachedTable), responseHeaders::putAll);
+
+    if (response == null) {
+      Preconditions.checkNotNull(cachedTable, "Invalid load relation response: null");
+      return Relation.forTable(cachedTable.supplier().get());
+    }
+
+    if (response.objectType() == CatalogObjectType.TABLE) {
+      return buildTableRelation(context, identifier, response.tableResponse(), responseHeaders);
+    } else {
+      return buildViewRelation(context, identifier, response.viewResponse());
+    }
+  }
+
+  private BatchLoadRelationsResponse batchLoadRelationsInternal(
       SessionContext context, BatchLoadRelationsRequest request) {
     Endpoint.check(endpoints, Endpoint.V1_BATCH_LOAD_RELATIONS);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -1506,6 +1532,57 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             BatchLoadRelationsResponse.class,
             Map.of(),
             ErrorHandlers.relationErrorHandler());
+  }
+
+  /**
+   * Batch load relations (tables and views) using the batch load endpoint. Constructs {@link Table}
+   * and {@link View} objects for each result. Not-found identifiers (404) are skipped.
+   */
+  public List<Relation> loadRelations(SessionContext context, Set<TableIdentifier> identifiers) {
+    BatchLoadRelationsRequest.Builder requestBuilder = BatchLoadRelationsRequest.builder();
+    for (TableIdentifier ident : identifiers) {
+      BatchLoadRelationRequestItem.Builder itemBuilder =
+          BatchLoadRelationRequestItem.builder().withIdentifier(ident);
+      TableWithETag cached = tableCache.getIfPresent(context.sessionId(), ident);
+      if (cached != null) {
+        itemBuilder.withEtag(cached.eTag());
+      }
+
+      requestBuilder.addIdentifier(itemBuilder.build());
+    }
+
+    BatchLoadRelationsResponse response =
+        batchLoadRelationsInternal(context, requestBuilder.build());
+
+    List<Relation> relations = Lists.newArrayList();
+    for (BatchLoadRelationResultItem item : response.results()) {
+      TableIdentifier ident = item.identifier();
+      switch (item.status()) {
+        case 200:
+          LoadRelationResponse result = item.result();
+          if (result.objectType() == CatalogObjectType.TABLE) {
+            String eTag = item.etag();
+            Map<String, String> headers = eTag != null ? Map.of(HttpHeaders.ETAG, eTag) : Map.of();
+            relations.add(buildTableRelation(context, ident, result.tableResponse(), headers));
+          } else {
+            relations.add(buildViewRelation(context, ident, result.viewResponse()));
+          }
+          break;
+        case 304:
+          TableWithETag cached = tableCache.getIfPresent(context.sessionId(), ident);
+          if (cached != null) {
+            relations.add(Relation.forTable(cached.supplier().get()));
+          }
+          break;
+        case 404:
+          break;
+        default:
+          LOG.warn("Unexpected status {} for identifier {}", item.status(), ident);
+          break;
+      }
+    }
+
+    return relations;
   }
 
   @Override
@@ -1584,6 +1661,49 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     return new BaseView(ops, ViewUtil.fullViewName(name(), ident));
+  }
+
+  private Relation buildTableRelation(
+      SessionContext context,
+      TableIdentifier identifier,
+      LoadTableResponse tableResponse,
+      Map<String, String> responseHeaders) {
+    Map<String, String> tableConf = tableResponse.config();
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
+    TableMetadata tableMetadata = tableResponse.tableMetadata();
+    List<Credential> credentials = tableResponse.credentials();
+    RESTClient tableClient = client.withAuthSession(tableSession);
+
+    Supplier<BaseTable> tableSupplier =
+        createTableSupplier(
+            identifier, tableMetadata, context, tableClient, tableConf, credentials);
+
+    String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
+    if (eTag != null) {
+      tableCache.put(context.sessionId(), identifier, tableSupplier, eTag);
+    }
+
+    return Relation.forTable(tableSupplier.get());
+  }
+
+  private Relation buildViewRelation(
+      SessionContext context, TableIdentifier identifier, LoadViewResponse viewResponse) {
+    Map<String, String> tableConf = viewResponse.config();
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
+    ViewMetadata metadata = viewResponse.metadata();
+
+    RESTViewOperations ops =
+        newViewOps(
+            client.withAuthSession(tableSession),
+            paths.view(identifier),
+            Map::of,
+            mutationHeaders,
+            metadata,
+            endpoints);
+
+    return Relation.forView(new BaseView(ops, ViewUtil.fullViewName(name(), identifier)));
   }
 
   private static Map<String, String> headersForLoadTable(TableWithETag tableWithETag) {

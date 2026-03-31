@@ -26,7 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.rest.CatalogObjectType;
+import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.ViewMetadata;

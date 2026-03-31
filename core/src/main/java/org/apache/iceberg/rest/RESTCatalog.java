@@ -31,8 +31,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.Relation;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.SupportsRelations;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
@@ -45,7 +47,12 @@ import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
 public class RESTCatalog
-    implements Catalog, ViewCatalog, SupportsNamespaces, Configurable<Object>, Closeable {
+    implements Catalog,
+        ViewCatalog,
+        SupportsNamespaces,
+        SupportsRelations,
+        Configurable<Object>,
+        Closeable {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;
@@ -339,5 +346,15 @@ public class RESTCatalog
   @Override
   public View registerView(TableIdentifier identifier, String metadataFileLocation) {
     return viewSessionCatalog.registerView(identifier, metadataFileLocation);
+  }
+
+  @Override
+  public Relation loadRelation(TableIdentifier identifier) {
+    return sessionCatalog.loadRelation(context, identifier);
+  }
+
+  @Override
+  public List<Relation> loadRelations(Set<TableIdentifier> identifiers) {
+    return sessionCatalog.loadRelations(context, identifiers);
   }
 }
