@@ -257,7 +257,7 @@ A source table record captures the state of a source table (including source MV'
 | _required_  | `type`         | A string that must be set to `table` |
 | _required_  | `name`         | A string specifying the name of the source table |
 | _required_  | `namespace`    | A list of strings for namespace levels |
-| _optional_  | `catalog`      | An optional name of the catalog. If set to `null` the catalog is the same as the materialized views' |
+| _optional_  | `catalog`      | An optional name of the catalog. If not set, the catalog is the same as the materialized views' |
 | _required_  | `uuid`         | The uuid of the source table |
 | _required_  | `snapshot-id`  | The snapshot-id of the source table that was read during the refresh operation |
 | _optional_  | `ref`          | Branch name of the source table being referenced in the view query |
