@@ -297,12 +297,12 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         queuedFileCount.get(),
         queuedRowCount.get());
 
-    List<Pair<StreamingOffset, FileScanTask>> queueList = Lists.newArrayList(queue);
+    List<Pair<StreamingOffset, FileScanTask>> queueSnapshot = Lists.newArrayList(queue);
     Pair<StreamingOffset, FileScanTask> queueTail =
-        queueList.isEmpty() ? null : queueList.get(queueList.size() - 1);
+        queueSnapshot.isEmpty() ? null : queueSnapshot.get(queueSnapshot.size() - 1);
 
-    for (int i = 0; i < queueList.size(); i++) {
-      Pair<StreamingOffset, FileScanTask> elem = queueList.get(i);
+    for (int i = 0; i < queueSnapshot.size(); i++) {
+      Pair<StreamingOffset, FileScanTask> elem = queueSnapshot.get(i);
       long fileRows = elem.second().file().recordCount();
 
       // Hard limit on files - stop BEFORE exceeding
@@ -335,13 +335,13 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
               unpackedLimits.getMaxRows());
         }
         // Return the offset of the NEXT element (or synthesize tail+1)
-        if (i + 1 < queueList.size()) {
+        if (i + 1 < queueSnapshot.size()) {
           LOG.debug(
               "latestOffset hit row limit at {}, rows: {}, files: {}",
-              queueList.get(i + 1).first(),
+              queueSnapshot.get(i + 1).first(),
               rowsSeen,
               filesSeen);
-          return queueList.get(i + 1).first();
+          return queueSnapshot.get(i + 1).first();
         } else {
           // This is the last element - return tail+1
           StreamingOffset current = elem.first();
