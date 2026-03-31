@@ -64,10 +64,12 @@ class TestRESTCatalogRelation extends TestBaseWithRESTServer {
     SupportsRelations relations = (SupportsRelations) restCatalog;
     Relation relation = relations.loadRelation(TABLE_IDENT);
 
+    assertThat(relation.identifier()).isEqualTo(TABLE_IDENT);
     assertThat(relation.objectType()).isEqualTo(CatalogObjectType.TABLE);
     assertThat(relation.table()).isNotNull();
     assertThat(relation.table().schema().columns()).hasSize(1);
     assertThat(relation.view()).isNull();
+    assertThat(relation.isNotFound()).isFalse();
   }
 
   @Test
@@ -75,10 +77,12 @@ class TestRESTCatalogRelation extends TestBaseWithRESTServer {
     SupportsRelations relations = (SupportsRelations) restCatalog;
     Relation relation = relations.loadRelation(VIEW_IDENT);
 
+    assertThat(relation.identifier()).isEqualTo(VIEW_IDENT);
     assertThat(relation.objectType()).isEqualTo(CatalogObjectType.VIEW);
     assertThat(relation.view()).isNotNull();
     assertThat(relation.view().schema().columns()).hasSize(1);
     assertThat(relation.table()).isNull();
+    assertThat(relation.isNotFound()).isFalse();
   }
 
   @Test
@@ -103,6 +107,7 @@ class TestRESTCatalogRelation extends TestBaseWithRESTServer {
             .filter(r -> r.objectType() == CatalogObjectType.TABLE)
             .findFirst()
             .orElseThrow();
+    assertThat(tableRelation.identifier()).isEqualTo(TABLE_IDENT);
     assertThat(tableRelation.table()).isNotNull();
     assertThat(tableRelation.table().schema().columns()).hasSize(1);
 
@@ -111,6 +116,7 @@ class TestRESTCatalogRelation extends TestBaseWithRESTServer {
             .filter(r -> r.objectType() == CatalogObjectType.VIEW)
             .findFirst()
             .orElseThrow();
+    assertThat(viewRelation.identifier()).isEqualTo(VIEW_IDENT);
     assertThat(viewRelation.view()).isNotNull();
     assertThat(viewRelation.view().schema().columns()).hasSize(1);
   }

@@ -1510,7 +1510,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     if (response == null) {
       Preconditions.checkNotNull(cachedTable, "Invalid load relation response: null");
-      return Relation.forTable(cachedTable.supplier().get());
+      return Relation.forTable(identifier, cachedTable.supplier().get());
     }
 
     if (response.objectType() == CatalogObjectType.TABLE) {
@@ -1571,7 +1571,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         case 304:
           TableWithETag cached = tableCache.getIfPresent(context.sessionId(), ident);
           if (cached != null) {
-            relations.add(Relation.forTable(cached.supplier().get()));
+            relations.add(Relation.forTable(ident, cached.supplier().get()));
           }
           break;
         case 404:
@@ -1684,7 +1684,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       tableCache.put(context.sessionId(), identifier, tableSupplier, eTag);
     }
 
-    return Relation.forTable(tableSupplier.get());
+    return Relation.forTable(identifier, tableSupplier.get());
   }
 
   private Relation buildViewRelation(
@@ -1703,7 +1703,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             metadata,
             endpoints);
 
-    return Relation.forView(new BaseView(ops, ViewUtil.fullViewName(name(), identifier)));
+    return Relation.forView(
+        identifier, new BaseView(ops, ViewUtil.fullViewName(name(), identifier)));
   }
 
   private static Map<String, String> headersForLoadTable(TableWithETag tableWithETag) {

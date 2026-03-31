@@ -23,41 +23,62 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.view.View;
 
 /**
- * A loaded catalog relation. A relation is either a table or a view. In the future, materialized
- * views may set both the table and view fields.
+ * A loaded catalog relation. A relation is either a table, a view, or a not-found marker. In the
+ * future, materialized views may set both the table and view fields.
  */
 public class Relation {
+  private final TableIdentifier identifier;
   private final CatalogObjectType objectType;
   private final Table table;
   private final View view;
 
-  private Relation(CatalogObjectType objectType, Table table, View view) {
+  private Relation(
+      TableIdentifier identifier, CatalogObjectType objectType, Table table, View view) {
+    this.identifier = identifier;
     this.objectType = objectType;
     this.table = table;
     this.view = view;
   }
 
-  public static Relation forTable(Table table) {
+  public static Relation forTable(TableIdentifier identifier, Table table) {
+    Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
     Preconditions.checkArgument(table != null, "Invalid table: null");
-    return new Relation(CatalogObjectType.TABLE, table, null);
+    return new Relation(identifier, CatalogObjectType.TABLE, table, null);
   }
 
-  public static Relation forView(View view) {
+  public static Relation forView(TableIdentifier identifier, View view) {
+    Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
     Preconditions.checkArgument(view != null, "Invalid view: null");
-    return new Relation(CatalogObjectType.VIEW, null, view);
+    return new Relation(identifier, CatalogObjectType.VIEW, null, view);
   }
 
+  /** Create a relation representing a not-found object. */
+  public static Relation notFound(TableIdentifier identifier) {
+    Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+    return new Relation(identifier, null, null, null);
+  }
+
+  public TableIdentifier identifier() {
+    return identifier;
+  }
+
+  /** Returns the object type, or null if the object was not found. */
   public CatalogObjectType objectType() {
     return objectType;
   }
 
-  /** Returns the table, or null if this relation is a view. */
+  /** Returns the table, or null if this relation is a view or not found. */
   public Table table() {
     return table;
   }
 
-  /** Returns the view, or null if this relation is a table. */
+  /** Returns the view, or null if this relation is a table or not found. */
   public View view() {
     return view;
+  }
+
+  /** Returns true if the object was not found. */
+  public boolean isNotFound() {
+    return objectType == null;
   }
 }

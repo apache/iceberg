@@ -28,37 +28,75 @@ import org.junit.jupiter.api.Test;
 
 class TestRelation {
 
+  private static final TableIdentifier IDENT = TableIdentifier.of("ns", "tbl");
+
   @Test
   void forTable() {
     Table table = mock(Table.class);
-    Relation relation = Relation.forTable(table);
+    Relation relation = Relation.forTable(IDENT, table);
 
+    assertThat(relation.identifier()).isEqualTo(IDENT);
     assertThat(relation.objectType()).isEqualTo(CatalogObjectType.TABLE);
     assertThat(relation.table()).isSameAs(table);
     assertThat(relation.view()).isNull();
+    assertThat(relation.isNotFound()).isFalse();
   }
 
   @Test
   void forView() {
     View view = mock(View.class);
-    Relation relation = Relation.forView(view);
+    Relation relation = Relation.forView(IDENT, view);
 
+    assertThat(relation.identifier()).isEqualTo(IDENT);
     assertThat(relation.objectType()).isEqualTo(CatalogObjectType.VIEW);
     assertThat(relation.view()).isSameAs(view);
     assertThat(relation.table()).isNull();
+    assertThat(relation.isNotFound()).isFalse();
   }
 
   @Test
-  void forTableNullThrows() {
-    assertThatThrownBy(() -> Relation.forTable(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("null");
+  void notFound() {
+    Relation relation = Relation.notFound(IDENT);
+
+    assertThat(relation.identifier()).isEqualTo(IDENT);
+    assertThat(relation.objectType()).isNull();
+    assertThat(relation.table()).isNull();
+    assertThat(relation.view()).isNull();
+    assertThat(relation.isNotFound()).isTrue();
   }
 
   @Test
-  void forViewNullThrows() {
-    assertThatThrownBy(() -> Relation.forView(null))
+  void forTableNullIdentifierThrows() {
+    assertThatThrownBy(() -> Relation.forTable(null, mock(Table.class)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("null");
+        .hasMessageContaining("identifier");
+  }
+
+  @Test
+  void forTableNullTableThrows() {
+    assertThatThrownBy(() -> Relation.forTable(IDENT, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("table");
+  }
+
+  @Test
+  void forViewNullIdentifierThrows() {
+    assertThatThrownBy(() -> Relation.forView(null, mock(View.class)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("identifier");
+  }
+
+  @Test
+  void forViewNullViewThrows() {
+    assertThatThrownBy(() -> Relation.forView(IDENT, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("view");
+  }
+
+  @Test
+  void notFoundNullIdentifierThrows() {
+    assertThatThrownBy(() -> Relation.notFound(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("identifier");
   }
 }
