@@ -198,7 +198,7 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 
 #### Freshness
 
-A materialized view is "fresh" when the storage table adequately represents the logical query definition of the view.
+A materialized view is "fresh" when the storage table adequately represents the result of the view query at the current state of its dependencies.
 Since different systems define freshness differently, it is left to the consumer to evaluate freshness based on its own policy.
 
 **Consumer behavior:**
