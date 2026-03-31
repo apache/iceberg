@@ -394,6 +394,28 @@ To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in th
      - The `RANGE` distribution mode is not yet available for the `IcebergSink`
      - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
 
+### Post-commit hook
+
+The `IcebergSink` supports an optional `PostCommitHook` callback that is invoked after each
+successful Iceberg snapshot commit. This can be used for audit logging, synchronizing metadata
+to external catalogs, triggering compaction workflows, or tracking custom metadata such as
+watermarks.
+
+```java
+IcebergSink.forRowData(input)
+    .tableLoader(tableLoader)
+    .postCommitHook((snapshotId, summary) -> {
+        LOG.info("Committed snapshot {} with {} data files",
+            snapshotId, summary.get("added-data-files"));
+    })
+    .append();
+```
+
+!!! note
+    If the hook throws an exception, the Flink checkpoint fails but the Iceberg commit has
+    already succeeded. On recovery, the committed checkpoint is detected via the snapshot
+    summary and will not be re-committed. The hook is not re-invoked for that snapshot.
+
 ## Flink Dynamic Iceberg Sink
 
 The Flink Dynamic Iceberg Sink (Dynamic Sink) allows:

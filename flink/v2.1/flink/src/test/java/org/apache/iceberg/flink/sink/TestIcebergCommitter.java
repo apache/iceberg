@@ -23,6 +23,7 @@ import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitt
 import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableWithLineage;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -38,6 +39,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.TaskInfo;
@@ -1293,6 +1296,51 @@ class TestIcebergCommitter extends TestBase {
     return testHarness;
   }
 
+  @TestTemplate
+  public void testPostCommitHookFiresWithCorrectSnapshotData() throws Exception {
+    AtomicLong capturedSnapshotId = new AtomicLong();
+    AtomicReference<Map<String, String>> capturedSummary = new AtomicReference<>();
+    PostCommitHook hook =
+        (snapshotId, summary) -> {
+          capturedSnapshotId.set(snapshotId);
+          capturedSummary.set(summary);
+        };
+
+    IcebergCommitter committer = getCommitter(hook);
+    RowData rowData = SimpleDataUtil.createRowData(1, "hello");
+    DataFile dataFile = writeDataFile("data-hook", ImmutableList.of(rowData));
+    WriteResult writeResult = of(dataFile);
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestFor(jobId, 1, Lists.newArrayList(writeResult));
+    committer.commit(Lists.newArrayList(commitRequest));
+
+    table.refresh();
+    Snapshot snapshot = SimpleDataUtil.latestSnapshot(table, branch);
+    assertThat(capturedSnapshotId.get()).isEqualTo(snapshot.snapshotId());
+    assertThat(capturedSummary.get())
+        .containsEntry("added-data-files", "1")
+        .containsEntry("flink.test", TestIcebergCommitter.class.getName());
+  }
+
+  @TestTemplate
+  public void testPostCommitHookExceptionPropagates() throws Exception {
+    PostCommitHook hook =
+        (snapshotId, summary) -> {
+          throw new RuntimeException("hook failure");
+        };
+
+    IcebergCommitter committer = getCommitter(hook);
+    RowData rowData = SimpleDataUtil.createRowData(1, "hello");
+    DataFile dataFile = writeDataFile("data-hook-fail", ImmutableList.of(rowData));
+    WriteResult writeResult = of(dataFile);
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestFor(jobId, 1, Lists.newArrayList(writeResult));
+
+    assertThatThrownBy(() -> committer.commit(Lists.newArrayList(commitRequest)))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("hook failure");
+  }
+
   // ------------------------------- Utility Methods --------------------------------
 
   private IcebergCommitter getCommitter() {
@@ -1306,6 +1354,20 @@ class TestIcebergCommitter extends TestBase {
         "sinkId",
         metric,
         false);
+  }
+
+  private IcebergCommitter getCommitter(PostCommitHook hook) {
+    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    return new IcebergCommitter(
+        tableLoader,
+        branch,
+        Collections.singletonMap("flink.test", TestIcebergCommitter.class.getName()),
+        false,
+        10,
+        "sinkId",
+        metric,
+        false,
+        hook);
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(

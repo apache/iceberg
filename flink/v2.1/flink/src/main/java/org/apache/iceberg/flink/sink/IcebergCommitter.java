@@ -26,12 +26,14 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
@@ -79,6 +81,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
   private final boolean tableMaintenanceEnabled;
+  @Nullable private final PostCommitHook postCommitHook;
 
   IcebergCommitter(
       TableLoader tableLoader,
@@ -89,6 +92,28 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String sinkId,
       IcebergFilesCommitterMetrics committerMetrics,
       boolean tableMaintenanceEnabled) {
+    this(
+        tableLoader,
+        branch,
+        snapshotProperties,
+        replacePartitions,
+        workerPoolSize,
+        sinkId,
+        committerMetrics,
+        tableMaintenanceEnabled,
+        null);
+  }
+
+  IcebergCommitter(
+      TableLoader tableLoader,
+      String branch,
+      Map<String, String> snapshotProperties,
+      boolean replacePartitions,
+      int workerPoolSize,
+      String sinkId,
+      IcebergFilesCommitterMetrics committerMetrics,
+      boolean tableMaintenanceEnabled,
+      @Nullable PostCommitHook postCommitHook) {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
     this.replacePartitions = replacePartitions;
@@ -108,6 +133,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
             "iceberg-committer-pool-" + table.name() + "-" + sinkId, workerPoolSize);
     this.continuousEmptyCheckpoints = 0;
     this.tableMaintenanceEnabled = tableMaintenanceEnabled;
+    this.postCommitHook = postCommitHook;
   }
 
   @Override
@@ -306,6 +332,13 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         durationMs);
     if (committerMetrics != null) {
       committerMetrics.commitDuration(durationMs);
+    }
+
+    if (postCommitHook != null) {
+      Snapshot snapshot = table.snapshot(branch);
+      if (snapshot != null) {
+        postCommitHook.afterCommit(snapshot.snapshotId(), snapshot.summary());
+      }
     }
   }
 
