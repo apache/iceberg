@@ -20,7 +20,9 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
 import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.table.data.RowData;
@@ -46,6 +48,7 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
   private TaskWriter<RowData> writer;
   private final int subTaskId;
   private final int attemptId;
+  @Nullable private final WriteObserver writeObserver;
 
   IcebergSinkWriter(
       String fullTableName,
@@ -53,6 +56,16 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
       IcebergStreamWriterMetrics metrics,
       int subTaskId,
       int attemptId) {
+    this(fullTableName, taskWriterFactory, metrics, subTaskId, attemptId, null);
+  }
+
+  IcebergSinkWriter(
+      String fullTableName,
+      TaskWriterFactory<RowData> taskWriterFactory,
+      IcebergStreamWriterMetrics metrics,
+      int subTaskId,
+      int attemptId,
+      @Nullable WriteObserver writeObserver) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
     // Initialize the task writer factory.
@@ -62,6 +75,7 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
     this.metrics = metrics;
     this.subTaskId = subTaskId;
     this.attemptId = attemptId;
+    this.writeObserver = writeObserver;
     LOG.debug(
         "Created Stream Writer for table {} subtask {} attemptId {}",
         fullTableName,
@@ -71,6 +85,9 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
 
   @Override
   public void write(RowData element, Context context) throws IOException, InterruptedException {
+    if (writeObserver != null) {
+      writeObserver.observe(element, context);
+    }
     writer.write(element);
   }
 
@@ -108,6 +125,14 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
         attemptId,
         result.dataFiles().length,
         result.deleteFiles().length);
+
+    if (writeObserver != null) {
+      Map<String, String> metadata = writeObserver.snapshotMetadata();
+      if (metadata != null && !metadata.isEmpty()) {
+        WriteObserverMetadataHolder.set(metadata);
+      }
+    }
+
     return Lists.newArrayList(result);
   }
 }

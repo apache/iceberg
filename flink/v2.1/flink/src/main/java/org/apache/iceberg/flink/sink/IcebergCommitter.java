@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.iceberg.AppendFiles;
@@ -157,13 +158,20 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     long checkpointId = commitRequestMap.lastKey();
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
+
+    // Merge observer metadata from all committables
+    Map<String, String> mergedObserverMetadata = Maps.newHashMap();
     for (Map.Entry<Long, CommitRequest<IcebergCommittable>> e : commitRequestMap.entrySet()) {
-      if (Arrays.equals(EMPTY_MANIFEST_DATA, e.getValue().getCommittable().manifest())) {
+      IcebergCommittable committable = e.getValue().getCommittable();
+      if (!committable.observerMetadata().isEmpty()) {
+        mergedObserverMetadata.putAll(committable.observerMetadata());
+      }
+      if (Arrays.equals(EMPTY_MANIFEST_DATA, committable.manifest())) {
         pendingResults.put(e.getKey(), EMPTY_WRITE_RESULT);
       } else {
         DeltaManifests deltaManifests =
             SimpleVersionedSerialization.readVersionAndDeSerialize(
-                DeltaManifestsSerializer.INSTANCE, e.getValue().getCommittable().manifest());
+                DeltaManifestsSerializer.INSTANCE, committable.manifest());
         pendingResults.put(
             e.getKey(),
             FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
@@ -171,8 +179,10 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       }
     }
 
+    Map<String, String> observerMetadata =
+        mergedObserverMetadata.isEmpty() ? null : mergedObserverMetadata;
     CommitSummary summary = new CommitSummary(pendingResults);
-    commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId);
+    commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId, observerMetadata);
     if (committerMetrics != null) {
       committerMetrics.updateCommitSummary(summary);
     }
@@ -195,14 +205,15 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
-      String operatorId) {
+      String operatorId,
+      @Nullable Map<String, String> observerMetadata) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
     if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
       if (replacePartitions) {
-        replacePartitions(pendingResults, summary, newFlinkJobId, operatorId);
+        replacePartitions(pendingResults, summary, newFlinkJobId, operatorId, observerMetadata);
       } else {
-        commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId);
+        commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, observerMetadata);
       }
       continuousEmptyCheckpoints = 0;
     } else {
@@ -215,7 +226,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
-      String operatorId) {
+      String operatorId,
+      @Nullable Map<String, String> observerMetadata) {
     long checkpointId = pendingResults.lastKey();
     Preconditions.checkState(
         summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
@@ -229,14 +241,16 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     String description = "dynamic partition overwrite";
 
     logCommitSummary(summary, description);
-    commitOperation(dynamicOverwrite, description, newFlinkJobId, operatorId, checkpointId);
+    commitOperation(
+        dynamicOverwrite, description, newFlinkJobId, operatorId, checkpointId, observerMetadata);
   }
 
   private void commitDeltaTxn(
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
-      String operatorId) {
+      String operatorId,
+      @Nullable Map<String, String> observerMetadata) {
     long checkpointId = pendingResults.lastKey();
     if (summary.deleteFilesCount() == 0) {
       // To be compatible with iceberg format V1.
@@ -250,7 +264,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String description = "append";
       logCommitSummary(summary, description);
       // fail all commits as really its only one
-      commitOperation(appendFiles, description, newFlinkJobId, operatorId, checkpointId);
+      commitOperation(
+          appendFiles, description, newFlinkJobId, operatorId, checkpointId, observerMetadata);
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -274,7 +289,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
         String description = "rowDelta";
         logCommitSummary(summary, description);
-        commitOperation(rowDelta, description, newFlinkJobId, operatorId, e.getKey());
+        commitOperation(
+            rowDelta, description, newFlinkJobId, operatorId, e.getKey(), observerMetadata);
       }
     }
   }
@@ -284,9 +300,13 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String description,
       String newFlinkJobId,
       String operatorId,
-      long checkpointId) {
+      long checkpointId,
+      @Nullable Map<String, String> observerMetadata) {
 
     snapshotProperties.forEach(operation::set);
+    if (observerMetadata != null) {
+      observerMetadata.forEach(operation::set);
+    }
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
     operation.set(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
