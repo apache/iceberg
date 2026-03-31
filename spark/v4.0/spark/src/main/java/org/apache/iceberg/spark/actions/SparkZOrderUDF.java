@@ -24,6 +24,8 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.util.ZOrderByteUtils;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
@@ -47,6 +49,9 @@ import scala.collection.Seq;
 
 class SparkZOrderUDF implements Serializable {
   private static final byte[] PRIMITIVE_EMPTY = new byte[ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE];
+
+  private static final LocalDateTime TIMESTAMP_NTZ_LOCAL_EPOCH =
+      LocalDateTime.of(1970, 1, 1, 0, 0, 0, 0);
 
   /**
    * Every Spark task runs iteratively on a rows in a single thread so ThreadLocal should protect
@@ -174,6 +179,29 @@ class SparkZOrderUDF implements Serializable {
                 },
                 DataTypes.BinaryType)
             .withName("LONG_ORDERED_BYTES");
+
+    this.inputCol++;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
+
+    return udf;
+  }
+
+  private UserDefinedFunction timestampNtzToOrderedBytesUDF() {
+    int position = inputCol;
+    UserDefinedFunction udf =
+        functions
+            .udf(
+                (LocalDateTime value) -> {
+                  if (value == null) {
+                    return PRIMITIVE_EMPTY;
+                  }
+                  long micros = ChronoUnit.MICROS.between(TIMESTAMP_NTZ_LOCAL_EPOCH, value);
+                  return ZOrderByteUtils.longToOrderedBytes(
+                          micros, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
+                      .array();
+                },
+                DataTypes.BinaryType)
+            .withName("TIMESTAMP_NTZ_ORDERED_BYTES");
 
     this.inputCol++;
     increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
@@ -311,7 +339,7 @@ class SparkZOrderUDF implements Serializable {
     } else if (type instanceof TimestampType) {
       return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
     } else if (type instanceof TimestampNTZType) {
-      return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
+      return timestampNtzToOrderedBytesUDF().apply(column);
     } else if (type instanceof DateType) {
       return longToOrderedBytesUDF().apply(functions.unix_date(column).cast(DataTypes.LongType));
     } else {
