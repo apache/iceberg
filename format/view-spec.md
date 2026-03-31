@@ -273,7 +273,7 @@ A source view record captures the state of a source view at the time of the last
 | _required_  | `type`         | A string that must be set to `view` |
 | _required_  | `name`         | A string specifying the name of the source view |
 | _required_  | `namespace`    | A list of strings for namespace levels |
-| _optional_  | `catalog`      | An optional name of the catalog. If set to `null` the catalog is the same as the materialized views' |
+| _optional_  | `catalog`      | An optional name of the catalog. If not set, the catalog is the same as the materialized views' |
 | _required_  | `uuid`         | The uuid of the source view |
 | _required_  | `version-id`   | The version-id of the source view that was read during the refresh operation |
 
