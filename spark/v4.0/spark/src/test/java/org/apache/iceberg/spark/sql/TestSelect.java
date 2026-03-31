@@ -35,6 +35,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -46,6 +47,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -107,6 +109,7 @@ public class TestSelect extends CatalogTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", binaryTableName);
+    spark.conf().unset(SparkSQLProperties.AS_OF_TIMESTAMP);
   }
 
   @TestTemplate
@@ -769,5 +772,239 @@ public class TestSelect extends CatalogTestBase {
                 "SELECT id, try_variant_get(v2, '$.x', 'int') FROM %s WHERE try_variant_get(v2, '$.x', 'int') < 100",
                 tableName))
         .containsExactlyInAnyOrder(row(1L, 15), row(2L, 20));
+  }
+
+  @TestTemplate
+  public void testSessionPropertyTimeTravel() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long timestampBeforeAnySnapshots = 1L;
+    long snapshotTs = table.currentSnapshot().timestampMillis();
+    long timestamp = waitUntilAfter(snapshotTs + 2);
+
+    List<Object[]> expected = sql("SELECT * FROM %s ORDER BY id", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // session property with a valid timestamp works for simple SQL queries
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestamp));
+    List<Object[]> actualWithSessionProperty = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Should time-travel using session property", expected, actualWithSessionProperty);
+
+    // session property with a valid timestamp works for DataFrame reads
+    Dataset<Row> dfSession = spark.read().format("iceberg").load(tableName).orderBy("id");
+    assertEquals(
+        "DataFrame should time-travel using session property",
+        expected,
+        rowsToJava(dfSession.collectAsList()));
+
+    // session property with timestamp before any snapshots raises exception
+    spark
+        .conf()
+        .set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestampBeforeAnySnapshots));
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", tableName))
+        .hasMessageContaining("Cannot find a snapshot older than")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @TestTemplate
+  public void testSessionPropertyWithTableSelectorThrowsException() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+    String tagName = "test_tag";
+    String branchName = "test_branch";
+
+    table.manageSnapshots().createTag(tagName, snapshotId).commit();
+    table.manageSnapshots().createBranch(branchName, snapshotId).commit();
+
+    long snapshotTs = waitUntilAfter(table.currentSnapshot().timestampMillis() + 1000);
+    long timestampInSeconds = TimeUnit.MILLISECONDS.toSeconds(snapshotTs);
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    String formattedDate = sdf.format(new Date(snapshotTs));
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // set session property so it is active for all assertions below
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(snapshotTs));
+
+    // snapshot_id_ SQL prefix combined with session property raises exception
+    assertThatThrownBy(() -> sql("SELECT * FROM %s.snapshot_id_%s", tableName, snapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // at_timestamp_ SQL prefix combined with session property raises exception
+    assertThatThrownBy(() -> sql("SELECT * FROM %s.at_timestamp_%s", tableName, snapshotTs))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // VERSION AS OF snapshot SQL combined with session property raises exception
+    assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF %s", tableName, snapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // VERSION_AS_OF DataFrame option combined with session property raises exception
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
+                    .load(tableName)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // VERSION AS OF tag SQL combined with session property raises exception
+    assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, tagName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    if (!"spark_catalog".equals(catalogName)) {
+      // tag_ SQL prefix combined with session property raises exception
+      assertThatThrownBy(() -> sql("SELECT * FROM %s.tag_%s", tableName, tagName))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining(
+              "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+    }
+
+    // VERSION AS OF branch SQL combined with session property raises exception
+    assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, branchName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot override ref, already set snapshot id=%s", snapshotId);
+
+    if (!"spark_catalog".equals(catalogName)) {
+      // branch_ SQL prefix combined with session property raises exception
+      assertThatThrownBy(() -> sql("SELECT * FROM %s.branch_%s", tableName, branchName))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot override ref, already set snapshot id=%s", snapshotId);
+    }
+
+    // BRANCH DataFrame option combined with session property raises exception
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.BRANCH, branchName)
+                    .load(tableName)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot override ref, already set snapshot id=%s", snapshotId);
+
+    // TIMESTAMP AS OF SQL combined with session property raises exception
+    assertThatThrownBy(
+            () -> sql("SELECT * FROM %s TIMESTAMP AS OF %s", tableName, timestampInSeconds))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // TIMESTAMP_AS_OF DataFrame option combined with session property raises exception
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedDate)
+                    .load(tableName)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+  }
+
+  @TestTemplate
+  public void testSessionPropertyWithMultiTableJoin() {
+    // Create two tables with initial data
+    String table1Name = tableName("table1");
+    TableIdentifier table1Identifier = TableIdentifier.of(Namespace.of("default"), "table1");
+    String table2Name = tableName("table2");
+    TableIdentifier table2Identifier = TableIdentifier.of(Namespace.of("default"), "table2");
+
+    sql("CREATE OR REPLACE TABLE %s (id bigint, data string) USING iceberg", table1Name);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", table1Name);
+
+    sql("CREATE OR REPLACE TABLE %s (id bigint, value string) USING iceberg", table2Name);
+    sql("INSERT INTO %s VALUES (1, 'x'), (2, 'y')", table2Name);
+
+    // Capture timestamps after first snapshots
+    long timestamp1 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table1Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestamp2 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table2Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestampSnapshot1 = Long.max(timestamp1, timestamp2);
+
+    List<Object[]> expectedJoinSnapshot1 = ImmutableList.of(row(1L, "a", "x"), row(2L, "b", "y"));
+
+    // Add more data to both tables
+    sql("INSERT INTO %s VALUES (3, 'c'), (4, 'd')", table1Name);
+    sql("INSERT INTO %s VALUES (3, 'z'), (4, 'w')", table2Name);
+
+    // Capture timestamps after second snapshots
+    long timestamp3 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table1Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestamp4 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table2Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestampSnapshot2 = Long.max(timestamp3, timestamp4);
+
+    List<Object[]> expectedJoinSnapshot2 =
+        ImmutableList.of(
+            row(1L, "a", "x"), row(2L, "b", "y"), row(3L, "c", "z"), row(4L, "d", "w"));
+
+    List<Object[]> actual1 =
+        sql(
+            "SELECT t1.id, t1.data, t2.value FROM %s t1 FULL OUTER JOIN %s t2 ON t1.id = t2.id ORDER BY t1.id",
+            table1Name, table2Name);
+    assertEquals(
+        "Without session property, last snapshot for both table should be read.",
+        expectedJoinSnapshot2,
+        actual1);
+
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestampSnapshot1));
+
+    // Session property applies to both tables in join
+    List<Object[]> actual2 =
+        sql(
+            "SELECT t1.id, t1.data, t2.value FROM %s t1 FULL OUTER JOIN %s t2 ON t1.id = t2.id ORDER BY t1.id",
+            table1Name, table2Name);
+    assertEquals(
+        "Session property should apply to both tables in join", expectedJoinSnapshot1, actual2);
+
+    // Table-level option on any table together with session-level time-travel property raise
+    // Exception
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "SELECT t1.id, t1.data, t2.value FROM %s TIMESTAMP AS OF %s t1 FULL OUTER JOIN %s t2 ON t1.id = t2.id ORDER BY t1.id",
+                    table1Name, timestampSnapshot2 / 1000, table2Name))
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "SELECT t2.id, t1.data, t2.value FROM %s t1 FULL OUTER JOIN %s TIMESTAMP AS OF %s t2 ON t1.id = t2.id ORDER BY t2.id",
+                    table1Name, table2Name, timestampSnapshot2 / 1000))
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    // Cleanup
+    sql("DROP TABLE IF EXISTS %s", table1Name);
+    sql("DROP TABLE IF EXISTS %s", table2Name);
   }
 }

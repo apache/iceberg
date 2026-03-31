@@ -91,7 +91,11 @@ public class SparkReadConf {
   }
 
   public Long asOfTimestamp() {
-    return confParser.longConf().option(SparkReadOptions.AS_OF_TIMESTAMP).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.AS_OF_TIMESTAMP)
+        .sessionConf(SparkSQLProperties.AS_OF_TIMESTAMP)
+        .parseOptional();
   }
 
   public Long startSnapshotId() {

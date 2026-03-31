@@ -20,12 +20,15 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.apache.iceberg.TestHelpers.waitUntilAfter;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.InetAddress;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -41,6 +44,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -49,6 +53,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,6 +104,11 @@ public class TestSnapshotSelection {
     SparkSession currentSpark = TestSnapshotSelection.spark;
     TestSnapshotSelection.spark = null;
     currentSpark.stop();
+  }
+
+  @AfterEach
+  public void cleanupSessionProperties() {
+    spark.conf().unset(SparkSQLProperties.AS_OF_TIMESTAMP);
   }
 
   @TestTemplate
@@ -586,5 +596,158 @@ public class TestSnapshotSelection {
     assertThat(deletedColumnTagSnapshotRecords)
         .as("Current snapshot rows should match")
         .isEqualTo(expectedRecords);
+  }
+
+  @TestTemplate
+  public void testSessionPropertyTimeTravel() {
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
+    long timestampBeforeAnySnapshots = 1L;
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    // remember the time when the first snapshot was valid
+    long firstSnapshotTimestamp = waitUntilAfter(table.currentSnapshot().timestampMillis() + 1000);
+
+    // produce the second snapshot
+    List<SimpleRecord> secondBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(4, "d"), new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+    Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
+    secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.refresh();
+    assertThat(table.snapshots()).as("Expected 2 snapshots").hasSize(2);
+
+    // verify without session property, current snapshot is read
+    Dataset<Row> currentSnapshotResult = spark.read().format("iceberg").load(tableLocation);
+    List<SimpleRecord> currentSnapshotRecords =
+        currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(firstBatchRecords);
+    expectedRecords.addAll(secondBatchRecords);
+    assertThat(currentSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
+
+    // verify with session property, only first snapshot data is read
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, firstSnapshotTimestamp);
+    Dataset<Row> sessionPropertyResult = spark.read().format("iceberg").load(tableLocation);
+    List<SimpleRecord> sessionPropertyRecords =
+        sessionPropertyResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(sessionPropertyRecords)
+        .as("First snapshot should be read when session property set.")
+        .isEqualTo(firstBatchRecords);
+
+    // verify session property with timestamp before any snapshots raises exception
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestampBeforeAnySnapshots);
+    assertThatThrownBy(() -> spark.read().format("iceberg").load(tableLocation).collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find a snapshot older than");
+
+    // verify malformatted session property timestamp raises exception
+    String malformattedSessionTimestamp = "2020-01-01 10:00:00";
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, malformattedSessionTimestamp);
+    assertThatThrownBy(() -> spark.read().format("iceberg").load(tableLocation).collectAsList())
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining(
+            String.format("For input string: \"%s\"", malformattedSessionTimestamp));
+  }
+
+  @TestTemplate
+  public void testSessionPropertyWithTableSelectorThrowsException() {
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+    long firstSnapshotTimestamp = waitUntilAfter(table.currentSnapshot().timestampMillis() + 1000);
+    String tagName = "test_tag";
+    String branchName = "test_branch";
+
+    table.manageSnapshots().createTag(tagName, snapshotId).commit();
+    table.manageSnapshots().createBranch(branchName, snapshotId).commit();
+
+    // produce a second snapshot
+    List<SimpleRecord> secondBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(4, "d"), new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+    Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
+    secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+
+    // set session property so it is active for all assertions below
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, firstSnapshotTimestamp);
+
+    // VERSION_AS_OF (snapshot ID) option combined with session property raises exception
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // TIMESTAMP_AS_OF option combined with session property raises exception
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(
+                        SparkReadOptions.TIMESTAMP_AS_OF,
+                        sdf.format(new Date(firstSnapshotTimestamp)))
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // VERSION_AS_OF (tag) option combined with session property raises exception
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.VERSION_AS_OF, tagName)
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set both snapshot-id and as-of-timestamp to select which table snapshot to scan");
+
+    // BRANCH option combined with session property raises exception
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.BRANCH, branchName)
+                    .load(tableLocation)
+                    .collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot override ref, already set snapshot id=%s", snapshotId);
   }
 }
