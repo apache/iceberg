@@ -348,18 +348,18 @@ public class SparkTable extends BaseSparkTable
   }
 
   private static Set<TableCapability> computeCapabilities(Table table) {
-    ImmutableSet.Builder<TableCapability> caps = ImmutableSet.builder();
-    caps.addAll(BASE_CAPABILITIES);
+    ImmutableSet.Builder<TableCapability> tableCapabilities = ImmutableSet.builder();
+    tableCapabilities.addAll(BASE_CAPABILITIES);
 
     if (autoSchemaEvolution(table)) {
-      caps.add(TableCapability.AUTOMATIC_SCHEMA_EVOLUTION);
+      tableCapabilities.add(TableCapability.AUTOMATIC_SCHEMA_EVOLUTION);
     }
 
     if (acceptAnySchema(table)) {
-      caps.add(TableCapability.ACCEPT_ANY_SCHEMA);
+      tableCapabilities.add(TableCapability.ACCEPT_ANY_SCHEMA);
     }
 
-    return caps.build();
+    return tableCapabilities.build();
   }
 
   private static boolean acceptAnySchema(Table table) {

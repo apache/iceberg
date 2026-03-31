@@ -271,7 +271,7 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"software\" }");
 
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')",
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'false')",
         tableName, TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION);
 
     createOrReplaceView(

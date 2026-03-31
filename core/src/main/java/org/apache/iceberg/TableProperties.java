@@ -347,7 +347,7 @@ public class TableProperties {
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
 
   public static final String SPARK_WRITE_AUTO_SCHEMA_EVOLUTION =
-      "write.spark.auto-schema-evolution";
+      "write.spark.auto-schema-evolution.enabled";
   public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
   public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
