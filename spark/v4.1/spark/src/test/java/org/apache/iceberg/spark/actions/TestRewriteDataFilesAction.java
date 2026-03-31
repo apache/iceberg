@@ -111,6 +111,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -1924,6 +1925,33 @@ public class TestRewriteDataFilesAction extends TestBase {
           SnapshotSummary.CHANGED_PARTITION_COUNT_PROP
         };
     assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
+  }
+
+  @TestTemplate
+  public void testSessionSnapshotProperty() {
+    Table table = createTable(4);
+
+    spark.conf().set(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "session-key", "session-value");
+    try {
+      Result ignored = basicRewrite(table).execute();
+      assertThat(table.currentSnapshot().summary()).containsEntry("session-key", "session-value");
+    } finally {
+      spark.conf().unset(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "session-key");
+    }
+  }
+
+  @TestTemplate
+  public void testExplicitSnapshotPropertyOverridesSession() {
+    Table table = createTable(4);
+
+    spark.conf().set(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value");
+    try {
+      Result ignored =
+          basicRewrite(table).snapshotProperty("key", "explicit-value").execute();
+      assertThat(table.currentSnapshot().summary()).containsEntry("key", "explicit-value");
+    } finally {
+      spark.conf().unset(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key");
+    }
   }
 
   @TestTemplate

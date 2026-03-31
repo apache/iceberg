@@ -21,7 +21,10 @@ package org.apache.iceberg.spark.actions;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
+import scala.collection.JavaConverters;
 
 abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<ThisT> {
 
@@ -37,11 +40,22 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
   }
 
   protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
-    summary.forEach(update::set);
+    commitSummary().forEach(update::set);
     update.commit();
   }
 
   protected Map<String, String> commitSummary() {
-    return ImmutableMap.copyOf(summary);
+    Map<String, String> merged = Maps.newHashMap();
+
+    // session-level snapshot properties (lower priority)
+    merged.putAll(
+        PropertyUtil.propertiesWithPrefix(
+            JavaConverters.mapAsJavaMap(spark().conf().getAll()),
+            SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
+
+    // explicitly set snapshot properties (higher priority)
+    merged.putAll(summary);
+
+    return ImmutableMap.copyOf(merged);
   }
 }
