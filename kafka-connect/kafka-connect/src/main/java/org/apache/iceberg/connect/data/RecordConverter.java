@@ -529,8 +529,8 @@ class RecordConverter {
     // than index 19, so we must locate it dynamically rather than assuming a fixed position.
     int signIdx = -1;
     for (int i = 19; i < result.length(); i++) {
-      char c = result.charAt(i);
-      if (c == '+' || c == '-') {
+      char ch = result.charAt(i);
+      if (ch == '+' || ch == '-') {
         signIdx = i;
         break;
       }
