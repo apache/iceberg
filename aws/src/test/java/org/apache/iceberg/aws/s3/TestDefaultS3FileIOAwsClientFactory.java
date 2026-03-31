@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -107,6 +108,66 @@ class TestDefaultS3FileIOAwsClientFactory {
     }
   }
 
+  @Test
+  void metricsPublisherNotFound() {
+    final var factory = new DefaultS3FileIOAwsClientFactory();
+    factory.initialize(
+        Map.of(
+            "s3.crt.enabled", "false",
+            "client.credentials-provider", TestCredentialProvider.class.getName(),
+            "client.metrics-publisher", MapArgPublisher.class.getName() + "Missing",
+            "client.metrics-publisher.test", "ok",
+            "client.region", "us-east-1"));
+    assertThatThrownBy(factory::s3Async)
+        .hasCauseInstanceOf(ClassNotFoundException.class)
+        .hasMessageContaining("Cannot load class " + MapArgPublisher.class.getName() + "Missing")
+        .doesNotThrowAnyExceptionExcept(IllegalArgumentException.class);
+  }
+
+  @Test
+  void metricsPublisherNotAssignable() {
+    final var factory = new DefaultS3FileIOAwsClientFactory();
+    factory.initialize(
+        Map.of(
+            "s3.crt.enabled", "false",
+            "client.credentials-provider", TestCredentialProvider.class.getName(),
+            "client.metrics-publisher", String.class.getName(),
+            "client.metrics-publisher.test", "ok",
+            "client.region", "us-east-1"));
+    assertThatThrownBy(factory::s3Async)
+        .hasMessageContaining(
+            "Cannot initialize java.lang.String, it does not implement software.amazon.awssdk.metrics.MetricPublisher.")
+        .doesNotThrowAnyExceptionExcept(IllegalArgumentException.class);
+  }
+
+  @Test
+  void metricsPublisherMissingCreate() {
+    final var factory = new DefaultS3FileIOAwsClientFactory();
+    factory.initialize(
+        Map.of(
+            "s3.crt.enabled", "false",
+            "client.credentials-provider", TestCredentialProvider.class.getName(),
+            "client.metrics-publisher", NoCreatePublisher.class.getName(),
+            "client.metrics-publisher.test", "ok",
+            "client.region", "us-east-1"));
+    assertThatThrownBy(factory::s3Async)
+        .hasCauseInstanceOf(NoSuchMethodException.class)
+        .doesNotThrowAnyExceptionExcept(IllegalArgumentException.class);
+  }
+
+  @Test
+  void metricsPublisherFailToInstantiate() {
+    final var factory = new DefaultS3FileIOAwsClientFactory();
+    factory.initialize(
+        Map.of(
+            "s3.crt.enabled", "false",
+            "client.credentials-provider", TestCredentialProvider.class.getName(),
+            "client.metrics-publisher", OopsPublisher.class.getName(),
+            "client.metrics-publisher.test", "ok",
+            "client.region", "us-east-1"));
+    assertThatThrownBy(factory::s3Async).doesNotThrowAnyExceptionExcept(OopsPublisher.Oops.class);
+  }
+
   public static class TestCredentialProvider implements AwsCredentialsProvider {
     public static AwsCredentialsProvider create() {
       return new TestCredentialProvider();
@@ -137,6 +198,36 @@ class TestDefaultS3FileIOAwsClientFactory {
     @Override
     public void close() {
       // no-op
+    }
+  }
+
+  public static class NoCreatePublisher implements MetricPublisher {
+    @Override
+    public void publish(MetricCollection metricCollection) {
+      // no-op
+    }
+
+    @Override
+    public void close() {
+      // no-op
+    }
+  }
+
+  public static class OopsPublisher implements MetricPublisher {
+    public static class Oops extends RuntimeException {}
+
+    public static NoArgPublisher create() {
+      throw new Oops();
+    }
+
+    @Override
+    public void publish(MetricCollection metricCollection) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void close() {
+      throw new UnsupportedOperationException();
     }
   }
 
