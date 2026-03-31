@@ -20,6 +20,11 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
+import javax.annotation.Nullable;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeutils.base.array.BytePrimitiveArraySerializer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -34,6 +39,7 @@ import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,18 +55,29 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriteAggregator.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
+  private static final IcebergCommittableSerializer COMMITTABLE_SERIALIZER =
+      new IcebergCommittableSerializer();
 
   private final Collection<WriteResult> results;
   private final TableLoader tableLoader;
+  @Nullable private final CommitGate commitGate;
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
 
   private transient ManifestOutputFileFactory icebergManifestOutputFileFactory;
   private transient Table table;
+  private transient ListState<byte[]> pendingCommittablesState;
+  private transient boolean wasPausedPreviously = false;
+  private transient boolean forceFlush = false;
 
   IcebergWriteAggregator(TableLoader tableLoader) {
+    this(tableLoader, null);
+  }
+
+  IcebergWriteAggregator(TableLoader tableLoader, @Nullable CommitGate commitGate) {
     this.results = Sets.newHashSet();
     this.tableLoader = tableLoader;
+    this.commitGate = commitGate;
   }
 
   @Override
@@ -68,6 +85,14 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
     context
         .getRestoredCheckpointId()
         .ifPresent(checkpointId -> this.lastCheckpointId = checkpointId);
+
+    if (commitGate != null) {
+      ListStateDescriptor<byte[]> descriptor =
+          new ListStateDescriptor<>(
+              "iceberg-aggregator-pending-committables", BytePrimitiveArraySerializer.INSTANCE);
+      pendingCommittablesState = context.getOperatorStateStore().getListState(descriptor);
+      wasPausedPreviously = pendingCommittablesState.get().iterator().hasNext();
+    }
   }
 
   @Override
@@ -91,7 +116,12 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   @Override
   public void finish() throws IOException {
-    prepareSnapshotPreBarrier(lastCheckpointId + 1);
+    forceFlush = true;
+    try {
+      prepareSnapshotPreBarrier(lastCheckpointId + 1);
+    } finally {
+      forceFlush = false;
+    }
   }
 
   @Override
@@ -106,20 +136,65 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
     this.lastCheckpointId = checkpointId;
 
+    boolean isGated =
+        commitGate != null && !forceFlush && !commitGate.isCommitAllowed(checkpointId);
+
+    if (wasPausedPreviously && !isGated && pendingCommittablesState != null) {
+      flushBufferedCommittables();
+    }
+
     IcebergCommittable committable =
         new IcebergCommittable(
             writeToManifest(results, checkpointId),
             getContainingTask().getEnvironment().getJobID().toString(),
             getRuntimeContext().getOperatorUniqueID(),
             checkpointId);
-    CommittableMessage<IcebergCommittable> summary =
-        new CommittableSummary<>(0, 1, checkpointId, 1, 1, 0);
-    output.collect(new StreamRecord<>(summary));
-    CommittableMessage<IcebergCommittable> message =
-        new CommittableWithLineage<>(committable, checkpointId, 0);
-    output.collect(new StreamRecord<>(message));
-    LOG.info("Emitted commit message to downstream committer operator");
+
+    if (isGated) {
+      try {
+        byte[] serialized =
+            SimpleVersionedSerialization.writeVersionAndSerialize(
+                COMMITTABLE_SERIALIZER, committable);
+        pendingCommittablesState.add(serialized);
+      } catch (Exception e) {
+        throw new IOException("Failed to serialize committable for buffering", e);
+      }
+      LOG.info("Commit gate closed for checkpoint {}. Buffering committable.", checkpointId);
+      wasPausedPreviously = true;
+    } else {
+      emitCommittable(committable, checkpointId);
+      LOG.info("Emitted commit message to downstream committer operator");
+      wasPausedPreviously = false;
+    }
+
     results.clear();
+  }
+
+  private void flushBufferedCommittables() throws IOException {
+    List<IcebergCommittable> buffered = Lists.newArrayList();
+    try {
+      for (byte[] serialized : pendingCommittablesState.get()) {
+        buffered.add(
+            SimpleVersionedSerialization.readVersionAndDeSerialize(
+                COMMITTABLE_SERIALIZER, serialized));
+      }
+    } catch (Exception e) {
+      throw new IOException("Failed to deserialize buffered committable", e);
+    }
+
+    if (!buffered.isEmpty()) {
+      buffered.sort((c1, c2) -> Long.compare(c1.checkpointId(), c2.checkpointId()));
+      for (IcebergCommittable c : buffered) {
+        emitCommittable(c, c.checkpointId());
+      }
+      pendingCommittablesState.clear();
+      LOG.info("Commit gate opened. Flushed {} buffered committables", buffered.size());
+    }
+  }
+
+  private void emitCommittable(IcebergCommittable committable, long checkpointId) {
+    output.collect(new StreamRecord<>(new CommittableSummary<>(0, 1, checkpointId, 1, 1, 0)));
+    output.collect(new StreamRecord<>(new CommittableWithLineage<>(committable, checkpointId, 0)));
   }
 
   /**
