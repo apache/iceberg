@@ -1,0 +1,82 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Polaris CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'api/**'
+      - 'core/**'
+      - 'open-api/**'
+      - 'dev/docker-compose-polaris.yml'
+      - 'dev/provision_polaris.py'
+      - '.github/workflows/polaris-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  polaris-integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+      
+      - name: Start Polaris and MinIO
+        run: |
+          docker compose -f dev/docker-compose-polaris.yml kill
+          docker compose -f dev/docker-compose-polaris.yml rm -f
+          docker compose -f dev/docker-compose-polaris.yml up -d --build --wait
+
+      - name: Provision Polaris Catalog
+        run: |
+          python3 dev/provision_polaris.py > dev/polaris_creds.env
+
+      - name: Run Polaris integration tests
+        run: |
+          export $(cat dev/polaris_creds.env | xargs)
+          ./gradlew :iceberg-open-api:test --tests RESTCompatibilityKitSuite \
+            -Drck.local=false \
+            -Drck.requires-namespace-create=true \
+            -Drck.uri=http://localhost:8181/api/catalog \
+            -Drck.warehouse=polaris \
+            -Drck.credential=$CLIENT_ID:$CLIENT_SECRET \
+            -Drck.header.X-Iceberg-Access-Delegation=vended-credentials \
+            -Drck.header.realm=POLARIS
+
+      - name: Show debug logs
+        if: ${{ failure() }}
+        run: docker compose -f dev/docker-compose-polaris.yml logs
+
+      - name: Clean up Docker
+        if: always()
+        run: |
+          docker compose -f dev/docker-compose-polaris.yml down -v --remove-orphans --timeout 0 2>/dev/null || true
+          rm -f dev/polaris_creds.env
