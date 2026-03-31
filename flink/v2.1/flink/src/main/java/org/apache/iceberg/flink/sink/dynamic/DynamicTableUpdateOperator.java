@@ -18,18 +18,15 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
-import org.apache.iceberg.flink.FlinkDynamicSinkConf;
 
 /**
  * An optional operator to perform table updates for tables (e.g. schema update) in a non-concurrent
@@ -53,13 +50,10 @@ class DynamicTableUpdateOperator
   DynamicTableUpdateOperator(
       CatalogLoader catalogLoader,
       TableCreator tableCreator,
-      Map<String, String> writeProperties,
-      Configuration flinkConfig) {
+      FlinkDynamicSinkConf flinkDynamicSinkConf) {
     this.catalogLoader = catalogLoader;
     this.tableCreator = tableCreator;
 
-    FlinkDynamicSinkConf flinkDynamicSinkConf =
-        new FlinkDynamicSinkConf(writeProperties, flinkConfig);
     this.cacheMaximumSize = flinkDynamicSinkConf.cacheMaxSize();
     this.cacheRefreshMs = flinkDynamicSinkConf.cacheRefreshMs();
     this.inputSchemasPerTableCacheMaximumSize =

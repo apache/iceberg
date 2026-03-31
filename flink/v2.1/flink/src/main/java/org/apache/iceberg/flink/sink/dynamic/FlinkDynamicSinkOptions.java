@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink.dynamic;
 
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ConfigOption;

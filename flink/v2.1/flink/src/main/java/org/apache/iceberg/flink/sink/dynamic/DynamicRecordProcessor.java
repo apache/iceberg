@@ -32,7 +32,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.flink.CatalogLoader;
-import org.apache.iceberg.flink.FlinkDynamicSinkConf;
 import org.apache.iceberg.flink.FlinkWriteConf;
 
 @Internal
@@ -68,15 +67,13 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       DynamicRecordGenerator<T> generator,
       CatalogLoader catalogLoader,
       TableCreator tableCreator,
+      FlinkDynamicSinkConf flinkDynamicSinkConf,
       Map<String, String> writeProperties,
       Configuration flinkConfig) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
-    this.writeProperties = writeProperties;
     this.flinkConfig = flinkConfig;
-
-    FlinkDynamicSinkConf flinkDynamicSinkConf =
-        new FlinkDynamicSinkConf(writeProperties, flinkConfig);
+    this.writeProperties = writeProperties;
     this.immediateUpdate = flinkDynamicSinkConf.immediateTableUpdate();
     this.cacheMaximumSize = flinkDynamicSinkConf.cacheMaxSize();
     this.cacheRefreshMs = flinkDynamicSinkConf.cacheRefreshMs();
@@ -129,8 +126,9 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   }
 
   @Override
-  public void collect(DynamicRecord inputData) {
-    DynamicRecordWithDefaults data = new DynamicRecordWithDefaults(inputData, flinkWriteConf);
+  public void collect(DynamicRecord data) {
+    // Use configs to fallback, when not set on Dynamic Record.
+    data.setFlinkWriteConf(flinkWriteConf);
     boolean isForward = data.distributionMode() == null;
 
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;

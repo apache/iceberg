@@ -23,14 +23,12 @@ import static org.apache.iceberg.flink.TestFixtures.TABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
-import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.flink.FlinkDynamicSinkOptions;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -69,8 +67,7 @@ class TestDynamicTableUpdateOperator {
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
             TableCreator.DEFAULT,
-            writeOptions(CASE_SENSITIVE, PRESERVE_COLUMNS),
-            new Configuration());
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -98,8 +95,7 @@ class TestDynamicTableUpdateOperator {
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
             TableCreator.DEFAULT,
-            writeOptions(CASE_SENSITIVE, PRESERVE_COLUMNS),
-            new Configuration());
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, SCHEMA1);
@@ -138,8 +134,7 @@ class TestDynamicTableUpdateOperator {
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
             TableCreator.DEFAULT,
-            writeOptions(caseSensitive, PRESERVE_COLUMNS),
-            new Configuration());
+            flinkDynamicSinkConfiguration(caseSensitive, PRESERVE_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, initialSchema);
@@ -180,8 +175,7 @@ class TestDynamicTableUpdateOperator {
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
             TableCreator.DEFAULT,
-            writeOptions(CASE_SENSITIVE, PRESERVE_COLUMNS),
-            new Configuration());
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);
@@ -215,8 +209,7 @@ class TestDynamicTableUpdateOperator {
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
             TableCreator.DEFAULT,
-            writeOptions(CASE_INSENSITIVE, DROP_COLUMNS),
-            new Configuration());
+            flinkDynamicSinkConfiguration(CASE_INSENSITIVE, DROP_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);
@@ -240,10 +233,12 @@ class TestDynamicTableUpdateOperator {
     assertThat(input).isEqualTo(output);
   }
 
-  private static Map<String, String> writeOptions(
+  private static FlinkDynamicSinkConf flinkDynamicSinkConfiguration(
       boolean caseSensitive, boolean dropUnusedColumns) {
-    return ImmutableMap.of(
-        FlinkDynamicSinkOptions.CASE_SENSITIVE.key(), String.valueOf(caseSensitive),
-        FlinkDynamicSinkOptions.DROP_UNUSED_COLUMNS.key(), String.valueOf(dropUnusedColumns));
+    return new FlinkDynamicSinkConf(
+        ImmutableMap.of(
+            FlinkDynamicSinkOptions.CASE_SENSITIVE.key(), String.valueOf(caseSensitive),
+            FlinkDynamicSinkOptions.DROP_UNUSED_COLUMNS.key(), String.valueOf(dropUnusedColumns)),
+        new Configuration());
   }
 }

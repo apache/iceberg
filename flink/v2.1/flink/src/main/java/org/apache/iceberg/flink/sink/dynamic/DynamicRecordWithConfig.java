@@ -28,11 +28,11 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * have fields set.
  */
 @Internal
-class DynamicRecordWithDefaults extends DynamicRecord {
+class DynamicRecordWithConfig extends DynamicRecord {
 
   private final FlinkWriteConf flinkWriteConf;
 
-  DynamicRecordWithDefaults(DynamicRecord source, FlinkWriteConf flinkWriteConf) {
+  DynamicRecordWithConfig(DynamicRecord source, FlinkWriteConf flinkWriteConf) {
     super(
         source.tableIdentifier(),
         source.branch(),

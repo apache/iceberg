@@ -124,6 +124,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     PartitionSpec partitionSpec;
     boolean upsertMode;
     Set<String> equalityFields;
+    int writeParallelism;
 
     private DynamicIcebergDataImpl(
         Schema schemaProvided, String tableName, String branch, PartitionSpec partitionSpec) {
@@ -135,7 +136,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           partitionSpec,
           false,
           Collections.emptySet(),
-          false);
+          false,
+          10);
     }
 
     private DynamicIcebergDataImpl(
@@ -152,7 +154,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           partitionSpec,
           false,
           Collections.emptySet(),
-          false);
+          false,
+          10);
     }
 
     private DynamicIcebergDataImpl(
@@ -171,7 +174,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           partitionSpec,
           upsertMode,
           equalityFields,
-          isDuplicate);
+          isDuplicate,
+          10);
     }
 
     private DynamicIcebergDataImpl(
@@ -182,7 +186,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         PartitionSpec partitionSpec,
         boolean upsertMode,
         Set<String> equalityFields,
-        boolean isDuplicate) {
+        boolean isDuplicate,
+        int writeParallelism) {
       this.rowProvided = randomRow(schemaProvided, isDuplicate ? seed : ++seed);
       this.rowExpected = isDuplicate ? null : rowProvided;
       this.schemaProvided = schemaProvided;
@@ -192,6 +197,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       this.partitionSpec = partitionSpec;
       this.upsertMode = upsertMode;
       this.equalityFields = equalityFields;
+      this.writeParallelism = writeParallelism;
     }
   }
 
@@ -211,7 +217,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               converter(schema).toInternal(row.rowProvided),
               spec,
               spec.isPartitioned() ? DistributionMode.HASH : DistributionMode.NONE,
-              10);
+              row.writeParallelism);
       dynamicRecord.setUpsertMode(row.upsertMode);
       dynamicRecord.setEqualityFields(row.equalityFields);
       out.collect(dynamicRecord);
@@ -1358,6 +1364,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+<<<<<<< HEAD
   void testGeneratorDefaultParallelism() {
     StreamExecutionEnvironment streamEnv = StreamExecutionEnvironment.getExecutionEnvironment();
     streamEnv.setParallelism(4);
@@ -1382,6 +1389,34 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
             .orElseThrow(() -> new AssertionError("Generator node not found"));
 
     assertThat(generatorParallelism).isEqualTo(source.getParallelism());
+=======
+  void testFallBackParallelismFromConfig() throws Exception {
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned(),
+                false,
+                Collections.emptySet(),
+                false,
+                -1),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned(),
+                false,
+                Collections.emptySet(),
+                false,
+                0));
+
+    runTest(
+        rows, this.env, true, 2, ImmutableMap.of(FlinkWriteOptions.WRITE_PARALLELISM.key(), "1"));
+>>>>>>> b354ebcfbd (pr feedback)
   }
 
   private Set<String> createSinkAndReturnUIds(String uidPrefix) {
@@ -1602,13 +1637,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         Map<String, String> writeProperties,
         Configuration flinkConfig,
         DataStream<CommittableMessage<DynamicWriteResult>> forwardWritten) {
-      super(
-          catalogLoader,
-          snapshotProperties,
-          uidPrefix,
-          writeProperties,
-          flinkConfig,
-          forwardWritten);
+      super(catalogLoader, snapshotProperties, uidPrefix, writeProperties, flinkConfig, 100, forwardWritten);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
     }
