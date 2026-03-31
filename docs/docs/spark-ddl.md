@@ -338,8 +338,10 @@ ALTER TABLE prod.db.sample DROP COLUMN point.z;
     (`MetaStoreUtils#throwExceptionIfIncompatibleColTypeChange`).
 
     To work around this, disable the HMS schema compatibility check by setting
-    `hive.metastore.disallow.incompatible.col.type.changes=false` in `hive-site.xml`, or by passing
-    `--conf spark.hadoop.hive.metastore.disallow.incompatible.col.type.changes=false` when starting Spark.
+    `hive.metastore.disallow.incompatible.col.type.changes=false`:
+
+    - **Remote HMS:** Set this property in the HMS server's `hive-site.xml`.
+    - **Embedded HMS:** Pass `--conf spark.hadoop.hive.metastore.disallow.incompatible.col.type.changes=false` when starting Spark.
 
     **Trade-off:** After applying this workaround, the Hive engine may no longer be able to read the table
     correctly due to the schema mismatch in the Hive Metastore. Iceberg-aware engines (Spark, Flink, Trino, etc.)
