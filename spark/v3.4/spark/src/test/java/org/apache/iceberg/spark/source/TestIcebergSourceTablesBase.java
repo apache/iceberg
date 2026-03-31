@@ -1134,19 +1134,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
-    if (!spark.version().startsWith("2")) {
-      // Spark 2 isn't able to actually push down nested struct projections so this will not break
-      assertThatThrownBy(
-              () ->
-                  spark
-                      .read()
-                      .format("iceberg")
-                      .load(loadLocation(tableIdentifier, "manifests"))
-                      .select("partition_spec_id", "path", "partition_summaries.contains_null")
-                      .collectAsList())
-          .isInstanceOf(SparkException.class)
-          .hasMessageContaining("Cannot project a partial list element struct");
-    }
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .load(loadLocation(tableIdentifier, "manifests"))
+                    .select("partition_spec_id", "path", "partition_summaries.contains_null")
+                    .collectAsList())
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Cannot project a partial list element struct");
 
     Dataset<Row> actualDf =
         spark
