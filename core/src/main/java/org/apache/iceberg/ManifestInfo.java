@@ -21,7 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 
-/** Summary information about a manifest referenced by a v4 root manifest entry. */
+/** Summary information about a manifest referenced by a root manifest entry. */
 interface ManifestInfo {
   Types.NestedField ADDED_FILES_COUNT =
       Types.NestedField.required(
