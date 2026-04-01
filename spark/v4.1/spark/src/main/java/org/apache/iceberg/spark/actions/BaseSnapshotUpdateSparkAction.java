@@ -32,6 +32,10 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
 
   protected BaseSnapshotUpdateSparkAction(SparkSession spark) {
     super(spark);
+    summary.putAll(
+        PropertyUtil.propertiesWithPrefix(
+            JavaConverters.mapAsJavaMap(spark.conf().getAll()),
+            SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
   }
 
   public ThisT snapshotProperty(String property, String value) {
@@ -45,17 +49,6 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
   }
 
   protected Map<String, String> commitSummary() {
-    Map<String, String> merged = Maps.newHashMap();
-
-    // session-level snapshot properties (lower priority)
-    merged.putAll(
-        PropertyUtil.propertiesWithPrefix(
-            JavaConverters.mapAsJavaMap(spark().conf().getAll()),
-            SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
-
-    // explicitly set snapshot properties (higher priority)
-    merged.putAll(summary);
-
-    return ImmutableMap.copyOf(merged);
+    return ImmutableMap.copyOf(summary);
   }
 }

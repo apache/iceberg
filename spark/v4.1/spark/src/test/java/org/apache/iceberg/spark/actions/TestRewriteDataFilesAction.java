@@ -111,9 +111,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -1946,8 +1946,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     spark.conf().set(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value");
     try {
-      Result ignored =
-          basicRewrite(table).snapshotProperty("key", "explicit-value").execute();
+      Result ignored = basicRewrite(table).snapshotProperty("key", "explicit-value").execute();
       assertThat(table.currentSnapshot().summary()).containsEntry("key", "explicit-value");
     } finally {
       spark.conf().unset(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key");
