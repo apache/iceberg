@@ -1485,6 +1485,11 @@ class LoadTableResult(BaseModel):
     If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
      - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
      - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+     - `signer.properties.*`: additional properties to be passed through to the signer endpoint in remote sign
+       requests. Optional. If such properties are present, signer clients MUST pass them through to the signer
+       endpoint, in the `properties` field of the remote sign request body. For example, if
+       `signer.properties.key1 = value1` is present, then each remote sign request MUST contain the entry
+       `key1 = value1` in the request body's `properties` field.
 
     """
 
