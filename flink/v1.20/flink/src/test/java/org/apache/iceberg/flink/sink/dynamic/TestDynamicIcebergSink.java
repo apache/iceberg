@@ -1196,6 +1196,33 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
             "Sink Committer: --sink");
   }
 
+  @Test
+  void testGeneratorDefaultParallelism() {
+    StreamExecutionEnvironment streamEnv = StreamExecutionEnvironment.getExecutionEnvironment();
+    streamEnv.setParallelism(4);
+
+    DataStreamSource<DynamicIcebergDataImpl> source =
+        streamEnv.fromData(Collections.emptySet(), TypeInformation.of(new TypeHint<>() {}));
+    source.setParallelism(8);
+
+    DynamicIcebergSink.forInput(source)
+        .generator(new Generator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .uidPrefix("test")
+        .append();
+
+    // Since the generator parallelism is not directly accessible via the returned DataStreamSink,
+    // inspect the stream graph to verify the generator inherits the input source parallelism.
+    int generatorParallelism =
+        streamEnv.getStreamGraph().getStreamNodes().stream()
+            .filter(node -> "test--generator".equals(node.getTransformationUID()))
+            .findFirst()
+            .map(StreamNode::getParallelism)
+            .orElseThrow(() -> new AssertionError("Generator node not found"));
+
+    assertThat(generatorParallelism).isEqualTo(source.getParallelism());
+  }
+
   private Set<String> createSinkAndReturnUIds(String uidPrefix) {
     StreamExecutionEnvironment streamEnv = StreamExecutionEnvironment.getExecutionEnvironment();
 

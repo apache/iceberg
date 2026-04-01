@@ -408,6 +408,7 @@ public class DynamicIcebergSink
                       tableCreator,
                       caseSensitive,
                       dropUnusedColumns))
+              .setParallelism(input.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
