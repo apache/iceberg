@@ -21,10 +21,10 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.stats.BaseContentStats;
 import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
