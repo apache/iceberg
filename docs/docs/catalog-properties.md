@@ -43,12 +43,34 @@ The properties can be manually constructed or passed in from a compute engine li
 Spark uses its session properties as catalog properties, see more details in the [Spark configuration](spark-configuration.md#catalog-configuration) section.
 Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](flink.md#adding-catalogs) section.
 
-## REST Catalog auth properties
+## REST catalog properties
+
+The following properties configure the behavior of the REST catalog client.
+
+| Property                              | Default           | Description                                                                                                                                                                                      |
+|---------------------------------------|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `snapshot-loading-mode`               | `ALL`             | Controls how snapshots are loaded from the REST server. Supported values: `ALL` (load all snapshots), `REFS` (load only referenced snapshots).                                                  |
+| `rest-metrics-reporting-enabled`      | `true`            | Whether to enable metrics reporting to the REST server.                                                                                                                                          |
+| `view-endpoints-supported`            | `false`           | For backwards compatibility with older REST servers. Set to `true` if the server supports view endpoints but doesn't send the `endpoints` field in the ConfigResponse.                          |
+| `rest-page-size`                      | null              | The page size to use when listing namespaces, tables, or other paginated resources.                                                                                                              |
+| `namespace-separator`                 | `%1F`             | The separator character used for namespace levels when communicating with the REST server.                                                                                                       |
+| `scan-planning-mode`                  | `CLIENT`          | Controls where scan planning is performed. Supported values: `CLIENT` (client-side planning), `SERVER` (server-side planning). Can be overridden per-table by the server in LoadTableResponse. |
+
+### Table cache properties
+
+The following properties configure the table cache used for freshness-aware table loading. Note, this cache is different from the one that can be configured at catalog level in general.
+
+| Property                                 | Default           | Description                                                                            |
+|------------------------------------------|-------------------|----------------------------------------------------------------------------------------|
+| `rest-table-cache.expire-after-write-ms` | `300000` (5 min)  | Time in milliseconds after which cached table entries expire.                          |
+| `rest-table-cache.max-entries`           | `100`             | Maximum number of table entries to cache.                                              |
+
+### Auth properties
 
 The following catalog properties configure authentication for the REST catalog.
 They support Basic, OAuth2, SigV4, and Google authentication.
 
-### REST auth properties
+#### REST auth properties
 
 | Property                             | Default          | Description                                                                                                       |
 |--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
@@ -57,7 +79,7 @@ They support Basic, OAuth2, SigV4, and Google authentication.
 | `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
 | `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
 
-### OAuth2 auth properties
+#### OAuth2 auth properties
 Required and optional properties to include while using `oauth2` authentication
 
 | Property                | Default           | Description                                                                                                                                                           |
@@ -72,7 +94,7 @@ Required and optional properties to include while using `oauth2` authentication
 | `audience`              | null              | Optional param to specify token `audience`                                                                                                                            |
 | `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
 
-### Google auth properties
+#### Google auth properties
 Required and optional properties to include while using `google` authentication
 
 | Property                   | Default                                          | Description                                      |
