@@ -165,7 +165,9 @@ class TestDefaultS3FileIOAwsClientFactory {
             "client.metrics-publisher", PublisherThatFailsToCreate.class.getName(),
             "client.metrics-publisher.test", "ok",
             "client.region", "us-east-1"));
-    assertThatThrownBy(factory::s3Async).doesNotThrowAnyExceptionExcept(PublisherThatFailsToCreate.PublisherThatFailsToCreateTestException.class);
+    assertThatThrownBy(factory::s3Async)
+        .doesNotThrowAnyExceptionExcept(
+            PublisherThatFailsToCreate.PublisherThatFailsToCreateTestException.class);
   }
 
   public static class TestCredentialProvider implements AwsCredentialsProvider {
