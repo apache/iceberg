@@ -1120,6 +1120,34 @@ class RemoteSignResult(BaseModel):
     headers: MultiValuedMap
 
 
+class RemoteSigningConfig(BaseModel):
+    """
+    Configuration for the remote signer client.
+    When present, clients MUST use this structure instead of the deprecated `signer.uri` and
+    `signer.endpoint` properties in the `config` map.
+
+    """
+
+    base_uri: str = Field(
+        ...,
+        alias='base-uri',
+        description='The base URI of the signing service as perceived by the client, incorporating X-Forwarded-* headers set by proxies. When present, takes precedence over the deprecated `signer.uri` config property.\n',
+    )
+    endpoint_path: str = Field(
+        ...,
+        alias='endpoint-path',
+        description='Relative path to be resolved against `base-uri` to form the full signing endpoint URI. When present, overrides the deprecated `signer.endpoint` config property. The endpoint path SHOULD end with the canonical signing endpoint path defined in this specification, that is: `/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign`.\n',
+    )
+    properties: dict[str, str] | None = Field(
+        None,
+        description='Static key-value pairs the signer client MUST pass through unchanged in the `properties` field of every `RemoteSignRequest` sent to the signing endpoint.\n',
+    )
+    headers: MultiValuedMap | None = Field(
+        None,
+        description='Static headers the signer client MUST include unchanged in every request to the signing endpoint.\n',
+    )
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: dict[str, str] | None = Field(
@@ -1563,9 +1591,15 @@ class LoadTableResult(BaseModel):
 
     ## Remote Signing
 
-    If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
-     - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
-     - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+    If remote signing for a specific storage provider is enabled, the server SHOULD use the
+    `remote-signing` field to communicate all signer client settings. When the `remote-signing`
+    field is present, clients MUST use it instead of the deprecated `signer.uri` and
+    `signer.endpoint` config properties.
+
+    For backward compatibility, the following `config` properties are still supported but
+    **DEPRECATED** in favor of the `remote-signing` field:
+     - `signer.endpoint`: **DEPRECATED**. The remote signer endpoint. Use `remote-signing.endpoint-path` instead.
+     - `signer.uri`: **DEPRECATED**. The base URI of the signing service. Use `remote-signing.base-uri` instead.
 
     """
 
@@ -1579,6 +1613,7 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
+    remote_signing: RemoteSigningConfig | None = Field(None, alias='remote-signing')
 
 
 class ScanTasks(BaseModel):
