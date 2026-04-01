@@ -128,6 +128,147 @@ subprojects {
 
   apply plugin: 'java-library'
 
+  // Helper closure to truncate version to major.minor
+  ext.truncateVersion = { String version ->
+    if (version == null || version.isEmpty()) {
+      return version
+    }
+
+    // Remove any build metadata or qualifiers first (e.g., +something, -SNAPSHOT)
+    def cleanVersion = version.replaceAll(/[+-].*$/, '')
+
+    // Split by dots and take first two parts
+    def parts = cleanVersion.split(/\./)
+    if (parts.length >= 2) {
+      return "${parts[0]}.${parts[1]}"
+    } else if (parts.length == 1) {
+      return parts[0]
+    }
+
+    return version
+  }
+
+  // Helper closure to resolve dependencies for a configuration
+  ext.resolveDependencies = { String configuration ->
+    def dependencies = new TreeSet<String>()
+
+    try {
+      def config = configurations.findByName(configuration)
+      if (config != null && config.canBeResolved) {
+        config.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+          def id = artifact.moduleVersion.id
+          def groupId = id.group
+          def artifactId = id.name
+          def version = id.version
+
+          // Truncate version to major.minor (remove patch and beyond)
+          def truncatedVersion = truncateVersion(version)
+
+          dependencies.add("${groupId}:${artifactId}:${truncatedVersion}".toString())
+        }
+      } else {
+        throw new GradleException("Configuration '${configuration}' not found or cannot be resolved")
+      }
+    } catch (Exception e) {
+      throw new GradleException("Could not resolve ${configuration}: ${e.message}", e)
+    }
+
+    return dependencies
+  }
+
+  // Task to generate a dependency list for this module
+  // Usage: ./gradlew :iceberg-core:generateDependencyList
+  // Usage with custom config: ./gradlew :iceberg-core:generateDependencyList -Pconfiguration=compileClasspath
+  // Generates a file at <module-root>/dependencies-<configuration>.txt
+  tasks.register('generateDependencyList') {
+    description = "Generates a sorted dependency list for ${project.name} with truncated versions"
+    group = 'build'
+
+    doLast {
+      def configuration = (project.findProperty('configuration') ?: 'runtimeClasspath').toString()
+      def outputFile = file("${projectDir}/dependencies-${configuration}.txt")
+
+      def dependencies = resolveDependencies(configuration)
+
+      // Write to output file
+      outputFile.text = dependencies.join('\n') + '\n'
+
+      project.logger.lifecycle("Generated dependency list with ${dependencies.size()} dependencies at: ${outputFile}")
+    }
+  }
+
+  // Task to validate the dependency list matches the actual dependencies
+  // Usage: ./gradlew :iceberg-core:checkDependencyList
+  // Usage with custom config: ./gradlew :iceberg-core:checkDependencyList -Pconfiguration=compileClasspath
+  // Fails if dependencies-<configuration>.txt exists but doesn't match actual dependencies
+  tasks.register('checkDependencyList') {
+    description = "Validates that dependencies file matches actual dependencies for ${project.name}"
+    group = 'verification'
+
+    doLast {
+      def configuration = (project.findProperty('configuration') ?: 'runtimeClasspath').toString()
+      def dependencyFile = file("${projectDir}/dependencies-${configuration}.txt")
+
+      // Do nothing if dependencies file doesn't exist
+      if (!dependencyFile.exists()) {
+        project.logger.lifecycle("No dependencies-${configuration}.txt found for ${project.name}, skipping validation")
+        return
+      }
+
+      // Read expected dependencies from file
+      def expectedDependencies = new TreeSet<String>()
+      dependencyFile.eachLine { line ->
+        def trimmed = line.trim().toString()
+        if (!trimmed.isEmpty()) {
+          expectedDependencies.add(trimmed)
+        }
+      }
+
+      // Resolve actual dependencies
+      def actualDependencies = resolveDependencies(configuration)
+
+      // Compare the two sets
+      def missing = new TreeSet<String>()
+      missing.addAll(expectedDependencies)
+      missing.removeAll(actualDependencies)
+
+      def extra = new TreeSet<String>()
+      extra.addAll(actualDependencies)
+      extra.removeAll(expectedDependencies)
+
+      if (!missing.isEmpty() || !extra.isEmpty()) {
+        def errorLines = []
+        errorLines.add("Dependency list mismatch for ${project.name}!")
+
+        def updateCmd = "./gradlew :${project.path}:generateDependencyList"
+        if (configuration != 'runtimeClasspath') {
+          updateCmd += " -Pconfiguration=${configuration}"
+        }
+        errorLines.add("dependencies-${configuration}.txt is out of date. Run '${updateCmd}' to update.")
+        errorLines.add("")
+
+        if (!missing.isEmpty()) {
+          errorLines.add("Dependencies in dependencies-${configuration}.txt but not in ${configuration}:")
+          missing.each { dep ->
+            errorLines.add("  - ${dep}")
+          }
+          errorLines.add("")
+        }
+
+        if (!extra.isEmpty()) {
+          errorLines.add("Dependencies in ${configuration} but not in dependencies-${configuration}.txt:")
+          extra.each { dep ->
+            errorLines.add("  + ${dep}")
+          }
+        }
+
+        throw new GradleException(errorLines.join('\n'))
+      }
+
+      project.logger.lifecycle("Dependency list validation passed for ${project.name} (${actualDependencies.size()} dependencies)")
+    }
+  }
+
   if (project.name in REVAPI_PROJECTS) {
     apply plugin: 'org.revapi.revapi-gradle-plugin'
     revapi {
