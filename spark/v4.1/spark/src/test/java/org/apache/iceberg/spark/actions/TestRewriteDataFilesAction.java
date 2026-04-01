@@ -1931,26 +1931,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testSessionSnapshotProperty() {
     Table table = createTable(4);
 
-    spark.conf().set(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "session-key", "session-value");
-    try {
-      Result ignored = basicRewrite(table).execute();
-      assertThat(table.currentSnapshot().summary()).containsEntry("session-key", "session-value");
-    } finally {
-      spark.conf().unset(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "session-key");
-    }
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "session-key", "session-value"),
+        () -> {
+          Result ignored = basicRewrite(table).execute();
+          assertThat(table.currentSnapshot().summary())
+              .containsEntry("session-key", "session-value");
+        });
   }
 
   @TestTemplate
   public void testExplicitSnapshotPropertyOverridesSession() {
     Table table = createTable(4);
 
-    spark.conf().set(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value");
-    try {
-      Result ignored = basicRewrite(table).snapshotProperty("key", "explicit-value").execute();
-      assertThat(table.currentSnapshot().summary()).containsEntry("key", "explicit-value");
-    } finally {
-      spark.conf().unset(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key");
-    }
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value"),
+        () -> {
+          Result ignored = basicRewrite(table).snapshotProperty("key", "explicit-value").execute();
+          assertThat(table.currentSnapshot().summary()).containsEntry("key", "explicit-value");
+        });
   }
 
   @TestTemplate
