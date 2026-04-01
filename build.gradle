@@ -120,6 +120,16 @@ allprojects {
   }
 }
 
+// Top-level task to check dependency lists for all subprojects
+tasks.register('checkAllDependencyLists') {
+  description = 'Validates dependency lists for all subprojects that have them'
+  group = 'verification'
+
+  dependsOn subprojects.collect { subproject ->
+    subproject.tasks.matching { it.name == 'checkDependencyList' }
+  }
+}
+
 subprojects {
   if (it.name == 'iceberg-bom') {
     // the BOM does not build anything, the code below expects "source code"
