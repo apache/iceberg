@@ -1085,6 +1085,105 @@ public class TestRecordConverter {
     assertThat(nested.asArray().get(1).asPrimitive().get()).isEqualTo(2);
   }
 
+  @Test
+  public void testConvertVariantValueFromStructWithTimestamp() {
+    Schema structSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("created_at", Timestamp.SCHEMA)
+            .build();
+    // 2025-12-09T14:30:45.123Z
+    long epochMillis = 1733751045123L;
+    Struct struct =
+        new Struct(structSchema).put("id", 42).put("created_at", new Date(epochMillis));
+
+    Variant variant = variantConverter().convertVariantValue(struct);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().get("id").asPrimitive().get()).isEqualTo(42);
+
+    VariantValue createdAt = variant.value().asObject().get("created_at");
+    assertThat(createdAt.type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(createdAt.asPrimitive().get()).isEqualTo(epochMillis * 1000);
+  }
+
+  @Test
+  public void testConvertVariantValueFromStructWithTime() {
+    Schema structSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("start_time", Time.SCHEMA)
+            .build();
+    // 14:30:45 = 52245000 millis since midnight
+    long millisSinceMidnight = 52245000L;
+    Struct struct =
+        new Struct(structSchema).put("id", 1).put("start_time", new Date(millisSinceMidnight));
+
+    Variant variant = variantConverter().convertVariantValue(struct);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+
+    VariantValue startTime = variant.value().asObject().get("start_time");
+    assertThat(startTime.type()).isEqualTo(PhysicalType.TIME);
+    assertThat(startTime.asPrimitive().get()).isEqualTo(millisSinceMidnight * 1000);
+  }
+
+  @Test
+  public void testConvertVariantValueFromStructWithDate() {
+    Schema structSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("birth_date", org.apache.kafka.connect.data.Date.SCHEMA)
+            .build();
+    // 2025-12-09 = 20431 days since epoch
+    long epochMillis = 20431L * 86_400_000;
+    Struct struct =
+        new Struct(structSchema).put("id", 1).put("birth_date", new Date(epochMillis));
+
+    Variant variant = variantConverter().convertVariantValue(struct);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+
+    VariantValue birthDate = variant.value().asObject().get("birth_date");
+    assertThat(birthDate.type()).isEqualTo(PhysicalType.DATE);
+    assertThat(birthDate.asPrimitive().get()).isEqualTo(20431);
+  }
+
+  @Test
+  public void testConvertVariantValueFromStructWithAllDateTypes() {
+    Schema structSchema =
+        SchemaBuilder.struct()
+            .field("ts", Timestamp.SCHEMA)
+            .field("t", Time.SCHEMA)
+            .field("d", org.apache.kafka.connect.data.Date.SCHEMA)
+            .build();
+    long tsMillis = 1733751045123L;
+    long timeMillis = 52245000L;
+    long dateMillis = 20431L * 86_400_000;
+    Struct struct =
+        new Struct(structSchema)
+            .put("ts", new Date(tsMillis))
+            .put("t", new Date(timeMillis))
+            .put("d", new Date(dateMillis));
+
+    Variant variant = variantConverter().convertVariantValue(struct);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().asObject().get("ts").type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(variant.value().asObject().get("ts").asPrimitive().get())
+        .isEqualTo(tsMillis * 1000);
+
+    assertThat(variant.value().asObject().get("t").type()).isEqualTo(PhysicalType.TIME);
+    assertThat(variant.value().asObject().get("t").asPrimitive().get())
+        .isEqualTo(timeMillis * 1000);
+
+    assertThat(variant.value().asObject().get("d").type()).isEqualTo(PhysicalType.DATE);
+    assertThat(variant.value().asObject().get("d").asPrimitive().get()).isEqualTo(20431);
+  }
+
   public static Map<String, Object> createMapData() {
     return ImmutableMap.<String, Object>builder()
         .put("i", 1)
