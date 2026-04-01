@@ -44,7 +44,7 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
   }
 
   protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
-    commitSummary().forEach(update::set);
+    summary.forEach(update::set);
     update.commit();
   }
 
