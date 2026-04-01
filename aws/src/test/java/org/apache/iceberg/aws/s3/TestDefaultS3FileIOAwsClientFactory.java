@@ -162,10 +162,10 @@ class TestDefaultS3FileIOAwsClientFactory {
         Map.of(
             "s3.crt.enabled", "false",
             "client.credentials-provider", TestCredentialProvider.class.getName(),
-            "client.metrics-publisher", OopsPublisher.class.getName(),
+            "client.metrics-publisher", PublisherThatFailsToCreate.class.getName(),
             "client.metrics-publisher.test", "ok",
             "client.region", "us-east-1"));
-    assertThatThrownBy(factory::s3Async).doesNotThrowAnyExceptionExcept(OopsPublisher.Oops.class);
+    assertThatThrownBy(factory::s3Async).doesNotThrowAnyExceptionExcept(PublisherThatFailsToCreate.PublisherThatFailsToCreateTestException.class);
   }
 
   public static class TestCredentialProvider implements AwsCredentialsProvider {
@@ -213,11 +213,11 @@ class TestDefaultS3FileIOAwsClientFactory {
     }
   }
 
-  public static class OopsPublisher implements MetricPublisher {
-    public static class Oops extends RuntimeException {}
+  public static class PublisherThatFailsToCreate implements MetricPublisher {
+    public static class PublisherThatFailsToCreateTestException extends RuntimeException {}
 
     public static NoArgPublisher create() {
-      throw new Oops();
+      throw new PublisherThatFailsToCreateTestException();
     }
 
     @Override
