@@ -127,7 +127,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
   @Override
   public void collect(DynamicRecord data) {
-    // Use configs to fallback, when not set on Dynamic Record.
+    // Config to load values not set on Dynamic Record.
     data.setFlinkWriteConf(flinkWriteConf);
     boolean isForward = data.distributionMode() == null;
 

@@ -457,7 +457,7 @@ public class DynamicIcebergSink
         Configuration flinkWriteConf,
         DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults) {
       FlinkDynamicSinkConf flinkDynamicSinkConf =
-          new FlinkDynamicSinkConf(writeOptions, flinkWriteConf);
+          new FlinkDynamicSinkConf(writeProperties, flinkWriteConf);
       return new DynamicIcebergSink(
           catalogLoader,
           snapshotSummary,

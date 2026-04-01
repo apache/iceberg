@@ -173,11 +173,11 @@ public class DynamicRecord {
     this.equalityFields = equalityFields;
   }
 
-  public void setFlinkWriteConf(FlinkWriteConf flinkWriteConf) {
+  void setFlinkWriteConf(FlinkWriteConf flinkWriteConf) {
     this.flinkWriteConf = flinkWriteConf;
   }
 
-  public FlinkWriteConf flinkWriteConf() {
+  FlinkWriteConf flinkWriteConf() {
     return flinkWriteConf;
   }
 }
