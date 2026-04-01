@@ -98,6 +98,7 @@ public class TestHTTPClient {
   private static RESTClient restClient;
 
   public static class DefaultTLSConfigurer implements TLSConfigurer {
+
     public static int count = 0;
 
     public DefaultTLSConfigurer() {
@@ -106,6 +107,7 @@ public class TestHTTPClient {
   }
 
   public static class TLSConfigurerMissingNoArgCtor implements TLSConfigurer {
+
     TLSConfigurerMissingNoArgCtor(String str) {}
   }
 
@@ -469,32 +471,32 @@ public class TestHTTPClient {
       HttpResponse mockResponse = response().withStatusCode(200).withBody("TLS response");
       server.when(mockRequest).respond(mockResponse);
 
+      // With no custom hostnameVerifier (null), the BUILTIN policy is used automatically,
+      // so the JSSE built-in verifier rejects the connection because the SANs don't match
       try (HTTPClient builtInVerifierClient =
-              HTTPClient.builder(
-                      Map.of(
-                          HTTPClient.REST_TLS_CONFIGURER,
-                          BuiltInHostnameVerifierTLSConfigurer.class.getName()))
-                  .uri(String.format("https://127.0.0.1:%d", tlsPort))
-                  .withAuthSession(AuthSession.EMPTY)
-                  .build();
-          HTTPClient customVerifierClient =
-              HTTPClient.builder(
-                      Map.of(
-                          HTTPClient.REST_TLS_CONFIGURER,
-                          CustomHostnameVerifierTLSConfigurer.class.getName()))
-                  .uri(String.format("https://127.0.0.1:%d", tlsPort))
-                  .withAuthSession(AuthSession.EMPTY)
-                  .build()) {
-
-        // With no custom hostnameVerifier (null), the BUILTIN policy is used automatically,
-        // so the JSSE built-in verifier rejects the connection because the SANs don't match
+          HTTPClient.builder(
+                  Map.of(
+                      HTTPClient.REST_TLS_CONFIGURER,
+                      BuiltInHostnameVerifierTLSConfigurer.class.getName()))
+              .uri(String.format("https://127.0.0.1:%d", tlsPort))
+              .withAuthSession(AuthSession.EMPTY)
+              .build()) {
         assertThatThrownBy(() -> builtInVerifierClient.head(path, Map.of(), (unused) -> {}))
             .rootCause()
             .isInstanceOf(CertificateException.class)
             .hasMessage("No subject alternative names matching IP address 127.0.0.1 found");
+      }
 
-        // With a custom hostnameVerifier (NoopHostnameVerifier), the CLIENT policy is used
-        // automatically, so hostname verification is bypassed and the request succeeds
+      // With a custom hostnameVerifier (NoopHostnameVerifier), the CLIENT policy is used
+      // automatically, so hostname verification is bypassed and the request succeeds
+      try (HTTPClient customVerifierClient =
+          HTTPClient.builder(
+                  Map.of(
+                      HTTPClient.REST_TLS_CONFIGURER,
+                      CustomHostnameVerifierTLSConfigurer.class.getName()))
+              .uri(String.format("https://127.0.0.1:%d", tlsPort))
+              .withAuthSession(AuthSession.EMPTY)
+              .build()) {
         assertThatCode(() -> customVerifierClient.head(path, Map.of(), (unused) -> {}))
             .doesNotThrowAnyException();
       }
@@ -719,6 +721,7 @@ public class TestHTTPClient {
   }
 
   public static class Item implements RESTRequest, RESTResponse {
+
     private Long id;
     private String data;
 
