@@ -49,6 +49,11 @@ public final class RESTCatalogProperties {
 
   public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
 
+  public static final String REST_SCAN_PLANNING_POLL_TIMEOUT_MS =
+      "rest-scan-planning.poll-timeout-ms";
+  public static final long REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT =
+      TimeUnit.MINUTES.toMillis(5);
+
   // Properties that control the behaviour of the table cache used for freshness-aware table
   // loading.
   public static final String TABLE_CACHE_EXPIRE_AFTER_WRITE_MS =
