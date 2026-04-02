@@ -206,7 +206,9 @@ public class FlinkDynamicTableFactory
 
     String catalogTableProp = mergedProps.get(FlinkCreateTableOptions.CATALOG_TABLE.key());
     String tableNameProp = mergedProps.get("table-name");
-    if (catalogTableProp != null && tableNameProp != null && !catalogTableProp.equals(tableNameProp)) {
+    if (catalogTableProp != null
+        && tableNameProp != null
+        && !catalogTableProp.equals(tableNameProp)) {
       LOG.warn(
           "Both '{}' ({}) and 'table-name' ({}) are set with conflicting values; '{}' takes precedence.",
           FlinkCreateTableOptions.CATALOG_TABLE.key(),
