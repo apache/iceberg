@@ -29,10 +29,8 @@ public class UnboundExtract<T> implements UnboundTerm<T> {
 
   public UnboundExtract(NamedReference<?> ref, String path, String type) {
     this.ref = ref;
-    this.path = path;
+    this.path = PathUtil.toNormalizedPath(PathUtil.parse(path));
     this.type = Types.fromPrimitiveString(type);
-    // verify that the path is well-formed
-    PathUtil.parse(path);
   }
 
   @Override
