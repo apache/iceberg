@@ -56,6 +56,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.RemotePlanTimeoutException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -1220,7 +1221,50 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     RESTTableScan scan = restTableScanFor(table);
 
     // With a 1ms timeout and a server that never completes, planFiles should fail
-    assertThatThrownBy(scan::planFiles).isInstanceOf(RuntimeException.class).hasMessage(null);
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(RemotePlanTimeoutException.class)
+        .hasMessageContaining("did not complete within configured limits");
+  }
+
+  @Test
+  public void asyncPlanningSucceedsWithCustomTimeout() {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
+    RESTTable table = restTableFor(restCatalog, "custom_timeout_success");
+    setParserContext(table);
+    // default catalog uses the default 5-minute timeout, which is sufficient for async planning
+    assertThat(table.newScan().planFiles()).hasSize(1);
+  }
+
+  @Test
+  public void asyncPlanningRejectsInvalidTimeout() {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
+
+    // re-initialize with an invalid timeout
+    catalogWithAdapter.catalog.initialize(
+        "test-invalid-timeout",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
+            "-1"));
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "invalid_timeout_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be positive");
   }
 
   @ParameterizedTest
