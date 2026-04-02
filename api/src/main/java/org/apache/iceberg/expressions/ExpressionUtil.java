@@ -274,8 +274,7 @@ public class ExpressionUtil {
       return Expressions.ref(((BoundReference<T>) term).name());
     } else if (term instanceof BoundExtract) {
       BoundExtract<T> bound = (BoundExtract<T>) term;
-      String dotPath = PathUtil.toDotNotation(bound.path());
-      return Expressions.extract(bound.ref().name(), dotPath, bound.type().toString());
+      return Expressions.extract(bound.ref().name(), bound.path(), bound.type().toString());
     }
 
     throw new UnsupportedOperationException("Cannot unbind unsupported term: " + term);

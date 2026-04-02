@@ -397,7 +397,7 @@ public class TestExpressionUtil {
             ExpressionUtil.toSanitizedString(
                 Expressions.equal(Expressions.extract("var", "$.city", "string"), "Boston")))
         .as("Sanitized string for extract term")
-        .startsWith("extract(var, $.city, string) = (hash-")
+        .startsWith("extract(var, $['city'], string) = (hash-")
         .endsWith(")");
 
     // Bound extract uses normalized path $['city'] in describe output
@@ -420,8 +420,47 @@ public class TestExpressionUtil {
     assertThat(unbound).isInstanceOf(UnboundExtract.class);
     UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
     assertThat(extract.ref().name()).isEqualTo("var");
-    assertThat(extract.path()).isEqualTo("$.city");
+    assertThat(extract.path()).isEqualTo("$['city']");
     assertThat(extract.type().toString()).isEqualTo("string");
+  }
+
+  @Test
+  public void testUnbindBoundExtractBracketStyle() {
+    Expression boundExpr =
+        Expressions.greaterThan(Expressions.extract("var", "$['user.name']", "string"), "x")
+            .bind(STRUCT, true);
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(((BoundPredicate<?>) boundExpr).term());
+    assertThat(unbound).isInstanceOf(UnboundExtract.class);
+    UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
+    assertThat(extract.ref().name()).isEqualTo("var");
+    assertThat(extract.path()).isEqualTo("$['user.name']");
+    assertThat(extract.type().toString()).isEqualTo("string");
+  }
+
+  @Test
+  public void testUnbindBoundExtractMixedStyle() {
+    Expression boundExpr =
+        Expressions.greaterThan(Expressions.extract("var", "$.a['b.c']", "long"), 1L)
+            .bind(STRUCT, true);
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(((BoundPredicate<?>) boundExpr).term());
+    assertThat(unbound).isInstanceOf(UnboundExtract.class);
+    UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
+    assertThat(extract.ref().name()).isEqualTo("var");
+    assertThat(extract.path()).isEqualTo("$['a']['b.c']");
+    assertThat(extract.type().toString()).isEqualTo("long");
+  }
+
+  @Test
+  public void testUnbindBoundExtractArrayIndex() {
+    Expression boundExpr =
+        Expressions.greaterThan(Expressions.extract("var", "$.items[0].tags[1]", "long"), 100L)
+            .bind(STRUCT, true);
+    UnboundTerm<?> unbound = ExpressionUtil.unbind(((BoundPredicate<?>) boundExpr).term());
+    assertThat(unbound).isInstanceOf(UnboundExtract.class);
+    UnboundExtract<?> extract = (UnboundExtract<?>) unbound;
+    assertThat(extract.ref().name()).isEqualTo("var");
+    assertThat(extract.path()).isEqualTo("$['items'][0]['tags'][1]");
+    assertThat(extract.type().toString()).isEqualTo("long");
   }
 
   @Test
