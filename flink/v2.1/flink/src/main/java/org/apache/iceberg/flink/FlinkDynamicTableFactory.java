@@ -42,9 +42,12 @@ import org.apache.iceberg.flink.source.IcebergTableSource;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class FlinkDynamicTableFactory
     implements DynamicTableSinkFactory, DynamicTableSourceFactory {
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkDynamicTableFactory.class);
   static final String FACTORY_IDENTIFIER = "iceberg";
   private final FlinkCatalog catalog;
 
@@ -200,6 +203,19 @@ public class FlinkDynamicTableFactory
         FlinkCreateTableOptions.CATALOG_DATABASE);
 
     String catalogTable = flinkConf.get(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
+
+    String catalogTableProp = mergedProps.get(FlinkCreateTableOptions.CATALOG_TABLE.key());
+    String tableNameProp = mergedProps.get("table-name");
+    if (catalogTableProp != null
+        && tableNameProp != null
+        && !catalogTableProp.equals(tableNameProp)) {
+      LOG.warn(
+          "Both '{}' ({}) and 'table-name' ({}) are set with conflicting values; '{}' takes precedence.",
+          FlinkCreateTableOptions.CATALOG_TABLE.key(),
+          catalogTableProp,
+          tableNameProp,
+          FlinkCreateTableOptions.CATALOG_TABLE.key());
+    }
 
     FlinkCatalog flinkCatalog = createCatalogLoader(mergedProps, catalogName);
     ObjectPath objectPath = new ObjectPath(catalogDatabase, catalogTable);

@@ -268,6 +268,53 @@ public class TestIcebergConnector extends TestBase {
   }
 
   @TestTemplate
+  public void testTableNameAlias() {
+    // Verify that 'table-name' works as an alias for 'catalog-table'.
+    // Reproduces https://github.com/apache/iceberg/issues/15668: using 'table-name' in the WITH
+    // clause previously silently created a new empty table named after the Flink DDL table name
+    // instead of routing reads/writes to the intended Iceberg table.
+    // Use tableName() so after() handles Hive metastore cleanup automatically.
+    Map<String, String> tableProps = createTableProps();
+    tableProps.remove("catalog-table");
+    tableProps.put("table-name", tableName());
+
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+    sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
+    assertThat(sql("SELECT * FROM %s", TABLE_NAME))
+        .containsExactlyInAnyOrder(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC"));
+
+    FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, new Configuration());
+    assertThat(flinkCatalog.tableExists(new ObjectPath(databaseName(), tableName()))).isTrue();
+
+    sql("DROP TABLE %s", TABLE_NAME);
+  }
+
+  @TestTemplate
+  public void testCatalogTableTakesPrecedenceOverTableName() {
+    // When both 'catalog-table' and 'table-name' are set with different values,
+    // 'catalog-table' must take precedence. tableName() resolves catalog-table from the
+    // parametrized properties, so after() handles Hive metastore cleanup automatically.
+    Map<String, String> tableProps = createTableProps();
+    tableProps.put("catalog-table", tableName());
+    tableProps.put("table-name", "table_name_loses");
+
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+    sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
+    assertThat(sql("SELECT * FROM %s", TABLE_NAME))
+        .containsExactlyInAnyOrder(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC"));
+
+    FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, new Configuration());
+    // Data must be stored under 'catalog-table' value, not 'table-name' value.
+    assertThat(flinkCatalog.tableExists(new ObjectPath(databaseName(), tableName()))).isTrue();
+    assertThat(flinkCatalog.tableExists(new ObjectPath(databaseName(), "table_name_loses")))
+        .isFalse();
+
+    sql("DROP TABLE %s", TABLE_NAME);
+  }
+
+  @TestTemplate
   public void testCatalogDatabaseConflictWithFlinkDatabase() {
     sql("CREATE DATABASE IF NOT EXISTS `%s`", databaseName());
     sql("USE `%s`", databaseName());
@@ -335,7 +382,8 @@ public class TestIcebergConnector extends TestBase {
   }
 
   private String tableName() {
-    return properties.getOrDefault("catalog-table", TABLE_NAME);
+    return properties.getOrDefault(
+        "catalog-table", properties.getOrDefault("table-name", TABLE_NAME));
   }
 
   private String databaseName() {

@@ -62,4 +62,36 @@ public class TestFlinkAnonymousTable extends TestBase {
                 assertThat(warehouseDir.toPath().resolve("test_db").resolve("test").toFile())
                     .exists());
   }
+
+  @Test
+  public void testWriteAnonymousTableWithTableNameAlias() throws Exception {
+    // Verify that 'table-name' routes writes to the correct directory, matching the behavior of
+    // 'catalog-table'. Reproduces https://github.com/apache/iceberg/issues/15668.
+    File warehouseDir = Files.createTempDirectory(temporaryDirectory, "junit").toFile();
+    TableEnvironment tEnv = getTableEnv();
+    Table table =
+        tEnv.from(
+            TableDescriptor.forConnector("datagen")
+                .schema(Schema.newBuilder().column("f0", DataTypes.STRING()).build())
+                .option("number-of-rows", "3")
+                .build());
+
+    TableDescriptor descriptor =
+        TableDescriptor.forConnector("iceberg")
+            .schema(Schema.newBuilder().column("f0", DataTypes.STRING()).build())
+            .option("catalog-name", "hadoop_test")
+            .option("catalog-type", "hadoop")
+            .option("catalog-database", "test_db")
+            .option("table-name", "test_alias")
+            .option("warehouse", warehouseDir.getAbsolutePath())
+            .build();
+
+    table.insertInto(descriptor).execute();
+    Awaitility.await()
+        .atMost(3, TimeUnit.SECONDS)
+        .untilAsserted(
+            () ->
+                assertThat(warehouseDir.toPath().resolve("test_db").resolve("test_alias").toFile())
+                    .exists());
+  }
 }

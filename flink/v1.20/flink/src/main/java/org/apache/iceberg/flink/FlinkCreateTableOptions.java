@@ -59,6 +59,7 @@ class FlinkCreateTableOptions {
       ConfigOptions.key("catalog-table")
           .stringType()
           .noDefaultValue()
+          .withFallbackKeys("table-name")
           .withDescription("Table name managed in the underlying iceberg catalog and database.");
 
   public static final ConfigOption<Map<String, String>> CATALOG_PROPS =
