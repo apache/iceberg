@@ -28,7 +28,7 @@ public final class RESTCatalogProperties {
   private RESTCatalogProperties() {}
 
   public static final String SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
-  public static final String SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL.name();
+  public static final SnapshotMode SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL;
   public static final String SNAPSHOTS_QUERY_PARAMETER = "snapshots";
 
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
@@ -42,10 +42,13 @@ public final class RESTCatalogProperties {
   public static final String PAGE_SIZE = "rest-page-size";
 
   public static final String NAMESPACE_SEPARATOR = "namespace-separator";
+  public static final String NAMESPACE_SEPARATOR_DEFAULT =
+      RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
 
   // Configure scan planning mode
   // Can be set by server in LoadTableResponse.config() for table-level override
   public static final String SCAN_PLANNING_MODE = "scan-planning-mode";
+  public static final ScanPlanningMode SCAN_PLANNING_MODE_DEFAULT = ScanPlanningMode.CLIENT;
 
   public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
 
