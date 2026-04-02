@@ -23,7 +23,12 @@ import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_F
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataFiles;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -108,7 +113,9 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     1L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
                     Expressions.alwaysTrue(),
-                    SnapshotRef.MAIN_BRANCH))) {
+                    SnapshotRef.MAIN_BRANCH,
+                    null,
+                    null))) {
       testHarness.open();
 
       // Cause an exception
@@ -175,7 +182,9 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     maxRewriteBytes,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
                     Expressions.alwaysTrue(),
-                    SnapshotRef.MAIN_BRANCH))) {
+                    SnapshotRef.MAIN_BRANCH,
+                    null,
+                    null))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
@@ -229,7 +238,9 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     10_000_000L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
                     Expressions.alwaysTrue(),
-                    branchName))) {
+                    branchName,
+                    null,
+                    null))) {
       testHarness.open();
 
       trigger(testHarness);
@@ -240,6 +251,181 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
       // Branch has 2 files, main has 3
       assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
       assertThat(planned.get(0).branch()).isEqualTo(branchName);
+    }
+  }
+
+  @Test
+  void testPartitionTimeColumnNotInSchema() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+
+    assertThatThrownBy(
+            () -> {
+              try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+                  testHarness =
+                      ProcessFunctionTestHarnesses.forProcessFunction(
+                          new DataFileRewritePlanner(
+                              OperatorTestBase.DUMMY_TABLE_NAME,
+                              OperatorTestBase.DUMMY_TABLE_NAME,
+                              0,
+                              tableLoader(),
+                              11,
+                              10_000_000L,
+                              ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                              Expressions.alwaysTrue(),
+                              SnapshotRef.MAIN_BRANCH,
+                              "non_existent_column",
+                              Duration.ofHours(3)))) {
+                testHarness.open();
+              }
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not found in table schema");
+  }
+
+  @Test
+  void testPartitionTimeColumnWrongType() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+
+    assertThatThrownBy(
+            () -> {
+              try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+                  testHarness =
+                      ProcessFunctionTestHarnesses.forProcessFunction(
+                          new DataFileRewritePlanner(
+                              OperatorTestBase.DUMMY_TABLE_NAME,
+                              OperatorTestBase.DUMMY_TABLE_NAME,
+                              0,
+                              tableLoader(),
+                              11,
+                              10_000_000L,
+                              ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                              Expressions.alwaysTrue(),
+                              SnapshotRef.MAIN_BRANCH,
+                              "data",
+                              Duration.ofHours(3)))) {
+                testHarness.open();
+              }
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be a timestamp or date type");
+  }
+
+  @Test
+  void testRewriteLookbackFiltersOldPartitions() throws Exception {
+    Table table = createTableWithTimestamp();
+
+    LocalDateTime oldTs = LocalDateTime.now(ZoneOffset.UTC).minusDays(10);
+    insertWithTimestamp(table, 1, "old_a", oldTs);
+    insertWithTimestamp(table, 2, "old_b", oldTs);
+
+    LocalDateTime recentTs = LocalDateTime.now(ZoneOffset.UTC).minusHours(1);
+    insertWithTimestamp(table, 3, "new_a", recentTs);
+    insertWithTimestamp(table, 4, "new_b", recentTs);
+
+    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new DataFileRewritePlanner(
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    0,
+                    tableLoader(),
+                    11,
+                    10_000_000L,
+                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    Expressions.alwaysTrue(),
+                    SnapshotRef.MAIN_BRANCH,
+                    "ts",
+                    Duration.ofHours(3)))) {
+      testHarness.open();
+
+      trigger(testHarness);
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
+
+      assertThat(planned).hasSize(1);
+      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
+    }
+  }
+
+  @Test
+  void testRewriteLookbackFiltersOldPartitionsWithoutZone() throws Exception {
+    Table table = createTableWithTimestampWithoutZone();
+
+    LocalDateTime oldTs = LocalDateTime.now().minusDays(10);
+    insertWithTimestampWithoutZone(table, 1, "old_a", oldTs);
+    insertWithTimestampWithoutZone(table, 2, "old_b", oldTs);
+
+    LocalDateTime recentTs = LocalDateTime.now().minusHours(1);
+    insertWithTimestampWithoutZone(table, 3, "new_a", recentTs);
+    insertWithTimestampWithoutZone(table, 4, "new_b", recentTs);
+
+    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new DataFileRewritePlanner(
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    0,
+                    tableLoader(),
+                    11,
+                    10_000_000L,
+                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    Expressions.alwaysTrue(),
+                    SnapshotRef.MAIN_BRANCH,
+                    "ts",
+                    Duration.ofHours(3)))) {
+      testHarness.open();
+
+      trigger(testHarness);
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
+
+      assertThat(planned).hasSize(1);
+      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
+    }
+  }
+
+  @Test
+  void testRewriteLookbackFiltersOldPartitionsDate() throws Exception {
+    Table table = createTableWithDate();
+
+    LocalDate oldTs = LocalDate.now().minusDays(10);
+    insertWithDate(table, 1, "old_a", oldTs);
+    insertWithDate(table, 2, "old_b", oldTs);
+
+    LocalDate recentTs = LocalDate.now().minusDays(1);
+    insertWithDate(table, 3, "new_a", recentTs);
+    insertWithDate(table, 4, "new_b", recentTs);
+
+    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new DataFileRewritePlanner(
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    0,
+                    tableLoader(),
+                    11,
+                    10_000_000L,
+                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    Expressions.alwaysTrue(),
+                    SnapshotRef.MAIN_BRANCH,
+                    "ts",
+                    Duration.ofDays(1)))) {
+      testHarness.open();
+
+      trigger(testHarness);
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
+
+      assertThat(planned).hasSize(1);
+      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
     }
   }
 

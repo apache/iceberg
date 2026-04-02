@@ -61,6 +61,8 @@ public class RewriteDataFiles {
     private long maxRewriteBytes = Long.MAX_VALUE;
     private Expression filter = Expressions.alwaysTrue();
     private String branch = SnapshotRef.MAIN_BRANCH;
+    private String partitionTimeColumn;
+    private Duration rewriteLookback;
 
     @Override
     String maintenanceTaskName() {
@@ -233,6 +235,20 @@ public class RewriteDataFiles {
     }
 
     /**
+     * Configures a dynamic time-based filter for rewriting. Only data files within the specified
+     * lookback duration from the current time will be considered for rewriting.
+     *
+     * @param newPartitionTimeColumn the name of the partition time column in the table schema
+     * @param newRewriteLookback the lookback duration from the current time
+     * @return this for method chaining
+     */
+    public Builder rewriteLookback(String newPartitionTimeColumn, Duration newRewriteLookback) {
+      this.partitionTimeColumn = newPartitionTimeColumn;
+      this.rewriteLookback = newRewriteLookback;
+      return this;
+    }
+
+    /**
      * Configures the properties for the rewriter.
      *
      * @param rewriteDataFilesConfig properties for the rewriter
@@ -277,7 +293,9 @@ public class RewriteDataFiles {
                       maxRewriteBytes,
                       rewriteOptions,
                       filter,
-                      branch))
+                      branch,
+                      partitionTimeColumn,
+                      rewriteLookback))
               .name(operatorName(PLANNER_TASK_NAME))
               .uid(PLANNER_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
