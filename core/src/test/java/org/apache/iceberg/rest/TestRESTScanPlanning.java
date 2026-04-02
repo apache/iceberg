@@ -1220,9 +1220,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     RESTTableScan scan = restTableScanFor(table);
 
     // With a 1ms timeout and a server that never completes, planFiles should fail
-    assertThatThrownBy(scan::planFiles)
-        .isInstanceOf(RuntimeException.class)
-        .hasMessage(null);
+    assertThatThrownBy(scan::planFiles).isInstanceOf(RuntimeException.class).hasMessage(null);
   }
 
   @ParameterizedTest
