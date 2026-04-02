@@ -38,7 +38,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -60,6 +59,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
@@ -157,8 +157,8 @@ public class SparkTable
     boolean acceptAnySchema =
         PropertyUtil.propertyAsBoolean(
             icebergTable.properties(),
-            TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA,
-            TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
+            SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA,
+            SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
     this.capabilities = acceptAnySchema ? CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA : CAPABILITIES;
     this.isTableRewrite = isTableRewrite;
   }
