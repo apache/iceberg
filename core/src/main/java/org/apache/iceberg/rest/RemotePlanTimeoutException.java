@@ -16,24 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
+package org.apache.iceberg.rest;
 
-import com.google.errorprone.annotations.FormatMethod;
-
-/**
- * Exception thrown when remote scan planning does not complete within configured limits.
- *
- * <p>Clients may catch this to fall back to client-side planning when server-side planning is too
- * slow.
- */
-public class RemotePlanTimeoutException extends RESTException {
-  @FormatMethod
-  public RemotePlanTimeoutException(String message, Object... args) {
-    super(message, args);
-  }
-
-  @FormatMethod
-  public RemotePlanTimeoutException(Throwable cause, String message, Object... args) {
-    super(cause, message, args);
+/** Thrown when server-side scan planning does not complete before the client deadline. */
+class RemotePlanTimeoutException extends RuntimeException {
+  RemotePlanTimeoutException(String message, Throwable cause) {
+    super(message, cause);
   }
 }

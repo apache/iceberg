@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,7 +39,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.RemotePlanTimeoutException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
@@ -296,12 +296,14 @@ class RESTTableScan extends DataTableScan {
               });
     } catch (NotCompleteException e) {
       throw new RemotePlanTimeoutException(
-          e,
-          "Remote scan planning for planId: %s did not complete within configured limits"
-              + " (timeout=%d ms, maxRetries=%d)",
-          planId,
-          maxWaitTimeMs,
-          MAX_RETRIES);
+          String.format(
+              Locale.ROOT,
+              "Remote scan planning for planId: %s did not complete within configured limits"
+                  + " (timeout=%d ms, maxRetries=%d)",
+              planId,
+              maxWaitTimeMs,
+              MAX_RETRIES),
+          e);
     }
 
     FetchPlanningResultResponse response = result.get();
