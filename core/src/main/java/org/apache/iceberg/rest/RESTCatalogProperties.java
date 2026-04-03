@@ -48,7 +48,6 @@ public final class RESTCatalogProperties {
   public static final String SCAN_PLANNING_MODE = "scan-planning-mode";
 
   public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
-  public static final String REST_STORAGE_REFRESH_TOKEN = "rest-storage-refresh-token";
 
   // Properties that control the behaviour of the table cache used for freshness-aware table
   // loading.

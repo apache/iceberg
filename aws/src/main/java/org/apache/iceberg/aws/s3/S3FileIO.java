@@ -59,7 +59,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -416,16 +415,11 @@ public class S3FileIO
               .collect(Collectors.toList())
               .forEach(
                   storageCredential -> {
-                    ImmutableMap.Builder<String, String> propsBuilder =
+                    Map<String, String> propertiesWithCredentials =
                         ImmutableMap.<String, String>builder()
                             .putAll(properties)
-                            .putAll(storageCredential.config());
-                    if (storageCredential.storageRefreshToken() != null) {
-                      propsBuilder.put(
-                          RESTCatalogProperties.REST_STORAGE_REFRESH_TOKEN,
-                          storageCredential.storageRefreshToken());
-                    }
-                    Map<String, String> propertiesWithCredentials = propsBuilder.buildKeepingLast();
+                            .putAll(storageCredential.config())
+                            .buildKeepingLast();
 
                     localClientByPrefix.put(
                         storageCredential.prefix(),
@@ -467,16 +461,11 @@ public class S3FileIO
       return;
     }
 
-    // Note: the VendedCredentialsProvider is constructed from the original FileIO properties,
-    // which contain the initial storageRefreshToken. If the server rotates the token on each
-    // refresh response, subsequent refreshes will use the stale original token. Servers that
-    // implement single-use token rotation for storageRefreshToken should be aware that the
-    // S3FileIO refresh loop does not yet propagate rotated tokens across cycles.
     try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(properties)) {
       List<StorageCredential> refreshed =
           provider.fetchCredentials().credentials().stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
-              .map(c -> StorageCredential.create(c.prefix(), c.config(), c.storageRefreshToken()))
+              .map(c -> StorageCredential.create(c.prefix(), c.config()))
               .collect(Collectors.toList());
 
       if (!refreshed.isEmpty() && !isResourceClosed.get()) {

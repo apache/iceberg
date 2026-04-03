@@ -114,48 +114,6 @@ public class TestCredentialParser {
   }
 
   @Test
-  public void s3CredentialWithStorageRefreshToken() {
-    Credential credential =
-        ImmutableCredential.builder()
-            .prefix("s3://custom-uri")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyId",
-                    "s3.secret-access-key",
-                    "accessKey",
-                    "s3.session-token",
-                    "sessionToken"))
-            .storageRefreshToken("opaque-refresh-token-123")
-            .build();
-
-    String expectedJson =
-        "{\n"
-            + "  \"prefix\" : \"s3://custom-uri\",\n"
-            + "  \"config\" : {\n"
-            + "    \"s3.access-key-id\" : \"keyId\",\n"
-            + "    \"s3.secret-access-key\" : \"accessKey\",\n"
-            + "    \"s3.session-token\" : \"sessionToken\"\n"
-            + "  },\n"
-            + "  \"storage-refresh-token\" : \"opaque-refresh-token-123\"\n"
-            + "}";
-
-    String json = CredentialParser.toJson(credential, true);
-    assertThat(json).isEqualTo(expectedJson);
-
-    Credential parsed = CredentialParser.fromJson(json);
-    assertThat(parsed.storageRefreshToken()).isEqualTo("opaque-refresh-token-123");
-    assertThat(CredentialParser.toJson(parsed, true)).isEqualTo(expectedJson);
-  }
-
-  @Test
-  public void storageRefreshTokenAbsentBackwardCompat() {
-    String json = "{\"prefix\": \"s3://bucket\", \"config\": {\"s3.access-key-id\": \"key\"}}";
-    Credential credential = CredentialParser.fromJson(json);
-    assertThat(credential.storageRefreshToken()).isNull();
-  }
-
-  @Test
   public void adlsCredential() {
     Credential credential =
         ImmutableCredential.builder()

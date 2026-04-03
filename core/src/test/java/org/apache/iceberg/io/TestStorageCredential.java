@@ -56,34 +56,4 @@ public class TestStorageCredential {
             "randomPrefix", ImmutableMap.of("token1", "storageToken1", "token2", "storageToken2"));
     assertThat(roundTripSerializer.apply(credential)).isEqualTo(credential);
   }
-
-  @ParameterizedTest
-  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void serializationWithStorageRefreshToken(
-      TestHelpers.RoundTripSerializer<StorageCredential> roundTripSerializer)
-      throws IOException, ClassNotFoundException {
-    StorageCredential credential =
-        StorageCredential.create(
-            "s3://bucket/prefix",
-            ImmutableMap.of("token1", "storageToken1", "token2", "storageToken2"),
-            "opaque-refresh-token-abc");
-    StorageCredential deserialized = roundTripSerializer.apply(credential);
-    assertThat(deserialized).isEqualTo(credential);
-    assertThat(deserialized.storageRefreshToken()).isEqualTo("opaque-refresh-token-abc");
-  }
-
-  @ParameterizedTest
-  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void serializationWithNullStorageRefreshToken(
-      TestHelpers.RoundTripSerializer<StorageCredential> roundTripSerializer)
-      throws IOException, ClassNotFoundException {
-    StorageCredential credential =
-        StorageCredential.create(
-            "s3://bucket/prefix",
-            ImmutableMap.of("token1", "storageToken1", "token2", "storageToken2"),
-            null);
-    StorageCredential deserialized = roundTripSerializer.apply(credential);
-    assertThat(deserialized).isEqualTo(credential);
-    assertThat(deserialized.storageRefreshToken()).isNull();
-  }
 }

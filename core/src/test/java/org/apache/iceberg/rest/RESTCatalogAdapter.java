@@ -77,8 +77,6 @@ import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
-import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.Pair;
@@ -533,11 +531,6 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           break;
         }
 
-      case LOAD_CREDENTIALS:
-        {
-          return castResponse(responseType, handleLoadCredentials(vars));
-        }
-
       default:
         if (responseType == OAuthTokenResponse.class) {
           return castResponse(responseType, handleOAuthRequest(body));
@@ -545,10 +538,6 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     }
 
     return null;
-  }
-
-  protected LoadCredentialsResponse handleLoadCredentials(Map<String, String> vars) {
-    return ImmutableLoadCredentialsResponse.builder().build();
   }
 
   private static Map<String, String> defaultQueryParams() {

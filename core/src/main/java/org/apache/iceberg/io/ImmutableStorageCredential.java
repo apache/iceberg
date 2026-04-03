@@ -45,13 +45,10 @@ import org.apache.iceberg.util.SerializableMap;
 public final class ImmutableStorageCredential implements StorageCredential {
   private final String prefix;
   private final Map<String, String> config;
-  @Nullable private final String storageRefreshToken;
 
-  private ImmutableStorageCredential(
-      String prefix, Map<String, String> config, @Nullable String storageRefreshToken) {
+  private ImmutableStorageCredential(String prefix, Map<String, String> config) {
     this.prefix = prefix;
     this.config = config;
-    this.storageRefreshToken = storageRefreshToken;
   }
 
   /**
@@ -71,15 +68,6 @@ public final class ImmutableStorageCredential implements StorageCredential {
   }
 
   /**
-   * @return The value of the {@code storageRefreshToken} attribute
-   */
-  @Override
-  @Nullable
-  public String storageRefreshToken() {
-    return storageRefreshToken;
-  }
-
-  /**
    * Copy the current immutable object by setting a value for the {@link StorageCredential#prefix()
    * prefix} attribute. An equals check used to prevent copying of the same value by returning
    * {@code this}.
@@ -90,8 +78,7 @@ public final class ImmutableStorageCredential implements StorageCredential {
   public final ImmutableStorageCredential withPrefix(String value) {
     String newValue = Objects.requireNonNull(value, "prefix");
     if (this.prefix.equals(newValue)) return this;
-    return validate(
-        new ImmutableStorageCredential(newValue, this.config, this.storageRefreshToken));
+    return validate(new ImmutableStorageCredential(newValue, this.config));
   }
 
   /**
@@ -105,21 +92,7 @@ public final class ImmutableStorageCredential implements StorageCredential {
   public final ImmutableStorageCredential withConfig(Map<String, ? extends String> entries) {
     if (this.config == entries) return this;
     Map<String, String> newValue = createSerializableMap(true, false, entries);
-    return validate(
-        new ImmutableStorageCredential(this.prefix, newValue, this.storageRefreshToken));
-  }
-
-  /**
-   * Copy the current immutable object by setting a value for the {@link
-   * StorageCredential#storageRefreshToken() storageRefreshToken} attribute. An equals check used to
-   * prevent copying of the same value by returning {@code this}.
-   *
-   * @param value A new value for storageRefreshToken (can be {@code null})
-   * @return A modified copy of the {@code this} object
-   */
-  public final ImmutableStorageCredential withStorageRefreshToken(@Nullable String value) {
-    if (Objects.equals(this.storageRefreshToken, value)) return this;
-    return validate(new ImmutableStorageCredential(this.prefix, this.config, value));
+    return validate(new ImmutableStorageCredential(this.prefix, newValue));
   }
 
   /**
@@ -136,9 +109,7 @@ public final class ImmutableStorageCredential implements StorageCredential {
   }
 
   private boolean equalTo(int synthetic, ImmutableStorageCredential another) {
-    return prefix.equals(another.prefix)
-        && config.equals(another.config)
-        && Objects.equals(storageRefreshToken, another.storageRefreshToken);
+    return prefix.equals(another.prefix) && config.equals(another.config);
   }
 
   /**
@@ -151,7 +122,6 @@ public final class ImmutableStorageCredential implements StorageCredential {
     @Var int h = 5381;
     h += (h << 5) + prefix.hashCode();
     h += (h << 5) + config.hashCode();
-    h += (h << 5) + Objects.hashCode(storageRefreshToken);
     return h;
   }
 
@@ -162,14 +132,7 @@ public final class ImmutableStorageCredential implements StorageCredential {
    */
   @Override
   public String toString() {
-    return "StorageCredential{"
-        + "prefix="
-        + prefix
-        + ", config="
-        + config
-        + ", storageRefreshToken="
-        + storageRefreshToken
-        + "}";
+    return "StorageCredential{" + "prefix=" + prefix + ", config=" + config + "}";
   }
 
   private static ImmutableStorageCredential validate(ImmutableStorageCredential instance) {
@@ -224,7 +187,6 @@ public final class ImmutableStorageCredential implements StorageCredential {
   public static final class Builder {
     private String prefix;
     private Map<String, String> config = new LinkedHashMap<String, String>();
-    @Nullable private String storageRefreshToken;
 
     private Builder() {}
 
@@ -242,10 +204,6 @@ public final class ImmutableStorageCredential implements StorageCredential {
       Objects.requireNonNull(instance, "instance");
       this.prefix(instance.prefix());
       putAllConfig(instance.config());
-      String tokenValue = instance.storageRefreshToken();
-      if (tokenValue != null) {
-        this.storageRefreshToken(tokenValue);
-      }
       return this;
     }
 
@@ -258,19 +216,6 @@ public final class ImmutableStorageCredential implements StorageCredential {
     @CanIgnoreReturnValue
     public final Builder prefix(String prefix) {
       this.prefix = Objects.requireNonNull(prefix, "prefix");
-      return this;
-    }
-
-    /**
-     * Initializes the value for the {@link StorageCredential#storageRefreshToken()
-     * storageRefreshToken} attribute.
-     *
-     * @param storageRefreshToken The value for storageRefreshToken (can be {@code null})
-     * @return {@code this} builder for use in a chained invocation
-     */
-    @CanIgnoreReturnValue
-    public final Builder storageRefreshToken(@Nullable String storageRefreshToken) {
-      this.storageRefreshToken = storageRefreshToken;
       return this;
     }
 
@@ -350,8 +295,7 @@ public final class ImmutableStorageCredential implements StorageCredential {
       }
 
       return ImmutableStorageCredential.validate(
-          new ImmutableStorageCredential(
-              prefix, createSerializableMap(false, false, config), storageRefreshToken));
+          new ImmutableStorageCredential(prefix, createSerializableMap(false, false, config)));
     }
   }
 
