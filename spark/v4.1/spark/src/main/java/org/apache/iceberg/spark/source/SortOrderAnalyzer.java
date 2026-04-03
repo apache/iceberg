@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
  * <p>For sort ordering to be reported, ALL of these conditions must hold:
  *
  * <ul>
- *   <li>The table has a defined, non-trivial sort order
+ *   <li>The table has a defined sort order (non-null and {@code sortOrder.isSorted() == true})
  *   <li>Each partition key maps to exactly ONE task group (Spark drops the ordering guarantee when
  *       multiple {@code InputPartition}s share the same partition key)
  *   <li>Every {@link FileScanTask} in every task group carries the current sort order ID
