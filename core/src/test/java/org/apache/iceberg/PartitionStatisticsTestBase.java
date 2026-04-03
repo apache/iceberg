@@ -18,18 +18,18 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.DATA_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_AT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID;
-import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.SPEC_ID;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.DATA_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatistics.DATA_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.EMPTY_PARTITION_FIELD;
+import static org.apache.iceberg.PartitionStatistics.EQUALITY_DELETE_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.LAST_UPDATED_AT;
+import static org.apache.iceberg.PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID;
+import static org.apache.iceberg.PartitionStatistics.POSITION_DELETE_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatistics.POSITION_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.SPEC_ID;
+import static org.apache.iceberg.PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES;
+import static org.apache.iceberg.PartitionStatistics.TOTAL_RECORD_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
@@ -60,7 +60,7 @@ public abstract class PartitionStatisticsTestBase {
   protected Schema invalidOldSchema(Types.StructType unifiedPartitionType) {
     // field ids starts from 0 instead of 1
     return new Schema(
-        Types.NestedField.required(0, PARTITION_FIELD_NAME, unifiedPartitionType),
+        Types.NestedField.required(0, EMPTY_PARTITION_FIELD.name(), unifiedPartitionType),
         Types.NestedField.required(1, SPEC_ID.name(), Types.IntegerType.get()),
         Types.NestedField.required(2, DATA_RECORD_COUNT.name(), Types.LongType.get()),
         Types.NestedField.required(3, DATA_FILE_COUNT.name(), Types.IntegerType.get()),

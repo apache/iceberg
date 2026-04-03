@@ -331,6 +331,25 @@ public class TestTableEncryption extends CatalogTestBase {
     }
   }
 
+  @TestTemplate
+  public void testDropTableWithPurge() {
+    List<Object[]> dataFileTable =
+        sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
+    List<String> dataFiles =
+        Streams.concat(dataFileTable.stream())
+            .map(row -> (String) row[0])
+            .collect(Collectors.toList());
+    assertThat(dataFiles).isNotEmpty();
+    assertThat(dataFiles)
+        .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isTrue());
+
+    sql("DROP TABLE %s PURGE", tableName);
+
+    assertThat(catalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
+    assertThat(dataFiles)
+        .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
+  }
+
   private void checkMetadataFileEncryption(InputFile file) throws IOException {
     SeekableInputStream stream = file.newStream();
     byte[] magic = new byte[4];

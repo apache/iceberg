@@ -27,6 +27,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
@@ -36,8 +37,10 @@ import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -112,7 +115,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
+        new InitialOffsetStore(
+            table, checkpointLocation, fromTimestamp, sparkContext.hadoopConfiguration());
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
@@ -500,7 +504,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
     // iterate through addedFiles iterator to find addedFilesCount.
     return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
+        ? Iterables.size(
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles())
         : addedFilesCount;
   }
 
@@ -545,11 +550,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
-    private final Long fromTimestamp;
+    private final long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
+    InitialOffsetStore(
+        Table table, String checkpointLocation, long fromTimestamp, Configuration conf) {
       this.table = table;
-      this.io = table.io();
+      this.io = new HadoopFileIO(conf);
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
     }

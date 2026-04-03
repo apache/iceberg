@@ -43,22 +43,25 @@ class DynamicTableUpdateOperator
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
+  private final boolean caseSensitive;
 
   private transient TableUpdater updater;
 
   DynamicTableUpdateOperator(
       CatalogLoader catalogLoader,
-      boolean dropUnusedColumns,
       int cacheMaximumSize,
       long cacheRefreshMs,
       int inputSchemasPerTableCacheMaximumSize,
-      TableCreator tableCreator) {
+      TableCreator tableCreator,
+      boolean caseSensitive,
+      boolean dropUnusedColumns) {
     this.catalogLoader = catalogLoader;
-    this.dropUnusedColumns = dropUnusedColumns;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCreator = tableCreator;
+    this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
   @Override
@@ -68,8 +71,14 @@ class DynamicTableUpdateOperator
     this.updater =
         new TableUpdater(
             new TableMetadataCache(
-                catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
+                catalog,
+                cacheMaximumSize,
+                cacheRefreshMs,
+                inputSchemasPerTableCacheMaximumSize,
+                caseSensitive,
+                dropUnusedColumns),
             catalog,
+            caseSensitive,
             dropUnusedColumns);
   }
 

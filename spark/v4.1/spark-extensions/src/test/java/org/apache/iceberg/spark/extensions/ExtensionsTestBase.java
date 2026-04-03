@@ -20,12 +20,24 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
+import java.io.File;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.TestBase;
@@ -68,5 +80,26 @@ public abstract class ExtensionsTestBase extends CatalogTestBase {
         (HiveCatalog)
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+  }
+
+  protected DataFile writeData(Table table, List<Record> records) throws IOException {
+    File tempFile = temp.resolve(UUID.randomUUID() + ".parquet").toFile();
+
+    OutputFile file = Files.localOutput(tempFile);
+
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .forTable(table)
+            .createWriterFunc(GenericParquetWriter::create)
+            .overwrite()
+            .build();
+
+    try (dataWriter) {
+      for (Record record : records) {
+        dataWriter.write(record);
+      }
+    }
+
+    return dataWriter.toDataFile();
   }
 }

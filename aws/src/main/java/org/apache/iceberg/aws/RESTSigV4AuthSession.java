@@ -57,12 +57,15 @@ public class RESTSigV4AuthSession implements AuthSession {
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final String RELOCATED_HEADER_PREFIX = "Original-";
 
+  @SuppressWarnings("deprecation")
   private final Aws4Signer signer;
+
   private final AuthSession delegate;
   private final Region signingRegion;
   private final String signingName;
   private final AwsCredentialsProvider credentialsProvider;
 
+  @SuppressWarnings("deprecation")
   public RESTSigV4AuthSession(
       Aws4Signer aws4Signer, AuthSession delegateAuthSession, AwsProperties awsProperties) {
     this.signer = Preconditions.checkNotNull(aws4Signer, "Invalid signer: null");
@@ -87,6 +90,7 @@ public class RESTSigV4AuthSession implements AuthSession {
     delegate.close();
   }
 
+  @SuppressWarnings("deprecation")
   private HTTPRequest sign(HTTPRequest request) {
     Aws4SignerParams params =
         Aws4SignerParams.builder()

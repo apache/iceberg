@@ -52,6 +52,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -352,7 +353,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
     withUnavailableFiles(
-        snapshot.addedDataFiles(table.io()),
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles(),
         () -> {
           // disable dynamic pruning and rely only on static predicate pushdown
           withSQLConf(

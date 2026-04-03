@@ -18,7 +18,7 @@
 #
 
 name: "Pull Request Labeler"
-on: pull_request_target
+on: pull_request_target # zizmor: ignore[dangerous-triggers]
 
 permissions:
   contents: read
@@ -26,9 +26,8 @@ permissions:
 
 jobs:
   triage:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
-    - uses: actions/labeler@v6
+    - uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6
       with:
-        repo-token: "${{ secrets.GITHUB_TOKEN }}"
         sync-labels: true

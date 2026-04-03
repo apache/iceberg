@@ -18,13 +18,18 @@
  */
 package org.apache.iceberg.stats;
 
-import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.util.Objects;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 
-public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
+public class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T> {
+  private static final int[] IDENTITY_MAPPING = identityMapping();
   private final int fieldId;
   private final Type type;
   private final Long valueCount;
@@ -38,6 +43,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
   private BaseFieldStats(
       int fieldId,
+      int[] fromProjectionPos,
       Type type,
       Long valueCount,
       Long nullValueCount,
@@ -47,6 +53,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
       T lowerBound,
       T upperBound,
       boolean hasExactBounds) {
+    super(fromProjectionPos != null ? fromProjectionPos : IDENTITY_MAPPING);
     this.fieldId = fieldId;
     this.type = type;
     this.valueCount = valueCount;
@@ -57,6 +64,36 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
     this.hasExactBounds = hasExactBounds;
+  }
+
+  private static int[] identityMapping() {
+    int numStats = FieldStatistic.values().length;
+    int[] mapping = new int[numStats];
+    for (int i = 0; i < numStats; i++) {
+      mapping[i] = i;
+    }
+
+    return mapping;
+  }
+
+  /**
+   * Computes a position mapping from the column-specific stats struct to the full 8-field struct.
+   * Each entry maps a projected position to its base position (0-based) using the field ID offsets
+   * from the column's base stats field ID.
+   */
+  private static int[] projectionMapping(Types.StructType statsStruct, int dataFieldId) {
+    if (statsStruct == null) {
+      return null;
+    }
+
+    int baseStatsFieldId = StatsUtil.statsFieldIdForField(dataFieldId);
+    int[] mapping = new int[statsStruct.fields().size()];
+    for (int i = 0; i < mapping.length; i++) {
+      // offset is 1-based (matching FieldStatistic.offset()), position is 0-based
+      mapping[i] = statsStruct.fields().get(i).fieldId() - baseStatsFieldId - 1;
+    }
+
+    return mapping;
   }
 
   @Override
@@ -94,14 +131,45 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     return maxValueSize;
   }
 
-  @Override
-  public T lowerBound() {
-    return lowerBound;
+  @SuppressWarnings("unchecked")
+  private static <T> T serializableBound(T bound) {
+    if (bound instanceof CharBuffer) {
+      // CharBuffer is not serializable, use String instead
+      return (T) bound.toString();
+    } else if (bound instanceof ByteBuffer) {
+      // ByteBuffer is not serializable, use byte[] instead
+      return (T) ByteBuffers.toByteArray((ByteBuffer) bound);
+    }
+
+    return bound;
   }
 
+  @SuppressWarnings("unchecked")
+  @Override
+  public T lowerBound() {
+    if (null != type
+        && type.typeId().javaClass().equals(ByteBuffer.class)
+        && lowerBound instanceof byte[]) {
+      // for serializability we store binary types as byte[] and must convert back to
+      // ByteBuffer
+      return (T) ByteBuffer.wrap((byte[]) lowerBound);
+    } else {
+      return lowerBound;
+    }
+  }
+
+  @SuppressWarnings("unchecked")
   @Override
   public T upperBound() {
-    return upperBound;
+    if (null != type
+        && type.typeId().javaClass().equals(ByteBuffer.class)
+        && upperBound instanceof byte[]) {
+      // for serializability we store binary types as byte[] and must convert back to
+      // ByteBuffer
+      return (T) ByteBuffer.wrap((byte[]) upperBound);
+    } else {
+      return upperBound;
+    }
   }
 
   @Override
@@ -110,36 +178,22 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   }
 
   @Override
-  public int size() {
-    return 7;
+  protected <X> X internalGet(int pos, Class<X> javaClass) {
+    return switch (FieldStatistic.fromPosition(pos)) {
+      case VALUE_COUNT -> javaClass.cast(valueCount);
+      case NULL_VALUE_COUNT -> javaClass.cast(nullValueCount);
+      case NAN_VALUE_COUNT -> javaClass.cast(nanValueCount);
+      case AVG_VALUE_SIZE -> javaClass.cast(avgValueSize);
+      case MAX_VALUE_SIZE -> javaClass.cast(maxValueSize);
+      case LOWER_BOUND -> javaClass.cast(lowerBound());
+      case UPPER_BOUND -> javaClass.cast(upperBound());
+      case EXACT_BOUNDS -> javaClass.cast(hasExactBounds);
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
-  public <X> X get(int pos, Class<X> javaClass) {
-    switch (FieldStatistic.fromOffset(pos)) {
-      case VALUE_COUNT:
-        return javaClass.cast(valueCount);
-      case NULL_VALUE_COUNT:
-        return javaClass.cast(nullValueCount);
-      case NAN_VALUE_COUNT:
-        return javaClass.cast(nanValueCount);
-      case AVG_VALUE_SIZE:
-        return javaClass.cast(avgValueSize);
-      case MAX_VALUE_SIZE:
-        return javaClass.cast(maxValueSize);
-      case LOWER_BOUND:
-        return javaClass.cast(lowerBound);
-      case UPPER_BOUND:
-        return javaClass.cast(upperBound);
-      case EXACT_BOUNDS:
-        return javaClass.cast(hasExactBounds);
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
-  }
-
-  @Override
-  public void set(int pos, Object value) {
+  protected <X> void internalSet(int pos, X value) {
     throw new UnsupportedOperationException("set() not supported");
   }
 
@@ -173,8 +227,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         && Objects.equals(nanValueCount, that.nanValueCount)
         && Objects.equals(avgValueSize, that.avgValueSize)
         && Objects.equals(maxValueSize, that.maxValueSize)
-        && Objects.equals(lowerBound, that.lowerBound)
-        && Objects.equals(upperBound, that.upperBound)
+        && Objects.deepEquals(lowerBound, that.lowerBound)
+        && Objects.deepEquals(upperBound, that.upperBound)
         && hasExactBounds == that.hasExactBounds;
   }
 
@@ -214,6 +268,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
   public static class Builder<T> {
     private int fieldId;
+    private int[] fromProjectionPos;
     private Type type;
     private Long valueCount;
     private Long nullValueCount;
@@ -225,6 +280,11 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     private boolean hasExactBounds;
 
     private Builder() {}
+
+    public Builder<T> statsStruct(Types.StructType statsStruct) {
+      this.fromProjectionPos = projectionMapping(statsStruct, fieldId);
+      return this;
+    }
 
     public Builder<T> type(Type newType) {
       this.type = newType;
@@ -257,12 +317,12 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     }
 
     public Builder<T> lowerBound(T newLowerBound) {
-      this.lowerBound = newLowerBound;
+      this.lowerBound = serializableBound(newLowerBound);
       return this;
     }
 
     public Builder<T> upperBound(T newUpperBound) {
-      this.upperBound = newUpperBound;
+      this.upperBound = serializableBound(newUpperBound);
       return this;
     }
 
@@ -286,7 +346,9 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         Preconditions.checkArgument(
             null != type, "Invalid type (required when lower bound is set): null");
         Preconditions.checkArgument(
-            type.typeId().javaClass().isInstance(lowerBound),
+            type.typeId().javaClass().isInstance(lowerBound)
+                || (type.typeId().javaClass().equals(ByteBuffer.class)
+                    && lowerBound instanceof byte[]),
             "Invalid lower bound type, expected a subtype of %s: %s",
             type.typeId().javaClass().getName(),
             lowerBound.getClass().getName());
@@ -296,7 +358,9 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         Preconditions.checkArgument(
             null != type, "Invalid type (required when lower bound is set): null");
         Preconditions.checkArgument(
-            type.typeId().javaClass().isInstance(upperBound),
+            type.typeId().javaClass().isInstance(upperBound)
+                || (type.typeId().javaClass().equals(ByteBuffer.class)
+                    && upperBound instanceof byte[]),
             "Invalid upper bound type, expected a subtype of %s: %s",
             type.typeId().javaClass().getName(),
             upperBound.getClass().getName());
@@ -304,6 +368,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
       return new BaseFieldStats<>(
           fieldId,
+          fromProjectionPos,
           type,
           valueCount,
           nullValueCount,

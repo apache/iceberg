@@ -49,7 +49,7 @@ public class DynMethods {
           (method == null || method.isVarArgs()) ? -1 : method.getParameterTypes().length;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "deprecation"})
     <R> R invokeChecked(Object target, Object... args) throws Exception {
       try {
         if (argLength < 0) {
@@ -65,6 +65,7 @@ public class DynMethods {
       }
     }
 
+    @SuppressWarnings("deprecation")
     public <R> R invoke(Object target, Object... args) {
       try {
         return this.invokeChecked(target, args);
@@ -362,6 +363,7 @@ public class DynMethods {
      * @see java.lang.Class#forName(String)
      * @see java.lang.Class#getMethod(String, Class[])
      */
+    @SuppressWarnings("removal")
     public Builder hiddenImpl(Class<?> targetClass, String methodName, Class<?>... argClasses) {
       // don't do any work if an implementation has been found
       if (method != null) {

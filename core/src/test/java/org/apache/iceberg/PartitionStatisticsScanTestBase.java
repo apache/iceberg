@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID;
+import static org.apache.iceberg.PartitionStatistics.EMPTY_PARTITION_FIELD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -217,10 +217,10 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
     }
 
     Snapshot snapshot1 = testTable.currentSnapshot();
-    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2);
+    Schema recordSchema = PartitionStatistics.schema(Partitioning.partitionType(testTable), 2);
 
     Types.StructType partitionType =
-        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
+        recordSchema.findField(EMPTY_PARTITION_FIELD.fieldId()).type().asStructType();
     computeAndValidatePartitionStats(
         testTable,
         testTable.currentSnapshot().snapshotId(),
@@ -379,10 +379,10 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
 
     testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
 
-    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2);
+    Schema recordSchema = PartitionStatistics.schema(Partitioning.partitionType(testTable), 2);
 
     Types.StructType partitionType =
-        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
+        recordSchema.findField(EMPTY_PARTITION_FIELD.fieldId()).type().asStructType();
 
     computeAndValidatePartitionStats(
         testTable,

@@ -20,7 +20,9 @@ package org.apache.iceberg.aws;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.kms.model.DataKeySpec;
@@ -39,14 +41,17 @@ import software.amazon.awssdk.services.kms.model.GenerateDataKeyResponse;
  */
 public class AwsKeyManagementClient implements KeyManagementClient {
 
-  private KmsClient kmsClient;
+  private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+
+  private Map<String, String> allProperties;
   private EncryptionAlgorithmSpec encryptionAlgorithmSpec;
   private DataKeySpec dataKeySpec;
 
+  private transient volatile KmsClient kmsClient;
+
   @Override
   public void initialize(Map<String, String> properties) {
-    AwsClientFactory clientFactory = AwsClientFactories.from(properties);
-    this.kmsClient = clientFactory.kms();
+    this.allProperties = SerializableMap.copyOf(properties);
 
     AwsProperties awsProperties = new AwsProperties(properties);
     this.encryptionAlgorithmSpec = awsProperties.kmsEncryptionAlgorithmSpec();
@@ -62,7 +67,7 @@ public class AwsKeyManagementClient implements KeyManagementClient {
             .plaintext(SdkBytes.fromByteBuffer(key))
             .build();
 
-    EncryptResponse result = kmsClient.encrypt(request);
+    EncryptResponse result = kmsClient().encrypt(request);
     return result.ciphertextBlob().asByteBuffer();
   }
 
@@ -76,11 +81,9 @@ public class AwsKeyManagementClient implements KeyManagementClient {
     GenerateDataKeyRequest request =
         GenerateDataKeyRequest.builder().keyId(wrappingKeyId).keySpec(dataKeySpec).build();
 
-    GenerateDataKeyResponse response = kmsClient.generateDataKey(request);
-    KeyGenerationResult result =
-        new KeyGenerationResult(
-            response.plaintext().asByteBuffer(), response.ciphertextBlob().asByteBuffer());
-    return result;
+    GenerateDataKeyResponse response = kmsClient().generateDataKey(request);
+    return new KeyGenerationResult(
+        response.plaintext().asByteBuffer(), response.ciphertextBlob().asByteBuffer());
   }
 
   @Override
@@ -92,14 +95,36 @@ public class AwsKeyManagementClient implements KeyManagementClient {
             .ciphertextBlob(SdkBytes.fromByteBuffer(wrappedKey))
             .build();
 
-    DecryptResponse result = kmsClient.decrypt(request);
+    DecryptResponse result = kmsClient().decrypt(request);
     return result.plaintext().asByteBuffer();
   }
 
   @Override
   public void close() {
-    if (kmsClient != null) {
-      kmsClient.close();
+    if (isResourceClosed.compareAndSet(false, true)) {
+      if (kmsClient != null) {
+        kmsClient.close();
+      }
     }
+  }
+
+  EncryptionAlgorithmSpec encryptionAlgorithmSpec() {
+    return encryptionAlgorithmSpec;
+  }
+
+  DataKeySpec dataKeySpec() {
+    return dataKeySpec;
+  }
+
+  private KmsClient kmsClient() {
+    if (kmsClient == null) {
+      synchronized (this) {
+        if (kmsClient == null) {
+          AwsClientFactory clientFactory = AwsClientFactories.from(allProperties);
+          kmsClient = clientFactory.kms();
+        }
+      }
+    }
+    return kmsClient;
   }
 }

@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
+import java.util.Map;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.SupportsPrefixOperations;
@@ -64,5 +65,15 @@ public class TestEncryptingFileIO {
 
     fileIO.deletePrefix(prefix);
     verify(delegate).deletePrefix(prefix);
+  }
+
+  @Test
+  public void properties() {
+    EncryptionManager em = mock(EncryptionManager.class);
+    FileIO io = mock(FileIO.class);
+    when(io.properties()).thenReturn(Map.of("key", "value"));
+
+    assertThat(EncryptingFileIO.combine(io, em).properties())
+        .containsExactly(Map.entry("key", "value"));
   }
 }

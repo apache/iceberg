@@ -30,25 +30,18 @@ import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
-import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -58,140 +51,90 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-public class TestRESTScanPlanning {
-  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
-  private static final Namespace NS = Namespace.of("ns");
+public class TestRESTScanPlanning extends TestBaseWithRESTServer {
+  @Override
+  protected RESTCatalogAdapter createAdapterForServer() {
+    return Mockito.spy(
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            // roundTripSerialize before intercepting so we modify the deserialized response
+            Object body = roundTripSerialize(request.body(), "request");
+            HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
+            T response = super.execute(req, responseType, errorHandler, responseHeaders);
+            response = roundTripSerialize(response, "response");
 
-  private InMemoryCatalog backendCatalog;
-  private Server httpServer;
-  private RESTCatalogAdapter adapterForRESTServer;
-  private ParserContext parserContext;
-  @TempDir private Path temp;
-  private RESTCatalog restCatalogWithScanPlanning;
+            // Add scan planning mode to table config for LoadTableResponse
+            if (response instanceof LoadTableResponse) {
+              return castResponse(
+                  responseType,
+                  withPlanningMode(
+                      (LoadTableResponse) response,
+                      RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+            }
 
-  @BeforeEach
-  public void setupCatalogs() throws Exception {
-    File warehouse = temp.toFile();
-    this.backendCatalog = new InMemoryCatalog();
-    this.backendCatalog.initialize(
-        "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
-
-    adapterForRESTServer =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders) {
-                if (ResourcePaths.config().equals(request.path())) {
-                  return castResponse(
-                      responseType,
-                      ConfigResponse.builder()
-                          .withEndpoints(
-                              Arrays.stream(Route.values())
-                                  .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
-                                  .collect(Collectors.toList()))
-                          .withOverrides(
-                              ImmutableMap.of(
-                                  RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"))
-                          .build());
-                }
-                Object body = roundTripSerialize(request.body(), "request");
-                HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
-                T response = super.execute(req, responseType, errorHandler, responseHeaders);
-                return roundTripSerialize(response, "response");
-              }
-            });
-
-    ServletContextHandler servletContext =
-        new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
-    servletContext.addServlet(
-        new ServletHolder(new RESTCatalogServlet(adapterForRESTServer)), "/*");
-    servletContext.setHandler(new GzipHandler());
-
-    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-    httpServer.setHandler(servletContext);
-    httpServer.start();
-
-    // Initialize catalog with scan planning enabled
-    this.restCatalogWithScanPlanning = initCatalog("prod-with-scan-planning", ImmutableMap.of());
+            return response;
+          }
+        });
   }
 
-  @AfterEach
-  public void teardownCatalogs() throws Exception {
-    if (restCatalogWithScanPlanning != null) {
-      restCatalogWithScanPlanning.close();
-    }
+  @Override
+  protected String catalogName() {
+    return "prod-with-scan-planning";
+  }
 
-    if (backendCatalog != null) {
-      backendCatalog.close();
-    }
-
-    if (httpServer != null) {
-      httpServer.stop();
-      httpServer.join();
-    }
+  @Override
+  protected Map<String, String> additionalCatalogProperties() {
+    return ImmutableMap.of(
+        RESTCatalogProperties.SCAN_PLANNING_MODE,
+        RESTCatalogProperties.ScanPlanningMode.SERVER.modeName());
   }
 
   // ==================== Helper Methods ====================
 
-  private RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
-    RESTCatalog catalog =
-        new RESTCatalog(
-            SessionCatalog.SessionContext.createEmpty(),
-            (config) ->
-                HTTPClient.builder(config)
-                    .uri(config.get(CatalogProperties.URI))
-                    .withHeaders(RESTUtil.configHeaders(config))
-                    .build());
-    catalog.setConf(new Configuration());
-    Map<String, String> properties =
-        ImmutableMap.of(
-            CatalogProperties.URI,
-            httpServer.getURI().toString(),
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO");
-    catalog.initialize(
-        catalogName,
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .putAll(additionalProperties)
-            .build());
-    return catalog;
+  private static LoadTableResponse withPlanningMode(LoadTableResponse response, String mode) {
+    return LoadTableResponse.builder()
+        .withTableMetadata(response.tableMetadata())
+        .addAllConfig(response.config())
+        .addConfig(RESTCatalogProperties.SCAN_PLANNING_MODE, mode)
+        .addAllCredentials(response.credentials())
+        .build();
   }
 
+  @Override
   @SuppressWarnings("unchecked")
-  private <T> T roundTripSerialize(T payload, String description) {
+  protected <T> T roundTripSerialize(T payload, String description) {
     if (payload == null) {
       return null;
     }
@@ -217,10 +160,6 @@ public class TestRESTScanPlanning {
   private void setParserContext(Table table) {
     parserContext =
         ParserContext.builder().add("specsById", table.specs()).add("caseSensitive", false).build();
-  }
-
-  private RESTCatalog scanPlanningCatalog() {
-    return restCatalogWithScanPlanning;
   }
 
   private void configurePlanningBehavior(
@@ -335,7 +274,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "all_tasks_table");
+    Table table = restTableFor(restCatalog, "all_tasks_table");
     setParserContext(table);
 
     // Verify actual data file is returned with correct count
@@ -354,7 +293,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "batch_scan_table");
+    Table table = restTableFor(restCatalog, "batch_scan_table");
     setParserContext(table);
 
     // Verify actual data file is returned with correct count
@@ -372,7 +311,7 @@ public class TestRESTScanPlanning {
     // Configure: synchronous planning with very small pages (creates nested plan task structure)
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
 
-    Table table = restTableFor(scanPlanningCatalog(), "nested_plan_task_table");
+    Table table = restTableFor(restCatalog, "nested_plan_task_table");
     // add one more files for proper pagination
     table.newFastAppend().appendFile(FILE_B).commit();
     setParserContext(table);
@@ -393,7 +332,7 @@ public class TestRESTScanPlanning {
   @Test
   public void cancelPlanMethodAvailability() {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
-    RESTTable table = restTableFor(scanPlanningCatalog(), "cancel_method_table");
+    RESTTable table = restTableFor(restCatalog, "cancel_method_table");
     RESTTableScan restTableScan = restTableScanFor(table);
 
     // Test that cancelPlan method is available and callable
@@ -407,7 +346,7 @@ public class TestRESTScanPlanning {
   @Test
   public void iterableCloseTriggersCancel() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
-    RESTTable restTable = restTableFor(scanPlanningCatalog(), "iterable_close_test");
+    RESTTable restTable = restTableFor(restCatalog, "iterable_close_test");
     setParserContext(restTable);
 
     TableScan scan = restTable.newScan();
@@ -430,7 +369,7 @@ public class TestRESTScanPlanning {
   @EnumSource(MetadataTableType.class)
   public void metadataTablesWithRemotePlanning(MetadataTableType type) {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
-    RESTTable table = restTableFor(scanPlanningCatalog(), "metadata_tables_test");
+    RESTTable table = restTableFor(restCatalog, "metadata_tables_test");
     table.newAppend().appendFile(FILE_B).commit();
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_EQUALITY_DELETES).commit();
     setParserContext(table);
@@ -452,7 +391,7 @@ public class TestRESTScanPlanning {
   void remoteScanPlanningWithEmptyTable(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     configurePlanningBehavior(planMode);
-    Table table = createTableWithScanPlanning(scanPlanningCatalog(), "empty_table_test");
+    Table table = createTableWithScanPlanning(restCatalog, "empty_table_test");
     setParserContext(table);
     assertThat(table.newScan().planFiles()).isEmpty();
   }
@@ -463,7 +402,7 @@ public class TestRESTScanPlanning {
   void remoteScanPlanningWithNonExistentColumn(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "non-existent_column");
+    Table table = restTableFor(restCatalog, "non-existent_column");
     setParserContext(table);
     assertThat(table.newScan().select("non-existent-column").planFiles()).isEmpty();
   }
@@ -473,7 +412,7 @@ public class TestRESTScanPlanning {
   void incrementalScan(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "incremental_scan");
+    Table table = restTableFor(restCatalog, "incremental_scan");
     setParserContext(table);
 
     // Add second file to the table
@@ -499,7 +438,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "position_deletes_test");
+    Table table = restTableFor(restCatalog, "position_deletes_test");
     setParserContext(table);
 
     // Add position deletes that correspond to FILE_A (which was added in table creation)
@@ -535,7 +474,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "equality_deletes_test");
+    Table table = restTableFor(restCatalog, "equality_deletes_test");
     setParserContext(table);
 
     // Add equality deletes that correspond to FILE_A
@@ -569,7 +508,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "mixed_deletes_test");
+    Table table = restTableFor(restCatalog, "mixed_deletes_test");
     setParserContext(table);
 
     // Add both position and equality deletes in separate commits
@@ -606,7 +545,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "multiple_deletes_test");
+    Table table = restTableFor(restCatalog, "multiple_deletes_test");
     setParserContext(table);
 
     // Add FILE_B and FILE_C to the table (FILE_A is already added during table creation)
@@ -668,7 +607,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "deletes_filtering_test");
+    Table table = restTableFor(restCatalog, "deletes_filtering_test");
     setParserContext(table);
 
     // Add FILE_B to have more data for filtering
@@ -709,11 +648,47 @@ public class TestRESTScanPlanning {
 
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
+  void scanPlanningWithMinRowsRequested(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    configurePlanningBehavior(planMode);
+    Table table = restTableFor(restCatalog, "min_rows_requested_table");
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+    setParserContext(table);
+
+    ArgumentCaptor<HTTPRequest> requestCaptor = ArgumentCaptor.forClass(HTTPRequest.class);
+
+    assertThat(table.newScan().minRowsRequested(1L).planFiles()).hasSize(1);
+    Mockito.verify(adapterForRESTServer, Mockito.atLeastOnce())
+        .execute(requestCaptor.capture(), any(), any(), any(), any());
+    assertThat(
+            requestCaptor.getAllValues().stream()
+                .filter(req -> req.body() instanceof PlanTableScanRequest)
+                .map(req -> (PlanTableScanRequest) req.body())
+                .reduce((first, second) -> second)
+                .get()
+                .minRowsRequested())
+        .isEqualTo(1L);
+
+    assertThat(table.newScan().minRowsRequested(100L).planFiles()).hasSize(3);
+    Mockito.verify(adapterForRESTServer, Mockito.atLeastOnce())
+        .execute(requestCaptor.capture(), any(), any(), any(), any());
+    assertThat(
+            requestCaptor.getAllValues().stream()
+                .filter(req -> req.body() instanceof PlanTableScanRequest)
+                .map(req -> (PlanTableScanRequest) req.body())
+                .reduce((first, second) -> second)
+                .get()
+                .minRowsRequested())
+        .isEqualTo(100L);
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
   void remoteScanPlanningDeletesCancellation(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "deletes_cancellation_test");
+    Table table = restTableFor(restCatalog, "deletes_cancellation_test");
     setParserContext(table);
 
     // Add deletes to make the scenario more complex
@@ -742,7 +717,7 @@ public class TestRESTScanPlanning {
     configurePlanningBehavior(planMode);
 
     // Create table and add FILE_A (snapshot 1)
-    Table table = restTableFor(scanPlanningCatalog(), "snapshot_scan_test");
+    Table table = restTableFor(restCatalog, "snapshot_scan_test");
     setParserContext(table);
     table.refresh();
     long snapshot1Id = table.currentSnapshot().snapshotId();
@@ -814,7 +789,7 @@ public class TestRESTScanPlanning {
   public void scanPlanningWithMultiplePartitionSpecs() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
 
-    RESTTable table = restTableFor(scanPlanningCatalog(), "multiple_partition_specs");
+    RESTTable table = restTableFor(restCatalog, "multiple_partition_specs");
     table.newFastAppend().appendFile(FILE_B).commit();
 
     // Evolve partition spec to bucket by id with 8 buckets instead of 16
@@ -859,6 +834,119 @@ public class TestRESTScanPlanning {
     }
   }
 
+  @Test
+  void remoteScanPlanningWithFreshnessAwareLoading() throws IOException {
+    TableIdentifier tableIdentifier = TableIdentifier.of(NS, "freshness_aware_loading_test");
+    restTableFor(restCatalog, tableIdentifier.name());
+
+    assertThat(restCatalog.sessionCatalog().tableCache().cache().estimatedSize()).isZero();
+
+    // Table is cached with the first loadTable
+    restCatalog.loadTable(tableIdentifier);
+    assertThat(restCatalog.sessionCatalog().tableCache().cache().estimatedSize()).isOne();
+
+    // Second loadTable is answered from cache
+    Table table = restCatalog.loadTable(tableIdentifier);
+
+    // Verify table is RESTTable and newScan() returns RESTTableScan
+    restTableScanFor(table);
+  }
+
+  // ==================== useSnapshotSchema and Projection Tests ====================
+
+  private PlanTableScanRequest captureLastPlanRequest() {
+    ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
+    Mockito.verify(adapterForRESTServer, atLeastOnce())
+        .execute(captor.capture(), any(), any(), any());
+    return captor.getAllValues().stream()
+        .filter(req -> req.body() instanceof PlanTableScanRequest)
+        .map(req -> (PlanTableScanRequest) req.body())
+        .reduce((first, second) -> second)
+        .orElseThrow(() -> new AssertionError("No PlanTableScanRequest captured"));
+  }
+
+  @Test
+  void useSnapshotSchemaSetCorrectlyForSnapshotAndBranchAndTag() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+    Table table = restTableFor(restCatalog, "use_snapshot_schema_test");
+    setParserContext(table);
+
+    table.newAppend().appendFile(FILE_B).commit();
+    table.refresh();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    // Create a tag and a branch pointing to the current snapshot
+    table.manageSnapshots().createTag("test-tag", snapshotId).commit();
+    table.manageSnapshots().createBranch("test-branch", snapshotId).commit();
+
+    // Test 1: Scanning current snapshot without time travel should NOT set useSnapshotSchema
+    try (CloseableIterable<FileScanTask> ignored = table.newScan().planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("Default scan should not use snapshot schema")
+          .isFalse();
+    }
+
+    // Test 2: useSnapshot() should set useSnapshotSchema=true
+    try (CloseableIterable<FileScanTask> ignored =
+        table.newScan().useSnapshot(snapshotId).planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("useSnapshot() should set useSnapshotSchema=true")
+          .isTrue();
+    }
+
+    // Test 3: useRef() with a tag should set useSnapshotSchema=true
+    try (CloseableIterable<FileScanTask> ignored = table.newScan().useRef("test-tag").planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("useRef() with a tag should set useSnapshotSchema=true")
+          .isTrue();
+    }
+
+    // Test 4: useRef() with a branch should NOT set useSnapshotSchema
+    try (CloseableIterable<FileScanTask> ignored =
+        table.newScan().useRef("test-branch").planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("useRef() with a branch should not use snapshot schema")
+          .isFalse();
+    }
+  }
+
+  @Test
+  void selectWithNestedFieldsSendsFullyQualifiedNames() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "address",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "city", Types.StringType.get()),
+                    Types.NestedField.required(4, "zip", Types.StringType.get()))));
+
+    restCatalog.createNamespace(NS);
+    Table table =
+        restCatalog
+            .buildTable(TableIdentifier.of(NS, "nested_projection_test"), nestedSchema)
+            .create();
+
+    setParserContext(table);
+
+    // Select a nested field — the server needs the fully qualified name "address.city"
+    try (CloseableIterable<FileScanTask> ignored =
+        table.newScan().select("address.city").planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.select())
+          .as("Nested field projection should send fully qualified column names")
+          .contains("address.city")
+          .doesNotContain("address.zip");
+    }
+  }
+
   // ==================== Endpoint Support Tests ====================
 
   /** Helper class to hold catalog and adapter for endpoint support tests. */
@@ -870,6 +958,41 @@ public class TestRESTScanPlanning {
       this.catalog = catalog;
       this.adapter = adapter;
     }
+  }
+
+  private CatalogWithAdapter catalogWithModes(String clientMode, String serverMode) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                T response = super.execute(request, responseType, errorHandler, responseHeaders);
+                if (response instanceof LoadTableResponse && serverMode != null) {
+                  return castResponse(
+                      responseType, withPlanningMode((LoadTableResponse) response, serverMode));
+                }
+
+                return response;
+              }
+            });
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+
+    ImmutableMap.Builder<String, String> clientConfigBuilder =
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
+
+    if (clientMode != null) {
+      clientConfigBuilder.put(RESTCatalogProperties.SCAN_PLANNING_MODE, clientMode);
+    }
+
+    catalog.initialize("test-scan-planning-modes", clientConfigBuilder.build());
+    return new CatalogWithAdapter(catalog, adapter);
   }
 
   // Helper: Create base catalog endpoints (namespace and table operations)
@@ -907,7 +1030,18 @@ public class TestRESTScanPlanning {
                   return castResponse(
                       responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
                 }
-                return super.execute(request, responseType, errorHandler, responseHeaders);
+                T response = super.execute(request, responseType, errorHandler, responseHeaders);
+
+                // Add scan planning mode to table config for LoadTableResponse
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      withPlanningMode(
+                          (LoadTableResponse) response,
+                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+                }
+
+                return response;
               }
             });
 
@@ -922,27 +1056,25 @@ public class TestRESTScanPlanning {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            "true"));
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
     return new CatalogWithAdapter(catalog, adapter);
   }
 
   @Test
   public void serverDoesNotSupportPlanningEndpoint() throws IOException {
-    // Server doesn't support scan planning at all - should fall back to client-side planning
+    // Server requires server-side planning but doesn't support the endpoint - should fail
     CatalogWithAdapter catalogWithAdapter = catalogWithEndpoints(baseCatalogEndpoints(), null);
     RESTCatalog catalog = catalogWithAdapter.catalog;
-    Table table = createTableWithScanPlanning(catalog, "no_planning_support");
-    assertThat(table).isNotInstanceOf(RESTTable.class);
-    table.newAppend().appendFile(FILE_A).commit();
 
-    // Should fall back to client-side planning when endpoint is not supported
-    assertThat(table.newScan().planFiles())
-        .hasSize(1)
-        .first()
-        .extracting(ContentScanTask::file)
-        .extracting(ContentFile::location)
-        .isEqualTo(FILE_A.location());
+    catalog.createNamespace(NS);
+    assertThatThrownBy(
+            () ->
+                catalog.buildTable(TableIdentifier.of(NS, "no_planning_support"), SCHEMA).create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Server requires server-side scan planning for table %s but does not support endpoint %s",
+            TableIdentifier.of(NS, "no_planning_support"), Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
   }
 
   @Test
@@ -1019,5 +1151,180 @@ public class TestRESTScanPlanning {
 
     // Verify no exception was thrown - cancelPlan returns false when endpoint not supported
     assertThat(cancelled).isFalse();
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void fileIOForRemotePlanningIsPropagated(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                return maybeAddStorageCredential(response);
+              }
+            });
+
+    adapter.setPlanningBehavior(planMode.apply(TestPlanningBehavior.builder()).build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+
+    Table table = restTableFor(catalog, "file_io_propagation");
+
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+
+    TableScan tableScan = table.newScan();
+    assertThatThrownBy(() -> tableScan.fileIO().get())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("FileIO is not available: planFiles() must be called first");
+
+    // make sure remote scan planning is called and FileIO gets the planId
+    assertThat(tableScan.planFiles()).hasSize(1);
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThat(tableScan.fileIO().get().properties())
+        .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    String planId =
+        tableScan.fileIO().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+
+    TableScan newScan = table.newScan();
+    assertThatThrownBy(() -> newScan.fileIO().get())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("FileIO is not available: planFiles() must be called first");
+
+    // make sure remote scan planning is called and FileIO gets the planId
+    assertThat(newScan.planFiles()).hasSize(1);
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+
+    // make sure planIds are different for each scan
+    assertThat(newScan.fileIO().get().properties())
+        .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThat(newScan.fileIO().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID))
+        .isNotEqualTo(planId);
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T extends RESTResponse> T maybeAddStorageCredential(T response) {
+    if (response instanceof PlanTableScanResponse resp
+        && PlanStatus.COMPLETED == resp.planStatus()) {
+      return (T)
+          PlanTableScanResponse.builder()
+              .withPlanStatus(resp.planStatus())
+              .withPlanId(resp.planId())
+              .withPlanTasks(resp.planTasks())
+              .withFileScanTasks(resp.fileScanTasks())
+              .withCredentials(
+                  ImmutableList.<Credential>builder()
+                      .addAll(resp.credentials())
+                      .add(
+                          ImmutableCredential.builder()
+                              .prefix("dummy")
+                              .putConfig("dummyKey", "dummyVal")
+                              .build())
+                      .build())
+              .withSpecsById(resp.specsById())
+              .build();
+    } else if (response instanceof FetchPlanningResultResponse resp
+        && PlanStatus.COMPLETED == resp.planStatus()) {
+      return (T)
+          FetchPlanningResultResponse.builder()
+              .withPlanStatus(resp.planStatus())
+              .withFileScanTasks(resp.fileScanTasks())
+              .withPlanTasks(resp.planTasks())
+              .withSpecsById(resp.specsById())
+              .withCredentials(
+                  ImmutableList.<Credential>builder()
+                      .addAll(resp.credentials())
+                      .add(
+                          ImmutableCredential.builder()
+                              .prefix("dummy")
+                              .putConfig("dummyKey", "dummyVal")
+                              .build())
+                      .build())
+              .build();
+    }
+
+    return response;
+  }
+
+  @Test
+  public void serverConfigTakesPrecedenceOnMismatch() {
+    // Client=SERVER, Server=CLIENT
+    CatalogWithAdapter catalogWithAdapter1 =
+        catalogWithModes(
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName());
+    catalogWithAdapter1.catalog.createNamespace(NS);
+
+    Table table1 =
+        catalogWithAdapter1
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "mismatch_test"), SCHEMA)
+            .create();
+
+    assertThat(table1).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+
+    // Client=CLIENT, Server=SERVER
+    CatalogWithAdapter catalogWithAdapter2 =
+        catalogWithModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName());
+
+    Table table2 =
+        catalogWithAdapter2
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_override_rejected_test"), SCHEMA)
+            .create();
+
+    assertThat(table2).isInstanceOf(RESTTable.class);
+  }
+
+  @Test
+  public void clientExplicitlyRequestsClientSidePlanning() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName());
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_explicit_test"), SCHEMA)
+            .create();
+
+    assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+  }
+
+  @Test
+  public void clientRequestsClientAndServerReturnsNothing() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithModes(RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(), null);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_server_null_test"), SCHEMA)
+            .create();
+
+    assertThat(table).isNotInstanceOf(RESTTable.class);
+    assertThat(table).isInstanceOf(BaseTable.class);
   }
 }

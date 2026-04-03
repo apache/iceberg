@@ -135,7 +135,8 @@ public class PartitionData
     }
 
     if (data[pos] instanceof byte[]) {
-      return ByteBuffer.wrap((byte[]) data[pos]);
+      byte[] copied = Arrays.copyOf((byte[]) data[pos], ((byte[]) data[pos]).length);
+      return ByteBuffer.wrap(copied);
     }
 
     return data[pos];

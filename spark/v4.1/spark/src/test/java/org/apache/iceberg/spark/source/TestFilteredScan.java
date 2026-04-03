@@ -220,11 +220,9 @@ public class TestFilteredScan {
     TestFilteredScan.spark.conf().set("spark.sql.caseSensitive", "false");
 
     try {
-
       for (int i = 0; i < 10; i += 1) {
         SparkScanBuilder builder =
-            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options)
-                .caseSensitive(false);
+            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
         pushFilters(
             builder,
@@ -294,23 +292,16 @@ public class TestFilteredScan {
 
     scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
 
-    // verify changelog scan
-    assertThat(builder.buildChangelogScan())
-        .extracting("scan")
-        .extracting("context")
-        .extracting("minRowsRequested")
-        .isEqualTo(limit);
-
     // verify CoW scan
-    assertThat(builder.buildCopyOnWriteScan())
-        .extracting("scan")
-        .extracting("scan")
-        .extracting("context")
-        .extracting("minRowsRequested")
-        .isEqualTo(limit);
+    scanAssert = assertThat(builder.buildCopyOnWriteScan()).extracting("scan");
+    if (LOCAL == planningMode) {
+      scanAssert = scanAssert.extracting("scan");
+    }
+
+    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
 
     // verify MoR scan
-    scanAssert = assertThat(builder.buildMergeOnReadScan()).extracting("scan");
+    scanAssert = assertThat(builder.build()).extracting("scan");
     if (LOCAL == planningMode) {
       scanAssert = scanAssert.extracting("scan");
     }
@@ -346,14 +337,6 @@ public class TestFilteredScan {
 
     // verify CoW scan
     assertThat(builder.buildCopyOnWriteScan())
-        .extracting("scan")
-        .extracting("scan")
-        .extracting("context")
-        .extracting("minRowsRequested")
-        .isEqualTo(limit);
-
-    // verify MoR scan
-    assertThat(builder.buildMergeOnReadScan())
         .extracting("scan")
         .extracting("scan")
         .extracting("context")

@@ -73,7 +73,7 @@ public class VectorHolder {
     icebergField = field;
   }
 
-  VectorHolder(FieldVector vec, Types.NestedField field, NullabilityHolder nulls) {
+  private VectorHolder(FieldVector vec, Types.NestedField field, NullabilityHolder nulls) {
     columnDescriptor = null;
     vector = vec;
     isDictionaryEncoded = false;
