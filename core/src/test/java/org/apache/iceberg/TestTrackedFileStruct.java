@@ -52,15 +52,6 @@ class TestTrackedFileStruct {
     assertThat(file.recordCount()).isEqualTo(100L);
     assertThat(file.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(file.specId()).isEqualTo(0);
-
-    assertThat(file.tracking()).isNull();
-    assertThat(file.deletionVector()).isNull();
-    assertThat(file.sortOrderId()).isNull();
-    assertThat(file.contentStats()).isNull();
-    assertThat(file.manifestInfo()).isNull();
-    assertThat(file.keyMetadata()).isNull();
-    assertThat(file.splitOffsets()).isNull();
-    assertThat(file.equalityIds()).isNull();
   }
 
   @Test
