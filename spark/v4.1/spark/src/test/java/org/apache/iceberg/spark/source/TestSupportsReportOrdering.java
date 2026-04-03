@@ -135,6 +135,64 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testMergingWithNullsInSortKeyColumn() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (c3)",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    setSortOrder(table, "c1"); // ASC NULLS FIRST (Iceberg default)
+
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
+
+    sql("INSERT INTO %s VALUES (null, 'x', 'P1'), (3, 'c', 'P1')", tableName);
+    sql("INSERT INTO %s VALUES (null, 'y', 'P1'), (1, 'a', 'P1'), (2, 'b', 'P1')", tableName);
+
+    Dataset<Row> result =
+        spark.sql(
+            String.format(
+                "SELECT c1, c2 FROM %s WHERE c3 = 'P1' ORDER BY c1 ASC NULLS FIRST, c2",
+                tableName));
+    List<Object[]> rows = rowsToJava(result.collectAsList());
+
+    assertThat(rows)
+        .hasSize(5)
+        .containsExactly(row(null, "x"), row(null, "y"), row(1, "a"), row(2, "b"), row(3, "c"));
+  }
+
+  @TestTemplate
+  public void testMergingWithNullsInDescendingSortKeyColumn() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (c3)",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.replaceSortOrder().desc("c1").commit(); // DESC NULLS LAST (Iceberg default for DESC)
+
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
+
+    sql("INSERT INTO %s VALUES (null, 'x', 'P1'), (1, 'a', 'P1')", tableName);
+    sql("INSERT INTO %s VALUES (null, 'y', 'P1'), (3, 'c', 'P1'), (2, 'b', 'P1')", tableName);
+
+    Dataset<Row> result =
+        spark.sql(
+            String.format(
+                "SELECT c1, c2 FROM %s WHERE c3 = 'P1' ORDER BY c1 DESC NULLS LAST, c2",
+                tableName));
+    List<Object[]> rows = rowsToJava(result.collectAsList());
+
+    assertThat(rows)
+        .hasSize(5)
+        .containsExactly(row(3, "c"), row(2, "b"), row(1, "a"), row(null, "x"), row(null, "y"));
+  }
+
+  @TestTemplate
   public void testDescendingSortOrder() throws NoSuchTableException {
     Table table = createSimpleTable(tableName);
     table.replaceSortOrder().desc("id").commit();
@@ -251,6 +309,42 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
     List<Object[]> rows = rowsToJava(result.collectAsList());
 
     assertThat(rows).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testOrderingNotReportedWhenGroupingDisabled() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (c3)",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    setSortOrder(table, "c1");
+
+    writeBatches(
+        tableName,
+        ThreeColumnRecord.class,
+        ImmutableList.of(new ThreeColumnRecord(1, "a", "P1"), new ThreeColumnRecord(3, "c", "P1")),
+        ImmutableList.of(new ThreeColumnRecord(2, "b", "P1"), new ThreeColumnRecord(4, "d", "P1")));
+
+    // Ordering enabled but grouping explicitly disabled — outputOrdering() must return empty
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.PRESERVE_DATA_ORDERING,
+            "true",
+            SparkSQLProperties.PRESERVE_DATA_GROUPING,
+            "false",
+            "spark.sql.autoBroadcastJoinThreshold",
+            "-1",
+            "spark.sql.adaptive.enabled",
+            "false"),
+        () -> {
+          SparkPlan plan =
+              executeAndKeepPlan(String.format("SELECT c1, c2 FROM %s ORDER BY c1", tableName));
+          List<SortExec> sorts = collectPlans(plan, SortExec.class);
+          assertThat(sorts).isNotEmpty();
+        });
   }
 
   @TestTemplate
