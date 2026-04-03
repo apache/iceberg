@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -53,6 +54,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private final String catalogEndpoint;
   private final String credentialsEndpoint;
   private final String planId;
+  private final String storageRefreshToken;
   private AuthManager authManager;
   private AuthSession authSession;
 
@@ -69,6 +71,8 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.credentialsEndpoint = properties.get(URI);
     this.planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
+    this.storageRefreshToken =
+        properties.getOrDefault(RESTCatalogProperties.REST_STORAGE_REFRESH_TOKEN, null);
   }
 
   @Override
@@ -108,10 +112,19 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   }
 
   LoadCredentialsResponse fetchCredentials() {
+    Map<String, String> queryParams = null;
+    if (null != planId) {
+      queryParams = Maps.newHashMap();
+      queryParams.put("planId", planId);
+    } else if (null != storageRefreshToken) {
+      queryParams = Maps.newHashMap();
+      queryParams.put("storageRefreshToken", storageRefreshToken);
+    }
+
     return httpClient()
         .get(
             credentialsEndpoint,
-            null != planId ? Map.of("planId", planId) : null,
+            queryParams,
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());

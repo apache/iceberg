@@ -28,6 +28,7 @@ import org.apache.iceberg.util.JsonUtil;
 public class CredentialParser {
   private static final String PREFIX = "prefix";
   private static final String CONFIG = "config";
+  private static final String STORAGE_REFRESH_TOKEN = "storage-refresh-token";
 
   private CredentialParser() {}
 
@@ -47,6 +48,10 @@ public class CredentialParser {
     gen.writeStringField(PREFIX, credential.prefix());
     JsonUtil.writeStringMap(CONFIG, credential.config(), gen);
 
+    if (credential.storageRefreshToken() != null) {
+      gen.writeStringField(STORAGE_REFRESH_TOKEN, credential.storageRefreshToken());
+    }
+
     gen.writeEndObject();
   }
 
@@ -58,6 +63,14 @@ public class CredentialParser {
     Preconditions.checkArgument(null != json, "Cannot parse credential from null object");
     String prefix = JsonUtil.getString(PREFIX, json);
     Map<String, String> config = JsonUtil.getStringMap(CONFIG, json);
-    return ImmutableCredential.builder().prefix(prefix).config(config).build();
+
+    ImmutableCredential.Builder builder =
+        ImmutableCredential.builder().prefix(prefix).config(config);
+
+    if (json.has(STORAGE_REFRESH_TOKEN)) {
+      builder.storageRefreshToken(JsonUtil.getString(STORAGE_REFRESH_TOKEN, json));
+    }
+
+    return builder.build();
   }
 }

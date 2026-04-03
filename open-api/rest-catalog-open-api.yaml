@@ -569,6 +569,13 @@ paths:
         the client sends all create and subsequent changes to the table commit route. Changes from the table
         create operation include changes like AddSchemaUpdate and SetCurrentSchemaUpdate that set the initial
         table state.
+
+
+        When `stage-create` is true, each `StorageCredential` in the response may include a
+        `storage-refresh-token` field containing an opaque token. Clients should pass this token back
+        on subsequent `loadCredentials` requests (via the `storageRefreshToken` query
+        parameter) to refresh credentials for the staged table. Staged tables are not visible via
+        `listTables` and are only accessible to clients that know the storage refresh token.
       operationId: createTable
       parameters:
         - $ref: '#/components/parameters/data-access'
@@ -1227,7 +1234,17 @@ paths:
             type: string
           description: The plan ID that has been used for server-side scan planning
         - $ref: '#/components/parameters/referenced-by'
-      description: Load vended credentials for a table from the catalog.
+        - $ref: '#/components/parameters/storage-refresh-token'
+      description:
+        Load vended credentials for a table from the catalog.
+
+
+        An optional `storageRefreshToken` query parameter can be provided to refresh credentials
+        for a staged table. See the `storageRefreshToken` parameter definition for detailed behavior.
+
+
+        The `planId` and `storageRefreshToken` parameters are mutually exclusive. If both are
+        provided, the server must return a 400 Bad Request error.
       responses:
         200:
           $ref: '#/components/responses/LoadCredentialsResponse'
@@ -1239,7 +1256,9 @@ paths:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
           description:
-            Not Found - NoSuchTableException, table to load credentials for does not exist
+            Not Found - NoSuchTableException, table to load credentials for does not exist.
+            Also returned when a `storageRefreshToken` parameter is provided but does not match
+            any staged or committed table for the given table name.
           content:
             application/json:
               schema:
@@ -1976,6 +1995,29 @@ components:
       in: path
       description: ID used to track a planning request
       required: true
+      schema:
+        type: string
+
+    storage-refresh-token:
+      name: storageRefreshToken
+      in: query
+      description: >
+        Opaque token returned on a `StorageCredential` from a previous response (e.g., staged table
+        creation, loadTable, or loadCredentials). When provided, the server uses this token to resolve
+        the credential context (e.g., a staged table's storage location) and return fresh credentials.
+
+
+        If the token resolves to a staged or committed table matching the table name in the request
+        path, the server returns the response for that table. If the token does not match any staged
+        or committed table for the given table name, the server returns a 404 error.
+
+
+        If this parameter is omitted, the server performs the standard committed table lookup by name.
+
+
+        This parameter is mutually exclusive with `planId`. If both are provided on the credentials
+        endpoint, the server must return a 400 Bad Request error.
+      required: false
       schema:
         type: string
 
@@ -3470,6 +3512,13 @@ components:
           type: object
           additionalProperties:
             type: string
+        storage-refresh-token:
+          type: string
+          description: >
+            Opaque token that clients pass back to the server to refresh this credential.
+            Returned on the loadCredentials or loadTable endpoint via the storageRefreshToken
+            query parameter. When present, the server uses this token to resolve the credential
+            context (e.g., a staged table's storage location) and return fresh credentials.
 
     LoadCredentialsResponse:
       type: object

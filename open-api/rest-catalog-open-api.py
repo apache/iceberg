@@ -566,6 +566,11 @@ class StorageCredential(BaseModel):
         description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix (by selecting the longest prefix) if several credentials of the same type are available.',
     )
     config: dict[str, str]
+    storage_refresh_token: str | None = Field(
+        None,
+        alias='storage-refresh-token',
+        description="Opaque token that clients pass back to the server to refresh this credential. Returned on the loadCredentials or loadTable endpoint via the storageRefreshToken query parameter. When present, the server uses this token to resolve the credential context (e.g., a staged table's storage location) and return fresh credentials.\n",
+    )
 
 
 class LoadCredentialsResponse(BaseModel):

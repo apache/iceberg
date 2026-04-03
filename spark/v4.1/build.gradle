@@ -266,6 +266,17 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationCompileOnly project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
     integrationCompileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
     integrationCompileOnly project(':iceberg-api')
+    integrationCompileOnly project(':iceberg-core')
+    integrationCompileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    integrationCompileOnly project(':iceberg-aws')
+    integrationCompileOnly project(path: ':iceberg-core', configuration: 'testArtifacts')
+    integrationCompileOnly libs.jetty.servlet
+    integrationImplementation(platform(libs.awssdk.bom))
+    integrationImplementation("software.amazon.awssdk:sts")
+    integrationImplementation("software.amazon.awssdk:s3")
+    integrationImplementation("software.amazon.awssdk:kms")
+    integrationImplementation("software.amazon.awssdk:url-connection-client")
+    integrationImplementation("software.amazon.awssdk:auth")
   }
 
   shadowJar {
@@ -323,4 +334,3 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
 
   apply from: "${rootDir}/runtime-deps.gradle"
 }
-

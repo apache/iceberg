@@ -20,6 +20,7 @@ package org.apache.iceberg.io;
 
 import java.io.Serializable;
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public interface StorageCredential extends Serializable {
@@ -28,6 +29,11 @@ public interface StorageCredential extends Serializable {
 
   Map<String, String> config();
 
+  @Nullable
+  default String storageRefreshToken() {
+    return null;
+  }
+
   default void validate() {
     Preconditions.checkArgument(!prefix().isEmpty(), "Invalid prefix: must be non-empty");
     Preconditions.checkArgument(!config().isEmpty(), "Invalid config: must be non-empty");
@@ -35,5 +41,14 @@ public interface StorageCredential extends Serializable {
 
   static StorageCredential create(String prefix, Map<String, String> config) {
     return ImmutableStorageCredential.builder().prefix(prefix).config(config).build();
+  }
+
+  static StorageCredential create(
+      String prefix, Map<String, String> config, @Nullable String storageRefreshToken) {
+    return ImmutableStorageCredential.builder()
+        .prefix(prefix)
+        .config(config)
+        .storageRefreshToken(storageRefreshToken)
+        .build();
   }
 }
