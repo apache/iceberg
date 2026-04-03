@@ -57,7 +57,7 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
-  private Boolean orderingEnabled = null; // lazily computed, driver-only
+  private final boolean orderingEnabled;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -67,7 +67,8 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
-      int scanHashCode) {
+      int scanHashCode,
+      boolean orderingEnabled) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.fileIO = fileIO;
@@ -80,6 +81,7 @@ class SparkBatch implements Batch {
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.orderingEnabled = orderingEnabled;
   }
 
   @Override
@@ -113,14 +115,8 @@ class SparkBatch implements Batch {
     return partitions;
   }
 
-  /** Returns true if the table's sort ordering can be reported to Spark for this batch. */
+  /** Returns whether sort ordering was reported for this batch's scan. */
   private boolean isOrderingEnabled() {
-    if (orderingEnabled == null) {
-      orderingEnabled =
-          !groupingKeyType.fields().isEmpty()
-              && readConf.preserveDataOrdering()
-              && SortOrderAnalyzer.canReportOrdering(table, taskGroups, groupingKeyType);
-    }
     return orderingEnabled;
   }
 
