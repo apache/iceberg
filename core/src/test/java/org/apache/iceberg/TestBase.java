@@ -445,6 +445,10 @@ public class TestBase {
     validateSnapshot(old, snap, null, newFiles);
   }
 
+  void validateSnapshot(Table validationTable, Snapshot old, Snapshot snap, DataFile... newFiles) {
+    validateSnapshot(validationTable, old, snap, null, newFiles);
+  }
+
   void validateSnapshot(Snapshot old, Snapshot snap, long sequenceNumber, DataFile... newFiles) {
     validateSnapshot(old, snap, (Long) sequenceNumber, newFiles);
   }
@@ -472,6 +476,16 @@ public class TestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
+    validateSnapshot(table, old, snap, sequenceNumber, newFiles);
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  void validateSnapshot(
+      Table validationTable,
+      Snapshot old,
+      Snapshot snap,
+      Long sequenceNumber,
+      DataFile... newFiles) {
     assertThat(old != null ? Sets.newHashSet(old.deleteManifests(FILE_IO)) : ImmutableSet.of())
         .as("Should not change delete manifests")
         .isEqualTo(Sets.newHashSet(snap.deleteManifests(FILE_IO)));
@@ -492,7 +506,7 @@ public class TestBase {
     Iterator<String> newPaths = paths(newFiles).iterator();
 
     for (ManifestEntry<DataFile> entry :
-        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
+        ManifestFiles.read(manifest, FILE_IO, validationTable.specs()).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
@@ -530,7 +544,9 @@ public class TestBase {
 
     assertThat(newPaths.hasNext()).as("Should find all files in the manifest").isFalse();
 
-    assertThat(snap.schemaId()).as("Schema ID should match").isEqualTo(table.schema().schemaId());
+    assertThat(snap.schemaId())
+        .as("Schema ID should match")
+        .isEqualTo(validationTable.schema().schemaId());
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
@@ -794,8 +810,18 @@ public class TestBase {
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> expectedStatuses) {
+    validateManifestEntries(table, manifest, ids, expectedFiles, expectedStatuses);
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  void validateManifestEntries(
+      Table validationTable,
+      ManifestFile manifest,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> expectedStatuses) {
     for (ManifestEntry<DataFile> entry :
-        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
+        ManifestFiles.read(manifest, FILE_IO, validationTable.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();

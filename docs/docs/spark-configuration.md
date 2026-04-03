@@ -112,6 +112,16 @@ Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Me
 
 This configuration can use same Hive Metastore for both Iceberg and non-Iceberg tables.
 
+`SparkSessionCatalog` is useful when you want `spark_catalog` to work with both Iceberg and non-Iceberg
+tables in the same metastore.
+
+!!! note
+    Spark before 4.2.0 does not support `V2Function` in the session catalog. See
+    [SPARK-54760](https://issues.apache.org/jira/browse/SPARK-54760) ([apache/spark#53531](https://github.com/apache/spark/pull/53531)) for details. As a result,
+    catalog-scoped SQL functions such as `system.bucket`, `system.days`, and `system.iceberg_version`
+    are not available through `spark_catalog`. To work around this limitation, configure a separate
+    Iceberg catalog with `org.apache.iceberg.spark.SparkCatalog` and call them through that catalog.
+
 ### Using catalog specific Hadoop configuration values
 
 Similar to configuring Hadoop properties by using `spark.hadoop.*`, it's possible to set per-catalog Hadoop configuration values when using Spark by adding the property for the catalog with the prefix `spark.sql.catalog.(catalog-name).hadoop.*`. These properties will take precedence over values configured globally using `spark.hadoop.*` and will only affect Iceberg tables.
@@ -174,7 +184,6 @@ val spark = SparkSession.builder()
 | Spark option                                           | Default                                                        | Description                                                                                                                     |
 |--------------------------------------------------------|----------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | spark.sql.iceberg.vectorization.enabled                | Table default                                                  | Enables vectorized reads of data files                                                                                          |
-| spark.sql.iceberg.parquet.reader-type                  | ICEBERG                                                        | Sets Parquet reader implementation (`ICEBERG`,`COMET`)                                                                          |
 | spark.sql.iceberg.check-nullability                    | true                                                           | Validate that the write schema's nullability matches the table's nullability                                                    |
 | spark.sql.iceberg.check-ordering                       | true                                                           | Validates the write schema column order matches the table schema order                                                          |
 | spark.sql.iceberg.planning.preserve-data-grouping      | false                                                          | When true, co-locate scan tasks for the same partition in the same read split, used in Storage Partitioned Joins                |

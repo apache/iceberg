@@ -266,4 +266,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }

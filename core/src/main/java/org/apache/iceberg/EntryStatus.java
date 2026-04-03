@@ -16,18 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg;
 
-import org.junit.jupiter.api.BeforeAll;
+/** Status of an entry in a manifest file. */
+enum EntryStatus {
+  EXISTING(0),
+  ADDED(1),
+  DELETED(2),
+  /** Indicates an entry that has been replaced by a column update or DV change. Added in v4. */
+  REPLACED(3);
 
-public class TestParquetCometVectorizedScan extends TestParquetScan {
-  @BeforeAll
-  public static void setComet() {
-    ScanTestBase.spark.conf().set("spark.sql.iceberg.parquet.reader-type", "COMET");
+  private final int id;
+
+  EntryStatus(int id) {
+    this.id = id;
   }
 
-  @Override
-  protected boolean vectorized() {
-    return true;
+  public int id() {
+    return id;
   }
 }

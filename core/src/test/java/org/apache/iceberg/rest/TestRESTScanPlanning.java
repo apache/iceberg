@@ -31,6 +31,7 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -50,6 +51,7 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -68,6 +70,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -847,6 +850,101 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     // Verify table is RESTTable and newScan() returns RESTTableScan
     restTableScanFor(table);
+  }
+
+  // ==================== useSnapshotSchema and Projection Tests ====================
+
+  private PlanTableScanRequest captureLastPlanRequest() {
+    ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
+    Mockito.verify(adapterForRESTServer, atLeastOnce())
+        .execute(captor.capture(), any(), any(), any());
+    return captor.getAllValues().stream()
+        .filter(req -> req.body() instanceof PlanTableScanRequest)
+        .map(req -> (PlanTableScanRequest) req.body())
+        .reduce((first, second) -> second)
+        .orElseThrow(() -> new AssertionError("No PlanTableScanRequest captured"));
+  }
+
+  @Test
+  void useSnapshotSchemaSetCorrectlyForSnapshotAndBranchAndTag() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+    Table table = restTableFor(restCatalog, "use_snapshot_schema_test");
+    setParserContext(table);
+
+    table.newAppend().appendFile(FILE_B).commit();
+    table.refresh();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    // Create a tag and a branch pointing to the current snapshot
+    table.manageSnapshots().createTag("test-tag", snapshotId).commit();
+    table.manageSnapshots().createBranch("test-branch", snapshotId).commit();
+
+    // Test 1: Scanning current snapshot without time travel should NOT set useSnapshotSchema
+    try (CloseableIterable<FileScanTask> ignored = table.newScan().planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("Default scan should not use snapshot schema")
+          .isFalse();
+    }
+
+    // Test 2: useSnapshot() should set useSnapshotSchema=true
+    try (CloseableIterable<FileScanTask> ignored =
+        table.newScan().useSnapshot(snapshotId).planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("useSnapshot() should set useSnapshotSchema=true")
+          .isTrue();
+    }
+
+    // Test 3: useRef() with a tag should set useSnapshotSchema=true
+    try (CloseableIterable<FileScanTask> ignored = table.newScan().useRef("test-tag").planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("useRef() with a tag should set useSnapshotSchema=true")
+          .isTrue();
+    }
+
+    // Test 4: useRef() with a branch should NOT set useSnapshotSchema
+    try (CloseableIterable<FileScanTask> ignored =
+        table.newScan().useRef("test-branch").planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.useSnapshotSchema())
+          .as("useRef() with a branch should not use snapshot schema")
+          .isFalse();
+    }
+  }
+
+  @Test
+  void selectWithNestedFieldsSendsFullyQualifiedNames() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "address",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "city", Types.StringType.get()),
+                    Types.NestedField.required(4, "zip", Types.StringType.get()))));
+
+    restCatalog.createNamespace(NS);
+    Table table =
+        restCatalog
+            .buildTable(TableIdentifier.of(NS, "nested_projection_test"), nestedSchema)
+            .create();
+
+    setParserContext(table);
+
+    // Select a nested field — the server needs the fully qualified name "address.city"
+    try (CloseableIterable<FileScanTask> ignored =
+        table.newScan().select("address.city").planFiles()) {
+      PlanTableScanRequest request = captureLastPlanRequest();
+      assertThat(request.select())
+          .as("Nested field projection should send fully qualified column names")
+          .contains("address.city")
+          .doesNotContain("address.zip");
+    }
   }
 
   // ==================== Endpoint Support Tests ====================

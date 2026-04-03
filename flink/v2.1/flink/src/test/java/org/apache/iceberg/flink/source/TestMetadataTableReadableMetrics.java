@@ -38,6 +38,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -222,7 +223,8 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
     // size of the column to increase. For example, with Parquet 1.14.x the
     // uncompressed size has been added to allow for better allocation of memory upfront.
     // Therefore, we look the sizes up, rather than hardcoding them
-    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile dataFile =
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
     Map<Integer, Long> columnSizeStats = dataFile.columnSizes();
 
     Row binaryCol =

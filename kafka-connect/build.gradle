@@ -75,13 +75,13 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.jspecify', module: 'jspecify'
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
-        force 'org.codehaus.jettison:jettison:1.5.4'
+        force 'org.codehaus.jettison:jettison:1.5.5'
         force 'org.xerial.snappy:snappy-java:1.1.10.8'
         force 'org.apache.commons:commons-compress:1.28.0'
         force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.5.0'
         force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
         force 'commons-beanutils:commons-beanutils:1.11.0'
-        force 'io.grpc:grpc-netty-shaded:1.79.0'
+        force 'io.grpc:grpc-netty-shaded:1.80.0'
       }
     }
   }
@@ -254,6 +254,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   check.dependsOn integrationTest
 
   assemble.dependsOn distZip, hiveDistZip
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {

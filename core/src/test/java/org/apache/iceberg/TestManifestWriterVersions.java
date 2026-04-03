@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -311,6 +313,35 @@ public class TestManifestWriterVersions {
 
     // should not inherit the v3 sequence number because it was written into the v3 manifest
     checkRewrittenEntry(readManifest(manifest3), 0L, FileContent.DATA, FIRST_ROW_ID);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testDefaultManifestCompression(int formatVersion) throws IOException {
+    File manifestFile = temp.resolve("default-v" + formatVersion + ".avro").toFile();
+    OutputFile outputFile = Files.localOutput(manifestFile);
+
+    try (ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID)) {
+      writer.add(DATA_FILE);
+    }
+
+    assertThat(readAvroCodec(manifestFile)).isEqualTo("deflate");
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testCustomManifestCompression(int formatVersion) throws IOException {
+    Map<String, String> props = ImmutableMap.of(TableProperties.AVRO_COMPRESSION, "snappy");
+    File manifestFile = temp.resolve("snappy-v" + formatVersion + ".avro").toFile();
+    OutputFile outputFile = Files.localOutput(manifestFile);
+
+    try (ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID, props)) {
+      writer.add(DATA_FILE);
+    }
+
+    assertThat(readAvroCodec(manifestFile)).isEqualTo("snappy");
   }
 
   void checkEntry(

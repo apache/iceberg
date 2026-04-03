@@ -20,6 +20,8 @@ package org.apache.iceberg.stats;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -88,39 +90,61 @@ public enum FieldStatistic {
     };
   }
 
-  public static Types.StructType fieldStatsFor(Type type, int baseFieldId) {
-    return Types.StructType.of(
+  public static Types.StructType fieldStatsFor(Types.NestedField field, int baseFieldId) {
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(8);
+    Type type = field.type();
+
+    fields.add(
         optional(
             baseFieldId + VALUE_COUNT.offset(),
             VALUE_COUNT.fieldName(),
             Types.LongType.get(),
-            "Total value count, including null and NaN"),
-        optional(
-            baseFieldId + NULL_VALUE_COUNT.offset(),
-            NULL_VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total null value count"),
-        optional(
-            baseFieldId + NAN_VALUE_COUNT.offset(),
-            NAN_VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total NaN value count"),
-        optional(
-            baseFieldId + AVG_VALUE_SIZE.offset(),
-            AVG_VALUE_SIZE.fieldName(),
-            Types.IntegerType.get(),
-            "Avg value size of variable-length types (String, Binary)"),
-        optional(
-            baseFieldId + MAX_VALUE_SIZE.offset(),
-            MAX_VALUE_SIZE.fieldName(),
-            Types.IntegerType.get(),
-            "Max value size of variable-length types (String, Binary)"),
-        optional(baseFieldId + LOWER_BOUND.offset(), LOWER_BOUND.fieldName(), type, "Lower bound"),
-        optional(baseFieldId + UPPER_BOUND.offset(), UPPER_BOUND.fieldName(), type, "Upper bound"),
+            "Total value count, including null and NaN"));
+
+    if (field.isOptional()) {
+      fields.add(
+          optional(
+              baseFieldId + NULL_VALUE_COUNT.offset(),
+              NULL_VALUE_COUNT.fieldName(),
+              Types.LongType.get(),
+              "Total null value count"));
+    }
+
+    if (type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE) {
+      fields.add(
+          optional(
+              baseFieldId + NAN_VALUE_COUNT.offset(),
+              NAN_VALUE_COUNT.fieldName(),
+              Types.LongType.get(),
+              "Total NaN value count"));
+    }
+
+    if (type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY) {
+      fields.add(
+          optional(
+              baseFieldId + AVG_VALUE_SIZE.offset(),
+              AVG_VALUE_SIZE.fieldName(),
+              Types.IntegerType.get(),
+              "Avg value size of variable-length types (String, Binary)"));
+      fields.add(
+          optional(
+              baseFieldId + MAX_VALUE_SIZE.offset(),
+              MAX_VALUE_SIZE.fieldName(),
+              Types.IntegerType.get(),
+              "Max value size of variable-length types (String, Binary)"));
+    }
+
+    fields.add(
+        optional(baseFieldId + LOWER_BOUND.offset(), LOWER_BOUND.fieldName(), type, "Lower bound"));
+    fields.add(
+        optional(baseFieldId + UPPER_BOUND.offset(), UPPER_BOUND.fieldName(), type, "Upper bound"));
+    fields.add(
         optional(
             baseFieldId + EXACT_BOUNDS.offset(),
             EXACT_BOUNDS.fieldName(),
             Types.BooleanType.get(),
             "Whether the upper/lower bound is exact or not"));
+
+    return Types.StructType.of(fields);
   }
 }

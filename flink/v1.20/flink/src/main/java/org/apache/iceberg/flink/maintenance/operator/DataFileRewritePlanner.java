@@ -29,6 +29,7 @@ import org.apache.flink.util.Collector;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -62,6 +63,7 @@ public class DataFileRewritePlanner
   private final Map<String, String> rewriterOptions;
   private transient Counter errorCounter;
   private final Expression filter;
+  private final String branch;
 
   public DataFileRewritePlanner(
       String tableName,
@@ -71,12 +73,14 @@ public class DataFileRewritePlanner
       int newPartialProgressMaxCommits,
       long maxRewriteBytes,
       Map<String, String> rewriterOptions,
-      Expression filter) {
+      Expression filter,
+      String branch) {
 
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
     Preconditions.checkNotNull(rewriterOptions, "Options map should no be null");
+    Preconditions.checkNotNull(branch, "Branch should no be null");
 
     this.tableName = tableName;
     this.taskName = taskName;
@@ -86,6 +90,7 @@ public class DataFileRewritePlanner
     this.maxRewriteBytes = maxRewriteBytes;
     this.rewriterOptions = rewriterOptions;
     this.filter = filter;
+    this.branch = branch;
   }
 
   @Override
@@ -108,7 +113,8 @@ public class DataFileRewritePlanner
     try {
       SerializableTable table =
           (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable());
-      if (table.currentSnapshot() == null) {
+      Snapshot snapshot = table.snapshot(branch);
+      if (snapshot == null) {
         LOG.info(
             DataFileRewritePlanner.MESSAGE_PREFIX + "Nothing to plan for in an empty table",
             tableName,
@@ -118,7 +124,8 @@ public class DataFileRewritePlanner
         return;
       }
 
-      BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table, filter);
+      BinPackRewriteFilePlanner planner =
+          new BinPackRewriteFilePlanner(table, filter, snapshot.snapshotId(), false);
       planner.init(rewriterOptions);
 
       FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
@@ -164,7 +171,7 @@ public class DataFileRewritePlanner
             taskIndex,
             ctx.timestamp(),
             group);
-        out.collect(new PlannedGroup(table, groupsPerCommit, group));
+        out.collect(new PlannedGroup(table, groupsPerCommit, group, branch));
       }
     } catch (Exception e) {
       LOG.warn(
@@ -189,11 +196,14 @@ public class DataFileRewritePlanner
     private final SerializableTable table;
     private final int groupsPerCommit;
     private final RewriteFileGroup group;
+    private final String branch;
 
-    private PlannedGroup(SerializableTable table, int groupsPerCommit, RewriteFileGroup group) {
+    private PlannedGroup(
+        SerializableTable table, int groupsPerCommit, RewriteFileGroup group, String branch) {
       this.table = table;
       this.groupsPerCommit = groupsPerCommit;
       this.group = group;
+      this.branch = branch;
     }
 
     SerializableTable table() {
@@ -206,6 +216,10 @@ public class DataFileRewritePlanner
 
     RewriteFileGroup group() {
       return group;
+    }
+
+    String branch() {
+      return branch;
     }
   }
 }

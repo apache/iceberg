@@ -16,18 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.gcp.gcs;
 
-import org.junit.jupiter.api.BeforeAll;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.StorageException;
+import java.io.IOException;
+import org.apache.iceberg.exceptions.NotFoundException;
 
-public class TestParquetCometVectorizedScan extends TestParquetScan {
-  @BeforeAll
-  public static void setComet() {
-    ScanTestBase.spark.conf().set("spark.sql.iceberg.parquet.reader-type", "COMET");
-  }
+final class GCSExceptionUtil {
+  private GCSExceptionUtil() {}
 
-  @Override
-  protected boolean vectorized() {
-    return true;
+  static void throwNotFoundIfNotPresent(IOException ioException, BlobId blobId) {
+    if (ioException.getCause() instanceof StorageException storageException
+        && storageException.getCode() == 404) {
+      throw new NotFoundException(ioException, "Location does not exist: %s", blobId.toGsUtilUri());
+    }
   }
 }

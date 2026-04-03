@@ -242,14 +242,7 @@ public class TestPartitionPruning {
 
   @TestTemplate
   public void testPartitionPruningHourlyPartition() {
-    String filterCond;
-    if (spark.version().startsWith("2")) {
-      // Looks like from Spark 2 we need to compare timestamp with timestamp to push down the
-      // filter.
-      filterCond = "timestamp >= to_timestamp('2020-02-03T01:00:00')";
-    } else {
-      filterCond = "timestamp >= '2020-02-03T01:00:00'";
-    }
+    String filterCond = "timestamp >= '2020-02-03T01:00:00'";
     Predicate<Row> partCondition =
         (Row r) -> {
           int hourValue = r.getInt(4);

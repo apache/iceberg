@@ -47,7 +47,7 @@ class SparkStagedScan extends SparkScan {
       Schema projection,
       String taskSetId,
       SparkReadConf readConf) {
-    super(spark, table, schema, readConf, projection, ImmutableList.of(), null);
+    super(spark, table, table::io, schema, readConf, projection, ImmutableList.of(), null);
     this.taskSetId = taskSetId;
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();

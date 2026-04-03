@@ -27,6 +27,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
@@ -77,10 +78,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
+  private final Supplier<FileIO> fileIO;
   private final String branch;
   private final boolean caseSensitive;
   private final String expectedSchema;
   private final Broadcast<Table> tableBroadcast;
+  private final Broadcast<FileIO> fileIOBroadcast;
   private final long splitSize;
   private final int splitLookback;
   private final long splitOpenFileCost;
@@ -97,15 +100,18 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
       Table table,
+      Supplier<FileIO> fileIO,
       SparkReadConf readConf,
       Schema expectedSchema,
       String checkpointLocation) {
     this.table = table;
+    this.fileIO = fileIO;
     this.branch = readConf.branch();
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
     this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    this.fileIOBroadcast = sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
@@ -172,6 +178,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               EMPTY_GROUPING_KEY_TYPE,
               combinedScanTasks.get(index),
               tableBroadcast,
+              fileIOBroadcast,
               branch,
               expectedSchema,
               caseSensitive,
@@ -183,7 +190,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private String[][] computePreferredLocations(List<CombinedScanTask> taskGroups) {
-    return localityPreferred ? SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups) : null;
+    return localityPreferred
+        ? SparkPlanningUtil.fetchBlockLocations(fileIO.get(), taskGroups)
+        : null;
   }
 
   @Override

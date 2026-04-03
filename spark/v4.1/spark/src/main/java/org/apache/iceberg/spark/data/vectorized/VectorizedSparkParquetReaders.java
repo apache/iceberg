@@ -30,8 +30,6 @@ import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.parquet.schema.MessageType;
-import org.apache.spark.sql.vectorized.ColumnVector;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,26 +73,6 @@ public class VectorizedSparkParquetReaders {
   public static ColumnarBatchReader buildReader(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     return buildReader(expectedSchema, fileSchema, idToConstant, ArrowAllocation.rootAllocator());
-  }
-
-  public static VectorizedReader<ColumnarBatch> buildCometReader(
-      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return (CometColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new CometVectorizedReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                idToConstant,
-                readers -> new CometColumnarBatchReader(readers, expectedSchema)));
-  }
-
-  /** A subclass of ColumnarBatch to identify Comet readers. */
-  public static class CometColumnarBatch extends ColumnarBatch {
-    public CometColumnarBatch(ColumnVector[] columns) {
-      super(columns);
-    }
   }
 
   // enables unsafe memory access to avoid costly checks to see if index is within bounds

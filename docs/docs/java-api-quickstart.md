@@ -31,8 +31,8 @@ You can initialize a Hive catalog with a name and some properties.
 (see: [Catalog properties](configuration.md#catalog-properties))
 
 ```java
-import java.util.HashMap
-import java.util.Map
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.iceberg.hive.HiveCatalog;
 
