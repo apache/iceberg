@@ -929,17 +929,6 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testConvertVariantValueFromList() {
-    Variant variant = variantConverter().convertVariantValue(ImmutableList.of("hello", 1));
-    assertThat(variant).isNotNull();
-    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
-    assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(variant.value().asArray().numElements()).isEqualTo(2);
-    assertThat(variant.value().asArray().get(0).asPrimitive().get()).isEqualTo("hello");
-    assertThat(variant.value().asArray().get(1).asPrimitive().get()).isEqualTo(1);
-  }
-
-  @Test
   public void testConvertVariantValueFromListWithMixedTypes() {
     // array with heterogeneous element types (string, int, boolean, double, null)
     // Note: java.util.Date is not supported in variant conversion; use supported types only.
