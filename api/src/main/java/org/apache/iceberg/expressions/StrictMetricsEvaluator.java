@@ -483,8 +483,7 @@ public class StrictMetricsEvaluator {
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         CharSequence lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-        // if the lower bound, truncated to the prefix length, is strictly greater than the prefix,
-        // then all values are above the prefix range and none can start with it
+        // truncate lower bound so that its length is not greater than the length of prefix
         int length = Math.min(prefix.length(), lower.length());
         if (comparator.compare(lower.subSequence(0, length), prefix) > 0) {
           return ROWS_MUST_MATCH;
@@ -493,8 +492,7 @@ public class StrictMetricsEvaluator {
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         CharSequence upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-        // if the upper bound, truncated to the prefix length, is strictly less than the prefix,
-        // then all values are below the prefix range and none can start with it
+        // truncate upper bound so that its length is not greater than the length of prefix
         int length = Math.min(prefix.length(), upper.length());
         if (comparator.compare(upper.subSequence(0, length), prefix) < 0) {
           return ROWS_MUST_MATCH;

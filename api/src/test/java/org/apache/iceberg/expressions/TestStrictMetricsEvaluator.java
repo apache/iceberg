@@ -722,7 +722,6 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testNotStartsWithAllNulls() {
-    // all_nulls column (col 4) has all null values; no value can start with any prefix
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("all_nulls", "a")).eval(FILE);
     assertThat(shouldRead).as("Should match: all null values satisfy notStartsWith").isTrue();
@@ -730,8 +729,6 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testNotStartsWithBoundsAbovePrefix() {
-    // STRING_FILE: required column 3 has bounds ["abc", "abd"]
-    // prefix "aaa" is below the lower bound truncated to 3 chars ("abc" > "aaa")
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aaa")).eval(STRING_FILE);
     assertThat(shouldRead).as("Should match: all values are above the prefix range").isTrue();
@@ -739,8 +736,6 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testNotStartsWithBoundsBelowPrefix() {
-    // STRING_FILE: required column 3 has bounds ["abc", "abd"]
-    // prefix "zzz" is above the upper bound truncated to 3 chars ("abd" < "zzz")
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "zzz")).eval(STRING_FILE);
     assertThat(shouldRead).as("Should match: all values are below the prefix range").isTrue();
@@ -748,13 +743,10 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testNotStartsWithBoundsOverlapPrefix() {
-    // STRING_FILE: required column 3 has bounds ["abc", "abd"]
-    // prefix "ab" overlaps the bounds — some values could start with "ab"
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "ab")).eval(STRING_FILE);
     assertThat(shouldRead).as("Should not match: bounds overlap the prefix range").isFalse();
 
-    // prefix "abc" overlaps the lower bound of ["abc", "abd"]
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "abc")).eval(STRING_FILE);
     assertThat(shouldRead).as("Should not match: lower bound starts with the prefix").isFalse();
@@ -762,18 +754,14 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testNotStartsWithWiderRange() {
-    // STRING_FILE_2: required column 3 has bounds ["aa", "dC"]
-    // prefix "e" is above the upper bound truncated to 1 char ("d" < "e")
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "e")).eval(STRING_FILE_2);
     assertThat(shouldRead).as("Should match: all values are below the prefix").isTrue();
 
-    // prefix "a" overlaps the bounds — some values start with "a"
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "a")).eval(STRING_FILE_2);
     assertThat(shouldRead).as("Should not match: lower bound starts with the prefix").isFalse();
 
-    // prefix "c" is within the range ["aa", "dC"]
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "c")).eval(STRING_FILE_2);
     assertThat(shouldRead).as("Should not match: prefix is within the bounds range").isFalse();
@@ -781,7 +769,6 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testNotStartsWithNoStats() {
-    // FILE has no string bounds for column 3 ("required")
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "a")).eval(FILE);
     assertThat(shouldRead).as("Should not match: no bounds available for column").isFalse();
@@ -789,15 +776,27 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testNotStartsWithSomeNullsBoundsOutsidePrefix() {
-    // FILE_2: column 5 (some_nulls) has 10 nulls, bounds ["bbb", "eee"]
-    // prefix "zzz" is above the upper bound
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "zzz")).eval(FILE_2);
     assertThat(shouldRead).as("Should match: all values are below the prefix").isTrue();
 
-    // prefix "aaa" is below the lower bound
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "aaa")).eval(FILE_2);
     assertThat(shouldRead).as("Should match: all values are above the prefix").isTrue();
+  }
+
+  @Test
+  public void testNotStartsWithPrefixLongerThanBounds() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aaaaaaa")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: all values are above the long prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "zzzzzzz")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: all values are below the long prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "abcdef")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: prefix overlaps with bound range").isFalse();
   }
 }
