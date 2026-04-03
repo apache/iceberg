@@ -38,26 +38,32 @@ class TestTrackedFileStruct {
   @Test
   void trackedFileStructFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct.TrackingStruct tracking =
+        new TrackedFileStruct.TrackingStruct(Types.StructType.of());
+    TrackedFileStruct.DeletionVectorStruct dv =
+        new TrackedFileStruct.DeletionVectorStruct(Types.StructType.of());
+    TrackedFileStruct.ManifestInfoStruct info =
+        new TrackedFileStruct.ManifestInfoStruct(Types.StructType.of());
 
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
-    file.set(6, 0);
+    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(1, 42L);
 
-    assertThat(file.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(file.location()).isEqualTo("s3://bucket/data/file.parquet");
-    assertThat(file.fileFormat()).isEqualTo(FileFormat.PARQUET);
-    assertThat(file.recordCount()).isEqualTo(100L);
-    assertThat(file.fileSizeInBytes()).isEqualTo(1024L);
-    assertThat(file.specId()).isEqualTo(0);
-  }
+    dv.set(0, "s3://bucket/dv.puffin");
+    dv.set(1, 100L);
+    dv.set(2, 50L);
+    dv.set(3, 5L);
 
-  @Test
-  void trackedFileStructOptionalFields() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    info.set(0, 10);
+    info.set(1, 20);
+    info.set(2, 3);
+    info.set(3, 2);
+    info.set(4, 1000L);
+    info.set(5, 2000L);
+    info.set(6, 300L);
+    info.set(7, 200L);
+    info.set(8, 5L);
 
+    file.set(0, tracking);
     file.set(1, FileContent.EQUALITY_DELETES.id());
     file.set(2, "s3://bucket/data/eq-delete.avro");
     file.set(3, "avro");
@@ -65,13 +71,28 @@ class TestTrackedFileStruct {
     file.set(5, 512L);
     file.set(6, 1);
     file.set(8, 5);
+    file.set(9, dv);
+    file.set(10, info);
     file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(12, ImmutableList.of(100L, 200L));
     file.set(13, ImmutableList.of(1, 2, 3));
 
+    assertThat(file.tracking()).isNotNull();
+    assertThat(file.tracking().status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(file.tracking().snapshotId()).isEqualTo(42L);
     assertThat(file.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(file.location()).isEqualTo("s3://bucket/data/eq-delete.avro");
+    assertThat(file.fileFormat()).isEqualTo(FileFormat.AVRO);
+    assertThat(file.recordCount()).isEqualTo(50L);
+    assertThat(file.fileSizeInBytes()).isEqualTo(512L);
+    assertThat(file.specId()).isEqualTo(1);
     assertThat(file.sortOrderId()).isEqualTo(5);
-    assertThat(file.keyMetadata()).isNotNull();
+    assertThat(file.deletionVector()).isNotNull();
+    assertThat(file.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
+    assertThat(file.deletionVector().cardinality()).isEqualTo(5L);
+    assertThat(file.manifestInfo()).isNotNull();
+    assertThat(file.manifestInfo().addedFilesCount()).isEqualTo(10);
+    assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
   }
@@ -81,9 +102,6 @@ class TestTrackedFileStruct {
     TrackedFileStruct.TrackingStruct tracking =
         new TrackedFileStruct.TrackingStruct(Types.StructType.of());
 
-    // Tracking.schema() ordinals: 0=status, 1=snapshotId, 2=sequenceNumber,
-    // 3=fileSequenceNumber, 4=dvSnapshotId, 5=firstRowId, 6=deletedPositions,
-    // 7=replacedPositions
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
     tracking.set(2, 10L);
