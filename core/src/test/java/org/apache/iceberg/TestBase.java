@@ -464,10 +464,6 @@ public class TestBase {
     validateSnapshot(old, snap, (Long) sequenceNumber, newFiles);
   }
 
-  void validateSnapshot(Table validationTable, Snapshot old, Snapshot snap, DataFile... newFiles) {
-    validateSnapshot(validationTable, old, snap, null, newFiles);
-  }
-
   @SuppressWarnings("checkstyle:HiddenField")
   Snapshot commit(Table table, SnapshotUpdate<?> snapshotUpdate, String branch) {
     Snapshot snapshot;
