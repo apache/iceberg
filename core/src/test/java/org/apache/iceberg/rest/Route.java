@@ -41,6 +41,7 @@ import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -137,7 +138,12 @@ enum Route {
       FetchScanTasksRequest.class,
       FetchScanTasksResponse.class),
   CANCEL_PLAN_TABLE_SCAN(
-      HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null);
+      HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null),
+  LOAD_CREDENTIALS(
+      HTTPRequest.HTTPMethod.GET,
+      ResourcePaths.V1_TABLE_CREDENTIALS,
+      null,
+      LoadCredentialsResponse.class);
 
   private final HTTPRequest.HTTPMethod method;
   private final int requiredLength;

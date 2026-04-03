@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.credentials;
 
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
@@ -27,6 +28,12 @@ public interface Credential {
   String prefix();
 
   Map<String, String> config();
+
+  @Value.Default
+  @Nullable
+  default String storageRefreshToken() {
+    return null;
+  }
 
   @Value.Check
   default void validate() {

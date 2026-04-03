@@ -1191,7 +1191,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           && fileIO instanceof SupportsStorageCredentials ioWithCredentials) {
         ioWithCredentials.setCredentials(
             storageCredentials.stream()
-                .map(c -> StorageCredential.create(c.prefix(), c.config()))
+                .map(c -> StorageCredential.create(c.prefix(), c.config(), c.storageRefreshToken()))
                 .collect(Collectors.toList()));
       }
       return fileIO;
@@ -1202,7 +1202,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           properties,
           conf,
           storageCredentials.stream()
-              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .map(c -> StorageCredential.create(c.prefix(), c.config(), c.storageRefreshToken()))
               .collect(Collectors.toList()));
     }
   }

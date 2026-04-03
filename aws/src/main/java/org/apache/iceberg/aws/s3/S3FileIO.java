@@ -59,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -415,11 +416,16 @@ public class S3FileIO
               .collect(Collectors.toList())
               .forEach(
                   storageCredential -> {
-                    Map<String, String> propertiesWithCredentials =
+                    ImmutableMap.Builder<String, String> propsBuilder =
                         ImmutableMap.<String, String>builder()
                             .putAll(properties)
-                            .putAll(storageCredential.config())
-                            .buildKeepingLast();
+                            .putAll(storageCredential.config());
+                    if (storageCredential.storageRefreshToken() != null) {
+                      propsBuilder.put(
+                          RESTCatalogProperties.REST_STORAGE_REFRESH_TOKEN,
+                          storageCredential.storageRefreshToken());
+                    }
+                    Map<String, String> propertiesWithCredentials = propsBuilder.buildKeepingLast();
 
                     localClientByPrefix.put(
                         storageCredential.prefix(),
@@ -465,7 +471,7 @@ public class S3FileIO
       List<StorageCredential> refreshed =
           provider.fetchCredentials().credentials().stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
-              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .map(c -> StorageCredential.create(c.prefix(), c.config(), c.storageRefreshToken()))
               .collect(Collectors.toList());
 
       if (!refreshed.isEmpty() && !isResourceClosed.get()) {
