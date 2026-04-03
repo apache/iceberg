@@ -569,9 +569,7 @@ class RecordConverter {
       Struct struct = (Struct) value;
       ShreddedObject object = Variants.object(metadata);
       for (Field field : struct.schema().fields()) {
-        object.put(
-            field.name(),
-            objectToVariantValue(struct.get(field), metadata, field.schema()));
+        object.put(field.name(), objectToVariantValue(struct.get(field), metadata, field.schema()));
       }
       return object;
     }
@@ -580,8 +578,8 @@ class RecordConverter {
 
   /**
    * Converts a primitive or primitive-like value to VariantValue; returns null if not supported.
-   * The optional schema is used to disambiguate java.util.Date which Kafka Connect uses for
-   * Date, Time, and Timestamp logical types.
+   * The optional schema is used to disambiguate java.util.Date which Kafka Connect uses for Date,
+   * Time, and Timestamp logical types.
    */
   private static VariantValue primitiveToVariantValue(
       Object value, org.apache.kafka.connect.data.Schema schema) {

@@ -1094,8 +1094,7 @@ public class TestRecordConverter {
             .build();
     // 2025-12-09T14:30:45.123Z
     long epochMillis = 1733751045123L;
-    Struct struct =
-        new Struct(structSchema).put("id", 42).put("created_at", new Date(epochMillis));
+    Struct struct = new Struct(structSchema).put("id", 42).put("created_at", new Date(epochMillis));
 
     Variant variant = variantConverter().convertVariantValue(struct);
 
@@ -1139,8 +1138,7 @@ public class TestRecordConverter {
             .build();
     // 2025-12-09 = 20431 days since epoch
     long epochMillis = 20431L * 86_400_000;
-    Struct struct =
-        new Struct(structSchema).put("id", 1).put("birth_date", new Date(epochMillis));
+    Struct struct = new Struct(structSchema).put("id", 1).put("birth_date", new Date(epochMillis));
 
     Variant variant = variantConverter().convertVariantValue(struct);
 
@@ -1173,8 +1171,7 @@ public class TestRecordConverter {
 
     assertThat(variant).isNotNull();
     assertThat(variant.value().asObject().get("ts").type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
-    assertThat(variant.value().asObject().get("ts").asPrimitive().get())
-        .isEqualTo(tsMillis * 1000);
+    assertThat(variant.value().asObject().get("ts").asPrimitive().get()).isEqualTo(tsMillis * 1000);
 
     assertThat(variant.value().asObject().get("t").type()).isEqualTo(PhysicalType.TIME);
     assertThat(variant.value().asObject().get("t").asPrimitive().get())
