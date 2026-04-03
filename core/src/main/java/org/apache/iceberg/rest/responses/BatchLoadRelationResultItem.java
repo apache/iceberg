@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -48,9 +49,13 @@ public class BatchLoadRelationResultItem {
   public void validate() {
     Preconditions.checkNotNull(identifier, "Invalid identifier: null");
     Preconditions.checkArgument(
-        status == 200 || status == 304 || status == 404, "Invalid status: %s", status);
-    if (status == 200) {
-      Preconditions.checkArgument(result != null, "Invalid result: null when status is 200");
+        status == HttpStatus.SC_OK
+            || status == HttpStatus.SC_NOT_MODIFIED
+            || status == HttpStatus.SC_NOT_FOUND,
+        "Invalid status: %s",
+        status);
+    if (status == HttpStatus.SC_OK) {
+      Preconditions.checkArgument(result != null, "Invalid result: null when status is %s", status);
     }
   }
 

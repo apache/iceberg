@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -55,7 +56,7 @@ class TestBatchLoadRelationsResponseParser {
             .addResult(
                 BatchLoadRelationResultItem.builder()
                     .withIdentifier(ident)
-                    .withStatus(200)
+                    .withStatus(HttpStatus.SC_OK)
                     .withResult(result)
                     .withEtag("metadata-location")
                     .build())
@@ -67,7 +68,7 @@ class TestBatchLoadRelationsResponseParser {
     assertThat(deserialized.results()).hasSize(1);
     BatchLoadRelationResultItem item = deserialized.results().get(0);
     assertThat(item.identifier().name()).isEqualTo("table1");
-    assertThat(item.status()).isEqualTo(200);
+    assertThat(item.status()).isEqualTo(HttpStatus.SC_OK);
     assertThat(item.result()).isNotNull();
     assertThat(item.result().objectType()).isEqualTo(CatalogObjectType.TABLE);
     assertThat(item.etag()).isEqualTo("metadata-location");
@@ -90,7 +91,7 @@ class TestBatchLoadRelationsResponseParser {
             .addResult(
                 BatchLoadRelationResultItem.builder()
                     .withIdentifier(ident)
-                    .withStatus(200)
+                    .withStatus(HttpStatus.SC_OK)
                     .withResult(result)
                     .build())
             .build();
@@ -100,7 +101,7 @@ class TestBatchLoadRelationsResponseParser {
 
     assertThat(deserialized.results()).hasSize(1);
     BatchLoadRelationResultItem item = deserialized.results().get(0);
-    assertThat(item.status()).isEqualTo(200);
+    assertThat(item.status()).isEqualTo(HttpStatus.SC_OK);
     assertThat(item.result().objectType()).isEqualTo(CatalogObjectType.VIEW);
     assertThat(item.etag()).isNull();
   }
@@ -111,14 +112,17 @@ class TestBatchLoadRelationsResponseParser {
     BatchLoadRelationsResponse response =
         BatchLoadRelationsResponse.builder()
             .addResult(
-                BatchLoadRelationResultItem.builder().withIdentifier(ident).withStatus(404).build())
+                BatchLoadRelationResultItem.builder()
+                    .withIdentifier(ident)
+                    .withStatus(HttpStatus.SC_NOT_FOUND)
+                    .build())
             .build();
 
     String json = BatchLoadRelationsResponseParser.toJson(response);
     BatchLoadRelationsResponse deserialized = BatchLoadRelationsResponseParser.fromJson(json);
 
     assertThat(deserialized.results()).hasSize(1);
-    assertThat(deserialized.results().get(0).status()).isEqualTo(404);
+    assertThat(deserialized.results().get(0).status()).isEqualTo(HttpStatus.SC_NOT_FOUND);
     assertThat(deserialized.results().get(0).result()).isNull();
   }
 
@@ -130,7 +134,7 @@ class TestBatchLoadRelationsResponseParser {
             .addResult(
                 BatchLoadRelationResultItem.builder()
                     .withIdentifier(ident)
-                    .withStatus(304)
+                    .withStatus(HttpStatus.SC_NOT_MODIFIED)
                     .withEtag("some-etag")
                     .build())
             .build();
@@ -139,7 +143,7 @@ class TestBatchLoadRelationsResponseParser {
     BatchLoadRelationsResponse deserialized = BatchLoadRelationsResponseParser.fromJson(json);
 
     assertThat(deserialized.results()).hasSize(1);
-    assertThat(deserialized.results().get(0).status()).isEqualTo(304);
+    assertThat(deserialized.results().get(0).status()).isEqualTo(HttpStatus.SC_NOT_MODIFIED);
     assertThat(deserialized.results().get(0).result()).isNull();
     assertThat(deserialized.results().get(0).etag()).isEqualTo("some-etag");
   }
@@ -154,7 +158,7 @@ class TestBatchLoadRelationsResponseParser {
             .addResult(
                 BatchLoadRelationResultItem.builder()
                     .withIdentifier(ident1)
-                    .withStatus(404)
+                    .withStatus(HttpStatus.SC_NOT_FOUND)
                     .build())
             .addUnprocessedIdentifier(unprocessed)
             .build();
@@ -174,10 +178,10 @@ class TestBatchLoadRelationsResponseParser {
             () ->
                 BatchLoadRelationResultItem.builder()
                     .withIdentifier(TableIdentifier.of(Namespace.of("ns"), "t"))
-                    .withStatus(200)
+                    .withStatus(HttpStatus.SC_OK)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("null when status is 200");
+        .hasMessageContaining("Invalid result: null when status is " + HttpStatus.SC_OK);
   }
 
   @Test

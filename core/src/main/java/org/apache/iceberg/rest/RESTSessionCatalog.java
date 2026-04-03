@@ -31,6 +31,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -1558,7 +1559,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     for (BatchLoadRelationResultItem item : response.results()) {
       TableIdentifier ident = item.identifier();
       switch (item.status()) {
-        case 200:
+        case HttpStatus.SC_OK -> {
           LoadRelationResponse result = item.result();
           if (result.objectType() == CatalogObjectType.TABLE) {
             String eTag = item.etag();
@@ -1567,18 +1568,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           } else {
             relations.add(buildViewRelation(context, ident, result.viewResponse()));
           }
-          break;
-        case 304:
+        }
+        case HttpStatus.SC_NOT_MODIFIED -> {
           TableWithETag cached = tableCache.getIfPresent(context.sessionId(), ident);
           if (cached != null) {
             relations.add(Relation.forTable(ident, cached.supplier().get()));
           }
-          break;
-        case 404:
-          break;
-        default:
-          LOG.warn("Unexpected status {} for identifier {}", item.status(), ident);
-          break;
+        }
+        case HttpStatus.SC_NOT_FOUND -> {}
+        default ->
+            throw new IllegalArgumentException(
+                String.format("Unexpected status %s for identifier %s", item.status(), ident));
       }
     }
 

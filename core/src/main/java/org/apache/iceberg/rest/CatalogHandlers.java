@@ -46,6 +46,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
@@ -776,7 +777,7 @@ public class CatalogHandlers {
         BatchLoadRelationResultItem.Builder itemBuilder =
             BatchLoadRelationResultItem.builder()
                 .withIdentifier(ident)
-                .withStatus(200)
+                .withStatus(HttpStatus.SC_OK)
                 .withResult(result);
 
         if (result.objectType() == CatalogObjectType.TABLE
@@ -787,7 +788,10 @@ public class CatalogHandlers {
         responseBuilder.addResult(itemBuilder.build());
       } catch (NoSuchTableException | NoSuchViewException e) {
         responseBuilder.addResult(
-            BatchLoadRelationResultItem.builder().withIdentifier(ident).withStatus(404).build());
+            BatchLoadRelationResultItem.builder()
+                .withIdentifier(ident)
+                .withStatus(HttpStatus.SC_NOT_FOUND)
+                .build());
       }
     }
 

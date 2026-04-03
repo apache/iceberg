@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.Namespace;
@@ -111,21 +112,21 @@ class TestCatalogHandlersRelation {
 
     BatchLoadRelationResultItem tableItem = response.results().get(0);
     assertThat(tableItem.identifier()).isEqualTo(TABLE_IDENT);
-    assertThat(tableItem.status()).isEqualTo(200);
+    assertThat(tableItem.status()).isEqualTo(HttpStatus.SC_OK);
     assertThat(tableItem.result()).isNotNull();
     assertThat(tableItem.result().objectType()).isEqualTo(CatalogObjectType.TABLE);
     assertThat(tableItem.etag()).isNotNull();
 
     BatchLoadRelationResultItem viewItem = response.results().get(1);
     assertThat(viewItem.identifier()).isEqualTo(VIEW_IDENT);
-    assertThat(viewItem.status()).isEqualTo(200);
+    assertThat(viewItem.status()).isEqualTo(HttpStatus.SC_OK);
     assertThat(viewItem.result()).isNotNull();
     assertThat(viewItem.result().objectType()).isEqualTo(CatalogObjectType.VIEW);
     assertThat(viewItem.etag()).isNull();
 
     BatchLoadRelationResultItem missingItem = response.results().get(2);
     assertThat(missingItem.identifier()).isEqualTo(MISSING_IDENT);
-    assertThat(missingItem.status()).isEqualTo(404);
+    assertThat(missingItem.status()).isEqualTo(HttpStatus.SC_NOT_FOUND);
     assertThat(missingItem.result()).isNull();
   }
 
@@ -144,7 +145,7 @@ class TestCatalogHandlersRelation {
         CatalogHandlers.batchLoadRelations(catalog, catalog, request);
 
     assertThat(response.results()).hasSize(1);
-    assertThat(response.results().get(0).status()).isEqualTo(200);
+    assertThat(response.results().get(0).status()).isEqualTo(HttpStatus.SC_OK);
     assertThat(response.results().get(0).result().objectType()).isEqualTo(CatalogObjectType.TABLE);
   }
 }
