@@ -488,7 +488,7 @@ class RecordConverter {
     collectFieldNames(value, fieldNames);
     List<String> allFieldNames = fieldNames.stream().sorted().collect(Collectors.toList());
     VariantMetadata metadata = Variants.metadata(allFieldNames);
-    VariantValue variantValue = objectToVariantValue(value, metadata);
+    VariantValue variantValue = objectToVariantValue(value, metadata, null);
     return Variant.of(metadata, variantValue);
   }
 
@@ -530,28 +530,33 @@ class RecordConverter {
    * Recursively converts a Java object to a VariantValue using the given shared metadata for all
    * nested maps. Handles primitives, List (array), and Map (object); map keys become field names.
    */
-  private static VariantValue objectToVariantValue(Object value, VariantMetadata metadata) {
+  private static VariantValue objectToVariantValue(
+      Object value, VariantMetadata metadata, org.apache.kafka.connect.data.Schema schema) {
     if (value == null) {
       return Variants.ofNull();
     }
-    VariantValue primitive = primitiveToVariantValue(value);
+    VariantValue primitive = primitiveToVariantValue(value, schema);
     if (primitive != null) {
       return primitive;
     }
     if (value instanceof Collection) {
       ValueArray array = Variants.array();
+      org.apache.kafka.connect.data.Schema elementSchema =
+          schema != null ? schema.valueSchema() : null;
       for (Object element : (Collection<?>) value) {
-        array.add(objectToVariantValue(element, metadata));
+        array.add(objectToVariantValue(element, metadata, elementSchema));
       }
       return array;
     }
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
       ShreddedObject object = Variants.object(metadata);
+      org.apache.kafka.connect.data.Schema mapValueSchema =
+          schema != null ? schema.valueSchema() : null;
       map.forEach(
           (key, val) -> {
             if (key != null && key instanceof String) {
-              object.put((String) key, objectToVariantValue(val, metadata));
+              object.put((String) key, objectToVariantValue(val, metadata, mapValueSchema));
             }
           });
       return object;
@@ -560,7 +565,9 @@ class RecordConverter {
       Struct struct = (Struct) value;
       ShreddedObject object = Variants.object(metadata);
       for (Field field : struct.schema().fields()) {
-        object.put(field.name(), objectToVariantValue(struct.get(field), metadata));
+        object.put(
+            field.name(),
+            objectToVariantValue(struct.get(field), metadata, field.schema()));
       }
       return object;
     }
@@ -569,8 +576,11 @@ class RecordConverter {
 
   /**
    * Converts a primitive or primitive-like value to VariantValue; returns null if not supported.
+   * The optional schema is used to disambiguate java.util.Date which Kafka Connect uses for
+   * Date, Time, and Timestamp logical types.
    */
-  private static VariantValue primitiveToVariantValue(Object value) {
+  private static VariantValue primitiveToVariantValue(
+      Object value, org.apache.kafka.connect.data.Schema schema) {
     if (value instanceof Boolean) {
       return Variants.of((Boolean) value);
     }
@@ -594,8 +604,24 @@ class RecordConverter {
       return Variants.ofTime(DateTimeUtil.microsFromTime((LocalTime) value));
     }
     if (value instanceof Date) {
-      int days = (int) (((Date) value).getTime() / 1000 / 60 / 60 / 24);
-      return Variants.ofDate(days);
+      String logicalName = schema != null ? schema.name() : null;
+      if (org.apache.kafka.connect.data.Timestamp.LOGICAL_NAME.equals(logicalName)) {
+        long micros = ((Date) value).getTime() * 1000;
+        return Variants.ofTimestamptz(micros);
+      }
+      if (org.apache.kafka.connect.data.Time.LOGICAL_NAME.equals(logicalName)) {
+        long micros = ((Date) value).getTime() * 1000;
+        return Variants.ofTime(micros);
+      }
+      if (org.apache.kafka.connect.data.Date.LOGICAL_NAME.equals(logicalName)) {
+        int days = (int) (((Date) value).getTime() / 86_400_000);
+        return Variants.ofDate(days);
+      }
+      throw new IllegalArgumentException(
+          "Cannot convert java.util.Date to variant without a recognized logical type schema"
+              + " (expected Timestamp, Time, or Date but got: "
+              + logicalName
+              + ")");
     }
     if (value instanceof Number) {
       return numberToVariantValue((Number) value);
