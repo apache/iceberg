@@ -557,6 +557,10 @@ class RecordConverter {
           (key, val) -> {
             if (key != null && key instanceof String) {
               object.put((String) key, objectToVariantValue(val, metadata, mapValueSchema));
+            } else {
+              throw new IllegalArgumentException(
+                  "Cannot convert map to variant: keys must be non-null strings, was: "
+                      + (key == null ? "null" : key.getClass().getName()));
             }
           });
       return object;
