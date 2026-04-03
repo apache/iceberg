@@ -72,6 +72,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   private List<ScanTaskGroup<T>> taskGroups = null; // lazy cache of task groups
   private StructType groupingKeyType = null; // lazy cache of the grouping key type
   private Transform[] groupingKeyTransforms = null; // lazy cache of grouping key transforms
+  private Boolean orderingEnabled = null; // lazy cache of ordering decision
 
   SparkPartitioningAwareScan(
       SparkSession spark,
@@ -129,17 +130,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   @Override
   public SortOrder[] outputOrdering() {
-    if (!preserveDataOrdering) {
-      return new SortOrder[0];
-    }
-
-    if (groupingKeyType().fields().isEmpty()) {
-      LOG.info("Not reporting ordering for unpartitioned table {}", table().name());
-      return new SortOrder[0];
-    }
-
-    if (!SortOrderAnalyzer.canReportOrdering(table(), taskGroups(), groupingKeyType())) {
-      LOG.info("Not reporting ordering for table {}", table().name());
+    if (!isOrderingEnabled()) {
       return new SortOrder[0];
     }
 
@@ -149,6 +140,20 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         "Reporting sort order {} for table {}: {}", sortOrder.orderId(), table().name(), ordering);
 
     return ordering;
+  }
+
+  @Override
+  protected boolean isOrderingEnabled() {
+    if (orderingEnabled == null) {
+      orderingEnabled =
+          !groupingKeyType().fields().isEmpty()
+              && preserveDataOrdering
+              && SortOrderAnalyzer.canReportOrdering(table(), taskGroups(), groupingKeyType());
+      if (!orderingEnabled) {
+        LOG.info("Not reporting ordering for table {}", table().name());
+      }
+    }
+    return orderingEnabled;
   }
 
   @Override
