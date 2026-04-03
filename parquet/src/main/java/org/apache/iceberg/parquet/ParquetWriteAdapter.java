@@ -42,6 +42,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   private ParquetWriter<D> writer;
   private final MetricsConfig metricsConfig;
   private ParquetMetadata footer;
+  private long length = 0L;
 
   public ParquetWriteAdapter(ParquetWriter<D> writer, MetricsConfig metricsConfig) {
     this.writer = writer;
@@ -69,17 +70,26 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
 
   @Override
   public long length() {
-    return writer.getDataSize();
+    if (writer != null) {
+      return writer.getDataSize();
+    }
+
+    return length;
   }
 
   @Override
   public List<Long> splitOffsets() {
-    return ParquetUtil.getSplitOffsets(writer.getFooter());
+    if (footer != null) {
+      return ParquetUtil.getSplitOffsets(footer);
+    }
+
+    return null;
   }
 
   @Override
   public void close() throws IOException {
     if (writer != null) {
+      this.length = writer.getDataSize();
       writer.close();
       this.footer = writer.getFooter();
       this.writer = null;

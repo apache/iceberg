@@ -47,8 +47,6 @@ class ParquetWritingTestUtils {
       GenericData.Record... records)
       throws IOException {
 
-    long len;
-
     FileAppender<GenericData.Record> writer =
         Parquet.write(localOutput(file))
             .schema(schema)
@@ -58,16 +56,9 @@ class ParquetWritingTestUtils {
 
     try (Closeable toClose = writer) {
       writer.addAll(Lists.newArrayList(records));
-      len =
-          writer
-              .length(); // in deprecated adapter we need to get the length first and then close the
-      // writer
     }
 
-    if (writer instanceof ParquetWriter) {
-      len = writer.length();
-    }
-    return len;
+    return writer.length();
   }
 
   static File createTempFile(Path temp) throws IOException {
