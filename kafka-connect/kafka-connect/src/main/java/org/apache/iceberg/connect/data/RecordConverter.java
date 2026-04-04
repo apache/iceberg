@@ -607,17 +607,18 @@ class RecordConverter {
     }
     if (value instanceof Date) {
       String logicalName = schema != null ? schema.name() : null;
+      // Connect represents Timestamp, Time, and Date logical types as java.util.Date at runtime;
+      // normalize to Instant once, then interpret using the schema logical type name.
+      Instant connectInstant = ((Date) value).toInstant();
       if (org.apache.kafka.connect.data.Timestamp.LOGICAL_NAME.equals(logicalName)) {
-        long micros = ((Date) value).getTime() * 1000;
-        return Variants.ofTimestamptz(micros);
+        return Variants.ofTimestamptz(DateTimeUtil.microsFromInstant(connectInstant));
       }
       if (org.apache.kafka.connect.data.Time.LOGICAL_NAME.equals(logicalName)) {
-        long micros = ((Date) value).getTime() * 1000;
-        return Variants.ofTime(micros);
+        LocalTime utcTime = connectInstant.atZone(ZoneOffset.UTC).toLocalTime();
+        return Variants.ofTime(DateTimeUtil.microsFromTime(utcTime));
       }
       if (org.apache.kafka.connect.data.Date.LOGICAL_NAME.equals(logicalName)) {
-        int days = (int) (((Date) value).getTime() / 86_400_000);
-        return Variants.ofDate(days);
+        return Variants.ofDate(DateTimeUtil.daysFromInstant(connectInstant));
       }
       throw new IllegalArgumentException(
           "Cannot convert java.util.Date to variant without a recognized logical type schema"
