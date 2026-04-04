@@ -34,6 +34,7 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -775,6 +776,57 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
+  void testStartsWithBothBoundsMatchPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "ab")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: both bounds start with the prefix").isTrue();
+  }
+
+  @Test
+  void testStartsWithSingleCharPrefixBothBoundsMatch() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "a")).eval(STRING_FILE);
+    assertThat(shouldRead)
+        .as("Should match: both bounds start with the single char prefix")
+        .isTrue();
+  }
+
+  @Test
+  void testStartsWithOnlyLowerBoundMatchesPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "abc")).eval(STRING_FILE);
+    assertThat(shouldRead)
+        .as("Should not match: upper bound does not start with the prefix")
+        .isFalse();
+  }
+
+  @Test
+  void testStartsWithBoundsDoNotMatchPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "zzz")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: no bounds start with the prefix").isFalse();
+  }
+
+  @Test
+  void testStartsWithWiderRange() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "a")).eval(STRING_FILE_2);
+    assertThat(shouldRead)
+        .as("Should not match: upper bound does not start with the prefix")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "e")).eval(STRING_FILE_2);
+    assertThat(shouldRead).as("Should not match: no bounds start with the prefix").isFalse();
+  }
+
+  @Test
+  void testStartsWithNoStats() {
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("required", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should not match: no bounds available for column").isFalse();
+  }
+
+  @Test
   public void testNotStartsWithSomeNullsBoundsOutsidePrefix() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "zzz")).eval(FILE_2);
@@ -829,5 +881,44 @@ public class TestStrictMetricsEvaluator {
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("struct.nested_string_col", "a"))
             .eval(FILE);
     assertThat(shouldRead).as("notStartsWith nested column should not match").isFalse();
+  }
+
+  @Test
+  void testStartsWithAllNulls() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("all_nulls", "a")).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not match: all null values do not satisfy startsWith")
+        .isFalse();
+  }
+
+  @Test
+  void testStartsWithSomeNulls() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("some_nulls", "b")).eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should not match: some nulls means not all rows can satisfy startsWith")
+        .isFalse();
+  }
+
+  @Test
+  void testStartsWithPrefixLongerThanBounds() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "abcdef")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: prefix is longer than the bounds").isFalse();
+  }
+
+  @Test
+  void testStartsWithEmptyPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("required", "")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: all strings start with empty prefix").isTrue();
+  }
+
+  @Test
+  void testStartsWithNestedColumn() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, startsWith("struct.nested_string_col", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should not match: nested column is not supported").isFalse();
   }
 }
