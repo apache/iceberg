@@ -44,7 +44,7 @@ class WatermarkExtractorRecordEmitter<T> implements SerializableRecordEmitter<T>
   public void emitRecord(
       RecordAndPosition<T> element, SourceOutput<T> output, IcebergSourceSplit split) {
     if (!split.splitId().equals(lastSplitId)) {
-      long newWatermark = timeExtractor.extractWatermark(split);
+      long newWatermark = timeExtractor.extractWatermark(split) - 1;
       if (newWatermark < watermark) {
         LOG.info(
             "Received a new split with lower watermark. Previous watermark = {}, current watermark = {}, previous split = {}, current split = {}",
