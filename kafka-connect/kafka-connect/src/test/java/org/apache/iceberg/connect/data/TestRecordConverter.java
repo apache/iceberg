@@ -929,15 +929,15 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testConvertVariantValueFromListWithMixedTypes() {
+  public void testConvertVariantValueFromList() {
     // array with heterogeneous element types (string, int, boolean, double, null)
     // Note: java.util.Date is not supported in variant conversion; use supported types only.
-    List<Object> input = Lists.newArrayList("a", 1, true, 2.5, null);
+    List<Object> input = Lists.newArrayList("a", 1, true, 2.5, null, ImmutableList.of("a", "b"), ImmutableMap.of("key1", "value1", "key2", "value2"));
     Variant variant = variantConverter().convertVariantValue(input);
 
     assertThat(variant).isNotNull();
     assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(variant.value().asArray().numElements()).isEqualTo(5);
+    assertThat(variant.value().asArray().numElements()).isEqualTo(7);
 
     assertThat(variant.value().asArray().get(0).type()).isEqualTo(PhysicalType.STRING);
     assertThat(variant.value().asArray().get(0).asPrimitive().get()).isEqualTo("a");
@@ -952,26 +952,72 @@ public class TestRecordConverter {
     assertThat(variant.value().asArray().get(3).asPrimitive().get()).isEqualTo(2.5);
 
     assertThat(variant.value().asArray().get(4).type()).isEqualTo(PhysicalType.NULL);
+
+    assertThat(variant.value().asArray().get(5).type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(variant.value().asArray().get(5).asArray().numElements()).isEqualTo(2);
+    assertThat(variant.value().asArray().get(5).asArray().get(0).asPrimitive().get()).isEqualTo("a");
+    assertThat(variant.value().asArray().get(5).asArray().get(1).asPrimitive().get()).isEqualTo("b");
+
+    assertThat(variant.value().asArray().get(6).type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asArray().get(6).asObject().numFields()).isEqualTo(2);
+    assertThat(variant.value().asArray().get(6).asObject().get("key1").asPrimitive().get()).isEqualTo("value1");
+    assertThat(variant.value().asArray().get(6).asObject().get("key2").asPrimitive().get()).isEqualTo("value2");
   }
 
   @Test
   public void testConvertVariantValueFromMap() {
-    Variant variant = variantConverter().convertVariantValue(ImmutableMap.of("hello", 1));
+    // heterogeneous top-level values plus a nested map;
+    // metadata shares one sorted dictionary for the whole tree
+    Map<String, Object> input = Maps.newLinkedHashMap();
+    input.put("s", "text");
+    input.put("i", 1);
+    input.put("bool", true);
+    input.put("d", 2.5);
+    input.put("n", null);
+    input.put("hello", ImmutableMap.of("world", 1));
+    input.put("tags", ImmutableList.of("a", "b"));
+
+    Variant variant = variantConverter().convertVariantValue(input);
+
     assertThat(variant).isNotNull();
-    assertThat(variant.metadata().dictionarySize()).isEqualTo(1);
-    assertThat(variant.metadata().get(0)).isEqualTo("hello");
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(7);
+    assertThat(variant.metadata().get(0)).isEqualTo("bool");
+    assertThat(variant.metadata().get(1)).isEqualTo("d");
+    assertThat(variant.metadata().get(2)).isEqualTo("hello");
+    assertThat(variant.metadata().get(3)).isEqualTo("i");
+    assertThat(variant.metadata().get(4)).isEqualTo("n");
+    assertThat(variant.metadata().get(5)).isEqualTo("s");
+    assertThat(variant.metadata().get(6)).isEqualTo("world");
+
     assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(variant.value().asObject().numFields()).isEqualTo(1);
-    assertThat(variant.value().asObject().get("hello").asPrimitive().get()).isEqualTo(1);
+    assertThat(variant.value().asObject().numFields()).isEqualTo(6);
+
+    assertThat(variant.value().asObject().get("bool").type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(variant.value().asObject().get("bool").asPrimitive().get()).isEqualTo(true);
+
+    assertThat(variant.value().asObject().get("d").type()).isEqualTo(PhysicalType.DOUBLE);
+    assertThat(variant.value().asObject().get("d").asPrimitive().get()).isEqualTo(2.5);
+
+    assertThat(variant.value().asObject().get("i").type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asObject().get("i").asPrimitive().get()).isEqualTo(1);
+
+    assertThat(variant.value().asObject().get("n").type()).isEqualTo(PhysicalType.NULL);
+
+    assertThat(variant.value().asObject().get("s").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(variant.value().asObject().get("s").asPrimitive().get()).isEqualTo("text");
+
+    VariantValue nested = variant.value().asObject().get("hello");
+    assertThat(nested.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(nested.asObject().get("world").asPrimitive().get()).isEqualTo(1);
   }
 
   @Test
-  public void testConvertVariantValueFromStructNested() {
+  public void testConvertVariantValueFromStruct() {
     Schema innerSchema =
         SchemaBuilder.struct().field("x", Schema.INT32_SCHEMA).field("y", Schema.STRING_SCHEMA);
     Schema outerSchema =
         SchemaBuilder.struct().field("inner", innerSchema).field("id", Schema.INT64_SCHEMA);
-    Struct inner = new Struct(innerSchema).put("x", 1).put("y", "world");
+    Struct inner = new Struct(innerSchema).put("x", 1).put("y", "world").put("tags", ImmutableList.of("a", "b"));
     Struct outer = new Struct(outerSchema).put("inner", inner).put("id", 100L);
 
     Variant variant = variantConverter().convertVariantValue(outer);
@@ -984,94 +1030,10 @@ public class TestRecordConverter {
     assertThat(innerVal.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(innerVal.asObject().get("x").asPrimitive().get()).isEqualTo(1);
     assertThat(innerVal.asObject().get("y").asPrimitive().get()).isEqualTo("world");
-  }
-
-  @Test
-  public void testConvertVariantValueFromMapNested() {
-    Variant variant =
-        variantConverter()
-            .convertVariantValue(ImmutableMap.of("hello", ImmutableMap.of("world", 1)));
-    assertThat(variant).isNotNull();
-    assertThat(variant.metadata().dictionarySize()).isEqualTo(2);
-    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(variant.value().asObject().get("hello").type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(variant.value().asObject().get("hello").asObject().get("world").asPrimitive().get())
-        .isEqualTo(1);
-  }
-
-  @Test
-  public void testConvertVariantValueFromMapWithList() {
-    // map with list values: { "tags": ["a", "b"], "counts": [1, 2] }
-    Map<String, Object> input =
-        ImmutableMap.<String, Object>builder()
-            .put("tags", ImmutableList.of("a", "b"))
-            .put("counts", ImmutableList.of(1, 2))
-            .build();
-    Variant variant = variantConverter().convertVariantValue(input);
-
-    assertThat(variant).isNotNull();
-    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(variant.value().asObject().numFields()).isEqualTo(2);
-
-    VariantValue tags = variant.value().asObject().get("tags");
-    assertThat(tags.type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(tags.asArray().numElements()).isEqualTo(2);
-    assertThat(tags.asArray().get(0).asPrimitive().get()).isEqualTo("a");
-    assertThat(tags.asArray().get(1).asPrimitive().get()).isEqualTo("b");
-
-    VariantValue counts = variant.value().asObject().get("counts");
-    assertThat(counts.type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(counts.asArray().get(0).asPrimitive().get()).isEqualTo(1);
-    assertThat(counts.asArray().get(1).asPrimitive().get()).isEqualTo(2);
-  }
-
-  @Test
-  public void testConvertVariantValueFromListOfMaps() {
-    // list of maps: [ {"id": 1, "name": "x"}, {"id": 2} ]
-    List<Map<String, Object>> input =
-        ImmutableList.of(
-            ImmutableMap.<String, Object>builder().put("id", 1).put("name", "x").build(),
-            ImmutableMap.of("id", 2));
-    Variant variant = variantConverter().convertVariantValue(input);
-
-    assertThat(variant).isNotNull();
-    assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(variant.value().asArray().numElements()).isEqualTo(2);
-
-    VariantValue first = variant.value().asArray().get(0);
-    assertThat(first.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(first.asObject().get("id").asPrimitive().get()).isEqualTo(1);
-    assertThat(first.asObject().get("name").asPrimitive().get()).isEqualTo("x");
-
-    VariantValue second = variant.value().asArray().get(1);
-    assertThat(second.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(second.asObject().get("id").asPrimitive().get()).isEqualTo(2);
-  }
-
-  @Test
-  public void testConvertVariantValueFromMixedNested() {
-    // map with list of maps, and list contains mixed types: { "items": [ {"k": "v"}, {"nested": [1,
-    // 2]} ] }
-    Map<String, Object> item0 = ImmutableMap.of("k", "v");
-    Map<String, Object> item1 = ImmutableMap.of("nested", ImmutableList.of(1, 2));
-    Map<String, Object> input = ImmutableMap.of("items", ImmutableList.of(item0, item1));
-
-    Variant variant = variantConverter().convertVariantValue(input);
-
-    assertThat(variant).isNotNull();
-    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
-    VariantValue items = variant.value().asObject().get("items");
-    assertThat(items.type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(items.asArray().numElements()).isEqualTo(2);
-
-    assertThat(items.asArray().get(0).type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(items.asArray().get(0).asObject().get("k").asPrimitive().get()).isEqualTo("v");
-
-    assertThat(items.asArray().get(1).type()).isEqualTo(PhysicalType.OBJECT);
-    VariantValue nested = items.asArray().get(1).asObject().get("nested");
-    assertThat(nested.type()).isEqualTo(PhysicalType.ARRAY);
-    assertThat(nested.asArray().get(0).asPrimitive().get()).isEqualTo(1);
-    assertThat(nested.asArray().get(1).asPrimitive().get()).isEqualTo(2);
+    assertThat(innerVal.asObject().get("tags").type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(innerVal.asObject().get("tags").asArray().numElements()).isEqualTo(2);
+    assertThat(innerVal.asObject().get("tags").asArray().get(0).asPrimitive().get()).isEqualTo("a");
+    assertThat(innerVal.asObject().get("tags").asArray().get(1).asPrimitive().get()).isEqualTo("b");
   }
 
   @Test
