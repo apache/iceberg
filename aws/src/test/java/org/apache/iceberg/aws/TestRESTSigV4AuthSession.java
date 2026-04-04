@@ -311,28 +311,27 @@ class TestRESTSigV4AuthSession {
   }
 
   @Test
-  void closeWithCloseableCredentialsProvider() throws Exception {
+  void closeWithCloseableCredentialsProvider() {
     AuthSession delegate = Mockito.mock(AuthSession.class);
     CloseableAwsCredentialsProvider credentialsProvider =
         Mockito.mock(CloseableAwsCredentialsProvider.class);
-    AwsProperties properties = Mockito.mock(AwsProperties.class);
-    when(properties.restSigningRegion()).thenReturn(Region.US_WEST_2);
-    when(properties.restSigningName()).thenReturn("execute-api");
-    when(properties.restCredentialsProvider()).thenReturn(credentialsProvider);
-
-    RESTSigV4AuthSession session = new RESTSigV4AuthSession(signer, delegate, properties);
-    session.close();
-
-    Mockito.verify(delegate).close();
-    Mockito.verify(credentialsProvider).close();
+    closeWithCloseableCredentialsProvider(delegate, credentialsProvider);
   }
 
   @Test
-  void closeSuppressesFailure() throws Exception {
+  void closeSuppressesFailure() {
     AuthSession delegate = Mockito.mock(AuthSession.class);
     Mockito.doThrow(new RuntimeException("delegate close failed")).when(delegate).close();
     CloseableAwsCredentialsProvider credentialsProvider =
         Mockito.mock(CloseableAwsCredentialsProvider.class);
+    Mockito.doThrow(new RuntimeException("credentials provider close failed"))
+        .when(credentialsProvider)
+        .close();
+    closeWithCloseableCredentialsProvider(delegate, credentialsProvider);
+  }
+
+  private void closeWithCloseableCredentialsProvider(
+      AuthSession delegate, CloseableAwsCredentialsProvider credentialsProvider) {
     AwsProperties properties = Mockito.mock(AwsProperties.class);
     when(properties.restSigningRegion()).thenReturn(Region.US_WEST_2);
     when(properties.restSigningName()).thenReturn("execute-api");

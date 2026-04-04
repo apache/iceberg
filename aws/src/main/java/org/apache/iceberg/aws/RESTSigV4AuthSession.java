@@ -97,12 +97,10 @@ public class RESTSigV4AuthSession implements AuthSession {
 
   @Override
   public void close() {
-    if (closeableGroup != null) {
-      try {
-        closeableGroup.close();
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+    try {
+      closeableGroup.close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 
