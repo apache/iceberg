@@ -549,21 +549,7 @@ class RecordConverter {
       return array;
     }
     if (value instanceof Map) {
-      Map<?, ?> map = (Map<?, ?>) value;
-      ShreddedObject object = Variants.object(metadata);
-      org.apache.kafka.connect.data.Schema mapValueSchema =
-          schema != null ? schema.valueSchema() : null;
-      map.forEach(
-          (key, val) -> {
-            if (key != null && key instanceof String) {
-              object.put((String) key, objectToVariantValue(val, metadata, mapValueSchema));
-            } else {
-              throw new IllegalArgumentException(
-                  "Cannot convert map to variant: keys must be non-null strings, was: "
-                      + (key == null ? "null" : key.getClass().getName()));
-            }
-          });
-      return object;
+      return mapToVariantValue(value, metadata, schema);
     }
     if (value instanceof Struct) {
       Struct struct = (Struct) value;
@@ -576,6 +562,25 @@ class RecordConverter {
     throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
   }
 
+  private static VariantValue mapToVariantValue(
+      Object value, VariantMetadata metadata, org.apache.kafka.connect.data.Schema schema) {
+    Map<?, ?> map = (Map<?, ?>) value;
+    ShreddedObject object = Variants.object(metadata);
+    org.apache.kafka.connect.data.Schema mapValueSchema =
+        schema != null ? schema.valueSchema() : null;
+    map.forEach(
+        (key, val) -> {
+          if (key != null && key instanceof String) {
+            object.put((String) key, objectToVariantValue(val, metadata, mapValueSchema));
+          } else {
+            throw new IllegalArgumentException(
+                "Cannot convert map to variant: keys must be non-null strings, was: "
+                    + (key == null ? "null" : key.getClass().getName()));
+          }
+        });
+    return object;
+  }
+
   /**
    * Converts a primitive or primitive-like value to VariantValue; returns null if not supported.
    * The optional schema is used to disambiguate java.util.Date which Kafka Connect uses for Date,
@@ -586,6 +591,34 @@ class RecordConverter {
     if (value instanceof Boolean) {
       return Variants.of((Boolean) value);
     }
+    VariantValue temporal = temporalObjectToVariantValue(value, schema);
+    if (temporal != null) {
+      return temporal;
+    }
+    if (value instanceof Number) {
+      return numberToVariantValue((Number) value);
+    }
+    if (value instanceof String) {
+      return Variants.of((String) value);
+    }
+    if (value instanceof ByteBuffer) {
+      return Variants.of((ByteBuffer) value);
+    }
+    if (value instanceof byte[]) {
+      return Variants.of(ByteBuffer.wrap((byte[]) value));
+    }
+    if (value instanceof UUID) {
+      return Variants.ofUUID((UUID) value);
+    }
+    return null;
+  }
+
+  /**
+   * Converts java.time values and java.util.Date (with Connect logical type from the optional
+   * schema) to VariantValue; returns null if the value is not a supported temporal representation.
+   */
+  private static VariantValue temporalObjectToVariantValue(
+      Object value, org.apache.kafka.connect.data.Schema schema) {
     if (value instanceof Instant) {
       return Variants.ofTimestamptz(DateTimeUtil.microsFromInstant((Instant) value));
     }
@@ -625,21 +658,6 @@ class RecordConverter {
               + " (expected Timestamp, Time, or Date but got: "
               + logicalName
               + ")");
-    }
-    if (value instanceof Number) {
-      return numberToVariantValue((Number) value);
-    }
-    if (value instanceof String) {
-      return Variants.of((String) value);
-    }
-    if (value instanceof ByteBuffer) {
-      return Variants.of((ByteBuffer) value);
-    }
-    if (value instanceof byte[]) {
-      return Variants.of(ByteBuffer.wrap((byte[]) value));
-    }
-    if (value instanceof UUID) {
-      return Variants.ofUUID((UUID) value);
     }
     return null;
   }
