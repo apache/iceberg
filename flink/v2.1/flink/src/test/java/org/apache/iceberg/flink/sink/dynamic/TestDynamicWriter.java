@@ -34,7 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynFields;
-import org.apache.iceberg.data.BaseFileWriterFactory;
+import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
@@ -365,13 +365,13 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     DynFields.BoundField<Map<WriteTarget, TaskWriter<RowData>>> writerField =
         DynFields.builder().hiddenImpl(dynamicWriter.getClass(), "writers").build(dynamicWriter);
 
-    DynFields.BoundField<FileWriterFactory> writerFactoryField =
+    DynFields.BoundField<FileWriterFactory<?>> writerFactoryField =
         DynFields.builder()
             .hiddenImpl(BaseTaskWriter.class, "writerFactory")
             .build(writerField.get().values().iterator().next());
     DynFields.BoundField<Map<String, String>> propsField =
         DynFields.builder()
-            .hiddenImpl(BaseFileWriterFactory.class, "writerProperties")
+            .hiddenImpl(RegistryBasedFileWriterFactory.class, "writerProperties")
             .build(writerFactoryField.get());
     return propsField.get();
   }

@@ -65,6 +65,13 @@ public abstract class TestBase extends SparkTestHelperBase {
   protected static SparkSession spark = null;
   protected static JavaSparkContext sparkContext = null;
   protected static HiveCatalog catalog = null;
+  // disable Spark UI and use dummy servlet to avoid dependency conflicts with Spark's Jetty version
+  public static final Map<String, Object> DISABLE_UI =
+      ImmutableMap.of(
+          "spark.ui.enabled",
+          "false",
+          "spark.metrics.conf.*.sink.servlet.class",
+          "org.apache.iceberg.spark.DummyMetricsServlet");
 
   @BeforeAll
   public static void startMetastoreAndSpark() {
@@ -79,6 +86,7 @@ public abstract class TestBase extends SparkTestHelperBase {
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+            .config(DISABLE_UI)
             .enableHiveSupport()
             .getOrCreate();
 

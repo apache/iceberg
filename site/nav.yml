@@ -19,6 +19,7 @@ nav:
   - Home: index.md
   - Quickstart:
     - Spark: spark-quickstart.md
+    - Flink: flink-quickstart.md
     - Hive: hive-quickstart.md
   - Docs:
     - Java:
@@ -115,4 +116,5 @@ nav:
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
+    - UDF spec: udf-spec.md
     - Implementation status: status.md

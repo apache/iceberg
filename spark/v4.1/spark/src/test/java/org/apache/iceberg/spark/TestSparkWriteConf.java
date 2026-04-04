@@ -45,6 +45,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DEL
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
@@ -60,6 +61,7 @@ import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -143,7 +145,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   @TestTemplate
   public void testDeleteGranularityDefault() {
     Table table = validationCatalog.loadTable(tableIdent);
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     DeleteGranularity value = writeConf.deleteGranularity();
     assertThat(value).isEqualTo(DeleteGranularity.FILE);
@@ -158,7 +160,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         .set(TableProperties.DELETE_GRANULARITY, DeleteGranularity.PARTITION.toString())
         .commit();
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     DeleteGranularity value = writeConf.deleteGranularity();
     assertThat(value).isEqualTo(DeleteGranularity.PARTITION);
@@ -176,7 +178,8 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     Map<String, String> options =
         ImmutableMap.of(SparkWriteOptions.DELETE_GRANULARITY, DeleteGranularity.FILE.toString());
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, options);
+    SparkWriteConf writeConf =
+        new SparkWriteConf(spark, table, new CaseInsensitiveStringMap(options));
 
     DeleteGranularity value = writeConf.deleteGranularity();
     assertThat(value).isEqualTo(DeleteGranularity.FILE);
@@ -188,7 +191,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
 
     table.updateProperties().set(TableProperties.DELETE_GRANULARITY, "invalid").commit();
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     assertThatThrownBy(writeConf::deleteGranularity)
         .isInstanceOf(IllegalArgumentException.class)
@@ -199,7 +202,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   public void testAdvisoryPartitionSize() {
     Table table = validationCatalog.loadTable(tableIdent);
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     long value1 = writeConf.writeRequirements().advisoryPartitionSize();
     assertThat(value1).isGreaterThan(64L * 1024 * 1024).isLessThan(2L * 1024 * 1024 * 1024);
@@ -217,7 +220,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   public void testSparkWriteConfDistributionDefault() {
     Table table = validationCatalog.loadTable(tableIdent);
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     checkMode(DistributionMode.HASH, writeConf);
   }
@@ -226,8 +229,9 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   public void testSparkWriteConfDistributionModeWithWriteOption() {
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Map<String, String> writeOptions =
-        ImmutableMap.of(SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName());
+    CaseInsensitiveStringMap writeOptions =
+        new CaseInsensitiveStringMap(
+            ImmutableMap.of(SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()));
 
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
     checkMode(DistributionMode.NONE, writeConf);
@@ -239,7 +243,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         ImmutableMap.of(SparkSQLProperties.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
           checkMode(DistributionMode.NONE, writeConf);
         });
   }
@@ -256,7 +260,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
         .commit();
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
     checkMode(DistributionMode.NONE, writeConf);
   }
 
@@ -275,7 +279,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
               .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
               .commit();
 
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
           // session config overwrite the table properties
           checkMode(DistributionMode.NONE, writeConf);
         });
@@ -288,9 +292,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
-          Map<String, String> writeOptions =
-              ImmutableMap.of(
-                  SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName());
+          CaseInsensitiveStringMap writeOptions =
+              new CaseInsensitiveStringMap(
+                  ImmutableMap.of(
+                      SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()));
 
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
           // write options overwrite the session config
@@ -305,9 +310,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
-          Map<String, String> writeOptions =
-              ImmutableMap.of(
-                  SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName());
+          CaseInsensitiveStringMap writeOptions =
+              new CaseInsensitiveStringMap(
+                  ImmutableMap.of(
+                      SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()));
 
           table
               .updateProperties()
@@ -402,7 +408,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
           Map<String, String> metadata = writeConf.extraSnapshotMetadata();
 
@@ -416,8 +422,9 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
-          Map<String, String> writeOptions =
-              ImmutableMap.of("snapshot-property.test-key", "write-option-value");
+          CaseInsensitiveStringMap writeOptions =
+              new CaseInsensitiveStringMap(
+                  ImmutableMap.of("snapshot-property.test-key", "write-option-value"));
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
 
           Map<String, String> metadata = writeConf.extraSnapshotMetadata();
@@ -596,8 +603,59 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   public void testDVWriteConf() {
     Table table = validationCatalog.loadTable(tableIdent);
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
     assertThat(writeConf.deleteFileFormat()).isEqualTo(FileFormat.PUFFIN);
+  }
+
+  @TestTemplate
+  public void testSortOrderWriteConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.replaceSortOrder().asc("id").commit();
+
+    SparkWriteConf writeConf =
+        new SparkWriteConf(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                ImmutableMap.of(SparkWriteOptions.OUTPUT_SORT_ORDER_ID, "1")));
+
+    assertThat(writeConf.outputSortOrderId(SparkWriteRequirements.EMPTY))
+        .isEqualTo(table.sortOrder().orderId());
+  }
+
+  @TestTemplate
+  public void testSortOrderWriteConfWithInvalidId() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.replaceSortOrder().asc("id").commit();
+
+    SparkWriteConf writeConfForUnknownSortOrder =
+        new SparkWriteConf(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                ImmutableMap.of(SparkWriteOptions.OUTPUT_SORT_ORDER_ID, "999")));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> writeConfForUnknownSortOrder.outputSortOrderId(SparkWriteRequirements.EMPTY))
+        .withMessage(
+            "Cannot use output sort order id 999 because the table does not contain a sort order with that id");
+  }
+
+  @TestTemplate
+  public void testSortOrderWriteConfWithNoOption() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.replaceSortOrder().asc("id").commit();
+
+    SparkWriteConf writeConfNoOption = new SparkWriteConf(spark, table);
+
+    assertThat(writeConfNoOption.outputSortOrderId(writeConfNoOption.writeRequirements()))
+        .isEqualTo(table.sortOrder().orderId());
+
+    assertThat(writeConfNoOption.outputSortOrderId(SparkWriteRequirements.EMPTY)).isEqualTo(0);
   }
 
   private void testWriteProperties(List<Map<String, String>> propertiesSuite) {
@@ -613,7 +671,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
 
           updateProperties.commit();
 
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
           Map<String, String> writeProperties = writeConf.writeProperties();
           Map<String, String> expectedProperties = propertiesSuite.get(2);
           assertThat(writeConf.writeProperties()).hasSameSizeAs(expectedProperties);

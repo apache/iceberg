@@ -22,7 +22,6 @@ import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -52,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Dataset;
@@ -100,6 +100,7 @@ public class TestSparkDataWrite {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
 
@@ -148,7 +149,7 @@ public class TestSparkDataWrite {
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
           assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
@@ -397,7 +398,7 @@ public class TestSparkDataWrite {
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }
@@ -424,87 +425,6 @@ public class TestSparkDataWrite {
   @TestTemplate
   public void testPartitionedFanoutCreateWithTargetFileSizeViaOption2() {
     partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.JOB);
-  }
-
-  @TestTemplate
-  public void testWriteProjection() {
-    assumeThat(spark.version())
-        .as("Not supported in Spark 3; analysis requires all columns are present")
-        .startsWith("2");
-
-    File parent = temp.resolve(format.toString()).toFile();
-    File location = new File(parent, "test");
-    String targetLocation = locationWithBranch(location);
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-
-    List<SimpleRecord> expected =
-        Lists.newArrayList(
-            new SimpleRecord(1, null), new SimpleRecord(2, null), new SimpleRecord(3, null));
-
-    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
-
-    df.select("id")
-        .write() // select only id column
-        .format("iceberg")
-        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
-        .mode(SaveMode.Append)
-        .save(location.toString());
-
-    createBranch(table);
-    table.refresh();
-
-    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
-
-    List<SimpleRecord> actual =
-        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
-  }
-
-  @TestTemplate
-  public void testWriteProjectionWithMiddle() {
-    assumeThat(spark.version())
-        .as("Not supported in Spark 3; analysis requires all columns are present")
-        .startsWith("2");
-
-    File parent = temp.resolve(format.toString()).toFile();
-    File location = new File(parent, "test");
-    String targetLocation = locationWithBranch(location);
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Schema schema =
-        new Schema(
-            optional(1, "c1", Types.IntegerType.get()),
-            optional(2, "c2", Types.StringType.get()),
-            optional(3, "c3", Types.StringType.get()));
-    Table table = tables.create(schema, spec, location.toString());
-
-    List<ThreeColumnRecord> expected =
-        Lists.newArrayList(
-            new ThreeColumnRecord(1, null, "hello"),
-            new ThreeColumnRecord(2, null, "world"),
-            new ThreeColumnRecord(3, null, null));
-
-    Dataset<Row> df = spark.createDataFrame(expected, ThreeColumnRecord.class);
-
-    df.select("c1", "c3")
-        .write()
-        .format("iceberg")
-        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
-        .mode(SaveMode.Append)
-        .save(location.toString());
-
-    createBranch(table);
-    table.refresh();
-
-    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
-
-    List<ThreeColumnRecord> actual =
-        result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
-    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
   @TestTemplate
@@ -624,7 +544,7 @@ public class TestSparkDataWrite {
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }

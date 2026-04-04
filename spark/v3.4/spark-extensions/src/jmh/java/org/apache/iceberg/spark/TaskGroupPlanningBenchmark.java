@@ -39,6 +39,7 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.CloseableIterable;
@@ -161,14 +162,15 @@ public class TaskGroupPlanningBenchmark {
   private DataFile loadAddedDataFile() {
     table.refresh();
 
-    Iterable<DataFile> addedDataFiles = table.currentSnapshot().addedDataFiles(table.io());
+    Iterable<DataFile> addedDataFiles = SnapshotChanges.builderFor(table).build().addedDataFiles();
     return Iterables.getOnlyElement(addedDataFiles);
   }
 
   private DeleteFile loadAddedDeleteFile() {
     table.refresh();
 
-    Iterable<DeleteFile> addedDeleteFiles = table.currentSnapshot().addedDeleteFiles(table.io());
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(table).build().addedDeleteFiles();
     return Iterables.getOnlyElement(addedDeleteFiles);
   }
 
@@ -240,7 +242,7 @@ public class TaskGroupPlanningBenchmark {
   private void setupSpark() {
     this.spark =
         SparkSession.builder()
-            .config("spark.ui.enabled", false)
+            .config(TestBase.DISABLE_UI)
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName())

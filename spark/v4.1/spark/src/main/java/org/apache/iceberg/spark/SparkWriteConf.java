@@ -42,11 +42,11 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -55,6 +55,7 @@ import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
@@ -86,23 +87,30 @@ public class SparkWriteConf {
 
   private final SparkSession spark;
   private final Table table;
-  private final String branch;
   private final RuntimeConfig sessionConf;
-  private final Map<String, String> writeOptions;
+  private final CaseInsensitiveStringMap options;
   private final SparkConfParser confParser;
 
-  public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
-    this(spark, table, null, writeOptions);
+  public SparkWriteConf(SparkSession spark, Table table) {
+    this(spark, table, null, CaseInsensitiveStringMap.empty());
   }
 
+  public SparkWriteConf(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+    this(spark, table, null, options);
+  }
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #SparkWriteConf(SparkSession,
+   *     Table, CaseInsensitiveStringMap)} instead.
+   */
+  @Deprecated
   public SparkWriteConf(
-      SparkSession spark, Table table, String branch, Map<String, String> writeOptions) {
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
-    this.branch = branch;
     this.sessionConf = spark.conf();
-    this.writeOptions = writeOptions;
-    this.confParser = new SparkConfParser(spark, table, writeOptions);
+    this.options = options;
+    this.confParser = new SparkConfParser(spark, table, options);
   }
 
   public boolean checkNullability() {
@@ -124,7 +132,7 @@ public class SparkWriteConf {
   }
 
   public String overwriteMode() {
-    String overwriteMode = writeOptions.get(SparkWriteOptions.OVERWRITE_MODE);
+    String overwriteMode = options.get(SparkWriteOptions.OVERWRITE_MODE);
     return overwriteMode != null ? overwriteMode.toLowerCase(Locale.ROOT) : null;
   }
 
@@ -162,6 +170,25 @@ public class SparkWriteConf {
         "Output spec id %s is not a valid spec id for table",
         outputSpecId);
     return outputSpecId;
+  }
+
+  public int outputSortOrderId(SparkWriteRequirements writeRequirements) {
+    Integer explicitId =
+        confParser.intConf().option(SparkWriteOptions.OUTPUT_SORT_ORDER_ID).parseOptional();
+
+    if (explicitId != null) {
+      Preconditions.checkArgument(
+          table.sortOrders().containsKey(explicitId),
+          "Cannot use output sort order id %s because the table does not contain a sort order with that id",
+          explicitId);
+      return explicitId;
+    }
+
+    if (writeRequirements.hasOrdering()) {
+      return table.sortOrder().orderId();
+    }
+
+    return SortOrder.unsorted().orderId();
   }
 
   public FileFormat dataFileFormat() {
@@ -262,16 +289,9 @@ public class SparkWriteConf {
 
     // Add write options, overriding session configuration if necessary
     extraSnapshotMetadata.putAll(
-        PropertyUtil.propertiesWithPrefix(writeOptions, SnapshotSummary.EXTRA_METADATA_PREFIX));
+        PropertyUtil.propertiesWithPrefix(options, SnapshotSummary.EXTRA_METADATA_PREFIX));
 
     return extraSnapshotMetadata;
-  }
-
-  public String rewrittenFileSetId() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)
-        .parseOptional();
   }
 
   public SparkWriteRequirements writeRequirements() {
@@ -452,9 +472,10 @@ public class SparkWriteConf {
   }
 
   public IsolationLevel isolationLevel() {
-    String isolationLevelName =
-        confParser.stringConf().option(SparkWriteOptions.ISOLATION_LEVEL).parseOptional();
-    return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
+    return confParser
+        .enumConf(IsolationLevel::fromName)
+        .option(SparkWriteOptions.ISOLATION_LEVEL)
+        .parseOptional();
   }
 
   public boolean caseSensitive() {
@@ -463,32 +484,6 @@ public class SparkWriteConf {
         .sessionConf(SQLConf.CASE_SENSITIVE().key())
         .defaultValue(SQLConf.CASE_SENSITIVE().defaultValueString())
         .parse();
-  }
-
-  public String branch() {
-    if (wapEnabled()) {
-      String wapId = wapId();
-      String wapBranch =
-          confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
-
-      ValidationException.check(
-          wapId == null || wapBranch == null,
-          "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
-          wapId,
-          wapBranch);
-
-      if (wapBranch != null) {
-        ValidationException.check(
-            branch == null,
-            "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
-            branch,
-            wapBranch);
-
-        return wapBranch;
-      }
-    }
-
-    return branch;
   }
 
   public Map<String, String> writeProperties() {

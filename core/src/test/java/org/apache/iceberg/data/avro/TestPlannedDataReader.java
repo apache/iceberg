@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -33,6 +34,7 @@ import java.util.Map;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
+import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
@@ -40,7 +42,10 @@ import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.EncoderFactory;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -303,6 +308,65 @@ public class TestPlannedDataReader {
     assertThat(results.get(1).getField(MetadataColumns.ROW_ID.name())).isEqualTo(1001L);
     assertThat(results.get(1).getField(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()))
         .isEqualTo(10L);
+  }
+
+  @Test
+  public void testLineageColumnsNotProjected() throws Exception {
+
+    org.apache.iceberg.Schema icebergSchema =
+        new org.apache.iceberg.Schema(
+            Types.NestedField.required(1, "data", Types.StringType.get()));
+
+    Schema fileSchema =
+        SchemaBuilder.record("test")
+            .fields()
+            .name("data")
+            .type()
+            .stringType()
+            .noDefault()
+            .name(MetadataColumns.ROW_ID.name())
+            .type()
+            .optional()
+            .longType()
+            .name(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+            .type()
+            .optional()
+            .longType()
+            .endRecord();
+
+    fileSchema.getField("data").addProp("field-id", 1);
+    fileSchema
+        .getField(MetadataColumns.ROW_ID.name())
+        .addProp("field-id", MetadataColumns.ROW_ID.fieldId());
+    fileSchema
+        .getField(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+        .addProp("field-id", MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId());
+
+    File file = File.createTempFile("test", ".avro");
+
+    try (DataFileWriter<GenericRecord> writer =
+        new DataFileWriter<>(new GenericDatumWriter<>(fileSchema))) {
+
+      writer.create(fileSchema, file);
+
+      GenericRecord rec = new GenericData.Record(fileSchema);
+      rec.put("data", "a");
+      rec.put(MetadataColumns.ROW_ID.name(), 10L);
+      rec.put(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), 5L);
+
+      writer.append(rec);
+    }
+
+    try (AvroIterable<Record> reader =
+        Avro.read(Files.localInput(file))
+            .createResolvingReader(schema -> PlannedDataReader.create(icebergSchema))
+            .project(icebergSchema)
+            .build()) {
+
+      List<Record> rows = Lists.newArrayList(reader);
+      assertThat(rows).hasSize(1);
+      assertThat(rows.get(0).getField("data")).isEqualTo("a");
+    }
   }
 
   private Record readRecord(

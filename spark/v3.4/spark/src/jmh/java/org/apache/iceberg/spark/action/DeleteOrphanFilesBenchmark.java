@@ -37,6 +37,7 @@ import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -59,8 +60,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /**
  * A benchmark that evaluates the performance of remove orphan files action in Spark.
  *
- * <p>To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
+ * <p>To run this benchmark for spark-3.4: <code>
+ *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4_2.12:jmh
  *       -PjmhIncludeRegex=DeleteOrphanFilesBenchmark
  *       -PjmhOutputPath=benchmark/delete-orphan-files-benchmark-results.txt
  * </code>
@@ -179,6 +180,7 @@ public class DeleteOrphanFilesBenchmark {
             .config("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName())
             .config("spark.sql.catalog.spark_catalog.type", "hadoop")
             .config("spark.sql.catalog.spark_catalog.warehouse", catalogWarehouse())
+            .config(TestBase.DISABLE_UI)
             .master("local");
     spark = builder.getOrCreate();
   }

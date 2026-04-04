@@ -119,6 +119,7 @@ subprojects {
           '-Xep:InconsistentCapitalization:ERROR',
           '-Xep:InconsistentHashCode:ERROR',
           '-Xep:IntLongMath:ERROR',
+          '-Xep:JavaUtilDate:ERROR',
           '-Xep:JdkObsolete:ERROR',
           // prefer method references over lambdas
           '-Xep:LambdaMethodReference:ERROR',

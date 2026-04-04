@@ -63,6 +63,7 @@ The UDF metadata file has the following fields:
 | *optional*  | `doc`            | `string`               | Documentation string.                                                     |
 
 Notes:
+
 1. When `secure` is set to `true`, engines should prevent leakage of sensitive information to end users. Each engine
    may have its own security definition and mechanisms. It is the administrator's responsibility to ensure that
    UDFs marked as secure are properly configured and protected in their environment.
@@ -95,6 +96,7 @@ must produce values of the declared `return-type`.
 | *optional*  | `doc`  | `string` | Parameter documentation.                   |
 
 Notes:
+
 1. Variadic (vararg) parameters are not supported. Each definition must declare a fixed number of parameters.
 2. Parameterized signatures are not supported (e.g., `<E> array_agg(E)`).
 3. All types, including parameters and return types, are considered nullable.
@@ -108,6 +110,7 @@ Primitive and semi-structured type strings are encoded based on [Iceberg Type JS
 
 Nested types (`struct`, `list`, `map`) use the [Iceberg Type JSON Representation][iceberg-type-json] with the
 following fields required. Any other fields must be ignored.
+
 * `list` requires `type` and `element`, e.g., `{ "type": "list", "element": "string" }`
 * `map` requires `type`, `key`, and `value`, e.g., `{ "type": "map", "key": "string", "value": "int" }`
 * `struct` requires `type` and `fields`, where each field requires `name` and `type`,
@@ -123,6 +126,7 @@ spaces. Each type uses the following string representation:
 * Struct: `struct<name1:type1,name2:type2,...>` with field names and types (e.g., `struct<id:int,name:string>`)
 
 Examples of complete definition-id signatures:
+
 * `int` – single int parameter
 * `int,string` – two parameters: int and string
 * `int,list<int>,struct<id:int,name:string>` – three parameters: an int, a list and a struct
@@ -140,9 +144,9 @@ A `definition version` represents a specific implementation of that definition a
 | *optional*  | `on-null-input`   | `string` (`"return-null"` or `"call"`, default `"call"`) | Defines how the UDF behaves when any input parameter is NULL.  |
 | *required*  | `timestamp-ms`    | `long` (unix epoch millis)                               | Creation timestamp of this version.                            |
 
-
 #### Null Input Handling
 `on-null-input` provides an optimization hint for query engines:
+
 1. If set to `return-null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to
    apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
    the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
@@ -151,6 +155,7 @@ A `definition version` represents a specific implementation of that definition a
 
 ### Representation
 Each representation is an object with at least one common field, `type`, that is one of the following:
+
 * `sql`: a SQL expression that defines the function body
 
 Representations further define metadata for each type.
@@ -167,6 +172,7 @@ The SQL representation stores the function body as a SQL expression, with metada
 | *required*  | `sql`      | `string` | SQL expression text.                                 |
 
 Notes:
+
 1. The `sql` must reference parameters using the names declared in the definition's `parameters` field.
 
 ### Definition Log

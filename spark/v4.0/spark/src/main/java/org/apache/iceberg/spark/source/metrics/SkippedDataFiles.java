@@ -22,7 +22,7 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class SkippedDataFiles extends CustomSumMetric {
 
-  static final String NAME = "skippedDataFiles";
+  public static final String NAME = "skippedDataFiles";
 
   @Override
   public String name() {

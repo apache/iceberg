@@ -54,7 +54,12 @@ public final class FormatModelRegistry {
 
   private static final Logger LOG = LoggerFactory.getLogger(FormatModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
-  private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
+  private static final List<String> CLASSES_TO_REGISTER =
+      ImmutableList.of(
+          "org.apache.iceberg.data.GenericFormatModels",
+          "org.apache.iceberg.arrow.vectorized.ArrowFormatModels",
+          "org.apache.iceberg.flink.data.FlinkFormatModels",
+          "org.apache.iceberg.spark.source.SparkFormatModels");
 
   // Format models indexed by file format and object model class
   private static final Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> MODELS =
@@ -169,12 +174,10 @@ public final class FormatModelRegistry {
    * @param outputFile destination for the written data
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  @SuppressWarnings("unchecked")
   public static <D> FileWriterBuilder<PositionDeleteWriter<D>, ?> positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
-    Class<PositionDelete<D>> deleteClass =
-        (Class<PositionDelete<D>>) (Class<?>) PositionDelete.class;
-    FormatModel<PositionDelete<D>, ?> model = FormatModelRegistry.modelFor(format, deleteClass);
+    FormatModel<PositionDelete<D>, ?> model =
+        FormatModelRegistry.modelFor(format, PositionDelete.deleteClass());
     return FileWriterBuilderImpl.forPositionDelete(model, outputFile);
   }
 

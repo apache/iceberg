@@ -52,4 +52,6 @@ project(":iceberg-azure-bundle") {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }

@@ -22,6 +22,7 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 
 import java.util.Map;
 import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -296,7 +297,9 @@ public class SparkReadConf {
   }
 
   public boolean distributedPlanningEnabled() {
-    return dataPlanningMode() != LOCAL || deletePlanningMode() != LOCAL;
+    return table instanceof SupportsDistributedScanPlanning distributed
+        && distributed.allowDistributedPlanning()
+        && (dataPlanningMode() != LOCAL || deletePlanningMode() != LOCAL);
   }
 
   public PlanningMode dataPlanningMode() {
@@ -369,14 +372,6 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
         .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
-        .parse();
-  }
-
-  public ParquetReaderType parquetReaderType() {
-    return confParser
-        .enumConf(ParquetReaderType::fromString)
-        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
-        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
 }

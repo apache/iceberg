@@ -26,9 +26,11 @@ import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
+import org.apache.flink.table.types.logical.VariantType;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -147,7 +149,20 @@ public class ParquetWithFlinkSchemaVisitor<T> {
         } finally {
           visitor.fieldNames.pop();
         }
+      } else if (LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION).equals(annotation)
+          || sType instanceof VariantType) {
+        // For the Variant we both check the Parquet LogicalTypeAnnotation, and we rely on the
+        // Iceberg schema, since there are engines like Spark that produce VariantTypes without the
+        // annotation.
+        Preconditions.checkArgument(
+            sType instanceof VariantType,
+            "Invalid variant: Flink type %s is not a variant type",
+            sType);
+        VariantType variant = (VariantType) sType;
+
+        return visitor.variant(variant, group);
       }
+
       Preconditions.checkArgument(
           sType instanceof RowType, "Invalid struct: %s is not a struct", sType);
       RowType struct = (RowType) sType;
@@ -208,6 +223,10 @@ public class ParquetWithFlinkSchemaVisitor<T> {
   }
 
   public T primitive(LogicalType sPrimitive, PrimitiveType primitive) {
+    return null;
+  }
+
+  public T variant(VariantType sVariant, GroupType variant) {
     return null;
   }
 

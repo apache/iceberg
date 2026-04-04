@@ -22,14 +22,12 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
-import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * A read-only serializable table that can be sent to other nodes in a cluster.
@@ -60,6 +58,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final int defaultSpecId;
   private final Map<Integer, String> specAsJsonMap;
   private final String sortOrderAsJson;
+  private final Map<Integer, String> sortOrderAsJsonMap;
   private final FileIO io;
   private final EncryptionManager encryption;
   private final Map<String, SnapshotRef> refs;
@@ -71,6 +70,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
+  private transient volatile Map<Integer, SortOrder> lazySortOrders = null;
 
   protected SerializableTable(Table table) {
     this.name = table.name();
@@ -83,7 +83,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     Map<Integer, PartitionSpec> specs = table.specs();
     specs.forEach((specId, spec) -> specAsJsonMap.put(specId, PartitionSpecParser.toJson(spec)));
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
-    this.io = fileIO(table);
+    this.sortOrderAsJsonMap = Maps.newHashMap();
+    table
+        .sortOrders()
+        .forEach((id, order) -> sortOrderAsJsonMap.put(id, SortOrderParser.toJson(order)));
+    this.io = table.io();
     this.encryption = table.encryption();
     this.locationProviderTry = Try.of(table::locationProvider);
     this.refs = SerializableMap.copyOf(table.refs());
@@ -122,14 +126,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     } else {
       return null;
     }
-  }
-
-  private FileIO fileIO(Table table) {
-    if (table.io() instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) table.io()).serializeConfWith(SerializableConfSupplier::new);
-    }
-
-    return table.io();
   }
 
   private Table lazyTable() {
@@ -251,7 +247,21 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   @Override
   public Map<Integer, SortOrder> sortOrders() {
-    return lazyTable().sortOrders();
+    if (lazySortOrders == null) {
+      synchronized (this) {
+        if (lazySortOrders == null && lazyTable == null) {
+          ImmutableMap.Builder<Integer, SortOrder> sortOrders =
+              ImmutableMap.builderWithExpectedSize(sortOrderAsJsonMap.size());
+          sortOrderAsJsonMap.forEach(
+              (id, json) -> sortOrders.put(id, SortOrderParser.fromJson(schema(), json)));
+          this.lazySortOrders = sortOrders.build();
+        } else if (lazySortOrders == null) {
+          this.lazySortOrders = lazyTable.sortOrders();
+        }
+      }
+    }
+
+    return lazySortOrders;
   }
 
   @Override
@@ -451,33 +461,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
     public MetadataTableType type() {
       return type;
-    }
-  }
-
-  // captures the current state of a Hadoop configuration in a serializable manner
-  private static class SerializableConfSupplier implements SerializableSupplier<Configuration> {
-
-    private final Map<String, String> confAsMap;
-    private transient volatile Configuration conf = null;
-
-    SerializableConfSupplier(Configuration conf) {
-      this.confAsMap = Maps.newHashMapWithExpectedSize(conf.size());
-      conf.forEach(entry -> confAsMap.put(entry.getKey(), entry.getValue()));
-    }
-
-    @Override
-    public Configuration get() {
-      if (conf == null) {
-        synchronized (this) {
-          if (conf == null) {
-            Configuration newConf = new Configuration(false);
-            confAsMap.forEach(newConf::set);
-            this.conf = newConf;
-          }
-        }
-      }
-
-      return conf;
     }
   }
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source.parquet;
 import java.io.IOException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.spark.source.IcebergSourceDeleteBenchmark;
 import org.openjdk.jmh.annotations.Param;
 
@@ -28,8 +29,8 @@ import org.openjdk.jmh.annotations.Param;
  * A benchmark that evaluates the non-vectorized read and vectorized read with pos-delete in the
  * Spark data source for Iceberg.
  *
- * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3:jmh
+ * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.4: <code>
+ *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4:jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetWithUnrelatedDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-with-unrelated-delete-benchmark-result.txt
  * </code>
@@ -46,7 +47,7 @@ public class IcebergSourceParquetWithUnrelatedDeleteBenchmark extends IcebergSou
       writeData(fileNum);
 
       table().refresh();
-      for (DataFile file : table().currentSnapshot().addedDataFiles(table().io())) {
+      for (DataFile file : SnapshotChanges.builderFor(table()).build().addedDataFiles()) {
         writePosDeletesWithNoise(
             file.location(),
             NUM_ROWS,
