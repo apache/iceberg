@@ -282,7 +282,7 @@ ADD COLUMN nested.new_column bigint FIRST;
 
 !!! warning "Hive Catalog Limitation"
     When using a Hive catalog, adding a column with `FIRST` or `AFTER` may fail due to HMS positional
-    schema validation. See the [Hive Catalog Limitation](#hive-catalog-limitation) above for details
+    schema validation. See the warning above for details
     and workaround.
 
 ### `ALTER TABLE ... RENAME COLUMN`
@@ -330,7 +330,7 @@ ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col;
 
 !!! warning "Hive Catalog Limitation"
     When using a Hive catalog, reordering columns may fail due to HMS positional schema validation.
-    See the [Hive Catalog Limitation](#hive-catalog-limitation) above for details and workaround.
+    See the Hive Catalog Limitation note above for details and workaround.
 
 Nullability for a non-nullable column can be changed using `DROP NOT NULL`:
 
@@ -355,8 +355,8 @@ ALTER TABLE prod.db.sample DROP COLUMN point.z;
 
 !!! warning "Hive Catalog Limitation"
     When using a Hive catalog, dropping a non-last column may fail due to HMS positional schema
-    validation. See the [Hive Catalog Limitation](#hive-catalog-limitation) above for details
-    and workaround.
+    validation. See the earlier Hive Catalog Limitation warning above for details and
+    workaround.
 
 ## `ALTER TABLE` SQL extensions
 

@@ -51,7 +51,7 @@ The following properties can be set if using the Hive catalog:
     schema evolution operations that change column positions — such as dropping a non-last column or
     reordering columns — may fail regardless of which engine performs the change (Spark, Flink Java API, etc.).
 
-    To work around this, disable the HMS schema compatibility check by setting
+    To work around this, disable the Hive Metastore (HMS) schema compatibility check by setting
     `hive.metastore.disallow.incompatible.col.type.changes=false`:
 
     - **Remote HMS:** Set this property in the HMS server's `hive-site.xml`.
