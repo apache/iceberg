@@ -41,6 +41,52 @@ public class TestLockManagers {
     assertThat(LockManagers.from(properties)).isInstanceOf(CustomLockManager.class);
   }
 
+  @Test
+  public void testClosingOneManagerDoesNotAffectAnother() throws Exception {
+    Map<String, String> properties = Maps.newHashMap();
+    LockManagers.InMemoryLockManager manager1 = new LockManagers.InMemoryLockManager(properties);
+    LockManagers.InMemoryLockManager manager2 = new LockManagers.InMemoryLockManager(properties);
+
+    // Both managers access the shared scheduler
+    assertThat(manager1.acquire("entity1", "owner1")).isTrue();
+    assertThat(manager2.acquire("entity2", "owner2")).isTrue();
+
+    // Close manager1 - should NOT shut down the shared scheduler
+    manager1.release("entity1", "owner1");
+    manager1.close();
+
+    // manager2 should still be able to acquire locks (scheduler still alive)
+    assertThat(manager2.acquire("entity3", "owner3")).isTrue();
+    manager2.release("entity3", "owner3");
+
+    // Cleanup
+    manager2.release("entity2", "owner2");
+    manager2.close();
+  }
+
+  @Test
+  public void testClosingAllManagersShutsDownScheduler() throws Exception {
+    Map<String, String> properties = Maps.newHashMap();
+    LockManagers.InMemoryLockManager manager1 = new LockManagers.InMemoryLockManager(properties);
+    LockManagers.InMemoryLockManager manager2 = new LockManagers.InMemoryLockManager(properties);
+
+    // Both managers access the shared scheduler
+    assertThat(manager1.acquire("entity1", "owner1")).isTrue();
+    assertThat(manager2.acquire("entity2", "owner2")).isTrue();
+
+    // Release locks and close both managers
+    manager1.release("entity1", "owner1");
+    manager1.close();
+    manager2.release("entity2", "owner2");
+    manager2.close();
+
+    // After both are closed, a new manager should still be able to create a fresh scheduler
+    LockManagers.InMemoryLockManager manager3 = new LockManagers.InMemoryLockManager(properties);
+    assertThat(manager3.acquire("entity3", "owner3")).isTrue();
+    manager3.release("entity3", "owner3");
+    manager3.close();
+  }
+
   static class CustomLockManager implements LockManager {
 
     @Override

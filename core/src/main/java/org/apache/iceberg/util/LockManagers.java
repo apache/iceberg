@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.common.DynConstructors;
@@ -81,7 +82,9 @@ public class LockManagers {
   public abstract static class BaseLockManager implements LockManager {
 
     private static volatile ScheduledExecutorService scheduler;
+    private static final AtomicInteger schedulerRefCount = new AtomicInteger(0);
 
+    private volatile boolean schedulerInitialized = false;
     private long acquireTimeoutMs;
     private long acquireIntervalMs;
     private long heartbeatIntervalMs;
@@ -125,6 +128,15 @@ public class LockManagers {
         }
       }
 
+      if (!schedulerInitialized) {
+        synchronized (this) {
+          if (!schedulerInitialized) {
+            schedulerRefCount.incrementAndGet();
+            schedulerInitialized = true;
+          }
+        }
+      }
+
       return scheduler;
     }
 
@@ -159,15 +171,22 @@ public class LockManagers {
 
     @Override
     public void close() throws Exception {
-      if (scheduler != null) {
-        List<Runnable> tasks = scheduler.shutdownNow();
-        tasks.forEach(
-            task -> {
-              if (task instanceof Future) {
-                ((Future<?>) task).cancel(true);
-              }
-            });
-        scheduler = null;
+      if (schedulerInitialized) {
+        schedulerInitialized = false;
+        if (schedulerRefCount.decrementAndGet() <= 0) {
+          synchronized (BaseLockManager.class) {
+            if (scheduler != null) {
+              List<Runnable> tasks = scheduler.shutdownNow();
+              tasks.forEach(
+                  task -> {
+                    if (task instanceof Future) {
+                      ((Future<?>) task).cancel(true);
+                    }
+                  });
+              scheduler = null;
+            }
+          }
+        }
       }
     }
   }
