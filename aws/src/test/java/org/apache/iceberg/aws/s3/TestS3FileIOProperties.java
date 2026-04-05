@@ -578,13 +578,13 @@ public class TestS3FileIOProperties {
   }
 
   @Test
-  public void testChunkedEncodingEnabled() {
+  public void testChunkedEncodingDisabled() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.CHUNKED_ENCODING_ENABLED, "true");
+    properties.put(S3FileIOProperties.CHUNKED_ENCODING_ENABLED, "false");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
 
     assertThat(s3FileIOProperties.isChunkedEncodingEnabled())
-        .as("chunked encoding should be enabled when explicitly set to true")
-        .isTrue();
+        .as("chunked encoding should be disabled when explicitly set to false")
+        .isFalse();
   }
 }
