@@ -215,7 +215,7 @@ public class PlanningBenchmark {
   private void setupSpark() {
     this.spark =
         SparkSession.builder()
-            .config("spark.ui.enabled", false)
+            .config(TestBase.DISABLE_UI)
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config("spark.driver.maxResultSize", "8G")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
@@ -398,7 +398,7 @@ public class PlanningBenchmark {
         .set(TableProperties.DATA_PLANNING_MODE, dataMode.modeName())
         .set(TableProperties.DELETE_PLANNING_MODE, deleteMode.modeName())
         .commit();
-    SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+    SparkReadConf readConf = new SparkReadConf(spark, table);
     return new SparkDistributedDataScan(spark, table, readConf);
   }
 

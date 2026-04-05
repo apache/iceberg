@@ -210,6 +210,60 @@ public class TestPositionDeletesTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testArrayColumnFilter() throws IOException {
+    assumeThat(formatVersion)
+        .as("Row content in position_deletes is required for array column filter test")
+        .isEqualTo(2);
+    String tableName = "array_column_filter";
+    Schema schemaWithArray =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(
+                3, "arr_col", Types.ListType.ofOptional(4, Types.IntegerType.get())));
+    Table tab = createTable(tableName, schemaWithArray, PartitionSpec.unpartitioned());
+
+    GenericRecord record1 = GenericRecord.create(schemaWithArray);
+    record1.set(0, 1);
+    record1.set(1, "a");
+    record1.set(2, ImmutableList.of(1, 2));
+    GenericRecord record2 = GenericRecord.create(schemaWithArray);
+    record2.set(0, 2);
+    record2.set(1, "b");
+    record2.set(2, ImmutableList.of(3, 4));
+    List<Record> dataRecords = ImmutableList.of(record1, record2);
+    DataFile dFile =
+        FileHelpers.writeDataFile(
+            tab,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(),
+            dataRecords);
+    tab.newAppend().appendFile(dFile).commit();
+
+    List<PositionDelete<?>> deletes =
+        ImmutableList.of(
+            positionDelete(schemaWithArray, dFile.location(), 0L, 1, "a", ImmutableList.of(1, 2)),
+            positionDelete(schemaWithArray, dFile.location(), 1L, 2, "b", ImmutableList.of(3, 4)));
+    DeleteFile posDeletes =
+        FileHelpers.writePosDeleteFile(
+            tab,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(),
+            deletes,
+            formatVersion);
+    tab.newRowDelta().addDeletes(posDeletes).commit();
+
+    // Filter directly on array column: row.arr_col = array(1, 2)
+    StructLikeSet actual = actual(tableName, tab, "row.arr_col = array(1, 2)");
+    StructLikeSet expected = expected(tab, ImmutableList.of(deletes.get(0)), null, posDeletes);
+
+    assertThat(actual)
+        .as("Filtering position_deletes by row.arr_col = array(1, 2) should return matching row")
+        .isEqualTo(expected);
+    dropTable(tableName);
+  }
+
+  @TestTemplate
   public void testSelect() throws IOException {
     assumeThat(formatVersion).as("DVs don't have row info in PositionDeletesTable").isEqualTo(2);
     // Create table with two partitions
@@ -409,7 +463,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     // Add position deletes for both partitions
     Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileA, "b");
+    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
 
     tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
 
@@ -455,7 +509,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     Pair<List<PositionDelete<?>>, DeleteFile> deletesA =
         deleteFile(tab, dataFileA, new Object[] {"aa"}, new Object[] {"a"});
     Pair<List<PositionDelete<?>>, DeleteFile> deletesB =
-        deleteFile(tab, dataFileA, new Object[] {"bb"}, new Object[] {"b"});
+        deleteFile(tab, dataFileB, new Object[] {"bb"}, new Object[] {"b"});
     tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
 
     // Prepare expected values
@@ -496,7 +550,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     DataFile dataFileB = dataFile(tab, "b");
     tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
     Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileA, "b");
+    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
     tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
 
     // Switch partition spec from (data) to (id)
@@ -508,7 +562,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     tab.newAppend().appendFile(dataFile10).appendFile(dataFile99).commit();
 
     Pair<List<PositionDelete<?>>, DeleteFile> deletes10 = deleteFile(tab, dataFile10, 10);
-    Pair<List<PositionDelete<?>>, DeleteFile> deletes99 = deleteFile(tab, dataFile10, 99);
+    Pair<List<PositionDelete<?>>, DeleteFile> deletes99 = deleteFile(tab, dataFile99, 99);
     tab.newRowDelta().addDeletes(deletes10.second()).addDeletes(deletes99.second()).commit();
 
     // Query partition of old spec

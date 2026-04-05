@@ -84,6 +84,9 @@ Supported transformations are:
 
 Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility.
 
+The same transforms are also available as Spark SQL functions under the `system` namespace. See
+[Spark SQL functions](spark-queries.md#spark-sql-functions).
+
 ## `CREATE TABLE ... AS SELECT`
 
 Iceberg supports CTAS as an atomic operation when using a [`SparkCatalog`](spark-configuration.md#catalog-configuration). CTAS is supported, but is not atomic when using [`SparkSessionCatalog`](spark-configuration.md#replacing-the-session-catalog).

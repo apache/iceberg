@@ -21,6 +21,7 @@ package org.apache.iceberg.gcp.gcs;
 import com.google.api.client.util.Preconditions;
 import com.google.cloud.gcs.analyticscore.client.GcsObjectRange;
 import com.google.cloud.gcs.analyticscore.core.GoogleCloudStorageInputStream;
+import com.google.cloud.storage.BlobId;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -37,10 +38,14 @@ class GcsInputStreamWrapper extends SeekableInputStream implements RangeReadable
   private final Counter readBytes;
   private final Counter readOperations;
   private final GoogleCloudStorageInputStream stream;
+  private final BlobId blobId;
 
-  GcsInputStreamWrapper(GoogleCloudStorageInputStream stream, MetricsContext metrics) {
+  GcsInputStreamWrapper(
+      GoogleCloudStorageInputStream stream, BlobId blobId, MetricsContext metrics) {
     Preconditions.checkArgument(null != stream, "Invalid input stream : null");
+    Preconditions.checkArgument(null != blobId, "Invalid blobId : null");
     this.stream = stream;
+    this.blobId = blobId;
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
   }
@@ -57,7 +62,13 @@ class GcsInputStreamWrapper extends SeekableInputStream implements RangeReadable
 
   @Override
   public int read() throws IOException {
-    int readByte = stream.read();
+    int readByte;
+    try {
+      readByte = stream.read();
+    } catch (IOException e) {
+      GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
+      throw e;
+    }
     readBytes.increment();
     readOperations.increment();
     return readByte;
@@ -70,7 +81,13 @@ class GcsInputStreamWrapper extends SeekableInputStream implements RangeReadable
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    int bytesRead = stream.read(b, off, len);
+    int bytesRead;
+    try {
+      bytesRead = stream.read(b, off, len);
+    } catch (IOException e) {
+      GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
+      throw e;
+    }
     if (bytesRead > 0) {
       readBytes.increment(bytesRead);
     }
@@ -80,12 +97,22 @@ class GcsInputStreamWrapper extends SeekableInputStream implements RangeReadable
 
   @Override
   public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
-    stream.readFully(position, buffer, offset, length);
+    try {
+      stream.readFully(position, buffer, offset, length);
+    } catch (IOException e) {
+      GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
+      throw e;
+    }
   }
 
   @Override
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
-    return stream.readTail(buffer, offset, length);
+    try {
+      return stream.readTail(buffer, offset, length);
+    } catch (IOException e) {
+      GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
+      throw e;
+    }
   }
 
   @Override
@@ -101,8 +128,12 @@ class GcsInputStreamWrapper extends SeekableInputStream implements RangeReadable
                         .setByteBufferFuture(fileRange.byteBuffer())
                         .build())
             .collect(Collectors.toList());
-
-    stream.readVectored(objectRanges, allocate);
+    try {
+      stream.readVectored(objectRanges, allocate);
+    } catch (IOException e) {
+      GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
+      throw e;
+    }
   }
 
   @Override

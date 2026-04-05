@@ -83,6 +83,9 @@ public class TableProperties {
           DEFAULT_PARTITION_SPEC,
           DEFAULT_SORT_ORDER);
 
+  /** A table property that documents the business meaning and usage context of this table. */
+  public static final String COMMENT = "comment";
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
@@ -188,6 +191,12 @@ public class TableProperties {
   public static final String DELETE_AVRO_COMPRESSION_LEVEL = "write.delete.avro.compression-level";
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
 
+  public static final String MANIFEST_COMPRESSION = "write.manifest.compression-codec";
+  public static final String MANIFEST_COMPRESSION_DEFAULT = "gzip";
+
+  public static final String MANIFEST_COMPRESSION_LEVEL = "write.manifest.compression-level";
+  public static final String MANIFEST_COMPRESSION_LEVEL_DEFAULT = null;
+
   public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
 
   public static final String ORC_BLOOM_FILTER_COLUMNS = "write.orc.bloom.filter.columns";
@@ -246,6 +255,15 @@ public class TableProperties {
   public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
+
+  /**
+   * When true, declares that the table's identifier fields can be relied upon as a primary key by
+   * query engines for optimization purposes (e.g. eliminating redundant joins or distinct). This is
+   * not enforced at write time and does not validate existing data.
+   */
+  public static final String IDENTIFIER_FIELDS_RELY = "identifier-fields.rely";
+
+  public static final boolean IDENTIFIER_FIELDS_RELY_DEFAULT = false;
 
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
@@ -327,6 +345,10 @@ public class TableProperties {
 
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
+  public static final String SPARK_WRITE_AUTO_SCHEMA_EVOLUTION =
+      "write.spark.auto-schema-evolution.enabled";
+  public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
   public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
       "write.spark.advisory-partition-size-bytes";

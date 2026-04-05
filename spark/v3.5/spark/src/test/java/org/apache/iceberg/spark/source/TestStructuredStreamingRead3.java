@@ -41,6 +41,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -833,7 +834,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     Iterable<Snapshot> it = table.snapshots();
     for (Snapshot snapshot : it) {
       if (snapshot.operation().equals(DataOperations.APPEND)) {
-        Iterable<DataFile> datafiles = snapshot.addedDataFiles(table.io());
+        Iterable<DataFile> datafiles =
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles();
         for (DataFile datafile : datafiles) {
           rewrite.addFile(datafile);
           rewrite.deleteFile(datafile);

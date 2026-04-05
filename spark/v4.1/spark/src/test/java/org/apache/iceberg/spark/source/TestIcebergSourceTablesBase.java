@@ -30,11 +30,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -51,6 +53,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -102,6 +105,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public abstract class TestIcebergSourceTablesBase extends TestBase {
+
+  private static final SimpleDateFormat TIMESTAMP_FORMAT =
+      new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
   private static final Schema SCHEMA =
       new Schema(
@@ -257,7 +263,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> singleActual =
         rowsToJava(
@@ -290,7 +296,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -328,7 +334,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -635,7 +641,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     table.refresh();
     DataFile toDelete =
-        Iterables.getOnlyElement(table.currentSnapshot().addedDataFiles(table.io()));
+        Iterables.getOnlyElement(SnapshotChanges.builderFor(table).build().addedDataFiles());
 
     // add a second file
     df2.select("id", "data")
@@ -1134,19 +1140,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
-    if (!spark.version().startsWith("2")) {
-      // Spark 2 isn't able to actually push down nested struct projections so this will not break
-      assertThatThrownBy(
-              () ->
-                  spark
-                      .read()
-                      .format("iceberg")
-                      .load(loadLocation(tableIdentifier, "manifests"))
-                      .select("partition_spec_id", "path", "partition_summaries.contains_null")
-                      .collectAsList())
-          .isInstanceOf(SparkException.class)
-          .hasMessageContaining("Cannot project a partial list element struct");
-    }
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .load(loadLocation(tableIdentifier, "manifests"))
+                    .select("partition_spec_id", "path", "partition_summaries.contains_null")
+                    .collectAsList())
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Cannot project a partial list element struct");
 
     Dataset<Row> actualDf =
         spark
@@ -1323,7 +1326,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
+                totalSizeInBytes(SnapshotChanges.builderFor(table).build().addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1392,7 +1395,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1408,7 +1415,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(secondCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1430,7 +1441,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, String.valueOf(firstCommitId))
+            .option(SparkReadOptions.VERSION_AS_OF, String.valueOf(firstCommitId))
             .load(loadLocation(tableIdentifier, "partitions"))
             .orderBy("partition.id")
             .collectAsList();
@@ -1674,7 +1685,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1690,7 +1705,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 2L) // should be incremented now
             .set("position_delete_file_count", 2) // should be incremented now
             .set("equality_delete_record_count", 0L)
@@ -1799,7 +1818,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1838,6 +1857,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.updateSchema().deleteColumn("data").commit();
     long tsAfterDropColumn = waitUntilAfter(System.currentTimeMillis());
 
+    String formattedTsBeforeDropColumn = TIMESTAMP_FORMAT.format(new Date(tsBeforeDropColumn));
+    String formattedTsAfterDropColumn = TIMESTAMP_FORMAT.format(new Date(tsAfterDropColumn));
+
     List<Row> newRecords = Lists.newArrayList(RowFactory.create(4, "B"), RowFactory.create(5, "C"));
 
     StructType newSparkSchema = SparkSchemaUtil.convert(SCHEMA3);
@@ -1868,7 +1890,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
+            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTsBeforeDropColumn)
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1881,7 +1903,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
+            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTsAfterDropColumn)
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1964,7 +1986,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
@@ -2328,7 +2350,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     withSQLConf(
         // set read option through session configuration
-        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(s1)),
+        ImmutableMap.of("spark.datasource.iceberg.versionAsOf", String.valueOf(s1)),
         () -> {
           Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
           List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -2418,7 +2440,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
   private DeleteFile writePosDeleteFile(Table table, long pos) {
     DataFile dataFile =
-        Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
+        Iterables.getFirst(SnapshotChanges.builderFor(table).build().addedDataFiles(), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 

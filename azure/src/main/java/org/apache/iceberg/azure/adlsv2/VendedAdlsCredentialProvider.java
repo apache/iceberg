@@ -40,6 +40,7 @@ import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -154,7 +155,11 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
       synchronized (this) {
         if (null == client) {
           authManager = AuthManagers.loadAuthManager("adls-credentials-refresh", properties);
-          HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
+          HTTPClient httpClient =
+              HTTPClient.builder(properties)
+                  .uri(catalogEndpoint)
+                  .withHeaders(RESTUtil.configHeaders(properties))
+                  .build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);
         }

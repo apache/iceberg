@@ -25,8 +25,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.sql.TestSelect;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -42,17 +40,12 @@ public class TestRemoteScanPlanning extends TestSelect {
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
             // this flag is typically only set by the server, but we set it from the client for
             // testing
-            .put(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true")
+            .put(
+                RESTCatalogProperties.SCAN_PLANNING_MODE,
+                RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
             .build(),
         SparkCatalogConfig.REST.catalogName() + ".default.binary_table"
       }
     };
-  }
-
-  @TestTemplate
-  @Disabled(
-      "binary filter that is used by Spark is not working because ExpressionParser.fromJSON doesn't have the Schema to properly parse the filter expression")
-  public void testBinaryInFilter() {
-    super.testBinaryInFilter();
   }
 }

@@ -21,18 +21,23 @@ package org.apache.iceberg.avro;
 import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.SeekableFileInput;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.avro.generic.GenericDatumReader;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantTestUtil;
 
-class AvroTestHelpers {
+public class AvroTestHelpers {
 
   private AvroTestHelpers() {}
 
@@ -162,6 +167,14 @@ class AvroTestHelpers {
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
+    }
+  }
+
+  /** Reads the {@code avro.codec} metadata value from an Avro data file. */
+  public static String readAvroCodec(File file) throws IOException {
+    try (DataFileReader<?> reader =
+        new DataFileReader<>(new SeekableFileInput(file), new GenericDatumReader<>())) {
+      return reader.getMetaString("avro.codec");
     }
   }
 }

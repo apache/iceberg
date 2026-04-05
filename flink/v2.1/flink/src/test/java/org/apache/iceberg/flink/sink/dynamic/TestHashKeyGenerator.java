@@ -160,6 +160,48 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testHashModeWithPartitionFieldAndEqualityField() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
+
+    GenericRowData row1 = GenericRowData.of(1, StringData.fromString("foo"));
+    GenericRowData row2 = GenericRowData.of(1, StringData.fromString("bar"));
+    Set<String> equalityColumns = Sets.newHashSet("id", "data");
+
+    int writeKey1 =
+        getWriteKey(
+            generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row1);
+    int writeKey2 =
+        getWriteKey(
+            generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row2);
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+  }
+
+  @Test
+  void testHashModeWithPartitionFieldNotInEqualityFieldsFails() {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
+    Set<String> equalityColumns = Collections.singleton("data");
+
+    GenericRowData row = GenericRowData.of(1, StringData.fromString("foo"));
+
+    assertThatThrownBy(
+            () ->
+                getWriteKey(
+                    generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("partition field")
+        .hasMessageContaining(spec.fields().get(0).toString())
+        .hasMessageContaining("should be included in equality fields");
+  }
+
+  @Test
   void testFailOnNonPositiveWriteParallelism() {
     final int maxWriteParallelism = 5;
     HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
@@ -357,6 +399,74 @@ class TestHashKeyGenerator {
     assertThat(keySelectorCache).hasSize(1);
     // We create a new key selector which will start off at the same position
     assertThat(writeKey1).isEqualTo(writeKey3);
+  }
+
+  @Test
+  void testCacheMissOnWriteParallelismChange() throws Exception {
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(10, maxWriteParallelism);
+    Map<HashKeyGenerator.SelectorKey, KeySelector<RowData, Integer>> keySelectorCache =
+        generator.getKeySelectorCache();
+
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+    DynamicRecord record1 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            SCHEMA,
+            GenericRowData.of(1, StringData.fromString("foo")),
+            unpartitioned,
+            DistributionMode.NONE,
+            2);
+    DynamicRecord record2 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            SCHEMA,
+            GenericRowData.of(1, StringData.fromString("foo")),
+            unpartitioned,
+            DistributionMode.NONE,
+            4);
+
+    generator.generateKey(record1);
+    assertThat(keySelectorCache).hasSize(1);
+
+    generator.generateKey(record2);
+    assertThat(keySelectorCache).hasSize(2);
+  }
+
+  @Test
+  void testCacheMissOnDistributionModeChange() throws Exception {
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(10, maxWriteParallelism);
+    Map<HashKeyGenerator.SelectorKey, KeySelector<RowData, Integer>> keySelectorCache =
+        generator.getKeySelectorCache();
+
+    PartitionSpec partitioned = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    DynamicRecord record1 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            SCHEMA,
+            GenericRowData.of(1, StringData.fromString("foo")),
+            partitioned,
+            DistributionMode.NONE,
+            2);
+    DynamicRecord record2 =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            SCHEMA,
+            GenericRowData.of(1, StringData.fromString("foo")),
+            partitioned,
+            DistributionMode.HASH,
+            2);
+
+    generator.generateKey(record1);
+    assertThat(keySelectorCache).hasSize(1);
+
+    generator.generateKey(record2);
+    assertThat(keySelectorCache).hasSize(2);
   }
 
   private static int getWriteKey(

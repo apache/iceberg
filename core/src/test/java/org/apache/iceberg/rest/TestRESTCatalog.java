@@ -37,6 +37,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -67,6 +68,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -86,6 +88,9 @@ import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
+import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -98,7 +103,11 @@ import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -111,10 +120,10 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -262,6 +271,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private Server httpServer;
   private HeaderValidatingAdapter adapterForRESTServer;
 
+  @SuppressWarnings("removal")
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
@@ -405,6 +415,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Override
   protected boolean requiresNamespaceCreate() {
     return true;
+  }
+
+  @Override
+  protected boolean supportsNamesWithSlashes() {
+    // names with slashes are rejected and considered as suspicious characters after upgrading Jetty
+    // and the Servlet API. See also
+    // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
+    // for additional details
+    return false;
   }
 
   /* RESTCatalog specific tests */
@@ -2647,6 +2666,77 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void testNoCleanupOnCreate503() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              protected <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                var response = super.execute(request, responseType, errorHandler, responseHeaders);
+                if (request.method() == HTTPMethod.POST && request.path().contains(TABLE.name())) {
+                  // Simulate a 503 Service Unavailable error
+                  ErrorResponse error =
+                      ErrorResponse.builder()
+                          .responseCode(503)
+                          .withMessage("Service unavailable")
+                          .build();
+
+                  errorHandler.accept(error);
+                  throw new IllegalStateException("Error handler should have thrown");
+                }
+                return response;
+              }
+            });
+
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Transaction createTableTransaction = catalog.newCreateTableTransaction(TABLE, SCHEMA);
+    createTableTransaction.newAppend().appendFile(FILE_A).commit();
+
+    // Verify that 503 is mapped to CommitStateUnknownException (not just ServiceFailureException)
+    assertThatThrownBy(createTableTransaction::commitTransaction)
+        .isInstanceOf(CommitStateUnknownException.class)
+        .cause()
+        .isInstanceOf(ServiceFailureException.class)
+        .hasMessageContaining("Service failed: 503");
+
+    // Verify files are NOT cleaned up (because commit state is unknown)
+    assertThat(allRequests(adapter))
+        .anySatisfy(
+            req -> {
+              assertThat(req.method()).isEqualTo(HTTPMethod.POST);
+              assertThat(req.path()).isEqualTo(RESOURCE_PATHS.table(TABLE));
+              assertThat(req.body()).isInstanceOf(UpdateTableRequest.class);
+              UpdateTableRequest body = (UpdateTableRequest) req.body();
+              assertThat(
+                      body.updates().stream()
+                          .filter(MetadataUpdate.AddSnapshot.class::isInstance)
+                          .map(MetadataUpdate.AddSnapshot.class::cast)
+                          .findFirst())
+                  .hasValueSatisfying(
+                      addSnapshot -> {
+                        String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+                        // Files should still exist because we don't know if commit succeeded
+                        assertThat(
+                                catalog
+                                    .loadTable(TABLE)
+                                    .io()
+                                    .newInputFile(manifestListLocation)
+                                    .exists())
+                            .isTrue();
+                      });
+            });
+  }
+
+  @Test
   public void testCleanupCleanableExceptionsReplace() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
@@ -3448,8 +3538,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                     "parent",
                     RESTUtil.namespaceToQueryParam(parentNamespace, expectedSeparator),
                     "pageToken",
-                    ""),
-                null),
+                    "")),
             eq(ListNamespacesResponse.class),
             any(),
             any());
@@ -3575,6 +3664,292 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThatThrownBy(() -> restCatalog.loadTable(TBL))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("No in-memory file found for location: " + metadataFileLocation);
+  }
+
+  @Test
+  public void testNumLoadTableCallsForMergeAppend() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    BaseTable table = (BaseTable) catalog.createTable(TABLE, SCHEMA);
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // loadTable is executed once
+    Mockito.verify(adapter, times(2))
+        .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+
+    // CommitReport reflects the table state after the commit
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.metrics(TABLE),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof ReportMetricsRequest reportRequest
+                        && reportRequest.report() instanceof CommitReport commitReport
+                        && commitReport.tableName().equals(table.name())
+                        && commitReport.snapshotId() == table.currentSnapshot().snapshotId()
+                        && commitReport.sequenceNumber() == table.currentSnapshot().sequenceNumber()
+                        && commitReport.operation().equals("append")
+                        && commitReport.commitMetrics().addedDataFiles().value() == 1),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testSequenceNumberConflictThrowsCommitFailed() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+
+    DataFile fileOnMain =
+        DataFiles.builder(SPEC)
+            .withPath("/path/commit-test-file1.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    catalog.loadTable(TABLE).newFastAppend().appendFile(fileOnMain).commit();
+
+    DataFile fileOnAnotherBranch =
+        DataFiles.builder(SPEC)
+            .withPath("/path/commit-test-conflicting.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    // Before the next commit is processed by the server, advance the server's lastSequenceNumber
+    // by committing to a different branch. This simulates a concurrent request to a different
+    // branch
+    // that "beats" the commit to main.
+    Mockito.doAnswer(
+            invocation -> {
+              backendCatalog
+                  .loadTable(TABLE)
+                  .newFastAppend()
+                  .appendFile(fileOnAnotherBranch)
+                  .toBranch("other")
+                  .commit();
+              return invocation.callRealMethod();
+            })
+        .when(adapter)
+        .execute(matches(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+
+    DataFile anotherFileOnMain =
+        DataFiles.builder(SPEC)
+            .withPath("/path/commit-test-file2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    assertThatThrownBy(
+            () -> catalog.loadTable(TABLE).newFastAppend().appendFile(anotherFileOnMain).commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Validation failed, please retry");
+  }
+
+  @Test
+  public void testIoBuilderReceivesStorageCredentials() {
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3://test-bucket/")
+            .putConfig("s3.access-key-id", "test-access-key")
+            .putConfig("s3.secret-access-key", "test-secret-key")
+            .build();
+
+    // Adapter that injects storage credentials into LoadTableResponse
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @SuppressWarnings("unchecked")
+          @Override
+          public <T extends RESTResponse> T handleRequest(
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            T response =
+                super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+            if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
+              return (T)
+                  LoadTableResponse.builder()
+                      .withTableMetadata(loadResponse.tableMetadata())
+                      .addAllConfig(loadResponse.config())
+                      .addCredential(credential)
+                      .build();
+            }
+            return response;
+          }
+        };
+
+    AtomicReference<FileIO> createdFileIO = new AtomicReference<>();
+
+    try (RESTCatalog catalog =
+        catalog(
+            adapter,
+            clientBuilder ->
+                new RESTSessionCatalog(
+                    clientBuilder,
+                    (context, config) -> {
+                      TestCatalogUtil.TestFileIOWithStorageCredentials fileIO =
+                          new TestCatalogUtil.TestFileIOWithStorageCredentials();
+                      createdFileIO.set(fileIO);
+                      return fileIO;
+                    }))) {
+      catalog.createNamespace(NS);
+      catalog.createTable(TABLE, SCHEMA);
+      catalog.loadTable(TABLE);
+
+      assertThat(createdFileIO.get()).isInstanceOf(SupportsStorageCredentials.class);
+      List<StorageCredential> creds =
+          ((SupportsStorageCredentials) createdFileIO.get()).credentials();
+      assertThat(creds).hasSize(1);
+      assertThat(creds.get(0).prefix()).isEqualTo("s3://test-bucket/");
+      assertThat(creds.get(0).config())
+          .containsEntry("s3.access-key-id", "test-access-key")
+          .containsEntry("s3.secret-access-key", "test-secret-key");
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  @Test
+  public void testRegisterTableOverwriteFalse() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    Table sourceTable = catalog.createTable(TABLE, SCHEMA);
+    String metadataLocation =
+        ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+    TableIdentifier target = TableIdentifier.of(TABLE.namespace(), "table_register_false");
+
+    catalog.registerTable(target, metadataLocation, false);
+
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.register(target.namespace()),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof RegisterTableRequest request
+                        && request.name().equals(target.name())
+                        && request.metadataLocation().equals(metadataLocation)
+                        && !request.overwrite()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRegisterTableOverwriteTrue() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    Table sourceTable = catalog.createTable(TABLE, SCHEMA);
+    String metadataLocation =
+        ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+    TableIdentifier target = TableIdentifier.of(TABLE.namespace(), "table_register_true");
+
+    assertThatThrownBy(() -> catalog.registerTable(target, metadataLocation, true))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Registering tables with overwrite is not supported");
+
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.register(target.namespace()),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof RegisterTableRequest request
+                        && request.name().equals(target.name())
+                        && request.metadataLocation().equals(metadataLocation)
+                        && request.overwrite()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRegisterTableOverwriteTrueSupported() throws Exception {
+    File warehouse = new File(temp.toFile(), "overwrite-supported-warehouse");
+
+    InMemoryCatalog overwriteCatalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table registerTable(
+              TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+            if (overwrite && tableExists(identifier)) {
+              dropTable(identifier, false);
+            }
+
+            return registerTable(identifier, metadataFileLocation);
+          }
+        };
+
+    overwriteCatalog.initialize(
+        "overwrite-catalog",
+        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(overwriteCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    try {
+      catalog.createNamespace(TABLE.namespace());
+
+      Table sourceTable = catalog.createTable(TABLE, SCHEMA);
+      String metadataLocation =
+          ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+
+      TableIdentifier target = TableIdentifier.of(TABLE.namespace(), "table_register_true_success");
+      Table initialTargetTable =
+          catalog.createTable(
+              target,
+              SCHEMA,
+              PartitionSpec.unpartitioned(),
+              ImmutableMap.of("format-version", "2"));
+      String initialMetadataLocation =
+          ((HasTableOperations) initialTargetTable).operations().current().metadataFileLocation();
+
+      Table overwritten = catalog.registerTable(target, metadataLocation, true);
+
+      assertThat(((HasTableOperations) overwritten).operations().current().metadataFileLocation())
+          .isEqualTo(metadataLocation)
+          .isNotEqualTo(initialMetadataLocation);
+
+      verify(adapter)
+          .execute(
+              matches(
+                  HTTPMethod.POST,
+                  RESOURCE_PATHS.register(target.namespace()),
+                  Map.of(),
+                  Map.of(),
+                  requestObj ->
+                      requestObj instanceof RegisterTableRequest request
+                          && request.name().equals(target.name())
+                          && request.metadataLocation().equals(metadataLocation)
+                          && request.overwrite()),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+    } finally {
+      catalog.close();
+      overwriteCatalog.close();
+    }
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

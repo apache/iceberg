@@ -72,7 +72,8 @@ public class TestSequenceNumberForV2Table extends TestBase {
         "Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
 
     // FILE_A and FILE_B in manifest may reorder
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(newManifest, FILE_IO, table.specs()).entries()) {
       if (entry.file().location().equals(FILE_A.location())) {
         V2Assert.assertEquals(
             "FILE_A sequence number should be 1", 1, entry.dataSequenceNumber().longValue());

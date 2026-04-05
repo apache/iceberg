@@ -31,6 +31,8 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestFileGenerationUtil {
 
@@ -83,6 +85,23 @@ public class TestFileGenerationUtil {
     ByteBuffer actualIntUpper = metrics.upperBounds().get(intField.fieldId());
     assertThat(actualIntLower).isEqualTo(intLower);
     assertThat(actualIntUpper).isEqualTo(intUpper);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"none", "counts", "truncate(16)", "full"})
+  @SuppressWarnings("deprecation")
+  void testBoundsForAllMetricsModes(String metricsMode) {
+    MetricsConfig metricsConfig =
+        MetricsConfig.fromProperties(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode));
+    Metrics metrics =
+        FileGenerationUtil.generateRandomMetrics(
+            SCHEMA,
+            metricsConfig,
+            ImmutableMap.of() /* no lower bounds */,
+            ImmutableMap.of() /* no upper bounds */);
+
+    checkBounds(metrics, metricsConfig);
   }
 
   private void checkBounds(Metrics metrics, MetricsConfig metricsConfig) {

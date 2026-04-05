@@ -59,6 +59,7 @@ public class BaseContentStats implements ContentStats, Serializable {
       fieldStats.add(
           BaseFieldStats.builder()
               .fieldId(StatsUtil.fieldIdForStatsField(field.fieldId()))
+              .statsStruct(structType)
               .type(type)
               .build());
     }
@@ -120,8 +121,7 @@ public class BaseContentStats implements ContentStats, Serializable {
   @SuppressWarnings({"unchecked", "rawtypes", "CyclomaticComplexity"})
   @Override
   public <T> void set(int pos, T value) {
-    if (value instanceof GenericRecord) {
-      GenericRecord record = (GenericRecord) value;
+    if (value instanceof GenericRecord record) {
       FieldStats<?> stat = fieldStats.get(pos);
       BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
@@ -244,6 +244,7 @@ public class BaseContentStats implements ContentStats, Serializable {
       return this;
     }
 
+    @SuppressWarnings("rawtypes")
     public BaseContentStats build() {
       Preconditions.checkArgument(
           null != statsStruct || null != schema, "Either stats struct or table schema must be set");
@@ -253,7 +254,21 @@ public class BaseContentStats implements ContentStats, Serializable {
         this.statsStruct = StatsUtil.contentStatsFor(schema).type().asStructType();
       }
 
-      return new BaseContentStats(statsStruct, stats);
+      List<FieldStats<?>> resolvedStats = Lists.newArrayListWithCapacity(stats.size());
+      for (FieldStats<?> stat : stats) {
+        int statsFieldId = StatsUtil.statsFieldIdForField(stat.fieldId());
+        Types.NestedField statsField = statsStruct.field(statsFieldId);
+        if (null != statsField && statsField.type().isStructType()) {
+          resolvedStats.add(
+              ((BaseFieldStats.Builder) BaseFieldStats.buildFrom(stat))
+                  .statsStruct(statsField.type().asStructType())
+                  .build());
+        } else {
+          resolvedStats.add(stat);
+        }
+      }
+
+      return new BaseContentStats(statsStruct, resolvedStats);
     }
   }
 }

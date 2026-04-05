@@ -24,12 +24,14 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -209,15 +211,20 @@ public class TestFindFiles extends TestBase {
 
   @TestTemplate
   public void testPlanWith() {
-    table
-        .newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
-        .commit();
+    // use separate commits to create multiple manifests for parallel scanning
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
 
-    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    ExecutorService executorService =
+        Executors.newFixedThreadPool(
+            2,
+            runnable -> {
+              Thread thread = new Thread(runnable);
+              thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+              thread.setDaemon(true);
+              return thread;
+            });
     try {
       Iterable<DataFile> files =
           FindFiles.in(table)
@@ -225,7 +232,11 @@ public class TestFindFiles extends TestBase {
               .withMetadataMatching(Expressions.startsWith("file_path", "/path/to/data"))
               .collect();
 
+      assertThat(files).isInstanceOf(ParallelIterable.class);
       assertThat(pathSet(files)).isEqualTo(pathSet(FILE_A, FILE_B, FILE_C, FILE_D));
+      assertThat(planThreadsIndex.get())
+          .as("Thread should be created in provided pool")
+          .isGreaterThan(0);
     } finally {
       executorService.shutdown();
     }

@@ -40,6 +40,7 @@ import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.flink.table.types.logical.VariantType;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -199,5 +200,10 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
     }
 
     return Types.StructType.of(newFields);
+  }
+
+  @Override
+  public Type visit(VariantType variantType) {
+    return Types.VariantType.get();
   }
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
@@ -97,12 +98,28 @@ public class ManifestFiles {
    *
    * @param manifest a ManifestFile
    * @param io a FileIO
+   * @param specsById a Map from spec ID to partition spec
    * @return a manifest reader
    */
-  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+  public static CloseableIterable<String> readPaths(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
     return CloseableIterable.transform(
-        read(manifest, io, null).select(ImmutableList.of("file_path")).liveEntries(),
+        read(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().location());
+  }
+
+  /**
+   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
+   *
+   * @param manifest a ManifestFile
+   * @param io a FileIO
+   * @return a manifest reader
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #readPaths(ManifestFile,
+   *     FileIO, Map)} instead.
+   */
+  @Deprecated
+  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+    return readPaths(manifest, io, null);
   }
 
   /**
@@ -115,7 +132,11 @@ public class ManifestFiles {
    * @param manifest a ManifestFile
    * @param io a FileIO
    * @return a manifest reader
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #read(ManifestFile, FileIO,
+   *     Map)} instead. Reading partition specs from manifest file metadata will not be supported
+   *     for non-Avro manifest formats.
    */
+  @Deprecated
   public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io) {
     return read(manifest, io, null);
   }
@@ -192,6 +213,25 @@ public class ManifestFiles {
   }
 
   /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param encryptedOutputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, null, writerProperties);
+  }
+
+  /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
    * @param formatVersion a target format version
@@ -207,15 +247,54 @@ public class ManifestFiles {
       EncryptedOutputFile encryptedOutputFile,
       Long snapshotId,
       Long firstRowId) {
+    return newWriter(
+        formatVersion, spec, encryptedOutputFile, snapshotId, firstRowId, Collections.emptyMap());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    return newWriter(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        null,
+        writerProperties);
+  }
+
+  @VisibleForTesting
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
     switch (formatVersion) {
       case 1:
-        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
+        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
       case 2:
-        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
+        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
       case 3:
-        return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
+        return new ManifestWriter.V3Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
       case 4:
-        return new ManifestWriter.V4Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
+        return new ManifestWriter.V4Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -257,6 +336,30 @@ public class ManifestFiles {
   }
 
   /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    return writeDeleteManifest(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        writerProperties);
+  }
+
+  /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
    * @param formatVersion a target format version
@@ -267,15 +370,34 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, EncryptedOutputFile outputFile, Long snapshotId) {
+    return writeDeleteManifest(formatVersion, spec, outputFile, snapshotId, Collections.emptyMap());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
       case 2:
-        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 3:
-        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -306,6 +428,11 @@ public class ManifestFiles {
     return AvroEncoderUtil.decode(manifestData);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #open(ManifestFile, FileIO,
+   *     Map)} instead.
+   */
+  @Deprecated
   static ManifestReader<?> open(ManifestFile manifest, FileIO io) {
     return open(manifest, io, null);
   }

@@ -32,10 +32,12 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -43,6 +45,8 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
@@ -237,7 +241,7 @@ public class TestSelect extends CatalogTestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
             .load(tableName)
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
@@ -249,6 +253,8 @@ public class TestSelect extends CatalogTestBase {
     // get a timestamp just after the last write and get the current row set as expected
     long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
     long timestamp = waitUntilAfter(snapshotTs + 2);
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+    String formattedDate = sdf.format(new Date(timestamp));
     List<Object[]> expected = sql("SELECT * FROM %s ORDER by id", tableName);
 
     // create a second snapshot
@@ -264,7 +270,7 @@ public class TestSelect extends CatalogTestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedDate)
             .load(tableName)
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
@@ -334,7 +340,7 @@ public class TestSelect extends CatalogTestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.TAG, "test_tag")
+            .option(SparkReadOptions.VERSION_AS_OF, "test_tag")
             .load(tableName)
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
@@ -471,7 +477,7 @@ public class TestSelect extends CatalogTestBase {
   public void testUnknownReferenceAsOf() {
     assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
         .hasMessageContaining("Cannot find matching snapshot ID or reference name for version")
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @TestTemplate
@@ -544,7 +550,7 @@ public class TestSelect extends CatalogTestBase {
                   tableName, snapshotPrefix + snapshotId, snapshotId);
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+        .hasMessage("Can't time travel using selector and Spark time travel spec at the same time");
 
     // using snapshot in table identifier and TIMESTAMP AS OF
     assertThatThrownBy(
@@ -554,7 +560,7 @@ public class TestSelect extends CatalogTestBase {
                   tableName, timestampPrefix + timestamp, snapshotId);
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+        .hasMessage("Can't time travel using selector and Spark time travel spec at the same time");
 
     // using timestamp in table identifier and VERSION AS OF
     assertThatThrownBy(
@@ -564,7 +570,7 @@ public class TestSelect extends CatalogTestBase {
                   tableName, snapshotPrefix + snapshotId, timestamp);
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+        .hasMessage("Can't time travel using selector and Spark time travel spec at the same time");
 
     // using timestamp in table identifier and TIMESTAMP AS OF
     assertThatThrownBy(
@@ -574,7 +580,7 @@ public class TestSelect extends CatalogTestBase {
                   tableName, timestampPrefix + timestamp, timestamp);
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+        .hasMessage("Can't time travel using selector and Spark time travel spec at the same time");
   }
 
   @TestTemplate
@@ -589,12 +595,12 @@ public class TestSelect extends CatalogTestBase {
     assertThatThrownBy(
             () -> sql("SELECT * FROM %s.branch_b1 VERSION AS OF %s", tableName, snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+        .hasMessage("Can't time travel in branch");
 
     // using branch_b1 in the table identifier and TIMESTAMP AS OF
     assertThatThrownBy(() -> sql("SELECT * FROM %s.branch_b1 TIMESTAMP AS OF now()", tableName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+        .hasMessage("Can't time travel in branch");
   }
 
   @TestTemplate
@@ -604,6 +610,8 @@ public class TestSelect extends CatalogTestBase {
     // get a timestamp just after the last write
     long timestamp =
         validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+    String formattedTimestamp = sdf.format(new Date(timestamp));
 
     // create a second snapshot
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
@@ -613,16 +621,13 @@ public class TestSelect extends CatalogTestBase {
               spark
                   .read()
                   .format("iceberg")
-                  .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-                  .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                  .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
+                  .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTimestamp)
                   .load(tableName)
                   .collectAsList();
             })
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith(
-            String.format(
-                "Can specify only one of snapshot-id (%s), as-of-timestamp (%s)",
-                snapshotId, timestamp));
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot specify both version and timestamp when time travelling");
   }
 
   @TestTemplate
@@ -635,6 +640,29 @@ public class TestSelect extends CatalogTestBase {
         "Should return all expected rows",
         expected,
         sql("SELECT id, binary FROM %s where binary > X'11'", binaryTableName));
+  }
+
+  @TestTemplate
+  public void testFixedInFilter() {
+    // Create table programmatically with fixed type since Spark SQL DDL doesn't support it
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "fixed", Types.FixedType.ofLength(2)));
+
+    TableIdentifier fixedTableIdent = TableIdentifier.of(tableIdent.namespace(), "fixed_table");
+    validationCatalog.createTable(fixedTableIdent, schema, PartitionSpec.unpartitioned());
+
+    String fixedTableName = tableName("fixed_table");
+    sql("INSERT INTO %s VALUES (1, X'0000'), (2, X'1111'), (3, X'0011')", fixedTableName);
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[] {0x11, 0x11}));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id, fixed FROM %s WHERE fixed > X'0011'", fixedTableName));
+
+    sql("DROP TABLE IF EXISTS %s", fixedTableName);
   }
 
   @TestTemplate

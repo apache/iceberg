@@ -28,3 +28,5 @@ sitemap.xml
 **/derby.log
 .python-version
 **/*_index.md
+**/.venv/**
+**/runtime-deps.txt

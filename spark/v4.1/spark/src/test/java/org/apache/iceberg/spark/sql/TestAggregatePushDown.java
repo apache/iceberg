@@ -63,6 +63,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.sql.iceberg.aggregate_pushdown", "true")
+            .config(TestBase.DISABLE_UI)
             .enableHiveSupport()
             .getOrCreate();
 
@@ -763,6 +764,51 @@ public class TestAggregatePushDown extends CatalogTestBase {
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
     expected.add(new Object[] {6L, Float.NaN, 1.0F, 6L});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
+
+  @TestTemplate
+  public void testNanWithLowerAndUpperBoundMetrics() {
+    sql("CREATE TABLE %s (id int, data float) USING iceberg PARTITIONED BY (id)", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, float('nan')),"
+            + "(1, float('nan')), "
+            + "(1, 10.0), "
+            + "(2, 2), "
+            + "(2, float('nan')), "
+            + "(3, float('nan')), "
+            + "(3, 1)",
+        tableName);
+
+    // Validate all files has upper bound, lower bound and nan count
+    String countsQuery =
+        "select readable_metrics.data.nan_value_count > 0, "
+            + "isnull(readable_metrics.data.lower_bound), "
+            + "isnull(readable_metrics.data.upper_bound) "
+            + "from  %s.files";
+
+    Object[] expectedResult = new Object[] {true, false, false};
+    assertThat(sql(countsQuery, tableName))
+        .as("Data files should contain nan count, lower bound and upper bound.")
+        .allMatch(row -> Arrays.equals(row, expectedResult));
+
+    // Check aggregates are not pushed down
+    String select = "SELECT count(*), max(data), min(data), count(data) FROM %s";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates =
+        (explainString.contains("max(data)")
+            || explainString.contains("min(data)")
+            || explainString.contains("count(data)"));
+
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should not contain the pushed down aggregates")
+        .isFalse();
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {7L, Float.NaN, 1.0F, 7L});
     assertEquals("expected and actual should equal", expected, actual);
   }
 

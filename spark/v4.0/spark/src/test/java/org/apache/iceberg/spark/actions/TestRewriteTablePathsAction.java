@@ -30,6 +30,8 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -46,6 +48,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -433,9 +436,9 @@ public class TestRewriteTablePathsAction extends TestBase {
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(
-                tableWithPosDeletes
-                    .currentSnapshot()
-                    .addedDataFiles(tableWithPosDeletes.io())
+                SnapshotChanges.builderFor(tableWithPosDeletes)
+                    .build()
+                    .addedDataFiles()
                     .iterator()
                     .next()
                     .location(),
@@ -480,7 +483,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   @TestTemplate
   public void testPositionDeleteWithRow() throws Exception {
     String dataFileLocation =
-        table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location();
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next().location();
     List<PositionDelete<?>> deletes = Lists.newArrayList();
     OutputFile deleteFile =
         table
@@ -530,7 +533,15 @@ public class TestRewriteTablePathsAction extends TestBase {
         .isEqualTo(2);
     Stream<DataFile> allFiles =
         StreamSupport.stream(table.snapshots().spliterator(), false)
-            .flatMap(s -> StreamSupport.stream(s.addedDataFiles(table.io()).spliterator(), false));
+            .flatMap(
+                s ->
+                    StreamSupport.stream(
+                        SnapshotChanges.builderFor(table)
+                            .snapshot(s)
+                            .build()
+                            .addedDataFiles()
+                            .spliterator(),
+                        false));
     List<Pair<CharSequence, Long>> deletes =
         allFiles.map(f -> Pair.of((CharSequence) f.location(), 0L)).collect(Collectors.toList());
 
@@ -563,6 +574,79 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
         .isEmpty();
+  }
+
+  /**
+   * Test for https://github.com/apache/iceberg/issues/14814
+   *
+   * <p>This test verifies that rewrite_table_path correctly deduplicates delete files when the same
+   * delete file appears in multiple manifests. Without the DeleteFileSet fix, this test would fail
+   * with AlreadyExistsException because DeleteFile objects don't override equals() and the same
+   * file would be processed multiple times.
+   *
+   * <p>The test creates a scenario where the same delete file is added to multiple snapshots,
+   * causing it to appear in multiple manifest entries. When these manifests are processed, the same
+   * delete file is returned as different object instances which need proper deduplication.
+   */
+  @TestTemplate
+  public void testPositionDeletesDeduplication() throws Exception {
+    // Format versions 3 and 4 use Deletion Vectors stored in Puffin files, which have different
+    // validation rules that prevent adding the same delete file multiple times
+    assumeThat(formatVersion)
+        .as("Format versions 3+ use DVs with different validation rules")
+        .isEqualTo(2);
+
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithDuplicateDeletes"),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    // Get a data file to create position deletes for
+    DataFile dataFile =
+        tableWithPosDeletes
+            .currentSnapshot()
+            .addedDataFiles(tableWithPosDeletes.io())
+            .iterator()
+            .next();
+
+    // Create a position delete file
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(Pair.of(dataFile.location(), 0L));
+    File deleteFile =
+        new File(
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(deleteFile.toURI().toString()),
+                deletes,
+                formatVersion)
+            .first();
+
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    // Add the SAME delete file AGAIN in a second snapshot - this creates a duplicate entry
+    // in a new manifest, which will cause duplicate DeleteFile objects when processing
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    // This should NOT throw AlreadyExistsException - the fix uses DeleteFileSet to deduplicate
+    // Without the fix (using Collectors.toSet()), this would fail because:
+    // 1. Both manifests contain entries for the same delete file
+    // 2. Processing returns two different DeleteFile objects for the same file
+    // 3. HashSet doesn't deduplicate them (DeleteFile doesn't override equals())
+    // 4. rewritePositionDeletes tries to write the same file twice -> AlreadyExistsException
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+
+    // Verify the rewrite completed successfully - should have rewritten exactly 1 delete file
+    // (the duplicate should be deduplicated by DeleteFileSet)
+    assertThat(result.rewrittenDeleteFilePathsCount())
+        .as("Should have rewritten exactly 1 delete file after deduplication")
+        .isEqualTo(1);
   }
 
   @TestTemplate
@@ -704,7 +788,10 @@ public class TestRewriteTablePathsAction extends TestBase {
     Snapshot oldest = SnapshotUtil.oldestAncestor(tableWith3Snaps);
     String oldestDataFilePath =
         Iterables.getOnlyElement(
-                tableWith3Snaps.snapshot(oldest.snapshotId()).addedDataFiles(tableWith3Snaps.io()))
+                SnapshotChanges.builderFor(tableWith3Snaps)
+                    .snapshot(tableWith3Snaps.snapshot(oldest.snapshotId()))
+                    .build()
+                    .addedDataFiles())
             .location();
     String deletedDataFilePathInTargetLocation =
         String.format("%sdata/%s", targetTableLocation(), fileName(oldestDataFilePath));
@@ -1228,27 +1315,14 @@ public class TestRewriteTablePathsAction extends TestBase {
     // Create position delete files with same names in different nested directories
     // This simulates the scenario tested in
     // TestRewriteTablePathUtil.testStagingPathPreservesDirectoryStructure
+    SnapshotChanges sourceChanges = SnapshotChanges.builderFor(sourceTable).build();
     List<Pair<CharSequence, Long>> deletes1 =
         Lists.newArrayList(
-            Pair.of(
-                sourceTable
-                    .currentSnapshot()
-                    .addedDataFiles(sourceTable.io())
-                    .iterator()
-                    .next()
-                    .location(),
-                0L));
+            Pair.of(sourceChanges.addedDataFiles().iterator().next().location(), 0L));
 
     List<Pair<CharSequence, Long>> deletes2 =
         Lists.newArrayList(
-            Pair.of(
-                sourceTable
-                    .currentSnapshot()
-                    .addedDataFiles(sourceTable.io())
-                    .iterator()
-                    .next()
-                    .location(),
-                0L));
+            Pair.of(sourceChanges.addedDataFiles().iterator().next().location(), 0L));
 
     // Create delete files with same name in different nested paths (hash1/ and hash2/)
     File file1 =
@@ -1329,6 +1403,28 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(result.fileListLocation())
         .as("File list location should not be set when createFileList is false")
         .isEqualTo(NOT_APPLICABLE);
+  }
+
+  @TestTemplate
+  public void testRewritePathWithExecutorService() throws Exception {
+    String sourceLocation = newTableLocation();
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 50);
+
+    ExecutorService service = Executors.newFixedThreadPool(4);
+    try {
+      sourceTable.refresh();
+      RewriteTablePath.Result result =
+          actions()
+              .rewriteTablePath(sourceTable)
+              .rewriteLocationPrefix(sourceLocation, targetTableLocation())
+              .startVersion("v1.metadata.json")
+              .executeWith(service)
+              .execute();
+
+      checkFileNum(50, 50, 50, 200, result);
+    } finally {
+      service.shutdown();
+    }
   }
 
   protected void checkFileNum(
