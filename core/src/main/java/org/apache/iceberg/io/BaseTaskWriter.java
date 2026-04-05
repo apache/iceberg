@@ -43,8 +43,12 @@ import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTaskWriter.class);
+
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
   private final List<DeleteFile> completedDeleteFiles = Lists.newArrayList();
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
@@ -89,7 +93,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     // clean up files created by this writer
     Tasks.foreach(Iterables.concat(completedDataFiles, completedDeleteFiles))
         .executeWith(ThreadPools.getWorkerPool())
-        .throwFailureWhenFinished()
+        .suppressFailureWhenFinished()
+        .onFailure(
+            (file, exc) -> LOG.warn("Failed to delete file during abort: {}", file.path(), exc))
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));
   }

@@ -317,6 +317,9 @@ public class BaseTransaction implements Transaction {
       case SIMPLE:
         commitSimpleTransaction();
         break;
+
+      default:
+        throw new UnsupportedOperationException("Unknown transaction type: " + type);
     }
   }
 

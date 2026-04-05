@@ -232,7 +232,7 @@ public class HTTPClient implements RESTClient {
       return builder.build();
     } catch (URISyntaxException e) {
       throw new RESTException(
-          "Failed to create request URI from base %s, params %s", fullPath, params);
+          e, "Failed to create request URI from base %s, params %s", fullPath, params);
     }
   }
 
@@ -468,7 +468,9 @@ public class HTTPClient implements RESTClient {
 
     return connectionManagerBuilder
         .useSystemProperties()
-        .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
+        .setMaxConnTotal(
+            PropertyUtil.propertyAsInt(
+                properties, REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
         .setMaxConnPerRoute(
             PropertyUtil.propertyAsInt(
                 properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))

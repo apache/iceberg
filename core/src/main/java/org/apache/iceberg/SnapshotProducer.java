@@ -443,6 +443,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         }
 
       } catch (Throwable e) {
+        if (e instanceof Error) {
+          throw (Error) e;
+        }
         LOG.warn(
             "Failed to load committed table metadata or during cleanup, skipping further cleanup",
             e);
@@ -452,6 +455,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     try {
       notifyListeners();
     } catch (Throwable e) {
+      if (e instanceof Error) {
+        throw (Error) e;
+      }
       LOG.warn("Failed to notify event listeners", e);
     }
   }
@@ -602,6 +608,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
               snapshotId = entry.snapshotId();
             }
             break;
+          default:
+            throw new IllegalStateException("Unexpected manifest entry status: " + entry.status());
         }
 
         stats.update(entry.file().partition());
@@ -661,7 +669,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         }
 
       } catch (NumberFormatException e) {
-        // ignore and do not add total
+        // 记录警告日志，便于排查 snapshot summary 数值损坏问题
+        LOG.warn(
+            "Failed to parse total property '{}' value '{}' in snapshot summary",
+            totalProperty,
+            totalStr,
+            e);
       }
     }
   }

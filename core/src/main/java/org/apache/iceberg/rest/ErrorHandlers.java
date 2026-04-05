@@ -174,7 +174,7 @@ public class ErrorHandlers {
         case 409:
           throw new AlreadyExistsException("%s", error.message());
         case 422:
-          throw new RESTException("Unable to process: %s", error.message());
+          throw new RESTException("Unable to process (HTTP %d): %s", error.code(), error.message());
       }
 
       super.accept(error);
@@ -211,8 +211,10 @@ public class ErrorHandlers {
         case 403:
           throw new ForbiddenException("Forbidden: %s", error.message());
         case 405:
+          throw new RESTException(
+              "Method not allowed (HTTP %d): %s", error.code(), error.message());
         case 406:
-          break;
+          throw new RESTException("Not acceptable (HTTP %d): %s", error.code(), error.message());
         case 500:
           throw new ServiceFailureException("Server error: %s: %s", error.type(), error.message());
         case 501:
@@ -221,7 +223,7 @@ public class ErrorHandlers {
           throw new ServiceUnavailableException("Service unavailable: %s", error.message());
       }
 
-      throw new RESTException("Unable to process: %s", error.message());
+      throw new RESTException("Unable to process (HTTP %d): %s", error.code(), error.message());
     }
   }
 

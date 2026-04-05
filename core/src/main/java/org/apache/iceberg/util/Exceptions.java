@@ -21,8 +21,12 @@ package org.apache.iceberg.util;
 import java.io.Closeable;
 import java.io.IOException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Exceptions {
+  private static final Logger LOG = LoggerFactory.getLogger(Exceptions.class);
+
   private Exceptions() {}
 
   public static void close(Closeable closeable, boolean suppressExceptions) {
@@ -32,7 +36,8 @@ public class Exceptions {
       if (!suppressExceptions) {
         throw new RuntimeIOException(e, "Failed calling close");
       }
-      // otherwise, ignore the exception
+      // 记录 debug 级别日志，便于排查资源关闭失败问题
+      LOG.debug("Exception suppressed during close", e);
     }
   }
 
