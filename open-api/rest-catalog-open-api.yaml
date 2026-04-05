@@ -60,6 +60,7 @@ servers:
 security:
   - OAuth2: [catalog]
   - BearerAuth: []
+  - BasicAuth: []
 
 paths:
   /v1/config:
