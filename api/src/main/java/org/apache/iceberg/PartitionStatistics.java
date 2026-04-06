@@ -57,7 +57,6 @@ public interface PartitionStatistics extends StructLike {
           .build();
 
   static Schema schema(Types.StructType unifiedPartitionType, int formatVersion) {
-    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
     Preconditions.checkState(formatVersion > 0, "Invalid format version: %d", formatVersion);
 
     if (formatVersion <= 2) {

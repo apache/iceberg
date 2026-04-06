@@ -183,7 +183,6 @@ public class PartitionStatsHandler {
    */
   @Deprecated
   public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
-    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
     Preconditions.checkState(
         formatVersion > 0 && formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
         "Invalid format version: %d",
@@ -278,7 +277,6 @@ public class PartitionStatsHandler {
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
       throws IOException {
     Preconditions.checkArgument(table != null, "Invalid table: null");
-    Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 

@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -89,23 +90,53 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
         .hasMessage("Snapshot not found: 42");
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionStatsOnUnPartitionedTable() throws Exception {
     Table testTable =
         TestTables.create(
-            tempDir("unpartitioned_table"),
-            "unpartitioned_table",
+            tempDir("unpartitioned_table_" + formatVersion),
+            "unpartitioned_table_" + formatVersion,
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            2,
+            formatVersion,
             fileFormatProperty);
 
+    // Add a first data file and update partition stats
     DataFile dataFile = FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of());
     testTable.newAppend().appendFile(dataFile).commit();
 
-    assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Table must be partitioned");
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
+
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        new BasePartitionStatisticsScan(testTable).scan()) {
+      List<PartitionStatistics> partitionStats = Lists.newArrayList(recordIterator);
+      assertThat(partitionStats).hasSize(1);
+      PartitionStatistics stats = partitionStats.get(0);
+      assertThat(stats.partition()).isEqualTo(GenericRecord.create(Types.StructType.of()));
+      assertThat(stats.dataRecordCount()).isEqualTo(dataFile.recordCount());
+    }
+
+    // Add a second data file and update partition stats
+    DataFile dataFile2 = FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of());
+    testTable.newAppend().appendFile(dataFile2).commit();
+
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
+
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        new BasePartitionStatisticsScan(testTable).scan()) {
+      List<PartitionStatistics> partitionStats = Lists.newArrayList(recordIterator);
+      assertThat(partitionStats).hasSize(1);
+      PartitionStatistics stats = partitionStats.get(0);
+      assertThat(stats.partition()).isEqualTo(GenericRecord.create(Types.StructType.of()));
+      assertThat(stats.dataRecordCount())
+          .isEqualTo(dataFile.recordCount() + dataFile2.recordCount());
+    }
   }
 
   @TestTemplate

@@ -1007,7 +1007,7 @@ The schema of the partition statistics file is as follows:
 
 | v1 | v2 | v3 | Field id, name | Type | Description |
 |----|----|----|----------------|------|-------------|
-| _required_ | _required_ | _required_ | **`1 partition`** | `struct<..>` | Partition data tuple, schema based on the unified partition type considering all specs in a table |
+| _required_ | _required_ | _required_ | **`1 partition`** | `struct<..>` | Partition data tuple, schema based on the unified partition type considering all specs in a table, empty for unpartitioned tables |
 | _required_ | _required_ | _required_ | **`2 spec_id`** | `int` | Partition spec id |
 | _required_ | _required_ | _required_ | **`3 data_record_count`** | `long` | Count of records in data files |
 | _required_ | _required_ | _required_ | **`4 data_file_count`** | `int` | Count of data files |
