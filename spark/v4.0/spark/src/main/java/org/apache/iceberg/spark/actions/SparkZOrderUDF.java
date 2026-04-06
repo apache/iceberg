@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.ZOrderByteUtils;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
@@ -49,9 +49,6 @@ import scala.collection.Seq;
 
 class SparkZOrderUDF implements Serializable {
   private static final byte[] PRIMITIVE_EMPTY = new byte[ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE];
-
-  private static final LocalDateTime TIMESTAMP_NTZ_LOCAL_EPOCH =
-      LocalDateTime.of(1970, 1, 1, 0, 0, 0, 0);
 
   /**
    * Every Spark task runs iteratively on a rows in a single thread so ThreadLocal should protect
@@ -195,7 +192,7 @@ class SparkZOrderUDF implements Serializable {
                   if (value == null) {
                     return PRIMITIVE_EMPTY;
                   }
-                  long micros = ChronoUnit.MICROS.between(TIMESTAMP_NTZ_LOCAL_EPOCH, value);
+                  long micros = DateTimeUtil.microsFromTimestamp(value);
                   return ZOrderByteUtils.longToOrderedBytes(
                           micros, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
                       .array();
