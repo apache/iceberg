@@ -114,6 +114,20 @@ public class TestWatermarkExtractorRecordEmitter {
     assertThat(output.watermarks.get(1).getTimestamp()).isEqualTo(1999L);
   }
 
+  @Test
+  public void testWatermarkAtLongMinValueDoesNotOverflow() throws IOException {
+    IcebergSourceSplit split = createSplit(1L);
+
+    WatermarkExtractorRecordEmitter<String> emitter =
+        new WatermarkExtractorRecordEmitter<>(s -> Long.MIN_VALUE);
+
+    CapturingSourceOutput<String> output = new CapturingSourceOutput<>();
+    emitter.emitRecord(new RecordAndPosition<>("record", 0, 0L), output, split);
+
+    assertThat(output.watermarks).hasSize(1);
+    assertThat(output.watermarks.get(0).getTimestamp()).isEqualTo(Long.MIN_VALUE);
+  }
+
   private IcebergSourceSplit createSplit(long seed) throws IOException {
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(seed, TestFixtures.SCHEMA, 1, 1);
