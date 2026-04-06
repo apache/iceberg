@@ -197,6 +197,20 @@ public interface SessionCatalog {
   Table loadTable(SessionContext context, TableIdentifier ident);
 
   /**
+   * Load a table with the referenced-by view chain.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
+   * @return instance of {@link Table} implementation referred by {@code ident}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table loadTable(
+      SessionContext context, TableIdentifier ident, List<TableIdentifier> referencedBy) {
+    throw new UnsupportedOperationException("Loading a table with referenced-by is not supported");
+  }
+
+  /**
    * Drop a table, without requesting that files are immediately deleted.
    *
    * <p>Data and metadata files should be deleted according to the catalog's policy.
