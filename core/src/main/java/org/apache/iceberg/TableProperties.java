@@ -358,33 +358,33 @@ public class TableProperties {
   public static final long DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT = 64 * 1024 * 1024; // 64 MB
 
   /**
-   * @deprecated will be removed in 1.12.0, use
+   * @deprecated will be removed in 1.13.0, use
    *     SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED in iceberg-spark instead.
    */
   @Deprecated
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
 
   /**
-   * @deprecated will be removed in 1.12.0, use
+   * @deprecated will be removed in 1.13.0, use
    *     SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT in iceberg-spark instead.
    */
   @Deprecated public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
 
   /**
-   * @deprecated will be removed in 1.12.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA in
+   * @deprecated will be removed in 1.13.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA in
    *     iceberg-spark instead.
    */
   @Deprecated
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
 
   /**
-   * @deprecated will be removed in 1.12.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA_DEFAULT
+   * @deprecated will be removed in 1.13.0, use SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA_DEFAULT
    *     in iceberg-spark instead.
    */
   @Deprecated public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
 
   /**
-   * @deprecated will be removed in 1.12.0, use SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION in
+   * @deprecated will be removed in 1.13.0, use SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION in
    *     iceberg-spark instead.
    */
   @Deprecated
@@ -392,13 +392,13 @@ public class TableProperties {
       "write.spark.auto-schema-evolution.enabled";
 
   /**
-   * @deprecated will be removed in 1.12.0, use
+   * @deprecated will be removed in 1.13.0, use
    *     SparkTableProperties.WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT in iceberg-spark instead.
    */
   @Deprecated public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
   /**
-   * @deprecated will be removed in 1.12.0, use
+   * @deprecated will be removed in 1.13.0, use
    *     SparkTableProperties.WRITE_ADVISORY_PARTITION_SIZE_BYTES in iceberg-spark instead.
    */
   @Deprecated
