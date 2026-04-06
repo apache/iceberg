@@ -19,12 +19,14 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.stats.BaseContentStats;
 import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
@@ -33,9 +35,9 @@ class TrackedFileStruct implements TrackedFile, StructLike {
   private static final EntryStatus[] STATUS_VALUES = EntryStatus.values();
 
   private TrackingStruct tracking;
-  private int contentType;
+  private FileContent contentType = FileContent.DATA;
   private String location;
-  private String fileFormat;
+  private FileFormat fileFormat;
   private long recordCount;
   private long fileSizeInBytes;
   private Integer specId;
@@ -44,8 +46,8 @@ class TrackedFileStruct implements TrackedFile, StructLike {
   private DeletionVectorStruct deletionVector;
   private ManifestInfoStruct manifestInfo;
   private ByteBuffer keyMetadata;
-  private List<Long> splitOffsets;
-  private List<Integer> equalityIds;
+  private long[] splitOffsets;
+  private int[] equalityIds;
   private String manifestLocation;
   private long manifestPos;
 
@@ -72,8 +74,14 @@ class TrackedFileStruct implements TrackedFile, StructLike {
 
     this.manifestInfo = toCopy.manifestInfo != null ? toCopy.manifestInfo.copy() : null;
     this.keyMetadata = toCopy.keyMetadata != null ? ByteBuffers.copy(toCopy.keyMetadata) : null;
-    this.splitOffsets = toCopy.splitOffsets != null ? List.copyOf(toCopy.splitOffsets) : null;
-    this.equalityIds = toCopy.equalityIds != null ? List.copyOf(toCopy.equalityIds) : null;
+    this.splitOffsets =
+        toCopy.splitOffsets != null
+            ? Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length)
+            : null;
+    this.equalityIds =
+        toCopy.equalityIds != null
+            ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
+            : null;
     this.manifestLocation = toCopy.manifestLocation;
     this.manifestPos = toCopy.manifestPos;
   }
@@ -89,7 +97,7 @@ class TrackedFileStruct implements TrackedFile, StructLike {
 
   @Override
   public FileContent contentType() {
-    return FILE_CONTENT_VALUES[contentType];
+    return contentType;
   }
 
   @Override
@@ -99,7 +107,7 @@ class TrackedFileStruct implements TrackedFile, StructLike {
 
   @Override
   public FileFormat fileFormat() {
-    return FileFormat.fromString(fileFormat);
+    return fileFormat;
   }
 
   @Override
@@ -144,12 +152,12 @@ class TrackedFileStruct implements TrackedFile, StructLike {
 
   @Override
   public List<Long> splitOffsets() {
-    return splitOffsets;
+    return splitOffsets != null ? ArrayUtil.toUnmodifiableLongList(splitOffsets) : null;
   }
 
   @Override
   public List<Integer> equalityIds() {
-    return equalityIds;
+    return equalityIds != null ? ArrayUtil.toUnmodifiableIntList(equalityIds) : null;
   }
 
   @Override
@@ -196,13 +204,13 @@ class TrackedFileStruct implements TrackedFile, StructLike {
         value = tracking;
         break;
       case 1:
-        value = contentType;
+        value = contentType.id();
         break;
       case 2:
         value = location;
         break;
       case 3:
-        value = fileFormat;
+        value = fileFormat != null ? fileFormat.toString() : null;
         break;
       case 4:
         value = recordCount;
@@ -229,10 +237,10 @@ class TrackedFileStruct implements TrackedFile, StructLike {
         value = keyMetadata;
         break;
       case 12:
-        value = splitOffsets;
+        value = splitOffsets();
         break;
       case 13:
-        value = equalityIds;
+        value = equalityIds();
         break;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -249,13 +257,13 @@ class TrackedFileStruct implements TrackedFile, StructLike {
         this.tracking = (TrackingStruct) value;
         break;
       case 1:
-        this.contentType = (Integer) value;
+        this.contentType = FILE_CONTENT_VALUES[(Integer) value];
         break;
       case 2:
         this.location = (String) value;
         break;
       case 3:
-        this.fileFormat = (String) value;
+        this.fileFormat = FileFormat.fromString(value.toString());
         break;
       case 4:
         this.recordCount = (Long) value;
@@ -287,10 +295,10 @@ class TrackedFileStruct implements TrackedFile, StructLike {
         this.keyMetadata = (ByteBuffer) value;
         break;
       case 12:
-        this.splitOffsets = (List<Long>) value;
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
         break;
       case 13:
-        this.equalityIds = (List<Integer>) value;
+        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         break;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -299,7 +307,7 @@ class TrackedFileStruct implements TrackedFile, StructLike {
 
   /** Mutable {@link StructLike} implementation of {@link Tracking}. */
   static class TrackingStruct implements Tracking, StructLike {
-    private int status;
+    private EntryStatus status = EntryStatus.EXISTING;
     private Long snapshotId;
     private Long sequenceNumber;
     private Long fileSequenceNumber;
@@ -329,7 +337,7 @@ class TrackedFileStruct implements TrackedFile, StructLike {
 
     @Override
     public EntryStatus status() {
-      return STATUS_VALUES[status];
+      return status;
     }
 
     @Override
@@ -390,7 +398,7 @@ class TrackedFileStruct implements TrackedFile, StructLike {
       Object value;
       switch (pos) {
         case 0:
-          value = status;
+          value = status.id();
           break;
         case 1:
           value = snapshotId;
@@ -425,7 +433,7 @@ class TrackedFileStruct implements TrackedFile, StructLike {
     public <T> void set(int pos, T value) {
       switch (pos) {
         case 0:
-          this.status = (Integer) value;
+          this.status = STATUS_VALUES[(Integer) value];
           break;
         case 1:
           this.snapshotId = (Long) value;
