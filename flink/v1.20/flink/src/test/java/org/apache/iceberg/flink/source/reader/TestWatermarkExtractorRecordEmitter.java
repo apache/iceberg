@@ -22,8 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.eventtime.Watermark;
@@ -32,6 +30,8 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -75,7 +75,7 @@ public class TestWatermarkExtractorRecordEmitter {
     IcebergSourceSplit split1 = createSplit(1L);
     IcebergSourceSplit split2 = createSplit(2L);
 
-    Map<String, Long> watermarkMap = new HashMap<>();
+    Map<String, Long> watermarkMap = Maps.newHashMap();
     watermarkMap.put(split1.splitId(), 2000L);
     watermarkMap.put(split2.splitId(), 1000L);
 
@@ -97,7 +97,7 @@ public class TestWatermarkExtractorRecordEmitter {
     IcebergSourceSplit split1 = createSplit(1L);
     IcebergSourceSplit split2 = createSplit(2L);
 
-    Map<String, Long> watermarkMap = new HashMap<>();
+    Map<String, Long> watermarkMap = Maps.newHashMap();
     watermarkMap.put(split1.splitId(), 1000L);
     watermarkMap.put(split2.splitId(), 2000L);
 
@@ -137,8 +137,8 @@ public class TestWatermarkExtractorRecordEmitter {
   }
 
   private static class CapturingSourceOutput<T> implements SourceOutput<T> {
-    final List<Watermark> watermarks = new ArrayList<>();
-    final List<T> records = new ArrayList<>();
+    final List<Watermark> watermarks = Lists.newArrayList();
+    final List<T> records = Lists.newArrayList();
 
     @Override
     public void collect(T record) {
