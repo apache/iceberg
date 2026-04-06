@@ -196,48 +196,62 @@ public class PartitionStatsHandler {
   }
 
   private static Schema v2Schema(StructType unifiedPartitionType) {
-    return new Schema(
-        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
-        POSITION_DELETE_RECORD_COUNT,
-        POSITION_DELETE_FILE_COUNT,
-        EQUALITY_DELETE_RECORD_COUNT,
-        EQUALITY_DELETE_FILE_COUNT,
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID);
+    List<NestedField> fields = Lists.newArrayList();
+    if (!unifiedPartitionType.fields().isEmpty()) {
+      fields.add(
+          NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType));
+    }
+
+    fields.add(SPEC_ID);
+    fields.add(DATA_RECORD_COUNT);
+    fields.add(DATA_FILE_COUNT);
+    fields.add(TOTAL_DATA_FILE_SIZE_IN_BYTES);
+    fields.add(POSITION_DELETE_RECORD_COUNT);
+    fields.add(POSITION_DELETE_FILE_COUNT);
+    fields.add(EQUALITY_DELETE_RECORD_COUNT);
+    fields.add(EQUALITY_DELETE_FILE_COUNT);
+    fields.add(TOTAL_RECORD_COUNT);
+    fields.add(LAST_UPDATED_AT);
+    fields.add(LAST_UPDATED_SNAPSHOT_ID);
+    return new Schema(fields);
   }
 
   private static Schema v3Schema(StructType unifiedPartitionType) {
-    return new Schema(
-        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
+    List<NestedField> fields = Lists.newArrayList();
+    if (!unifiedPartitionType.fields().isEmpty()) {
+      fields.add(
+          NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType));
+    }
+
+    fields.add(SPEC_ID);
+    fields.add(DATA_RECORD_COUNT);
+    fields.add(DATA_FILE_COUNT);
+    fields.add(TOTAL_DATA_FILE_SIZE_IN_BYTES);
+    fields.add(
         NestedField.required(
             POSITION_DELETE_RECORD_COUNT.fieldId(),
             POSITION_DELETE_RECORD_COUNT.name(),
-            LongType.get()),
+            LongType.get()));
+    fields.add(
         NestedField.required(
             POSITION_DELETE_FILE_COUNT.fieldId(),
             POSITION_DELETE_FILE_COUNT.name(),
-            IntegerType.get()),
+            IntegerType.get()));
+    fields.add(
         NestedField.required(
             EQUALITY_DELETE_RECORD_COUNT.fieldId(),
             EQUALITY_DELETE_RECORD_COUNT.name(),
-            LongType.get()),
+            LongType.get()));
+    fields.add(
         NestedField.required(
             EQUALITY_DELETE_FILE_COUNT.fieldId(),
             EQUALITY_DELETE_FILE_COUNT.name(),
-            IntegerType.get()),
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID,
-        DV_COUNT);
+            IntegerType.get()));
+    fields.add(TOTAL_RECORD_COUNT);
+    fields.add(LAST_UPDATED_AT);
+    fields.add(LAST_UPDATED_SNAPSHOT_ID);
+    fields.add(DV_COUNT);
+    return new Schema(fields);
   }
 
   /**
@@ -329,9 +343,14 @@ public class PartitionStatsHandler {
 
     OutputFile outputFile = newPartitionStatsFile(table, fileFormat, snapshotId);
 
+    boolean hasPartition =
+        dataSchema.findField(PartitionStatistics.EMPTY_PARTITION_FIELD.fieldId()) != null;
     try (FileAppender<StructLike> writer =
         InternalData.write(fileFormat, outputFile).schema(dataSchema).build()) {
-      records.iterator().forEachRemaining(writer::add);
+      records
+          .iterator()
+          .forEachRemaining(
+              record -> writer.add(toGenericRecord(record, dataSchema, hasPartition)));
     }
 
     return ImmutableGenericPartitionStatisticsFile.builder()
@@ -339,6 +358,32 @@ public class PartitionStatsHandler {
         .path(outputFile.location())
         .fileSizeInBytes(outputFile.toInputFile().getLength())
         .build();
+  }
+
+  private static GenericRecord toGenericRecord(
+      PartitionStatistics stats, Schema dataSchema, boolean hasPartition) {
+    GenericRecord record = GenericRecord.create(dataSchema.asStruct());
+    int pos = 0;
+    if (hasPartition) {
+      record.set(pos++, stats.partition());
+    }
+
+    record.set(pos++, stats.specId());
+    record.set(pos++, stats.dataRecordCount());
+    record.set(pos++, stats.dataFileCount());
+    record.set(pos++, stats.totalDataFileSizeInBytes());
+    record.set(pos++, stats.positionDeleteRecordCount());
+    record.set(pos++, stats.positionDeleteFileCount());
+    record.set(pos++, stats.equalityDeleteRecordCount());
+    record.set(pos++, stats.equalityDeleteFileCount());
+    record.set(pos++, stats.totalRecords());
+    record.set(pos++, stats.lastUpdatedAt());
+    record.set(pos++, stats.lastUpdatedSnapshotId());
+    if (dataSchema.findField(PartitionStatistics.DV_COUNT.fieldId()) != null) {
+      record.set(pos, stats.dvCount());
+    }
+
+    return record;
   }
 
   /**
@@ -400,7 +445,10 @@ public class PartitionStatsHandler {
         table.newPartitionStatisticsScan().useSnapshot(lastSnapshotWithStats).scan()) {
       oldStats.forEach(
           partitionStats ->
-              statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
+              statsMap.put(
+                  partitionStats.specId(),
+                  partitionStats.partition(),
+                  copyWithIdentityMapping(partitionStats)));
     } catch (Exception exception) {
       throw new InvalidStatsFileException(exception);
     }
@@ -424,6 +472,10 @@ public class PartitionStatsHandler {
   }
 
   private static GenericRecord partitionDataToRecord(PartitionData data) {
+    if (data.getPartitionType().fields().isEmpty()) {
+      return null;
+    }
+
     GenericRecord record = GenericRecord.create(data.getPartitionType());
     for (int index = 0; index < record.size(); index++) {
       record.set(index, data.get(index));
@@ -510,11 +562,12 @@ public class PartitionStatsHandler {
             PartitionUtil.coercePartition(partitionType, spec, file.partition());
         StructLike key = keyTemplate.copyFor(coercedPartition);
         Snapshot snapshot = table.snapshot(entry.snapshotId());
+        StructLike partitionValue = partitionType.fields().isEmpty() ? null : key;
         PartitionStatistics stats =
             statsMap.computeIfAbsent(
                 specId,
                 ((PartitionData) file.partition()).copy(),
-                () -> new BasePartitionStatistics(key, specId));
+                () -> new BasePartitionStatistics(partitionValue, specId));
         if (entry.isLive()) {
           // Live can have both added and existing entries. Consider only added entries for
           // incremental compute as existing entries was already included in previous compute.
@@ -738,6 +791,30 @@ public class PartitionStatsHandler {
       stats.set(PartitionStatistics.LAST_UPDATED_AT_POSITION, updatedAt);
       stats.set(PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID_POSITION, snapshotId);
     }
+  }
+
+  private static BasePartitionStatistics copyWithIdentityMapping(PartitionStatistics stats) {
+    BasePartitionStatistics copy = new BasePartitionStatistics(stats.partition(), stats.specId());
+    copy.set(PartitionStatistics.DATA_RECORD_COUNT_POSITION, stats.dataRecordCount());
+    copy.set(PartitionStatistics.DATA_FILE_COUNT_POSITION, stats.dataFileCount());
+    copy.set(
+        PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
+        stats.totalDataFileSizeInBytes());
+    copy.set(
+        PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION,
+        stats.positionDeleteRecordCount());
+    copy.set(
+        PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION, stats.positionDeleteFileCount());
+    copy.set(
+        PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION,
+        stats.equalityDeleteRecordCount());
+    copy.set(
+        PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION, stats.equalityDeleteFileCount());
+    copy.set(PartitionStatistics.TOTAL_RECORD_COUNT_POSITION, stats.totalRecords());
+    copy.set(PartitionStatistics.LAST_UPDATED_AT_POSITION, stats.lastUpdatedAt());
+    copy.set(PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID_POSITION, stats.lastUpdatedSnapshotId());
+    copy.set(PartitionStatistics.DV_COUNT_POSITION, stats.dvCount());
+    return copy;
   }
 
   private static class InvalidStatsFileException extends RuntimeException {

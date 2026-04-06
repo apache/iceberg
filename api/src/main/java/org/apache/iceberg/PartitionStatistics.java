@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 
 /** Interface for partition statistics returned from a {@link PartitionStatisticsScan}. */
@@ -67,50 +68,64 @@ public interface PartitionStatistics extends StructLike {
   }
 
   private static Schema v2Schema(Types.StructType unifiedPartitionType) {
-    return new Schema(
-        Types.NestedField.required(
-            EMPTY_PARTITION_FIELD.fieldId(), EMPTY_PARTITION_FIELD.name(), unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
-        POSITION_DELETE_RECORD_COUNT,
-        POSITION_DELETE_FILE_COUNT,
-        EQUALITY_DELETE_RECORD_COUNT,
-        EQUALITY_DELETE_FILE_COUNT,
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID);
+    ImmutableList.Builder<Types.NestedField> fields = ImmutableList.builder();
+    if (!unifiedPartitionType.fields().isEmpty()) {
+      fields.add(
+          Types.NestedField.required(
+              EMPTY_PARTITION_FIELD.fieldId(), EMPTY_PARTITION_FIELD.name(), unifiedPartitionType));
+    }
+
+    fields.add(SPEC_ID);
+    fields.add(DATA_RECORD_COUNT);
+    fields.add(DATA_FILE_COUNT);
+    fields.add(TOTAL_DATA_FILE_SIZE_IN_BYTES);
+    fields.add(POSITION_DELETE_RECORD_COUNT);
+    fields.add(POSITION_DELETE_FILE_COUNT);
+    fields.add(EQUALITY_DELETE_RECORD_COUNT);
+    fields.add(EQUALITY_DELETE_FILE_COUNT);
+    fields.add(TOTAL_RECORD_COUNT);
+    fields.add(LAST_UPDATED_AT);
+    fields.add(LAST_UPDATED_SNAPSHOT_ID);
+    return new Schema(fields.build());
   }
 
   private static Schema v3Schema(Types.StructType unifiedPartitionType) {
-    return new Schema(
-        Types.NestedField.required(
-            EMPTY_PARTITION_FIELD.fieldId(), EMPTY_PARTITION_FIELD.name(), unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
+    ImmutableList.Builder<Types.NestedField> fields = ImmutableList.builder();
+    if (!unifiedPartitionType.fields().isEmpty()) {
+      fields.add(
+          Types.NestedField.required(
+              EMPTY_PARTITION_FIELD.fieldId(), EMPTY_PARTITION_FIELD.name(), unifiedPartitionType));
+    }
+
+    fields.add(SPEC_ID);
+    fields.add(DATA_RECORD_COUNT);
+    fields.add(DATA_FILE_COUNT);
+    fields.add(TOTAL_DATA_FILE_SIZE_IN_BYTES);
+    fields.add(
         Types.NestedField.required(
             POSITION_DELETE_RECORD_COUNT.fieldId(),
             POSITION_DELETE_RECORD_COUNT.name(),
-            Types.LongType.get()),
+            Types.LongType.get()));
+    fields.add(
         Types.NestedField.required(
             POSITION_DELETE_FILE_COUNT.fieldId(),
             POSITION_DELETE_FILE_COUNT.name(),
-            Types.IntegerType.get()),
+            Types.IntegerType.get()));
+    fields.add(
         Types.NestedField.required(
             EQUALITY_DELETE_RECORD_COUNT.fieldId(),
             EQUALITY_DELETE_RECORD_COUNT.name(),
-            Types.LongType.get()),
+            Types.LongType.get()));
+    fields.add(
         Types.NestedField.required(
             EQUALITY_DELETE_FILE_COUNT.fieldId(),
             EQUALITY_DELETE_FILE_COUNT.name(),
-            Types.IntegerType.get()),
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID,
-        DV_COUNT);
+            Types.IntegerType.get()));
+    fields.add(TOTAL_RECORD_COUNT);
+    fields.add(LAST_UPDATED_AT);
+    fields.add(LAST_UPDATED_SNAPSHOT_ID);
+    fields.add(DV_COUNT);
+    return new Schema(fields.build());
   }
 
   /* The positions of each statistics within the full schema of partition statistics. */

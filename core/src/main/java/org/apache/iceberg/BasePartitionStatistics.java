@@ -40,6 +40,22 @@ public class BasePartitionStatistics extends SupportsIndexProjection
 
   private static final int STATS_COUNT = 13;
 
+  private static final Types.StructType BASE_TYPE =
+      Types.StructType.of(
+          EMPTY_PARTITION_FIELD,
+          SPEC_ID,
+          DATA_RECORD_COUNT,
+          DATA_FILE_COUNT,
+          TOTAL_DATA_FILE_SIZE_IN_BYTES,
+          POSITION_DELETE_RECORD_COUNT,
+          POSITION_DELETE_FILE_COUNT,
+          EQUALITY_DELETE_RECORD_COUNT,
+          EQUALITY_DELETE_FILE_COUNT,
+          TOTAL_RECORD_COUNT,
+          LAST_UPDATED_AT,
+          LAST_UPDATED_SNAPSHOT_ID,
+          DV_COUNT);
+
   BasePartitionStatistics(StructLike partition, int specId) {
     super(STATS_COUNT);
 
@@ -58,7 +74,7 @@ public class BasePartitionStatistics extends SupportsIndexProjection
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   BasePartitionStatistics(Types.StructType projection) {
-    super(STATS_COUNT);
+    super(BASE_TYPE, projection);
   }
 
   @Override

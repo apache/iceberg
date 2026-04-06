@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -115,7 +114,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
       List<PartitionStatistics> partitionStats = Lists.newArrayList(recordIterator);
       assertThat(partitionStats).hasSize(1);
       PartitionStatistics stats = partitionStats.get(0);
-      assertThat(stats.partition()).isEqualTo(GenericRecord.create(Types.StructType.of()));
+      assertThat(stats.partition()).isNull();
       assertThat(stats.dataRecordCount()).isEqualTo(dataFile.recordCount());
     }
 
@@ -133,7 +132,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
       List<PartitionStatistics> partitionStats = Lists.newArrayList(recordIterator);
       assertThat(partitionStats).hasSize(1);
       PartitionStatistics stats = partitionStats.get(0);
-      assertThat(stats.partition()).isEqualTo(GenericRecord.create(Types.StructType.of()));
+      assertThat(stats.partition()).isNull();
       assertThat(stats.dataRecordCount())
           .isEqualTo(dataFile.recordCount() + dataFile2.recordCount());
     }
