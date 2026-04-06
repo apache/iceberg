@@ -72,6 +72,9 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     }
     all {
       exclude group: 'javax.activation', module: 'activation'
+      exclude group: 'com.sun.activation', module: 'jakarta.activation'
+      exclude group: 'jakarta.activation', module: 'jakarta.activation-api'
+      exclude group: 'javax.annotation', module: 'javax.annotation-api'
       exclude group: 'org.jspecify', module: 'jspecify'
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
