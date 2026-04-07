@@ -42,7 +42,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -466,10 +465,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     // load the view with a referenced-by context
     List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(ns, "outer_view"));
-    Map<String, Object> loadingContext =
-        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    catalog.loadView(viewIdent, loadingContext);
+    catalog.loadView(viewIdent, viewChain);
 
     // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
@@ -541,10 +538,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     List<TableIdentifier> viewChain =
         ImmutableList.of(
             TableIdentifier.of(ns, "outer_view"), TableIdentifier.of(ns, "inner_view"));
-    Map<String, Object> loadingContext =
-        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    catalog.loadView(viewIdent, loadingContext);
+    catalog.loadView(viewIdent, viewChain);
 
     // verify the GET request includes comma-separated referenced-by chain
     // The test adapter uses %2E as the namespace separator

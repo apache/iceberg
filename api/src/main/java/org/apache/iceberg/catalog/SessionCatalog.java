@@ -389,15 +389,16 @@ public interface SessionCatalog {
   }
 
   /**
-   * Load a table with additional loading context.
+   * Load a table with the referenced-by view chain.
    *
    * @param sessionContext the session context
    * @param ident a table identifier
-   * @param context additional context as key-value pairs
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @return instance of {@link Table} referred by the identifier
    */
   default Table loadTable(
-      SessionContext sessionContext, TableIdentifier ident, Map<String, Object> context) {
-    return loadTable(sessionContext, ident);
+      SessionContext sessionContext, TableIdentifier ident, List<TableIdentifier> referencedBy) {
+    throw new UnsupportedOperationException(
+        "Loading a table with referenced-by view chain is not supported");
   }
 }

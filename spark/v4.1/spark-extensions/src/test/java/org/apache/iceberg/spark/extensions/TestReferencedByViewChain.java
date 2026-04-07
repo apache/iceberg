@@ -22,15 +22,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.InetAddress;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsReferencedBy;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -52,7 +51,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Tests that the referenced-by view chain is correctly constructed and passed to
- * ContextAwareCatalog.loadTable() during view resolution.
+ * SupportsReferencedBy.loadTable() during view resolution.
  *
  * <p>This verifies:
  *
@@ -71,25 +70,25 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   private static SparkSession spark;
 
   /**
-   * An InMemoryCatalog that also implements ContextAwareCatalog and records all context-aware
+   * An InMemoryCatalog that also implements SupportsReferencedBy and records all referenced-by
    * loadTable calls for later assertion.
    */
   public static class ContextTrackingCatalog extends InMemoryCatalog
-      implements ContextAwareCatalog {
+      implements SupportsReferencedBy {
 
-    /** Records of (tableIdentifier, loadingContext) captured from loadTable calls. */
+    /** Records of (tableIdentifier, referencedBy) captured from loadTable calls. */
     public static final List<CapturedContext> CAPTURED = new CopyOnWriteArrayList<>();
 
-    /** Records of (viewIdentifier, loadingContext) captured from loadView calls. */
+    /** Records of (viewIdentifier, referencedBy) captured from loadView calls. */
     public static final List<CapturedContext> CAPTURED_VIEWS = new CopyOnWriteArrayList<>();
 
     public static class CapturedContext {
       public final TableIdentifier tableIdentifier;
-      public final Map<String, Object> context;
+      public final List<TableIdentifier> referencedBy;
 
-      CapturedContext(TableIdentifier tableIdentifier, Map<String, Object> context) {
+      CapturedContext(TableIdentifier tableIdentifier, List<TableIdentifier> referencedBy) {
         this.tableIdentifier = tableIdentifier;
-        this.context = context;
+        this.referencedBy = referencedBy;
       }
     }
 
@@ -99,15 +98,15 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     }
 
     @Override
-    public Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext)
+    public Table loadTable(TableIdentifier identifier, List<TableIdentifier> referencedBy)
         throws NoSuchTableException {
-      CAPTURED.add(new CapturedContext(identifier, loadingContext));
+      CAPTURED.add(new CapturedContext(identifier, referencedBy));
       return super.loadTable(identifier);
     }
 
     @Override
-    public View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
-      CAPTURED_VIEWS.add(new CapturedContext(identifier, loadingContext));
+    public View loadView(TableIdentifier identifier, List<TableIdentifier> referencedBy) {
+      CAPTURED_VIEWS.add(new CapturedContext(identifier, referencedBy));
       return super.loadView(identifier);
     }
   }
@@ -118,6 +117,10 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config("spark.ui.enabled", "false")
+            .config(
+                "spark.metrics.conf.*.sink.servlet.class",
+                "org.apache.iceberg.spark.DummyMetricsServlet")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.sql.catalog." + CATALOG_NAME, SparkCatalog.class.getName())
             .config(
@@ -233,7 +236,6 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
    * Asserts that a captured context list contains an entry for the given target with the expected
    * view chain.
    */
-  @SuppressWarnings("unchecked")
   private void assertCapturedTableChain(
       List<ContextTrackingCatalog.CapturedContext> captures,
       String targetName,
@@ -241,14 +243,12 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     List<ContextTrackingCatalog.CapturedContext> matching =
         captures.stream()
             .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, targetName)))
-            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
+            .filter(c -> c.referencedBy != null && !c.referencedBy.isEmpty())
             .collect(Collectors.toList());
 
     assertThat(matching).isNotEmpty();
 
-    List<TableIdentifier> viewChain =
-        (List<TableIdentifier>)
-            matching.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
+    List<TableIdentifier> viewChain = matching.get(0).referencedBy;
     assertThat(viewChain).hasSize(expectedViewNames.length);
     for (int i = 0; i < expectedViewNames.length; i++) {
       assertThat(viewChain.get(i)).isEqualTo(TableIdentifier.of(NAMESPACE, expectedViewNames[i]));

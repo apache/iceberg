@@ -30,6 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.view.View;
 
 public abstract class BaseSessionCatalog implements SessionCatalog {
   private final Cache<String, Catalog> catalogs =
@@ -62,7 +63,7 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     return task.apply(asCatalog(context));
   }
 
-  public class AsCatalog implements Catalog, ContextAwareCatalog, SupportsNamespaces {
+  public class AsCatalog implements Catalog, SupportsReferencedBy, SupportsNamespaces {
     private final SessionContext context;
 
     private AsCatalog(SessionContext context) {
@@ -167,8 +168,14 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
-    public Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext) {
-      return BaseSessionCatalog.this.loadTable(context, identifier, loadingContext);
+    public Table loadTable(TableIdentifier identifier, List<TableIdentifier> referencedBy) {
+      return BaseSessionCatalog.this.loadTable(context, identifier, referencedBy);
+    }
+
+    @Override
+    public View loadView(TableIdentifier identifier, List<TableIdentifier> referencedBy) {
+      throw new UnsupportedOperationException(
+          "Loading a view with referenced-by view chain is not supported");
     }
   }
 }

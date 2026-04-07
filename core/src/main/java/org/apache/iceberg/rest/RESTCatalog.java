@@ -30,10 +30,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.SupportsReferencedBy;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
@@ -48,7 +48,7 @@ import org.apache.iceberg.view.ViewBuilder;
 public class RESTCatalog
     implements Catalog,
         ViewCatalog,
-        ContextAwareCatalog,
+        SupportsReferencedBy,
         SupportsNamespaces,
         Configurable<Object>,
         Closeable {
@@ -131,8 +131,8 @@ public class RESTCatalog
   }
 
   @Override
-  public Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext) {
-    return sessionCatalog.loadTable(context, identifier, loadingContext);
+  public Table loadTable(TableIdentifier identifier, List<TableIdentifier> referencedBy) {
+    return sessionCatalog.loadTable(context, identifier, referencedBy);
   }
 
   @Override
@@ -323,8 +323,8 @@ public class RESTCatalog
   }
 
   @Override
-  public View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
-    return sessionCatalog.loadView(context, identifier, loadingContext);
+  public View loadView(TableIdentifier identifier, List<TableIdentifier> referencedBy) {
+    return sessionCatalog.loadView(context, identifier, referencedBy);
   }
 
   @Override

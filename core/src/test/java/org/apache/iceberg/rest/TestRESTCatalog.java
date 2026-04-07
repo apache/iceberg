@@ -75,7 +75,6 @@ import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
@@ -4028,10 +4027,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.clearInvocations(adapter);
 
     List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(ns, "outer_view"));
-    Map<String, Object> loadingContext =
-        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    catalog.loadTable(tableIdent, loadingContext);
+    catalog.loadTable(tableIdent, viewChain);
 
     // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
@@ -4097,10 +4094,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     List<TableIdentifier> viewChain =
         ImmutableList.of(
             TableIdentifier.of(ns, "outer_view"), TableIdentifier.of(ns, "inner_view"));
-    Map<String, Object> loadingContext =
-        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    catalog.loadTable(tableIdent, loadingContext);
+    catalog.loadTable(tableIdent, viewChain);
 
     // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)

@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.Map;
+import java.util.List;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -26,54 +27,54 @@ import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.View;
 
 /**
- * A Spark Catalog API extension for context-aware table and view loading. Extends the loading
- * contract to accept additional context such as the chain of views referencing a table.
+ * A Spark Catalog API extension for loading tables and views with a referenced-by view chain.
+ * Extends the loading contract to accept the chain of views referencing a table.
  */
-public interface SparkContextAwareCatalog {
+public interface SparkSupportsReferencedBy {
 
   /**
-   * Load a table with additional loading context.
+   * Load a table with the referenced-by view chain.
    *
    * @param identifier a table identifier
-   * @param loadingContext additional context as key-value pairs
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @return instance of {@link Table} referred by the identifier
    * @throws NoSuchTableException if the table does not exist
    */
-  Table loadTable(Identifier identifier, Map<String, Object> loadingContext)
+  Table loadTable(Identifier identifier, List<TableIdentifier> referencedBy)
       throws NoSuchTableException;
 
   /**
-   * Load a table at a specific version with additional loading context.
+   * Load a table at a specific version with the referenced-by view chain.
    *
    * @param identifier a table identifier
    * @param version the version string
-   * @param loadingContext additional context as key-value pairs
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @return instance of {@link Table} referred by the identifier at the specified version
    * @throws NoSuchTableException if the table does not exist
    */
-  Table loadTable(Identifier identifier, String version, Map<String, Object> loadingContext)
+  Table loadTable(Identifier identifier, String version, List<TableIdentifier> referencedBy)
       throws NoSuchTableException;
 
   /**
-   * Load a table at a specific timestamp with additional loading context.
+   * Load a table at a specific timestamp with the referenced-by view chain.
    *
    * @param identifier a table identifier
    * @param timestamp the timestamp in microseconds
-   * @param loadingContext additional context as key-value pairs
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @return instance of {@link Table} referred by the identifier as of the specified timestamp
    * @throws NoSuchTableException if the table does not exist
    */
-  Table loadTable(Identifier identifier, long timestamp, Map<String, Object> loadingContext)
+  Table loadTable(Identifier identifier, long timestamp, List<TableIdentifier> referencedBy)
       throws NoSuchTableException;
 
   /**
-   * Load a view with additional loading context.
+   * Load a view with the referenced-by view chain.
    *
    * @param identifier a view identifier
-   * @param loadingContext additional context as key-value pairs
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @return instance of {@link View} referred by the identifier
    * @throws NoSuchViewException if the view does not exist
    */
-  View loadView(Identifier identifier, Map<String, Object> loadingContext)
+  View loadView(Identifier identifier, List<TableIdentifier> referencedBy)
       throws NoSuchViewException;
 }

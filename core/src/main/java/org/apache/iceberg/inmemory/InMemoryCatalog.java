@@ -34,9 +34,9 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.SupportsReferencedBy;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -65,7 +65,7 @@ import org.apache.iceberg.view.ViewUtil;
  * effects. It uses {@link InMemoryFileIO}.
  */
 public class InMemoryCatalog extends BaseMetastoreViewCatalog
-    implements SupportsNamespaces, ContextAwareCatalog, Closeable {
+    implements SupportsNamespaces, SupportsReferencedBy, Closeable {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Joiner DOT = Joiner.on(".");
 
@@ -342,12 +342,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext) {
+  public Table loadTable(TableIdentifier identifier, List<TableIdentifier> referencedBy) {
     return loadTable(identifier);
   }
 
   @Override
-  public View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
+  public View loadView(TableIdentifier identifier, List<TableIdentifier> referencedBy) {
     return loadView(identifier);
   }
 

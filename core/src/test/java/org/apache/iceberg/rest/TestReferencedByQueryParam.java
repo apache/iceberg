@@ -20,14 +20,12 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -80,9 +78,8 @@ public class TestReferencedByQueryParam {
   public void singleViewSimpleNamespace() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "viewName"));
-    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
-    Map<String, String> result = catalog.referencedByToQueryParam(context);
+    Map<String, String> result = catalog.referencedByToQueryParam(chain);
 
     assertThat(result)
         .containsEntry(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%1FviewName");
@@ -92,9 +89,8 @@ public class TestReferencedByQueryParam {
   public void singleViewNestedNamespace() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("prod", "analytics"), "quarterly_view"));
-    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
-    Map<String, String> result = catalog.referencedByToQueryParam(context);
+    Map<String, String> result = catalog.referencedByToQueryParam(chain);
 
     assertThat(result)
         .containsEntry(
@@ -108,9 +104,8 @@ public class TestReferencedByQueryParam {
         ImmutableList.of(
             TableIdentifier.of(Namespace.of("outer_ns"), "outer_view"),
             TableIdentifier.of(Namespace.of("inner_ns"), "inner_view"));
-    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
-    Map<String, String> result = catalog.referencedByToQueryParam(context);
+    Map<String, String> result = catalog.referencedByToQueryParam(chain);
 
     assertThat(result)
         .containsEntry(
@@ -122,9 +117,8 @@ public class TestReferencedByQueryParam {
   public void viewNameWithCommaIsEncoded() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "view,name"));
-    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
-    Map<String, String> result = catalog.referencedByToQueryParam(context);
+    Map<String, String> result = catalog.referencedByToQueryParam(chain);
 
     // Comma in view name should be encoded as %2C
     assertThat(result)
@@ -132,22 +126,11 @@ public class TestReferencedByQueryParam {
   }
 
   @Test
-  public void invalidContextValueType() {
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, "not-a-list");
-
-    assertThatThrownBy(() -> catalog.referencedByToQueryParam(context))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("expected List<TableIdentifier>");
-  }
-
-  @Test
   public void paramsForLoadTableMergesSnapshotModeAndReferencedBy() {
     List<TableIdentifier> chain = ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "view"));
-    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
     Map<String, String> result =
-        catalog.paramsForLoadTable(RESTCatalogProperties.SnapshotMode.ALL, context);
+        catalog.paramsForLoadTable(RESTCatalogProperties.SnapshotMode.ALL, chain);
 
     assertThat(result)
         .containsEntry("snapshots", "all")
@@ -158,9 +141,8 @@ public class TestReferencedByQueryParam {
   public void namespaceWithSpecialCharsEncoded() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("ns with spaces"), "view/name"));
-    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
-    Map<String, String> result = catalog.referencedByToQueryParam(context);
+    Map<String, String> result = catalog.referencedByToQueryParam(chain);
 
     // Spaces encode to + and / encodes to %2F in URL encoding
     assertThat(result)
@@ -171,10 +153,8 @@ public class TestReferencedByQueryParam {
   @Test
   public void loadTableWithReferencedByQueryParam() {
     List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(NS, "outer_view"));
-    Map<String, Object> loadingContext =
-        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    restCatalog.loadTable(TABLE_IDENT, loadingContext);
+    restCatalog.loadTable(TABLE_IDENT, viewChain);
 
     // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
@@ -214,10 +194,8 @@ public class TestReferencedByQueryParam {
     List<TableIdentifier> viewChain =
         ImmutableList.of(
             TableIdentifier.of(NS, "outer_view"), TableIdentifier.of(NS, "inner_view"));
-    Map<String, Object> loadingContext =
-        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    restCatalog.loadTable(TABLE_IDENT, loadingContext);
+    restCatalog.loadTable(TABLE_IDENT, viewChain);
 
     // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)

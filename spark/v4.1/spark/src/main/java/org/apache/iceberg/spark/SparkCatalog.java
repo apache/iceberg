@@ -38,9 +38,9 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.SupportsReferencedBy;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -118,7 +118,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalog {
+public class SparkCatalog extends BaseCatalog implements SparkSupportsReferencedBy {
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
@@ -132,7 +132,7 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
   private Catalog icebergCatalog = null;
   private SupportsNamespaces asNamespaceCatalog = null;
   private ViewCatalog asViewCatalog = null;
-  private ContextAwareCatalog asContextAwareCatalog = null;
+  private SupportsReferencedBy asSupportsReferencedBy = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
 
@@ -164,14 +164,14 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return loadTable(ident, Map.of());
+    return loadTable(ident, List.of());
   }
 
   @Override
-  public Table loadTable(Identifier ident, Map<String, Object> context)
+  public Table loadTable(Identifier ident, List<TableIdentifier> referencedBy)
       throws NoSuchTableException {
     try {
-      return load(ident, null /* no time travel */, context);
+      return load(ident, null /* no time travel */, referencedBy);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -179,14 +179,14 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return loadTable(ident, version, Map.of());
+    return loadTable(ident, version, List.of());
   }
 
   @Override
-  public Table loadTable(Identifier ident, String version, Map<String, Object> loadingContext)
+  public Table loadTable(Identifier ident, String version, List<TableIdentifier> referencedBy)
       throws NoSuchTableException {
     try {
-      return load(ident, TimeTravel.version(version), loadingContext);
+      return load(ident, TimeTravel.version(version), referencedBy);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -194,14 +194,14 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
 
   @Override
   public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    return loadTable(ident, timestampMicros, Map.of());
+    return loadTable(ident, timestampMicros, List.of());
   }
 
   @Override
-  public Table loadTable(Identifier ident, long timestampMicros, Map<String, Object> loadingContext)
+  public Table loadTable(Identifier ident, long timestampMicros, List<TableIdentifier> referencedBy)
       throws NoSuchTableException {
     try {
-      return load(ident, TimeTravel.timestampMicros(timestampMicros), loadingContext);
+      return load(ident, TimeTravel.timestampMicros(timestampMicros), referencedBy);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -547,20 +547,21 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
-    return loadView(ident, Map.of());
+    return loadView(ident, List.of());
   }
 
   @Override
-  public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
+  public View loadView(Identifier ident, List<TableIdentifier> referencedBy)
+      throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
         org.apache.iceberg.view.View view;
-        if (context != null && !context.isEmpty() && asContextAwareCatalog != null) {
-          view = asContextAwareCatalog.loadView(buildIdentifier(ident), context);
+        if (referencedBy != null && !referencedBy.isEmpty() && asSupportsReferencedBy != null) {
+          view = asSupportsReferencedBy.loadView(buildIdentifier(ident), referencedBy);
         } else {
-          if (context != null && !context.isEmpty()) {
+          if (referencedBy != null && !referencedBy.isEmpty()) {
             LOG.warn(
-                "Catalog {} does not support context-aware view loading, ignoring context for view {}",
+                "Catalog {} does not support referenced-by view loading, ignoring context for view {}",
                 asViewCatalog.name(),
                 ident);
           }
@@ -782,8 +783,8 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
       this.asViewCatalog = (ViewCatalog) catalog;
     }
 
-    if (catalog instanceof ContextAwareCatalog) {
-      this.asContextAwareCatalog = (ContextAwareCatalog) catalog;
+    if (catalog instanceof SupportsReferencedBy) {
+      this.asSupportsReferencedBy = (SupportsReferencedBy) catalog;
     }
 
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
@@ -851,14 +852,14 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
     }
   }
 
-  private Table load(Identifier ident, TimeTravel timeTravel, Map<String, Object> context)
+  private Table load(Identifier ident, TimeTravel timeTravel, List<TableIdentifier> referencedBy)
       throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = loadIcebergTable(buildIdentifier(ident), context);
+      org.apache.iceberg.Table table = loadIcebergTable(buildIdentifier(ident), referencedBy);
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -871,7 +872,7 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = loadIcebergTable(namespaceAsIdent, context);
+        table = loadIcebergTable(namespaceAsIdent, referencedBy);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier
@@ -907,14 +908,14 @@ public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalo
   }
 
   private org.apache.iceberg.Table loadIcebergTable(
-      TableIdentifier ident, Map<String, Object> context) {
-    if (!context.isEmpty() && asContextAwareCatalog != null) {
-      return asContextAwareCatalog.loadTable(ident, context);
+      TableIdentifier ident, List<TableIdentifier> referencedBy) {
+    if (!referencedBy.isEmpty() && asSupportsReferencedBy != null) {
+      return asSupportsReferencedBy.loadTable(ident, referencedBy);
     }
 
-    if (!context.isEmpty()) {
+    if (!referencedBy.isEmpty()) {
       LOG.warn(
-          "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+          "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
           icebergCatalog.name(),
           ident);
     }

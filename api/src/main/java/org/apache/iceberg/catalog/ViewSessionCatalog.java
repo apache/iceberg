@@ -55,19 +55,20 @@ public interface ViewSessionCatalog {
   View loadView(SessionCatalog.SessionContext context, TableIdentifier identifier);
 
   /**
-   * Load a view with additional loading context.
+   * Load a view with the referenced-by view chain.
    *
    * @param context the session context
    * @param identifier a view identifier
-   * @param loadingContext additional context as key-value pairs
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @return instance of {@link View} referred by the identifier
    * @throws NoSuchViewException if the view does not exist
    */
   default View loadView(
       SessionCatalog.SessionContext context,
       TableIdentifier identifier,
-      Map<String, Object> loadingContext) {
-    return loadView(context, identifier);
+      List<TableIdentifier> referencedBy) {
+    throw new UnsupportedOperationException(
+        "Loading a view with referenced-by view chain is not supported");
   }
 
   /**

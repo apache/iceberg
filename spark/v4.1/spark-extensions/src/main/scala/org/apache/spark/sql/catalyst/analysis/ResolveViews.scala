@@ -74,17 +74,22 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           isStreaming,
           timeTravelVersion,
           timeTravelTimestamp) =>
-      val context = ViewUtil.buildLoadingContext(viewChain, catalog.name())
+      val referencedBy = ViewUtil.buildReferencedByChain(viewChain, catalog.name())
       try {
         val table =
-          ViewUtil.loadTable(catalog, tableIdent, context, timeTravelVersion, timeTravelTimestamp)
+          ViewUtil.loadTable(
+            catalog,
+            tableIdent,
+            referencedBy,
+            timeTravelVersion,
+            timeTravelTimestamp)
         DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
       } catch {
         case _: NoSuchTableException =>
           // The target might be a view, not a table. Try loading as a view
           // and recursively resolve with the accumulated chain.
           ViewUtil
-            .loadView(catalog, tableIdent, context)
+            .loadView(catalog, tableIdent, referencedBy)
             .map(view => createViewRelation(tableParts, view, Some(viewChain)))
             .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
       }

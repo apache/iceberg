@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
@@ -65,7 +67,7 @@ import org.slf4j.LoggerFactory;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension, SparkContextAwareCatalog {
+    extends BaseCatalog implements CatalogExtension, SparkSupportsReferencedBy {
   private static final Logger LOG = LoggerFactory.getLogger(SparkSessionCatalog.class);
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
@@ -146,19 +148,19 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return loadTable(ident, Map.of());
+    return loadTable(ident, List.of());
   }
 
   @Override
-  public Table loadTable(Identifier ident, Map<String, Object> context)
+  public Table loadTable(Identifier ident, List<TableIdentifier> referencedBy)
       throws NoSuchTableException {
     try {
-      if (!context.isEmpty() && icebergCatalog instanceof SparkContextAwareCatalog) {
-        return ((SparkContextAwareCatalog) icebergCatalog).loadTable(ident, context);
+      if (!referencedBy.isEmpty() && icebergCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) icebergCatalog).loadTable(ident, referencedBy);
       }
-      if (!context.isEmpty()) {
+      if (!referencedBy.isEmpty()) {
         LOG.warn(
-            "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+            "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
             icebergCatalog.name(),
             ident);
       }
@@ -170,20 +172,19 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return loadTable(ident, version, Map.of());
+    return loadTable(ident, version, List.of());
   }
 
   @Override
-  public Table loadTable(Identifier ident, String version, Map<String, Object> loadingContext)
+  public Table loadTable(Identifier ident, String version, List<TableIdentifier> referencedBy)
       throws NoSuchTableException {
     try {
-      if (!loadingContext.isEmpty() && icebergCatalog instanceof SparkContextAwareCatalog) {
-        return ((SparkContextAwareCatalog) icebergCatalog)
-            .loadTable(ident, version, loadingContext);
+      if (!referencedBy.isEmpty() && icebergCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) icebergCatalog).loadTable(ident, version, referencedBy);
       }
-      if (!loadingContext.isEmpty()) {
+      if (!referencedBy.isEmpty()) {
         LOG.warn(
-            "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+            "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
             icebergCatalog.name(),
             ident);
       }
@@ -195,20 +196,20 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
-    return loadTable(ident, timestamp, Map.of());
+    return loadTable(ident, timestamp, List.of());
   }
 
   @Override
-  public Table loadTable(Identifier ident, long timestamp, Map<String, Object> loadingContext)
+  public Table loadTable(Identifier ident, long timestamp, List<TableIdentifier> referencedBy)
       throws NoSuchTableException {
     try {
-      if (!loadingContext.isEmpty() && icebergCatalog instanceof SparkContextAwareCatalog) {
-        return ((SparkContextAwareCatalog) icebergCatalog)
-            .loadTable(ident, timestamp, loadingContext);
+      if (!referencedBy.isEmpty() && icebergCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) icebergCatalog)
+            .loadTable(ident, timestamp, referencedBy);
       }
-      if (!loadingContext.isEmpty()) {
+      if (!referencedBy.isEmpty()) {
         LOG.warn(
-            "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+            "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
             icebergCatalog.name(),
             ident);
       }
@@ -497,20 +498,21 @@ public class SparkSessionCatalog<
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
-    return loadView(ident, Map.of());
+    return loadView(ident, List.of());
   }
 
   @Override
-  public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
+  public View loadView(Identifier ident, List<TableIdentifier> referencedBy)
+      throws NoSuchViewException {
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
-      if (context != null
-          && !context.isEmpty()
-          && asViewCatalog instanceof SparkContextAwareCatalog) {
-        return ((SparkContextAwareCatalog) asViewCatalog).loadView(ident, context);
+      if (referencedBy != null
+          && !referencedBy.isEmpty()
+          && asViewCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) asViewCatalog).loadView(ident, referencedBy);
       }
-      if (context != null && !context.isEmpty()) {
+      if (referencedBy != null && !referencedBy.isEmpty()) {
         LOG.warn(
-            "Catalog {} does not support context-aware view loading, ignoring context for view {}",
+            "Catalog {} does not support referenced-by view loading, ignoring context for view {}",
             asViewCatalog.name(),
             ident);
       }

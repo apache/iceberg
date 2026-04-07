@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -416,52 +415,20 @@ public class RESTUtil {
   }
 
   /**
-   * Extract the view identifier chain from a loading context map.
-   *
-   * @param context the loading context
-   * @return the list of view identifiers, or an empty list if not present
-   */
-  public static List<TableIdentifier> extractViewChain(Map<String, Object> context) {
-    if (context.isEmpty() || !context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY)) {
-      return List.of();
-    }
-
-    Object viewIdentifierObj = context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-
-    Preconditions.checkArgument(
-        viewIdentifierObj instanceof List,
-        "Invalid view identifier in context, expected List<TableIdentifier>: %s",
-        viewIdentifierObj);
-
-    List<?> rawList = (List<?>) viewIdentifierObj;
-    for (Object element : rawList) {
-      Preconditions.checkArgument(
-          element instanceof TableIdentifier,
-          "Invalid element in view identifier list, expected TableIdentifier: %s",
-          element);
-    }
-
-    @SuppressWarnings("unchecked")
-    List<TableIdentifier> viewChain = (List<TableIdentifier>) rawList;
-    return viewChain;
-  }
-
-  /**
    * Encode a view identifier chain as a referenced-by query parameter.
    *
-   * @param context the loading context containing the view chain
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @param namespaceSeparator the separator to use between namespace levels and name
    * @return a map with the referenced-by query parameter, or an empty map if no chain is present
    */
   public static Map<String, String> referencedByToQueryParam(
-      Map<String, Object> context, String namespaceSeparator) {
-    List<TableIdentifier> viewChain = extractViewChain(context);
-    if (viewChain.isEmpty()) {
+      List<TableIdentifier> referencedBy, String namespaceSeparator) {
+    if (referencedBy == null || referencedBy.isEmpty()) {
       return Map.of();
     }
 
     List<String> encoded =
-        viewChain.stream()
+        referencedBy.stream()
             .map(
                 ident ->
                     encodeNamespace(ident.namespace(), namespaceSeparator)

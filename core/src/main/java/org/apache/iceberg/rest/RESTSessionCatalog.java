@@ -431,14 +431,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SnapshotMode mode,
       Map<String, String> headers,
       Consumer<Map<String, String>> responseHeaders) {
-    return loadInternal(context, identifier, mode, Map.of(), headers, responseHeaders);
+    return loadInternal(context, identifier, mode, List.of(), headers, responseHeaders);
   }
 
   private LoadTableResponse loadInternal(
       SessionContext context,
       TableIdentifier identifier,
       SnapshotMode mode,
-      Map<String, Object> loadingContext,
+      List<TableIdentifier> referencedBy,
       Map<String, String> headers,
       Consumer<Map<String, String>> responseHeaders) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
@@ -447,7 +447,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            paramsForLoadTable(mode, loadingContext),
+            paramsForLoadTable(mode, referencedBy),
             LoadTableResponse.class,
             headers,
             ErrorHandlers.tableErrorHandler(),
@@ -455,15 +455,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @VisibleForTesting
-  Map<String, String> paramsForLoadTable(SnapshotMode mode, Map<String, Object> loadingContext) {
+  Map<String, String> paramsForLoadTable(SnapshotMode mode, List<TableIdentifier> referencedBy) {
     Map<String, String> params = Maps.newHashMap(snapshotModeToParam(mode));
-    params.putAll(RESTUtil.referencedByToQueryParam(loadingContext, namespaceSeparator));
+    params.putAll(RESTUtil.referencedByToQueryParam(referencedBy, namespaceSeparator));
     return params;
   }
 
   @VisibleForTesting
-  Map<String, String> referencedByToQueryParam(Map<String, Object> context) {
-    return RESTUtil.referencedByToQueryParam(context, namespaceSeparator);
+  Map<String, String> referencedByToQueryParam(List<TableIdentifier> referencedBy) {
+    return RESTUtil.referencedByToQueryParam(referencedBy, namespaceSeparator);
   }
 
   /**
@@ -471,9 +471,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * can extract it and pass it as a query parameter to the loadCredentials endpoint.
    */
   private Map<String, String> injectReferencedBy(
-      Map<String, String> config, Map<String, Object> loadingContext) {
+      Map<String, String> config, List<TableIdentifier> referencedBy) {
     Map<String, String> referencedByParam =
-        RESTUtil.referencedByToQueryParam(loadingContext, namespaceSeparator);
+        RESTUtil.referencedByToQueryParam(referencedBy, namespaceSeparator);
     if (referencedByParam.isEmpty()) {
       return config;
     }
@@ -485,12 +485,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
-    return loadTable(context, identifier, Map.of());
+    return loadTable(context, identifier, List.of());
   }
 
   @Override
   public Table loadTable(
-      SessionContext context, TableIdentifier identifier, Map<String, Object> loadingContext) {
+      SessionContext context, TableIdentifier identifier, List<TableIdentifier> referencedBy) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,
@@ -514,7 +514,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               context,
               identifier,
               snapshotMode,
-              loadingContext,
+              referencedBy,
               headersForLoadTable(cachedTable),
               responseHeaders::putAll);
 
@@ -541,7 +541,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   context,
                   baseIdent,
                   snapshotMode,
-                  loadingContext,
+                  referencedBy,
                   headersForLoadTable(cachedTable),
                   responseHeaders::putAll);
 
@@ -566,7 +566,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     TableIdentifier finalIdentifier = loadedIdent;
-    Map<String, String> tableConf = injectReferencedBy(response.config(), loadingContext);
+    Map<String, String> tableConf = injectReferencedBy(response.config(), referencedBy);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     AuthSession tableSession =
         authManager.tableSession(finalIdentifier, tableConf, contextualSession);
@@ -583,7 +583,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                               context,
                               finalIdentifier,
                               SnapshotMode.ALL,
-                              loadingContext,
+                              referencedBy,
                               Map.of(),
                               h -> {})
                           .tableMetadata()
@@ -1489,12 +1489,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
-    return loadView(context, identifier, Map.of());
+    return loadView(context, identifier, List.of());
   }
 
   @Override
   public View loadView(
-      SessionContext context, TableIdentifier identifier, Map<String, Object> loadingContext) {
+      SessionContext context, TableIdentifier identifier, List<TableIdentifier> referencedBy) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_VIEW,
@@ -1511,12 +1511,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             .withAuthSession(contextualSession)
             .get(
                 paths.view(identifier),
-                referencedByToQueryParam(loadingContext),
+                referencedByToQueryParam(referencedBy),
                 LoadViewResponse.class,
                 Map.of(),
                 ErrorHandlers.viewErrorHandler());
 
-    Map<String, String> tableConf = injectReferencedBy(response.config(), loadingContext);
+    Map<String, String> tableConf = injectReferencedBy(response.config(), referencedBy);
     AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
     ViewMetadata metadata = response.metadata();
 
