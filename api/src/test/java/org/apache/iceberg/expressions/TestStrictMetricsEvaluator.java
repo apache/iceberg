@@ -73,8 +73,8 @@ public class TestStrictMetricsEvaluator {
               "struct",
               Types.StructType.of(
                   Types.NestedField.optional(16, "nested_col_no_stats", Types.IntegerType.get()),
-                  Types.NestedField.optional(
-                      17, "nested_col_with_stats", Types.IntegerType.get()))));
+                  Types.NestedField.optional(17, "nested_col_with_stats", Types.IntegerType.get()),
+                  Types.NestedField.optional(18, "nested_string_col", Types.StringType.get()))));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -798,5 +798,13 @@ public class TestStrictMetricsEvaluator {
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "abcdef")).eval(STRING_FILE);
     assertThat(shouldRead).as("Should not match: prefix overlaps with bound range").isFalse();
+  }
+
+  @Test
+  public void testNotStartsWithNestedColumn() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("struct.nested_string_col", "a"))
+            .eval(FILE);
+    assertThat(shouldRead).as("notStartsWith nested column should not match").isFalse();
   }
 }
