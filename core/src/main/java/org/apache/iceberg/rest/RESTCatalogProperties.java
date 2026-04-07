@@ -57,15 +57,10 @@ public final class RESTCatalogProperties {
 
   /**
    * Controls whether engines using a REST Catalog should delegate DROP TABLE PURGE requests to the
-   * catalog server instead of performing client-side file deletion.
+   * catalog instead of performing client-side file deletion.
    *
-   * <p>When enabled (true), the engine sends the purge request to the REST catalog, allowing the
-   * catalog to handle deletion. This enables features like UNDROP for REST catalogs that preserve
-   * deleted table metadata.
-   *
-   * <p>When disabled (false, default), the engine lists and deletes files client-side before
-   * dropping the table. This provides parallelized deletion but prevents server-side purge
-   * features.
+   * <p>When enabled, the engine sends the purge request to the REST catalog, allowing the catalog
+   * to handle deletion.
    *
    * <p>Defaults to false for backward compatibility.
    */

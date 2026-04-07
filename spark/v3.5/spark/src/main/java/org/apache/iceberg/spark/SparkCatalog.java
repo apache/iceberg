@@ -385,14 +385,10 @@ public class SparkCatalog extends BaseCatalog {
 
       if (isRestCatalog && !isPathIdentifier(ident)) {
         if (restCatalogPurge) {
-          // Delegate purge to REST catalog - allows server-side features like UNDROP
           return catalogDropTable(ident, true);
         } else {
-          // Log warning: client-side purge bypasses server-side features
           LOG.warn(
-              "REST catalog purge delegation is disabled. "
-                  + "Set '{}' to true to delegate purge operations to the REST catalog "
-                  + "and enable server-side features like UNDROP.",
+              "Set '{}' to true to use the REST Catalog's capabilities to purge the table.",
               RESTCatalogProperties.REST_CATALOG_PURGE);
         }
       }

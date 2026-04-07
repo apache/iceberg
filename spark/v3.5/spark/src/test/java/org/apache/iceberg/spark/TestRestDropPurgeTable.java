@@ -47,8 +47,8 @@ import org.junit.jupiter.api.io.TempDir;
  * Tests for the REST catalog purge delegation feature in {@link SparkCatalog}.
  *
  * <p>Verifies that {@link org.apache.iceberg.rest.RESTCatalogProperties#REST_CATALOG_PURGE}
- * controls whether Spark delegates DROP TABLE PURGE to the REST catalog (enabling server-side
- * features like UNDROP) or performs client-side file deletion.
+ * controls whether Spark delegates DROP TABLE PURGE to the REST catalog or performs client-side
+ * file deletion.
  */
 public class TestRestDropPurgeTable extends TestBase {
 
