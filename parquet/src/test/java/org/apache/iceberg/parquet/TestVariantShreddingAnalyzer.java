@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
@@ -214,7 +215,7 @@ public class TestVariantShreddingAnalyzer {
     // Value 1: 30 integer digits, 0 fractional -> precision=30, scale=0, intDigits=30
     // Value 2: 1 integer digit, 20 fractional  -> precision=21, scale=20, intDigits=1
     // Combined: maxIntDigits=30, maxScale=20, raw sum=50 -> capped to precision=38,
-    // scale=min(20,38)=20
+    // scale=min(20, 38-30)=8 (integer digits get priority)
     VariantMetadata meta = Variants.metadata("val");
     ShreddedObject row1 = Variants.object(meta);
     row1.put("val", Variants.of(new java.math.BigDecimal("123456789012345678901234567890")));
@@ -234,8 +235,8 @@ public class TestVariantShreddingAnalyzer {
             valPrimitive.getLogicalTypeAnnotation();
     assertThat(decimal).isNotNull();
     assertThat(decimal.getPrecision()).isEqualTo(38);
-    assertThat(decimal.getScale()).isEqualTo(20);
-    // Scale must not exceed precision
+    // With 30 integer digits, scale is capped to 38 - 30 = 8 (integer digits get priority)
+    assertThat(decimal.getScale()).isEqualTo(8);
     assertThat(decimal.getScale()).isLessThanOrEqualTo(decimal.getPrecision());
 
     // Physical type should be FIXED_LEN_BYTE_ARRAY since precision > 18
@@ -271,18 +272,8 @@ public class TestVariantShreddingAnalyzer {
   public void testInfrequentFieldsArePruned() {
     DirectAnalyzer analyzer = new DirectAnalyzer();
 
-    VariantMetadata meta = Variants.metadata("common", "rare");
-
-    // 100 rows: "common" in all 100, "rare" in only 5 (< 10% threshold)
-    List<VariantValue> rows = Lists.newArrayList();
-    for (int i = 0; i < 100; i++) {
-      ShreddedObject obj = Variants.object(meta);
-      obj.put("common", Variants.of(i));
-      if (i < 5) {
-        obj.put("rare", Variants.of("text"));
-      }
-      rows.add(obj);
-    }
+    // 100 rows: "common" in all, "rare" in only 5 (below MIN_FIELD_FREQUENCY = 0.10)
+    List<VariantValue> rows = buildPruningTestRows(5, obj -> obj);
 
     Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
     assertThat(schema).isNotNull();
@@ -301,6 +292,105 @@ public class TestVariantShreddingAnalyzer {
 
     Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
     assertThat(schema).isNull();
+  }
+
+  @Test
+  public void testRootPrimitiveProducesTypedValue() {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+
+    // root type is primitive
+    List<VariantValue> rows = List.of(Variants.of("hello"), Variants.of("world"), Variants.of("x"));
+
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+    assertThat(schema).isNotNull();
+    assertThat(schema.getName()).isEqualTo("typed_value");
+    assertThat(schema.isPrimitive()).isTrue();
+    assertThat(schema.asPrimitiveType().getLogicalTypeAnnotation())
+        .isEqualTo(LogicalTypeAnnotation.stringType());
+  }
+
+  @Test
+  public void testRootArrayOfObjectsPrunesInfrequentFields() {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+
+    // 100 arrays: "common" in all, "rare" in only 3 (below MIN_FIELD_FREQUENCY = 0.10)
+    List<VariantValue> rows =
+        buildPruningTestRows(
+            3,
+            obj -> {
+              ValueArray arr = Variants.array();
+              arr.add(obj);
+              return arr;
+            });
+
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+    assertThat(schema).isNotNull();
+
+    GroupType listType = schema.asGroupType();
+    assertThat(listType.getLogicalTypeAnnotation())
+        .isInstanceOf(LogicalTypeAnnotation.ListLogicalTypeAnnotation.class);
+    GroupType repeatedGroup = listType.getType(0).asGroupType();
+    GroupType elementGroup = repeatedGroup.getType(0).asGroupType();
+    assertThat(elementGroup.containsField("typed_value")).isTrue();
+    GroupType objectFields = elementGroup.getType("typed_value").asGroupType();
+    assertThat(objectFields.containsField("common")).isTrue();
+    assertThat(objectFields.containsField("rare")).isFalse();
+  }
+
+  @Test
+  public void testObjectWithArrayChildPrunesNestedFields() {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+
+    VariantMetadata itemMeta = Variants.metadata("name", "rare");
+    VariantMetadata rootMeta = Variants.metadata("items");
+
+    // 100 rows, "rare" appears in only 3 rows (below MIN_FIELD_FREQUENCY = 0.10)
+    List<VariantValue> rows = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      ShreddedObject item = Variants.object(itemMeta);
+      item.put("name", Variants.of("item_" + i));
+      if (i < 3) {
+        item.put("rare", Variants.of(1));
+      }
+      ValueArray arr = Variants.array();
+      arr.add(item);
+      ShreddedObject root = Variants.object(rootMeta);
+      root.put("items", arr);
+      rows.add(root);
+    }
+
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+    assertThat(schema).isNotNull();
+
+    GroupType rootTv = schema.asGroupType();
+    GroupType itemsGroup = rootTv.getType("items").asGroupType();
+    assertThat(itemsGroup.containsField("typed_value")).isTrue();
+    GroupType listType = itemsGroup.getType("typed_value").asGroupType();
+    GroupType repeatedGroup = listType.getType(0).asGroupType();
+    GroupType elementGroup = repeatedGroup.getType(0).asGroupType();
+    assertThat(elementGroup.containsField("typed_value")).isTrue();
+    GroupType elementFields = elementGroup.getType("typed_value").asGroupType();
+    assertThat(elementFields.containsField("name")).isTrue();
+    assertThat(elementFields.containsField("rare")).isFalse();
+  }
+
+  /**
+   * Builds 100 variant rows where "common" appears in every row and "rare" appears in only {@code
+   * rareCount} rows (below MIN_FIELD_FREQUENCY = 0.10 when rareCount < 10).
+   */
+  private static List<VariantValue> buildPruningTestRows(
+      int rareCount, Function<ShreddedObject, VariantValue> wrap) {
+    VariantMetadata meta = Variants.metadata("common", "rare");
+    List<VariantValue> rows = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      ShreddedObject obj = Variants.object(meta);
+      obj.put("common", Variants.of(i));
+      if (i < rareCount) {
+        obj.put("rare", Variants.of("text"));
+      }
+      rows.add(wrap.apply(obj));
+    }
+    return rows;
   }
 
   /** Count typed_value group nesting depth along field "a". */
