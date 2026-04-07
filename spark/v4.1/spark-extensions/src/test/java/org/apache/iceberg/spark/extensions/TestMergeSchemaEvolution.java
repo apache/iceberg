@@ -19,10 +19,12 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.spark.sql.functions.col;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterEach;
@@ -258,6 +260,49 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
         "Should have expected rows with type widening",
         expectedRows,
         sql("SELECT id, value FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testMergeWithSchemaEvolutionDisabledByTableProperty() {
+    assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
+
+    createAndInitTable(
+        "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"software\" }");
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'false')",
+        tableName, TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION);
+
+    createOrReplaceView(
+        "source",
+        "id INT, dep STRING, salary INT",
+        "{ \"id\": 1, \"dep\": \"hr\", \"salary\": 100 }\n"
+            + "{ \"id\": 3, \"dep\": \"finance\", \"salary\": 300 }");
+
+    sql(
+        "MERGE WITH SCHEMA EVOLUTION INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET * "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT *",
+        commitTarget());
+
+    // Schema should NOT be evolved - 'salary' column should not be added
+    assertThat(sql("SELECT * FROM %s", selectTarget()).get(0).length)
+        .as("Table should still have only 2 columns (id, dep)")
+        .isEqualTo(2);
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, "hr"), // updated without salary
+            row(2, "software"), // kept
+            row(3, "finance")); // new without salary
+    assertEquals(
+        "Should have expected rows without schema evolution",
+        expectedRows,
+        sql("SELECT id, dep FROM %s ORDER BY id", selectTarget()));
   }
 
   @Override

@@ -30,7 +30,7 @@ nav:
   - Docs:
     - Java:
       - Nightly: '!include docs/docs/nightly/mkdocs.yml'
-      - Latest (1.10.0): '!include docs/docs/latest/mkdocs.yml'
+      - Latest (1.10.1): '!include docs/docs/latest/mkdocs.yml'
     - Other Implementations:
       - Python: https://py.iceberg.apache.org/
       - Rust: https://rust.iceberg.apache.org/
@@ -52,6 +52,7 @@ nav:
         - Apache Amoro: integrations/amoro.md
         - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
         - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
+        - Apache Fluss: https://fluss.apache.org/docs/next/streaming-lakehouse/integrate-data-lakes/iceberg/
         - BladePipe: https://www.bladepipe.com/docs/dataMigrationAndSync/datasource_func/Iceberg/props_for_iceberg_ds
         - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
         - Daft: integrations/daft.md
@@ -63,6 +64,7 @@ nav:
         - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
         - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
         - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
+        - Microsoft OneLake: https://aka.ms/onelakeircdocs
         - Nimtable: https://github.com/nimtable/nimtable
         - OLake: https://olake.io/docs
         - Presto: https://prestodb.io/docs/current/connector/iceberg.html

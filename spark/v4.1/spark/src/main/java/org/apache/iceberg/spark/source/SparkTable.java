@@ -83,20 +83,14 @@ public class SparkTable extends BaseSparkTable
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
-  private static final Set<TableCapability> CAPABILITIES =
+  private static final Set<TableCapability> BASE_CAPABILITIES =
       ImmutableSet.of(
-          TableCapability.AUTOMATIC_SCHEMA_EVOLUTION,
           TableCapability.BATCH_READ,
           TableCapability.BATCH_WRITE,
           TableCapability.MICRO_BATCH_READ,
           TableCapability.STREAMING_WRITE,
           TableCapability.OVERWRITE_BY_FILTER,
           TableCapability.OVERWRITE_DYNAMIC);
-  private static final Set<TableCapability> CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA =
-      ImmutableSet.<TableCapability>builder()
-          .addAll(CAPABILITIES)
-          .add(TableCapability.ACCEPT_ANY_SCHEMA)
-          .build();
 
   private final Schema schema; // effective schema (not necessarily current table schema)
   private final Snapshot snapshot; // always set unless table is empty
@@ -133,7 +127,7 @@ public class SparkTable extends BaseSparkTable
     this.snapshot = snapshot;
     this.branch = branch;
     this.timeTravel = timeTravel;
-    this.capabilities = acceptAnySchema(table) ? CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA : CAPABILITIES;
+    this.capabilities = computeCapabilities(table);
   }
 
   public SparkTable copyWithBranch(String newBranch) {
@@ -353,11 +347,33 @@ public class SparkTable extends BaseSparkTable
     return new SparkTable(table, snapshotId, timeTravel);
   }
 
+  private static Set<TableCapability> computeCapabilities(Table table) {
+    ImmutableSet.Builder<TableCapability> tableCapabilities = ImmutableSet.builder();
+    tableCapabilities.addAll(BASE_CAPABILITIES);
+
+    if (autoSchemaEvolution(table)) {
+      tableCapabilities.add(TableCapability.AUTOMATIC_SCHEMA_EVOLUTION);
+    }
+
+    if (acceptAnySchema(table)) {
+      tableCapabilities.add(TableCapability.ACCEPT_ANY_SCHEMA);
+    }
+
+    return tableCapabilities.build();
+  }
+
   private static boolean acceptAnySchema(Table table) {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
         TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA,
         TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
+  }
+
+  private static boolean autoSchemaEvolution(Table table) {
+    return PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION,
+        TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT);
   }
 
   // returns latest snapshot for branch or current snapshot if branch is yet to be created
