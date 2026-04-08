@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantObject;
@@ -122,7 +123,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
   public Map<Integer, Type> analyzeVariantColumns(
       List<T> bufferedRows, Schema icebergSchema, S engineSchema) {
     Map<Integer, Type> shreddedTypes = Maps.newHashMap();
-    for (org.apache.iceberg.types.Types.NestedField col : icebergSchema.columns()) {
+    for (NestedField col : icebergSchema.columns()) {
       if (col.type().isVariantType()) {
         int rowIndex = resolveColumnIndex(engineSchema, col.name());
         if (rowIndex >= 0) {
