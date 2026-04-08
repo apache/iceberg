@@ -1076,6 +1076,220 @@ public class TestIcebergFilesCommitter extends TestBase {
     }
   }
 
+  /**
+   * (unaligned checkpoints) With unaligned checkpoints a writer subtask may deliver its write
+   * result after {@code snapshotState(N)} has already fired. ("post-barrier data"). This test
+   * verifies that post-barrier data for a checkpoint that never completes is not lost, it must be
+   * committed together with the next successful checkpoint. Also covers the case where the
+   * successful checkpoint itself has post-barrier data, which must then wait for the checkpoint
+   * after that.
+   *
+   * <pre>
+   *   processElement(dataA, checkpointId=1)
+   *   snapshotState(1)
+   *   processElement(dataB, checkpointId=1)
+   *   // checkpoint 1 never completes
+   *   processElement(dataC, checkpointId=2)
+   *   snapshotState(2)
+   *   processElement(dataD, checkpointId=2)
+   *   notifyCheckpointComplete(2)   // commits dataA, dataB, dataC
+   *   snapshotState(3)
+   *   notifyCheckpointComplete(3)   // commits dataD
+   * </pre>
+   */
+  @TestTemplate
+  public void testPostBarrierDataSurvivesFailedCheckpoint() throws Exception {
+    long timestamp = 0;
+    JobID jobId = new JobID();
+    OperatorID operatorId;
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
+
+      RowData rowA = SimpleDataUtil.createRowData(1, "early-checkpoint1");
+      DataFile dataFileA = writeDataFile("data-A", ImmutableList.of(rowA));
+      RowData rowB = SimpleDataUtil.createRowData(2, "post-barrier-checkpoint1");
+      DataFile dataFileB = writeDataFile("data-B", ImmutableList.of(rowB));
+      RowData rowC = SimpleDataUtil.createRowData(3, "early-checkpoint2");
+      DataFile dataFileC = writeDataFile("data-C", ImmutableList.of(rowC));
+      RowData rowD = SimpleDataUtil.createRowData(4, "post-barrier-checkpoint2");
+      DataFile dataFileD = writeDataFile("data-D", ImmutableList.of(rowD));
+
+      long checkpoint1 = 1;
+      long checkpoint2 = 2;
+      long checkpoint3 = 3;
+
+      harness.processElement(of(checkpoint1, dataFileA), ++timestamp);
+      harness.snapshot(checkpoint1, ++timestamp);
+      assertFlinkManifests(1);
+
+      // post-barrier, arrives after snapshotState(1); checkpoint1 then FAILS (no notify)
+      harness.processElement(of(checkpoint1, dataFileB), ++timestamp);
+
+      harness.processElement(of(checkpoint2, dataFileC), ++timestamp);
+      harness.snapshot(checkpoint2, ++timestamp);
+
+      // post-barrier, arrives after snapshotState(2), before notify(2)
+      harness.processElement(of(checkpoint2, dataFileD), ++timestamp);
+
+      harness.notifyOfCompletedCheckpoint(checkpoint2);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowA, rowB, rowC), branch);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint2);
+
+      harness.snapshot(checkpoint3, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpoint3);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowA, rowB, rowC, rowD), branch);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint3);
+    }
+  }
+
+  /**
+   * (unaligned checkpoints) Post-barrier data for checkpoint N arrives after {@code
+   * snapshotState(N)} but before {@code notifyCheckpointComplete(N)}, so it is not included in the
+   * Iceberg commit for checkpoint N. This test verifies that such data survives a crash/recovery:
+   * after notify(N) commits the pre-barrier data for N and the job crashes before notify(N+1),
+   * recovery from checkpoint N+1 must still commit the post-barrier data for N and any data
+   * snapshotted before the crash for N+1.
+   *
+   * <pre>
+   *   processElement(dataA, checkpointId=1)
+   *   snapshotState(1)
+   *   processElement(dataB, checkpointId=1)
+   *   notifyCheckpointComplete(1)           // commits dataA only
+   *   processElement(dataC, checkpointId=2)
+   *   snapshotState(2)
+   *   // crash, no notifyCheckpointComplete(2)
+   *   recover from checkpoint2              // dataB and dataC committed on initializeState
+   * </pre>
+   */
+  @TestTemplate
+  public void testPostBarrierDataMergedWithEarlyDataOnRecovery() throws Exception {
+    long timestamp = 0;
+    JobID jobId = new JobID();
+    OperatorID operatorId;
+    OperatorSubtaskState snapshot;
+
+    RowData rowA = SimpleDataUtil.createRowData(1, "pre-barrier-checkpoint1");
+    DataFile dataFileA = writeDataFile("data-A", ImmutableList.of(rowA));
+    RowData rowB = SimpleDataUtil.createRowData(2, "post-barrier-checkpoint1");
+    DataFile dataFileB = writeDataFile("data-B", ImmutableList.of(rowB));
+    RowData rowC = SimpleDataUtil.createRowData(3, "pre-barrier-checkpoint2");
+    DataFile dataFileC = writeDataFile("data-C", ImmutableList.of(rowC));
+
+    long checkpoint1 = 1;
+    long checkpoint2 = 2;
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
+
+      harness.processElement(of(checkpoint1, dataFileA), ++timestamp);
+      harness.snapshot(checkpoint1, ++timestamp);
+      assertFlinkManifests(1);
+
+      // post-barrier, arrives after snapshotState(1), before notify(1)
+      harness.processElement(of(checkpoint1, dataFileB), ++timestamp);
+
+      harness.notifyOfCompletedCheckpoint(checkpoint1);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowA), branch);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint1);
+      assertFlinkManifests(0);
+
+      harness.processElement(of(checkpoint2, dataFileC), ++timestamp);
+      snapshot = harness.snapshot(checkpoint2, ++timestamp);
+      // crash, notifyCheckpointComplete(2) never fires
+    }
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.getStreamConfig().setOperatorID(operatorId);
+      harness.setup();
+      harness.initializeState(snapshot);
+      harness.open();
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowA, rowB, rowC), branch);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint2);
+    }
+  }
+
+  /**
+   * (unaligned checkpoints) Combines the failed-checkpoint scenario from {@link
+   * #testPostBarrierDataSurvivesFailedCheckpoint} with crash+recovery: checkpoint N fails and
+   * checkpoint N+1 also never completes (crash before notify). Recovery from checkpoint N+1 must
+   * commit both the pre-barrier data from the failed checkpoint N and the post-barrier data that
+   * arrived after snapshotState(N).
+   *
+   * <pre>
+   *   processElement(dataA, checkpointId=1)
+   *   snapshotState(1)
+   *   processElement(dataB, checkpointId=1)
+   *   // checkpoint 1 never completes
+   *   processElement(dataC, checkpointId=2)
+   *   snapshotState(2)
+   *   // crash, no notifyCheckpointComplete(2)
+   *   recover from checkpoint2    // all three files committed on initializeState
+   * </pre>
+   */
+  @TestTemplate
+  public void testPostBarrierDataForFailedCheckpointSurvivesRecovery() throws Exception {
+    long timestamp = 0;
+    JobID jobId = new JobID();
+    OperatorID operatorId;
+    OperatorSubtaskState snapshot;
+
+    RowData rowA = SimpleDataUtil.createRowData(1, "pre-barrier-checkpoint1");
+    DataFile dataFileA = writeDataFile("data-A", ImmutableList.of(rowA));
+    RowData rowB = SimpleDataUtil.createRowData(2, "post-barrier-checkpoint1");
+    DataFile dataFileB = writeDataFile("data-B", ImmutableList.of(rowB));
+    RowData rowC = SimpleDataUtil.createRowData(3, "pre-barrier-checkpoint2");
+    DataFile dataFileC = writeDataFile("data-C", ImmutableList.of(rowC));
+
+    long checkpoint1 = 1;
+    long checkpoint2 = 2;
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
+
+      harness.processElement(of(checkpoint1, dataFileA), ++timestamp);
+      harness.snapshot(checkpoint1, ++timestamp);
+      assertFlinkManifests(1);
+
+      // post-barrier, arrives after snapshotState(1); checkpoint1 then fails (no notify)
+      harness.processElement(of(checkpoint1, dataFileB), ++timestamp);
+
+      harness.processElement(of(checkpoint2, dataFileC), ++timestamp);
+      snapshot = harness.snapshot(checkpoint2, ++timestamp);
+      // crash, notifyCheckpointComplete(2) never fires
+    }
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.getStreamConfig().setOperatorID(operatorId);
+      harness.setup();
+      harness.initializeState(snapshot);
+      harness.open();
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowA, rowB, rowC), branch);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint2);
+    }
+  }
+
   private int getStagingManifestSpecId(OperatorStateStore operatorStateStore, long checkPointId)
       throws Exception {
     ListState<SortedMap<Long, byte[]>> checkpointsState =

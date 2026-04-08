@@ -423,19 +423,51 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   private void writeToManifestUptoLatestCheckpoint(long checkpointId) throws IOException {
-    if (!writeResultsSinceLastSnapshot.containsKey(checkpointId)) {
+
+    if (!dataFilesPerCheckpoint.containsKey(checkpointId)) {
       dataFilesPerCheckpoint.put(checkpointId, EMPTY_MANIFEST_DATA);
     }
 
-    for (Map.Entry<Long, List<WriteResult>> writeResultsOfCheckpoint :
-        writeResultsSinceLastSnapshot.entrySet()) {
-      dataFilesPerCheckpoint.put(
-          writeResultsOfCheckpoint.getKey(),
-          writeToManifest(writeResultsOfCheckpoint.getKey(), writeResultsOfCheckpoint.getValue()));
+    Map<Long, List<WriteResult>> pendingWriteResults = Maps.newHashMap();
+    for (Map.Entry<Long, List<WriteResult>> entry : writeResultsSinceLastSnapshot.entrySet()) {
+      long assignedCheckpointId = computeCheckpointId(checkpointId, entry);
+      pendingWriteResults
+          .computeIfAbsent(assignedCheckpointId, k -> Lists.newArrayList())
+          .addAll(entry.getValue());
+    }
+
+    for (Map.Entry<Long, List<WriteResult>> entry : pendingWriteResults.entrySet()) {
+      dataFilesPerCheckpoint.put(entry.getKey(), writeToManifest(entry.getKey(), entry.getValue()));
     }
 
     // Clear the local buffer for current checkpoint.
     writeResultsSinceLastSnapshot.clear();
+  }
+
+  /**
+   * in case of unaligned checkpoints, data files that were part of checkpoint N in the writer may
+   * have to become part of a later checkpoint in the committer if:
+   *
+   * <ul>
+   *   <li>previous files were already committed for checkpoint N. We have to keep the manifests for
+   *       new files under a later key, otherwise they are discarded during recovery after a crash
+   *   <li>we already have a manifest of files to be committed for checkpoint N, even though it
+   *       might not have been committed yet. In this case, we must not overwrite the manifests we
+   *       already have, and we must keep them consistent with our checkpoint
+   * </ul>
+   */
+  private long computeCheckpointId(long checkpointId, Map.Entry<Long, List<WriteResult>> entry) {
+    long sourceCheckpointId = entry.getKey();
+
+    boolean sourceCheckpointIdAlreadyCommitted = sourceCheckpointId <= maxCommittedCheckpointId;
+    boolean sourceCheckpointIdHasDataInSnapshot =
+        dataFilesPerCheckpoint.containsKey(sourceCheckpointId);
+    // for aligned checkpoints, both conditions will be false and the upstream operator's checkpoint
+    // ID
+    // will be chosen.
+    return sourceCheckpointIdAlreadyCommitted || sourceCheckpointIdHasDataInSnapshot
+        ? checkpointId
+        : sourceCheckpointId;
   }
 
   /**
