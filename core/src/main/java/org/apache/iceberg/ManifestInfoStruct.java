@@ -1,0 +1,195 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
+
+/** Mutable {@link StructLike} implementation of {@link ManifestInfo}. */
+class ManifestInfoStruct implements ManifestInfo, StructLike, Serializable {
+  private int addedFilesCount = 0;
+  private int existingFilesCount = 0;
+  private int deletedFilesCount = 0;
+  private int replacedFilesCount = 0;
+  private long addedRowsCount = 0L;
+  private long existingRowsCount = 0L;
+  private long deletedRowsCount = 0L;
+  private long replacedRowsCount = 0L;
+  private long minSequenceNumber = 0L;
+  private byte[] dv = null;
+  private Long dvCardinality = null;
+
+  ManifestInfoStruct(Types.StructType type) {}
+
+  private ManifestInfoStruct(ManifestInfoStruct toCopy) {
+    this.addedFilesCount = toCopy.addedFilesCount;
+    this.existingFilesCount = toCopy.existingFilesCount;
+    this.deletedFilesCount = toCopy.deletedFilesCount;
+    this.replacedFilesCount = toCopy.replacedFilesCount;
+    this.addedRowsCount = toCopy.addedRowsCount;
+    this.existingRowsCount = toCopy.existingRowsCount;
+    this.deletedRowsCount = toCopy.deletedRowsCount;
+    this.replacedRowsCount = toCopy.replacedRowsCount;
+    this.minSequenceNumber = toCopy.minSequenceNumber;
+    this.dv = toCopy.dv != null ? Arrays.copyOf(toCopy.dv, toCopy.dv.length) : null;
+    this.dvCardinality = toCopy.dvCardinality;
+  }
+
+  ManifestInfoStruct copy() {
+    return new ManifestInfoStruct(this);
+  }
+
+  @Override
+  public int addedFilesCount() {
+    return addedFilesCount;
+  }
+
+  @Override
+  public int existingFilesCount() {
+    return existingFilesCount;
+  }
+
+  @Override
+  public int deletedFilesCount() {
+    return deletedFilesCount;
+  }
+
+  @Override
+  public int replacedFilesCount() {
+    return replacedFilesCount;
+  }
+
+  @Override
+  public long addedRowsCount() {
+    return addedRowsCount;
+  }
+
+  @Override
+  public long existingRowsCount() {
+    return existingRowsCount;
+  }
+
+  @Override
+  public long deletedRowsCount() {
+    return deletedRowsCount;
+  }
+
+  @Override
+  public long replacedRowsCount() {
+    return replacedRowsCount;
+  }
+
+  @Override
+  public long minSequenceNumber() {
+    return minSequenceNumber;
+  }
+
+  @Override
+  public ByteBuffer dv() {
+    return dv != null ? ByteBuffer.wrap(dv) : null;
+  }
+
+  @Override
+  public Long dvCardinality() {
+    return dvCardinality;
+  }
+
+  @Override
+  public int size() {
+    return 11;
+  }
+
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    return javaClass.cast(getByPos(pos));
+  }
+
+  private Object getByPos(int pos) {
+    switch (pos) {
+      case 0:
+        return addedFilesCount;
+      case 1:
+        return existingFilesCount;
+      case 2:
+        return deletedFilesCount;
+      case 3:
+        return replacedFilesCount;
+      case 4:
+        return addedRowsCount;
+      case 5:
+        return existingRowsCount;
+      case 6:
+        return deletedRowsCount;
+      case 7:
+        return replacedRowsCount;
+      case 8:
+        return minSequenceNumber;
+      case 9:
+        return dv();
+      case 10:
+        return dvCardinality;
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    }
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    switch (pos) {
+      case 0:
+        this.addedFilesCount = (Integer) value;
+        break;
+      case 1:
+        this.existingFilesCount = (Integer) value;
+        break;
+      case 2:
+        this.deletedFilesCount = (Integer) value;
+        break;
+      case 3:
+        this.replacedFilesCount = (Integer) value;
+        break;
+      case 4:
+        this.addedRowsCount = (Long) value;
+        break;
+      case 5:
+        this.existingRowsCount = (Long) value;
+        break;
+      case 6:
+        this.deletedRowsCount = (Long) value;
+        break;
+      case 7:
+        this.replacedRowsCount = (Long) value;
+        break;
+      case 8:
+        this.minSequenceNumber = (Long) value;
+        break;
+      case 9:
+        this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
+        break;
+      case 10:
+        this.dvCardinality = (Long) value;
+        break;
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    }
+  }
+}
