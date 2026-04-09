@@ -49,20 +49,6 @@ class TestTrackingStruct {
   }
 
   @Test
-  void setters() {
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
-
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.setSnapshotId(100L);
-    tracking.setSequenceNumber(200L);
-    tracking.setFirstRowId(300L);
-
-    assertThat(tracking.snapshotId()).isEqualTo(100L);
-    assertThat(tracking.dataSequenceNumber()).isEqualTo(200L);
-    assertThat(tracking.firstRowId()).isEqualTo(300L);
-  }
-
-  @Test
   void copy() {
     TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
 

@@ -100,18 +100,6 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
     return replacedPositions != null ? ByteBuffer.wrap(replacedPositions) : null;
   }
 
-  void setSnapshotId(long newSnapshotId) {
-    this.snapshotId = newSnapshotId;
-  }
-
-  void setSequenceNumber(long newSequenceNumber) {
-    this.sequenceNumber = newSequenceNumber;
-  }
-
-  void setFirstRowId(long newFirstRowId) {
-    this.firstRowId = newFirstRowId;
-  }
-
   @Override
   public int size() {
     return 8;

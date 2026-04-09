@@ -57,7 +57,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
 
-  // not serialized to manifest
+  // not serialized to manifest, set by manifest readers
+  private transient TrackedFile manifestContext = null;
   private String manifestLocation = null;
   private long manifestPos = 0L;
 
@@ -106,6 +107,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
 
+    this.manifestContext = toCopy.manifestContext;
     this.manifestLocation = toCopy.manifestLocation;
     this.manifestPos = toCopy.manifestPos;
   }
@@ -200,8 +202,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
     return manifestPos;
   }
 
-  void setManifestLocation(String newManifestLocation) {
-    this.manifestLocation = newManifestLocation;
+  void setManifestContext(TrackedFile manifest) {
+    this.manifestContext = manifest;
+    this.manifestLocation = manifest != null ? manifest.location() : null;
   }
 
   @Override

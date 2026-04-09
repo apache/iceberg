@@ -104,7 +104,8 @@ class TestTrackedFileStruct {
     file.set(4, 0L);
     file.set(5, 0L);
 
-    file.setManifestLocation("s3://bucket/metadata/manifest.avro");
+    file.setManifestContext(
+        TestTrackedFileStruct.createManifestContext("s3://bucket/metadata/manifest.avro"));
     file.set(14, 7L);
 
     assertThat(file.manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
@@ -257,8 +258,8 @@ class TestTrackedFileStruct {
     assertThat(deserialized.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
-    assertThat(deserialized.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
     assertThat(deserialized.manifestPos()).isEqualTo(3L);
+    assertThat(deserialized.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
   }
 
   @Test
@@ -279,8 +280,8 @@ class TestTrackedFileStruct {
     assertThat(deserialized.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
-    assertThat(deserialized.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
     assertThat(deserialized.manifestPos()).isEqualTo(3L);
+    assertThat(deserialized.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
   }
 
   static TrackedFileStruct createFullTrackedFile() {
@@ -309,7 +310,8 @@ class TestTrackedFileStruct {
     file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(12, ImmutableList.of(50L));
 
-    file.setManifestLocation("s3://bucket/manifest.avro");
+    file.setManifestContext(
+        TestTrackedFileStruct.createManifestContext("s3://bucket/manifest.avro"));
     file.set(14, 3L);
 
     return file;
@@ -376,5 +378,15 @@ class TestTrackedFileStruct {
     file.set(7, (StructLike) stats);
 
     return file;
+  }
+
+  static TrackedFile createManifestContext(String location) {
+    TrackedFileStruct manifest = new TrackedFileStruct();
+    manifest.set(1, FileContent.DATA_MANIFEST.id());
+    manifest.set(2, location);
+    manifest.set(3, "avro");
+    manifest.set(4, 0L);
+    manifest.set(5, 0L);
+    return manifest;
   }
 }
