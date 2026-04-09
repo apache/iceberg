@@ -105,7 +105,7 @@ class TestTrackedFileStruct {
     file.set(5, 0L);
 
     file.setManifestLocation("s3://bucket/metadata/manifest.avro");
-    file.setManifestPos(7L);
+    file.set(14, 7L);
 
     assertThat(file.manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
     assertThat(file.manifestPos()).isEqualTo(7L);
@@ -173,7 +173,7 @@ class TestTrackedFileStruct {
   @Test
   void structLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
-    assertThat(file.size()).isEqualTo(14);
+    assertThat(file.size()).isEqualTo(15);
   }
 
   @Test
@@ -310,7 +310,7 @@ class TestTrackedFileStruct {
     file.set(12, ImmutableList.of(50L));
 
     file.setManifestLocation("s3://bucket/manifest.avro");
-    file.setManifestPos(3L);
+    file.set(14, 3L);
 
     return file;
   }

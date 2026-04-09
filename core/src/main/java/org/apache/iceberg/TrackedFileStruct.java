@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.stats.BaseContentStats;
 import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
@@ -33,7 +34,11 @@ import org.apache.iceberg.util.ByteBuffers;
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
   private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
   private static final Types.StructType BASE_TYPE =
-      TrackedFile.schemaWithContentStats(Types.StructType.of());
+      Types.StructType.of(
+          ImmutableList.<Types.NestedField>builder()
+              .addAll(TrackedFile.schemaWithContentStats(Types.StructType.of()).fields())
+              .add(MetadataColumns.ROW_POSITION)
+              .build());
 
   private FileContent contentType = FileContent.DATA;
   private String location = null;
@@ -199,10 +204,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
     this.manifestLocation = newManifestLocation;
   }
 
-  void setManifestPos(long newManifestPos) {
-    this.manifestPos = newManifestPos;
-  }
-
   @Override
   protected <T> T internalGet(int pos, Class<T> javaClass) {
     return javaClass.cast(getByPos(pos));
@@ -238,6 +239,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
         return splitOffsets();
       case 13:
         return equalityIds();
+      case 14:
+        return manifestPos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -288,6 +291,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
         break;
       case 13:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+        break;
+      case 14:
+        this.manifestPos = (long) value;
         break;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
