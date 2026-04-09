@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.stats.BaseContentStats;
 import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
@@ -30,8 +30,10 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
-class TrackedFileStruct implements TrackedFile, StructLike, Serializable {
+class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
   private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
+  private static final Types.StructType BASE_TYPE =
+      TrackedFile.schemaWithContentStats(Types.StructType.of());
 
   private FileContent contentType = FileContent.DATA;
   private String location = null;
@@ -54,10 +56,19 @@ class TrackedFileStruct implements TrackedFile, StructLike, Serializable {
   private String manifestLocation = null;
   private long manifestPos = 0L;
 
-  TrackedFileStruct(Types.StructType type) {}
+  /** Used by internal readers to instantiate this class with a projection schema. */
+  TrackedFileStruct(Types.StructType projection) {
+    super(BASE_TYPE, projection);
+  }
+
+  /** No-projection constructor for direct construction. */
+  TrackedFileStruct() {
+    super(BASE_TYPE.fields().size());
+  }
 
   /** Copy constructor. */
   private TrackedFileStruct(TrackedFileStruct toCopy, boolean withStats, Set<Integer> statsIds) {
+    super(toCopy);
     this.contentType = toCopy.contentType;
     this.location = toCopy.location;
     this.fileFormat = toCopy.fileFormat;
@@ -192,15 +203,8 @@ class TrackedFileStruct implements TrackedFile, StructLike, Serializable {
     this.manifestPos = newManifestPos;
   }
 
-  // StructLike implementation - field ordinals match TrackedFile.schemaWithContentStats() order
-
   @Override
-  public int size() {
-    return 14;
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
+  protected <T> T internalGet(int pos, Class<T> javaClass) {
     return javaClass.cast(getByPos(pos));
   }
 
@@ -241,7 +245,7 @@ class TrackedFileStruct implements TrackedFile, StructLike, Serializable {
 
   @Override
   @SuppressWarnings("unchecked")
-  public <T> void set(int pos, T value) {
+  protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
         this.tracking = (TrackingStruct) value;

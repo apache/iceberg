@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -38,7 +37,7 @@ class TestTrackedFileStruct {
 
   @Test
   void trackedFileStructFieldAccess() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct file = new TrackedFileStruct();
     TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
     DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
     ManifestInfoStruct info = new ManifestInfoStruct(Types.StructType.of());
@@ -97,7 +96,7 @@ class TestTrackedFileStruct {
 
   @Test
   void readerSideFields() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct file = new TrackedFileStruct();
 
     file.set(1, FileContent.DATA.id());
     file.set(2, "test");
@@ -173,13 +172,13 @@ class TestTrackedFileStruct {
 
   @Test
   void structLikeSize() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct file = new TrackedFileStruct();
     assertThat(file.size()).isEqualTo(14);
   }
 
   @Test
   void structLikeGetSet() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct file = new TrackedFileStruct();
 
     file.set(1, FileContent.DATA.id());
     assertThat(file.get(1, Integer.class)).isEqualTo(FileContent.DATA.id());
@@ -192,16 +191,23 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void structLikeInvalidOrdinalThrows() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+  void projectedStructLike() {
+    // project only location (field ID 100) and file_size_in_bytes (field ID 104)
+    Types.StructType projection =
+        Types.StructType.of(TrackedFile.LOCATION, TrackedFile.FILE_SIZE_IN_BYTES);
 
-    assertThatThrownBy(() -> file.get(14, Object.class))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Unknown field ordinal: 14");
+    TrackedFileStruct file = new TrackedFileStruct(projection);
+    assertThat(file.size()).isEqualTo(2);
 
-    assertThatThrownBy(() -> file.set(14, "value"))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Unknown field ordinal: 14");
+    // projected position 0 maps to internal position 2 (location)
+    // projected position 1 maps to internal position 5 (file_size_in_bytes)
+    file.set(0, "s3://bucket/file.parquet");
+    file.set(1, 1024L);
+
+    assertThat(file.location()).isEqualTo("s3://bucket/file.parquet");
+    assertThat(file.fileSizeInBytes()).isEqualTo(1024L);
+    assertThat(file.get(0, String.class)).isEqualTo("s3://bucket/file.parquet");
+    assertThat(file.get(1, Long.class)).isEqualTo(1024L);
   }
 
   @Test
@@ -213,7 +219,7 @@ class TestTrackedFileStruct {
 
   @Test
   void contentStatsNullWhenNotSet() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct file = new TrackedFileStruct();
     file.set(1, FileContent.DATA.id());
     file.set(2, "test");
     file.set(3, "parquet");
@@ -227,7 +233,7 @@ class TestTrackedFileStruct {
   @Test
   void allFileContentTypesSupported() {
     for (FileContent content : FileContent.values()) {
-      TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+      TrackedFileStruct file = new TrackedFileStruct();
       file.set(1, content.id());
       assertThat(file.contentType()).isEqualTo(content);
     }
@@ -278,7 +284,7 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct file = new TrackedFileStruct();
     TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
     DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
 
@@ -360,7 +366,7 @@ class TestTrackedFileStruct {
             .withFieldStats(fieldStatsList)
             .build();
 
-    TrackedFileStruct file = new TrackedFileStruct(Types.StructType.of());
+    TrackedFileStruct file = new TrackedFileStruct();
     file.set(1, FileContent.DATA.id());
     file.set(2, "s3://bucket/data/file.parquet");
     file.set(3, "parquet");
