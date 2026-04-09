@@ -676,15 +676,14 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix)
       throws IOException {
-    List<Blob> rewrittenBlobs = Lists.newArrayList();
-    try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build()) {
-      // Read all blobs and rewrite them with updated referenced data file paths
+    try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build();
+        PuffinWriter writer =
+            Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
       for (Pair<org.apache.iceberg.puffin.BlobMetadata, ByteBuffer> blobPair :
           reader.readAll(reader.fileMetadata().blobs())) {
         org.apache.iceberg.puffin.BlobMetadata blobMetadata = blobPair.first();
         ByteBuffer blobData = blobPair.second();
 
-        // Get the original properties and update the referenced data file path
         Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
         String referencedDataFile = properties.get("referenced-data-file");
         if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
@@ -692,8 +691,7 @@ public class RewriteTablePathUtil {
           properties.put("referenced-data-file", newReferencedDataFile);
         }
 
-        // Create a new blob with updated properties
-        rewrittenBlobs.add(
+        writer.write(
             new Blob(
                 blobMetadata.type(),
                 blobMetadata.inputFields(),
@@ -703,11 +701,6 @@ public class RewriteTablePathUtil {
                 PuffinCompressionCodec.forName(blobMetadata.compressionCodec()),
                 properties));
       }
-    }
-
-    try (PuffinWriter writer =
-        Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
-      rewrittenBlobs.forEach(writer::write);
     }
   }
 
