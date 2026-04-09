@@ -38,7 +38,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestManifestFileUtil {
+class TestManifestFileUtil {
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()),
@@ -48,7 +48,7 @@ public class TestManifestFileUtil {
   @TempDir private Path temp;
 
   @Test
-  public void canContainWithUnknownTypeOnly() throws IOException {
+  void canContainWithUnknownTypeOnly() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("unknown").build();
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, "someValue");
@@ -63,7 +63,7 @@ public class TestManifestFileUtil {
   }
 
   @Test
-  public void canContainWithNaNValueOnly() throws IOException {
+  void canContainWithNaNValueOnly() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("floats").build();
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, Float.NaN);
@@ -78,7 +78,7 @@ public class TestManifestFileUtil {
   }
 
   @Test
-  public void canContainWithNullValueOnly() throws IOException {
+  void canContainWithNullValueOnly() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("floats").build();
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, null);
@@ -93,7 +93,7 @@ public class TestManifestFileUtil {
   }
 
   @Test
-  public void canContainWithUnknownType() throws IOException {
+  void canContainWithUnknownType() throws IOException {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA).identity("floats").identity("unknown").build();
     PartitionData partition = new PartitionData(spec.partitionType());

@@ -54,7 +54,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-public class TestTableScanUtil {
+class TestTableScanUtil {
 
   private List<FileScanTask> tasksWithDataAndDeleteSizes(List<Pair<Long, Long[]>> sizePairs) {
     return sizePairs.stream()
@@ -94,7 +94,7 @@ public class TestTableScanUtil {
   }
 
   @Test
-  public void testFileScanTaskSizeEstimation() {
+  void testFileScanTaskSizeEstimation() {
     DataFile dataFile = dataFileWithSize(100L);
     DeleteFile dv = dvWithSize(20L);
     MockFileScanTask task = new MockFileScanTask(dataFile, new DeleteFile[] {dv});
@@ -102,7 +102,7 @@ public class TestTableScanUtil {
   }
 
   @Test
-  public void testPlanTaskWithDeleteFiles() {
+  void testPlanTaskWithDeleteFiles() {
     List<FileScanTask> testFiles =
         tasksWithDataAndDeleteSizes(
             Arrays.asList(
@@ -133,7 +133,7 @@ public class TestTableScanUtil {
   }
 
   @Test
-  public void testTaskGroupPlanning() {
+  void testTaskGroupPlanning() {
     List<ParentTask> tasks =
         ImmutableList.of(
             new ChildTask1(64),
@@ -150,7 +150,7 @@ public class TestTableScanUtil {
   }
 
   @Test
-  public void testTaskGroupPlanningCorruptedOffset() {
+  void testTaskGroupPlanningCorruptedOffset() {
     DataFile dataFile =
         DataFiles.builder(TestBase.SPEC)
             .withPath("/path/to/data-a.parquet")
@@ -189,7 +189,7 @@ public class TestTableScanUtil {
   }
 
   @Test
-  public void testTaskMerging() {
+  void testTaskMerging() {
     List<ParentTask> tasks =
         ImmutableList.of(
             new ChildTask1(64),
@@ -218,7 +218,7 @@ public class TestTableScanUtil {
   private static final StructLike PARTITION2 = new TestStructLike(200, "b");
 
   @Test
-  public void testTaskGroupPlanningByPartition() {
+  void testTaskGroupPlanningByPartition() {
     // When all files belong to the same partition, we should combine them together as long as the
     // total file size is <= split size
     List<PartitionScanTask> tasks =
@@ -303,7 +303,7 @@ public class TestTableScanUtil {
   }
 
   @Test
-  public void testAdaptiveSplitSize() {
+  void testAdaptiveSplitSize() {
     long scanSize = 500L * 1024 * 1024 * 1024; // 500 GB
     int parallelism = 500;
     long smallDefaultSplitSize = 128 * 1024 * 1024; // 128 MB

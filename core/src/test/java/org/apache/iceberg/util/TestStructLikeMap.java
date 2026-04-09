@@ -33,14 +33,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestStructLikeMap {
+class TestStructLikeMap {
   private static final Types.StructType STRUCT_TYPE =
       Types.StructType.of(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.LongType.get()));
 
   @Test
-  public void testSingleRecord() {
+  void testSingleRecord() {
     Record gRecord = GenericRecord.create(STRUCT_TYPE);
     Record record1 = gRecord.copy(ImmutableMap.of("id", 1, "data", "aaa"));
 
@@ -66,7 +66,7 @@ public class TestStructLikeMap {
   }
 
   @Test
-  public void testMultipleRecord() {
+  void testMultipleRecord() {
     Record gRecord = GenericRecord.create(STRUCT_TYPE);
     Record record1 = gRecord.copy(ImmutableMap.of("id", 1, "data", "aaa"));
     Record record2 = gRecord.copy(ImmutableMap.of("id", 2, "data", "bbb"));
@@ -103,7 +103,7 @@ public class TestStructLikeMap {
   }
 
   @Test
-  public void testRemove() {
+  void testRemove() {
     Record gRecord = GenericRecord.create(STRUCT_TYPE);
     Record record = gRecord.copy(ImmutableMap.of("id", 1, "data", "aaa"));
 
@@ -118,7 +118,7 @@ public class TestStructLikeMap {
   }
 
   @Test
-  public void testNullKeys() {
+  void testNullKeys() {
     Map<StructLike, String> map = StructLikeMap.create(STRUCT_TYPE);
     assertThat(map).doesNotContainKey(null);
 
@@ -133,7 +133,7 @@ public class TestStructLikeMap {
   }
 
   @Test
-  public void testKeysWithNulls() {
+  void testKeysWithNulls() {
     Record recordTemplate = GenericRecord.create(STRUCT_TYPE);
     Record record1 = recordTemplate.copy("id", 1, "data", null);
     Record record2 = recordTemplate.copy("id", 2, "data", null);
@@ -151,7 +151,7 @@ public class TestStructLikeMap {
   }
 
   @Test
-  public void testEqualsAndHashCode() {
+  void testEqualsAndHashCode() {
     Map<StructLike, String> map1 = StructLikeMap.create(STRUCT_TYPE);
     Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
 
@@ -169,7 +169,7 @@ public class TestStructLikeMap {
   }
 
   @Test
-  public void testKeyAndEntrySetEquality() {
+  void testKeyAndEntrySetEquality() {
     Map<StructLike, String> map1 = StructLikeMap.create(STRUCT_TYPE);
     Map<StructLike, String> map2 = StructLikeMap.create(STRUCT_TYPE);
 

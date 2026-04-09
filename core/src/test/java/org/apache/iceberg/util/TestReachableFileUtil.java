@@ -47,7 +47,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestReachableFileUtil {
+class TestReachableFileUtil {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
       new Schema(
@@ -71,13 +71,13 @@ public class TestReachableFileUtil {
   private Table table;
 
   @BeforeEach
-  public void setupTableLocation() throws Exception {
+  void setupTableLocation() throws Exception {
     String tableLocation = tableDir.toURI().toString();
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
   }
 
   @Test
-  public void testManifestListLocations() {
+  void testManifestListLocations() {
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -87,7 +87,7 @@ public class TestReachableFileUtil {
   }
 
   @Test
-  public void testMetadataFileLocations() {
+  void testMetadataFileLocations() {
     table.updateProperties().set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1").commit();
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -102,7 +102,7 @@ public class TestReachableFileUtil {
   }
 
   @Test
-  public void testMetadataFileLocationsWithMissingFiles() {
+  void testMetadataFileLocationsWithMissingFiles() {
     table.updateProperties().set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1").commit();
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -119,7 +119,7 @@ public class TestReachableFileUtil {
   }
 
   @Test
-  public void testVersionHintWithStaticTables() {
+  void testVersionHintWithStaticTables() {
     TableOperations ops = ((HasTableOperations) table).operations();
     TableMetadata metadata = ops.current();
     String metadataFileLocation = metadata.metadataFileLocation();
@@ -133,7 +133,7 @@ public class TestReachableFileUtil {
   }
 
   @Test
-  public void testVersionHintWithBucketNameAsLocation() {
+  void testVersionHintWithBucketNameAsLocation() {
     Table mockTable = mock(Table.class);
     when(mockTable.location()).thenReturn("s3://bucket1");
     String reportedVersionHintLocation = ReachableFileUtil.versionHintLocation(mockTable);

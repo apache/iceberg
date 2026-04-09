@@ -32,10 +32,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.junit.jupiter.api.Test;
 
-public class TestJsonUtil {
+class TestJsonUtil {
 
   @Test
-  public void get() throws JsonProcessingException {
+  void get() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.get("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: x");
@@ -49,7 +49,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getInt() throws JsonProcessingException {
+  void getInt() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing int: x");
@@ -70,7 +70,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getIntOrNull() throws JsonProcessingException {
+  void getIntOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
     assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}"))).isEqualTo(23);
     assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}"))).isNull();
@@ -87,7 +87,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getLong() throws JsonProcessingException {
+  void getLong() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: x");
@@ -108,7 +108,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getLongOrNull() throws JsonProcessingException {
+  void getLongOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
     assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isEqualTo(23);
@@ -126,7 +126,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getString() throws JsonProcessingException {
+  void getString() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: x");
@@ -144,7 +144,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getStringOrNull() throws JsonProcessingException {
+  void getStringOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
     assertThat(JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isEqualTo("23");
@@ -157,7 +157,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getDurationStringOrNull() throws JsonProcessingException {
+  void getDurationStringOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
     assertThat(JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isNull();
@@ -180,7 +180,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getByteBufferOrNull() throws JsonProcessingException {
+  void getByteBufferOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
     assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isNull();
@@ -198,7 +198,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getBool() throws JsonProcessingException {
+  void getBool() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing boolean: x");
@@ -220,7 +220,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getBoolOrNull() throws JsonProcessingException {
+  void getBoolOrNull() throws JsonProcessingException {
     assertThatThrownBy(
             () -> JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isInstanceOf(IllegalArgumentException.class)
@@ -240,7 +240,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getIntArrayOrNull() throws JsonProcessingException {
+  void getIntArrayOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 
     assertThat(JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
@@ -260,7 +260,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getIntegerList() throws JsonProcessingException {
+  void getIntegerList() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing list: items");
@@ -294,7 +294,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getIntegerSet() throws JsonProcessingException {
+  void getIntegerSet() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getIntegerSet("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing set: items");
@@ -316,7 +316,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getIntegerSetOrNull() throws JsonProcessingException {
+  void getIntegerSetOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getIntegerSetOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 
     assertThat(
@@ -337,7 +337,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getLongList() throws JsonProcessingException {
+  void getLongList() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getLongList("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing list: items");
@@ -370,7 +370,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getLongListOrNull() throws JsonProcessingException {
+  void getLongListOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 
     assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
@@ -390,7 +390,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getLongSet() throws JsonProcessingException {
+  void getLongSet() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getLongSet("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing set: items");
@@ -412,7 +412,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getLongSetOrNull() throws JsonProcessingException {
+  void getLongSetOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 
     assertThat(JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
@@ -431,7 +431,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getStringList() throws JsonProcessingException {
+  void getStringList() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getStringList("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing list: items");
@@ -466,7 +466,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getStringListOrNull() throws JsonProcessingException {
+  void getStringListOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getStringListOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 
     assertThat(
@@ -487,7 +487,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getStringSet() throws JsonProcessingException {
+  void getStringSet() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getStringSet("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing set: items");
@@ -511,7 +511,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getStringMap() throws JsonProcessingException {
+  void getStringMap() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getStringMap("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing map: items");
@@ -546,7 +546,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void getStringMapNullableValues() throws JsonProcessingException {
+  void getStringMapNullableValues() throws JsonProcessingException {
     assertThatThrownBy(
             () -> JsonUtil.getStringMapNullableValues("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
@@ -591,7 +591,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void testGetStringMapOrNull() throws JsonProcessingException {
+  void testGetStringMapOrNull() throws JsonProcessingException {
     String json = "{\"test\": {\"property\": \"value\"}}";
     Map<String, String> map = JsonUtil.getStringMapOrNull("test", JsonUtil.mapper().readTree(json));
     assertThat(map).isEqualTo(Map.of("property", "value"));
@@ -600,7 +600,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void testGetObjectList() throws JsonProcessingException {
+  void testGetObjectList() throws JsonProcessingException {
     String json = "{\"test\": [{\"id\": 1}, {\"id\": 2}], \"not-a-list\": \"value\"}";
     List<Long> list =
         JsonUtil.getObjectList(
@@ -628,7 +628,7 @@ public class TestJsonUtil {
   }
 
   @Test
-  public void testGetObjectListOrNull() throws JsonProcessingException {
+  void testGetObjectListOrNull() throws JsonProcessingException {
     String json = "{\"test\": [{\"id\": 1}, {\"id\": 2}], \"not-a-list\": \"value\"}";
     List<Long> list =
         JsonUtil.getObjectListOrNull(

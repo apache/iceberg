@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 
 class TestEnvironmentUtil {
   @Test
-  public void testEnvironmentSubstitution() {
+  void testEnvironmentSubstitution() {
     Optional<Map.Entry<String, String>> envEntry = System.getenv().entrySet().stream().findFirst();
     assumeThat(envEntry).as("Expecting at least one env. variable to be present").isPresent();
     Map<String, String> resolvedProps =
@@ -39,7 +39,7 @@ class TestEnvironmentUtil {
   }
 
   @Test
-  public void testMultipleEnvironmentSubstitutions() {
+  void testMultipleEnvironmentSubstitutions() {
     Map<String, String> result =
         EnvironmentUtil.resolveAll(
             ImmutableMap.of("USER", "u", "VAR", "value"),
@@ -51,7 +51,7 @@ class TestEnvironmentUtil {
   }
 
   @Test
-  public void testEnvironmentSubstitutionWithMissingVar() {
+  void testEnvironmentSubstitutionWithMissingVar() {
     Map<String, String> result =
         EnvironmentUtil.resolveAll(ImmutableMap.of(), ImmutableMap.of("user-test", "env:USER"));
 

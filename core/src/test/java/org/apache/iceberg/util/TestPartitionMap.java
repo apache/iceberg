@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestPartitionMap {
+class TestPartitionMap {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -59,7 +59,7 @@ public class TestPartitionMap {
           BY_DATA_CATEGORY_BUCKET_SPEC);
 
   @Test
-  public void testEmptyMap() {
+  void testEmptyMap() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     assertThat(map).isEmpty();
     assertThat(map).hasSize(0);
@@ -70,7 +70,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testSize() {
+  void testSize() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(UNPARTITIONED_SPEC.specId(), null, "v1");
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v2");
@@ -81,7 +81,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testDifferentStructLikeImplementations() {
+  void testDifferentStructLikeImplementations() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(BY_DATA_SPEC.specId(), CustomRow.of("aaa"), "value");
     map.put(UNPARTITIONED_SPEC.specId(), null, "value");
@@ -92,7 +92,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testPutAndGet() {
+  void testPutAndGet() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(UNPARTITIONED_SPEC.specId(), null, "v1");
     map.put(BY_DATA_CATEGORY_BUCKET_SPEC.specId(), Row.of("aaa", 1), "v2");
@@ -101,7 +101,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testRemove() {
+  void testRemove() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
 
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v1");
@@ -116,7 +116,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void putAll() {
+  void putAll() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
 
     Map<Pair<Integer, StructLike>, String> otherMap = Maps.newHashMap();
@@ -130,7 +130,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testClear() {
+  void testClear() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(UNPARTITIONED_SPEC.specId(), null, "v1");
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v2");
@@ -140,7 +140,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testValues() {
+  void testValues() {
     PartitionMap<Integer> map = PartitionMap.create(SPECS);
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), 1);
     map.put(BY_DATA_CATEGORY_BUCKET_SPEC.specId(), Row.of("aaa", 2), 2);
@@ -149,7 +149,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testEntrySet() {
+  void testEntrySet() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v1");
     map.put(BY_DATA_CATEGORY_BUCKET_SPEC.specId(), Row.of("bbb", 2), "v2");
@@ -158,7 +158,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testKeySet() {
+  void testKeySet() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v1");
     map.put(BY_DATA_SPEC.specId(), CustomRow.of("ccc"), "v2");
@@ -167,7 +167,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testEqualsAndHashCode() {
+  void testEqualsAndHashCode() {
     PartitionMap<String> map1 = PartitionMap.create(SPECS);
     PartitionMap<String> map2 = PartitionMap.create(SPECS);
 
@@ -185,7 +185,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testToString() {
+  void testToString() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
 
     // empty map
@@ -205,7 +205,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testConcurrentReadAccess() throws InterruptedException {
+  void testConcurrentReadAccess() throws InterruptedException {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v1");
     map.put(BY_DATA_SPEC.specId(), Row.of("bbb"), "v2");
@@ -232,7 +232,7 @@ public class TestPartitionMap {
 
   @Test
   @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
-  public void testNullKey() {
+  void testNullKey() {
     // no check on the underlying error msg as it might be missing based on the JDK version
     PartitionMap<String> map = PartitionMap.create(SPECS);
     assertThatThrownBy(() -> map.put(null, "value")).isInstanceOf(NullPointerException.class);
@@ -241,7 +241,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testUnknownSpecId() {
+  void testUnknownSpecId() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     assertThatThrownBy(() -> map.put(Integer.MAX_VALUE, null, "value"))
         .isInstanceOf(NullPointerException.class)
@@ -249,7 +249,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testUnmodifiableViews() {
+  void testUnmodifiableViews() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v1");
     map.put(BY_DATA_SPEC.specId(), Row.of("bbb"), "v2");
@@ -272,7 +272,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testKeyAndEntrySetEquality() {
+  void testKeyAndEntrySetEquality() {
     PartitionMap<String> map1 = PartitionMap.create(SPECS);
     PartitionMap<String> map2 = PartitionMap.create(SPECS);
 
@@ -292,7 +292,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testLookupArbitraryKeyTypes() {
+  void testLookupArbitraryKeyTypes() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
     map.put(BY_DATA_SPEC.specId(), Row.of("aaa"), "v1");
     map.put(UNPARTITIONED_SPEC.specId(), null, "v2");
@@ -302,7 +302,7 @@ public class TestPartitionMap {
   }
 
   @Test
-  public void testComputeIfAbsent() {
+  void testComputeIfAbsent() {
     PartitionMap<String> map = PartitionMap.create(SPECS);
 
     String result1 = map.computeIfAbsent(BY_DATA_SPEC.specId(), Row.of("a"), () -> "v1");

@@ -42,7 +42,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class TestFileSystemWalker {
+class TestFileSystemWalker {
 
   @TempDir private Path tempDir;
   private String basePath;
@@ -51,7 +51,7 @@ public class TestFileSystemWalker {
   private HadoopFileIO fileIO;
 
   @BeforeEach
-  public void before() throws IOException {
+  void before() throws IOException {
     this.basePath = tempDir.toAbsolutePath().toString();
     this.hadoopConf = new Configuration();
     this.fileIO = new HadoopFileIO(hadoopConf);
@@ -76,7 +76,7 @@ public class TestFileSystemWalker {
   }
 
   @Test
-  public void testListDirRecursivelyWithHadoop() {
+  void testListDirRecursivelyWithHadoop() {
     List<String> foundFiles = Lists.newArrayList();
     List<String> remainingDirs = Lists.newArrayList();
     Predicate<FileStatus> fileFilter =
@@ -103,7 +103,7 @@ public class TestFileSystemWalker {
   }
 
   @Test
-  public void testListDirRecursivelyWithHadoopMaxDepth() {
+  void testListDirRecursivelyWithHadoopMaxDepth() {
     List<String> foundFiles = Lists.newArrayList();
     List<String> remainingDirs = Lists.newArrayList();
     Predicate<FileStatus> fileFilter =
@@ -130,7 +130,7 @@ public class TestFileSystemWalker {
   }
 
   @Test
-  public void testListDirRecursivelyWithHadoopMaxDirectSubDirs() {
+  void testListDirRecursivelyWithHadoopMaxDirectSubDirs() {
     List<String> foundFiles = Lists.newArrayList();
     List<String> remainingDirs = Lists.newArrayList();
     Predicate<FileStatus> fileFilter =
@@ -154,7 +154,7 @@ public class TestFileSystemWalker {
   }
 
   @Test
-  public void testListDirRecursivelyWithFileIO() {
+  void testListDirRecursivelyWithFileIO() {
     List<String> foundFiles = Lists.newArrayList();
     Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
     FileSystemWalker.listDirRecursivelyWithFileIO(
@@ -172,7 +172,7 @@ public class TestFileSystemWalker {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testListDirRecursivelyNotInclude(boolean useHadoop) {
+  void testListDirRecursivelyNotInclude(boolean useHadoop) {
     List<String> foundFiles = Lists.newArrayList();
     String path = basePath + "/normal_dir";
 
@@ -189,7 +189,7 @@ public class TestFileSystemWalker {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testPartitionAwareHiddenPathFilter(boolean useHadoop) throws IOException {
+  void testPartitionAwareHiddenPathFilter(boolean useHadoop) throws IOException {
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),

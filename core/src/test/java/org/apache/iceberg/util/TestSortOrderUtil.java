@@ -34,7 +34,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestSortOrderUtil {
+class TestSortOrderUtil {
 
   // column ids will be reassigned during table creation
   private static final Schema SCHEMA =
@@ -47,12 +47,12 @@ public class TestSortOrderUtil {
   @TempDir private File tableDir;
 
   @AfterEach
-  public void cleanupTables() {
+  void cleanupTables() {
     TestTables.clearTables();
   }
 
   @Test
-  public void testEmptySpecsV1() {
+  void testEmptySpecsV1() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 1);
@@ -70,7 +70,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testEmptySpecsV2() {
+  void testEmptySpecsV2() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
@@ -88,7 +88,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringNoPartitionFields() {
+  void testSortOrderClusteringNoPartitionFields() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
     SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).desc("id").build();
 
@@ -106,7 +106,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringAllPartitionFields() {
+  void testSortOrderClusteringAllPartitionFields() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
     SortOrder order =
         SortOrder.builderFor(SCHEMA)
@@ -122,7 +122,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringAllPartitionFieldsReordered() {
+  void testSortOrderClusteringAllPartitionFieldsReordered() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("category").day("ts").build();
     SortOrder order =
         SortOrder.builderFor(SCHEMA)
@@ -138,7 +138,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringSomePartitionFields() {
+  void testSortOrderClusteringSomePartitionFields() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("category").day("ts").build();
     SortOrder order =
         SortOrder.builderFor(SCHEMA).withOrderId(1).asc("category").desc("id").build();
@@ -157,7 +157,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringSatisfiedPartitionLast() {
+  void testSortOrderClusteringSatisfiedPartitionLast() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("category").day("ts").build();
     SortOrder order =
         SortOrder.builderFor(SCHEMA)
@@ -176,7 +176,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringSatisfiedPartitionFirst() {
+  void testSortOrderClusteringSatisfiedPartitionFirst() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
     SortOrder order =
         SortOrder.builderFor(SCHEMA)
@@ -201,7 +201,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringSatisfiedPartitionFields() {
+  void testSortOrderClusteringSatisfiedPartitionFields() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
 
     SortOrder order =
@@ -227,7 +227,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringWithRedundantPartitionFields() {
+  void testSortOrderClusteringWithRedundantPartitionFields() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
 
     // Specs with redundant time fields can't be constructed directly and have to use
@@ -259,7 +259,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringWithRedundantPartitionFieldsMissing() {
+  void testSortOrderClusteringWithRedundantPartitionFieldsMissing() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
 
     // Specs with redundant time fields can't be constructed directly and have to use
@@ -289,7 +289,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testFindSortOrderForTable() {
+  void testFindSortOrderForTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
@@ -302,7 +302,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testFindSortOrderForTableWithoutFieldId() {
+  void testFindSortOrderForTableWithoutFieldId() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
@@ -316,7 +316,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testFindSortOrderForTableThatIsNotCurrentOrder() {
+  void testFindSortOrderForTableThatIsNotCurrentOrder() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
@@ -334,7 +334,7 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testReturnsUnsortedForMissingSortOrder() {
+  void testReturnsUnsortedForMissingSortOrder() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);

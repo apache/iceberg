@@ -22,10 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-public class TestArrayUtil {
+class TestArrayUtil {
 
   @Test
-  public void testStrictlyAscendingLongArrays() {
+  void testStrictlyAscendingLongArrays() {
     long[] emptyArray = new long[0];
     assertThat(ArrayUtil.isStrictlyAscending(emptyArray)).isTrue();
 
@@ -43,7 +43,7 @@ public class TestArrayUtil {
   }
 
   @Test
-  public void testConcatWithDifferentLengthArrays() {
+  void testConcatWithDifferentLengthArrays() {
     Integer[] array1 = {1, 2, 3};
     Integer[] array2 = {4, 5};
     Integer[] array3 = {6, 7, 8, 9};
@@ -53,7 +53,7 @@ public class TestArrayUtil {
   }
 
   @Test
-  public void testConcatWithEmptyArrays() {
+  void testConcatWithEmptyArrays() {
     String[] array1 = {};
     String[] array2 = {"a", "b"};
 
@@ -62,14 +62,14 @@ public class TestArrayUtil {
   }
 
   @Test
-  public void testConcatWithSingleArray() {
+  void testConcatWithSingleArray() {
     Boolean[] array = {true, false};
     Boolean[] result = ArrayUtil.concat(Boolean.class, array);
     assertThat(result).isEqualTo(new Boolean[] {true, false});
   }
 
   @Test
-  public void testConcatWithNoArray() {
+  void testConcatWithNoArray() {
     Character[] result = ArrayUtil.concat(Character.class);
     assertThat(result).isEqualTo(new Character[] {});
   }

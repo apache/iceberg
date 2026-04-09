@@ -26,16 +26,16 @@ import org.apache.iceberg.LockManager;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
-public class TestLockManagers {
+class TestLockManagers {
 
   @Test
-  public void testLoadDefaultLockManager() {
+  void testLoadDefaultLockManager() {
     assertThat(LockManagers.defaultLockManager())
         .isInstanceOf(LockManagers.InMemoryLockManager.class);
   }
 
   @Test
-  public void testLoadCustomLockManager() {
+  void testLoadCustomLockManager() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.LOCK_IMPL, CustomLockManager.class.getName());
     assertThat(LockManagers.from(properties)).isInstanceOf(CustomLockManager.class);

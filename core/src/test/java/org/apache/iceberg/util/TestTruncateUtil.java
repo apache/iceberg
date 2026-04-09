@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 
 class TestTruncateUtil {
   @Test
-  public void testInvalidInputWidthBehavior() {
+  void testInvalidInputWidthBehavior() {
     assertThatNoException()
         .as("Invalid width input shouldn't necessarily throw an exception as it's not validated")
         .isThrownBy(() -> TruncateUtil.truncateInt(-1, 100));

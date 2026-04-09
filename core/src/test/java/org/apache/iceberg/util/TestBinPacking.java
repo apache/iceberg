@@ -25,9 +25,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.junit.jupiter.api.Test;
 
-public class TestBinPacking {
+class TestBinPacking {
   @Test
-  public void testBasicBinPacking() {
+  void testBasicBinPacking() {
     assertThat(pack(list(1, 2, 3, 4, 5), 3))
         .as("Should pack the first 2 values")
         .isEqualTo(list(list(1, 2), list(3), list(4), list(5)));
@@ -62,7 +62,7 @@ public class TestBinPacking {
   }
 
   @Test
-  public void testBasicBinPackingTargetSize() {
+  void testBasicBinPackingTargetSize() {
     assertThat(pack(list(1, 2, 3, 4, 5), 3, Integer.MAX_VALUE, 2))
         .as("Should pack the first 2 values")
         .isEqualTo(list(list(1, 2), list(3), list(4), list(5)));
@@ -93,7 +93,7 @@ public class TestBinPacking {
   }
 
   @Test
-  public void testReverseBinPackingSingleLookback() {
+  void testReverseBinPackingSingleLookback() {
     assertThat(packEnd(list(1, 2, 3, 4, 5), 3, 1))
         .as("Should pack the first 2 values")
         .isEqualTo(list(list(1, 2), list(3), list(4), list(5)));
@@ -140,7 +140,7 @@ public class TestBinPacking {
   }
 
   @Test
-  public void testReverseBinPackingUnlimitedLookback() {
+  void testReverseBinPackingUnlimitedLookback() {
     assertThat(packEnd(list(1, 2, 3, 4, 5), 3))
         .as("Should pack the first 2 values")
         .isEqualTo(list(list(1, 2), list(3), list(4), list(5)));
@@ -195,7 +195,7 @@ public class TestBinPacking {
   }
 
   @Test
-  public void testBinPackingLookBack() {
+  void testBinPackingLookBack() {
     // lookback state:
     // 1. [5]
     // 2. [5, 1]

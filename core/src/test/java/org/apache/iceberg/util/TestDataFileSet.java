@@ -38,7 +38,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Testing {@link DataFileSet} is easier in iceberg-core since the data file builders are located
  * here
  */
-public class TestDataFileSet {
+class TestDataFileSet {
 
   private static final DataFile FILE_A =
       DataFiles.builder(PartitionSpec.unpartitioned())
@@ -66,13 +66,13 @@ public class TestDataFileSet {
           .build();
 
   @Test
-  public void emptySet() {
+  void emptySet() {
     assertThat(DataFileSet.create()).isEmpty();
     assertThat(DataFileSet.create()).doesNotContain(FILE_A, FILE_B, FILE_C);
   }
 
   @Test
-  public void insertionOrderIsMaintained() {
+  void insertionOrderIsMaintained() {
     DataFileSet set = DataFileSet.create();
     set.addAll(ImmutableList.of(FILE_D, FILE_A, FILE_C));
     set.add(FILE_B);
@@ -82,14 +82,14 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void clear() {
+  void clear() {
     DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
     set.clear();
     assertThat(set).isEmpty();
   }
 
   @Test
-  public void addAll() {
+  void addAll() {
     DataFileSet empty = DataFileSet.create();
     assertThatThrownBy(() -> empty.add(null))
         .isInstanceOf(NullPointerException.class)
@@ -113,7 +113,7 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void contains() {
+  void contains() {
     DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
     assertThatThrownBy(() -> set.contains(null))
         .isInstanceOf(NullPointerException.class)
@@ -131,7 +131,7 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void containsAll() {
+  void containsAll() {
     DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
     assertThatThrownBy(() -> set.containsAll(null))
         .isInstanceOf(NullPointerException.class)
@@ -151,7 +151,7 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void toArray() {
+  void toArray() {
     DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_B, FILE_A));
     assertThat(set.toArray()).hasSize(2).containsExactly(FILE_B, FILE_A);
 
@@ -169,7 +169,7 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void retainAll() {
+  void retainAll() {
     DataFileSet empty = DataFileSet.create();
     assertThatThrownBy(() -> empty.retainAll(null))
         .isInstanceOf(NullPointerException.class)
@@ -204,7 +204,7 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void remove() {
+  void remove() {
     DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
     assertThatThrownBy(() -> set.remove(null))
         .isInstanceOf(NullPointerException.class)
@@ -219,7 +219,7 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void removeAll() {
+  void removeAll() {
     DataFileSet empty = DataFileSet.create();
     assertThatThrownBy(() -> empty.removeAll(null))
         .isInstanceOf(NullPointerException.class)
@@ -254,7 +254,7 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void equalsAndHashCode() {
+  void equalsAndHashCode() {
     DataFileSet set1 = DataFileSet.create();
     DataFileSet set2 = DataFileSet.create();
 
@@ -293,7 +293,7 @@ public class TestDataFileSet {
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void serialization(TestHelpers.RoundTripSerializer<DataFileSet> roundTripSerializer)
+  void serialization(TestHelpers.RoundTripSerializer<DataFileSet> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     DataFileSet dataFiles = DataFileSet.of(ImmutableList.of(FILE_C, FILE_B, FILE_A));
     assertThat(roundTripSerializer.apply(dataFiles)).isEqualTo(dataFiles);

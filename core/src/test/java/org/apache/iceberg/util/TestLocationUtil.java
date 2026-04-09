@@ -23,10 +23,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-public class TestLocationUtil {
+class TestLocationUtil {
 
   @Test
-  public void testStripTrailingSlash() {
+  void testStripTrailingSlash() {
     String pathWithoutTrailingSlash = "s3://bucket/db/tbl";
     assertThat(LocationUtil.stripTrailingSlash(pathWithoutTrailingSlash))
         .as("Should have no trailing slashes")
@@ -49,7 +49,7 @@ public class TestLocationUtil {
   }
 
   @Test
-  public void testStripTrailingSlashWithInvalidPath() {
+  void testStripTrailingSlashWithInvalidPath() {
     String[] invalidPaths = new String[] {null, ""};
 
     for (String invalidPath : invalidPaths) {

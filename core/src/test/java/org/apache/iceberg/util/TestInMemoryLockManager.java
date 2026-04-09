@@ -35,26 +35,26 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 @Timeout(value = 5)
-public class TestInMemoryLockManager {
+class TestInMemoryLockManager {
 
   private LockManagers.InMemoryLockManager lockManager;
   private String lockEntityId;
   private String ownerId;
 
   @BeforeEach
-  public void before() {
+  void before() {
     lockEntityId = UUID.randomUUID().toString();
     ownerId = UUID.randomUUID().toString();
     lockManager = new LockManagers.InMemoryLockManager(Maps.newHashMap());
   }
 
   @AfterEach
-  public void after() throws Exception {
+  void after() throws Exception {
     lockManager.close();
   }
 
   @Test
-  public void testAcquireOnceSingleProcess() {
+  void testAcquireOnceSingleProcess() {
     lockManager.acquireOnce(lockEntityId, ownerId);
     assertThatThrownBy(() -> lockManager.acquireOnce(lockEntityId, ownerId))
         .isInstanceOf(IllegalStateException.class)
@@ -64,7 +64,7 @@ public class TestInMemoryLockManager {
   }
 
   @Test
-  public void testAcquireOnceMultiProcesses() {
+  void testAcquireOnceMultiProcesses() {
     List<Boolean> results =
         IntStream.range(0, 10)
             .parallel()
@@ -84,7 +84,7 @@ public class TestInMemoryLockManager {
   }
 
   @Test
-  public void testReleaseAndAcquire() {
+  void testReleaseAndAcquire() {
     assertThat(lockManager.acquire(lockEntityId, ownerId)).isTrue();
     assertThat(lockManager.release(lockEntityId, ownerId)).isTrue();
     assertThat(lockManager.acquire(lockEntityId, ownerId))
@@ -93,7 +93,7 @@ public class TestInMemoryLockManager {
   }
 
   @Test
-  public void testReleaseWithWrongOwner() {
+  void testReleaseWithWrongOwner() {
     assertThat(lockManager.acquire(lockEntityId, ownerId)).isTrue();
     assertThat(lockManager.release(lockEntityId, UUID.randomUUID().toString()))
         .as("should return false if ownerId is wrong")
@@ -101,7 +101,7 @@ public class TestInMemoryLockManager {
   }
 
   @Test
-  public void testAcquireSingleProcess() throws Exception {
+  void testAcquireSingleProcess() throws Exception {
     lockManager.initialize(
         ImmutableMap.of(
             CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
@@ -129,7 +129,7 @@ public class TestInMemoryLockManager {
   }
 
   @Test
-  public void testAcquireMultiProcessAllSucceed() {
+  void testAcquireMultiProcessAllSucceed() {
     lockManager.initialize(ImmutableMap.of(CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"));
     long start = System.currentTimeMillis();
     List<Boolean> results =
@@ -159,7 +159,7 @@ public class TestInMemoryLockManager {
   }
 
   @Test
-  public void testAcquireMultiProcessOnlyOneSucceed() {
+  void testAcquireMultiProcessOnlyOneSucceed() {
     lockManager.initialize(
         ImmutableMap.of(
             CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",

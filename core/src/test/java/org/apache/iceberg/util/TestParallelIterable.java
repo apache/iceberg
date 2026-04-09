@@ -42,9 +42,9 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
-public class TestParallelIterable {
+class TestParallelIterable {
   @Test
-  public void closeParallelIteratorWithoutCompleteIteration() {
+  void closeParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
     try {
       Iterable<CloseableIterable<Integer>> transform =
@@ -80,7 +80,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  public void closeMoreDataParallelIteratorWithoutCompleteIteration() {
+  void closeMoreDataParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
     try {
       Iterator<Integer> integerIterator =
@@ -144,7 +144,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  public void limitQueueSize() {
+  void limitQueueSize() {
     ExecutorService executor = Executors.newSingleThreadExecutor();
     try {
       List<Iterable<Integer>> iterables =
@@ -185,7 +185,7 @@ public class TestParallelIterable {
 
   @Test
   @Timeout(10)
-  public void noDeadlock() {
+  void noDeadlock() {
     // This test simulates a scenario where iterators use a constrained resource
     // (e.g. an S3 connection pool that has a limit on the number of connections).
     // In this case, the constrained resource shouldn't cause a deadlock when queue

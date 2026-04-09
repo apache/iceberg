@@ -44,7 +44,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestSnapshotUtil {
+class TestSnapshotUtil {
   @TempDir private File tableDir;
   // Schema passed to create tables
   public static final Schema SCHEMA =
@@ -82,7 +82,7 @@ public class TestSnapshotUtil {
   }
 
   @BeforeEach
-  public void before() throws Exception {
+  void before() throws Exception {
     new File(tableDir, "metadata");
 
     this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
@@ -108,19 +108,19 @@ public class TestSnapshotUtil {
   }
 
   @AfterEach
-  public void cleanupTables() {
+  void cleanupTables() {
     TestTables.clearTables();
   }
 
   @Test
-  public void isParentAncestorOf() {
+  void isParentAncestorOf() {
     assertThat(SnapshotUtil.isParentAncestorOf(table, snapshotMain1Id, snapshotBaseId)).isTrue();
     assertThat(SnapshotUtil.isParentAncestorOf(table, snapshotBranchId, snapshotMain1Id)).isFalse();
     assertThat(SnapshotUtil.isParentAncestorOf(table, snapshotFork2Id, snapshotFork0Id)).isTrue();
   }
 
   @Test
-  public void isAncestorOf() {
+  void isAncestorOf() {
     assertThat(SnapshotUtil.isAncestorOf(table, snapshotMain1Id, snapshotBaseId)).isTrue();
     assertThat(SnapshotUtil.isAncestorOf(table, snapshotBranchId, snapshotMain1Id)).isFalse();
     assertThat(SnapshotUtil.isAncestorOf(table, snapshotFork2Id, snapshotFork0Id)).isFalse();
@@ -130,7 +130,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void currentAncestors() {
+  void currentAncestors() {
     Iterable<Snapshot> snapshots = SnapshotUtil.currentAncestors(table);
     expectedSnapshots(new long[] {snapshotMain2Id, snapshotMain1Id, snapshotBaseId}, snapshots);
 
@@ -140,7 +140,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void oldestAncestor() {
+  void oldestAncestor() {
     Snapshot snapshot = SnapshotUtil.oldestAncestor(table);
     assertThat(snapshot.snapshotId()).isEqualTo(snapshotBaseId);
 
@@ -152,7 +152,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void snapshotsBetween() {
+  void snapshotsBetween() {
     List<Long> snapshotIdsBetween =
         SnapshotUtil.snapshotIdsBetween(table, snapshotBaseId, snapshotMain2Id);
     assertThat(snapshotIdsBetween.toArray(new Long[0]))
@@ -168,7 +168,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void ancestorsOf() {
+  void ancestorsOf() {
     Iterable<Snapshot> snapshots = SnapshotUtil.ancestorsOf(snapshotFork2Id, table::snapshot);
     expectedSnapshots(new long[] {snapshotFork2Id, snapshotFork1Id}, snapshots);
 
@@ -190,7 +190,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void schemaForRef() {
+  void schemaForRef() {
     Schema initialSchema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
@@ -205,7 +205,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void schemaForBranch() {
+  void schemaForBranch() {
     Schema initialSchema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
@@ -230,7 +230,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void schemaForTag() {
+  void schemaForTag() {
     Schema initialSchema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
@@ -254,7 +254,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void schemaForSnapshotId() {
+  void schemaForSnapshotId() {
     Schema initialSchema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
@@ -283,7 +283,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void schemaForSnapshotIdInvalidSnapshot() {
+  void schemaForSnapshotIdInvalidSnapshot() {
     long invalidSnapshotId = 999999L;
     assertThat(table.snapshot(invalidSnapshotId)).isNull();
 
@@ -293,7 +293,7 @@ public class TestSnapshotUtil {
   }
 
   @Test
-  public void schemaForSnapshotIdMetadataTable() {
+  void schemaForSnapshotIdMetadataTable() {
     long firstSnapshotId = table.currentSnapshot().snapshotId();
 
     table.updateSchema().addColumn("zip", Types.IntegerType.get()).commit();

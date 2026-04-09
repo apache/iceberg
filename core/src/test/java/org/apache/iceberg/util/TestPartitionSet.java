@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestPartitionSet {
+class TestPartitionSet {
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
@@ -51,7 +51,7 @@ public class TestPartitionSet {
           BY_DATA_CATEGORY_BUCKET_SPEC);
 
   @Test
-  public void testGet() {
+  void testGet() {
     PartitionSet set = PartitionSet.create(SPECS);
     set.add(BY_DATA_SPEC.specId(), Row.of("a"));
     set.add(UNPARTITIONED_SPEC.specId(), null);
@@ -66,7 +66,7 @@ public class TestPartitionSet {
   }
 
   @Test
-  public void testRemove() {
+  void testRemove() {
     PartitionSet set = PartitionSet.create(SPECS);
     set.add(BY_DATA_SPEC.specId(), Row.of("a"));
     set.add(UNPARTITIONED_SPEC.specId(), null);

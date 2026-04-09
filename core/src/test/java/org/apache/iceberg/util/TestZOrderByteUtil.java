@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestZOrderByteUtil {
+class TestZOrderByteUtil {
   private static final byte IIIIIIII = (byte) 255;
   private static final byte IOIOIOIO = (byte) 170;
   private static final byte OIOIOIOI = (byte) 85;
@@ -87,7 +87,7 @@ public class TestZOrderByteUtil {
    * wrong or are both identically correct.
    */
   @Test
-  public void testInterleaveRandomExamples() {
+  void testInterleaveRandomExamples() {
     for (int test = 0; test < NUM_INTERLEAVE_TESTS; test++) {
       int numByteArrays = Math.abs(random.nextInt(6)) + 1;
       byte[][] testBytes = new byte[numByteArrays][];
@@ -110,7 +110,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testReuseInterleaveBuffer() {
+  void testReuseInterleaveBuffer() {
     int numByteArrays = 2;
     int colLength = 16;
     ByteBuffer interleaveBuffer = ByteBuffer.allocate(numByteArrays * colLength);
@@ -135,7 +135,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testInterleaveEmptyBits() {
+  void testInterleaveEmptyBits() {
     byte[][] test = new byte[4][10];
     byte[] expected = new byte[40];
 
@@ -145,7 +145,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testInterleaveFullBits() {
+  void testInterleaveFullBits() {
     byte[][] test = new byte[4][];
     test[0] = new byte[] {IIIIIIII, IIIIIIII};
     test[1] = new byte[] {IIIIIIII};
@@ -159,7 +159,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testInterleaveMixedBits() {
+  void testInterleaveMixedBits() {
     byte[][] test = new byte[4][];
     test[0] = new byte[] {OOOOOOOI, IIIIIIII, OOOOOOOO, OOOOIIII};
     test[1] = new byte[] {OOOOOOOI, OOOOOOOO, IIIIIIII};
@@ -175,7 +175,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testIntOrdering() {
+  void testIntOrdering() {
     ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -196,7 +196,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testLongOrdering() {
+  void testLongOrdering() {
     ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -222,7 +222,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testShortOrdering() {
+  void testShortOrdering() {
     ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -248,7 +248,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testTinyOrdering() {
+  void testTinyOrdering() {
     ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -274,7 +274,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testFloatOrdering() {
+  void testFloatOrdering() {
     ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -300,7 +300,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testDoubleOrdering() {
+  void testDoubleOrdering() {
     ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -326,7 +326,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testStringOrdering() {
+  void testStringOrdering() {
     CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
     ByteBuffer aBuffer = ByteBuffer.allocate(128);
     ByteBuffer bBuffer = ByteBuffer.allocate(128);
@@ -353,7 +353,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testByteTruncateOrFill() {
+  void testByteTruncateOrFill() {
     ByteBuffer aBuffer = ByteBuffer.allocate(128);
     ByteBuffer bBuffer = ByteBuffer.allocate(128);
     for (int i = 0; i < NUM_TESTS; i++) {
@@ -380,7 +380,7 @@ public class TestZOrderByteUtil {
   }
 
   @Test
-  public void testByteTruncatedOrFillNullIsZeroArray() {
+  void testByteTruncatedOrFillNullIsZeroArray() {
     ByteBuffer buffer = ByteBuffer.allocate(128);
     byte[] actualBytes = ZOrderByteUtils.byteTruncateOrFill(null, 128, buffer).array();
     ByteBuffer expected = ByteBuffer.allocate(128);

@@ -25,10 +25,10 @@ import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.junit.jupiter.api.Test;
 
-public class TestTasks {
+class TestTasks {
 
   @Test
-  public void attemptCounterIsIncreasedOnRetries() {
+  void attemptCounterIsIncreasedOnRetries() {
     Counter counter = new DefaultMetricsContext().counter("counter");
 
     final int retries = 10;
@@ -50,7 +50,7 @@ public class TestTasks {
   }
 
   @Test
-  public void attemptCounterIsIncreasedWithoutRetries() {
+  void attemptCounterIsIncreasedWithoutRetries() {
     Counter counter = new DefaultMetricsContext().counter("counter");
 
     Tasks.foreach(IntStream.range(0, 10)).countAttempts(counter).run(x -> {});

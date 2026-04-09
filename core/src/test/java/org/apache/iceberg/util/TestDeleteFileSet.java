@@ -38,7 +38,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Testing {@link DeleteFileSet} is easier in iceberg-core since the delete file builders are
  * located here
  */
-public class TestDeleteFileSet {
+class TestDeleteFileSet {
 
   private static final DeleteFile FILE_A_DELETES =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
@@ -70,14 +70,14 @@ public class TestDeleteFileSet {
           .build();
 
   @Test
-  public void emptySet() {
+  void emptySet() {
     assertThat(DeleteFileSet.create()).isEmpty();
     assertThat(DeleteFileSet.create())
         .doesNotContain(FILE_A_DELETES, FILE_B_DELETES, FILE_C_DELETES);
   }
 
   @Test
-  public void insertionOrderIsMaintained() {
+  void insertionOrderIsMaintained() {
     DeleteFileSet set = DeleteFileSet.create();
     set.addAll(ImmutableList.of(FILE_D_DELETES, FILE_A_DELETES, FILE_C_DELETES));
     set.add(FILE_B_DELETES);
@@ -89,14 +89,14 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void clear() {
+  void clear() {
     DeleteFileSet set = DeleteFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES));
     set.clear();
     assertThat(set).isEmpty();
   }
 
   @Test
-  public void addAll() {
+  void addAll() {
     DeleteFileSet empty = DeleteFileSet.create();
     assertThatThrownBy(() -> empty.add(null))
         .isInstanceOf(NullPointerException.class)
@@ -120,7 +120,7 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void contains() {
+  void contains() {
     DeleteFileSet set = DeleteFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES));
     assertThatThrownBy(() -> set.contains(null))
         .isInstanceOf(NullPointerException.class)
@@ -141,7 +141,7 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void containsAll() {
+  void containsAll() {
     DeleteFileSet set = DeleteFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES));
     assertThatThrownBy(() -> set.containsAll(null))
         .isInstanceOf(NullPointerException.class)
@@ -162,7 +162,7 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void toArray() {
+  void toArray() {
     DeleteFileSet set = DeleteFileSet.of(ImmutableList.of(FILE_B_DELETES, FILE_A_DELETES));
     assertThat(set.toArray()).hasSize(2).containsExactly(FILE_B_DELETES, FILE_A_DELETES);
 
@@ -182,7 +182,7 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void retainAll() {
+  void retainAll() {
     DeleteFileSet empty = DeleteFileSet.create();
     assertThatThrownBy(() -> empty.retainAll(null))
         .isInstanceOf(NullPointerException.class)
@@ -217,7 +217,7 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void remove() {
+  void remove() {
     DeleteFileSet set = DeleteFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES));
     assertThatThrownBy(() -> set.remove(null))
         .isInstanceOf(NullPointerException.class)
@@ -233,7 +233,7 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void removeAll() {
+  void removeAll() {
     DeleteFileSet empty = DeleteFileSet.create();
     assertThatThrownBy(() -> empty.removeAll(null))
         .isInstanceOf(NullPointerException.class)
@@ -267,7 +267,7 @@ public class TestDeleteFileSet {
   }
 
   @Test
-  public void equalsAndHashCode() {
+  void equalsAndHashCode() {
     DeleteFileSet set1 = DeleteFileSet.create();
     DeleteFileSet set2 = DeleteFileSet.create();
 
@@ -309,7 +309,7 @@ public class TestDeleteFileSet {
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void serialization(TestHelpers.RoundTripSerializer<DeleteFileSet> roundTripSerializer)
+  void serialization(TestHelpers.RoundTripSerializer<DeleteFileSet> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     DeleteFileSet deleteFiles =
         DeleteFileSet.of(ImmutableList.of(FILE_C_DELETES, FILE_B_DELETES, FILE_A_DELETES));

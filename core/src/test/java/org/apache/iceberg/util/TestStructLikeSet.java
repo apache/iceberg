@@ -27,14 +27,14 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestStructLikeSet {
+class TestStructLikeSet {
   private static final Types.StructType STRUCT_TYPE =
       Types.StructType.of(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.LongType.get()));
 
   @Test
-  public void testNullElements() {
+  void testNullElements() {
     Set<StructLike> set = StructLikeSet.create(STRUCT_TYPE);
     assertThat(set).doesNotContain((StructLike) null);
 
@@ -50,7 +50,7 @@ public class TestStructLikeSet {
   }
 
   @Test
-  public void testElementsWithNulls() {
+  void testElementsWithNulls() {
     Record recordTemplate = GenericRecord.create(STRUCT_TYPE);
     Record record1 = recordTemplate.copy("id", 1, "data", null);
     Record record2 = recordTemplate.copy("id", 2, "data", null);

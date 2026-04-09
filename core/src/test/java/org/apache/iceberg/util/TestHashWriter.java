@@ -38,10 +38,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestHashWriter {
+class TestHashWriter {
 
   @Test
-  public void testIncrementalHashCalculation() throws Exception {
+  void testIncrementalHashCalculation() throws Exception {
     HashWriter hashWriter = spy(new HashWriter("SHA-256", StandardCharsets.UTF_8));
 
     // Create large enough TableMetadata which will be serialized into JSON in multiple chunks by
