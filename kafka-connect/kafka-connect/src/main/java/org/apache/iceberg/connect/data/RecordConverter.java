@@ -514,7 +514,9 @@ class RecordConverter {
           names.add((String) key);
           collectFieldNames(entry.getValue(), names);
         } else {
-          throw new IllegalArgumentException("Cannot convert map to variant: keys must be non-null strings, was: " + (key == null ? "null" : key.getClass().getName()));
+          throw new IllegalArgumentException(
+              "Cannot convert map to variant: keys must be non-null strings, was: "
+                  + (key == null ? "null" : key.getClass().getName()));
         }
       }
       return;
