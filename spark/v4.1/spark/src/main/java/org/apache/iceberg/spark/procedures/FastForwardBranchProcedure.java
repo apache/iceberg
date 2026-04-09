@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Iterator;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -87,12 +89,18 @@ public class FastForwardBranchProcedure extends BaseProcedure {
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          Long snapshotBefore =
-              table.snapshot(from) != null ? table.snapshot(from).snapshotId() : null;
+          Snapshot snapshotBefore = table.snapshot(from);
           table.manageSnapshots().fastForwardBranch(from, to).commit();
-          long snapshotAfter = table.snapshot(from).snapshotId();
+          Snapshot snapshotAfter = table.snapshot(from);
+          Preconditions.checkState(
+              snapshotAfter != null,
+              "Fast-forward failed: branch %s does not reference a snapshot after update",
+              from);
           InternalRow outputRow =
-              newInternalRow(UTF8String.fromString(from), snapshotBefore, snapshotAfter);
+              newInternalRow(
+                  UTF8String.fromString(from),
+                  snapshotBefore != null ? snapshotBefore.snapshotId() : null,
+                  snapshotAfter.snapshotId());
           return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }
