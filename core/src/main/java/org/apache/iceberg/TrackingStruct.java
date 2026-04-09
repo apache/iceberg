@@ -37,6 +37,9 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
   private byte[] deletedPositions = null;
   private byte[] replacedPositions = null;
 
+  // not serialized, set by manifest readers for metadata inheritance
+  private transient TrackedFile manifestContext = null;
+
   TrackingStruct(Types.StructType type) {}
 
   private TrackingStruct(TrackingStruct toCopy) {
@@ -60,6 +63,10 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
     return new TrackingStruct(this);
   }
 
+  void setManifestContext(TrackedFile manifest) {
+    this.manifestContext = manifest;
+  }
+
   @Override
   public EntryStatus status() {
     return status;
@@ -67,17 +74,37 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
 
   @Override
   public Long snapshotId() {
-    return snapshotId;
+    if (snapshotId != null) {
+      return snapshotId;
+    }
+
+    return manifestContext != null ? manifestContext.tracking().snapshotId() : null;
   }
 
   @Override
   public Long dataSequenceNumber() {
-    return sequenceNumber;
+    if (sequenceNumber != null) {
+      return sequenceNumber;
+    }
+
+    if (manifestContext != null && status == EntryStatus.ADDED) {
+      return manifestContext.tracking().dataSequenceNumber();
+    }
+
+    return null;
   }
 
   @Override
   public Long fileSequenceNumber() {
-    return fileSequenceNumber;
+    if (fileSequenceNumber != null) {
+      return fileSequenceNumber;
+    }
+
+    if (manifestContext != null && status == EntryStatus.ADDED) {
+      return manifestContext.tracking().dataSequenceNumber();
+    }
+
+    return null;
   }
 
   @Override

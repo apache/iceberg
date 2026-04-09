@@ -59,7 +59,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
 
   // not serialized to manifest, set by manifest readers
   private transient TrackedFile manifestContext = null;
-  private String manifestLocation = null;
   private long manifestPos = 0L;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
@@ -108,7 +107,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
             : null;
 
     this.manifestContext = toCopy.manifestContext;
-    this.manifestLocation = toCopy.manifestLocation;
     this.manifestPos = toCopy.manifestPos;
   }
 
@@ -144,7 +142,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
 
   @Override
   public Integer specId() {
-    return specId;
+    if (specId != null) {
+      return specId;
+    }
+
+    return manifestContext != null ? manifestContext.specId() : null;
   }
 
   @Override
@@ -194,7 +196,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
 
   @Override
   public String manifestLocation() {
-    return manifestLocation;
+    return manifestContext != null ? manifestContext.location() : null;
   }
 
   @Override
@@ -204,7 +206,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
 
   void setManifestContext(TrackedFile manifest) {
     this.manifestContext = manifest;
-    this.manifestLocation = manifest != null ? manifest.location() : null;
   }
 
   @Override
@@ -255,6 +256,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
     switch (pos) {
       case 0:
         this.tracking = (TrackingStruct) value;
+        this.tracking.setManifestContext(this.manifestContext);
         break;
       case 1:
         this.contentType = FILE_CONTENT_VALUES[(Integer) value];

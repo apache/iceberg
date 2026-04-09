@@ -259,7 +259,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.manifestPos()).isEqualTo(3L);
-    assertThat(deserialized.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.manifestLocation()).isNull();
   }
 
   @Test
@@ -281,7 +281,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.manifestPos()).isEqualTo(3L);
-    assertThat(deserialized.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.manifestLocation()).isNull();
   }
 
   static TrackedFileStruct createFullTrackedFile() {

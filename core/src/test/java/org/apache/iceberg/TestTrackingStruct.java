@@ -95,6 +95,83 @@ class TestTrackingStruct {
   }
 
   @Test
+  void inheritSnapshotIdFromManifestContext() {
+    TrackedFile manifest = createManifestContext(100L, 50L);
+    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    tracking.setManifestContext(manifest);
+    tracking.set(0, EntryStatus.ADDED.id());
+
+    // snapshotId is null, should inherit from manifest
+    assertThat(tracking.snapshotId()).isEqualTo(100L);
+  }
+
+  @Test
+  void inheritSequenceNumberForAddedEntries() {
+    TrackedFile manifest = createManifestContext(100L, 50L);
+    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    tracking.setManifestContext(manifest);
+    tracking.set(0, EntryStatus.ADDED.id());
+
+    // sequence numbers are null and status is ADDED, should inherit
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(50L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(50L);
+  }
+
+  @Test
+  void doNotInheritSequenceNumberForExistingEntries() {
+    TrackedFile manifest = createManifestContext(100L, 50L);
+    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    tracking.setManifestContext(manifest);
+    tracking.set(0, EntryStatus.EXISTING.id());
+
+    // sequence numbers are null but status is EXISTING, should not inherit
+    assertThat(tracking.dataSequenceNumber()).isNull();
+    assertThat(tracking.fileSequenceNumber()).isNull();
+  }
+
+  @Test
+  void explicitValuesOverrideManifestContext() {
+    TrackedFile manifest = createManifestContext(100L, 50L);
+    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    tracking.setManifestContext(manifest);
+    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(1, 200L);
+    tracking.set(2, 75L);
+    tracking.set(3, 76L);
+
+    // explicit values should take precedence
+    assertThat(tracking.snapshotId()).isEqualTo(200L);
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(75L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(76L);
+  }
+
+  @Test
+  void noDefaultingWithoutManifestContext() {
+    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    tracking.set(0, EntryStatus.ADDED.id());
+
+    // no manifest context, nulls stay null
+    assertThat(tracking.snapshotId()).isNull();
+    assertThat(tracking.dataSequenceNumber()).isNull();
+    assertThat(tracking.fileSequenceNumber()).isNull();
+  }
+
+  private static TrackedFile createManifestContext(long snapshotId, long sequenceNumber) {
+    TrackedFileStruct manifest = new TrackedFileStruct();
+    TrackingStruct manifestTracking = new TrackingStruct(Types.StructType.of());
+    manifestTracking.set(0, EntryStatus.ADDED.id());
+    manifestTracking.set(1, snapshotId);
+    manifestTracking.set(2, sequenceNumber);
+    manifest.set(0, manifestTracking);
+    manifest.set(1, FileContent.DATA_MANIFEST.id());
+    manifest.set(2, "s3://bucket/manifest.avro");
+    manifest.set(3, "avro");
+    manifest.set(4, 0L);
+    manifest.set(5, 0L);
+    return manifest;
+  }
+
+  @Test
   void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
     tracking.set(0, EntryStatus.ADDED.id());
