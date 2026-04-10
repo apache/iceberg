@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -31,7 +32,7 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
-class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
+class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
   private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
