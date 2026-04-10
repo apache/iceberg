@@ -98,13 +98,6 @@ public class CachingCatalog implements Catalog {
       if (cause.wasEvicted()) {
         if (!MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
           tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
-          if (table != null) {
-            try {
-              table.io().close();
-            } catch (Exception e) {
-              LOG.warn("Failed to close FileIO for evicted table {}", tableIdentifier, e);
-            }
-          }
         }
       }
     }
