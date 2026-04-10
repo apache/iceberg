@@ -18,36 +18,27 @@
  */
 package org.apache.iceberg.io;
 
-import java.io.EOFException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.junit.jupiter.api.Test;
 
-public class FileRange {
-  private final CompletableFuture<ByteBuffer> byteBuffer;
-  private final long offset;
-  private final int length;
+public class TestFileRange {
 
-  public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length)
-      throws EOFException {
-    Preconditions.checkNotNull(byteBuffer, "byteBuffer can't be null");
-    Preconditions.checkArgument(length >= 0, "Invalid length: %s in range (must be >= 0)", length);
-    Preconditions.checkArgument(offset >= 0, "Invalid offset: %s in range (must be >= 0)", offset);
-
-    this.byteBuffer = byteBuffer;
-    this.offset = offset;
-    this.length = length;
+  @Test
+  public void testConstructorRejectsNegativeLength() {
+    assertThatThrownBy(
+            () -> new FileRange(CompletableFuture.completedFuture(ByteBuffer.allocate(0)), 0L, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid length: -1 in range (must be >= 0)");
   }
 
-  public CompletableFuture<ByteBuffer> byteBuffer() {
-    return byteBuffer;
-  }
-
-  public long offset() {
-    return offset;
-  }
-
-  public int length() {
-    return length;
+  @Test
+  public void testConstructorRejectsNegativeOffset() {
+    assertThatThrownBy(
+            () -> new FileRange(CompletableFuture.completedFuture(ByteBuffer.allocate(0)), -1L, 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid offset: -1 in range (must be >= 0)");
   }
 }
