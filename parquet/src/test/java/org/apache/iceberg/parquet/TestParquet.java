@@ -376,6 +376,6 @@ public class TestParquet {
 
     assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("variant");
+        .hasMessage("Avro writer does not support variant types");
   }
 }
