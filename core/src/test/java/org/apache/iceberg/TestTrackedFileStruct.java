@@ -95,6 +95,41 @@ class TestTrackedFileStruct {
   }
 
   @Test
+  void manifestContextInheritsToTrackingSetBeforeContext() {
+    TrackedFileStruct file = new TrackedFileStruct();
+    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    tracking.set(0, EntryStatus.ADDED.id());
+    // snapshotId and sequenceNumber left null. Should inherit from context
+
+    file.set(0, tracking);
+    file.set(1, FileContent.DATA.id());
+    file.set(2, "s3://bucket/data/file.parquet");
+    file.set(3, "parquet");
+    file.set(4, 100L);
+    file.set(5, 1024L);
+
+    // context set after tracking -- must propagate to already-set tracking
+    TrackedFileStruct manifest = new TrackedFileStruct();
+    TrackingStruct manifestTracking = new TrackingStruct(Types.StructType.of());
+    manifestTracking.set(0, EntryStatus.ADDED.id());
+    manifestTracking.set(1, 42L);
+    manifestTracking.set(2, 10L);
+    manifest.set(0, manifestTracking);
+    manifest.set(1, FileContent.DATA_MANIFEST.id());
+    manifest.set(2, "s3://bucket/manifest.avro");
+    manifest.set(3, "avro");
+    manifest.set(4, 0L);
+    manifest.set(5, 0L);
+
+    file.setManifestContext(manifest);
+
+    assertThat(file.tracking().snapshotId()).isEqualTo(42L);
+    assertThat(file.tracking().dataSequenceNumber()).isEqualTo(10L);
+    assertThat(file.tracking().fileSequenceNumber()).isEqualTo(10L);
+    assertThat(file.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+  }
+
+  @Test
   void readerSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 

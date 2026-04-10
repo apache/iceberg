@@ -82,6 +82,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
     this.specId = toCopy.specId;
 
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
+    if (this.tracking != null && this.manifestContext != null) {
+      this.tracking.setManifestContext(this.manifestContext);
+    }
+
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
 
@@ -206,6 +210,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile {
 
   void setManifestContext(TrackedFile manifest) {
     this.manifestContext = manifest;
+    if (this.tracking != null) {
+      this.tracking.setManifestContext(manifest);
+    }
   }
 
   @Override
