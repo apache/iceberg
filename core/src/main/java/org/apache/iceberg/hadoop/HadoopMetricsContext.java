@@ -23,6 +23,8 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.GlobalStorageStatistics;
+import org.apache.hadoop.fs.StorageStatistics;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 
@@ -36,6 +38,66 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   private String scheme;
   private transient volatile FileSystem.Statistics statistics;
 
+  /**
+   * Custom StorageStatistics implementation that wraps FileSystem.Statistics.
+   * Unlike FileSystemStorageStatistics, this provides public access to the wrapped Statistics.
+   */
+  private static class IcebergStorageStatistics extends StorageStatistics {
+    private final FileSystem.Statistics statistics;
+
+    IcebergStorageStatistics(String scheme, FileSystem.Statistics stats) {
+      super(scheme);
+      this.statistics = stats;
+    }
+
+    FileSystem.Statistics getStatistics() {
+      return statistics;
+    }
+
+    @Override
+    public java.util.Iterator<LongStatistic> getLongStatistics() {
+      return java.util.Arrays.asList(
+              new LongStatistic("bytesRead", statistics.getBytesRead()),
+              new LongStatistic("bytesWritten", statistics.getBytesWritten()),
+              new LongStatistic("readOps", statistics.getReadOps()),
+              new LongStatistic("largeReadOps", statistics.getLargeReadOps()),
+              new LongStatistic("writeOps", statistics.getWriteOps()))
+          .iterator();
+    }
+
+    @Override
+    public Long getLong(String key) {
+      switch (key) {
+        case "bytesRead":
+          return statistics.getBytesRead();
+        case "bytesWritten":
+          return statistics.getBytesWritten();
+        case "readOps":
+          return (long) statistics.getReadOps();
+        case "largeReadOps":
+          return (long) statistics.getLargeReadOps();
+        case "writeOps":
+          return (long) statistics.getWriteOps();
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    public boolean isTracked(String key) {
+      return "bytesRead".equals(key)
+          || "bytesWritten".equals(key)
+          || "readOps".equals(key)
+          || "largeReadOps".equals(key)
+          || "writeOps".equals(key);
+    }
+
+    @Override
+    public void reset() {
+      statistics.reset();
+    }
+  }
+
   public HadoopMetricsContext(String scheme) {
     ValidationException.check(
         scheme != null, "Scheme is required for Hadoop FileSystem metrics reporting");
@@ -45,10 +107,19 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
 
   @Override
   public void initialize(Map<String, String> properties) {
-    // FileIO has no specific implementation class, but Hadoop will
-    // still track and report for the provided scheme.
+    // Use GlobalStorageStatistics for per-scheme separation.
+    // FileSystem.getStatistics(scheme, null) uses Class as the map key, causing all schemes
+    // to share one Statistics instance. GlobalStorageStatistics is keyed by scheme string.
     this.scheme = properties.getOrDefault(SCHEME, scheme);
-    this.statistics = FileSystem.getStatistics(scheme, null);
+    FileSystem.Statistics newStats = new FileSystem.Statistics(this.scheme);
+    StorageStatistics registered =
+        GlobalStorageStatistics.INSTANCE.put(
+            this.scheme, () -> new IcebergStorageStatistics(this.scheme, newStats));
+    if (registered instanceof IcebergStorageStatistics) {
+      this.statistics = ((IcebergStorageStatistics) registered).getStatistics();
+    } else {
+      this.statistics = newStats;
+    }
   }
 
   /**
@@ -162,7 +233,15 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     if (statistics == null) {
       synchronized (this) {
         if (statistics == null) {
-          this.statistics = FileSystem.getStatistics(scheme, null);
+          FileSystem.Statistics newStats = new FileSystem.Statistics(this.scheme);
+          StorageStatistics registered =
+              GlobalStorageStatistics.INSTANCE.put(
+                  this.scheme, () -> new IcebergStorageStatistics(this.scheme, newStats));
+          if (registered instanceof IcebergStorageStatistics) {
+            this.statistics = ((IcebergStorageStatistics) registered).getStatistics();
+          } else {
+            this.statistics = newStats;
+          }
         }
       }
     }
