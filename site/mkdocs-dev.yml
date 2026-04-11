@@ -27,6 +27,7 @@ nav:
     - Spark: spark-quickstart.md
     - Flink: flink-quickstart.md
     - Hive: hive-quickstart.md
+  - Catalogs: catalogs.md
   - Docs:
     - Java:
       - Nightly: '!include docs/docs/nightly/mkdocs.yml'
