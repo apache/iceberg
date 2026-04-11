@@ -40,7 +40,6 @@ import org.junit.jupiter.api.BeforeEach;
 
 public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatalog {
 
-  @SuppressWarnings("removal")
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
@@ -75,7 +74,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     CompressionHandler compressionHandler = new CompressionHandler();
     compressionHandler.putCompression(new GzipCompression());
-    servletContext.setHandler(compressionHandler);
+    servletContext.insertHandler(compressionHandler);
 
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);

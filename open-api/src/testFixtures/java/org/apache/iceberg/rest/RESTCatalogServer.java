@@ -107,7 +107,6 @@ public class RESTCatalogServer {
         catalogProperties);
   }
 
-  @SuppressWarnings("removal")
   public void start(boolean join) throws Exception {
     CatalogContext catalogContext = initializeBackendCatalog();
 
@@ -119,7 +118,7 @@ public class RESTCatalogServer {
     context.addServlet(servletHolder, "/*");
     CompressionHandler compressionHandler = new CompressionHandler();
     compressionHandler.putCompression(new GzipCompression());
-    context.setHandler(compressionHandler);
+    context.insertHandler(compressionHandler);
 
     this.httpServer =
         new Server(

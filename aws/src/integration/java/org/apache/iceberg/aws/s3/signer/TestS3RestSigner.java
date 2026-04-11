@@ -182,7 +182,6 @@ public class TestS3RestSigner {
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
   }
 
-  @SuppressWarnings("removal")
   private static Server initHttpServer() throws Exception {
     S3SignerServlet.SignRequestValidator deleteObjectsWithBody =
         new S3SignerServlet.SignRequestValidator(
@@ -198,7 +197,7 @@ public class TestS3RestSigner {
     servletContext.addServlet(new ServletHolder(servlet), "/*");
     CompressionHandler compressionHandler = new CompressionHandler();
     compressionHandler.putCompression(new GzipCompression());
-    servletContext.setHandler(compressionHandler);
+    servletContext.insertHandler(compressionHandler);
 
     Server server = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     server.setHandler(servletContext);

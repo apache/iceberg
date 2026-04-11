@@ -34,6 +34,8 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.eclipse.jetty.compression.gzip.GzipCompression;
+import org.eclipse.jetty.compression.server.CompressionHandler;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
@@ -60,7 +62,15 @@ public abstract class TestBaseWithRESTServer {
 
   @TempDir private Path temp;
 
-  @SuppressWarnings("removal")
+  /**
+   * GZIP responses interfere with freshness-aware loading tests that assert on {@code ETag} and
+   * conditional requests. Subclasses may disable HTTP compression while keeping the default for
+   * other REST catalog tests.
+   */
+  protected boolean useHttpCompression() {
+    return true;
+  }
+
   @BeforeEach
   public void before() throws Exception {
     File warehouse = temp.toFile();
@@ -75,6 +85,12 @@ public abstract class TestBaseWithRESTServer {
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.addServlet(
         new ServletHolder(new RESTCatalogServlet(adapterForRESTServer)), "/*");
+    if (useHttpCompression()) {
+      CompressionHandler compressionHandler = new CompressionHandler();
+      compressionHandler.putCompression(new GzipCompression());
+      servletContext.insertHandler(compressionHandler);
+    }
+
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();

@@ -272,7 +272,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private Server httpServer;
   private HeaderValidatingAdapter adapterForRESTServer;
 
-  @SuppressWarnings("removal")
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
@@ -306,7 +305,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         new ServletHolder(new RESTCatalogServlet(adapterForRESTServer)), "/*");
     CompressionHandler compressionHandler = new CompressionHandler();
     compressionHandler.putCompression(new GzipCompression());
-    servletContext.setHandler(compressionHandler);
+    servletContext.insertHandler(compressionHandler);
 
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
