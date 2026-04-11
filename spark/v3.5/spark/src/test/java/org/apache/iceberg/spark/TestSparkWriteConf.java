@@ -141,6 +141,76 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testTableScopedSessionConfTakesPrecedenceOverGlobal() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String confName = "spark.sql.iceberg.some-int-conf";
+    String tableConfName = confName + "." + table.name();
+
+    withSQLConf(
+        ImmutableMap.of(confName, "1", tableConfName, "2"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          Integer value = parser.intConf().sessionConf(confName).parseOptional();
+          assertThat(value).isEqualTo(2);
+        });
+  }
+
+  @TestTemplate
+  public void testGlobalSessionConfUsedWhenNoTableScopedKey() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String confName = "spark.sql.iceberg.some-int-conf";
+
+    withSQLConf(
+        ImmutableMap.of(confName, "1"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          Integer value = parser.intConf().sessionConf(confName).parseOptional();
+          assertThat(value).isEqualTo(1);
+        });
+  }
+
+  @TestTemplate
+  public void testOptionTakesPrecedenceOverTableScopedSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String confName = "spark.sql.iceberg.some-int-conf";
+    String tableConfName = confName + "." + table.name();
+    String optionName = "some-int-option";
+
+    withSQLConf(
+        ImmutableMap.of(confName, "1", tableConfName, "2"),
+        () -> {
+          Map<String, String> options = ImmutableMap.of(optionName, "3");
+          SparkConfParser parser = new SparkConfParser(spark, table, options);
+          Integer value =
+              parser.intConf().option(optionName).sessionConf(confName).parseOptional();
+          assertThat(value).isEqualTo(3);
+        });
+  }
+
+  @TestTemplate
+  public void testTableScopedSessionConfTakesPrecedenceOverTableProperty() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String confName = "spark.sql.iceberg.some-conf";
+    String tableConfName = confName + "." + table.name();
+    String tablePropertyName = "some-property";
+
+    table.updateProperties().set(tablePropertyName, "from-table-property").commit();
+
+    withSQLConf(
+        ImmutableMap.of(tableConfName, "from-table-session"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          String value =
+              parser
+                  .stringConf()
+                  .sessionConf(confName)
+                  .tableProperty(tablePropertyName)
+                  .parseOptional();
+          assertThat(value).isEqualTo("from-table-session");
+        });
+  }
+
+  @TestTemplate
   public void testDeleteGranularityDefault() {
     Table table = validationCatalog.loadTable(tableIdent);
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
