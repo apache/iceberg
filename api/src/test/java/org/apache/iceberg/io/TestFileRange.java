@@ -42,7 +42,7 @@ public class TestFileRange {
     CompletableFuture<ByteBuffer> future = new CompletableFuture<>();
     assertThatThrownBy(() -> new FileRange(future, 0L, -1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid length");
+        .hasMessage("Invalid length: -1 in range (must be >= 0)");
   }
 
   @Test
@@ -50,13 +50,13 @@ public class TestFileRange {
     CompletableFuture<ByteBuffer> future = new CompletableFuture<>();
     assertThatThrownBy(() -> new FileRange(future, -1L, 0))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid offset");
+        .hasMessage("Invalid offset: -1 in range (must be >= 0)");
   }
 
   @Test
   public void nullByteBuffer() {
     assertThatThrownBy(() -> new FileRange(null, 0L, 0))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("byteBuffer");
+        .hasMessage("byteBuffer can't be null");
   }
 }
