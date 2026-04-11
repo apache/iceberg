@@ -56,7 +56,7 @@ jobs:
         DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
-        docker login -u "$DOCKERHUB_USER" -p "$DOCKERHUB_TOKEN"
+        echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USER" --password-stdin
     - name: Set the tagged version
       # for tag 'apache-iceberg-1.7.1', publish image 'apache/iceberg-rest-fixture:1.7.1'
       if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
