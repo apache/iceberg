@@ -18,27 +18,26 @@
  */
 package org.apache.iceberg;
 
-/** Content type stored in a file. */
-public enum FileContent {
-  DATA(0),
-  POSITION_DELETES(1),
-  EQUALITY_DELETES(2),
-  DATA_MANIFEST(3),
-  DELETE_MANIFEST(4);
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-  private static final FileContent[] VALUES = FileContent.values();
+import org.junit.jupiter.api.Test;
 
-  private final int id;
+class TestFileContent {
 
-  FileContent(int id) {
-    this.id = id;
+  @Test
+  void fromContentTypeId() {
+    for (FileContent content : FileContent.values()) {
+      assertThat(FileContent.fromContentTypeId(content.id())).isEqualTo(content);
+    }
   }
 
-  public int id() {
-    return id;
-  }
+  @Test
+  void fromContentTypeIdInvalid() {
+    assertThatThrownBy(() -> FileContent.fromContentTypeId(-1))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
 
-  public static FileContent fromContentTypeId(int id) {
-    return VALUES[id];
+    assertThatThrownBy(() -> FileContent.fromContentTypeId(FileContent.values().length))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 }
