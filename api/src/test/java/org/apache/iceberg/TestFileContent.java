@@ -35,9 +35,11 @@ class TestFileContent {
   @Test
   void fromContentTypeIdInvalid() {
     assertThatThrownBy(() -> FileContent.fromContentTypeId(-1))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("-1");
 
     assertThatThrownBy(() -> FileContent.fromContentTypeId(FileContent.values().length))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining(String.valueOf(FileContent.values().length));
   }
 }
