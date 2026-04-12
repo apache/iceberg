@@ -35,7 +35,6 @@ import org.apache.spark.sql.types.StructType;
 
 public abstract class SparkContentFile<F> implements ContentFile<F> {
 
-
   private final int fileContentPosition;
   private final int filePathPosition;
   private final int fileFormatPosition;
