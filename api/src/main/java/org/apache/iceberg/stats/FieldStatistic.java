@@ -29,8 +29,8 @@ public enum FieldStatistic {
   VALUE_COUNT(1, "value_count"),
   NULL_VALUE_COUNT(2, "null_value_count"),
   NAN_VALUE_COUNT(3, "nan_value_count"),
-  AVG_VALUE_SIZE(4, "avg_value_size"),
-  MAX_VALUE_SIZE(5, "max_value_size"),
+  AVG_VALUE_SIZE(4, "avg_value_size_in_bytes"),
+  MAX_VALUE_SIZE(5, "max_value_size_in_bytes"),
   LOWER_BOUND(6, "lower_bound"),
   UPPER_BOUND(7, "upper_bound"),
   EXACT_BOUNDS(8, "exact_bounds");
@@ -125,13 +125,13 @@ public enum FieldStatistic {
               baseFieldId + AVG_VALUE_SIZE.offset(),
               AVG_VALUE_SIZE.fieldName(),
               Types.IntegerType.get(),
-              "Avg value size of variable-length types (String, Binary)"));
+              "Avg value size in bytes of variable-length types (String, Binary)"));
       fields.add(
           optional(
               baseFieldId + MAX_VALUE_SIZE.offset(),
               MAX_VALUE_SIZE.fieldName(),
               Types.IntegerType.get(),
-              "Max value size of variable-length types (String, Binary)"));
+              "Max value size in bytes of variable-length types (String, Binary)"));
     }
 
     fields.add(

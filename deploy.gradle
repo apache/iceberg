@@ -80,7 +80,7 @@ subprojects {
             if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
               from components.java
             } else {
-              from components.shadow
+              project.shadow.component(it)
             }
 
             artifact sourceJar
