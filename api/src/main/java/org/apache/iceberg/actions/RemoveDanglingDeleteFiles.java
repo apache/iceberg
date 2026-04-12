@@ -27,6 +27,17 @@ import org.apache.iceberg.DeleteFile;
 public interface RemoveDanglingDeleteFiles
     extends Action<RemoveDanglingDeleteFiles, RemoveDanglingDeleteFiles.Result> {
 
+  /**
+   * Set the branch to remove dangling delete files from.
+   *
+   * @param branch the branch name
+   * @return this for method chaining
+   */
+  default RemoveDanglingDeleteFiles toBranch(String branch) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement toBranch(String)");
+  }
+
   /** An action that remove dangling deletes. */
   interface Result {
     /** Return removed deletes. */

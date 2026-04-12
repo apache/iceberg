@@ -454,6 +454,93 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   }
 
   @TestTemplate
+  public void testBranchSupport() {
+    setupPartitionedTable();
+
+    // Add data files on main
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // Create a branch from the current snapshot
+    table.manageSnapshots().createBranch("test-branch").commit();
+
+    // Add delete files on the branch (they are dangling because seq number is after data)
+    DeleteFile fileADeletes = fileADeletes();
+    table.newRowDelta().toBranch("test-branch").addDeletes(fileADeletes).commit();
+
+    // Add more data on the branch so that the delete has a lesser seq number
+    table.newAppend().toBranch("test-branch").appendFile(FILE_A2).commit();
+
+    // Run the action targeting the branch
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(table).toBranch("test-branch").execute();
+
+    // The delete file should not be dangling because its seq number equals the data's
+    // and there are data files in partition A
+    assertThat(result.removedDeleteFiles()).as("No dangling deletes expected on branch").isEmpty();
+  }
+
+  @TestTemplate
+  public void testBranchWithDanglingDeletes() {
+    setupPartitionedTable();
+
+    // Add data files on main in partition B only
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // Create a branch
+    table.manageSnapshots().createBranch("test-branch").commit();
+
+    // Add delete files on the branch in partition A (no data in A -> dangling)
+    DeleteFile fileADeletes = fileADeletes();
+    DeleteFile fileAEqDeletes = FILE_A_EQ_DELETES;
+    table
+        .newRowDelta()
+        .toBranch("test-branch")
+        .addDeletes(fileADeletes)
+        .addDeletes(fileAEqDeletes)
+        .commit();
+
+    // Run the action targeting the branch
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(table).toBranch("test-branch").execute();
+
+    Set<CharSequence> removedDeleteFiles =
+        StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::location)
+            .collect(Collectors.toSet());
+    assertThat(removedDeleteFiles)
+        .as("Delete files in partition A should be removed as dangling")
+        .hasSize(2)
+        .containsExactlyInAnyOrder(fileADeletes.location(), fileAEqDeletes.location());
+  }
+
+  @TestTemplate
+  public void testBranchDoesNotAffectMain() {
+    setupPartitionedTable();
+
+    // Add data and deletes on main
+    table.newAppend().appendFile(FILE_B).commit();
+    DeleteFile fileADeletes = fileADeletes();
+    table.newRowDelta().addDeletes(fileADeletes).commit();
+
+    // Create a branch
+    table.manageSnapshots().createBranch("test-branch").commit();
+
+    // Run the action on the branch only
+    SparkActions.get().removeDanglingDeleteFiles(table).toBranch("test-branch").execute();
+
+    // Main branch should still have the delete file
+    RemoveDanglingDeleteFiles.Result mainResult =
+        SparkActions.get().removeDanglingDeleteFiles(table).execute();
+    Set<CharSequence> mainRemoved =
+        StreamSupport.stream(mainResult.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::location)
+            .collect(Collectors.toSet());
+    assertThat(mainRemoved)
+        .as("Main branch should also have dangling delete removed")
+        .contains(fileADeletes.location());
+  }
+
+  @TestTemplate
   public void testPartitionedDeletesWithDanglingDvs() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     setupPartitionedTable();

@@ -23,6 +23,7 @@ import static org.apache.spark.sql.functions.min;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -30,13 +31,19 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ImmutableRemoveDanglingDeleteFiles;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDeleteFile;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -64,6 +71,7 @@ class RemoveDanglingDeletesSparkAction
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeletesSparkAction.class);
   private final Table table;
+  private String branch = SnapshotRef.MAIN_BRANCH;
 
   protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -76,7 +84,21 @@ class RemoveDanglingDeletesSparkAction
   }
 
   @Override
+  public RemoveDanglingDeletesSparkAction toBranch(String targetBranch) {
+    Preconditions.checkArgument(targetBranch != null, "Invalid branch name: null");
+    this.branch = targetBranch;
+    return this;
+  }
+
+  @Override
   public Result execute() {
+    Snapshot branchSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    if (branchSnapshot == null) {
+      return ImmutableRemoveDanglingDeleteFiles.Result.builder()
+          .removedDeleteFiles(Collections.emptyList())
+          .build();
+    }
+
     if (table.specs().size() == 1 && table.spec().isUnpartitioned()) {
       // ManifestFilterManager already performs this table-wide delete on each commit
       return ImmutableRemoveDanglingDeleteFiles.Result.builder()
@@ -91,6 +113,8 @@ class RemoveDanglingDeletesSparkAction
 
   Result doExecute() {
     RewriteFiles rewriteFiles = table.newRewrite();
+    rewriteFiles.toBranch(branch);
+
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
     danglingDeletes.addAll(findDanglingDeletes());
     danglingDeletes.addAll(findDanglingDvs());
@@ -109,6 +133,11 @@ class RemoveDanglingDeletesSparkAction
         .build();
   }
 
+  private Map<String, String> snapshotOptions() {
+    Snapshot branchSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    return ImmutableMap.of("snapshot-id", String.valueOf(branchSnapshot.snapshotId()));
+  }
+
   /**
    * Dangling delete files can be identified with following steps
    *
@@ -123,8 +152,10 @@ class RemoveDanglingDeletesSparkAction
    * </ol>
    */
   private List<DeleteFile> findDanglingDeletes() {
+    Map<String, String> options = snapshotOptions();
+
     Dataset<Row> minSequenceNumberByPartition =
-        loadMetadataTable(table, MetadataTableType.ENTRIES)
+        SparkTableUtil.loadMetadataTable(spark(), table, MetadataTableType.ENTRIES, options)
             // find live data files
             .filter("data_file.content == 0 AND status < 2")
             .selectExpr(
@@ -136,7 +167,7 @@ class RemoveDanglingDeletesSparkAction
             .toDF("grouped_partition", "grouped_spec_id", "min_data_sequence_number");
 
     Dataset<Row> deleteEntries =
-        loadMetadataTable(table, MetadataTableType.ENTRIES)
+        SparkTableUtil.loadMetadataTable(spark(), table, MetadataTableType.ENTRIES, options)
             // find live delete files
             .filter("data_file.content != 0 AND status < 2");
 
@@ -176,10 +207,13 @@ class RemoveDanglingDeletesSparkAction
   }
 
   private List<DeleteFile> findDanglingDvs() {
+    Map<String, String> options = snapshotOptions();
+
     Dataset<Row> dvs =
-        loadMetadataTable(table, MetadataTableType.DELETE_FILES)
+        SparkTableUtil.loadMetadataTable(spark(), table, MetadataTableType.DELETE_FILES, options)
             .where(col("file_format").equalTo(FileFormat.PUFFIN.name()));
-    Dataset<Row> dataFiles = loadMetadataTable(table, MetadataTableType.DATA_FILES);
+    Dataset<Row> dataFiles =
+        SparkTableUtil.loadMetadataTable(spark(), table, MetadataTableType.DATA_FILES, options);
 
     // a DV not pointing to a valid data file path is implicitly a dangling delete
     List<Row> danglingDvs =
