@@ -318,6 +318,26 @@ public class TestParquet {
     }
   }
 
+  @Test
+  public void testAvroWriterRejectsVariantType() {
+    MessageType schema =
+        org.apache.parquet.schema.Types.buildMessage()
+            .optional(PrimitiveTypeName.INT32)
+            .named("id")
+            .optionalGroup()
+            .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+            .required(PrimitiveTypeName.BINARY)
+            .named("metadata")
+            .required(PrimitiveTypeName.BINARY)
+            .named("value")
+            .named("v")
+            .named("table");
+
+    assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Avro writer does not support variant types");
+  }
+
   private Pair<File, Long> generateFile(
       Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
       int desiredRecordCount,
@@ -357,25 +377,5 @@ public class TestParquet {
             createWriterFunc,
             records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
-  }
-
-  @Test
-  public void testAvroWriterRejectsVariantType() {
-    MessageType schema =
-        org.apache.parquet.schema.Types.buildMessage()
-            .optional(PrimitiveTypeName.INT32)
-            .named("id")
-            .optionalGroup()
-            .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
-            .required(PrimitiveTypeName.BINARY)
-            .named("metadata")
-            .required(PrimitiveTypeName.BINARY)
-            .named("value")
-            .named("v")
-            .named("table");
-
-    assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Avro writer does not support variant types");
   }
 }
