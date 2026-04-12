@@ -316,7 +316,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
-        this.content = value != null ? FileContent.fromContentTypeId((Integer) value) : FileContent.DATA;
+        this.content =
+            value != null ? FileContent.fromContentTypeId((Integer) value) : FileContent.DATA;
         return;
       case 1:
         // always coerce to String for Serializable
