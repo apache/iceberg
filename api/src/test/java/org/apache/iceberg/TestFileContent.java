@@ -21,9 +21,10 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestFileContent {
 
@@ -34,8 +35,12 @@ class TestFileContent {
     }
   }
 
+  static IntStream invalidContentTypeIds() {
+    return IntStream.of(-1, FileContent.values().length);
+  }
+
   @ParameterizedTest
-  @ValueSource(ints = {-1, 5, 100})
+  @MethodSource("invalidContentTypeIds")
   void fromContentTypeIdInvalid(int id) {
     assertThatThrownBy(() -> FileContent.fromContentTypeId(id))
         .isInstanceOf(IllegalArgumentException.class)
