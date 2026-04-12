@@ -41,8 +41,7 @@ public enum FileContent {
   }
 
   public static FileContent fromContentTypeId(int id) {
-    Preconditions.checkArgument(
-        id >= 0 && id < VALUES.length, "Invalid content type id: %s", id);
+    Preconditions.checkArgument(id >= 0 && id < VALUES.length, "Invalid content type id: %s", id);
     return VALUES[id];
   }
 }
