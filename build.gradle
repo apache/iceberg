@@ -334,6 +334,8 @@ project(':iceberg-api') {
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.awaitility
+    testImplementation libs.junit.pioneer
+
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo

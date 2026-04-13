@@ -21,8 +21,8 @@ package org.apache.iceberg.catalog;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Locale;
 import org.junit.jupiter.api.Test;
+import org.junitpioneer.jupiter.DefaultLocale;
 
 public class TestTableIdentifier {
 
@@ -54,15 +54,10 @@ public class TestTableIdentifier {
   }
 
   @Test
+  @DefaultLocale(language = "tr")
   public void testToLowerCaseIsLocaleIndependent() {
-    Locale defaultLocale = Locale.getDefault();
-    try {
-      Locale.setDefault(Locale.forLanguageTag("tr-TR"));
-      assertThat(TableIdentifier.of("information", "db", "tbl"))
-          .isEqualTo(TableIdentifier.of("INFORMATION", "DB", "TBL").toLowerCase());
-    } finally {
-      Locale.setDefault(defaultLocale);
-    }
+    assertThat(TableIdentifier.of("information", "db", "tbl"))
+        .isEqualTo(TableIdentifier.of("INFORMATION", "DB", "TBL").toLowerCase());
   }
 
   @Test
