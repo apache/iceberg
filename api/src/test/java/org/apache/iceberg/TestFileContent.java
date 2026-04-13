@@ -22,17 +22,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.stream.IntStream;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class TestFileContent {
 
-  @Test
-  void fromContentTypeId() {
-    for (FileContent content : FileContent.values()) {
-      assertThat(FileContent.fromContentTypeId(content.id())).isEqualTo(content);
-    }
+  @ParameterizedTest
+  @EnumSource(FileContent.class)
+  void fromContentTypeId(FileContent content) {
+    assertThat(FileContent.fromContentTypeId(content.id())).isEqualTo(content);
   }
 
   static IntStream invalidContentTypeIds() {
@@ -44,6 +43,6 @@ class TestFileContent {
   void fromContentTypeIdInvalid(int id) {
     assertThatThrownBy(() -> FileContent.fromContentTypeId(id))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(String.valueOf(id));
+        .hasMessage("Invalid content type id: %d", id);
   }
 }
