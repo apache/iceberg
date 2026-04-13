@@ -190,7 +190,7 @@ class ManifestInfoStruct implements ManifestInfo, StructLike, Serializable {
         this.dvCardinality = (Long) value;
         break;
       default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+        // ignore the object, it must be from a newer version of the format
     }
   }
 

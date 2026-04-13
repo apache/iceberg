@@ -189,7 +189,7 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
         this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
       default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+        // ignore the object, it must be from a newer version of the format
     }
   }
 

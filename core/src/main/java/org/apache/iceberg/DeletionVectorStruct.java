@@ -103,7 +103,7 @@ class DeletionVectorStruct implements DeletionVector, StructLike, Serializable {
         this.cardinality = (Long) value;
         break;
       default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+        // ignore the object, it must be from a newer version of the format
     }
   }
 
