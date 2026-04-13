@@ -84,6 +84,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
 
+    this.manifestContext = toCopy.manifestContext;
+    this.manifestPos = toCopy.manifestPos;
+
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     if (this.tracking != null && this.manifestContext != null) {
       this.tracking.setManifestContext(this.manifestContext);
@@ -112,9 +115,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         toCopy.equalityIds != null
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
-
-    this.manifestContext = toCopy.manifestContext;
-    this.manifestPos = toCopy.manifestPos;
   }
 
   @Override

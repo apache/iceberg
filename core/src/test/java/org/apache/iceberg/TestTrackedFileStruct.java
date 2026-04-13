@@ -172,6 +172,47 @@ class TestTrackedFileStruct {
   }
 
   @Test
+  void copyPreservesManifestContextInheritance() {
+    TrackedFileStruct file = new TrackedFileStruct();
+    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    tracking.set(0, EntryStatus.ADDED.id());
+    // leave snapshotId and sequenceNumber null so they inherit from manifest context
+
+    file.set(0, tracking);
+    file.set(1, FileContent.DATA.id());
+    file.set(2, "s3://bucket/data/file.parquet");
+    file.set(3, "parquet");
+    file.set(4, 100L);
+    file.set(5, 1024L);
+
+    TrackedFileStruct manifest = new TrackedFileStruct();
+    TrackingStruct manifestTracking = new TrackingStruct(Types.StructType.of());
+    manifestTracking.set(0, EntryStatus.ADDED.id());
+    manifestTracking.set(1, 42L);
+    manifestTracking.set(2, 10L);
+    manifest.set(0, manifestTracking);
+    manifest.set(1, FileContent.DATA_MANIFEST.id());
+    manifest.set(2, "s3://bucket/manifest.avro");
+    manifest.set(3, "avro");
+    manifest.set(4, 0L);
+    manifest.set(5, 0L);
+
+    file.setManifestContext(manifest);
+
+    // verify inheritance works before copy
+    assertThat(file.tracking().snapshotId()).isEqualTo(42L);
+    assertThat(file.tracking().dataSequenceNumber()).isEqualTo(10L);
+
+    TrackedFile copy = file.copy();
+
+    // inherited values must survive the copy
+    assertThat(copy.tracking().snapshotId()).isEqualTo(42L);
+    assertThat(copy.tracking().dataSequenceNumber()).isEqualTo(10L);
+    assertThat(copy.tracking().fileSequenceNumber()).isEqualTo(10L);
+    assertThat(copy.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+  }
+
+  @Test
   void copyWithoutStatsDropsStats() {
     TrackedFileStruct file = createTrackedFileWithStats();
     assertThat(file.contentStats()).isNotNull();
