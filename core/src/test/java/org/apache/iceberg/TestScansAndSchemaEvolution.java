@@ -248,6 +248,36 @@ public class TestScansAndSchemaEvolution {
   }
 
   @TestTemplate
+  public void testTimeTravelAfterAddingPartitionFieldOnNewColumn() throws IOException {
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
+
+    DataFile fileOne = createDataFile("one");
+    DataFile fileTwo = createDataFile("two");
+
+    table.newAppend().appendFile(fileOne).appendFile(fileTwo).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    // Add a new column that did not exist at firstSnapshotId
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+
+    // Add a partition field on the newly added column, creating a new spec that references a
+    // source column that does not exist in the schema of firstSnapshotId
+    table.updateSpec().addField("extra").commit();
+
+    // Create a new snapshot so the current snapshot differs from firstSnapshotId and the scan
+    // actually exercises the time-travel path that re-binds specs to the snapshot schema
+    DataFile fileThree = createDataFile("three", table.schema(), table.spec());
+    table.newAppend().appendFile(fileThree).commit();
+
+    // Time-travel to the first snapshot; planning must succeed even though one of the historical
+    // specs references a column that is missing from the time-travel schema
+    List<FileScanTask> tasks =
+        Lists.newArrayList(table.newScan().useSnapshot(firstSnapshotId).planFiles());
+
+    assertThat(tasks).hasSize(2);
+  }
+
+  @TestTemplate
   public void testAddColumnWithDefaultValueAndQuery() throws IOException {
     assumeThat(V3_AND_ABOVE).as("Default values require v3+").contains(formatVersion);
     Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);

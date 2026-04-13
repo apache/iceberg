@@ -95,7 +95,11 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     ImmutableMap.Builder<Integer, PartitionSpec> newSpecs =
         ImmutableMap.builderWithExpectedSize(specs.size());
     for (Map.Entry<Integer, PartitionSpec> entry : specs.entrySet()) {
-      newSpecs.put(entry.getKey(), entry.getValue().toUnbound().bind(snapshotSchema));
+      // Allow missing source fields: historical specs may reference columns that did not yet
+      // exist in the time-travel snapshot's schema. Files written with those specs cannot be
+      // present in the target snapshot, so the spec is not used during planning. Binding must
+      // still succeed so the specs-by-id map can be built for the specs that are used.
+      newSpecs.put(entry.getKey(), entry.getValue().toUnbound().bind(snapshotSchema, true));
     }
 
     return newSpecs.build();
