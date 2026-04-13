@@ -38,8 +38,6 @@ import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ManifestEvaluator;
-import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -838,23 +836,31 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> newDeleteManifests = history.first();
     Set<Long> newSnapshotIds = history.second();
 
+    // Scan every concurrent delete manifest that has added files. Pruning by
+    // conflictDetectionFilter is unsafe here: a commit may write DVs in partitions that are not
+    // covered by the caller-supplied filter (the filter is typically derived from the query's
+    // WHERE clause and only describes the user's scope of interest, not every partition the
+    // commit is touching). Skipping a manifest because the filter doesn't overlap it can miss
+    // a concurrent DV for a data file we are also DV-ing, which would allow two DVs to reference
+    // the same data file and poison every subsequent scan with "Can't index multiple DVs".
     Iterable<ManifestFile> matchingManifests =
-        Iterables.filter(
-            filterManifestsByPartition(base, conflictDetectionFilter, newDeleteManifests),
-            ManifestFile::hasAddedFiles);
+        Iterables.filter(newDeleteManifests, ManifestFile::hasAddedFiles);
 
     Tasks.foreach(matchingManifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(workerPool())
-        .run(manifest -> validateAddedDVs(manifest, conflictDetectionFilter, newSnapshotIds));
+        .run(manifest -> validateAddedDVs(manifest, newSnapshotIds));
   }
 
-  private void validateAddedDVs(
-      ManifestFile manifest, Expression conflictDetectionFilter, Set<Long> newSnapshotIds) {
+  private void validateAddedDVs(ManifestFile manifest, Set<Long> newSnapshotIds) {
+    // Read every live entry in the manifest. DV conflicts are detected by referencedDataFile
+    // identity, not by any data-level predicate. Filtering entries with the caller-supplied
+    // conflictDetectionFilter can drop a concurrent DV whose partition is outside the filter
+    // even though it targets a data file we are also DV-ing, which allows two DVs to land on
+    // the same data file and breaks subsequent reads with "Can't index multiple DVs".
     try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
         ManifestFiles.readDeleteManifest(manifest, ops().io(), ops().current().specsById())
-            .filterRows(conflictDetectionFilter)
             .caseSensitive(caseSensitive)
             .liveEntries()) {
 
@@ -871,38 +877,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-  }
-
-  private Iterable<ManifestFile> filterManifestsByPartition(
-      TableMetadata base, Expression conflictDetectionFilter, List<ManifestFile> manifests) {
-    if (conflictDetectionFilter == null || conflictDetectionFilter == Expressions.alwaysTrue()) {
-      return manifests;
-    }
-
-    // if any concurrent manifest was written with a different partition spec, skip pruning
-    // to avoid incorrectly excluding manifests when a spec change happened during validation
-    int defaultSpecId = base.defaultSpecId();
-    if (manifests.stream().anyMatch(m -> m.partitionSpecId() != defaultSpecId)) {
-      return manifests;
-    }
-
-    Map<Integer, PartitionSpec> specsById = base.specsById();
-    Map<Integer, ManifestEvaluator> evaluators = Maps.newHashMap();
-    return Iterables.filter(
-        manifests,
-        manifest -> {
-          ManifestEvaluator evaluator =
-              evaluators.computeIfAbsent(
-                  manifest.partitionSpecId(),
-                  specId -> {
-                    PartitionSpec spec = specsById.get(specId);
-                    Expression partitionFilter =
-                        Projections.inclusive(spec, caseSensitive).project(conflictDetectionFilter);
-                    return ManifestEvaluator.forPartitionFilter(
-                        partitionFilter, spec, caseSensitive);
-                  });
-          return evaluator.eval(manifest);
-        });
   }
 
   // returns newly added manifests and snapshot IDs between the starting and parent snapshots
