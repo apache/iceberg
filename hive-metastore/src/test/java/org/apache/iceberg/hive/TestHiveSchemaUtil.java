@@ -209,7 +209,7 @@ public class TestHiveSchemaUtil {
   public void testVariantTypeConvertToHiveSchema() {
     Schema schema = new Schema(optional(0, "variant_field", Types.VariantType.get()));
     List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
-    assertThat(hiveSchema).containsExactly(new FieldSchema("variant_field", "binary", null));
+    assertThat(hiveSchema).containsExactly(new FieldSchema("variant_field", "unknown", null));
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {

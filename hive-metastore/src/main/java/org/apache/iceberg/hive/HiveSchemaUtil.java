@@ -166,8 +166,9 @@ public final class HiveSchemaUtil {
         return "timestamp";
       case FIXED:
       case BINARY:
-      case VARIANT:
         return "binary";
+      case VARIANT:
+        return "unknown";
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());

@@ -378,6 +378,10 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testSnapshotWithVariant() throws IOException {
+    assumeThat(catalogName)
+        .as("Variant type requires Hive 4 which is not yet supported")
+        .isNotEqualTo("testhive")
+        .isNotEqualTo("spark_catalog");
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data variant) USING parquet LOCATION '%s'",
@@ -398,6 +402,10 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testSnapshotPartitionedWithVariant() throws IOException {
+    assumeThat(catalogName)
+        .as("Variant type requires Hive 4 which is not yet supported")
+        .isNotEqualTo("testhive")
+        .isNotEqualTo("spark_catalog");
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data variant) USING parquet PARTITIONED BY (id) LOCATION '%s'",
