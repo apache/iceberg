@@ -96,6 +96,9 @@ public final class TaskCheckHelper {
     assertThat(actual.splitOffsets())
         .as("Should match the serialized record offsets")
         .isEqualTo(expected.splitOffsets());
+    assertThat(actual.contentStats())
+        .as("Should match the serialized content stats")
+        .isEqualTo(expected.contentStats());
   }
 
   private static List<FileScanTask> getFileScanTasksInFilePathOrder(

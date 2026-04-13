@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -52,7 +53,7 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   }
 
   boolean containsNan(DataFile file, int fieldId) {
-    Long nanCount = safeGet(file.nanValueCounts(), fieldId);
+    Long nanCount = StatsUtil.nanValueCount(file, fieldId);
     return nanCount != null && nanCount > 0;
   }
 

@@ -21,16 +21,23 @@ package org.apache.iceberg.spark;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.BaseFieldStats;
+import org.apache.iceberg.stats.ContentStats;
+import org.apache.iceberg.stats.FieldStatistic;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 public abstract class SparkContentFile<F> implements ContentFile<F> {
@@ -57,6 +64,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
   private final int referencedDataFilePosition;
   private final int contentOffsetPosition;
   private final int contentSizePosition;
+  private final int contentStatsPosition;
   private final Type lowerBoundsType;
   private final Type upperBoundsType;
   private final Type keyMetadataType;
@@ -109,6 +117,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     this.referencedDataFilePosition = positions.get(DataFile.REFERENCED_DATA_FILE.name());
     this.contentOffsetPosition = positions.get(DataFile.CONTENT_OFFSET.name());
     this.contentSizePosition = positions.get(DataFile.CONTENT_SIZE.name());
+    this.contentStatsPosition = positions.get(DataFile.CONTENT_STATS.name());
   }
 
   public F wrap(Row row) {
@@ -258,6 +267,68 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     return wrapped.getLong(contentSizePosition);
   }
 
+  @Override
+  public ContentStats contentStats() {
+    if (wrapped.isNullAt(contentStatsPosition)) {
+      return null;
+    }
+
+    Row struct = wrapped.getStruct(contentStatsPosition);
+    if (struct.size() == 0) {
+      return BaseContentStats.builder().withTableSchema(new Schema()).build();
+    }
+
+    Schema schema = SparkSchemaUtil.convert(struct.schema());
+    BaseContentStats.Builder builder = BaseContentStats.builder().withTableSchema(schema);
+
+    for (int i = 0; i < struct.length(); i++) {
+      StructField field = struct.schema().fields()[i];
+      Row stat = struct.getStruct(i);
+      BaseFieldStats.Builder<Object> fieldStats =
+          BaseFieldStats.builder().fieldId(Integer.parseInt(field.name()));
+
+      fieldPosition(stat, FieldStatistic.VALUE_COUNT.fieldName())
+          .ifPresent(pos -> fieldStats.valueCount((Long) stat.get(pos)));
+      fieldPosition(stat, FieldStatistic.NULL_VALUE_COUNT.fieldName())
+          .ifPresent(pos -> fieldStats.nullValueCount((Long) stat.get(pos)));
+      fieldPosition(stat, FieldStatistic.NAN_VALUE_COUNT.fieldName())
+          .ifPresent(pos -> fieldStats.nanValueCount((Long) stat.get(pos)));
+      fieldPosition(stat, FieldStatistic.AVG_VALUE_SIZE.fieldName())
+          .ifPresent(pos -> fieldStats.avgValueSize((Integer) stat.get(pos)));
+      fieldPosition(stat, FieldStatistic.MAX_VALUE_SIZE.fieldName())
+          .ifPresent(pos -> fieldStats.maxValueSize((Integer) stat.get(pos)));
+      fieldPosition(stat, FieldStatistic.LOWER_BOUND.fieldName())
+          .ifPresent(
+              pos -> {
+                Type type =
+                    SparkSchemaUtil.convert(
+                        ((StructType) field.dataType()).fields()[pos].dataType());
+                fieldStats.lowerBound(convert(type, stat.get(pos))).type(type);
+              });
+      fieldPosition(stat, FieldStatistic.UPPER_BOUND.fieldName())
+          .ifPresent(
+              pos -> {
+                Type type =
+                    SparkSchemaUtil.convert(
+                        ((StructType) field.dataType()).fields()[pos].dataType());
+                fieldStats.upperBound(convert(type, stat.get(pos))).type(type);
+              });
+      fieldPosition(stat, FieldStatistic.EXACT_BOUNDS.fieldName())
+          .ifPresent(pos -> fieldStats.hasExactBounds((Boolean) stat.get(pos)));
+
+      BaseFieldStats<Object> stats = fieldStats.build();
+      builder.withFieldStats(stats);
+    }
+
+    // FIXME: how to pass the table's schema properly so that stats schema for a DeleteFile is
+    // properly done?
+    // FIXME: run TestSparkDataFile, which currently fails because on a DeleteFile there are only
+    // metrics for a single field available, which isn't part of the normal table schema
+    // other tests fail because of the MetricsMode / config
+    BaseContentStats contentStats = builder.build();
+    return contentStats;
+  }
+
   private int fieldPosition(String name, StructType sparkType) {
     try {
       return sparkType.fieldIndex(name);
@@ -267,6 +338,14 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
         return -1;
       }
       throw e;
+    }
+  }
+
+  private OptionalInt fieldPosition(Row row, String name) {
+    try {
+      return OptionalInt.of(row.fieldIndex(name));
+    } catch (IllegalArgumentException e) {
+      return OptionalInt.empty();
     }
   }
 
