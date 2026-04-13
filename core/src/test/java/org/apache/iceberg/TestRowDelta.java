@@ -2249,6 +2249,61 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testConcurrentDVsMultiPartitionNarrowFilter() {
+    // Reproducer for a bug introduced by #15653 (79d4fc82c).
+    //
+    // MergingSnapshotProducer.validateAddedDVs() now prunes concurrent delete manifests by
+    // projecting conflictDetectionFilter onto each manifest's partition spec and dropping
+    // manifests whose partition range doesn't match. The filter is supplied by the caller
+    // (e.g. Spark derives it from the query's WHERE clause) and is not required to cover every
+    // partition the current commit writes DVs into.
+    //
+    // When a commit writes DVs across multiple partitions but supplies a filter that only names
+    // a subset of them, pruning can skip a manifest containing a concurrent DV for one of the
+    // un-filtered partitions. validateAddedDVs never sees that manifest, no conflict is raised,
+    // and the commit succeeds. The table ends up with two DVs referencing the same data file,
+    // which subsequently poisons every scan with "Can't index multiple DVs" in
+    // DeleteFileIndex.Builder.add().
+    //
+    // This test is expected to FAIL on current main: commit(writerA) returns normally instead of
+    // throwing "Found concurrently added DV".
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // Two data files in two different buckets
+    DataFile dataFileInBucket0 = newDataFile("data_bucket=0");
+    DataFile dataFileInBucket2 = newDataFile("data_bucket=2");
+    commit(
+        table, table.newRowDelta().addRows(dataFileInBucket0).addRows(dataFileInBucket2), branch);
+
+    Snapshot base = latestSnapshot(table, branch);
+
+    // Writer A adds DVs for files in BOTH bucket 0 and bucket 2, but supplies a conflict
+    // detection filter scoped to bucket 0 only, mimicking a MERGE whose WHERE clause names
+    // one partition while the matched rows span additional partitions.
+    DeleteFile writerA_dvBucket0 = newDeletes(dataFileInBucket0);
+    DeleteFile writerA_dvBucket2 = newDeletes(dataFileInBucket2);
+    RowDelta writerA =
+        table
+            .newRowDelta()
+            .addDeletes(writerA_dvBucket0)
+            .addDeletes(writerA_dvBucket2)
+            .validateFromSnapshot(base.snapshotId())
+            .validateNoConflictingDeleteFiles()
+            .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
+
+    // Writer B concurrently commits a DV for the bucket 2 file
+    DeleteFile writerB_dvBucket2 = newDeletes(dataFileInBucket2);
+    commit(table, table.newRowDelta().addDeletes(writerB_dvBucket2), branch);
+
+    // Writer A is adding a DV for the same data file that Writer B already committed a DV for.
+    // This must be detected as a conflict even though the conflict detection filter is scoped to
+    // a different partition than where the conflicting file lives.
+    assertThatThrownBy(() -> commit(table, writerA, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Found concurrently added DV for %s", dataFileInBucket2.location());
+  }
+
+  @TestTemplate
   public void testConcurrentDVsInSamePartitionWithFilter() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
