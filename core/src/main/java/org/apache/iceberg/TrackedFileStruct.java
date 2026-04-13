@@ -261,7 +261,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
@@ -272,7 +271,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         this.contentType = FILE_CONTENT_VALUES[(Integer) value];
         break;
       case 2:
-        this.location = (String) value;
+        // always coerce to String for Serializable
+        this.location = value.toString();
         break;
       case 3:
         this.fileFormat = FileFormat.fromString(value.toString());
@@ -311,7 +311,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         this.manifestPos = (long) value;
         break;
       default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+        // ignore the object, it must be from a newer version of the format
     }
   }
 
