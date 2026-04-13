@@ -337,7 +337,7 @@ public class SparkTableUtil {
         serde.nonEmpty() || table.provider().nonEmpty(), "Partition format should be defined");
 
     String uri = Util.uriToString(locationUri.get());
-    String format = serde.nonEmpty() ? serde.get() : table.provider().get();
+    String format = resolveFileFormat(table);
 
     Map<String, String> partitionSpec =
         JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
@@ -683,11 +683,7 @@ public class SparkTableUtil {
       ExecutorService service) {
     try {
       CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
-      Option<String> format =
-          sourceTable.storage().serde().nonEmpty()
-              ? sourceTable.storage().serde()
-              : sourceTable.provider();
-      Preconditions.checkArgument(format.nonEmpty(), "Could not determine table format");
+      String format = resolveFileFormat(sourceTable);
 
       Map<String, String> partition = Collections.emptyMap();
       PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -701,7 +697,7 @@ public class SparkTableUtil {
           TableMigrationUtil.listPartition(
               partition,
               Util.uriToString(sourceTable.location()),
-              format.get(),
+              format,
               spec,
               conf,
               metricsConfig,
@@ -1049,6 +1045,22 @@ public class SparkTableUtil {
         table.properties(),
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
         Boolean.parseBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+  }
+
+  private static String resolveFileFormat(CatalogTable table) {
+    Option<String> serde = table.storage().serde();
+    if (serde.nonEmpty()) {
+      String serdeStr = serde.get().toLowerCase(Locale.ROOT);
+      if (serdeStr.contains("parquet") || serdeStr.contains("avro") || serdeStr.contains("orc")) {
+        return serde.get();
+      }
+    }
+
+    Preconditions.checkArgument(
+        table.provider().nonEmpty(),
+        "Could not determine table format from serde %s and no provider set",
+        serde.getOrElse(() -> "unknown"));
+    return table.provider().get();
   }
 
   /** Class representing a table partition. */
