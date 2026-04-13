@@ -686,6 +686,13 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
+###### File-level column statistics
+
+Per-column metrics used for filtering and planning are stored at **file** granularity on the `data_file` struct.
+In v3, implementations use maps such as `value_counts`, `lower_bounds`, and `upper_bounds`, keyed by column id, with bounds serialized as binary (see note 1 under [Data File Fields](#data-file-fields)).
+Iceberg v4 adds the optional `content_stats` struct, which holds the same *logical* metrics for primitive leaf columns using nested structs and typed bounds (see [Content Stats](#content-stats)).
+The subsections below define shared bound serialization for variant, geometry, and geography, and then define v4 `content_stats`; the same bound rules apply whether values are read from v3 maps or from v4 field stats.
+
 ###### Bounds for Variant, Geometry, and Geography
 
 For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
@@ -714,49 +721,67 @@ When calculating upper and lower bounds for `geometry` and `geography`, null or 
 
 Iceberg v4 introduces content stats which represent stats in a `struct<struct<...>>`. The statistics for fields are tracked inside a nested struct of value counts and bounds (described in the next section). Each field-level statistics struct is a field of the `content_stats` struct, which holds all statistics for table fields.
 
-###### Field Stats Types
-
-Each stats struct holds stats for a field of the table. It may contain the following metrics:
-
-| required/optional | Offset from field ID of base struct | Name                    | Type                | Description                                                                                                                                                                                                                                             |
-|-------------------|-------------------------------------|-------------------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| _optional_        | 1                                   | value_count             | `long`              | Number of values in the column (including null and NaN values)                                                                                                                                                                                          |
-| _optional_        | 2                                   | null_value_count        | `long`              | Number of null values in the column. Only included for optional columns                                                                                                                                                                                 |
-| _optional_        | 3                                   | nan_value_count         | `long`              | Number of NaN values in the column. Only included for float/double types                                                                                                                                                                                |
-| _optional_        | 4                                   | avg_value_size_in_bytes | `int`               | The avg stored (compressed, encoded) value size in bytes for variable-length types (string/binary)                                                                                                                                                      |
-| _optional_        | 5                                   | max_value_size_in_bytes | `int`               | The max stored (compressed, encoded) value size in bytes for variable-length types (string/binary)                                                                                                                                                      |
-| _optional_        | 6                                   | lower_bound             | type of table field | Lower bound in the column serialized as the type of the column itself. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]                                                                             |
-| _optional_        | 7                                   | upper_bound             | type of table field | Upper bound in the column serialized as the type of the column itself. Each value must be greater than or equal to all non-null, non-NaN values in the column for the file [2]                                                                          |
-| _optional_        | 8                                   | exact_bounds            | `boolean`           | Whether the `upper_bound` / `lower_bound` is exact or not. Defaults to true. Types such as string/binary can't have exact bounds. Additionally, if a DV or an equality delete matches a given data file, then `exact_bounds` must be treated as `false` |
-
-####### ID Assignment for Stats fields
+###### ID assignment for stats fields
 
 ID assignment follows a deterministic transform that maps from the **table ID space** to the **metadata ID space**. For a given field ID from the **table ID space** each nested stats struct gets an ID assigned from the **metadata ID space**.
-Offsets defined in the [field stats types section](#field-stats-types) are then applied to the stats ID of the enclosing stats struct to calculate IDs for each individual field stats type.
-The calculation is: `stats_space_field_id_start_for_data_fields + (num_supported_stats_per_column * table_field_id`)
+The offset defined in the [field stats types section](#field-stats-types) is added to the stats ID of the enclosing stats struct to calculate IDs for each individual field stats type.
 
-If the table field ID is a [reserved field ID](#reserved-field-ids) then a slightly adjusted calculation is used: `stats_space_field_id_start_for_metadata_fields + (num_supported_stats_per_column * (num_reserved_field_ids - (Integer.MAX_VALUE - metadata_field_id))`)
+**Data columns (normal table field ids)**
 
-The individual variables are defined as following:
+Let `table_field_id` be the column's id in the table schema. Allocate a contiguous block of **200** ids per column (`num_supported_stats_per_column = 200`). The stats struct for that column starts at:
 
-* `stats_space_field_id_start_for_data_fields = 10_000`
-* `stats_space_field_id_start_for_metadata_fields = 2_147_000_000`
-* `num_supported_stats_per_column = 200`, thus supporting a range of **200** potential stats fields for a single table field
-* `num_reserved_field_ids = 200` as defined in [reserved field ID](#reserved-field-ids)
+`stats_struct_id = 10_000 + (200 * table_field_id)`
 
-Note that stats field IDs are only calculated for an assigned field ID:
+Each field statistic listed under [Field stats types](#field-stats-types) has a fixed **offset** within that block. The field id for an individual field statistic is:
 
-* that is defined in the table field ID space
-* that is defined in the [reserved field ID](#reserved-field-ids) space
+`stats_field_id = stats_struct_id + offset`
 
-The stats ID range is defined from `10_000` to `200_010_000`, which effectively means that the highest supported data field ID is `1_000_000`.
+The constant `10_000` is `stats_space_field_id_start_for_data_fields`. The value **200** is both the width of each column's stats block and `num_reserved_field_ids` from [Reserved field ids](#reserved-field-ids).
+
+**Reserved table field ids.**
+
+Columns whose ids fall in the [reserved field ID](#reserved-field-ids) space use a different base so their stats ids do not overlap data columns:
+
+`stats_struct_id = 2_147_000_000 + (200 * (200 - (Integer.MAX_VALUE - table_field_id)))`
+
+Here `2_147_000_000` is `stats_space_field_id_start_for_metadata_fields`. This separate base is required because reserved ids are near `Integer.MAX_VALUE` and cannot use the same linear mapping as data field ids.
+
+Valid data field ids support stats structs with ids from `10_000` through `200_010_000`, so the highest supported **data** field id is `1_000_000`.
+
+###### Name assignment for `content_stats` fields
+
+Each nested stats struct is a **child field** of the root `content_stats` struct. Its **name** is the numerical string of the table column's field id (for example id `103` uses the name `"103"`).
+Its **field id** is deterministically calculated as defined in the previous section.
+
+###### Field stats types
+
+Each stats struct holds statistics for one table column. It may contain the following metrics:
+
+| required/optional | Offset | Name                    | Type                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|-------------------|--------|-------------------------|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| _optional_        | 1      | value_count             | `long`              | Number of values in the column (including null and NaN values)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| _optional_        | 2      | null_value_count        | `long`              | Number of null values in the column. Only included for optional columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| _optional_        | 3      | nan_value_count         | `long`              | Number of NaN values in the column. Only included for float/double types. NaN rules follow note 2 under [Data File Fields](#data-file-fields)                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| _optional_        | 4      | avg_value_size_in_bytes | `int`               | Avg stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| _optional_        | 5      | max_value_size_in_bytes | `int`               | Max stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| _optional_        | 6      | lower_bound             | type of table field | Lower bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography)                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| _optional_        | 7      | upper_bound             | type of table field | Upper bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography)                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| _optional_        | 8      | exact_bounds            | `boolean`           | Whether the `lower_bound` / `upper_bound` are exact (`true`) or may be truncated or otherwise inexact (`false`). Defaults to `true`. Types such as `string` / `binary` often use `false` when bounds are truncated. For types with inherently exact bounds when written (for example boolean, integer, floating-point, date, time, timestamp, decimal, uuid, `geometry`, `geography`), writers should use `true` when bounds are present. If a deletion vector or equality delete file can match rows in the data file, implementations must treat bounds as inexact for pruning (`exact_bounds` as `false`) |
 
 ###### Stats projection
 
-To retrieve stats for a particular table field ID, one would always project by stats ID, whereas the stats ID for a given table field ID can be calculated by applying the reverse calculation.
-This would be `(stats_field_id - stats_space_field_id_start_for_data_fields) / num_supported_stats_per_column` for normal table field IDs and `stats_field_id - num_reserved_field_ids + (Integer.MAX_VALUE - stats_field_id) + (stats_field_id - stats_space_field_id_start_for_metadata_fields) / num_supported_stats_per_column` for [reserved field IDs](#reserved-field-ids).
+To retrieve stats for a particular table field ID, one would always project by stats ID, where the stats ID for a given table field ID can be calculated by applying the reverse calculation.
+For data columns the reverse calculation would be:
 
-Below are examples for some table field ID -> stats field ID calculations.
+`table_field_id = (stats_struct_id - 10_000) / 200`
+
+For [reserved field IDs](#reserved-field-ids), the reverse calculation would be:
+
+`table_field_id = stats_struct_id - num_reserved_field_ids + (Integer.MAX_VALUE - stats_struct_id) + (stats_struct_id - stats_space_field_id_start_for_metadata_fields) / num_supported_stats_per_column`
+
+using `num_reserved_field_ids = 200`, `stats_space_field_id_start_for_metadata_fields = 2_147_000_000`, and `num_supported_stats_per_column = 200` (see [ID assignment for stats fields](#id-assignment-for-stats-fields)).
+
+Below are examples for some table field ID -> stats struct id calculations.
 
 | Table Field ID      | Stats ID of Stats struct  |
 |---------------------|---------------------------|
@@ -775,7 +800,7 @@ Below are examples for some table field ID -> stats field ID calculations.
 | 2_147_483_645       | 2_147_039_600             |
 | 2_147_483_646       | 2_147_039_800             |
 
-The below table shows the stats IDs of individual field statistics, which are calculated based on the offset that is described in the [field stats types section](#field-stats-types).
+The below table shows the stats IDs of individual field statistics, which are calculated based on the offset that is described in the [Field stats types section](#field-stats-types)
 
 | Table Field ID | Stats ID of Stats struct | Stats Type              | Stats ID of individual statistic |
 |----------------|--------------------------|-------------------------|----------------------------------|
@@ -794,7 +819,16 @@ The below table shows the stats IDs of individual field statistics, which are ca
 |                |                          | max_value_size_in_bytes | 11_005                           |
 |                |                          | lower_bound             | 11_006                           |
 |                |                          | upper_bound             | 11_007                           |
-|                |                          | upper_bound             | 11_008                           |
+|                |                          | exact_bounds            | 11_008                           |
+
+###### Manifest schema and `content_stats` typing
+
+The `content_stats` type is dynamically derived from the table schema and produces one nested stats struct per table column, which is then combined into the root `content_stats` struct.
+That derived type is embedded in the manifest for `data_file` at the field reserved for `content_stats` in v4.
+Writers and readers must use this **same** manifest schema both when writing and when reading manifest files for the table.
+
+Using one schema for read and write is what allows **type promotion** on stats: if an `int` column `x` is promoted to `long`, the nested stats struct changes from `struct<..., lower_bound int, upper_bound int, ...>` to `struct<..., lower_bound long, upper_bound long, ...>`.
+Reading an older manifest applies normal Iceberg type promotion to those bound fields; writing after promotion then uses the promoted struct type, so round-trips stay consistent.
 
 #### Sequence Number Inheritance
 
