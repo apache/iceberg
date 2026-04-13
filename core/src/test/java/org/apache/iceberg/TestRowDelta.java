@@ -2280,20 +2280,20 @@ public class TestRowDelta extends TestBase {
     // Writer A adds DVs for files in BOTH bucket 0 and bucket 2, but supplies a conflict
     // detection filter scoped to bucket 0 only, mimicking a MERGE whose WHERE clause names
     // one partition while the matched rows span additional partitions.
-    DeleteFile writerA_dvBucket0 = newDeletes(dataFileInBucket0);
-    DeleteFile writerA_dvBucket2 = newDeletes(dataFileInBucket2);
+    DeleteFile dvBucket0ForA = newDeletes(dataFileInBucket0);
+    DeleteFile dvBucket2ForA = newDeletes(dataFileInBucket2);
     RowDelta writerA =
         table
             .newRowDelta()
-            .addDeletes(writerA_dvBucket0)
-            .addDeletes(writerA_dvBucket2)
+            .addDeletes(dvBucket0ForA)
+            .addDeletes(dvBucket2ForA)
             .validateFromSnapshot(base.snapshotId())
             .validateNoConflictingDeleteFiles()
             .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
 
     // Writer B concurrently commits a DV for the bucket 2 file
-    DeleteFile writerB_dvBucket2 = newDeletes(dataFileInBucket2);
-    commit(table, table.newRowDelta().addDeletes(writerB_dvBucket2), branch);
+    DeleteFile dvBucket2ForB = newDeletes(dataFileInBucket2);
+    commit(table, table.newRowDelta().addDeletes(dvBucket2ForB), branch);
 
     // Writer A is adding a DV for the same data file that Writer B already committed a DV for.
     // This must be detected as a conflict even though the conflict detection filter is scoped to
