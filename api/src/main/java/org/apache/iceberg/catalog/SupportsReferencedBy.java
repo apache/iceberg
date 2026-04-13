@@ -22,7 +22,15 @@ import java.util.List;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.view.View;
 
-/** Catalog methods for loading tables and views with a referenced-by view chain. */
+/**
+ * An optional catalog capability for loading tables and views with a referenced-by view chain.
+ *
+ * <p>When a table or view is loaded as part of resolving a view definition, the chain of
+ * referencing views can be passed to the catalog. This enables catalog servers to make
+ * authorization, credential-scoping, and auditing decisions based on the full view reference chain.
+ *
+ * <p>Catalogs that do not need this context are not required to implement this interface.
+ */
 public interface SupportsReferencedBy {
 
   /**
@@ -30,7 +38,7 @@ public interface SupportsReferencedBy {
    *
    * @param identifier a table identifier
    * @param referencedBy ordered list of view identifiers from outermost to innermost
-   * @return an iceberg table
+   * @return an Iceberg table
    */
   Table loadTable(TableIdentifier identifier, List<TableIdentifier> referencedBy);
 
@@ -39,7 +47,7 @@ public interface SupportsReferencedBy {
    *
    * @param identifier a view identifier
    * @param referencedBy ordered list of view identifiers from outermost to innermost
-   * @return an iceberg view
+   * @return an Iceberg view
    */
   View loadView(TableIdentifier identifier, List<TableIdentifier> referencedBy);
 }
