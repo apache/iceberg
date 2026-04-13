@@ -22,8 +22,10 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.stats.BaseContentStats;
 import org.apache.iceberg.stats.ContentStats;
@@ -311,5 +313,25 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("content", contentType.toString().toLowerCase(Locale.ROOT))
+        .add("location", location)
+        .add("file_format", fileFormat)
+        .add("record_count", recordCount)
+        .add("file_size_in_bytes", fileSizeInBytes)
+        .add("spec_id", specId())
+        .add("tracking", tracking)
+        .add("content_stats", contentStats)
+        .add("sort_order_id", sortOrderId)
+        .add("deletion_vector", deletionVector)
+        .add("manifest_info", manifestInfo)
+        .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
+        .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
+        .add("equality_ids", equalityIds == null ? "null" : equalityIds())
+        .toString();
   }
 }

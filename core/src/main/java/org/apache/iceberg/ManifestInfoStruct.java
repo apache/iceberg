@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -191,5 +192,22 @@ class ManifestInfoStruct implements ManifestInfo, StructLike, Serializable {
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("added_files_count", addedFilesCount)
+        .add("existing_files_count", existingFilesCount)
+        .add("deleted_files_count", deletedFilesCount)
+        .add("replaced_files_count", replacedFilesCount)
+        .add("added_rows_count", addedRowsCount)
+        .add("existing_rows_count", existingRowsCount)
+        .add("deleted_rows_count", deletedRowsCount)
+        .add("replaced_rows_count", replacedRowsCount)
+        .add("min_sequence_number", minSequenceNumber)
+        .add("dv", dv == null ? "null" : "(binary)")
+        .add("dv_cardinality", dvCardinality == null ? "null" : dvCardinality)
+        .toString();
   }
 }

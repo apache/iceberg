@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 
 /** Mutable {@link StructLike} implementation of {@link DeletionVector}. */
@@ -104,5 +105,15 @@ class DeletionVectorStruct implements DeletionVector, StructLike, Serializable {
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("location", location)
+        .add("offset", offset)
+        .add("size_in_bytes", sizeInBytes)
+        .add("cardinality", cardinality)
+        .toString();
   }
 }

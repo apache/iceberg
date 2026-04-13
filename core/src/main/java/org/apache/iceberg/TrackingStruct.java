@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -190,5 +191,19 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("status", status)
+        .add("snapshot_id", snapshotId == null ? "null" : snapshotId)
+        .add("data_sequence_number", sequenceNumber == null ? "null" : sequenceNumber)
+        .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
+        .add("dv_snapshot_id", dvSnapshotId == null ? "null" : dvSnapshotId)
+        .add("first_row_id", firstRowId == null ? "null" : firstRowId)
+        .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
+        .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
+        .toString();
   }
 }
