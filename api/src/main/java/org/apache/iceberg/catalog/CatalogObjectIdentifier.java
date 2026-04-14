@@ -61,6 +61,9 @@ public class CatalogObjectIdentifier {
 
   private CatalogObjectIdentifier(Namespace namespace, String name) {
     Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
+    for (String level : namespace.levels()) {
+      Preconditions.checkArgument(!level.isEmpty(), "Invalid namespace: empty level");
+    }
     Preconditions.checkArgument(
         name != null && !name.isEmpty(), "Invalid object name: null or empty");
     this.namespace = namespace;

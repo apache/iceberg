@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
 import org.apache.iceberg.rest.events.operations.OperationType;
 import org.immutables.value.Value;
@@ -50,8 +51,14 @@ public interface QueryEventsRequest extends RESTRequest {
 
   Map<String, String> customFilters();
 
+  @Value.Check
   @Override
   default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
+    Preconditions.checkArgument(
+        pageSize() == null || pageSize() > 0, "Invalid page size: %s", pageSize());
+    Preconditions.checkArgument(
+        afterTimestampMs() == null || afterTimestampMs() >= 0,
+        "Invalid after timestamp milliseconds: %s",
+        afterTimestampMs());
   }
 }

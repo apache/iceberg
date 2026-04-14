@@ -166,9 +166,19 @@ public class TestQueryEventsRequestParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidPageSize));
 
+    String negativePageSize = "{\"page-size\":-1}";
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(negativePageSize))
+        .withMessage("Invalid page size: -1");
+
     String invalidAfter = "{\"after-timestamp-ms\":\"x\"}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidAfter));
+
+    String negativeAfter = "{\"after-timestamp-ms\":-1}";
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(negativeAfter))
+        .withMessage("Invalid after timestamp milliseconds: -1");
 
     String invalidOperationTypes = "{\"operation-types\":{}}";
     assertThatIllegalArgumentException()
@@ -212,5 +222,16 @@ public class TestQueryEventsRequestParser {
     QueryEventsRequest request = ImmutableQueryEventsRequest.builder().build();
     String expected = "{}";
     assertThat(QueryEventsRequestParser.fromJson(expected)).isEqualTo(request);
+  }
+
+  @Test
+  void testBuilderValidation() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> ImmutableQueryEventsRequest.builder().pageSize(0).build())
+        .withMessage("Invalid page size: 0");
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> ImmutableQueryEventsRequest.builder().afterTimestampMs(-1L).build())
+        .withMessage("Invalid after timestamp milliseconds: -1");
   }
 }

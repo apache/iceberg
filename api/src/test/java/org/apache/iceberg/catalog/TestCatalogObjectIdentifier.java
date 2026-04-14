@@ -47,6 +47,13 @@ class TestCatalogObjectIdentifier {
   }
 
   @Test
+  void testEmptyNamespaceLevel() {
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of(Namespace.of(""), "table"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: empty level");
+  }
+
+  @Test
   void testNullTableIdentifier() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of((TableIdentifier) null))
         .isInstanceOf(IllegalArgumentException.class)
