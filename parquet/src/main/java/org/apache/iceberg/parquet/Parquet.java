@@ -97,7 +97,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -170,7 +169,6 @@ public class Parquet {
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
-    private WriterVersion writerVersion = null;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
@@ -269,7 +267,7 @@ public class Parquet {
 
     public WriteBuilder writerVersion(WriterVersion version) {
       Preconditions.checkNotNull(version, "Writer version cannot be null");
-      this.writerVersion = version;
+      this.config.put(PARQUET_PAGE_VERSION, Context.fromWriterVersion(version));
       return this;
     }
 
@@ -293,16 +291,6 @@ public class Parquet {
             ParquetAvro.parquetAvroSchema(AvroSchemaUtil.convert(schema, name)),
             ParquetAvro.DEFAULT_MODEL);
       }
-    }
-
-    /*
-     * Sets the writer version. Default value is PARQUET_1_0 (v1).
-     */
-    @VisibleForTesting
-    WriteBuilder withWriterVersion(WriterVersion version) {
-      Preconditions.checkNotNull(version, "Writer version cannot be null");
-      this.writerVersion = version;
-      return this;
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
@@ -368,8 +356,6 @@ public class Parquet {
 
       // Map Iceberg properties to pass down to the Parquet writer
       Context context = createContextFunc.apply(config);
-      WriterVersion parquetWriterVersion =
-          writerVersion != null ? writerVersion : context.writerVersion();
 
       int rowGroupSize = context.rowGroupSize();
       int pageSize = context.pageSize();
@@ -439,7 +425,7 @@ public class Parquet {
 
         ParquetProperties.Builder propsBuilder =
             ParquetProperties.builder()
-                .withWriterVersion(parquetWriterVersion)
+                .withWriterVersion(context.writerVersion())
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryEncoding(dictionaryEnabled)
@@ -475,7 +461,7 @@ public class Parquet {
       } else {
         ParquetWriteBuilder<D> parquetWriteBuilder =
             new ParquetWriteBuilder<D>(ParquetIO.file(file))
-                .withWriterVersion(parquetWriterVersion)
+                .withWriterVersion(context.writerVersion())
                 .setType(type)
                 .setConfig(config)
                 .setKeyValueMetadata(metadata)
@@ -720,6 +706,17 @@ public class Parquet {
           return CompressionCodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH));
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+        }
+      }
+
+      private static String fromWriterVersion(WriterVersion writerVersion) {
+        switch (writerVersion) {
+          case PARQUET_1_0:
+            return "1";
+          case PARQUET_2_0:
+            return "2";
+          default:
+            throw new IllegalArgumentException("Unsupported writer version: " + writerVersion);
         }
       }
 

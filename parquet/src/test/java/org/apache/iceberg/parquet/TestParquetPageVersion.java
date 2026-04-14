@@ -158,6 +158,23 @@ class TestParquetPageVersion {
   }
 
   @Test
+  void testPageVersionPropertyAfterWriterVersionSetsVersion() throws IOException {
+    OutputFile outputFile = newOutputFile();
+
+    try (FileAppender<Record> writer =
+        Parquet.write(outputFile)
+            .schema(SCHEMA)
+            .writerVersion(WriterVersion.PARQUET_1_0)
+            .set(TableProperties.PARQUET_PAGE_VERSION, "2")
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      writer.addAll(records);
+    }
+
+    assertThat(firstDataPage(outputFile)).isInstanceOf(DataPageV2.class);
+  }
+
+  @Test
   void testInvalidPageVersionFails() throws IOException {
     OutputFile outputFile = newOutputFile();
 

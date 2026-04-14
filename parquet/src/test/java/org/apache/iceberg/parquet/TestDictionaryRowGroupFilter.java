@@ -179,7 +179,7 @@ public class TestDictionaryRowGroupFilter {
 
     OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender =
-        Parquet.write(outFile).schema(FILE_SCHEMA).withWriterVersion(writerVersion).build()) {
+        Parquet.write(outFile).schema(FILE_SCHEMA).writerVersion(writerVersion).build()) {
       GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
       // create 20 copies of each record to ensure dictionary-encoding
       for (int copy = 0; copy < 20; copy += 1) {
