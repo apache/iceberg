@@ -42,6 +42,7 @@ class TestFileContent {
   @MethodSource("invalidContentTypeIds")
   void fromIdInvalid(int id) {
     assertThatThrownBy(() -> FileContent.fromId(id))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining(String.valueOf(id));
   }
 }
