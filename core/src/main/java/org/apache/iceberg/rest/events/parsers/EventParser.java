@@ -22,9 +22,10 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
 import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.rest.events.ImmutableEvent;
-import org.apache.iceberg.rest.events.operations.Operation;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.apache.iceberg.util.JsonUtil;
 
 public class EventParser {
@@ -64,7 +65,7 @@ public class EventParser {
     }
 
     gen.writeFieldName(OPERATION);
-    OperationParser.toJson(event.operation(), gen);
+    CatalogOperationParser.toJson(event.operation(), gen);
 
     gen.writeEndObject();
   }
@@ -80,7 +81,7 @@ public class EventParser {
     String requestId = JsonUtil.getString(REQUEST_ID, json);
     int eventCount = JsonUtil.getInt(REQUEST_EVENT_COUNT, json);
     long timestampMs = JsonUtil.getLong(TIMESTAMP_MS, json);
-    Operation operation = OperationParser.fromJson(JsonUtil.get(OPERATION, json));
+    CatalogOperation operation = CatalogOperationParser.fromJson(JsonUtil.get(OPERATION, json));
 
     ImmutableEvent.Builder builder =
         ImmutableEvent.builder()

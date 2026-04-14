@@ -25,76 +25,74 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.CustomOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCustomOperation;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.apache.iceberg.rest.events.operations.OperationType.CustomOperationType;
 import org.junit.jupiter.api.Test;
 
 public class TestCustomOperationParser {
   @Test
   void testToJson() {
-    CustomOperation op =
-        ImmutableCustomOperation.builder()
-            .customOperationType(new CustomOperationType("x-op"))
-            .build();
+    CatalogOperation.Custom op =
+        new CatalogOperation.Custom(
+            new CustomOperationType("x-op"), null, null, null, null, ImmutableMap.of());
     String json = "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\"}";
-    assertThat(CustomOperationParser.toJson(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(json);
   }
 
   @Test
   void testToJsonPretty() {
-    CustomOperation op =
-        ImmutableCustomOperation.builder()
-            .customOperationType(new CustomOperationType("x-op"))
-            .build();
+    CatalogOperation.Custom op =
+        new CatalogOperation.Custom(
+            new CustomOperationType("x-op"), null, null, null, null, ImmutableMap.of());
     String json =
         "{\n" + "  \"operation-type\" : \"custom\",\n" + "  \"custom-type\" : \"x-op\"\n" + "}";
-    assertThat(CustomOperationParser.toJsonPretty(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(json);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CustomOperationParser.toJson(null))
-        .withMessage("Invalid custom operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testToJsonWithOptionalProperties() {
-    CustomOperation op =
-        ImmutableCustomOperation.builder()
-            .customOperationType(new CustomOperationType("x-op"))
-            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-            .namespace(Namespace.of("a", "b"))
-            .tableUuid("t-uuid")
-            .viewUuid("v-uuid")
-            .build();
+    CatalogOperation.Custom op =
+        new CatalogOperation.Custom(
+            new CustomOperationType("x-op"),
+            TableIdentifier.of(Namespace.of("a"), "t"),
+            Namespace.of("a", "b"),
+            "t-uuid",
+            "v-uuid",
+            ImmutableMap.of());
     String json =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"namespace\":[\"a\",\"b\"],\"table-uuid\":\"t-uuid\",\"view-uuid\":\"v-uuid\"}";
-    assertThat(CustomOperationParser.toJson(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(json);
   }
 
   @Test
   void testFromJson() {
     String json = "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\"}";
-    CustomOperation expected =
-        ImmutableCustomOperation.builder()
-            .customOperationType(new CustomOperationType("x-op"))
-            .build();
-    assertThat(CustomOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.Custom expected =
+        new CatalogOperation.Custom(
+            new CustomOperationType("x-op"), null, null, null, null, ImmutableMap.of());
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CustomOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse custom operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String json = "{\"operation-type\":\"custom\"}";
-    assertThatIllegalArgumentException().isThrownBy(() -> CustomOperationParser.fromJson(json));
+    assertThatIllegalArgumentException().isThrownBy(() -> CatalogOperationParser.fromJson(json));
   }
 
   @Test
@@ -102,45 +100,45 @@ public class TestCustomOperationParser {
     // custom-type present but not a string matching pattern
     String jsonInvalidCustomType = "{\"operation-type\":\"custom\",\"custom-type\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidCustomType));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(jsonInvalidCustomType));
 
     // identifier present but not an object
     String jsonInvalidIdentifier =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"identifier\":{}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(jsonInvalidIdentifier));
 
     // namespace present but not an array
     String jsonInvalidNamespace =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"namespace\":\"a\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidNamespace));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(jsonInvalidNamespace));
 
     // table-uuid present but not a string
     String jsonInvalidTableUuid =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"table-uuid\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidTableUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(jsonInvalidTableUuid));
 
     // view-uuid present but not a string
     String jsonInvalidViewUuid =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"view-uuid\":true}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidViewUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(jsonInvalidViewUuid));
   }
 
   @Test
   void testFromJsonWithOptionalProperties() {
     String json =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"namespace\":[\"a\",\"b\"],\"table-uuid\":\"t-uuid\",\"view-uuid\":\"v-uuid\"}";
-    CustomOperation expected =
-        ImmutableCustomOperation.builder()
-            .customOperationType(new CustomOperationType("x-op"))
-            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-            .namespace(Namespace.of("a", "b"))
-            .tableUuid("t-uuid")
-            .viewUuid("v-uuid")
-            .build();
-    assertThat(CustomOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.Custom expected =
+        new CatalogOperation.Custom(
+            new CustomOperationType("x-op"),
+            TableIdentifier.of(Namespace.of("a"), "t"),
+            Namespace.of("a", "b"),
+            "t-uuid",
+            "v-uuid",
+            ImmutableMap.of());
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 }

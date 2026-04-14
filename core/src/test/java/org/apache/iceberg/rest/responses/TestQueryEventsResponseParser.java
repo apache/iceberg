@@ -28,14 +28,13 @@ import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.rest.events.ImmutableEvent;
-import org.apache.iceberg.rest.events.operations.ImmutableCreateNamespaceOperation;
-import org.apache.iceberg.rest.events.operations.Operation;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestQueryEventsResponseParser {
 
-  private static Operation sampleOperation() {
-    return ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+  private static CatalogOperation sampleOperation() {
+    return new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), Map.of());
   }
 
   private static Event sampleEventWithActor() {

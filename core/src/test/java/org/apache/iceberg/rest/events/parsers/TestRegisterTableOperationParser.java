@@ -23,33 +23,30 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.ImmutableRegisterTableOperation;
-import org.apache.iceberg.rest.events.operations.RegisterTableOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestRegisterTableOperationParser {
   @Test
   void testToJson() {
-    RegisterTableOperation op =
-        ImmutableRegisterTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-            .tableUuid("uuid")
-            .build();
+    CatalogOperation.RegisterTable op =
+        new CatalogOperation.RegisterTable(
+            TableIdentifier.of(Namespace.empty(), "table"), "uuid", List.of());
     String json =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
-    assertThat(RegisterTableOperationParser.toJson(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(json);
   }
 
   @Test
   void testToJsonPretty() {
-    RegisterTableOperation op =
-        ImmutableRegisterTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-            .tableUuid("uuid")
-            .build();
+    CatalogOperation.RegisterTable op =
+        new CatalogOperation.RegisterTable(
+            TableIdentifier.of(Namespace.empty(), "table"), "uuid", List.of());
     String json =
         "{\n"
             + "  \"operation-type\" : \"register-table\",\n"
@@ -59,58 +56,55 @@ public class TestRegisterTableOperationParser {
             + "  },\n"
             + "  \"table-uuid\" : \"uuid\"\n"
             + "}";
-    assertThat(RegisterTableOperationParser.toJsonPretty(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(json);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> RegisterTableOperationParser.toJson(null))
-        .withMessage("Invalid register table operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testToJsonWithOptionalProperties() {
-    RegisterTableOperation op =
-        ImmutableRegisterTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-            .tableUuid("uuid")
-            .addUpdates(new MetadataUpdate.AssignUUID("uuid"))
-            .build();
+    CatalogOperation.RegisterTable op =
+        new CatalogOperation.RegisterTable(
+            TableIdentifier.of(Namespace.empty(), "table"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
     String json =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    assertThat(RegisterTableOperationParser.toJson(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(json);
   }
 
   @Test
   void testFromJson() {
     String json =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
-    RegisterTableOperation expected =
-        ImmutableRegisterTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-            .tableUuid("uuid")
-            .build();
-    assertThat(RegisterTableOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.RegisterTable expected =
+        new CatalogOperation.RegisterTable(
+            TableIdentifier.of(Namespace.empty(), "table"), "uuid", List.of());
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> RegisterTableOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse register table operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier = "{\"operation-type\":\"register-table\",\"table-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RegisterTableOperationParser.fromJson(missingIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RegisterTableOperationParser.fromJson(missingUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUuid));
   }
 
   @Test
@@ -119,33 +113,33 @@ public class TestRegisterTableOperationParser {
     String invalidIdentifier =
         "{\"operation-type\":\"register-table\",\"identifier\":\"not-an-object\",\"table-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RegisterTableOperationParser.fromJson(invalidIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidIdentifier));
 
     // table-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUuid));
 
     // updates present but not an array
     String invalidUpdates =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUpdates));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUpdates));
   }
 
   @Test
   void testFromJsonWithOptionalProperties() {
     String json =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    RegisterTableOperation expected =
-        ImmutableRegisterTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-            .tableUuid("uuid")
-            .addUpdates(new MetadataUpdate.AssignUUID("uuid"))
-            .build();
+    CatalogOperation.RegisterTable expected =
+        new CatalogOperation.RegisterTable(
+            TableIdentifier.of(Namespace.of("a"), "t"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
 
-    RegisterTableOperation actual = RegisterTableOperationParser.fromJson(json);
+    CatalogOperation.RegisterTable actual =
+        (CatalogOperation.RegisterTable) CatalogOperationParser.fromJson(json);
     assertThat(actual.operationType()).isEqualTo(expected.operationType());
     assertThat(actual.identifier()).isEqualTo(expected.identifier());
     assertThat(actual.tableUuid()).isEqualTo(expected.tableUuid());

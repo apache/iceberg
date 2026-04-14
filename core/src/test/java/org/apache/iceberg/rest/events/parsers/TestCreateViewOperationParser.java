@@ -27,32 +27,30 @@ import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.CreateViewOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCreateViewOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestCreateViewOperationParser {
   @Test
   void testToJson() {
-    CreateViewOperation op =
-        ImmutableCreateViewOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-            .viewUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.CreateView op =
+        new CatalogOperation.CreateView(
+            TableIdentifier.of(Namespace.empty(), "view"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
     String json =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    assertThat(CreateViewOperationParser.toJson(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(json);
   }
 
   @Test
   void testToJsonPretty() {
-    CreateViewOperation op =
-        ImmutableCreateViewOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-            .viewUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.CreateView op =
+        new CatalogOperation.CreateView(
+            TableIdentifier.of(Namespace.empty(), "view"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
     String json =
         "{\n"
             + "  \"operation-type\" : \"create-view\",\n"
@@ -66,27 +64,27 @@ public class TestCreateViewOperationParser {
             + "    \"uuid\" : \"uuid\"\n"
             + "  } ]\n"
             + "}";
-    assertThat(CreateViewOperationParser.toJsonPretty(op)).isEqualTo(json);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(json);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CreateViewOperationParser.toJson(null))
-        .withMessage("Invalid create view operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testFromJson() {
     String json =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    CreateViewOperation expected =
-        ImmutableCreateViewOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-            .viewUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
-    CreateViewOperation actual = CreateViewOperationParser.fromJson(json);
+    CatalogOperation.CreateView expected =
+        new CatalogOperation.CreateView(
+            TableIdentifier.of(Namespace.empty(), "view"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
+    CatalogOperation.CreateView actual =
+        (CatalogOperation.CreateView) CatalogOperationParser.fromJson(json);
 
     assertThat(actual.operationType()).isEqualTo(expected.operationType());
     assertThat(actual.identifier()).isEqualTo(expected.identifier());
@@ -101,25 +99,25 @@ public class TestCreateViewOperationParser {
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CreateViewOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse create view operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier = "{\"operation-type\":\"create-view\",\"view-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CreateViewOperationParser.fromJson(missingIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CreateViewOperationParser.fromJson(missingUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUuid));
 
     String missingUpdates =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateViewOperationParser.fromJson(missingUpdates)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(missingUpdates)));
   }
 
   @Test
@@ -128,18 +126,18 @@ public class TestCreateViewOperationParser {
     String invalidIdentifier =
         "{\"operation-type\":\"create-view\",\"identifier\":\"not-an-object\",\"view-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CreateViewOperationParser.fromJson(invalidIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidIdentifier));
 
     // view-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CreateViewOperationParser.fromJson(invalidUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUuid));
 
     // updates present but not an array
     String invalidUpdates =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateViewOperationParser.fromJson(invalidUpdates)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(invalidUpdates)));
   }
 }

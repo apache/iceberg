@@ -25,32 +25,30 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.ImmutableRenameTableOperation;
-import org.apache.iceberg.rest.events.operations.RenameTableOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestRenameTableOperationParser {
   @Test
   void testToJson() {
-    RenameTableOperation op =
-        ImmutableRenameTableOperation.builder()
-            .tableUuid("uuid")
-            .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "s"))
-            .destIdentifier(TableIdentifier.of(Namespace.of("a"), "d"))
-            .build();
+    CatalogOperation.RenameTable op =
+        new CatalogOperation.RenameTable(
+            TableIdentifier.of(Namespace.empty(), "s"),
+            TableIdentifier.of(Namespace.of("a"), "d"),
+            "uuid");
     String expected =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThat(RenameTableOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    RenameTableOperation op =
-        ImmutableRenameTableOperation.builder()
-            .tableUuid("uuid")
-            .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "s"))
-            .destIdentifier(TableIdentifier.of(Namespace.of("a"), "d"))
-            .build();
+    CatalogOperation.RenameTable op =
+        new CatalogOperation.RenameTable(
+            TableIdentifier.of(Namespace.empty(), "s"),
+            TableIdentifier.of(Namespace.of("a"), "d"),
+            "uuid");
     String expected =
         "{\n"
             + "  \"operation-type\" : \"rename-table\",\n"
@@ -64,34 +62,33 @@ public class TestRenameTableOperationParser {
             + "    \"name\" : \"d\"\n"
             + "  }\n"
             + "}";
-    assertThat(RenameTableOperationParser.toJsonPretty(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> RenameTableOperationParser.toJson(null))
-        .withMessage("Invalid rename table operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testFromJson() {
     String json =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    RenameTableOperation expected =
-        ImmutableRenameTableOperation.builder()
-            .tableUuid("uuid")
-            .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "s"))
-            .destIdentifier(TableIdentifier.of(Namespace.of("a"), "d"))
-            .build();
-    assertThat(RenameTableOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.RenameTable expected =
+        new CatalogOperation.RenameTable(
+            TableIdentifier.of(Namespace.empty(), "s"),
+            TableIdentifier.of(Namespace.of("a"), "d"),
+            "uuid");
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> RenameTableOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse rename table operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
@@ -99,17 +96,17 @@ public class TestRenameTableOperationParser {
     String missingUuid =
         "{\"operation-type\":\"rename-table\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameTableOperationParser.fromJson(missingUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUuid));
 
     String missingSource =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameTableOperationParser.fromJson(missingSource));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingSource));
 
     String missingDest =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameTableOperationParser.fromJson(missingDest));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingDest));
   }
 
   @Test
@@ -117,16 +114,16 @@ public class TestRenameTableOperationParser {
     String invalidUuid =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":123,\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameTableOperationParser.fromJson(invalidUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUuid));
 
     String invalidSource =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":\"not-obj\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameTableOperationParser.fromJson(invalidSource));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidSource));
 
     String invalidDest =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameTableOperationParser.fromJson(invalidDest));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidDest));
   }
 }

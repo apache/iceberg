@@ -19,7 +19,7 @@
 package org.apache.iceberg.rest.events;
 
 import java.util.Map;
-import org.apache.iceberg.rest.events.operations.Operation;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.immutables.value.Value;
 
 /** An event to record an operation on a CatalogObject. */
@@ -35,5 +35,5 @@ public interface Event {
 
   Map<String, String> actor();
 
-  Operation operation();
+  CatalogOperation operation();
 }

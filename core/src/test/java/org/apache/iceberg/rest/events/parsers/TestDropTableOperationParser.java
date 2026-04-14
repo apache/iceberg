@@ -25,30 +25,24 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.DropTableOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableDropTableOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestDropTableOperationParser {
   @Test
   void testToJson() {
-    DropTableOperation op =
-        ImmutableDropTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-            .tableUuid("uuid")
-            .build();
+    CatalogOperation.DropTable op =
+        new CatalogOperation.DropTable(TableIdentifier.of(Namespace.of("a"), "t"), "uuid", null);
     String expected =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
-    assertThat(DropTableOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    DropTableOperation op =
-        ImmutableDropTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-            .tableUuid("uuid")
-            .build();
+    CatalogOperation.DropTable op =
+        new CatalogOperation.DropTable(TableIdentifier.of(Namespace.of("a"), "t"), "uuid", null);
     String expected =
         "{\n"
             + "  \"operation-type\" : \"drop-table\",\n"
@@ -58,58 +52,51 @@ public class TestDropTableOperationParser {
             + "  },\n"
             + "  \"table-uuid\" : \"uuid\"\n"
             + "}";
-    assertThat(DropTableOperationParser.toJsonPretty(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> DropTableOperationParser.toJson(null))
-        .withMessage("Invalid drop table operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testToJsonWithOptionalProperties() {
-    DropTableOperation op =
-        ImmutableDropTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-            .tableUuid("uuid")
-            .purge(true)
-            .build();
+    CatalogOperation.DropTable op =
+        new CatalogOperation.DropTable(TableIdentifier.of(Namespace.of("a"), "t"), "uuid", true);
     String expected =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":true}";
-    assertThat(DropTableOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testFromJson() {
     String json =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
-    DropTableOperation expected =
-        ImmutableDropTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-            .tableUuid("uuid")
-            .build();
-    assertThat(DropTableOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.DropTable expected =
+        new CatalogOperation.DropTable(TableIdentifier.of(Namespace.of("a"), "t"), "uuid", null);
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> DropTableOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse drop table operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier = "{\"operation-type\":\"drop-table\",\"table-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> DropTableOperationParser.fromJson(missingIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> DropTableOperationParser.fromJson(missingUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUuid));
   }
 
   @Test
@@ -118,18 +105,18 @@ public class TestDropTableOperationParser {
     String invalidIdentifier =
         "{\"operation-type\":\"drop-table\",\"identifier\":\"not-obj\",\"table-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> DropTableOperationParser.fromJson(invalidIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidIdentifier));
 
     // table-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> DropTableOperationParser.fromJson(invalidUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUuid));
 
     // purge present but not a boolean
     String invalidPurge =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":\"yes\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> DropTableOperationParser.fromJson(invalidPurge));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidPurge));
   }
 }

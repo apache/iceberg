@@ -24,64 +24,62 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.rest.events.operations.DropNamespaceOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableDropNamespaceOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestDropNamespaceOperationParser {
   @Test
   void testToJson() {
-    DropNamespaceOperation op =
-        ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+    CatalogOperation.DropNamespace op = new CatalogOperation.DropNamespace(Namespace.of("a", "b"));
     String expected = "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
-    assertThat(DropNamespaceOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    DropNamespaceOperation op =
-        ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+    CatalogOperation.DropNamespace op = new CatalogOperation.DropNamespace(Namespace.of("a", "b"));
     String expected =
         "{\n"
             + "  \"operation-type\" : \"drop-namespace\",\n"
             + "  \"namespace\" : [ \"a\", \"b\" ]\n"
             + "}";
-    assertThat(DropNamespaceOperationParser.toJsonPretty(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> DropNamespaceOperationParser.toJson(null))
-        .withMessage("Invalid drop namespace operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testFromJson() {
     String json = "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
-    DropNamespaceOperation expected =
-        ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
-    assertThat(DropNamespaceOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.DropNamespace expected =
+        new CatalogOperation.DropNamespace(Namespace.of("a", "b"));
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> DropNamespaceOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse drop namespace operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingNamespace = "{\"operation-type\":\"drop-namespace\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> DropNamespaceOperationParser.fromJson(missingNamespace));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingNamespace));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String jsonInvalidNamespace = "{\"operation-type\":\"drop-namespace\",\"namespace\":\"a\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> DropNamespaceOperationParser.fromJson(jsonInvalidNamespace));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(jsonInvalidNamespace));
   }
 }

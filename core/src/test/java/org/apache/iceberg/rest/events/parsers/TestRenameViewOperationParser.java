@@ -25,32 +25,30 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.ImmutableRenameViewOperation;
-import org.apache.iceberg.rest.events.operations.RenameViewOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestRenameViewOperationParser {
   @Test
   void testToJson() {
-    RenameViewOperation op =
-        ImmutableRenameViewOperation.builder()
-            .viewUuid("uuid")
-            .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "s"))
-            .destIdentifier(TableIdentifier.of(Namespace.of("a"), "d"))
-            .build();
+    CatalogOperation.RenameView op =
+        new CatalogOperation.RenameView(
+            TableIdentifier.of(Namespace.empty(), "s"),
+            TableIdentifier.of(Namespace.of("a"), "d"),
+            "uuid");
     String expected =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThat(RenameViewOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    RenameViewOperation op =
-        ImmutableRenameViewOperation.builder()
-            .viewUuid("uuid")
-            .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "s"))
-            .destIdentifier(TableIdentifier.of(Namespace.of("a"), "d"))
-            .build();
+    CatalogOperation.RenameView op =
+        new CatalogOperation.RenameView(
+            TableIdentifier.of(Namespace.empty(), "s"),
+            TableIdentifier.of(Namespace.of("a"), "d"),
+            "uuid");
     String expected =
         "{\n"
             + "  \"operation-type\" : \"rename-view\",\n"
@@ -64,34 +62,33 @@ public class TestRenameViewOperationParser {
             + "    \"name\" : \"d\"\n"
             + "  }\n"
             + "}";
-    assertThat(RenameViewOperationParser.toJsonPretty(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> RenameViewOperationParser.toJson(null))
-        .withMessage("Invalid rename view operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testFromJson() {
     String json =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    RenameViewOperation expected =
-        ImmutableRenameViewOperation.builder()
-            .viewUuid("uuid")
-            .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "s"))
-            .destIdentifier(TableIdentifier.of(Namespace.of("a"), "d"))
-            .build();
-    assertThat(RenameViewOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.RenameView expected =
+        new CatalogOperation.RenameView(
+            TableIdentifier.of(Namespace.empty(), "s"),
+            TableIdentifier.of(Namespace.of("a"), "d"),
+            "uuid");
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> RenameViewOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse rename view operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
@@ -99,17 +96,17 @@ public class TestRenameViewOperationParser {
     String missingUuid =
         "{\"operation-type\":\"rename-view\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameViewOperationParser.fromJson(missingUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUuid));
 
     String missingSource =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameViewOperationParser.fromJson(missingSource));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingSource));
 
     String missingDest =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameViewOperationParser.fromJson(missingDest));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingDest));
   }
 
   @Test
@@ -117,16 +114,16 @@ public class TestRenameViewOperationParser {
     String invalidUuid =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":123,\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameViewOperationParser.fromJson(invalidUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUuid));
 
     String invalidSource =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":\"not-obj\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameViewOperationParser.fromJson(invalidSource));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidSource));
 
     String invalidDest =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> RenameViewOperationParser.fromJson(invalidDest));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidDest));
   }
 }

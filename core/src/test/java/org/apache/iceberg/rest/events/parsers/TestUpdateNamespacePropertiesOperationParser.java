@@ -25,32 +25,26 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.rest.events.operations.ImmutableUpdateNamespacePropertiesOperation;
-import org.apache.iceberg.rest.events.operations.UpdateNamespacePropertiesOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestUpdateNamespacePropertiesOperationParser {
   @Test
   void testToJson() {
-    UpdateNamespacePropertiesOperation op =
-        ImmutableUpdateNamespacePropertiesOperation.builder()
-            .namespace(Namespace.of("a"))
-            .updated(List.of("k1"))
-            .removed(List.of("k2"))
-            .build();
+    CatalogOperation.UpdateNamespaceProperties op =
+        new CatalogOperation.UpdateNamespaceProperties(
+            Namespace.of("a"), List.of("k2"), List.of("k1"), null);
     String expected =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":[\"k2\"]}";
-    assertThat(UpdateNamespacePropertiesOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    UpdateNamespacePropertiesOperation op =
-        ImmutableUpdateNamespacePropertiesOperation.builder()
-            .namespace(Namespace.of("a"))
-            .updated(List.of("k1"))
-            .removed(List.of("k2"))
-            .build();
+    CatalogOperation.UpdateNamespaceProperties op =
+        new CatalogOperation.UpdateNamespaceProperties(
+            Namespace.of("a"), List.of("k2"), List.of("k1"), null);
     String expected =
         "{\n"
             + "  \"operation-type\" : \"update-namespace-properties\",\n"
@@ -58,48 +52,41 @@ public class TestUpdateNamespacePropertiesOperationParser {
             + "  \"updated\" : [ \"k1\" ],\n"
             + "  \"removed\" : [ \"k2\" ]\n"
             + "}";
-    assertThat(UpdateNamespacePropertiesOperationParser.toJsonPretty(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.toJson(null))
-        .withMessage("Invalid update namespace properties operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testToJsonWithOptionalProperties() {
-    UpdateNamespacePropertiesOperation op =
-        ImmutableUpdateNamespacePropertiesOperation.builder()
-            .namespace(Namespace.of("a"))
-            .updated(List.of("k1"))
-            .removed(List.of("k2"))
-            .missing(List.of("k3"))
-            .build();
+    CatalogOperation.UpdateNamespaceProperties op =
+        new CatalogOperation.UpdateNamespaceProperties(
+            Namespace.of("a"), List.of("k2"), List.of("k1"), List.of("k3"));
     String expected =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":[\"k2\"],\"missing\":[\"k3\"]}";
-    assertThat(UpdateNamespacePropertiesOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testFromJson() {
     String json =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":[\"k2\"]}";
-    UpdateNamespacePropertiesOperation expected =
-        ImmutableUpdateNamespacePropertiesOperation.builder()
-            .namespace(Namespace.of("a"))
-            .updated(List.of("k1"))
-            .removed(List.of("k2"))
-            .build();
-    assertThat(UpdateNamespacePropertiesOperationParser.fromJson(json)).isEqualTo(expected);
+    CatalogOperation.UpdateNamespaceProperties expected =
+        new CatalogOperation.UpdateNamespaceProperties(
+            Namespace.of("a"), List.of("k2"), List.of("k1"), null);
+    assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse update namespace properties operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
@@ -107,17 +94,17 @@ public class TestUpdateNamespacePropertiesOperationParser {
     String missingNamespace =
         "{\"operation-type\":\"update-namespace-properties\",\"updated\":[\"k1\"],\"removed\":[\"k2\"]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingNamespace));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingNamespace));
 
     String missingUpdated =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"removed\":[\"k2\"]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingUpdated));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUpdated));
 
     String missingRemoved =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingRemoved));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingRemoved));
   }
 
   @Test
@@ -125,21 +112,21 @@ public class TestUpdateNamespacePropertiesOperationParser {
     String invalidNamespace =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":\"a\",\"updated\":[\"k1\"],\"removed\":[\"k2\"]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidNamespace));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidNamespace));
 
     String invalidUpdated =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":\"not-array\",\"removed\":[\"k2\"]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidUpdated));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUpdated));
 
     String invalidRemoved =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidRemoved));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidRemoved));
 
     String invalidMissing =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":[\"k2\"],\"missing\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidMissing));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidMissing));
   }
 }

@@ -23,55 +23,53 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.rest.events.operations.CreateNamespaceOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCreateNamespaceOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestCreateNamespaceOperationParser {
   @Test
   void testToJson() {
-    CreateNamespaceOperation createNamespaceOperation =
-        ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+    CatalogOperation.CreateNamespace createNamespaceOperation =
+        new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), Map.of());
     String createNamespaceOperationJson =
         "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}";
 
-    assertThat(CreateNamespaceOperationParser.toJson(createNamespaceOperation))
+    assertThat(CatalogOperationParser.toJson(createNamespaceOperation))
         .isEqualTo(createNamespaceOperationJson);
   }
 
   @Test
   void testToJsonPretty() {
-    CreateNamespaceOperation createNamespaceOperation =
-        ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+    CatalogOperation.CreateNamespace createNamespaceOperation =
+        new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), Map.of());
     String createNamespaceOperationJson =
         "{\n"
             + "  \"operation-type\" : \"create-namespace\",\n"
             + "  \"namespace\" : [ \"a\", \"b\" ]\n"
             + "}";
 
-    assertThat(CreateNamespaceOperationParser.toJsonPretty(createNamespaceOperation))
+    assertThat(CatalogOperationParser.toJson(createNamespaceOperation, true))
         .isEqualTo(createNamespaceOperationJson);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CreateNamespaceOperationParser.toJson(null))
-        .withMessage("Invalid create namespace operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testToJsonWithOptionalProperties() {
-    CreateNamespaceOperation createNamespaceOperation =
-        ImmutableCreateNamespaceOperation.builder()
-            .namespace(Namespace.of("a", "b"))
-            .putProperties("key", "value")
-            .build();
+    CatalogOperation.CreateNamespace createNamespaceOperation =
+        new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), Map.of("key", "value"));
     String createNamespaceOperationJson =
         "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"],\"properties\":{\"key\":\"value\"}}";
 
-    assertThat(CreateNamespaceOperationParser.toJson(createNamespaceOperation))
+    assertThat(CatalogOperationParser.toJson(createNamespaceOperation))
         .isEqualTo(createNamespaceOperationJson);
   }
 
@@ -79,18 +77,18 @@ public class TestCreateNamespaceOperationParser {
   void testFromJson() {
     String createNamespaceOperationJson =
         "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}";
-    CreateNamespaceOperation expectedOperation =
-        ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+    CatalogOperation.CreateNamespace expectedOperation =
+        new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), Map.of());
 
-    assertThat(CreateNamespaceOperationParser.fromJson(createNamespaceOperationJson))
+    assertThat(CatalogOperationParser.fromJson(createNamespaceOperationJson))
         .isEqualTo(expectedOperation);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse create namespace operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
@@ -98,7 +96,7 @@ public class TestCreateNamespaceOperationParser {
     String missingNamespace = "{\"operation-type\":\"create-namespace\"}";
 
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson(missingNamespace));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingNamespace));
   }
 
   @Test
@@ -106,26 +104,23 @@ public class TestCreateNamespaceOperationParser {
     // namespace present but not an array
     String invalidNamespace = "{\"operation-type\":\"create-namespace\",\"namespace\":\"a\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson(invalidNamespace));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidNamespace));
 
     // properties present but not an object
     String invalidProperties =
         "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\"],\"properties\":\"not-an-object\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson(invalidProperties));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidProperties));
   }
 
   @Test
   void testFromJsonWithOptionalProperties() {
     String createNamespaceOperationJson =
         "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"],\"properties\":{\"key\":\"value\"}}";
-    CreateNamespaceOperation expectedOperation =
-        ImmutableCreateNamespaceOperation.builder()
-            .namespace(Namespace.of("a", "b"))
-            .putProperties("key", "value")
-            .build();
+    CatalogOperation.CreateNamespace expectedOperation =
+        new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), Map.of("key", "value"));
 
-    assertThat(CreateNamespaceOperationParser.fromJson(createNamespaceOperationJson))
+    assertThat(CatalogOperationParser.fromJson(createNamespaceOperationJson))
         .isEqualTo(expectedOperation);
   }
 }

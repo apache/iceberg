@@ -28,32 +28,32 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.ImmutableUpdateTableOperation;
-import org.apache.iceberg.rest.events.operations.UpdateTableOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestUpdateTableOperationParser {
   @Test
   void testToJson() {
-    UpdateTableOperation op =
-        ImmutableUpdateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "t"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.UpdateTable op =
+        new CatalogOperation.UpdateTable(
+            TableIdentifier.of(Namespace.empty(), "t"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")),
+            null);
     String expected =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    assertThat(UpdateTableOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    UpdateTableOperation op =
-        ImmutableUpdateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "t"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.UpdateTable op =
+        new CatalogOperation.UpdateTable(
+            TableIdentifier.of(Namespace.empty(), "t"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")),
+            null);
     String expected =
         "{\n"
             + "  \"operation-type\" : \"update-table\",\n"
@@ -67,41 +67,41 @@ public class TestUpdateTableOperationParser {
             + "    \"uuid\" : \"uuid\"\n"
             + "  } ]\n"
             + "}";
-    assertThat(UpdateTableOperationParser.toJsonPretty(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op, true)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> UpdateTableOperationParser.toJson(null))
-        .withMessage("Invalid update table operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testToJsonWithOptionalProperties() {
-    UpdateTableOperation op =
-        ImmutableUpdateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "t"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .requirements(List.of(new UpdateRequirement.AssertRefSnapshotID("main", 5L)))
-            .build();
+    CatalogOperation.UpdateTable op =
+        new CatalogOperation.UpdateTable(
+            TableIdentifier.of(Namespace.empty(), "t"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")),
+            List.of(new UpdateRequirement.AssertRefSnapshotID("main", 5L)));
     String expected =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}],\"requirements\":[{\"type\":\"assert-ref-snapshot-id\",\"ref\":\"main\",\"snapshot-id\":5}]}";
-    assertThat(UpdateTableOperationParser.toJson(op)).isEqualTo(expected);
+    assertThat(CatalogOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testFromJson() {
-    UpdateTableOperation op =
-        ImmutableUpdateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "t"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.UpdateTable op =
+        new CatalogOperation.UpdateTable(
+            TableIdentifier.of(Namespace.empty(), "t"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")),
+            null);
     String json =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    UpdateTableOperation parsed = UpdateTableOperationParser.fromJson(json);
+    CatalogOperation.UpdateTable parsed =
+        (CatalogOperation.UpdateTable) CatalogOperationParser.fromJson(json);
     assertThat(parsed.identifier()).isEqualTo(op.identifier());
     assertThat(parsed.tableUuid()).isEqualTo(op.tableUuid());
     assertThat(parsed.updates()).hasSize(1);
@@ -112,8 +112,8 @@ public class TestUpdateTableOperationParser {
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse update table operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
@@ -121,17 +121,17 @@ public class TestUpdateTableOperationParser {
     String missingIdentifier =
         "{\"operation-type\":\"update-table\",\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson(missingIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson(missingUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUuid));
 
     String missingUpdates =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson(missingUpdates));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(missingUpdates));
   }
 
   @Test
@@ -139,37 +139,37 @@ public class TestUpdateTableOperationParser {
     String invalidIdentifier =
         "{\"operation-type\":\"update-table\",\"identifier\":\"not-obj\",\"table-uuid\":\"uuid\",\"updates\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidIdentifier));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidIdentifier));
 
     String invalidUuid =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":123,\"updates\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidUuid));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUuid));
 
     String invalidUpdates =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":\"not-array\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidUpdates));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUpdates));
 
     String invalidRequirements =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[],\"requirements\":{}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidRequirements));
+        .isThrownBy(() -> CatalogOperationParser.fromJson(invalidRequirements));
   }
 
   @Test
   void testFromJsonWithOptionalProperties() {
-    UpdateTableOperation op =
-        ImmutableUpdateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "t"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .requirements(List.of(new UpdateRequirement.AssertRefSnapshotID("main", 5L)))
-            .build();
+    CatalogOperation.UpdateTable op =
+        new CatalogOperation.UpdateTable(
+            TableIdentifier.of(Namespace.empty(), "t"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")),
+            List.of(new UpdateRequirement.AssertRefSnapshotID("main", 5L)));
     String json =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}],\"requirements\":[{\"type\":\"assert-ref-snapshot-id\",\"ref\":\"main\",\"snapshot-id\":5}]}";
 
-    UpdateTableOperation parsed = UpdateTableOperationParser.fromJson(json);
+    CatalogOperation.UpdateTable parsed =
+        (CatalogOperation.UpdateTable) CatalogOperationParser.fromJson(json);
     assertThat(parsed.identifier()).isEqualTo(op.identifier());
     assertThat(parsed.tableUuid()).isEqualTo(op.tableUuid());
     assertThat(parsed.updates()).hasSize(1);

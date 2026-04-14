@@ -27,34 +27,32 @@ import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.events.operations.CreateTableOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCreateTableOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 public class TestCreateTableOperationParser {
   @Test
   void testToJson() {
-    CreateTableOperation createTableOperation =
-        ImmutableCreateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.CreateTable createTableOperation =
+        new CatalogOperation.CreateTable(
+            TableIdentifier.of(Namespace.empty(), "table"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
     String createTableOperationJson =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
 
-    assertThat(CreateTableOperationParser.toJson(createTableOperation))
+    assertThat(CatalogOperationParser.toJson(createTableOperation))
         .isEqualTo(createTableOperationJson);
   }
 
   @Test
   void testToJsonPretty() {
-    CreateTableOperation createTableOperation =
-        ImmutableCreateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.CreateTable createTableOperation =
+        new CatalogOperation.CreateTable(
+            TableIdentifier.of(Namespace.empty(), "table"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
     String createTableOperationJson =
         "{\n"
             + "  \"operation-type\" : \"create-table\",\n"
@@ -69,30 +67,29 @@ public class TestCreateTableOperationParser {
             + "  } ]\n"
             + "}";
 
-    assertThat(CreateTableOperationParser.toJsonPretty(createTableOperation))
+    assertThat(CatalogOperationParser.toJson(createTableOperation, true))
         .isEqualTo(createTableOperationJson);
   }
 
   @Test
   void testToJsonWithNullOperation() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CreateTableOperationParser.toJson(null))
-        .withMessage("Invalid create table operation: null");
+        .isThrownBy(() -> CatalogOperationParser.toJson(null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
   void testFromJson() {
-    CreateTableOperation createTableOperation =
-        ImmutableCreateTableOperation.builder()
-            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-            .tableUuid("uuid")
-            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-            .build();
+    CatalogOperation.CreateTable createTableOperation =
+        new CatalogOperation.CreateTable(
+            TableIdentifier.of(Namespace.empty(), "table"),
+            "uuid",
+            List.of(new MetadataUpdate.AssignUUID("uuid")));
     String createTableOperationJson =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
 
-    CreateTableOperation actualCreateTableOperation =
-        CreateTableOperationParser.fromJson(createTableOperationJson);
+    CatalogOperation.CreateTable actualCreateTableOperation =
+        (CatalogOperation.CreateTable) CatalogOperationParser.fromJson(createTableOperationJson);
     assertThat(actualCreateTableOperation.operationType())
         .isEqualTo(createTableOperation.operationType());
     assertThat(actualCreateTableOperation.identifier())
@@ -109,8 +106,8 @@ public class TestCreateTableOperationParser {
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> CreateTableOperationParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse create table operation from null object");
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
   }
 
   @Test
@@ -119,19 +116,19 @@ public class TestCreateTableOperationParser {
     String missingIdentifier =
         "{\"operation-type\":\"create-table\",\"table-uuid\":\"uuid\",\"updates\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateTableOperationParser.fromJson(missingIdentifier)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(missingIdentifier)));
 
     // missing table-uuid
     String missingUuid =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"updates\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateTableOperationParser.fromJson(missingUuid)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(missingUuid)));
 
     // missing updates
     String missingUpdates =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateTableOperationParser.fromJson(missingUpdates)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(missingUpdates)));
   }
 
   @Test
@@ -140,18 +137,18 @@ public class TestCreateTableOperationParser {
     String invalidIdentifier =
         "{\"operation-type\":\"create-table\",\"identifier\":\"not-an-object\",\"table-uuid\":\"uuid\",\"updates\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateTableOperationParser.fromJson(invalidIdentifier)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(invalidIdentifier)));
 
     // table-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":123,\"updates\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateTableOperationParser.fromJson(invalidUuid)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(invalidUuid)));
 
     // updates present but not an array
     String invalidUpdates =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy((() -> CreateTableOperationParser.fromJson(invalidUpdates)));
+        .isThrownBy((() -> CatalogOperationParser.fromJson(invalidUpdates)));
   }
 }

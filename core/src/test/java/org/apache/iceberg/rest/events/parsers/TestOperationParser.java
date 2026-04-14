@@ -22,243 +22,249 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.rest.events.operations.CreateNamespaceOperation;
-import org.apache.iceberg.rest.events.operations.CreateTableOperation;
-import org.apache.iceberg.rest.events.operations.CreateViewOperation;
-import org.apache.iceberg.rest.events.operations.CustomOperation;
-import org.apache.iceberg.rest.events.operations.DropNamespaceOperation;
-import org.apache.iceberg.rest.events.operations.DropTableOperation;
-import org.apache.iceberg.rest.events.operations.DropViewOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCreateNamespaceOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCreateTableOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCreateViewOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableCustomOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableDropNamespaceOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableDropTableOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableDropViewOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableRegisterTableOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableRenameTableOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableRenameViewOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableUpdateNamespacePropertiesOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableUpdateTableOperation;
-import org.apache.iceberg.rest.events.operations.ImmutableUpdateViewOperation;
+import org.apache.iceberg.rest.events.CatalogOperationParser;
+import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.apache.iceberg.rest.events.operations.OperationType;
-import org.apache.iceberg.rest.events.operations.RegisterTableOperation;
-import org.apache.iceberg.rest.events.operations.RenameTableOperation;
-import org.apache.iceberg.rest.events.operations.RenameViewOperation;
-import org.apache.iceberg.rest.events.operations.UpdateNamespacePropertiesOperation;
-import org.apache.iceberg.rest.events.operations.UpdateTableOperation;
-import org.apache.iceberg.rest.events.operations.UpdateViewOperation;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestOperationParser {
-  CreateNamespaceOperation createNamespaceOperation =
-      ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+  CatalogOperation.CreateNamespace createNamespaceOperation =
+      new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), ImmutableMap.of());
   String createNamespaceOperationJson =
       "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}";
 
-  CreateTableOperation createTableOperation =
-      ImmutableCreateTableOperation.builder()
-          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-          .tableUuid("uuid")
-          .updates(Lists.newArrayList())
-          .build();
+  CatalogOperation.CreateTable createTableOperation =
+      new CatalogOperation.CreateTable(
+          TableIdentifier.of(Namespace.empty(), "table"), "uuid", Lists.newArrayList());
   String createTableOperationJson =
       "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
 
-  CreateViewOperation createViewOperation =
-      ImmutableCreateViewOperation.builder()
-          .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-          .viewUuid("uuid")
-          .updates(Lists.newArrayList())
-          .build();
+  CatalogOperation.CreateView createViewOperation =
+      new CatalogOperation.CreateView(
+          TableIdentifier.of(Namespace.empty(), "view"), "uuid", Lists.newArrayList());
   String createViewOperationJson =
       "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[]}";
 
-  DropNamespaceOperation dropNamespaceOperation =
-      ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+  CatalogOperation.DropNamespace dropNamespaceOperation =
+      new CatalogOperation.DropNamespace(Namespace.of("a", "b"));
   String dropNamespaceOperationJson =
       "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
 
-  DropTableOperation dropTableOperation =
-      ImmutableDropTableOperation.builder()
-          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-          .tableUuid("uuid")
-          .build();
+  CatalogOperation.DropTable dropTableOperation =
+      new CatalogOperation.DropTable(TableIdentifier.of(Namespace.empty(), "table"), "uuid", null);
   String dropTableOperationJson =
       "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
 
-  DropViewOperation dropViewOperation =
-      ImmutableDropViewOperation.builder()
-          .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-          .viewUuid("uuid")
-          .build();
+  CatalogOperation.DropView dropViewOperation =
+      new CatalogOperation.DropView(TableIdentifier.of(Namespace.empty(), "view"), "uuid");
   String dropViewOperationJson =
       "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
 
-  RegisterTableOperation registerTableOperation =
-      ImmutableRegisterTableOperation.builder()
-          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-          .tableUuid("uuid")
-          .build();
+  CatalogOperation.RegisterTable registerTableOperation =
+      new CatalogOperation.RegisterTable(
+          TableIdentifier.of(Namespace.empty(), "table"), "uuid", Lists.newArrayList());
   String registerTableOperationJson =
       "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
 
-  RenameTableOperation renameTableOperation =
-      ImmutableRenameTableOperation.builder()
-          .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "fromTable"))
-          .destIdentifier(TableIdentifier.of(Namespace.empty(), "toTable"))
-          .tableUuid("uuid")
-          .build();
+  CatalogOperation.RenameTable renameTableOperation =
+      new CatalogOperation.RenameTable(
+          TableIdentifier.of(Namespace.empty(), "fromTable"),
+          TableIdentifier.of(Namespace.empty(), "toTable"),
+          "uuid");
   String renameTableOperationJson =
       "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"fromTable\"},\"destination\":{\"namespace\":[],\"name\":\"toTable\"}}";
 
-  RenameViewOperation renameViewOperation =
-      ImmutableRenameViewOperation.builder()
-          .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "fromView"))
-          .destIdentifier(TableIdentifier.of(Namespace.empty(), "toView"))
-          .viewUuid("uuid")
-          .build();
+  CatalogOperation.RenameView renameViewOperation =
+      new CatalogOperation.RenameView(
+          TableIdentifier.of(Namespace.empty(), "fromView"),
+          TableIdentifier.of(Namespace.empty(), "toView"),
+          "uuid");
   String renameViewOperationJson =
       "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"fromView\"},\"destination\":{\"namespace\":[],\"name\":\"toView\"}}";
 
-  UpdateNamespacePropertiesOperation updateNamespacePropertiesOperation =
-      ImmutableUpdateNamespacePropertiesOperation.builder()
-          .namespace(Namespace.of("a", "b"))
-          .updated(Lists.newArrayList())
-          .removed(Lists.newArrayList())
-          .build();
+  CatalogOperation.UpdateNamespaceProperties updateNamespacePropertiesOperation =
+      new CatalogOperation.UpdateNamespaceProperties(
+          Namespace.of("a", "b"), Lists.newArrayList(), Lists.newArrayList(), null);
   String updateNamespacePropertiesOperationJson =
       "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\",\"b\"],\"updated\":[],\"removed\":[]}";
 
-  UpdateTableOperation updateTableOperation =
-      ImmutableUpdateTableOperation.builder()
-          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-          .tableUuid("uuid")
-          .updates(Lists.newArrayList())
-          .build();
+  CatalogOperation.UpdateTable updateTableOperation =
+      new CatalogOperation.UpdateTable(
+          TableIdentifier.of(Namespace.empty(), "table"), "uuid", Lists.newArrayList(), null);
   String updateTableOperationJson =
       "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
 
-  UpdateViewOperation updateViewOperation =
-      ImmutableUpdateViewOperation.builder()
-          .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-          .viewUuid("uuid")
-          .updates(Lists.newArrayList())
-          .build();
+  CatalogOperation.UpdateView updateViewOperation =
+      new CatalogOperation.UpdateView(
+          TableIdentifier.of(Namespace.empty(), "view"), "uuid", Lists.newArrayList(), null);
   String updateViewOperationJson =
       "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[]}";
 
-  CustomOperation customOperation =
-      ImmutableCustomOperation.builder()
-          .customOperationType(new OperationType.CustomOperationType("x-op"))
-          .build();
+  CatalogOperation.Custom customOperation =
+      new CatalogOperation.Custom(
+          new OperationType.CustomOperationType("x-op"), null, null, null, null, ImmutableMap.of());
   String customOperationJson = "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\"}";
 
   @Test
   void testToJson() {
     assertThat(
-            JsonUtil.generate(gen -> OperationParser.toJson(createNamespaceOperation, gen), false))
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(createNamespaceOperation, gen), false))
         .isEqualTo(createNamespaceOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(createTableOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(createTableOperation, gen), false))
         .isEqualTo(createTableOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(createViewOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(createViewOperation, gen), false))
         .isEqualTo(createViewOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(dropNamespaceOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(dropNamespaceOperation, gen), false))
         .isEqualTo(dropNamespaceOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(dropTableOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(gen -> CatalogOperationParser.toJson(dropTableOperation, gen), false))
         .isEqualTo(dropTableOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(dropViewOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(gen -> CatalogOperationParser.toJson(dropViewOperation, gen), false))
         .isEqualTo(dropViewOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(registerTableOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(registerTableOperation, gen), false))
         .isEqualTo(registerTableOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(renameTableOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(renameTableOperation, gen), false))
         .isEqualTo(renameTableOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(renameViewOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(renameViewOperation, gen), false))
         .isEqualTo(renameViewOperationJson);
 
     assertThat(
             JsonUtil.generate(
-                gen -> OperationParser.toJson(updateNamespacePropertiesOperation, gen), false))
+                gen -> CatalogOperationParser.toJson(updateNamespacePropertiesOperation, gen),
+                false))
         .isEqualTo(updateNamespacePropertiesOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(updateTableOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(updateTableOperation, gen), false))
         .isEqualTo(updateTableOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(updateViewOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> CatalogOperationParser.toJson(updateViewOperation, gen), false))
         .isEqualTo(updateViewOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(customOperation, gen), false))
+    assertThat(JsonUtil.generate(gen -> CatalogOperationParser.toJson(customOperation, gen), false))
         .isEqualTo(customOperationJson);
 
     assertThatNullPointerException()
-        .isThrownBy(() -> OperationParser.toJson(null, null))
+        .isThrownBy(() -> CatalogOperationParser.toJson(null, null))
         .withMessage("Invalid operation: null");
   }
 
   @Test
   void testFromJson() {
-    assertThat(JsonUtil.parse(createNamespaceOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                createNamespaceOperationJson,
+                (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(createNamespaceOperation);
 
-    assertThat(JsonUtil.parse(createTableOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                createTableOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(createTableOperation);
 
-    assertThat(JsonUtil.parse(createViewOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                createViewOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(createViewOperation);
 
-    assertThat(JsonUtil.parse(dropNamespaceOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                dropNamespaceOperationJson,
+                (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(dropNamespaceOperation);
 
-    assertThat(JsonUtil.parse(dropTableOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                dropTableOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(dropTableOperation);
 
-    assertThat(JsonUtil.parse(dropViewOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                dropViewOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(dropViewOperation);
 
-    assertThat(JsonUtil.parse(registerTableOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                registerTableOperationJson,
+                (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(registerTableOperation);
 
-    assertThat(JsonUtil.parse(renameTableOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                renameTableOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(renameTableOperation);
 
-    assertThat(JsonUtil.parse(renameViewOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                renameViewOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(renameViewOperation);
 
-    assertThat(JsonUtil.parse(updateNamespacePropertiesOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                updateNamespacePropertiesOperationJson,
+                (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(updateNamespacePropertiesOperation);
 
-    assertThat(JsonUtil.parse(updateTableOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                updateTableOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(updateTableOperation);
 
-    assertThat(JsonUtil.parse(updateViewOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                updateViewOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(updateViewOperation);
 
-    assertThat(JsonUtil.parse(customOperationJson, OperationParser::fromJson))
+    assertThat(
+            JsonUtil.parse(
+                customOperationJson, (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .isEqualTo(customOperation);
 
     assertThatNullPointerException()
-        .isThrownBy(() -> OperationParser.fromJson(null))
-        .withMessage("Invalid json object: null");
-
-    assertThatIllegalArgumentException()
-        .isThrownBy(() -> JsonUtil.parse("{}", OperationParser::fromJson));
+        .isThrownBy(() -> CatalogOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog operation from null object");
 
     assertThatIllegalArgumentException()
         .isThrownBy(
-            () -> JsonUtil.parse("{\"operation-type\":\"unknown\"}", OperationParser::fromJson))
+            () -> JsonUtil.parse("{}", (JsonNode node) -> CatalogOperationParser.fromJson(node)));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                JsonUtil.parse(
+                    "{\"operation-type\":\"unknown\"}",
+                    (JsonNode node) -> CatalogOperationParser.fromJson(node)))
         .withMessage("Invalid OperationType: unknown");
   }
 }
