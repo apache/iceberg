@@ -24,11 +24,11 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.events.Event;
-import org.apache.iceberg.rest.events.parsers.EventParser;
+import org.apache.iceberg.rest.events.EventParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class QueryEventsResponseParser {
-  private static final String NEXT_PAGE_TOKEN = "next-page-token";
+  private static final String CONTINUATION_TOKEN = "continuation-token";
   private static final String HIGHEST_PROCESSED_TIMESTAMP_MS = "highest-processed-timestamp-ms";
   private static final String EVENTS = "events";
 
@@ -52,7 +52,7 @@ public class QueryEventsResponseParser {
 
     gen.writeStartObject();
 
-    gen.writeStringField(NEXT_PAGE_TOKEN, queryEventsResponse.nextPageToken());
+    gen.writeStringField(CONTINUATION_TOKEN, queryEventsResponse.continuationToken());
 
     gen.writeNumberField(
         HIGHEST_PROCESSED_TIMESTAMP_MS, queryEventsResponse.highestProcessedTimestampMs());
@@ -73,13 +73,13 @@ public class QueryEventsResponseParser {
   public static QueryEventsResponse fromJson(JsonNode json) {
     Preconditions.checkNotNull(json, "Cannot parse query events response from null object");
 
-    String nextPageToken = JsonUtil.getString(NEXT_PAGE_TOKEN, json);
+    String continuationToken = JsonUtil.getString(CONTINUATION_TOKEN, json);
     Long highestProcessedTimestampMs = JsonUtil.getLong(HIGHEST_PROCESSED_TIMESTAMP_MS, json);
     List<Event> events = JsonUtil.getObjectList(EVENTS, json, EventParser::fromJson);
 
     ImmutableQueryEventsResponse.Builder builder =
         ImmutableQueryEventsResponse.builder()
-            .nextPageToken(nextPageToken)
+            .continuationToken(continuationToken)
             .highestProcessedTimestampMs(highestProcessedTimestampMs)
             .events(events);
 

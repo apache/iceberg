@@ -26,7 +26,7 @@ import org.immutables.value.Value;
 /** Standard response body for event queries */
 @Value.Immutable
 public interface QueryEventsResponse extends RESTResponse {
-  String nextPageToken();
+  String continuationToken();
 
   Long highestProcessedTimestampMs();
 

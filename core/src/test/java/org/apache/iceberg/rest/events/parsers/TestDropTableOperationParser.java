@@ -119,4 +119,17 @@ public class TestDropTableOperationParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogOperationParser.fromJson(invalidPurge));
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+
+    String jsonWithPurge =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":true}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(jsonWithPurge)))
+        .isEqualTo(jsonWithPurge);
+  }
 }

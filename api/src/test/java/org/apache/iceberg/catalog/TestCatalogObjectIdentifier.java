@@ -23,44 +23,92 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-public class TestCatalogObjectIdentifier {
+class TestCatalogObjectIdentifier {
 
   @Test
-  public void testWithNullAndEmpty() {
-    assertThatThrownBy(() -> CatalogObjectIdentifier.of((String[]) null))
+  void testNullNamespace() {
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of(null, "table"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create CatalogObjectIdentifier from null array");
-
-    assertThat(CatalogObjectIdentifier.of()).isEqualTo(CatalogObjectIdentifier.empty());
+        .hasMessage("Invalid namespace: null");
   }
 
   @Test
-  public void testCatalogObjectIdentifier() {
-    String[] levels = {"a", "b", "c", "d"};
-    CatalogObjectIdentifier catalogObjectIdentifier = CatalogObjectIdentifier.of(levels);
-    assertThat(catalogObjectIdentifier).isNotNull();
-    assertThat(catalogObjectIdentifier.levels()).hasSize(4);
-    assertThat(catalogObjectIdentifier).hasToString("a.b.c.d");
-    for (int i = 0; i < levels.length; i++) {
-      assertThat(catalogObjectIdentifier.level(i)).isEqualTo(levels[i]);
-    }
+  void testNullName() {
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of(Namespace.of("ns"), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid object name: null or empty");
   }
 
   @Test
-  public void testWithNullInLevel() {
-    assertThatThrownBy(() -> CatalogObjectIdentifier.of("a", null, "b"))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot create a CatalogObjectIdentifier with a null level");
+  void testEmptyName() {
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of(Namespace.of("ns"), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid object name: null or empty");
   }
 
   @Test
-  public void testDisallowsCatalogObjectIdentifierWithNullByte() {
-    assertThatThrownBy(() -> CatalogObjectIdentifier.of("ac", "\u0000c", "b"))
+  void testNullTableIdentifier() {
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of((TableIdentifier) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create a CatalogObjectIdentifier with the null-byte character");
+        .hasMessage("Cannot create CatalogObjectIdentifier from null identifier");
+  }
 
-    assertThatThrownBy(() -> CatalogObjectIdentifier.of("ac", "c\0", "b"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create a CatalogObjectIdentifier with the null-byte character");
+  @Test
+  void testWithNamespace() {
+    CatalogObjectIdentifier id =
+        CatalogObjectIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(id.namespace()).isEqualTo(Namespace.of("db", "schema"));
+    assertThat(id.name()).isEqualTo("my_table");
+    assertThat(id.hasNamespace()).isTrue();
+    assertThat(id).hasToString("db.schema.my_table");
+  }
+
+  @Test
+  void testWithEmptyNamespace() {
+    CatalogObjectIdentifier id = CatalogObjectIdentifier.of(Namespace.empty(), "my_table");
+    assertThat(id.namespace()).isEqualTo(Namespace.empty());
+    assertThat(id.name()).isEqualTo("my_table");
+    assertThat(id.hasNamespace()).isFalse();
+    assertThat(id).hasToString("my_table");
+  }
+
+  @Test
+  void testNamespaceObject() {
+    CatalogObjectIdentifier id = CatalogObjectIdentifier.of(Namespace.of("ns1"), "ns2");
+    assertThat(id.namespace()).isEqualTo(Namespace.of("ns1"));
+    assertThat(id.name()).isEqualTo("ns2");
+  }
+
+  @Test
+  void testFromTableIdentifier() {
+    TableIdentifier tableId = TableIdentifier.of(Namespace.of("db"), "table");
+    CatalogObjectIdentifier id = CatalogObjectIdentifier.of(tableId);
+    assertThat(id.namespace()).isEqualTo(Namespace.of("db"));
+    assertThat(id.name()).isEqualTo("table");
+  }
+
+  @Test
+  void testToTableIdentifier() {
+    CatalogObjectIdentifier id = CatalogObjectIdentifier.of(Namespace.of("db"), "table");
+    TableIdentifier tableId = id.toTableIdentifier();
+    assertThat(tableId.namespace()).isEqualTo(Namespace.of("db"));
+    assertThat(tableId.name()).isEqualTo("table");
+  }
+
+  @Test
+  void testEquality() {
+    CatalogObjectIdentifier id1 = CatalogObjectIdentifier.of(Namespace.of("a"), "b");
+    CatalogObjectIdentifier id2 = CatalogObjectIdentifier.of(Namespace.of("a"), "b");
+    assertThat(id1).isEqualTo(id2);
+    assertThat(id1.hashCode()).isEqualTo(id2.hashCode());
+  }
+
+  @Test
+  void testInequality() {
+    CatalogObjectIdentifier id1 = CatalogObjectIdentifier.of(Namespace.of("a"), "b");
+    CatalogObjectIdentifier id2 = CatalogObjectIdentifier.of(Namespace.of("a"), "c");
+    CatalogObjectIdentifier id3 = CatalogObjectIdentifier.of(Namespace.of("x"), "b");
+    assertThat(id1).isNotEqualTo(id2);
+    assertThat(id1).isNotEqualTo(id3);
   }
 }

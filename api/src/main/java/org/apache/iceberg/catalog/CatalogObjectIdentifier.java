@@ -18,71 +18,77 @@
  */
 package org.apache.iceberg.catalog;
 
-import java.util.Arrays;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Reference to a named object in a {@link Catalog}, such as {@link Namespace}, {@link
- * org.apache.iceberg.Table}, or {@link org.apache.iceberg.view.View}.
+ * A generic identifier for any catalog object, such as a table, view, function, or namespace.
+ *
+ * <p>Structurally identical to {@link TableIdentifier}, consisting of a {@link Namespace} and a
+ * name. For namespace-typed objects, the parent namespace goes into {@link #namespace()} and the
+ * leaf level goes into {@link #name()}.
+ *
+ * <p>This class can be used wherever a type-neutral catalog object reference is needed, such as
+ * event payloads and query filters. When the object type matters, pair this with {@link
+ * CatalogObjectType}.
  */
 public class CatalogObjectIdentifier {
-  private static final CatalogObjectIdentifier EMPTY_CATALOG_OBJECT =
-      new CatalogObjectIdentifier(new String[] {});
-  private static final Joiner DOT = Joiner.on(".");
-  private static final Predicate<String> CONTAINS_NULL_CHARACTER =
-      Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
+  private final Namespace namespace;
+  private final String name;
 
-  public static CatalogObjectIdentifier empty() {
-    return EMPTY_CATALOG_OBJECT;
+  /**
+   * Create a catalog object identifier from a namespace and name.
+   *
+   * @param namespace the namespace (must not be null)
+   * @param name the object name (must not be null or empty)
+   * @return a new CatalogObjectIdentifier
+   */
+  public static CatalogObjectIdentifier of(Namespace namespace, String name) {
+    return new CatalogObjectIdentifier(namespace, name);
   }
 
-  public static CatalogObjectIdentifier of(String... levels) {
+  /**
+   * Create a catalog object identifier from a {@link TableIdentifier}.
+   *
+   * @param tableIdentifier the table identifier to convert
+   * @return a new CatalogObjectIdentifier with the same namespace and name
+   */
+  public static CatalogObjectIdentifier of(TableIdentifier tableIdentifier) {
     Preconditions.checkArgument(
-        null != levels, "Cannot create CatalogObjectIdentifier from null array");
-    if (levels.length == 0) {
-      return empty();
-    }
-
-    for (String level : levels) {
-      Preconditions.checkNotNull(
-          level, "Cannot create a CatalogObjectIdentifier with a null level");
-      Preconditions.checkArgument(
-          !CONTAINS_NULL_CHARACTER.test(level),
-          "Cannot create a CatalogObjectIdentifier with the null-byte character");
-    }
-
-    return new CatalogObjectIdentifier(levels);
+        tableIdentifier != null, "Cannot create CatalogObjectIdentifier from null identifier");
+    return new CatalogObjectIdentifier(tableIdentifier.namespace(), tableIdentifier.name());
   }
 
-  public static CatalogObjectIdentifier of(String name) {
-    Preconditions.checkNotNull(name, "Cannot create CatalogObjectIdentifier from null name");
-
-    return of(name.split("\\."));
+  private CatalogObjectIdentifier(Namespace namespace, String name) {
+    Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
+    Preconditions.checkArgument(
+        name != null && !name.isEmpty(), "Invalid object name: null or empty");
+    this.namespace = namespace;
+    this.name = name;
   }
 
-  private final String[] levels;
-
-  private CatalogObjectIdentifier(String[] levels) {
-    this.levels = levels;
+  /** Returns the namespace of this identifier. */
+  public Namespace namespace() {
+    return namespace;
   }
 
-  public String[] levels() {
-    return levels;
+  /** Returns the object name. */
+  public String name() {
+    return name;
   }
 
-  public String level(int pos) {
-    return levels[pos];
+  /** Returns whether the namespace is non-empty. */
+  public boolean hasNamespace() {
+    return !namespace.isEmpty();
   }
 
-  public boolean isEmpty() {
-    return levels.length == 0;
-  }
-
-  public int length() {
-    return levels.length;
+  /**
+   * Convert this identifier to a {@link TableIdentifier}.
+   *
+   * @return a TableIdentifier with the same namespace and name
+   */
+  public TableIdentifier toTableIdentifier() {
+    return TableIdentifier.of(namespace, name);
   }
 
   @Override
@@ -95,17 +101,21 @@ public class CatalogObjectIdentifier {
       return false;
     }
 
-    CatalogObjectIdentifier catalogObjectIdentifier = (CatalogObjectIdentifier) other;
-    return Arrays.equals(levels, catalogObjectIdentifier.levels);
+    CatalogObjectIdentifier that = (CatalogObjectIdentifier) other;
+    return namespace.equals(that.namespace) && name.equals(that.name);
   }
 
   @Override
   public int hashCode() {
-    return Arrays.hashCode(levels);
+    return Objects.hash(namespace, name);
   }
 
   @Override
   public String toString() {
-    return DOT.join(levels);
+    if (hasNamespace()) {
+      return namespace.toString() + "." + name;
+    } else {
+      return name;
+    }
   }
 }

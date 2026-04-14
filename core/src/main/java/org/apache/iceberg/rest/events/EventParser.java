@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.parsers;
+package org.apache.iceberg.rest.events;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.rest.events.CatalogOperationParser;
-import org.apache.iceberg.rest.events.Event;
-import org.apache.iceberg.rest.events.ImmutableEvent;
 import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -42,11 +39,7 @@ public class EventParser {
     return toJson(event, false);
   }
 
-  public static String toJsonPretty(Event event) {
-    return toJson(event, true);
-  }
-
-  private static String toJson(Event event, boolean pretty) {
+  public static String toJson(Event event, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(event, gen), pretty);
   }
 

@@ -82,4 +82,11 @@ public class TestDropNamespaceOperationParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogOperationParser.fromJson(jsonInvalidNamespace));
   }
+
+  @Test
+  void testRoundTrip() {
+    String json = "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+  }
 }

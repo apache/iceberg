@@ -123,4 +123,16 @@ public class TestCreateNamespaceOperationParser {
     assertThat(CatalogOperationParser.fromJson(createNamespaceOperationJson))
         .isEqualTo(expectedOperation);
   }
+
+  @Test
+  void testRoundTrip() {
+    String json = "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+
+    String jsonWithProps =
+        "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"],\"properties\":{\"key\":\"value\"}}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(jsonWithProps)))
+        .isEqualTo(jsonWithProps);
+  }
 }

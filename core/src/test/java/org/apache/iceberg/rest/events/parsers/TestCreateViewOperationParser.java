@@ -140,4 +140,12 @@ public class TestCreateViewOperationParser {
     assertThatIllegalArgumentException()
         .isThrownBy((() -> CatalogOperationParser.fromJson(invalidUpdates)));
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+  }
 }

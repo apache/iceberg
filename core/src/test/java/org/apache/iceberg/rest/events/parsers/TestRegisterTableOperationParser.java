@@ -147,4 +147,17 @@ public class TestRegisterTableOperationParser {
     assertThat(((MetadataUpdate.AssignUUID) actual.updates().get(0)).uuid())
         .isEqualTo(((MetadataUpdate.AssignUUID) expected.updates().get(0)).uuid());
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+
+    String jsonWithUpdates =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(jsonWithUpdates)))
+        .isEqualTo(jsonWithUpdates);
+  }
 }

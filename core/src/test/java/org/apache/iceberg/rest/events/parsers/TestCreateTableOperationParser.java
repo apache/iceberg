@@ -151,4 +151,12 @@ public class TestCreateTableOperationParser {
     assertThatIllegalArgumentException()
         .isThrownBy((() -> CatalogOperationParser.fromJson(invalidUpdates)));
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+  }
 }

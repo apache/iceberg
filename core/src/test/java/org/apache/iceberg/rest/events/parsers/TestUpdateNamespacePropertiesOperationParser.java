@@ -129,4 +129,17 @@ public class TestUpdateNamespacePropertiesOperationParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogOperationParser.fromJson(invalidMissing));
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":[\"k2\"]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+
+    String jsonWithMissing =
+        "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":[\"k2\"],\"missing\":[\"k3\"]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(jsonWithMissing)))
+        .isEqualTo(jsonWithMissing);
+  }
 }

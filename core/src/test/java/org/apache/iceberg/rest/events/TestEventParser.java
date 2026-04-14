@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.parsers;
+package org.apache.iceberg.rest.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -25,12 +25,10 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.rest.events.Event;
-import org.apache.iceberg.rest.events.ImmutableEvent;
 import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
-public class TestEventParser {
+class TestEventParser {
 
   private static CatalogOperation sampleOperation() {
     return new CatalogOperation.CreateNamespace(Namespace.of("a", "b"), Map.of());
@@ -82,7 +80,7 @@ public class TestEventParser {
             + "    \"namespace\" : [ \"a\", \"b\" ]\n"
             + "  }\n"
             + "}";
-    assertThat(EventParser.toJsonPretty(event)).isEqualTo(expected);
+    assertThat(EventParser.toJson(event, true)).isEqualTo(expected);
   }
 
   @Test
@@ -141,30 +139,37 @@ public class TestEventParser {
 
   @Test
   void testFromJsonWithInvalidProperties() {
-    // event-id present but not a string
     String invalidEventId =
         "{\"event-id\":1,\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidEventId));
 
-    // request-id present but not a string
     String invalidRequestId =
         "{\"event-id\":\"e-1\",\"request-id\":1,\"request-event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidRequestId));
 
-    // request-event-count present but not an integer
     String invalidRequestEventCount =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":\"two\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> EventParser.fromJson(invalidRequestEventCount));
 
-    // timestamp-ms present but not a long
     String invalidTimestamp =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":\"123\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidTimestamp));
 
-    // actor present but not a map
     String invalidActor =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"actor\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidActor));
+  }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+    assertThat(EventParser.toJson(EventParser.fromJson(json))).isEqualTo(json);
+
+    String jsonWithoutActor =
+        "{\"event-id\":\"e-2\",\"request-id\":\"r-2\",\"request-event-count\":1,\"timestamp-ms\":999,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+    assertThat(EventParser.toJson(EventParser.fromJson(jsonWithoutActor)))
+        .isEqualTo(jsonWithoutActor);
   }
 }

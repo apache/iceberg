@@ -141,4 +141,16 @@ public class TestCustomOperationParser {
             ImmutableMap.of());
     assertThat(CatalogOperationParser.fromJson(json)).isEqualTo(expected);
   }
+
+  @Test
+  void testRoundTrip() {
+    String json = "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\"}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+
+    String jsonWithAll =
+        "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"namespace\":[\"a\",\"b\"],\"table-uuid\":\"t-uuid\",\"view-uuid\":\"v-uuid\"}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(jsonWithAll)))
+        .isEqualTo(jsonWithAll);
+  }
 }

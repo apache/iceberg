@@ -126,4 +126,12 @@ public class TestRenameTableOperationParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogOperationParser.fromJson(invalidDest));
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+  }
 }

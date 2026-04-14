@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
+import org.apache.iceberg.catalog.CatalogObjectIdentifierParser;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.catalog.CatalogObjectUuidParser;
@@ -86,7 +87,7 @@ public class QueryEventsRequestParser {
       gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_NAME);
 
       for (CatalogObjectIdentifier catalogObjectIdentifier : request.catalogObjectsByName()) {
-        gen.writeString(catalogObjectIdentifier.toString());
+        CatalogObjectIdentifierParser.toJson(catalogObjectIdentifier, gen);
       }
 
       gen.writeEndArray();
@@ -149,9 +150,8 @@ public class QueryEventsRequestParser {
 
     if (json.has(CATALOG_OBJECTS_BY_NAME)) {
       builder.catalogObjectsByName(
-          JsonUtil.getStringList(CATALOG_OBJECTS_BY_NAME, json).stream()
-              .map(CatalogObjectIdentifier::of)
-              .collect(Collectors.toList()));
+          JsonUtil.getObjectList(
+              CATALOG_OBJECTS_BY_NAME, json, CatalogObjectIdentifierParser::fromJson));
     }
 
     if (json.has(CATALOG_OBJECTS_BY_ID)) {

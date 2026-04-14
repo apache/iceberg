@@ -102,4 +102,12 @@ public class TestDropViewOperationParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogOperationParser.fromJson(invalidUuid));
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\"}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+  }
 }

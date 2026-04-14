@@ -181,4 +181,17 @@ public class TestUpdateTableOperationParser {
     assertThat(((UpdateRequirement.AssertRefSnapshotID) parsed.requirements().get(0)).snapshotId())
         .isEqualTo(((UpdateRequirement.AssertRefSnapshotID) op.requirements().get(0)).snapshotId());
   }
+
+  @Test
+  void testRoundTrip() {
+    String json =
+        "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(json)))
+        .isEqualTo(json);
+
+    String jsonWithRequirements =
+        "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}],\"requirements\":[{\"type\":\"assert-ref-snapshot-id\",\"ref\":\"main\",\"snapshot-id\":5}]}";
+    assertThat(CatalogOperationParser.toJson(CatalogOperationParser.fromJson(jsonWithRequirements)))
+        .isEqualTo(jsonWithRequirements);
+  }
 }
