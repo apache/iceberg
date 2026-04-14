@@ -30,8 +30,8 @@ class TestFileContent {
 
   @ParameterizedTest
   @EnumSource(FileContent.class)
-  void fromContentTypeId(FileContent content) {
-    assertThat(FileContent.fromContentTypeId(content.id())).isEqualTo(content);
+  void fromId(FileContent content) {
+    assertThat(FileContent.fromId(content.id())).isEqualTo(content);
   }
 
   static IntStream invalidContentTypeIds() {
@@ -40,9 +40,8 @@ class TestFileContent {
 
   @ParameterizedTest
   @MethodSource("invalidContentTypeIds")
-  void fromContentTypeIdInvalid(int id) {
-    assertThatThrownBy(() -> FileContent.fromContentTypeId(id))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type id: %d", id);
+  void fromIdInvalid(int id) {
+    assertThatThrownBy(() -> FileContent.fromId(id))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 }

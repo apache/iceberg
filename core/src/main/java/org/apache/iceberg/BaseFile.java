@@ -317,7 +317,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     switch (pos) {
       case 0:
         this.content =
-            value != null ? FileContent.fromContentTypeId((Integer) value) : FileContent.DATA;
+            value != null ? FileContent.fromId((Integer) value) : FileContent.DATA;
         return;
       case 1:
         // always coerce to String for Serializable

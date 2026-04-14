@@ -137,7 +137,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(fileContentPosition)) {
       return null;
     }
-    return FileContent.fromContentTypeId(wrapped.getInt(fileContentPosition));
+    return FileContent.fromId(wrapped.getInt(fileContentPosition));
   }
 
   @Override
