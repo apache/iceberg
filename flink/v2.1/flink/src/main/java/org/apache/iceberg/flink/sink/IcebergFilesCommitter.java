@@ -445,7 +445,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   /**
-   * in case of unaligned checkpoints, data files that were part of checkpoint N in the writer may
+   * In case of unaligned checkpoints, data files that were part of checkpoint N in the writer may
    * have to become part of a later checkpoint in the committer if:
    *
    * <ul>
@@ -463,8 +463,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     boolean sourceCheckpointIdHasDataInSnapshot =
         dataFilesPerCheckpoint.containsKey(sourceCheckpointId);
     // for aligned checkpoints, both conditions will be false and the upstream operator's checkpoint
-    // ID
-    // will be chosen.
+    // ID will be chosen.
     return sourceCheckpointIdAlreadyCommitted || sourceCheckpointIdHasDataInSnapshot
         ? checkpointId
         : sourceCheckpointId;
