@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 
 /** A file tracked by a manifest. */

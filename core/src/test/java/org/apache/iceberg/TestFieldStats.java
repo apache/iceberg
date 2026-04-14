@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
-import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.stats.FieldStatistic.EXACT_BOUNDS;
-import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
-import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
-import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
-import static org.apache.iceberg.stats.FieldStatistic.NULL_VALUE_COUNT;
-import static org.apache.iceberg.stats.FieldStatistic.UPPER_BOUND;
-import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE;
+import static org.apache.iceberg.FieldStatistic.EXACT_BOUNDS;
+import static org.apache.iceberg.FieldStatistic.LOWER_BOUND;
+import static org.apache.iceberg.FieldStatistic.MAX_VALUE_SIZE;
+import static org.apache.iceberg.FieldStatistic.NAN_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.UPPER_BOUND;
+import static org.apache.iceberg.FieldStatistic.VALUE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
