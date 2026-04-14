@@ -304,7 +304,7 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private void validateAndInitOptions() {
-    Set<String> validOptions = Sets.newHashSet(planner.validOptions());
+    Set<String> validOptions = Sets.newHashSet(runner.validOptions());
     validOptions.addAll(VALID_OPTIONS);
     validOptions.addAll(planner.validOptions());
 

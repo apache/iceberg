@@ -117,6 +117,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final String branch;
   private final Map<String, String> extraSnapshotMetadata;
   private final SparkWriteRequirements writeRequirements;
+  private final int sortOrderId;
   private final Context context;
   private final Map<String, String> writeProperties;
 
@@ -143,6 +144,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
+    this.sortOrderId = writeConf.outputSortOrderId(writeRequirements);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
     this.writeProperties = writeConf.writeProperties();
 
@@ -203,7 +205,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
           broadcastRewritableDeletes(),
           command,
           context,
-          writeProperties);
+          writeProperties,
+          sortOrderId);
     }
 
     private Broadcast<Map<String, DeleteFileSet>> broadcastRewritableDeletes() {
@@ -413,18 +416,21 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final Command command;
     private final Context context;
     private final Map<String, String> writeProperties;
+    private final int sortOrderId;
 
     PositionDeltaWriteFactory(
         Broadcast<Table> tableBroadcast,
         Broadcast<Map<String, DeleteFileSet>> rewritableDeletesBroadcast,
         Command command,
         Context context,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        int sortOrderId) {
       this.tableBroadcast = tableBroadcast;
       this.rewritableDeletesBroadcast = rewritableDeletesBroadcast;
       this.command = command;
       this.context = context;
       this.writeProperties = writeProperties;
+      this.sortOrderId = sortOrderId;
     }
 
     @Override
@@ -451,6 +457,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
               .deleteFileFormat(context.deleteFileFormat())
               .positionDeleteSparkType(context.deleteSparkType())
               .writeProperties(writeProperties)
+              .dataSortOrder(table.sortOrders().get(sortOrderId))
               .build();
 
       if (command == DELETE) {

@@ -122,6 +122,14 @@ public class FlinkMaintenanceConfig {
     return new RewriteDataFilesConfig(table, writeProperties, readableConfig);
   }
 
+  public ExpireSnapshotsConfig createExpireSnapshotsConfig() {
+    return new ExpireSnapshotsConfig(table, writeProperties, readableConfig);
+  }
+
+  public DeleteOrphanFilesConfig createDeleteOrphanFilesConfig() {
+    return new DeleteOrphanFilesConfig(table, writeProperties, readableConfig);
+  }
+
   public LockConfig createLockConfig() {
     return new LockConfig(table, writeProperties, readableConfig);
   }

@@ -60,6 +60,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -166,7 +167,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
-  private boolean restScanPlanningEnabled;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
@@ -280,12 +280,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
-
-    this.restScanPlanningEnabled =
-        PropertyUtil.propertyAsBoolean(
-            mergedProps,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED_DEFAULT);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -584,7 +578,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient);
+      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf);
       if (table != null) {
         return table;
       }
@@ -595,9 +589,41 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private RESTTable restTableForScanPlanning(
-      TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
-    // server supports remote planning endpoint and server / client wants to do server side planning
-    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restScanPlanningEnabled) {
+      TableOperations ops,
+      TableIdentifier finalIdentifier,
+      RESTClient restClient,
+      Map<String, String> tableConf) {
+    // Get client-side and server-side scan planning modes
+    String planningModeClientConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+
+    // Warn if client and server configs conflict; server config takes precedence
+    if (planningModeClientConfig != null
+        && planningModeServerConfig != null
+        && !planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig)) {
+      LOG.warn(
+          "Scan planning mode mismatch for table {}: client config={}, server config={}. "
+              + "Server config will take precedence.",
+          finalIdentifier,
+          planningModeClientConfig,
+          planningModeServerConfig);
+    }
+
+    // Determine effective mode: prefer server config if present, otherwise use client config
+    String effectiveModeConfig =
+        planningModeServerConfig != null ? planningModeServerConfig : planningModeClientConfig;
+    RESTCatalogProperties.ScanPlanningMode effectiveMode =
+        effectiveModeConfig != null
+            ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
+            : RESTCatalogProperties.ScanPlanningMode.CLIENT;
+
+    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER) {
+      Preconditions.checkState(
+          endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN),
+          "Server requires server-side scan planning for table %s but does not support endpoint %s",
+          finalIdentifier,
+          Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
+
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
@@ -610,6 +636,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           properties(),
           conf);
     }
+
+    // Default to client-side planning
     return null;
   }
 
@@ -643,6 +671,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+    return registerTable(context, ident, metadataFileLocation, false);
+  }
+
+  @Override
+  public Table registerTable(
+      SessionContext context,
+      TableIdentifier ident,
+      String metadataFileLocation,
+      boolean overwrite) {
     Endpoint.check(endpoints, Endpoint.V1_REGISTER_TABLE);
     checkIdentifierIsValid(ident);
 
@@ -655,6 +692,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ImmutableRegisterTableRequest.builder()
             .name(ident.name())
             .metadataLocation(metadataFileLocation)
+            .overwrite(overwrite)
             .build();
 
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -683,7 +721,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
     if (restTable != null) {
       return restTable;
     }
@@ -952,7 +990,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
       if (restTable != null) {
         return restTable;
       }
@@ -1148,7 +1186,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO newFileIO(
       SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
-      return ioBuilder.apply(context, properties);
+      FileIO fileIO = ioBuilder.apply(context, properties);
+      if (!storageCredentials.isEmpty()
+          && fileIO instanceof SupportsStorageCredentials ioWithCredentials) {
+        ioWithCredentials.setCredentials(
+            storageCredentials.stream()
+                .map(c -> StorageCredential.create(c.prefix(), c.config()))
+                .collect(Collectors.toList()));
+      }
+      return fileIO;
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
       return CatalogUtil.loadFileIO(

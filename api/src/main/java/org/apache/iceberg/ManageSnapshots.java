@@ -207,10 +207,10 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots setMaxSnapshotAgeMs(String branchName, long maxSnapshotAgeMs);
 
   /**
-   * Updates the retention policy for a reference.
+   * Updates the retention policy for a reference. The reference can be a branch or a tag.
    *
-   * @param name branch name
-   * @param maxRefAgeMs retention age in milliseconds of the tag reference itself
+   * @param name branch or tag name
+   * @param maxRefAgeMs retention age in milliseconds of the reference itself
    * @return this for method chaining
    * @throws IllegalArgumentException if the reference does not exist
    */

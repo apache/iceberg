@@ -19,10 +19,13 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.SnapshotSummary.PUBLISHED_WAP_ID_PROP;
+import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -157,5 +160,87 @@ public class TestSnapshotProducer extends TestBase {
 
     // Verify the table wasn't updated
     assertThat(table.snapshots()).hasSize(1);
+  }
+
+  @TestTemplate
+  public void manifestNotCleanedUpWhenSnapshotNotLoadableAfterCommit() {
+    // Uses a custom TableOps that returns stale metadata (without the new snapshot) on the
+    // first refresh() after commit, simulating eventual consistency. Verifies that commit succeeds
+    // and that the committed data is visible once the table is refreshed again
+    String tableName = "stale-table-on-first-refresh";
+    TestTables.TestTableOperations ops = opsWithStaleRefreshAfterCommit(tableName, tableDir);
+    TestTables.TestTable tableWithStaleRefresh =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+
+    // the first refresh() after the commit will return stale metadata (without this snapshot), so
+    // SnapshotProducer will skip cleanup to avoid accidentally deleting files that are part of the
+    // committed snapshot but commit still succeeds
+    tableWithStaleRefresh.newAppend().appendFile(FILE_A).commit();
+
+    // Refresh again to get the real metadata; the snapshot must be visible now
+    tableWithStaleRefresh.ops().refresh();
+    Snapshot snapshot = tableWithStaleRefresh.currentSnapshot();
+    assertThat(snapshot)
+        .as("Committed snapshot must be visible after refresh (eventual consistency resolved)")
+        .isNotNull();
+
+    File metadata = Paths.get(tableDir.getPath(), "metadata").toFile();
+    assertThat(snapshot.allManifests(tableWithStaleRefresh.io()))
+        .isNotEmpty()
+        .allSatisfy(
+            manifest -> assertThat(metadata.listFiles()).contains(new File(manifest.path())));
+  }
+
+  /**
+   * Creates a TableOperations that returns stale metadata (without the newly committed snapshot) on
+   * the first refresh() after a commit. This simulates eventual consistency where the committed
+   * snapshot is not yet visible. Used to verify that when the snapshot cannot be loaded after
+   * commit, cleanup is skipped to avoid accidentally deleting files that are part of the committed
+   * snapshot.
+   */
+  private static TestTables.TestTableOperations opsWithStaleRefreshAfterCommit(
+      String name, File location) {
+    return new TestTables.TestTableOperations(name, location) {
+      private TableMetadata metadataToReturnOnNextRefresh;
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+        super.commit(base, updatedMetadata);
+        if (base != null) {
+          // return stale metadata on the first refresh() call
+          this.metadataToReturnOnNextRefresh = base;
+        }
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        if (metadataToReturnOnNextRefresh != null) {
+          this.current = metadataToReturnOnNextRefresh;
+          this.metadataToReturnOnNextRefresh = null;
+          return current;
+        }
+
+        return super.refresh();
+      }
+    };
+  }
+
+  @TestTemplate
+  public void testDefaultManifestCompression() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("deflate");
+  }
+
+  @TestTemplate
+  public void testManifestCompressionFromTableProperty() throws IOException {
+    table.updateProperties().set(TableProperties.MANIFEST_COMPRESSION, "snappy").commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("snappy");
   }
 }

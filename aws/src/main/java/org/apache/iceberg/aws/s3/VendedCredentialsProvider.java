@@ -107,7 +107,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     return client;
   }
 
-  private LoadCredentialsResponse fetchCredentials() {
+  LoadCredentialsResponse fetchCredentials() {
     return httpClient()
         .get(
             credentialsEndpoint,

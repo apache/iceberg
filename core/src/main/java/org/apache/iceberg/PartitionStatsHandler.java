@@ -499,7 +499,8 @@ public class PartitionStatsHandler {
   private static PartitionMap<PartitionStatistics> collectStatsForManifest(
       Table table, ManifestFile manifest, StructType partitionType, boolean incremental) {
     List<String> projection = BaseScan.scanColumns(manifest.content());
-    try (ManifestReader<?> reader = ManifestFiles.open(manifest, table.io()).select(projection)) {
+    try (ManifestReader<?> reader =
+        ManifestFiles.open(manifest, table.io(), table.specs()).select(projection)) {
       PartitionMap<PartitionStatistics> statsMap = PartitionMap.create(table.specs());
       int specId = manifest.partitionSpecId();
       PartitionSpec spec = table.specs().get(specId);

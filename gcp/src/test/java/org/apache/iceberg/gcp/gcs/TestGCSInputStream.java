@@ -163,6 +163,9 @@ public class TestGCSInputStream {
   @Test
   public void testClose() throws Exception {
     BlobId blobId = BlobId.fromGsUtilUri("gs://bucket/path/to/closed.dat");
+    byte[] data = randomData(1024 * 1024);
+    writeGCSData(blobId, data);
+
     SeekableInputStream closed =
         new GCSInputStream(storage, blobId, null, gcpProperties, MetricsContext.nullMetrics());
     closed.close();

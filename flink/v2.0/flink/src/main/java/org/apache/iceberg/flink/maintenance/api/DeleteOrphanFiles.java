@@ -53,6 +53,11 @@ public class DeleteOrphanFiles {
       ScanContext.builder().streaming(true).project(FILE_PATH_SCHEMA).build();
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
 
+  static final Map<String, String> DEFAULT_EQUAL_SCHEMES =
+      ImmutableMap.of(
+          "s3n", "s3",
+          "s3a", "s3");
+
   @Internal
   public static final OutputTag<Exception> ERROR_STREAM =
       new OutputTag<>("error-stream", TypeInformation.of(Exception.class));
@@ -79,12 +84,8 @@ public class DeleteOrphanFiles {
     private Duration minAge = Duration.ofDays(3);
     private int planningWorkerPoolSize = ThreadPools.WORKER_THREAD_POOL_SIZE;
     private int deleteBatchSize = 1000;
-    private boolean usePrefixListing = false;
-    private Map<String, String> equalSchemes =
-        Maps.newHashMap(
-            ImmutableMap.of(
-                "s3n", "s3",
-                "s3a", "s3"));
+    private boolean usePrefixListing = true;
+    private Map<String, String> equalSchemes = Maps.newHashMap(DEFAULT_EQUAL_SCHEMES);
     private final Map<String, String> equalAuthorities = Maps.newHashMap();
     private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
 
@@ -187,6 +188,19 @@ public class DeleteOrphanFiles {
     public Builder deleteBatchSize(int newDeleteBatchSize) {
       this.deleteBatchSize = newDeleteBatchSize;
       return this;
+    }
+
+    public Builder config(DeleteOrphanFilesConfig deleteOrphanFilesConfig) {
+      return this.scheduleOnInterval(
+              Duration.ofSeconds(deleteOrphanFilesConfig.scheduleOnIntervalSecond()))
+          .minAge(Duration.ofSeconds(deleteOrphanFilesConfig.minAgeSeconds()))
+          .deleteBatchSize(deleteOrphanFilesConfig.deleteBatchSize())
+          .usePrefixListing(deleteOrphanFilesConfig.usePrefixListing())
+          .prefixMismatchMode(deleteOrphanFilesConfig.prefixMismatchMode())
+          .location(deleteOrphanFilesConfig.location())
+          .planningWorkerPoolSize(deleteOrphanFilesConfig.planningWorkerPoolSize())
+          .equalSchemes(deleteOrphanFilesConfig.equalSchemes())
+          .equalAuthorities(deleteOrphanFilesConfig.equalAuthorities());
     }
 
     @Override

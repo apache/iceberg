@@ -48,6 +48,8 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -1946,7 +1948,10 @@ public class TestRowDelta extends TestBase {
     commit(table, rowDelta1, branch);
 
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     assertThat(Iterables.size(addedDeleteFiles)).isEqualTo(1);
     DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
 
@@ -2004,7 +2009,8 @@ public class TestRowDelta extends TestBase {
 
     Snapshot snapshot = latestSnapshot(table, branch);
     // Expect 3 merged DVs, one per data file
-    Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDeleteFiles();
     List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
     assertThat(mergedDVs).hasSize(3);
     // Should be a Puffin produced per merged DV spec
@@ -2067,7 +2073,10 @@ public class TestRowDelta extends TestBase {
 
     // Expect two merged DVs, one per data file
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
 
     assertThat(mergedDVs).hasSize(2);
@@ -2119,7 +2128,10 @@ public class TestRowDelta extends TestBase {
 
     // Expect two DVs: one merged for dataFile1 and deleteFile2
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> committedDVs = Lists.newArrayList(addedDeleteFiles);
 
     assertThat(committedDVs).hasSize(2);
@@ -2167,7 +2179,10 @@ public class TestRowDelta extends TestBase {
     commit(table, rowDelta, branch);
 
     Iterable<DeleteFile> addedDeleteFiles =
-        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+        SnapshotChanges.builderFor(table)
+            .snapshot(latestSnapshot(table, branch))
+            .build()
+            .addedDeleteFiles();
     List<DeleteFile> committedDeletes = Lists.newArrayList(addedDeleteFiles);
 
     // 1 DV + 1 equality delete
@@ -2185,6 +2200,167 @@ public class TestRowDelta extends TestBase {
                 .collect(Collectors.toList()));
     assertThat(committedEqDelete).isNotNull();
     assertThat(committedEqDelete.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+  }
+
+  @TestTemplate
+  public void testConcurrentDVsInDifferentPartitionsWithFilter() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // bucket16("u") -> 0, bucket16("a") -> 2
+    DataFile dataFileInBucket0 = newDataFile("data_bucket=0");
+    DataFile dataFileInBucket2 = newDataFile("data_bucket=2");
+    commit(
+        table, table.newRowDelta().addRows(dataFileInBucket0).addRows(dataFileInBucket2), branch);
+
+    Snapshot base = latestSnapshot(table, branch);
+
+    // prepare a DV for bucket 0 with a conflict detection filter scoped to bucket 0
+    DeleteFile dvBucket0 = newDeletes(dataFileInBucket0);
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(dvBucket0)
+            .validateFromSnapshot(base.snapshotId())
+            .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
+
+    // concurrently commit a DV in bucket 2
+    DeleteFile dvBucket2 = newDeletes(dataFileInBucket2);
+    Snapshot concurrentSnapshot = commit(table, table.newRowDelta().addDeletes(dvBucket2), branch);
+
+    // commit should succeed because the concurrent DV is in bucket 2
+    // which does not overlap the conflict detection filter
+    Snapshot finalSnapshot = commit(table, rowDelta, branch);
+
+    assertThat(finalSnapshot.deleteManifests(table.io())).hasSize(2);
+    validateDeleteManifest(
+        finalSnapshot.deleteManifests(table.io()).get(0),
+        dataSeqs(finalSnapshot.sequenceNumber()),
+        fileSeqs(finalSnapshot.sequenceNumber()),
+        ids(finalSnapshot.snapshotId()),
+        files(dvBucket0),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        finalSnapshot.deleteManifests(table.io()).get(1),
+        dataSeqs(concurrentSnapshot.sequenceNumber()),
+        fileSeqs(concurrentSnapshot.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId()),
+        files(dvBucket2),
+        statuses(Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testConcurrentDVsInSamePartitionWithFilter() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // bucket16("u") -> 0
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    Snapshot base = latestSnapshot(table, branch);
+
+    // prepare a DV for dataFile with a conflict detection filter scoped to bucket 0
+    DeleteFile dv1 = newDeletes(dataFile);
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(dv1)
+            .validateFromSnapshot(base.snapshotId())
+            .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
+
+    // concurrently commit another DV for the same data file in bucket 0
+    DeleteFile dv2 = newDeletes(dataFile);
+    commit(table, table.newRowDelta().addDeletes(dv2), branch);
+
+    // must be conflict because the concurrent DV is in the same partition
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Found concurrently added DV for %s", dataFile.location());
+  }
+
+  @TestTemplate
+  public void testDVValidationPartitionPruningManifestCount() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // disable manifest merging so each commit produces a separate delete manifest
+    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
+
+    // create data files and DVs across 10 different partitions (buckets 0-9)
+    int numPartitions = 10;
+    DataFile[] dataFiles = new DataFile[numPartitions];
+    for (int bucket = 0; bucket < numPartitions; bucket++) {
+      dataFiles[bucket] = newDataFile("data_bucket=" + bucket);
+      commit(table, table.newRowDelta().addRows(dataFiles[bucket]), branch);
+      DeleteFile dv = newDeletes(dataFiles[bucket]);
+      commit(table, table.newRowDelta().addDeletes(dv), branch);
+    }
+
+    Snapshot base = latestSnapshot(table, branch);
+    List<ManifestFile> deleteManifests = base.deleteManifests(table.io());
+
+    // there should be one delete manifest per partition since we disabled merging
+    assertThat(deleteManifests).hasSizeGreaterThanOrEqualTo(numPartitions);
+
+    // count how many manifests match a filter scoped to bucket 0
+    // bucket16("u") -> 0
+    Expression filter = Expressions.equal("data", "u");
+    int matching = 0;
+    for (ManifestFile manifest : deleteManifests) {
+      PartitionSpec spec = table.specs().get(manifest.partitionSpecId());
+      Expression partitionFilter = Projections.inclusive(spec, true).project(filter);
+      ManifestEvaluator evaluator =
+          ManifestEvaluator.forPartitionFilter(partitionFilter, spec, true);
+      if (evaluator.eval(manifest)) {
+        matching = matching + 1;
+      }
+    }
+
+    // only 1 out of N manifests should match the filter for bucket 0
+    assertThat(matching).isEqualTo(1);
+    assertThat(deleteManifests.size() - matching)
+        .as("pruned manifests")
+        .isGreaterThanOrEqualTo(numPartitions - 1);
+
+    // verify the DV manifest pruning works: commit a new DV in bucket 0
+    // while concurrent DVs exist in all other partitions
+    DataFile newDataFileInBucket0 = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(newDataFileInBucket0), branch);
+
+    Snapshot preCommit = latestSnapshot(table, branch);
+    DeleteFile newDV = newDeletes(newDataFileInBucket0);
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(newDV)
+            .validateFromSnapshot(preCommit.snapshotId())
+            .conflictDetectionFilter(Expressions.equal("data", "u")); // bucket16("u") -> 0
+
+    // concurrently add a DV in a different partition (bucket 5)
+    // bucket16("v") -> 5
+    DataFile newDataFileInBucket5 = newDataFile("data_bucket=5");
+    commit(table, table.newRowDelta().addRows(newDataFileInBucket5), branch);
+    DeleteFile concurrentDV = newDeletes(newDataFileInBucket5);
+    Snapshot concurrentSnapshot =
+        commit(table, table.newRowDelta().addDeletes(concurrentDV), branch);
+
+    // commit should succeed: the concurrent DV is in bucket 5, pruned by the filter
+    Snapshot finalSnapshot = commit(table, rowDelta, branch);
+
+    List<ManifestFile> finalDeleteManifests = finalSnapshot.deleteManifests(table.io());
+    // the new DV manifest and the concurrent DV manifest should be present
+    validateDeleteManifest(
+        finalDeleteManifests.get(0),
+        dataSeqs(finalSnapshot.sequenceNumber()),
+        fileSeqs(finalSnapshot.sequenceNumber()),
+        ids(finalSnapshot.snapshotId()),
+        files(newDV),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        finalDeleteManifests.get(1),
+        dataSeqs(concurrentSnapshot.sequenceNumber()),
+        fileSeqs(concurrentSnapshot.sequenceNumber()),
+        ids(concurrentSnapshot.snapshotId()),
+        files(concurrentDV),
+        statuses(Status.ADDED));
   }
 
   @TestTemplate

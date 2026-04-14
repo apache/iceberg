@@ -34,6 +34,7 @@ import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -101,6 +102,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final Supplier<FileIO> fileIO;
   private final Schema schema;
   private final SparkSession spark;
   private final SparkReadConf readConf;
@@ -115,6 +117,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   SparkScan(
       SparkSession spark,
       Table table,
+      Supplier<FileIO> fileIO,
       Schema schema,
       SparkReadConf readConf,
       Schema projection,
@@ -123,6 +126,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.fileIO = fileIO;
     this.schema = schema;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
@@ -169,12 +173,20 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Batch toBatch() {
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), projection, hashCode());
+        sparkContext,
+        table,
+        fileIO,
+        readConf,
+        groupingKeyType(),
+        taskGroups(),
+        projection,
+        hashCode());
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(sparkContext, table, readConf, projection, checkpointLocation);
+    return new SparkMicroBatchStream(
+        sparkContext, table, fileIO, readConf, projection, checkpointLocation);
   }
 
   @Override

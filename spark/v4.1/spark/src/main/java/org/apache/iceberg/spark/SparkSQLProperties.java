@@ -27,9 +27,6 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
-  // Controls which Parquet reader implementation to use
-  public static final String PARQUET_READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
-  public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.ICEBERG;
   // Controls whether to perform the nullability check during writes
   public static final String CHECK_NULLABILITY = "spark.sql.iceberg.check-nullability";
   public static final boolean CHECK_NULLABILITY_DEFAULT = true;
@@ -112,4 +109,9 @@ public class SparkSQLProperties {
 
   // Prefix for custom snapshot properties
   public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
+
+  // Controls whether to enable async micro batch planning for session
+  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
+      "spark.sql.iceberg.async-micro-batch-planning-enabled";
+  public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
 }

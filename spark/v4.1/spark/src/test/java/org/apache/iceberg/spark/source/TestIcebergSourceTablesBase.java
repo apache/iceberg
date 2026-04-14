@@ -53,6 +53,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -262,7 +263,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> singleActual =
         rowsToJava(
@@ -295,7 +296,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -333,7 +334,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile file = SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next();
 
     List<Object[]> multiActual =
         rowsToJava(
@@ -640,7 +641,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     table.refresh();
     DataFile toDelete =
-        Iterables.getOnlyElement(table.currentSnapshot().addedDataFiles(table.io()));
+        Iterables.getOnlyElement(SnapshotChanges.builderFor(table).build().addedDataFiles());
 
     // add a second file
     df2.select("id", "data")
@@ -1139,19 +1140,16 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
-    if (!spark.version().startsWith("2")) {
-      // Spark 2 isn't able to actually push down nested struct projections so this will not break
-      assertThatThrownBy(
-              () ->
-                  spark
-                      .read()
-                      .format("iceberg")
-                      .load(loadLocation(tableIdentifier, "manifests"))
-                      .select("partition_spec_id", "path", "partition_summaries.contains_null")
-                      .collectAsList())
-          .isInstanceOf(SparkException.class)
-          .hasMessageContaining("Cannot project a partial list element struct");
-    }
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .load(loadLocation(tableIdentifier, "manifests"))
+                    .select("partition_spec_id", "path", "partition_summaries.contains_null")
+                    .collectAsList())
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Cannot project a partial list element struct");
 
     Dataset<Row> actualDf =
         spark
@@ -1328,7 +1326,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
+                totalSizeInBytes(SnapshotChanges.builderFor(table).build().addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1397,7 +1395,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1413,7 +1415,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(secondCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1679,7 +1685,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
@@ -1695,7 +1705,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set(
                 "total_data_file_size_in_bytes",
-                totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
+                totalSizeInBytes(
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(table.snapshot(firstCommitId))
+                        .build()
+                        .addedDataFiles()))
             .set("position_delete_record_count", 2L) // should be incremented now
             .set("position_delete_file_count", 2) // should be incremented now
             .set("equality_delete_record_count", 0L)
@@ -2426,7 +2440,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
   private DeleteFile writePosDeleteFile(Table table, long pos) {
     DataFile dataFile =
-        Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
+        Iterables.getFirst(SnapshotChanges.builderFor(table).build().addedDataFiles(), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 
