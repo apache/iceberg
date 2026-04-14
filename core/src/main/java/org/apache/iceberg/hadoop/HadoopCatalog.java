@@ -120,6 +120,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     this.lockManager = LockManagers.from(properties);
 
     this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(fileIO);
     closeableGroup.addCloseable(lockManager);
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
