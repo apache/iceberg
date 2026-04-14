@@ -27,6 +27,7 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import javax.net.ssl.SSLException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
@@ -43,10 +44,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
-import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
@@ -55,10 +57,22 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
       ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
 
-  private static boolean isPrematureConnectionClose(Throwable ex) {
+  private boolean isPrematureConnectionCloseApacheHttpClient(Throwable ex) {
+    // https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/impl/io/ContentLengthInputStream.java#L141
+    // https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/ConnectionClosedException.java#L68
     return ex.getClass().getSimpleName().equals("ConnectionClosedException")
         && ex.getMessage() != null
-        && ex.getMessage().startsWith("Premature end of Content-Length delimited message body");
+        && ex.getMessage()
+            .equals(
+                String.format(
+                    Locale.getDefault(),
+                    "Premature end of Content-Length delimited message body (expected: %,d; received: %,d)",
+                    streamEnd - streamStart,
+                    pos - streamStart));
+  }
+
+  private boolean isPrematureConnectionCloseUrlConnectionHttpClient(Object bytesRead) {
+    return Integer.valueOf(-1).equals(bytesRead) && pos < streamEnd;
   }
 
   private final StackTraceElement[] createStack;
@@ -66,7 +80,9 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private final S3URI location;
   private final S3FileIOProperties s3FileIOProperties;
 
-  private InputStream stream;
+  private ResponseInputStream<GetObjectResponse> stream;
+  private long streamStart = 0;
+  private long streamEnd = -1;
   private long pos = 0;
   private long next = 0;
   private boolean closed = false;
@@ -78,7 +94,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private RetryPolicy<Object> retryPolicy =
       RetryPolicy.builder()
           .handle(RETRYABLE_EXCEPTIONS)
-          .handleIf(S3InputStream::isPrematureConnectionClose)
+          .handleIf(this::isPrematureConnectionCloseApacheHttpClient)
+          .handleResultIf(this::isPrematureConnectionCloseUrlConnectionHttpClient)
           .onRetry(
               e -> {
                 LOG.warn(
@@ -249,6 +266,9 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     try {
       stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+      streamStart = pos;
+      final Long streamLength = stream.response().contentLength();
+      streamEnd = streamLength == null ? -1 : streamStart + streamLength;
     } catch (NoSuchKeyException e) {
       throw new NotFoundException(e, "Location does not exist: %s", location);
     }
@@ -285,8 +305,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
   private void abortStream() {
     try {
-      if (stream instanceof Abortable && stream.read() != -1) {
-        ((Abortable) stream).abort();
+      if (stream.read() != -1) {
+        stream.abort();
       }
     } catch (Exception e) {
       LOG.warn("An error occurred while aborting the stream", e);
