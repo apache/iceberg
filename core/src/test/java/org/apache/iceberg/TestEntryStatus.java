@@ -18,27 +18,31 @@
  */
 package org.apache.iceberg;
 
-/** Status of an entry in a manifest file. */
-enum EntryStatus {
-  EXISTING(0),
-  ADDED(1),
-  DELETED(2),
-  /** Indicates an entry that has been replaced by a column update or DV change. Added in v4. */
-  REPLACED(3);
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-  private static final EntryStatus[] VALUES = EntryStatus.values();
+import java.util.stream.IntStream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
-  private final int id;
+class TestEntryStatus {
 
-  EntryStatus(int id) {
-    this.id = id;
+  @ParameterizedTest
+  @EnumSource(EntryStatus.class)
+  void fromId(EntryStatus status) {
+    assertThat(EntryStatus.fromId(status.id())).isEqualTo(status);
   }
 
-  public int id() {
-    return id;
+  static IntStream invalidIds() {
+    return IntStream.of(-1, EntryStatus.values().length);
   }
 
-  static EntryStatus fromId(int id) {
-    return VALUES[id];
+  @ParameterizedTest
+  @MethodSource("invalidIds")
+  void fromIdInvalid(int id) {
+    assertThatThrownBy(() -> EntryStatus.fromId(id))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining(String.valueOf(id));
   }
 }
