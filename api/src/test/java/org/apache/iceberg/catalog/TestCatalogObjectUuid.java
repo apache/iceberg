@@ -28,12 +28,12 @@ public class TestCatalogObjectUuid {
   @Test
   void testInvalidUuid() {
     assertThatThrownBy(() -> new CatalogObjectUuid(null, CatalogObjectType.TABLE.type()))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid UUID: null");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid UUID: null or empty");
 
     assertThatThrownBy(() -> new CatalogObjectUuid("", CatalogObjectType.TABLE.type()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid UUID: empty");
+        .hasMessage("Invalid UUID: null or empty");
   }
 
   @Test

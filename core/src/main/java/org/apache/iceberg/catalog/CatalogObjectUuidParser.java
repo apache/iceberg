@@ -34,11 +34,7 @@ public class CatalogObjectUuidParser {
     return toJson(catalogObjectUuid, false);
   }
 
-  public static String toJsonPretty(CatalogObjectUuid catalogObjectUuid) {
-    return toJson(catalogObjectUuid, true);
-  }
-
-  private static String toJson(CatalogObjectUuid catalogObjectUuid, boolean pretty) {
+  public static String toJson(CatalogObjectUuid catalogObjectUuid, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(catalogObjectUuid, gen), pretty);
   }
 

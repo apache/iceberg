@@ -64,6 +64,17 @@ public class TestQueryEventsResponseParser {
   }
 
   @Test
+  void testToJsonWithoutContinuationToken() {
+    QueryEventsResponse response =
+        ImmutableQueryEventsResponse.builder()
+            .highestProcessedTimestampMs(1L)
+            .events(List.of())
+            .build();
+    assertThat(QueryEventsResponseParser.toJson(response))
+        .isEqualTo("{\"highest-processed-timestamp-ms\":1,\"events\":[]}");
+  }
+
+  @Test
   void testToJsonPretty() {
     QueryEventsResponse response =
         ImmutableQueryEventsResponse.builder()
@@ -90,7 +101,7 @@ public class TestQueryEventsResponseParser {
             + "    }\n"
             + "  } ]\n"
             + "}";
-    assertThat(QueryEventsResponseParser.toJsonPretty(response)).isEqualTo(expected);
+    assertThat(QueryEventsResponseParser.toJson(response, true)).isEqualTo(expected);
   }
 
   @Test
@@ -124,9 +135,15 @@ public class TestQueryEventsResponseParser {
 
   @Test
   void testFromJsonWithMissingProperties() {
-    String missingContinuationToken = "{\"highest-processed-timestamp-ms\":1,\"events\":[]}";
-    assertThatIllegalArgumentException()
-        .isThrownBy(() -> QueryEventsResponseParser.fromJson(missingContinuationToken));
+    QueryEventsResponse missingContinuationTokenExpected =
+        ImmutableQueryEventsResponse.builder()
+            .highestProcessedTimestampMs(1L)
+            .events(List.of())
+            .build();
+    assertThat(
+            QueryEventsResponseParser.fromJson(
+                "{\"highest-processed-timestamp-ms\":1,\"events\":[]}"))
+        .isEqualTo(missingContinuationTokenExpected);
 
     String missingHighestProcessedTimestamp = "{\"events\":[]}";
     assertThatIllegalArgumentException()

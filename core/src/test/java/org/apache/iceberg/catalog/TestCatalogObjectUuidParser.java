@@ -40,7 +40,7 @@ public class TestCatalogObjectUuidParser {
         new CatalogObjectUuid("uuid", CatalogObjectType.TABLE.type());
     String catalogObjectUuidJson =
         "{\n" + "  \"uuid\" : \"uuid\",\n" + "  \"type\" : \"table\"\n" + "}";
-    assertThat(CatalogObjectUuidParser.toJsonPretty(catalogObjectUuid))
+    assertThat(CatalogObjectUuidParser.toJson(catalogObjectUuid, true))
         .isEqualTo(catalogObjectUuidJson);
   }
 
@@ -71,21 +71,25 @@ public class TestCatalogObjectUuidParser {
   void testFromJsonWithMissingProperties() {
     String missingUuid = "{\"type\":\"table\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(missingUuid));
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(missingUuid))
+        .withMessage("Cannot parse missing string: uuid");
 
     String missingType = "{\"uuid\":\"uuid\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(missingType));
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(missingType))
+        .withMessage("Cannot parse missing string: type");
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
-    String invalidUuid = "{\"uuid\":123,\"type\":\"namespace\"}";
+    String invalidUuid = "{\"uuid\":123,\"type\":\"table\"}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidUuid));
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidUuid))
+        .withMessage("Cannot parse to a string value: uuid: 123");
 
     String invalidType = "{\"uuid\":\"uuid\",\"type\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidType));
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidType))
+        .withMessage("Cannot parse to a string value: type: 123");
   }
 }

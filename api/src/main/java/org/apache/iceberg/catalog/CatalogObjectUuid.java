@@ -32,16 +32,12 @@ public class CatalogObjectUuid {
   private final String type;
 
   public CatalogObjectUuid(String uuid, String type) {
-    Preconditions.checkNotNull(uuid, "Invalid UUID: null");
-
-    if (uuid.isEmpty()) {
-      throw new IllegalArgumentException("Invalid UUID: empty");
-    }
-
-    if (!type.equals(CatalogObjectType.TABLE.type())
-        && !type.equals(CatalogObjectType.VIEW.type())) {
-      throw new IllegalArgumentException("Invalid type: " + type);
-    }
+    Preconditions.checkArgument(uuid != null && !uuid.isEmpty(), "Invalid UUID: null or empty");
+    Preconditions.checkArgument(type != null, "Invalid type: null");
+    Preconditions.checkArgument(
+        type.equals(CatalogObjectType.TABLE.type()) || type.equals(CatalogObjectType.VIEW.type()),
+        "Invalid type: %s",
+        type);
 
     this.uuid = uuid;
     this.type = type;

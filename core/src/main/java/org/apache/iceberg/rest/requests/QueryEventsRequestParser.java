@@ -47,11 +47,7 @@ public class QueryEventsRequestParser {
     return toJson(request, false);
   }
 
-  public static String toJsonPretty(QueryEventsRequest request) {
-    return toJson(request, true);
-  }
-
-  private static String toJson(QueryEventsRequest request, boolean pretty) {
+  public static String toJson(QueryEventsRequest request, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(request, gen), pretty);
   }
 

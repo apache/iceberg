@@ -25,6 +25,7 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
@@ -37,6 +38,8 @@ public interface CatalogOperation {
     private final Map<String, String> properties;
 
     public CreateNamespace(Namespace namespace, Map<String, String> properties) {
+      Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
+      Preconditions.checkArgument(properties != null, "Invalid properties: null");
       this.namespace = namespace;
       this.properties = ImmutableMap.copyOf(properties);
     }
@@ -79,6 +82,9 @@ public interface CatalogOperation {
     private final List<MetadataUpdate> updates;
 
     public CreateTable(TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
+      Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+      Preconditions.checkArgument(tableUuid != null, "Invalid table UUID: null");
+      Preconditions.checkArgument(updates != null, "Invalid updates: null");
       this.identifier = identifier;
       this.tableUuid = tableUuid;
       this.updates = ImmutableList.copyOf(updates);
@@ -127,6 +133,9 @@ public interface CatalogOperation {
     private final List<MetadataUpdate> updates;
 
     public CreateView(TableIdentifier identifier, String viewUuid, List<MetadataUpdate> updates) {
+      Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+      Preconditions.checkArgument(viewUuid != null, "Invalid view UUID: null");
+      Preconditions.checkArgument(updates != null, "Invalid updates: null");
       this.identifier = identifier;
       this.viewUuid = viewUuid;
       this.updates = ImmutableList.copyOf(updates);
@@ -184,6 +193,8 @@ public interface CatalogOperation {
         String tableUuid,
         String viewUuid,
         Map<String, String> properties) {
+      Preconditions.checkArgument(
+          customOperationType != null, "Invalid custom operation type: null");
       this.customOperationType = customOperationType;
       this.identifier = identifier;
       this.namespace = namespace;
@@ -249,6 +260,7 @@ public interface CatalogOperation {
     private final Namespace namespace;
 
     public DropNamespace(Namespace namespace) {
+      Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
       this.namespace = namespace;
     }
 
@@ -285,6 +297,8 @@ public interface CatalogOperation {
     private final Boolean purge;
 
     public DropTable(TableIdentifier identifier, String tableUuid, Boolean purge) {
+      Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+      Preconditions.checkArgument(tableUuid != null, "Invalid table UUID: null");
       this.identifier = identifier;
       this.tableUuid = tableUuid;
       this.purge = purge;
@@ -332,6 +346,8 @@ public interface CatalogOperation {
     private final String viewUuid;
 
     public DropView(TableIdentifier identifier, String viewUuid) {
+      Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+      Preconditions.checkArgument(viewUuid != null, "Invalid view UUID: null");
       this.identifier = identifier;
       this.viewUuid = viewUuid;
     }
@@ -374,6 +390,9 @@ public interface CatalogOperation {
 
     public RegisterTable(
         TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
+      Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+      Preconditions.checkArgument(tableUuid != null, "Invalid table UUID: null");
+      Preconditions.checkArgument(updates != null, "Invalid updates: null");
       this.identifier = identifier;
       this.tableUuid = tableUuid;
       this.updates = ImmutableList.copyOf(updates);
@@ -423,6 +442,9 @@ public interface CatalogOperation {
 
     public RenameTable(
         TableIdentifier sourceIdentifier, TableIdentifier destIdentifier, String tableUuid) {
+      Preconditions.checkArgument(sourceIdentifier != null, "Invalid source identifier: null");
+      Preconditions.checkArgument(destIdentifier != null, "Invalid destination identifier: null");
+      Preconditions.checkArgument(tableUuid != null, "Invalid table UUID: null");
       this.sourceIdentifier = sourceIdentifier;
       this.destIdentifier = destIdentifier;
       this.tableUuid = tableUuid;
@@ -472,6 +494,9 @@ public interface CatalogOperation {
 
     public RenameView(
         TableIdentifier sourceIdentifier, TableIdentifier destIdentifier, String viewUuid) {
+      Preconditions.checkArgument(sourceIdentifier != null, "Invalid source identifier: null");
+      Preconditions.checkArgument(destIdentifier != null, "Invalid destination identifier: null");
+      Preconditions.checkArgument(viewUuid != null, "Invalid view UUID: null");
       this.sourceIdentifier = sourceIdentifier;
       this.destIdentifier = destIdentifier;
       this.viewUuid = viewUuid;
@@ -581,6 +606,9 @@ public interface CatalogOperation {
         String tableUuid,
         List<MetadataUpdate> updates,
         List<UpdateRequirement> requirements) {
+      Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+      Preconditions.checkArgument(tableUuid != null, "Invalid table UUID: null");
+      Preconditions.checkArgument(updates != null, "Invalid updates: null");
       this.identifier = identifier;
       this.tableUuid = tableUuid;
       this.updates = ImmutableList.copyOf(updates);
@@ -641,6 +669,9 @@ public interface CatalogOperation {
         String viewUuid,
         List<MetadataUpdate> updates,
         List<UpdateRequirement> requirements) {
+      Preconditions.checkArgument(identifier != null, "Invalid identifier: null");
+      Preconditions.checkArgument(viewUuid != null, "Invalid view UUID: null");
+      Preconditions.checkArgument(updates != null, "Invalid updates: null");
       this.identifier = identifier;
       this.viewUuid = viewUuid;
       this.updates = ImmutableList.copyOf(updates);

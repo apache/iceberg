@@ -360,7 +360,7 @@ public class CatalogOperationParser {
     List<UpdateRequirement> requirements =
         json.has(REQUIREMENTS)
             ? JsonUtil.getObjectList(REQUIREMENTS, json, UpdateRequirementParser::fromJson)
-            : null;
+            : ImmutableList.of();
     return new CatalogOperation.UpdateTable(identifier, tableUuid, updates, requirements);
   }
 
@@ -384,7 +384,7 @@ public class CatalogOperationParser {
     List<UpdateRequirement> requirements =
         json.has(REQUIREMENTS)
             ? JsonUtil.getObjectList(REQUIREMENTS, json, UpdateRequirementParser::fromJson)
-            : null;
+            : ImmutableList.of();
     return new CatalogOperation.UpdateView(identifier, viewUuid, updates, requirements);
   }
 

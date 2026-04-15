@@ -38,11 +38,7 @@ public class QueryEventsResponseParser {
     return toJson(queryEventsResponse, false);
   }
 
-  public static String toJsonPretty(QueryEventsResponse queryEventsResponse) {
-    return toJson(queryEventsResponse, true);
-  }
-
-  private static String toJson(QueryEventsResponse queryEventsResponse, boolean pretty) {
+  public static String toJson(QueryEventsResponse queryEventsResponse, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(queryEventsResponse, gen), pretty);
   }
 
@@ -52,7 +48,9 @@ public class QueryEventsResponseParser {
 
     gen.writeStartObject();
 
-    gen.writeStringField(CONTINUATION_TOKEN, queryEventsResponse.continuationToken());
+    if (queryEventsResponse.continuationToken() != null) {
+      gen.writeStringField(CONTINUATION_TOKEN, queryEventsResponse.continuationToken());
+    }
 
     gen.writeNumberField(
         HIGHEST_PROCESSED_TIMESTAMP_MS, queryEventsResponse.highestProcessedTimestampMs());
@@ -73,16 +71,14 @@ public class QueryEventsResponseParser {
   public static QueryEventsResponse fromJson(JsonNode json) {
     Preconditions.checkNotNull(json, "Cannot parse query events response from null object");
 
-    String continuationToken = JsonUtil.getString(CONTINUATION_TOKEN, json);
+    String continuationToken = JsonUtil.getStringOrNull(CONTINUATION_TOKEN, json);
     Long highestProcessedTimestampMs = JsonUtil.getLong(HIGHEST_PROCESSED_TIMESTAMP_MS, json);
     List<Event> events = JsonUtil.getObjectList(EVENTS, json, EventParser::fromJson);
 
-    ImmutableQueryEventsResponse.Builder builder =
-        ImmutableQueryEventsResponse.builder()
-            .continuationToken(continuationToken)
-            .highestProcessedTimestampMs(highestProcessedTimestampMs)
-            .events(events);
-
-    return builder.build();
+    return ImmutableQueryEventsResponse.builder()
+        .continuationToken(continuationToken)
+        .highestProcessedTimestampMs(highestProcessedTimestampMs)
+        .events(events)
+        .build();
   }
 }

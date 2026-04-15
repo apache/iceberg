@@ -104,7 +104,7 @@ public class TestQueryEventsRequestParser {
             + "  }\n"
             + "}";
 
-    assertThat(QueryEventsRequestParser.toJsonPretty(request)).isEqualTo(expected);
+    assertThat(QueryEventsRequestParser.toJson(request, true)).isEqualTo(expected);
   }
 
   @Test

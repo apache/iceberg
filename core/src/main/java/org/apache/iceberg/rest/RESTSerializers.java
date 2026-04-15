@@ -183,12 +183,13 @@ public class RESTSerializers {
         .addDeserializer(ImmutableRemoteSignResponse.class, new RemoteSignResponseDeserializer<>())
         .addSerializer(QueryEventsRequest.class, new QueryEventsRequestSerializer<>())
         .addSerializer(ImmutableQueryEventsRequest.class, new QueryEventsRequestSerializer<>())
-        .addDeserializer(QueryEventsRequest.class, new QueryEventsRequestDeSerializer<>())
-        .addDeserializer(ImmutableQueryEventsRequest.class, new QueryEventsRequestDeSerializer<>())
-        .addSerializer(QueryEventsResponse.class, new EventsResponseSerializer<>())
-        .addSerializer(ImmutableQueryEventsResponse.class, new EventsResponseSerializer<>())
-        .addDeserializer(QueryEventsResponse.class, new EventsResponseDeSerializer<>())
-        .addDeserializer(ImmutableQueryEventsResponse.class, new EventsResponseDeSerializer<>());
+        .addDeserializer(QueryEventsRequest.class, new QueryEventsRequestDeserializer<>())
+        .addDeserializer(ImmutableQueryEventsRequest.class, new QueryEventsRequestDeserializer<>())
+        .addSerializer(QueryEventsResponse.class, new QueryEventsResponseSerializer<>())
+        .addSerializer(ImmutableQueryEventsResponse.class, new QueryEventsResponseSerializer<>())
+        .addDeserializer(QueryEventsResponse.class, new QueryEventsResponseDeserializer<>())
+        .addDeserializer(
+            ImmutableQueryEventsResponse.class, new QueryEventsResponseDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -660,7 +661,7 @@ public class RESTSerializers {
     }
   }
 
-  static class QueryEventsRequestDeSerializer<T extends QueryEventsRequest>
+  static class QueryEventsRequestDeserializer<T extends QueryEventsRequest>
       extends JsonDeserializer<T> {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
@@ -669,7 +670,8 @@ public class RESTSerializers {
     }
   }
 
-  static class EventsResponseSerializer<T extends QueryEventsResponse> extends JsonSerializer<T> {
+  static class QueryEventsResponseSerializer<T extends QueryEventsResponse>
+      extends JsonSerializer<T> {
     @Override
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -677,7 +679,7 @@ public class RESTSerializers {
     }
   }
 
-  static class EventsResponseDeSerializer<T extends QueryEventsResponse>
+  static class QueryEventsResponseDeserializer<T extends QueryEventsResponse>
       extends JsonDeserializer<T> {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {

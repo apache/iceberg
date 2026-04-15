@@ -29,9 +29,9 @@ public interface Event {
 
   String requestId();
 
-  Integer requestEventCount();
+  int requestEventCount();
 
-  Long timestampMs();
+  long timestampMs();
 
   Map<String, String> actor();
 
