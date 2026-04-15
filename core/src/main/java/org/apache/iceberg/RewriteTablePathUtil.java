@@ -465,14 +465,15 @@ public class RewriteTablePathUtil {
         // duplicates across manifests simply overwrite with identical content.
         String stagingPath = stagingPath(file.location(), sourcePrefix, stagingLocation);
         OutputFile outputFile = io.newOutputFile(stagingPath);
+        long actualSize;
         try {
-          rewritePositionDeleteFile(
-              file, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
+          actualSize =
+              rewritePositionDeleteFile(
+                  file, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
         } catch (IOException e) {
           throw new UncheckedIOException(
               "Failed to rewrite position delete file " + file.location(), e);
         }
-        long actualSize = io.newInputFile(stagingPath).getLength();
         DeleteFile posDeleteFile =
             newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix, actualSize);
         appendEntryWithFile(entry, writer, posDeleteFile);
@@ -629,8 +630,9 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix to replace it
    * @param posDeleteReaderWriter class to read and write position delete files
+   * @return actual file size in bytes after rewriting
    */
-  public static void rewritePositionDeleteFile(
+  public static long rewritePositionDeleteFile(
       DeleteFile deleteFile,
       OutputFile outputFile,
       FileIO io,
@@ -647,8 +649,7 @@ public class RewriteTablePathUtil {
 
     // DV files (Puffin format for v3+) need special handling to rewrite internal blob metadata
     if (ContentFileUtil.isDV(deleteFile)) {
-      rewriteDVFile(deleteFile, outputFile, io, sourcePrefix, targetPrefix);
-      return;
+      return rewriteDVFile(deleteFile, outputFile, io, sourcePrefix, targetPrefix);
     }
 
     // For non-DV position delete files (v2), rewrite using the reader/writer
@@ -677,9 +678,15 @@ public class RewriteTablePathUtil {
               writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
             }
           }
+
+          writer.close();
+          return writer.length();
         }
       }
     }
+
+    // Empty delete file — no records written
+    return 0;
   }
 
   /**
@@ -691,7 +698,7 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix to replace it
    */
-  private static void rewriteDVFile(
+  private static long rewriteDVFile(
       DeleteFile deleteFile,
       OutputFile outputFile,
       FileIO io,
@@ -730,6 +737,8 @@ public class RewriteTablePathUtil {
     try (PuffinWriter writer =
         Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
       rewrittenBlobs.forEach(writer::write);
+      writer.close();
+      return writer.length();
     }
   }
 

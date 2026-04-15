@@ -72,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.function.MapFunction;
@@ -311,12 +312,15 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     RewriteContentFileResult rewriteManifestResult =
         rewriteManifests(deltaSnapshots, endMetadata, metaFiles);
 
+    // DeleteFileSet deduplicates by path because DeleteFile lacks equals(), and the same
+    // position delete file can appear in multiple manifests.
     int rewrittenDeleteFilesCount =
         (int)
             rewriteManifestResult.toRewrite().stream()
                 .filter(e -> e instanceof DeleteFile)
-                .distinct()
-                .count();
+                .map(e -> (DeleteFile) e)
+                .collect(Collectors.toCollection(DeleteFileSet::create))
+                .size();
 
     ImmutableRewriteTablePath.Result.Builder builder =
         ImmutableRewriteTablePath.Result.builder()
