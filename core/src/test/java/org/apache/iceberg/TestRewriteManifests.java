@@ -1072,16 +1072,27 @@ public class TestRewriteManifests extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsOnBranchUnsupported() {
-
+  public void testRewriteManifestsOnBranch() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("branch", mainSnapshotId).commit();
 
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
-    assertThatThrownBy(() -> table.rewriteManifests().toBranch("someBranch").commit())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits");
+    table.rewriteManifests().clusterBy(file -> "").toBranch("branch").commit();
+
+    // main snapshot must not have changed
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
+
+    // branch snapshot must reflect the rewrite
+    Snapshot branchSnapshot =
+        table.snapshot(table.ops().current().ref("branch").snapshotId());
+    assertThat(branchSnapshot.allManifests(table.io())).hasSize(1);
+    validateManifestEntries(
+        branchSnapshot.allManifests(table.io()).get(0),
+        ids(mainSnapshotId, mainSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
   }
 
   @TestTemplate
