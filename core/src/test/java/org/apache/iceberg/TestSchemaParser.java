@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -154,5 +155,119 @@ public class TestSchemaParser extends DataTestBase {
         .isEqualTo(defaultValue.value());
     assertThat(serialized.findField("col_with_default").writeDefault())
         .isEqualTo(defaultValue.value());
+  }
+
+  @Test
+  void testExplicitNullWriteDefault() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.of(5))
+                .withWriteDefault(Literal.ofNull())
+                .build());
+
+    String json = SchemaParser.toJson(schema);
+    assertThat(json).contains("\"write-default\":null");
+    assertThat(json).contains("\"initial-default\":5");
+
+    Schema deserialized = SchemaParser.fromJson(json);
+    Types.NestedField field = deserialized.findField("data");
+    assertThat(field.initialDefault()).isEqualTo(5);
+    assertThat(field.initialDefaultLiteral()).isEqualTo(Literal.of(5));
+    assertThat(field.writeDefault()).isNull();
+    assertThat(field.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+  }
+
+  @Test
+  void testExplicitNullInitialDefault() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.ofNull())
+                .withWriteDefault(Literal.of("hello"))
+                .build());
+
+    String json = SchemaParser.toJson(schema);
+    assertThat(json).contains("\"initial-default\":null");
+    assertThat(json).contains("\"write-default\":\"hello\"");
+
+    Schema deserialized = SchemaParser.fromJson(json);
+    Types.NestedField field = deserialized.findField("data");
+    assertThat(field.initialDefault()).isNull();
+    assertThat(field.initialDefaultLiteral()).isEqualTo(Literal.ofNull());
+    assertThat(field.writeDefault()).isEqualTo("hello");
+  }
+
+  @Test
+  void testBothDefaultsExplicitlyNull() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.ofNull())
+                .withWriteDefault(Literal.ofNull())
+                .build());
+
+    String json = SchemaParser.toJson(schema);
+    assertThat(json).contains("\"initial-default\":null");
+    assertThat(json).contains("\"write-default\":null");
+
+    Schema deserialized = SchemaParser.fromJson(json);
+    Types.NestedField field = deserialized.findField("data");
+    assertThat(field.initialDefaultLiteral()).isEqualTo(Literal.ofNull());
+    assertThat(field.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+  }
+
+  @Test
+  void testNullDefaultOnRequiredFieldThrows() {
+    assertThatThrownBy(
+            () ->
+                Types.NestedField.required("data")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withWriteDefault(Literal.ofNull())
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot use null write default for required field");
+  }
+
+  @Test
+  void testParseJsonWithNullWriteDefault() {
+    String json =
+        "{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+            + "{\"id\":1,\"name\":\"id\",\"required\":true,\"type\":\"long\"},"
+            + "{\"id\":2,\"name\":\"data\",\"required\":false,\"type\":\"int\","
+            + "\"initial-default\":5,\"write-default\":null}]}";
+
+    Schema deserialized = SchemaParser.fromJson(json);
+    Types.NestedField field = deserialized.findField("data");
+    assertThat(field.initialDefault()).isEqualTo(5);
+    assertThat(field.writeDefault()).isNull();
+    assertThat(field.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+  }
+
+  @Test
+  void testAbsentVsExplicitNullDefault() {
+    Types.NestedField absent =
+        Types.NestedField.optional("data").withId(1).ofType(Types.IntegerType.get()).build();
+
+    Types.NestedField explicitNull =
+        Types.NestedField.optional("data")
+            .withId(1)
+            .ofType(Types.IntegerType.get())
+            .withWriteDefault(Literal.ofNull())
+            .build();
+
+    assertThat(absent.writeDefaultLiteral()).isNull();
+    assertThat(explicitNull.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+    assertThat(absent).isNotEqualTo(explicitNull);
   }
 }

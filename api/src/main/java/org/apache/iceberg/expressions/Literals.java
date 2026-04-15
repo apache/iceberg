@@ -104,6 +104,11 @@ class Literals {
     return BelowMin.INSTANCE;
   }
 
+  @SuppressWarnings("unchecked")
+  static <T> Literal<T> nullLiteral() {
+    return (Literal<T>) NullLiteral.INSTANCE;
+  }
+
   private abstract static class BaseLiteral<T> implements Literal<T> {
     private final T value;
     private transient volatile ByteBuffer byteBuffer = null;
@@ -745,6 +750,52 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BASE16_ENCODING.encode(bytes) + "'";
+    }
+  }
+
+  /**
+   * A sentinel literal representing an explicit null default value. This is distinct from a Java
+   * {@code null} literal reference, which means "not set." Engines use this distinction to decide
+   * whether to fall back to initial-default when write-default is not set.
+   */
+  static class NullLiteral<T> implements Literal<T> {
+    private static final NullLiteral<?> INSTANCE = new NullLiteral<>();
+
+    private NullLiteral() {}
+
+    @Override
+    public T value() {
+      return null;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <X> Literal<X> to(Type type) {
+      return (Literal<X>) this;
+    }
+
+    @Override
+    public Comparator<T> comparator() {
+      throw new UnsupportedOperationException("NullLiteral has no comparator");
+    }
+
+    @Override
+    public String toString() {
+      return "null";
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      return other instanceof NullLiteral;
+    }
+
+    @Override
+    public int hashCode() {
+      return NullLiteral.class.hashCode();
+    }
+
+    private Object readResolve() throws ObjectStreamException {
+      return INSTANCE;
     }
   }
 }

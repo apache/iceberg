@@ -71,6 +71,18 @@ public interface Literal<T> extends Serializable {
     return new Literals.DecimalLiteral(value);
   }
 
+  /**
+   * Returns a sentinel literal representing an explicit null default value.
+   *
+   * <p>This is distinct from a Java {@code null} literal reference, which means "not set." When
+   * used as a field default, this literal indicates that the default is explicitly null rather than
+   * absent. Engines use this distinction to avoid falling back to initial-default when
+   * write-default is explicitly set to null.
+   */
+  static Literal<?> ofNull() {
+    return Literals.nullLiteral();
+  }
+
   /** Returns the value wrapped by this literal. */
   T value();
 
