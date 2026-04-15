@@ -65,7 +65,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
 
   /**
-   * Flag to indicate that bulk delete is should be used. Null until the configuration is evaluated
+   * Flag to indicate that bulk delete is should be used. Null until the configuration is evaluated.
    */
   private Boolean useBulkDelete;
 

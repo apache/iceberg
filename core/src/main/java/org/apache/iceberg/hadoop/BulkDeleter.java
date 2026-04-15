@@ -25,9 +25,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BulkDelete;
 import org.apache.hadoop.fs.FileSystem;
@@ -116,11 +119,11 @@ final class BulkDeleter {
           totalFailedDeletions++;
           continue;
         }
-        // build root path of the filesystem,
+        // a delete context is built for each fs, mapped by the root path of that filesystem.
         Path fsRoot = fs.makeQualified(new Path("/"));
         DeleteContext dc = contextMap.get(fsRoot);
         if (dc == null) {
-          // fs root is not in the map, so create the bulk delete operation for
+          // the fs root path is not in the map, so create the bulk delete operation for
           // that FS and store within a new delete context.
           dc = new DeleteContext(fsRoot, fs.createBulkDelete(fsRoot));
           contextMap.put(fsRoot, dc);
@@ -134,12 +137,8 @@ final class BulkDeleter {
 
         if (deleteContext.pageSizeReached()) {
           // the page size has been reached.
-          // get the live path list, which MUST be done outside the async
-          // submitted closure. This also resets the context list to prepare
-          // for more entries.
-          final Collection<Path> paths = deleteContext.snapshotDeletedFiles();
           // execute the bulk delete in a new thread.
-          deletionTasks.add(executorService.submit(() -> deleteContext.deleteBatch(paths)));
+          deletionTasks.add(executorService.submit(deleteContext.createDeletionTask()));
         }
       }
 
@@ -147,7 +146,7 @@ final class BulkDeleter {
       // entries in the map which haven't yet reached their page size
       contextMap.values().stream()
           .filter(sd -> !sd.isEmpty())
-          .map(sd -> executorService.submit(() -> sd.deleteBatch(sd.deletedFiles())))
+          .map(sd -> executorService.submit(sd.finalDeletionTask()))
           .forEach(deletionTasks::add);
 
       // Wait for all deletion tasks to complete and report any failures.
@@ -155,7 +154,7 @@ final class BulkDeleter {
 
       for (Future<Outcome> deletionTask : deletionTasks) {
         try {
-          List<DeleteFailure> failedDeletions = deletionTask.get().failures();
+          List<DeleteFailure> failedDeletions = deletionTask.get(1, TimeUnit.HOURS).failures();
           failedDeletions.forEach(
               entry ->
                   LOG.warn(
@@ -163,7 +162,7 @@ final class BulkDeleter {
           totalFailedDeletions += failedDeletions.size();
         } catch (ExecutionException e) {
           LOG.warn("Caught unexpected exception during batch deletion: ", e.getCause());
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | TimeoutException e) {
           Thread.currentThread().interrupt();
           deletionTasks.stream().filter(task -> !task.isDone()).forEach(task -> task.cancel(true));
           throw new RuntimeException("Interrupted when waiting for deletions to complete", e);
@@ -174,7 +173,6 @@ final class BulkDeleter {
     } finally {
       contextMap.values().forEach(DeleteContext::close);
     }
-
     return totalFailedDeletions;
   }
 
@@ -206,6 +204,29 @@ final class BulkDeleter {
       this.bulkDelete = Preconditions.checkNotNull(bulkDelete, "null filesystem bulk deleter");
       this.pageSize = bulkDelete.pageSize();
       Preconditions.checkArgument(pageSize > 0, "Page size must be greater than zero");
+    }
+
+    /**
+     * Return a callable which will delete the current set of paths to delete. After returning new
+     * paths added to the context will accrue for later tasks.
+     *
+     * @return a callable.
+     */
+    Callable<Outcome> createDeletionTask() {
+      // get the live path list, which MUST be done outside the async
+      // submitted closure. This also resets the context list to prepare
+      // for more entries.
+      final Collection<Path> paths = snapshotDeletedFiles();
+      return () -> deleteBatch(paths);
+    }
+
+    /**
+     * The final deletion task, which doesn't snapshot the current list of deleted paths.
+     *
+     * @return a callable to execute.
+     */
+    Callable<Outcome> finalDeletionTask() {
+      return () -> deleteBatch(deletedFiles());
     }
 
     /** This is a very quiet close, for use in cleanup. This is due diligence. */
