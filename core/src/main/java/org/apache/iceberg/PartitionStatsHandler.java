@@ -579,8 +579,7 @@ public class PartitionStatsHandler {
    * @param stats the computed partition statistics to enrich
    */
   @VisibleForTesting
-  static List<PartitionStatistics> populateTotalRecordCount(
-      Collection<PartitionStatistics> stats) {
+  static List<PartitionStatistics> populateTotalRecordCount(Collection<PartitionStatistics> stats) {
     List<PartitionStatistics> result = Lists.newArrayListWithExpectedSize(stats.size());
     for (PartitionStatistics partitionStats : stats) {
       boolean hasEqualityDeletes =
