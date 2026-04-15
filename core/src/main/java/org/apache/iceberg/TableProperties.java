@@ -136,7 +136,7 @@ public class TableProperties {
   public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
   public static final String PARQUET_PAGE_VERSION = "write.parquet.page-version";
-  public static final String PARQUET_PAGE_VERSION_DEFAULT = "1";
+  public static final String PARQUET_PAGE_VERSION_DEFAULT = "v1";
 
   public static final String PARQUET_PAGE_ROW_LIMIT = "write.parquet.page-row-limit";
   public static final String DELETE_PARQUET_PAGE_ROW_LIMIT = "write.delete.parquet.page-row-limit";

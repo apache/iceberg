@@ -93,7 +93,7 @@ class TestParquetPageVersion {
     try (FileAppender<Record> writer =
         Parquet.write(outputFile)
             .schema(SCHEMA)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "2")
+            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
             .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(records);
@@ -109,7 +109,7 @@ class TestParquetPageVersion {
     EqualityDeleteWriter<Record> deleteWriter =
         Parquet.writeDeletes(outputFile)
             .createWriterFunc(GenericParquetWriter::create)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "2")
+            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
             .overwrite()
             .rowSchema(SCHEMA)
             .withSpec(PartitionSpec.unpartitioned())
@@ -130,7 +130,7 @@ class TestParquetPageVersion {
     try (FileAppender<Record> writer =
         Parquet.write(outputFile)
             .schema(SCHEMA)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "1")
+            .set(TableProperties.PARQUET_PAGE_VERSION, "v1")
             .writerVersion(WriterVersion.PARQUET_2_0)
             .createWriterFunc(GenericParquetWriter::create)
             .build()) {
@@ -147,7 +147,7 @@ class TestParquetPageVersion {
     try (FileAppender<Record> writer =
         Parquet.write(outputFile)
             .schema(SCHEMA)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "2")
+            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
             .writerVersion(WriterVersion.PARQUET_1_0)
             .createWriterFunc(GenericParquetWriter::create)
             .build()) {
@@ -165,7 +165,7 @@ class TestParquetPageVersion {
         Parquet.write(outputFile)
             .schema(SCHEMA)
             .writerVersion(WriterVersion.PARQUET_1_0)
-            .set(TableProperties.PARQUET_PAGE_VERSION, "2")
+            .set(TableProperties.PARQUET_PAGE_VERSION, "v2")
             .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(records);
@@ -186,7 +186,7 @@ class TestParquetPageVersion {
                     .createWriterFunc(GenericParquetWriter::create)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported Parquet page version: 3 (must be 1 or 2)");
+        .hasMessage("Unsupported Parquet page version: 3 (must be v1 or v2)");
   }
 
   private OutputFile newOutputFile() throws IOException {

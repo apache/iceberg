@@ -267,7 +267,12 @@ public class Parquet {
 
     public WriteBuilder writerVersion(WriterVersion version) {
       Preconditions.checkNotNull(version, "Writer version cannot be null");
-      this.config.put(PARQUET_PAGE_VERSION, Context.fromWriterVersion(version));
+      Preconditions.checkArgument(
+          version == WriterVersion.PARQUET_1_0 || version == WriterVersion.PARQUET_2_0,
+          "Unsupported writer version: %s",
+          version);
+      this.config.put(
+          PARQUET_PAGE_VERSION, version == WriterVersion.PARQUET_2_0 ? "v2" : "v1");
       return this;
     }
 
@@ -709,26 +714,12 @@ public class Parquet {
         }
       }
 
-      private static String fromWriterVersion(WriterVersion writerVersion) {
-        switch (writerVersion) {
-          case PARQUET_1_0:
-            return "1";
-          case PARQUET_2_0:
-            return "2";
-          default:
-            throw new IllegalArgumentException("Unsupported writer version: " + writerVersion);
-        }
-      }
-
       private static WriterVersion toWriterVersion(String pageVersion) {
-        switch (pageVersion) {
-          case "1":
-            return WriterVersion.PARQUET_1_0;
-          case "2":
-            return WriterVersion.PARQUET_2_0;
-          default:
-            throw new IllegalArgumentException(
-                "Unsupported Parquet page version: " + pageVersion + " (must be 1 or 2)");
+        try {
+          return WriterVersion.fromString(pageVersion);
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException(
+              "Unsupported Parquet page version: " + pageVersion + " (must be v1 or v2)");
         }
       }
 
