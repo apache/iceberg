@@ -43,7 +43,10 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
+import org.apache.flink.runtime.OperatorIDPair;
 import org.apache.flink.runtime.client.JobExecutionException;
+import org.apache.flink.runtime.jobgraph.JobVertex;
+import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -213,6 +216,56 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
+  /** Generator that always emits forward (null distributionMode) records. */
+  private static class ForwardGenerator implements DynamicRecordGenerator<DynamicIcebergDataImpl> {
+    @Override
+    public void generate(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
+      TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, row.tableName);
+      Schema schema = row.schemaProvided;
+      PartitionSpec spec = row.partitionSpec;
+      DynamicRecord dynamicRecord =
+          new DynamicRecord(
+              tableIdentifier,
+              row.branch,
+              schema,
+              converter(schema).toInternal(row.rowProvided),
+              spec);
+      dynamicRecord.setUpsertMode(row.upsertMode);
+      dynamicRecord.setEqualityFields(row.equalityFields);
+      out.collect(dynamicRecord);
+    }
+  }
+
+  /**
+   * Generator that alternates between forward (null distributionMode) and shuffle records. Even
+   * indices go forward, odd indices go through shuffle.
+   */
+  private static class MixedGenerator implements DynamicRecordGenerator<DynamicIcebergDataImpl> {
+    private int count = 0;
+
+    @Override
+    public void generate(DynamicIcebergDataImpl row, Collector<DynamicRecord> out) {
+      TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, row.tableName);
+      Schema schema = row.schemaProvided;
+      PartitionSpec spec = row.partitionSpec;
+      boolean forward = (count++ % 2 == 0);
+      DistributionMode mode =
+          forward ? null : (spec.isPartitioned() ? DistributionMode.HASH : DistributionMode.NONE);
+      DynamicRecord dynamicRecord =
+          new DynamicRecord(
+              tableIdentifier,
+              row.branch,
+              schema,
+              converter(schema).toInternal(row.rowProvided),
+              spec,
+              mode,
+              10);
+      dynamicRecord.setUpsertMode(row.upsertMode);
+      dynamicRecord.setEqualityFields(row.equalityFields);
+      out.collect(dynamicRecord);
+    }
+  }
+
   private static DataFormatConverters.RowConverter converter(Schema schema) {
     RowType rowType = FlinkSchemaUtil.convert(schema);
     ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(rowType);
@@ -236,6 +289,96 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 PartitionSpec.unpartitioned()));
 
     runTest(rows);
+  }
+
+  @Test
+  void testNoShuffleTopology() throws Exception {
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(
+            Collections.emptyList(), TypeInformation.of(new TypeHint<DynamicIcebergDataImpl>() {}));
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new ForwardGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(2)
+        .immediateTableUpdate(false)
+        .overwrite(false)
+        .append();
+
+    boolean generatorAndSinkChained = false;
+    for (JobVertex vertex : env.getStreamGraph().getJobGraph().getVertices()) {
+      boolean generatorInThisVertex = false;
+      boolean sinkInThisVertex = false;
+      for (OperatorIDPair operatorID : vertex.getOperatorIDs()) {
+        String uid = operatorID.getUserDefinedOperatorUid();
+        if (uid == null) {
+          continue;
+        }
+
+        if (uid.endsWith("-forward-writer")) {
+          sinkInThisVertex = true;
+        } else if (uid.endsWith("-generator")) {
+          generatorInThisVertex = true;
+        }
+      }
+
+      generatorAndSinkChained = generatorInThisVertex && sinkInThisVertex;
+      if (generatorAndSinkChained) {
+        break;
+      }
+    }
+
+    assertThat(generatorAndSinkChained).isTrue();
+  }
+
+  @Test
+  void testForwardWrite() throws Exception {
+    runForwardWriteTest(new ForwardGenerator());
+  }
+
+  @Test
+  void testMixedForwardAndShuffleWrite() throws Exception {
+    runForwardWriteTest(new MixedGenerator());
+  }
+
+  private void runForwardWriteTest(DynamicRecordGenerator<DynamicIcebergDataImpl> generator)
+      throws Exception {
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()));
+
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(rows, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(1);
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(generator)
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(1)
+        .immediateTableUpdate(true)
+        .append();
+
+    env.execute();
+
+    verifyResults(rows);
   }
 
   @Test
@@ -1170,8 +1313,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     // pre commit topology was off, but since it is stateless, users will still be able to restore
     // state, but we must keep the stateful operators UUIds like the committer consistent.
     assertThat(sinkUids)
-        .contains(
+        .containsOnly(
             "test--sink",
+            "test--forward-writer",
             "test--generator",
             "test--updater",
             "test--sink: test--pre-commit-topology",
@@ -1179,8 +1323,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     sinkUids = createSinkAndReturnUIds("");
     assertThat(sinkUids)
-        .contains(
+        .containsOnly(
             "--sink",
+            "--forward-writer",
             "--generator",
             "--updater",
             "--sink: --pre-commit-topology",
@@ -1188,8 +1333,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     sinkUids = createSinkAndReturnUIds(null);
     assertThat(sinkUids)
-        .contains(
+        .containsOnly(
             "--sink",
+            "--forward-writer",
             "--generator",
             "--updater",
             "--sink: --pre-commit-topology",
@@ -1359,7 +1505,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     @Override
     DynamicIcebergSink instantiateSink(
-        Map<String, String> writeProperties, Configuration flinkConfig) {
+        Map<String, String> writeProperties,
+        Configuration flinkConfig,
+        DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults) {
       return new CommitHookDynamicIcebergSink(
           commitHook,
           CATALOG_EXTENSION.catalogLoader(),
@@ -1367,7 +1515,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           "uidPrefix",
           writeProperties,
           flinkConfig,
-          100);
+          100,
+          forwardWriteResults);
     }
   }
 
@@ -1383,14 +1532,16 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         String uidPrefix,
         Map<String, String> writeProperties,
         Configuration flinkConfig,
-        int cacheMaximumSize) {
+        int cacheMaximumSize,
+        DataStream<CommittableMessage<DynamicWriteResult>> forwardWritten) {
       super(
           catalogLoader,
           snapshotProperties,
           uidPrefix,
           writeProperties,
           flinkConfig,
-          cacheMaximumSize);
+          cacheMaximumSize,
+          forwardWritten);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
     }
