@@ -733,8 +733,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     // the first snapshot
     // from the version file history
     int missingVersionFile = 1;
-    // since first snapshot cannot be found, first data files will also be skipped
-    int missingDataFile = 1;
+    // the first snapshot was expired, but its data file is still live and included in the copy plan
+    int missingDataFile = 0;
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(sourceTable)
