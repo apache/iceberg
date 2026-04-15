@@ -312,8 +312,13 @@ public class PartitionStatsHandler {
       return null;
     }
 
+    // Populate total_record_count for partitions where it can be computed from metadata.
+    // In V3+, if a partition has no equality deletes and no V2 position delete files
+    // (only DVs or no deletes), we can reliably compute the total from DV cardinalities.
+    List<PartitionStatistics> enrichedStats = populateTotalRecordCount(stats);
+
     StructType partitionType = Partitioning.partitionType(table);
-    List<PartitionStatistics> sortedStats = sortStatsByPartition(stats, partitionType);
+    List<PartitionStatistics> sortedStats = sortStatsByPartition(enrichedStats, partitionType);
     return writePartitionStatsFile(
         table,
         snapshot.snapshotId(),
@@ -560,6 +565,76 @@ public class PartitionStatsHandler {
   }
 
   /**
+   * Populates {@code total_record_count} for partitions where it can be reliably computed from
+   * metadata without scanning data files.
+   *
+   * <p>Per the spec, {@code total_record_count} should stay optional (NULL means unknown). It can
+   * be computed when a partition has no equality deletes and no V2 position delete files — i.e.,
+   * deletes are tracked exclusively via deletion vectors (DVs) or the partition has no deletes at
+   * all. In that case, the total is: {@code data_record_count - position_delete_record_count}.
+   *
+   * <p>DV cardinalities are exact (each position maps to one deleted row), so the subtraction
+   * yields a precise total without reading any data files.
+   *
+   * @param stats the computed partition statistics to enrich
+   */
+  @VisibleForTesting
+  static List<PartitionStatistics> populateTotalRecordCount(
+      Collection<PartitionStatistics> stats) {
+    List<PartitionStatistics> result = Lists.newArrayListWithExpectedSize(stats.size());
+    for (PartitionStatistics partitionStats : stats) {
+      boolean hasEqualityDeletes =
+          partitionStats.equalityDeleteRecordCount() != null
+              && partitionStats.equalityDeleteRecordCount() > 0;
+      boolean hasV2PositionDeleteFiles =
+          partitionStats.positionDeleteFileCount() != null
+              && partitionStats.positionDeleteFileCount() > 0;
+
+      // Create a fresh BasePartitionStatistics to avoid projection issues on read-back objects
+      BasePartitionStatistics enriched =
+          new BasePartitionStatistics(partitionStats.partition(), partitionStats.specId());
+      enriched.set(
+          PartitionStatistics.DATA_RECORD_COUNT_POSITION, partitionStats.dataRecordCount());
+      enriched.set(PartitionStatistics.DATA_FILE_COUNT_POSITION, partitionStats.dataFileCount());
+      enriched.set(
+          PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
+          partitionStats.totalDataFileSizeInBytes());
+      enriched.set(
+          PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION,
+          partitionStats.positionDeleteRecordCount());
+      enriched.set(
+          PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION,
+          partitionStats.positionDeleteFileCount());
+      enriched.set(
+          PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION,
+          partitionStats.equalityDeleteRecordCount());
+      enriched.set(
+          PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION,
+          partitionStats.equalityDeleteFileCount());
+      enriched.set(PartitionStatistics.LAST_UPDATED_AT_POSITION, partitionStats.lastUpdatedAt());
+      enriched.set(
+          PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID_POSITION,
+          partitionStats.lastUpdatedSnapshotId());
+      enriched.set(PartitionStatistics.DV_COUNT_POSITION, partitionStats.dvCount());
+
+      if (!hasEqualityDeletes && !hasV2PositionDeleteFiles) {
+        long dataRecords = partitionStats.dataRecordCount();
+        long posDeleteRecords =
+            partitionStats.positionDeleteRecordCount() != null
+                ? partitionStats.positionDeleteRecordCount()
+                : 0L;
+        enriched.set(
+            PartitionStatistics.TOTAL_RECORD_COUNT_POSITION,
+            Math.max(0, dataRecords - posDeleteRecords));
+      }
+      // Otherwise total_record_count stays null (initialized to null in BasePartitionStatistics)
+
+      result.add(enriched);
+    }
+    return result;
+  }
+
+  /**
    * Updates the partition stats from the data/delete file.
    *
    * @param stats partition statistics to be updated.
@@ -608,7 +683,9 @@ public class PartitionStatsHandler {
       updateSnapshotInfo(stats, snapshot.snapshotId(), snapshot.timestampMillis());
     }
 
-    // Note: Not computing the `TOTAL_RECORD_COUNT` for now as it needs scanning the data.
+    // Note: total_record_count is populated by populateTotalRecordCount() after all
+    // partition stats are computed. It can be derived from metadata when there are no
+    // equality deletes and no V2 position delete files (only DVs or no deletes).
   }
 
   /**
