@@ -271,8 +271,7 @@ public class Parquet {
           version == WriterVersion.PARQUET_1_0 || version == WriterVersion.PARQUET_2_0,
           "Unsupported writer version: %s",
           version);
-      this.config.put(
-          PARQUET_PAGE_VERSION, version == WriterVersion.PARQUET_2_0 ? "v2" : "v1");
+      this.config.put(PARQUET_PAGE_VERSION, version == WriterVersion.PARQUET_2_0 ? "v2" : "v1");
       return this;
     }
 
