@@ -253,6 +253,77 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @TestTemplate
+  public void testRewriteDataManifestWithExpiredSnapshotId() throws IOException {
+    String sourcePrefix = "/path/to/";
+    String targetPrefix = "/path/new/";
+
+    long expiredSnapshotId = 999L;
+    ManifestFile manifest = writeManifest(expiredSnapshotId, FILE_A, FILE_B);
+
+    // When snapshotIds does not contain the expired snapshot, live entries are excluded
+    RewriteTablePathUtil.RewriteResult<DataFile> filtered =
+        RewriteTablePathUtil.rewriteDataManifest(
+            manifest,
+            Set.of(1L),
+            Files.localOutput(
+                FileFormat.AVRO.addExtension(
+                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            table.io(),
+            formatVersion,
+            table.specs(),
+            sourcePrefix,
+            targetPrefix);
+    assertThat(filtered.copyPlan()).isEmpty();
+
+    // When snapshotIds is null, all live entries are included in the copy plan
+    RewriteTablePathUtil.RewriteResult<DataFile> unfiltered =
+        RewriteTablePathUtil.rewriteDataManifest(
+            manifest,
+            null,
+            Files.localOutput(
+                FileFormat.AVRO.addExtension(
+                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            table.io(),
+            formatVersion,
+            table.specs(),
+            sourcePrefix,
+            targetPrefix);
+    assertThat(unfiltered.copyPlan()).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testRewriteDeleteManifestWithExpiredSnapshotId() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2")
+        .isGreaterThanOrEqualTo(2);
+
+    String sourcePrefix = "/path/to/";
+    String stagingDir = "/staging/";
+    String targetPrefix = "/path/new/";
+
+    long expiredSnapshotId = 999L;
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, expiredSnapshotId, FILE_A_DELETES, FILE_B_DELETES);
+
+    // When snapshotIds is null, all live entries are included in the copy plan
+    RewriteTablePathUtil.RewriteResult<DeleteFile> result =
+        RewriteTablePathUtil.rewriteDeleteManifest(
+            manifest,
+            null,
+            Files.localOutput(
+                FileFormat.AVRO.addExtension(
+                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            table.io(),
+            formatVersion,
+            table.specs(),
+            sourcePrefix,
+            targetPrefix,
+            stagingDir);
+    assertThat(result.copyPlan()).hasSize(2);
+    assertThat(result.toRewrite()).hasSize(2);
+  }
+
+  @TestTemplate
   public void testRewritingMultiplePositionDeleteEntriesWithinManifestFile() throws IOException {
     assumeThat(formatVersion)
         .as("Delete files only work for format version 2")

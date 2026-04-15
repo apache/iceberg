@@ -310,8 +310,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     // rebuild manifest files
     Set<ManifestFile> metaFiles = rewriteManifestListResult.toRewrite();
+    // For full copy (no start version), pass null so all live entries are included
+    // in the copy plan. Current snapshot IDs may not cover entries whose original
+    // adding snapshot has been expired, but those files can still be live.
+    Set<Snapshot> snapshotFilter = startMetadata == null ? null : deltaSnapshots;
     RewriteContentFileResult rewriteManifestResult =
-        rewriteManifests(deltaSnapshots, endMetadata, metaFiles);
+        rewriteManifests(snapshotFilter, endMetadata, metaFiles);
 
     // rebuild position delete files
     Set<DeleteFile> deleteFiles =
@@ -569,15 +573,22 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Encoder<ManifestFile> manifestFileEncoder = Encoders.javaSerialization(ManifestFile.class);
     Dataset<ManifestFile> manifestDS =
         spark().createDataset(Lists.newArrayList(toRewrite), manifestFileEncoder);
-    Set<Long> deltaSnapshotIds =
-        deltaSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+
+    Broadcast<Set<Long>> snapshotIdsBroadcast;
+    if (deltaSnapshots == null) {
+      snapshotIdsBroadcast = null;
+    } else {
+      Set<Long> deltaSnapshotIds =
+          deltaSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      snapshotIdsBroadcast = sparkContext().broadcast(deltaSnapshotIds);
+    }
 
     return manifestDS
         .repartition(toRewrite.size())
         .map(
             toManifests(
                 tableBroadcast(),
-                sparkContext().broadcast(deltaSnapshotIds),
+                snapshotIdsBroadcast,
                 stagingDir,
                 tableMetadata.formatVersion(),
                 sourcePrefix,
@@ -643,7 +654,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
-      Set<Long> deltaSnapshotIds = snapshotIds.value();
+      Set<Long> deltaSnapshotIds = snapshotIds == null ? null : snapshotIds.value();
       return RewriteTablePathUtil.rewriteDataManifest(
           manifestFile,
           deltaSnapshotIds,
@@ -672,7 +683,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
-      Set<Long> deltaSnapshotIds = snapshotIds.value();
+      Set<Long> deltaSnapshotIds = snapshotIds == null ? null : snapshotIds.value();
       return RewriteTablePathUtil.rewriteDeleteManifest(
           manifestFile,
           deltaSnapshotIds,
