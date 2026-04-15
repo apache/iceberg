@@ -1085,8 +1085,7 @@ public class TestRewriteManifests extends TestBase {
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
 
     // branch snapshot must reflect the rewrite
-    Snapshot branchSnapshot =
-        table.snapshot(table.ops().current().ref("branch").snapshotId());
+    Snapshot branchSnapshot = table.snapshot(table.ops().current().ref("branch").snapshotId());
     assertThat(branchSnapshot.allManifests(table.io())).hasSize(1);
     validateManifestEntries(
         branchSnapshot.allManifests(table.io()).get(0),

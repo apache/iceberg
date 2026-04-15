@@ -178,8 +178,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         snapshot != null ? snapshot.allManifests(ops().io()) : Collections.emptyList();
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
-    validateDeletedManifests(
-        currentManifestSet, snapshot != null ? snapshot.snapshotId() : -1L);
+    validateDeletedManifests(currentManifestSet, snapshot != null ? snapshot.snapshotId() : -1L);
 
     if (requiresRewrite(currentManifestSet)) {
       performRewrite(currentManifests);
