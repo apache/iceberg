@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.operations;
+package org.apache.iceberg.rest.events;
 
 import java.util.List;
 import java.util.Map;

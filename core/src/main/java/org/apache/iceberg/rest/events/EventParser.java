@@ -22,7 +22,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.apache.iceberg.util.JsonUtil;
 
 public class EventParser {

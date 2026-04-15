@@ -31,8 +31,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.rest.events.operations.CatalogOperation;
-import org.apache.iceberg.rest.events.operations.OperationType;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 

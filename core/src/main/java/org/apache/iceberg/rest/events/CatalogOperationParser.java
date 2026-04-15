@@ -34,8 +34,6 @@ import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.events.operations.CatalogOperation;
-import org.apache.iceberg.rest.events.operations.OperationType;
 import org.apache.iceberg.util.JsonUtil;
 
 public class CatalogOperationParser {

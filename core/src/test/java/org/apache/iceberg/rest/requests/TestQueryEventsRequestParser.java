@@ -29,7 +29,7 @@ import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.rest.events.operations.OperationType;
+import org.apache.iceberg.rest.events.OperationType;
 import org.junit.jupiter.api.Test;
 
 public class TestQueryEventsRequestParser {

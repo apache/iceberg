@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.rest.events.operations.CatalogOperation;
 import org.junit.jupiter.api.Test;
 
 class TestEventParser {

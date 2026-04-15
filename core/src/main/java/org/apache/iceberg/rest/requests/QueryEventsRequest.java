@@ -26,7 +26,7 @@ import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
-import org.apache.iceberg.rest.events.operations.OperationType;
+import org.apache.iceberg.rest.events.OperationType;
 import org.immutables.value.Value;
 
 /** Standard request body for querying events. */
