@@ -24,7 +24,6 @@ import org.apache.iceberg.types.Types;
 
 /** Mutable {@link StructLike} implementation of {@link DeletionVector}. */
 class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVector {
-  // struct type that corresponds to the positions used for internalGet and internalSet
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           DeletionVector.LOCATION,

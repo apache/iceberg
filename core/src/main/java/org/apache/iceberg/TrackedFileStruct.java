@@ -34,7 +34,6 @@ import org.apache.iceberg.util.ByteBuffers;
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
   private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
 
-  // struct type that corresponds to the positions used for internalGet and internalSet
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           TrackedFile.TRACKING,
