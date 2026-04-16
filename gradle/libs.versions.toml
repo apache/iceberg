@@ -59,6 +59,7 @@ httpcomponents-httpclient5 = "5.6.1"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
 jackson-annotations = "2.21"
+javafastpfor = "0.2.1"
 jackson-bom = "2.21.4"
 jackson214 = { strictly = "2.14.2"}
 jackson215 = { strictly = "2.15.2"} # see rich version usage explanation above
@@ -154,6 +155,7 @@ hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2"
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
+javafastpfor = { module = "me.lemire.integercompression:JavaFastPFOR", version.ref = "javafastpfor" }
 jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-bom" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson-bom" }
 jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-annotations" }
