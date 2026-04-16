@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -82,7 +81,6 @@ public class DynamicIcebergSink
   private final int cacheMaximumSize;
 
   // Set by the builder before sinkTo() — forward writer results to union into pre-commit topology
-  @Nullable
   private final transient DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults;
 
   DynamicIcebergSink(
@@ -92,7 +90,7 @@ public class DynamicIcebergSink
       Map<String, String> writeProperties,
       Configuration flinkConfig,
       int cacheMaximumSize,
-      @Nullable DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults) {
+      DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults) {
     this.catalogLoader = catalogLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidPrefix = uidPrefix;
@@ -152,9 +150,9 @@ public class DynamicIcebergSink
     TypeInformation<CommittableMessage<DynamicCommittable>> typeInformation =
         CommittableMessageTypeInfo.of(this::getCommittableSerializer);
 
-    // Union forward writer results (if present) with the shuffle writer results
+    // Union forward writer results with the shuffle writer results
     DataStream<CommittableMessage<DynamicWriteResult>> allResults =
-        forwardWriteResults != null ? writeResults.union(forwardWriteResults) : writeResults;
+        writeResults.union(forwardWriteResults);
 
     return allResults
         .keyBy(
