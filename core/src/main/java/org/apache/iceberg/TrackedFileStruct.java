@@ -27,15 +27,12 @@ import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.stats.BaseContentStats;
-import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
-  private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           ImmutableList.<Types.NestedField>builder()
@@ -43,19 +40,19 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
               .add(MetadataColumns.ROW_POSITION)
               .build());
 
-  private FileContent contentType = FileContent.DATA;
+  private FileContent contentType = null;
   private String location = null;
   private FileFormat fileFormat = null;
-  private long recordCount = 0L;
-  private long fileSizeInBytes = 0L;
+  private long recordCount = -1L;
+  private long fileSizeInBytes = -1L;
   private Integer specId = null;
 
   // optional fields
-  private TrackingStruct tracking = null;
+  private Tracking tracking = null;
   private ContentStats contentStats = null;
   private Integer sortOrderId = null;
-  private DeletionVectorStruct deletionVector = null;
-  private ManifestInfoStruct manifestInfo = null;
+  private DeletionVector deletionVector = null;
+  private ManifestInfo manifestInfo = null;
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
@@ -87,13 +84,16 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.manifestContext = toCopy.manifestContext;
     this.manifestPos = toCopy.manifestPos;
 
-    this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
-    if (this.tracking != null && this.manifestContext != null) {
-      this.tracking.setManifestContext(this.manifestContext);
+    this.tracking = toCopy.tracking != null ? ((TrackingStruct) toCopy.tracking).copy() : null;
+    if (tracking != null && manifestContext != null) {
+      ((TrackingStruct) tracking).setManifestContext(manifestContext);
     }
 
     this.sortOrderId = toCopy.sortOrderId;
-    this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
+    this.deletionVector =
+        toCopy.deletionVector != null
+            ? ((DeletionVectorStruct) toCopy.deletionVector).copy()
+            : null;
 
     if (withStats && toCopy.contentStats != null) {
       ContentStats filtered = BaseContentStats.buildFrom(toCopy.contentStats, statsIds).build();
@@ -102,7 +102,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       this.contentStats = null;
     }
 
-    this.manifestInfo = toCopy.manifestInfo != null ? toCopy.manifestInfo.copy() : null;
+    this.manifestInfo =
+        toCopy.manifestInfo != null ? ((ManifestInfoStruct) toCopy.manifestInfo).copy() : null;
     this.keyMetadata =
         toCopy.keyMetadata != null
             ? Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length)
@@ -203,6 +204,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public String manifestLocation() {
+    if (tracking == null) {
+      return null;
+    }
+
     return manifestContext != null ? manifestContext.location() : null;
   }
 
@@ -213,8 +218,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   void setManifestContext(TrackedFile manifest) {
     this.manifestContext = manifest;
-    if (this.tracking != null) {
-      this.tracking.setManifestContext(manifest);
+    if (tracking != null) {
+      ((TrackingStruct) tracking).setManifestContext(manifest);
     }
   }
 
@@ -264,11 +269,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
-        this.tracking = (TrackingStruct) value;
-        this.tracking.setManifestContext(this.manifestContext);
+        this.tracking = (Tracking) value;
+        ((TrackingStruct) tracking).setManifestContext(manifestContext);
         break;
       case 1:
-        this.contentType = FILE_CONTENT_VALUES[(Integer) value];
+        this.contentType = FileContent.fromId((Integer) value);
         break;
       case 2:
         // always coerce to String for Serializable
@@ -293,10 +298,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         this.sortOrderId = (Integer) value;
         break;
       case 9:
-        this.deletionVector = (DeletionVectorStruct) value;
+        this.deletionVector = (DeletionVector) value;
         break;
       case 10:
-        this.manifestInfo = (ManifestInfoStruct) value;
+        this.manifestInfo = (ManifestInfo) value;
         break;
       case 11:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);

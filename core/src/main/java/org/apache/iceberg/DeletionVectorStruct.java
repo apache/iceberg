@@ -18,20 +18,25 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 
 /** Mutable {@link StructLike} implementation of {@link DeletionVector}. */
-class DeletionVectorStruct implements DeletionVector, StructLike, Serializable {
+class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVector {
+  private static final Types.StructType BASE_TYPE = DeletionVector.schema();
+
   private String location = null;
   private long offset = 0L;
   private long sizeInBytes = 0L;
   private long cardinality = 0L;
 
-  DeletionVectorStruct(Types.StructType type) {}
+  DeletionVectorStruct(Types.StructType type) {
+    super(BASE_TYPE, type);
+  }
 
   private DeletionVectorStruct(DeletionVectorStruct toCopy) {
+    super(toCopy);
     this.location = toCopy.location;
     this.offset = toCopy.offset;
     this.sizeInBytes = toCopy.sizeInBytes;
@@ -63,12 +68,7 @@ class DeletionVectorStruct implements DeletionVector, StructLike, Serializable {
   }
 
   @Override
-  public int size() {
-    return 4;
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
+  protected <T> T internalGet(int pos, Class<T> javaClass) {
     return javaClass.cast(getByPos(pos));
   }
 
@@ -88,7 +88,7 @@ class DeletionVectorStruct implements DeletionVector, StructLike, Serializable {
   }
 
   @Override
-  public <T> void set(int pos, T value) {
+  protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
         this.location = (String) value;

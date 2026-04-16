@@ -18,15 +18,17 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link ManifestInfo}. */
-class ManifestInfoStruct implements ManifestInfo, StructLike, Serializable {
+class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo {
+  private static final Types.StructType BASE_TYPE = ManifestInfo.schema();
+
   private int addedFilesCount = 0;
   private int existingFilesCount = 0;
   private int deletedFilesCount = 0;
@@ -39,9 +41,12 @@ class ManifestInfoStruct implements ManifestInfo, StructLike, Serializable {
   private byte[] dv = null;
   private Long dvCardinality = null;
 
-  ManifestInfoStruct(Types.StructType type) {}
+  ManifestInfoStruct(Types.StructType type) {
+    super(BASE_TYPE, type);
+  }
 
   private ManifestInfoStruct(ManifestInfoStruct toCopy) {
+    super(toCopy);
     this.addedFilesCount = toCopy.addedFilesCount;
     this.existingFilesCount = toCopy.existingFilesCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
@@ -115,12 +120,7 @@ class ManifestInfoStruct implements ManifestInfo, StructLike, Serializable {
   }
 
   @Override
-  public int size() {
-    return 11;
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
+  protected <T> T internalGet(int pos, Class<T> javaClass) {
     return javaClass.cast(getByPos(pos));
   }
 
@@ -154,7 +154,7 @@ class ManifestInfoStruct implements ManifestInfo, StructLike, Serializable {
   }
 
   @Override
-  public <T> void set(int pos, T value) {
+  protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
         this.addedFilesCount = (Integer) value;

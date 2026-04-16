@@ -18,16 +18,16 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link Tracking}. */
-class TrackingStruct implements Tracking, StructLike, Serializable {
-  private static final EntryStatus[] STATUS_VALUES = EntryStatus.values();
+class TrackingStruct extends SupportsIndexProjection implements Tracking {
+  private static final Types.StructType BASE_TYPE = Tracking.schema();
 
   private EntryStatus status = EntryStatus.EXISTING;
   private Long snapshotId = null;
@@ -41,9 +41,12 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
   // not serialized, set by manifest readers for metadata inheritance
   private transient TrackedFile manifestContext = null;
 
-  TrackingStruct(Types.StructType type) {}
+  TrackingStruct(Types.StructType type) {
+    super(BASE_TYPE, type);
+  }
 
   private TrackingStruct(TrackingStruct toCopy) {
+    super(toCopy);
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
     this.sequenceNumber = toCopy.sequenceNumber;
@@ -129,12 +132,7 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
   }
 
   @Override
-  public int size() {
-    return 8;
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
+  protected <T> T internalGet(int pos, Class<T> javaClass) {
     return javaClass.cast(getByPos(pos));
   }
 
@@ -162,10 +160,10 @@ class TrackingStruct implements Tracking, StructLike, Serializable {
   }
 
   @Override
-  public <T> void set(int pos, T value) {
+  protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
-        this.status = STATUS_VALUES[(Integer) value];
+        this.status = EntryStatus.fromId((Integer) value);
         break;
       case 1:
         this.snapshotId = (Long) value;
