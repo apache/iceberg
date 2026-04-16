@@ -29,7 +29,7 @@ class TestTrackingStruct {
 
   @Test
   void fieldAccess() {
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
@@ -50,7 +50,7 @@ class TestTrackingStruct {
 
   @Test
   void copy() {
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
@@ -71,7 +71,7 @@ class TestTrackingStruct {
   @Test
   void allStatuses() {
     for (EntryStatus status : EntryStatus.values()) {
-      TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+      TrackingStruct tracking = new TrackingStruct(Tracking.schema());
       tracking.set(0, status.id());
       assertThat(tracking.status()).isEqualTo(status);
     }
@@ -79,7 +79,7 @@ class TestTrackingStruct {
 
   @Test
   void isLive() {
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
     assertThat(tracking.isLive()).isTrue();
@@ -97,7 +97,7 @@ class TestTrackingStruct {
   @Test
   void inheritSnapshotIdFromManifestContext() {
     TrackedFile manifest = createManifestContext(100L, 50L);
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.ADDED.id());
 
@@ -108,7 +108,7 @@ class TestTrackingStruct {
   @Test
   void inheritSequenceNumberForAddedEntries() {
     TrackedFile manifest = createManifestContext(100L, 50L);
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.ADDED.id());
 
@@ -120,7 +120,7 @@ class TestTrackingStruct {
   @Test
   void doNotInheritSequenceNumberForExistingEntries() {
     TrackedFile manifest = createManifestContext(100L, 50L);
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.EXISTING.id());
 
@@ -132,7 +132,7 @@ class TestTrackingStruct {
   @Test
   void explicitValuesOverrideManifestContext() {
     TrackedFile manifest = createManifestContext(100L, 50L);
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 200L);
@@ -147,7 +147,7 @@ class TestTrackingStruct {
 
   @Test
   void noDefaultingWithoutManifestContext() {
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
 
     // no manifest context, nulls stay null
@@ -158,7 +158,7 @@ class TestTrackingStruct {
 
   private static TrackedFile createManifestContext(long snapshotId, long sequenceNumber) {
     TrackedFileStruct manifest = new TrackedFileStruct();
-    TrackingStruct manifestTracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
     manifestTracking.set(0, EntryStatus.ADDED.id());
     manifestTracking.set(1, snapshotId);
     manifestTracking.set(2, sequenceNumber);
@@ -172,8 +172,27 @@ class TestTrackingStruct {
   }
 
   @Test
+  void projectedStructLike() {
+    // project only snapshot_id (field ID 1) and first_row_id (field ID 142)
+    Types.StructType projection = Types.StructType.of(Tracking.SNAPSHOT_ID, Tracking.FIRST_ROW_ID);
+
+    TrackingStruct tracking = new TrackingStruct(projection);
+    assertThat(tracking.size()).isEqualTo(2);
+
+    // projected position 0 maps to internal position 1 (snapshot_id)
+    // projected position 1 maps to internal position 5 (first_row_id)
+    tracking.set(0, 42L);
+    tracking.set(1, 1000L);
+
+    assertThat(tracking.snapshotId()).isEqualTo(42L);
+    assertThat(tracking.firstRowId()).isEqualTo(1000L);
+    assertThat(tracking.get(0, Long.class)).isEqualTo(42L);
+    assertThat(tracking.get(1, Long.class)).isEqualTo(1000L);
+  }
+
+  @Test
   void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
     tracking.set(2, 10L);
@@ -189,7 +208,7 @@ class TestTrackingStruct {
 
   @Test
   void kryoSerializationRoundTrip() throws IOException {
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
     tracking.set(2, 10L);

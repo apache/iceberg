@@ -29,7 +29,7 @@ class TestManifestInfoStruct {
 
   @Test
   void fieldAccess() {
-    ManifestInfoStruct info = new ManifestInfoStruct(Types.StructType.of());
+    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
     info.set(0, 10);
     info.set(1, 20);
@@ -58,7 +58,7 @@ class TestManifestInfoStruct {
 
   @Test
   void copy() {
-    ManifestInfoStruct info = new ManifestInfoStruct(Types.StructType.of());
+    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
     info.set(0, 10);
     info.set(1, 20);
@@ -91,7 +91,7 @@ class TestManifestInfoStruct {
 
   @Test
   void nullableFields() {
-    ManifestInfoStruct info = new ManifestInfoStruct(Types.StructType.of());
+    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
     info.set(0, 0);
     info.set(1, 0);
@@ -108,8 +108,28 @@ class TestManifestInfoStruct {
   }
 
   @Test
+  void projectedStructLike() {
+    // project only added_files_count (field ID 504) and min_sequence_number (field ID 516)
+    Types.StructType projection =
+        Types.StructType.of(ManifestInfo.ADDED_FILES_COUNT, ManifestInfo.MIN_SEQUENCE_NUMBER);
+
+    ManifestInfoStruct info = new ManifestInfoStruct(projection);
+    assertThat(info.size()).isEqualTo(2);
+
+    // projected position 0 maps to internal position 0 (added_files_count)
+    // projected position 1 maps to internal position 8 (min_sequence_number)
+    info.set(0, 10);
+    info.set(1, 5L);
+
+    assertThat(info.addedFilesCount()).isEqualTo(10);
+    assertThat(info.minSequenceNumber()).isEqualTo(5L);
+    assertThat(info.get(0, Integer.class)).isEqualTo(10);
+    assertThat(info.get(1, Long.class)).isEqualTo(5L);
+  }
+
+  @Test
   void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    ManifestInfoStruct info = new ManifestInfoStruct(Types.StructType.of());
+    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
     info.set(0, 10);
     info.set(1, 20);
     info.set(2, 3);
@@ -133,7 +153,7 @@ class TestManifestInfoStruct {
 
   @Test
   void kryoSerializationRoundTrip() throws IOException {
-    ManifestInfoStruct info = new ManifestInfoStruct(Types.StructType.of());
+    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
     info.set(0, 10);
     info.set(1, 20);
     info.set(2, 3);

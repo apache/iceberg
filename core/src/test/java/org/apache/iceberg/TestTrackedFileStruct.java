@@ -26,10 +26,6 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.stats.BaseContentStats;
-import org.apache.iceberg.stats.BaseFieldStats;
-import org.apache.iceberg.stats.ContentStats;
-import org.apache.iceberg.stats.FieldStats;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -38,9 +34,9 @@ class TestTrackedFileStruct {
   @Test
   void trackedFileStructFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
-    DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
-    ManifestInfoStruct info = new ManifestInfoStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
+    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
@@ -97,7 +93,7 @@ class TestTrackedFileStruct {
   @Test
   void manifestContextInheritsToTrackingSetBeforeContext() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     // snapshotId and sequenceNumber left null. Should inherit from context
 
@@ -110,7 +106,7 @@ class TestTrackedFileStruct {
 
     // context set after tracking -- must propagate to already-set tracking
     TrackedFileStruct manifest = new TrackedFileStruct();
-    TrackingStruct manifestTracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
     manifestTracking.set(0, EntryStatus.ADDED.id());
     manifestTracking.set(1, 42L);
     manifestTracking.set(2, 10L);
@@ -133,6 +129,9 @@ class TestTrackedFileStruct {
   void readerSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(0, EntryStatus.ADDED.id());
+    file.set(0, tracking);
     file.set(1, FileContent.DATA.id());
     file.set(2, "test");
     file.set(3, "parquet");
@@ -174,7 +173,7 @@ class TestTrackedFileStruct {
   @Test
   void copyPreservesManifestContextInheritance() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     // leave snapshotId and sequenceNumber null so they inherit from manifest context
 
@@ -186,7 +185,7 @@ class TestTrackedFileStruct {
     file.set(5, 1024L);
 
     TrackedFileStruct manifest = new TrackedFileStruct();
-    TrackingStruct manifestTracking = new TrackingStruct(Types.StructType.of());
+    TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
     manifestTracking.set(0, EntryStatus.ADDED.id());
     manifestTracking.set(1, 42L);
     manifestTracking.set(2, 10L);
@@ -362,8 +361,8 @@ class TestTrackedFileStruct {
 
   static TrackedFileStruct createFullTrackedFile() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Types.StructType.of());
-    DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);

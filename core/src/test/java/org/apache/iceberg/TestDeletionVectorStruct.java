@@ -28,7 +28,7 @@ class TestDeletionVectorStruct {
 
   @Test
   void fieldAccess() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
 
     dv.set(0, "s3://bucket/data/dv.puffin");
     dv.set(1, 256L);
@@ -43,7 +43,7 @@ class TestDeletionVectorStruct {
 
   @Test
   void copy() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
 
     dv.set(0, "s3://bucket/data/dv.puffin");
     dv.set(1, 256L);
@@ -60,13 +60,33 @@ class TestDeletionVectorStruct {
 
   @Test
   void size() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     assertThat(dv.size()).isEqualTo(4);
   }
 
   @Test
+  void projectedStructLike() {
+    // project only location (field ID 155) and cardinality (field ID 156)
+    Types.StructType projection =
+        Types.StructType.of(DeletionVector.LOCATION, DeletionVector.CARDINALITY);
+
+    DeletionVectorStruct dv = new DeletionVectorStruct(projection);
+    assertThat(dv.size()).isEqualTo(2);
+
+    // projected position 0 maps to internal position 0 (location)
+    // projected position 1 maps to internal position 3 (cardinality)
+    dv.set(0, "s3://bucket/data/dv.puffin");
+    dv.set(1, 42L);
+
+    assertThat(dv.location()).isEqualTo("s3://bucket/data/dv.puffin");
+    assertThat(dv.cardinality()).isEqualTo(42L);
+    assertThat(dv.get(0, String.class)).isEqualTo("s3://bucket/data/dv.puffin");
+    assertThat(dv.get(1, Long.class)).isEqualTo(42L);
+  }
+
+  @Test
   void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     dv.set(0, "s3://bucket/data/dv.puffin");
     dv.set(1, 256L);
     dv.set(2, 128L);
@@ -82,7 +102,7 @@ class TestDeletionVectorStruct {
 
   @Test
   void kryoSerializationRoundTrip() throws IOException {
-    DeletionVectorStruct dv = new DeletionVectorStruct(Types.StructType.of());
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     dv.set(0, "s3://bucket/data/dv.puffin");
     dv.set(1, 256L);
     dv.set(2, 128L);
