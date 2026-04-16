@@ -187,6 +187,18 @@ public class OperatorTestBase {
                 "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
   }
 
+  protected static Table createPartitionedTableWithDelete(int formatVersion) {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_WITH_PRIMARY_KEY,
+            PartitionSpec.builderFor(SCHEMA_WITH_PRIMARY_KEY).identity("data").build(),
+            null,
+            ImmutableMap.of(
+                "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
+  }
+
   protected static Table createPartitionedTable(int formatVersion, FileFormat fileFormat) {
     return CATALOG_EXTENSION
         .catalog()
@@ -443,6 +455,29 @@ public class OperatorTestBase {
         new PartitionData(PartitionSpec.unpartitioned().partitionType()),
         Lists.newArrayList(SimpleDataUtil.createRecord(id, oldData)),
         SCHEMA_WITH_PRIMARY_KEY);
+  }
+
+  /**
+   * Writes an equality delete file whose schema contains only the {@code id} field. Used by tests
+   * that need a different equality-field-id list than {@link #writeEqualityDelete} (which uses both
+   * {@code id} and {@code data}).
+   */
+  protected DeleteFile writeIdOnlyEqualityDelete(Table table, int id) throws IOException {
+    File file = File.createTempFile("junit", null, warehouseDir.toFile());
+    assertThat(file.delete()).isTrue();
+    Schema idOnly =
+        new Schema(
+            Lists.newArrayList(Types.NestedField.required(1, "id", Types.IntegerType.get())),
+            ImmutableMap.of(),
+            ImmutableSet.of(1));
+    GenericRecord record = GenericRecord.create(idOnly);
+    record.set(0, id);
+    return FileHelpers.writeDeleteFile(
+        table,
+        Files.localOutput(file),
+        new PartitionData(PartitionSpec.unpartitioned().partitionType()),
+        Lists.newArrayList(record),
+        idOnly);
   }
 
   protected DeleteFile writePosDeleteFile(Table table, String dataFilePath, long pos)
