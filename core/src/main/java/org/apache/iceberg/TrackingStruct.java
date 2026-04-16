@@ -27,7 +27,17 @@ import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link Tracking}. */
 class TrackingStruct extends SupportsIndexProjection implements Tracking {
-  private static final Types.StructType BASE_TYPE = Tracking.schema();
+  // struct type that corresponds to the positions used for internalGet and internalSet
+  private static final Types.StructType BASE_TYPE =
+      Types.StructType.of(
+          Tracking.STATUS,
+          Tracking.SNAPSHOT_ID,
+          Tracking.SEQUENCE_NUMBER,
+          Tracking.FILE_SEQUENCE_NUMBER,
+          Tracking.DV_SNAPSHOT_ID,
+          Tracking.FIRST_ROW_ID,
+          Tracking.DELETED_POSITIONS,
+          Tracking.REPLACED_POSITIONS);
 
   private EntryStatus status = null;
   private Long snapshotId = null;

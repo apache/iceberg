@@ -27,7 +27,20 @@ import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link ManifestInfo}. */
 class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo {
-  private static final Types.StructType BASE_TYPE = ManifestInfo.schema();
+  // struct type that corresponds to the positions used for internalGet and internalSet
+  private static final Types.StructType BASE_TYPE =
+      Types.StructType.of(
+          ManifestInfo.ADDED_FILES_COUNT,
+          ManifestInfo.EXISTING_FILES_COUNT,
+          ManifestInfo.DELETED_FILES_COUNT,
+          ManifestInfo.REPLACED_FILES_COUNT,
+          ManifestInfo.ADDED_ROWS_COUNT,
+          ManifestInfo.EXISTING_ROWS_COUNT,
+          ManifestInfo.DELETED_ROWS_COUNT,
+          ManifestInfo.REPLACED_ROWS_COUNT,
+          ManifestInfo.MIN_SEQUENCE_NUMBER,
+          ManifestInfo.DV,
+          ManifestInfo.DV_CARDINALITY);
 
   private int addedFilesCount = 0;
   private int existingFilesCount = 0;

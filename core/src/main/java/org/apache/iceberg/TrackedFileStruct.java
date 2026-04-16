@@ -174,11 +174,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public Integer specId() {
-    if (specId != null) {
-      return specId;
-    }
-
-    return manifestContext != null ? manifestContext.specId() : null;
+    return specId;
   }
 
   @Override
