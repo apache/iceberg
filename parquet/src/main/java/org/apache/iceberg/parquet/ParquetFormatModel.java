@@ -40,12 +40,10 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 
 public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
-  public static final String WRITER_VERSION_KEY = "parquet.writer.version";
   private final boolean isBatchReader;
 
   public static <D> ParquetFormatModel<PositionDelete<D>, Void, Object> forPositionDeletes() {
@@ -121,10 +119,6 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> set(String property, String value) {
-      if (WRITER_VERSION_KEY.equals(property)) {
-        internal.writerVersion(ParquetProperties.WriterVersion.valueOf(value));
-      }
-
       internal.set(property, value);
       return this;
     }
