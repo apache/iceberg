@@ -487,6 +487,7 @@ We need the following information (DynamicRecord) for every record:
 | `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
 | `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
 | `EqualityFields`   | The equality fields for the table(optional).                                                        |
+
 ### Schema Evolution
 
 The dynamic sink tries to match the schema provided in `DynamicRecord` with the existing table schemas.
@@ -550,11 +551,11 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 
 The `DistributionMode` set on each `DynamicRecord` controls how that record is routed from the processor to the writer:
 
-| Mode          | Behavior |
-|---------------|----------|
-| `NONE`        | Records are distributed across writer subtasks in a round-robin fashion (or by equality fields if set). |
-| `HASH`        | Records are distributed by partition key (partitioned tables) or equality fields (unpartitioned tables). Ensures that records for the same partition are handled by the same writer subtask. |
-| `null` | Forward mode: bypasses distribution entirely and sends records directly via a forward edge (see below). |
+| Mode   | Behavior                                                                                                                                                                                     |
+|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `NONE` | Records are distributed across writer subtasks in a round-robin fashion (or by equality fields if set).                                                                                      |
+| `HASH` | Records are distributed by partition key (partitioned tables) or equality fields (unpartitioned tables). Ensures that records for the same partition are handled by the same writer subtask. |
+| `null` | Forward mode: bypasses distribution entirely and sends records directly via a forward edge (see below).                                                                                      |
 
 #### Forward Mode
 
@@ -563,10 +564,12 @@ Using the `DynamicRecord` constructor overload without `distributionMode` parame
 Forward and regular records can be mixed in the same pipeline. The processor routes records to two separate sink outputs:
 
 - **Shuffle sink**: receives shuffling records. These go through the normal distribution topology (hash/round-robin) before reaching the writer.
-- **Forward sink**: receives records without a `distributionMode`. These skip distribution entirely and flow via a forward edge from the processor, allowing Flink operator chaining. Suited for high-throughput tables where avoiding shuffle overhead is critical.
+- **Forward sink**: receives records without a `distributionMode`. These skip distribution entirely and flow via a forward edge from the processor, allowing Flink operator chaining. Suited for high-throughput tables where avoiding shuffle overhead is critical. The sink's `writeParallelism` config does not apply to this path.
 
 !!! warning
-    In the forward path, schema changes are always applied immediately because records must pass straight through via the forward edge. For the intended high-volume use case, this can cause many conflicting commits to the Iceberg catalog and temporarily delay data processing. Consider either updating the schema externally before publishing records with the new schema, or planning for a temporary disruption in throughput when a new schema is introduced from upstream.
+
+1. In the forward path, schema changes are always applied immediately because records must pass straight through via the forward edge. For the intended high-volume use case, this can cause many conflicting commits to the Iceberg catalog and temporarily delay data processing. Consider either updating the schema externally before publishing records with the new schema, or planning for a temporary disruption in throughput when a new schema is introduced from upstream.
+2. Because the forward path skips distribution entirely, users are responsible for distributing the data correctly in the upstream before the records reach the dynamic Iceberg sink. Otherwise, writes could be unbalanced.
 
 ### Notes
 
