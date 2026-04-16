@@ -83,7 +83,7 @@ jobs:
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew check -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -107,7 +107,7 @@ jobs:
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
     - run: ./gradlew -DallModules build -x test -x javadoc -x integrationTest
 
   build-javadoc:
@@ -124,7 +124,7 @@ jobs:
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
     - run: ./gradlew -Pquick=true javadoc
 
   check-runtime-deps:
@@ -137,5 +137,5 @@ jobs:
       with:
         distribution: zulu
         java-version: 17
-    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
     - run: ./gradlew checkAllRuntimeDeps -q

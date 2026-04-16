@@ -48,7 +48,7 @@ jobs:
       with:
         distribution: zulu
         java-version: 21
-    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
     - name: Build Iceberg Open API project
       run: ./gradlew :iceberg-open-api:shadowJar
     - name: Login to Docker Hub
