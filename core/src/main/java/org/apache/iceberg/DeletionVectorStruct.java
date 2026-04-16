@@ -32,9 +32,9 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
           DeletionVector.CARDINALITY);
 
   private String location = null;
-  private long offset = 0L;
-  private long sizeInBytes = 0L;
-  private long cardinality = 0L;
+  private long offset = -1L;
+  private long sizeInBytes = -1L;
+  private long cardinality = -1L;
 
   DeletionVectorStruct(Types.StructType type) {
     super(BASE_TYPE, type);

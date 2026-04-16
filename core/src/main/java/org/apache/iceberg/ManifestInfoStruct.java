@@ -41,15 +41,15 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           ManifestInfo.DV,
           ManifestInfo.DV_CARDINALITY);
 
-  private int addedFilesCount = 0;
-  private int existingFilesCount = 0;
-  private int deletedFilesCount = 0;
-  private int replacedFilesCount = 0;
-  private long addedRowsCount = 0L;
-  private long existingRowsCount = 0L;
-  private long deletedRowsCount = 0L;
-  private long replacedRowsCount = 0L;
-  private long minSequenceNumber = 0L;
+  private int addedFilesCount = -1;
+  private int existingFilesCount = -1;
+  private int deletedFilesCount = -1;
+  private int replacedFilesCount = -1;
+  private long addedRowsCount = -1L;
+  private long existingRowsCount = -1L;
+  private long deletedRowsCount = -1L;
+  private long replacedRowsCount = -1L;
+  private long minSequenceNumber = -1L;
   private byte[] dv = null;
   private Long dvCardinality = null;
 
