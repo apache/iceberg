@@ -23,7 +23,6 @@ import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
-import java.util.UUID;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueWriter;
@@ -107,10 +106,11 @@ public class SparkValueWriters {
     @Override
     @SuppressWarnings("ByteBufferBackingArray")
     public void write(UTF8String s, Encoder encoder) throws IOException {
-      // TODO: direct conversion from string to byte buffer
-      UUID uuid = UUID.fromString(s.toString());
+      // use getBytes because it may return the backing byte array if available.
+      // otherwise, it copies to a new byte array, which is still cheaper than
+      // calling toString, which incurs encoding costs.
       // calling array() is safe because the buffer is always allocated by the thread-local
-      encoder.writeFixed(UUIDUtil.convertToByteBuffer(uuid, BUFFER.get()).array());
+      encoder.writeFixed(UUIDUtil.convertToByteBuffer(s.getBytes(), BUFFER.get()).array());
     }
   }
 

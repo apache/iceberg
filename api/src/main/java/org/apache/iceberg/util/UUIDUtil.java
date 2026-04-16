@@ -83,6 +83,87 @@ public class UUIDUtil {
   }
 
   /**
+   * Convert the ASCII bytes of a UUID string directly to a 16-byte {@link ByteBuffer}, without
+   * creating an intermediate {@link UUID} object.
+   *
+   * @param uuidBytes ASCII bytes of a UUID in canonical form ({@code
+   *     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}, 36 bytes)
+   * @return a newly allocated ByteBuffer containing the 16-byte UUID
+   */
+  public static ByteBuffer convertToByteBuffer(byte[] uuidBytes) {
+    return convertToByteBuffer(uuidBytes, null);
+  }
+
+  /**
+   * Convert the ASCII bytes of a UUID string directly to a 16-byte {@link ByteBuffer}, without
+   * creating an intermediate {@link UUID} object.
+   *
+   * @param uuidBytes ASCII bytes of a UUID in canonical form ({@code
+   *     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}, 36 bytes)
+   * @param reuse a ByteBuffer to reuse, or null to allocate a new one
+   * @return the reuse buffer (or a new one) containing the 16-byte UUID
+   */
+  public static ByteBuffer convertToByteBuffer(byte[] uuidBytes, ByteBuffer reuse) {
+    Preconditions.checkArgument(
+        uuidBytes.length == 36, "Invalid UUID string: expected 36 bytes, got %s", uuidBytes.length);
+
+    // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    // MSB from first 3 groups (8+4+4 hex digits = 16 hex = 64 bits)
+    long msb = parseHexLong(uuidBytes, 0, 8);
+    checkHyphen(uuidBytes, 8);
+    msb = (msb << 16) | parseHexLong(uuidBytes, 9, 4);
+    checkHyphen(uuidBytes, 13);
+    msb = (msb << 16) | parseHexLong(uuidBytes, 14, 4);
+
+    // LSB from last 2 groups (4+12 hex digits = 16 hex = 64 bits)
+    checkHyphen(uuidBytes, 18);
+    long lsb = parseHexLong(uuidBytes, 19, 4);
+    checkHyphen(uuidBytes, 23);
+    lsb = (lsb << 48) | parseHexLong(uuidBytes, 24, 12);
+
+    ByteBuffer buffer;
+    if (reuse != null) {
+      buffer = reuse;
+    } else {
+      buffer = ByteBuffer.allocate(16);
+    }
+
+    buffer.order(ByteOrder.BIG_ENDIAN);
+    buffer.putLong(0, msb);
+    buffer.putLong(8, lsb);
+    return buffer;
+  }
+
+  private static long parseHexLong(byte[] bytes, int start, int length) {
+    long result = 0;
+    for (int i = start; i < start + length; i++) {
+      int digit = hexValue(bytes[i]);
+      result = (result << 4) | digit;
+    }
+    return result;
+  }
+
+  private static int hexValue(byte hexByte) {
+    if (hexByte >= '0' && hexByte <= '9') {
+      return hexByte - '0';
+    } else if (hexByte >= 'a' && hexByte <= 'f') {
+      return hexByte - 'a' + 10;
+    } else if (hexByte >= 'A' && hexByte <= 'F') {
+      return hexByte - 'A' + 10;
+    }
+    throw new IllegalArgumentException(
+        "Invalid hex character '" + (char) hexByte + "' in UUID string");
+  }
+
+  private static void checkHyphen(byte[] bytes, int pos) {
+    Preconditions.checkArgument(
+        bytes[pos] == '-',
+        "Expected '-' at position %s in UUID string, got '%s'",
+        pos,
+        (char) bytes[pos]);
+  }
+
+  /**
    * Generate a RFC 9562 UUIDv7.
    *
    * <p>Layout: - 48-bit Unix epoch milliseconds - 4-bit version (0b0111) - 12-bit random (rand_a) -
