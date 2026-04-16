@@ -65,6 +65,7 @@ jackson218 = { strictly = "2.18.8"}
 jackson221 = { strictly = "2.21.4"}
 jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
+javafastpfor = "0.2.1"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
 jetty = "12.1.12"
@@ -162,6 +163,7 @@ hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2"
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
+javafastpfor = { module = "me.lemire.integercompression:JavaFastPFOR", version.ref = "javafastpfor" }
 jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-bom" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson-bom" }
 jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-annotations" }

@@ -94,4 +94,10 @@ configure(jmhProjects) {
   }
 
   tasks.jmh.finalizedBy tasks.jmhReport
+
+  if (project.path == ':iceberg-core') {
+    dependencies {
+      jmhImplementation(libs.javafastpfor)
+    }
+  }
 }
