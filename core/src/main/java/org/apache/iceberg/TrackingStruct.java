@@ -29,7 +29,7 @@ import org.apache.iceberg.util.ByteBuffers;
 class TrackingStruct extends SupportsIndexProjection implements Tracking {
   private static final Types.StructType BASE_TYPE = Tracking.schema();
 
-  private EntryStatus status = EntryStatus.EXISTING;
+  private EntryStatus status = null;
   private Long snapshotId = null;
   private Long sequenceNumber = null;
   private Long fileSequenceNumber = null;
@@ -141,11 +141,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
       case 0:
         return status.id();
       case 1:
-        return snapshotId;
+        return snapshotId();
       case 2:
-        return sequenceNumber;
+        return dataSequenceNumber();
       case 3:
-        return fileSequenceNumber;
+        return fileSequenceNumber();
       case 4:
         return dvSnapshotId;
       case 5:

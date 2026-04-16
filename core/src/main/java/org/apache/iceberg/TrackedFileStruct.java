@@ -26,19 +26,36 @@ import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
+  private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
+
+  // struct type that corresponds to the positions used for internalGet and internalSet
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
-          ImmutableList.<Types.NestedField>builder()
-              .addAll(TrackedFile.schemaWithContentStats(Types.StructType.of()).fields())
-              .add(MetadataColumns.ROW_POSITION)
-              .build());
+          TrackedFile.TRACKING,
+          TrackedFile.CONTENT_TYPE,
+          TrackedFile.LOCATION,
+          TrackedFile.FILE_FORMAT,
+          TrackedFile.RECORD_COUNT,
+          TrackedFile.FILE_SIZE_IN_BYTES,
+          TrackedFile.SPEC_ID,
+          Types.NestedField.optional(
+              TrackedFile.CONTENT_STATS_ID,
+              TrackedFile.CONTENT_STATS_NAME,
+              EMPTY_STRUCT_TYPE,
+              TrackedFile.CONTENT_STATS_DOC),
+          TrackedFile.SORT_ORDER_ID,
+          TrackedFile.DELETION_VECTOR,
+          TrackedFile.MANIFEST_INFO,
+          TrackedFile.KEY_METADATA,
+          TrackedFile.SPLIT_OFFSETS,
+          TrackedFile.EQUALITY_IDS,
+          MetadataColumns.ROW_POSITION);
 
   private FileContent contentType = null;
   private String location = null;
@@ -116,6 +133,13 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         toCopy.equalityIds != null
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
+  }
+
+  void setManifestContext(TrackedFile manifest) {
+    this.manifestContext = manifest;
+    if (tracking != null) {
+      ((TrackingStruct) tracking).setManifestContext(manifest);
+    }
   }
 
   @Override
@@ -214,13 +238,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   @Override
   public long manifestPos() {
     return manifestPos;
-  }
-
-  void setManifestContext(TrackedFile manifest) {
-    this.manifestContext = manifest;
-    if (tracking != null) {
-      ((TrackingStruct) tracking).setManifestContext(manifest);
-    }
   }
 
   @Override
