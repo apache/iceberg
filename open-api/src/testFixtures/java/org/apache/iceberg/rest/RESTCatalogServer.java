@@ -25,6 +25,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
@@ -102,9 +105,19 @@ public class RESTCatalogServer {
         PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
 
     LOG.info("Creating {} catalog with properties: {}", catalogName, catalogProperties);
-    return new CatalogContext(
-        CatalogUtil.buildIcebergCatalog(catalogName, catalogProperties, new Configuration()),
-        catalogProperties);
+    Catalog catalog =
+        CatalogUtil.buildIcebergCatalog(catalogName, catalogProperties, new Configuration());
+
+    if (catalog instanceof SupportsNamespaces nsCatalog) {
+      try {
+        nsCatalog.createNamespace(Namespace.of("default"));
+        LOG.info("Created default namespace in backend catalog");
+      } catch (AlreadyExistsException ignored) {
+        LOG.info("Default namespace already exists in backend catalog", ignored);
+      }
+    }
+
+    return new CatalogContext(catalog, catalogProperties);
   }
 
   public void start(boolean join) throws Exception {

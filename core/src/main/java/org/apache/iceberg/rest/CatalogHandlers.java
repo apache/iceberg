@@ -407,6 +407,13 @@ public class CatalogHandlers {
       Catalog catalog, Namespace namespace, CreateTableRequest request) {
     request.validate();
 
+    if (catalog instanceof SupportsNamespaces) {
+      SupportsNamespaces nsCatalog = (SupportsNamespaces) catalog;
+      if (!nsCatalog.namespaceExists(namespace)) {
+        throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+      }
+    }
+
     TableIdentifier ident = TableIdentifier.of(namespace, request.name());
     if (catalog.tableExists(ident)) {
       throw new AlreadyExistsException("Table already exists: %s", ident);
@@ -445,6 +452,13 @@ public class CatalogHandlers {
   public static LoadTableResponse createTable(
       Catalog catalog, Namespace namespace, CreateTableRequest request) {
     request.validate();
+
+    if (catalog instanceof SupportsNamespaces) {
+      SupportsNamespaces nsCatalog = (SupportsNamespaces) catalog;
+      if (!nsCatalog.namespaceExists(namespace)) {
+        throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+      }
+    }
 
     TableIdentifier ident = TableIdentifier.of(namespace, request.name());
     Table table =

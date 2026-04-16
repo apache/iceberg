@@ -72,9 +72,7 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
   @Override
   protected boolean requiresNamespaceCreate() {
     return PropertyUtil.propertyAsBoolean(
-        restCatalog.properties(),
-        RESTCompatibilityKitSuite.RCK_REQUIRES_NAMESPACE_CREATE,
-        super.requiresNamespaceCreate());
+        restCatalog.properties(), RESTCompatibilityKitSuite.RCK_REQUIRES_NAMESPACE_CREATE, true);
   }
 
   @Override
