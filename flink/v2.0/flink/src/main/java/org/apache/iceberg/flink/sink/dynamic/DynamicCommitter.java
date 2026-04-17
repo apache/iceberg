@@ -162,23 +162,29 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
   private static long getMaxCommittedCheckpointId(
       Iterable<Snapshot> ancestors, String flinkJobId, String operatorId) {
-    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+    long fallbackCheckpointId = INITIAL_CHECKPOINT_ID;
 
     for (Snapshot ancestor : ancestors) {
       Map<String, String> summary = ancestor.summary();
       String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
       String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
-          break;
+      String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+
+      if (value != null) {
+        if (flinkJobId.equals(snapshotFlinkJobId)
+            && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
+          return Long.parseLong(value);
+        }
+
+        if (fallbackCheckpointId == INITIAL_CHECKPOINT_ID
+            && snapshotOperatorId != null
+            && snapshotOperatorId.equals(operatorId)) {
+          fallbackCheckpointId = Long.parseLong(value);
         }
       }
     }
 
-    return lastCommittedCheckpointId;
+    return fallbackCheckpointId;
   }
 
   /**

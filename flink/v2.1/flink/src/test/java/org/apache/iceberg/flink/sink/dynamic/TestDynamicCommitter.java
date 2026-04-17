@@ -327,6 +327,69 @@ class TestDynamicCommitter {
   }
 
   @Test
+  void testSkipsAlreadyCommittedCheckpointAfterJobRestart() throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    final String jobId1 = JobID.generate().toHexString();
+    final String jobId2 = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int checkpointId = 5;
+    final String branch = SnapshotRef.MAIN_BRANCH;
+
+    TableKey tableKey = new TableKey(TABLE1, branch);
+    byte[][] manifests =
+        aggregator.writeToManifests(tableKey.tableName(), WRITE_RESULT_BY_SPEC, checkpointId);
+
+    int workerPoolSize = 1;
+    String sinkId = "sinkId";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
+
+    DynamicCommitter committer1 =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            false,
+            workerPoolSize,
+            sinkId,
+            committerMetrics);
+
+    CommitRequest<DynamicCommittable> request1 =
+        new MockCommitRequest<>(
+            new DynamicCommittable(tableKey, manifests, jobId1, operatorId, checkpointId));
+    committer1.commit(Sets.newHashSet(request1));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.currentSnapshot().summary()).containsEntry("flink.job-id", jobId1);
+
+    // Simulate restart with new job ID and same operator ID
+    DynamicCommitter committer2 =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            false,
+            workerPoolSize,
+            sinkId,
+            committerMetrics);
+
+    CommitRequest<DynamicCommittable> request2 =
+        new MockCommitRequest<>(
+            new DynamicCommittable(tableKey, new byte[0][], jobId2, operatorId, checkpointId));
+    committer2.commit(Sets.newHashSet(request2));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+  }
+
+  @Test
   void testCommitDeleteInDifferentFormatVersion() throws Exception {
     Table table1 = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table1.snapshots()).isEmpty();
