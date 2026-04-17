@@ -47,6 +47,9 @@ import org.apache.iceberg.util.Pair;
  */
 class PFOREncoding {
   private static final int CHUNK_SIZE = 256;
+  private static final int DENSE_DESCRIPTOR_BIT = 0x20;
+  private static final int SPARSE_LENGTH_MASK = 0x1F;
+  private static final int DENSE_CONTAINER_BYTES = 32;
 
   private PFOREncoding() {}
 
@@ -131,6 +134,68 @@ class PFOREncoding {
     }
 
     return output;
+  }
+
+  /**
+   * Encodes a container offset array as PFOR-encoded container lengths.
+   *
+   * <p>{@code offsets} must have {@code count + 1} entries. The length of container {@code i} is
+   * {@code offsets[i + 1] - offsets[i]} and is used as the descriptor value to encode.
+   *
+   * @param offsets container offset array with {@code count + 1} entries
+   * @param count number of containers
+   * @return PFOR-encoded descriptor bytes
+   */
+  static ByteBuffer encodeOffsets(int[] offsets, int count) {
+    int[] lengths = new int[count];
+    for (int i = 0; i < count; i += 1) {
+      lengths[i] = offsets[i + 1] - offsets[i];
+    }
+
+    return encode(lengths, count);
+  }
+
+  /**
+   * Decodes PFOR-encoded descriptor bytes directly into a container offset array.
+   *
+   * <p>Reads from {@code encoded.position()} without modifying the buffer's position. Each decoded
+   * descriptor value is treated as a container length and accumulated into {@code offsets} as a
+   * prefix sum starting at 0. The caller is responsible for adjusting the resulting relative
+   * offsets to absolute positions.
+   *
+   * <p>{@code offsets} must have {@code count + 1} entries. On return, {@code offsets[i]} is the
+   * cumulative byte length of containers {@code 0..i-1} and {@code offsets[count]} is the total
+   * byte length of all containers.
+   *
+   * @param encoded PFOR-encoded descriptor bytes
+   * @param count number of containers (descriptors) to decode
+   * @param offsets array to fill; must have length &gt;= count + 1
+   * @return number of bytes consumed from {@code encoded}
+   */
+  static int decodeOffsets(ByteBuffer encoded, int count, int[] offsets) {
+    if (count == 0) {
+      offsets[0] = 0;
+      return 0;
+    }
+
+    int[] chunk = new int[Math.min(CHUNK_SIZE, count)];
+    int pos = encoded.position();
+    int containerIdx = 0;
+    int cumulative = 0;
+    while (containerIdx < count) {
+      int chunkLen = Math.min(CHUNK_SIZE, count - containerIdx);
+      pos += decodeChunk(encoded, pos, chunk, 0, chunkLen);
+      for (int i = 0; i < chunkLen; i += 1) {
+        offsets[containerIdx + i] = cumulative;
+        int descriptor = chunk[i];
+        cumulative += (descriptor & DENSE_DESCRIPTOR_BIT) != 0 ? DENSE_CONTAINER_BYTES : (descriptor & SPARSE_LENGTH_MASK);
+      }
+
+      containerIdx += chunkLen;
+    }
+    offsets[count] = cumulative;
+
+    return pos - encoded.position();
   }
 
   /**
