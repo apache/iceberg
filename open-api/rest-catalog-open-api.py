@@ -587,35 +587,134 @@ class Action(BaseModel):
     )
 
 
-class MaskHashSha256(Action):
+class MaskAlphanum(Action):
     """
-    Mask the data of the column by applying SHA-256.
-    The input must be UTF-8 encoded bytes of the column value.
-    The SHA-256 digest is represented as a lowercase hexadecimal string.
-    Engines must follow this procedure to ensure consistency:
-    1. Convert the column value to a UTF-8 byte array.
-    2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.
-    3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.
+    Redacts the column value character by character using the following rules:
+    - Digits (U+0030–U+0039, 0-9) are replaced with 'n' - The following punctuation characters are kept as-is:
+        U+0028 '('  LEFT PARENTHESIS
+        U+0029 ')'  RIGHT PARENTHESIS
+        U+002C ','  COMMA
+        U+002E '.'  FULL STOP
+        U+002D '-'  HYPHEN-MINUS
+        U+0040 '@'  COMMERCIAL AT
+    - All other Unicode characters (including letters, whitespace, and any punctuation
+      not listed above) are replaced with 'x'
+
+    For example: "prashant010696@gmail.com" → "xxxxxxxxnnnnnn@xxxxx.xxx"
+    Applicable to: string
 
     """
 
-    action: Literal['mask-hash-sha256'] = Field('mask-hash-sha256', const=True)
+    action: Literal['mask-alphanum'] = 'mask-alphanum'
+
+
+class MaskToDefault(Action):
+    """
+    Replaces the column value with a predefined type-specific default that conceals the original data while preserving type compatibility. Engines MUST use exactly the values listed below to ensure consistency across implementations.
+    Default values by type: - boolean: false - int: 999999999 - long: 999999999 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2)) - string: "XXXXXXXX" - date: 9999-12-31 - time: 00:00:00 - timestamp: 9999-12-31T00:00:00 - timestamptz: 9999-12-31T00:00:00+00:00 - timestamp_ns: 9999-12-31T00:00:00.000000000 - timestamptz_ns: 9999-12-31T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {"masked": true} - geometry: POINT EMPTY - geography: POINT EMPTY - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
+    Applicable to: all data types
+
+    """
+
+    action: Literal['mask-to-default'] = 'mask-to-default'
 
 
 class ReplaceWithNull(Action):
     """
-    Masks data by replacing it with a NULL value.
+    Replaces the entire column value with NULL.
+    Applicable to: all nullable types
+
     """
 
-    action: Literal['replace-with-null'] = Field('replace-with-null', const=True)
+    action: Literal['replace-with-null'] = 'replace-with-null'
 
 
-class MaskAlphanumeric(Action):
+class ShowFirst4(Action):
     """
-    mask all alphabetic characters with 'x' and numeric characters with 'n'
+    Preserves the first 4 characters of the column value and redacts the remainder using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer characters are returned unchanged.
+    For example: "prashant010696@gmail.com" → "prasxxxxnnnnnn@xxxxx.xxx"
+    Applicable to: string
+
     """
 
-    action: Literal['mask-alphanumeric'] = Field('mask-alphanumeric', const=True)
+    action: Literal['show-first-4'] = 'show-first-4'
+
+
+class ShowLast4(Action):
+    """
+    Redacts all characters except the last 4 using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer characters are returned unchanged.
+    For example: "4111-1111-1111-4444" → "nnnn-nnnn-nnnn-4444"
+    Applicable to: string
+
+    """
+
+    action: Literal['show-last-4'] = 'show-last-4'
+
+
+class TruncateToYear(Action):
+    """
+    Truncates the column value to year precision, setting month, day, and time components to their minimum values. The output type matches the input type.
+    For example: 2024-07-15 → 2024-01-01
+    Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+
+    """
+
+    action: Literal['truncate-to-year'] = 'truncate-to-year'
+
+
+class TruncateToMonth(Action):
+    """
+    Truncates the column value to year and month precision, setting day and time components to their minimum values. The output type matches the input type.
+    For example: 2024-07-15 → 2024-07-01
+    Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+
+    """
+
+    action: Literal['truncate-to-month'] = 'truncate-to-month'
+
+
+class Sha256Global(Action):
+    """
+    Applies SHA-256 as specified in NIST FIPS 180-4. Deterministic across all queries
+    and engines — the same input always produces the same output.
+
+    Input-to-bytes encoding by type:
+    - string: UTF-8 encoded bytes
+    - int: 4 bytes, little-endian
+    - long: 8 bytes, little-endian
+    - uuid: 16 bytes, big-endian (RFC 4122 byte order)
+    - binary: raw bytes as-is
+
+    Output encoding by type:
+    - string: 64-character lowercase hexadecimal string
+    - int: first 4 bytes of the digest, read as a little-endian int
+    - long: first 8 bytes of the digest, read as a little-endian long
+    - uuid: all 16 bytes of the digest, interpreted as a UUID (RFC 4122 byte order)
+    - binary: the full 32-byte raw SHA-256 digest, output type is binary(32)
+
+    Applicable to: string, int, long, uuid, binary
+
+    """
+
+    action: Literal['sha-256-global'] = 'sha-256-global'
+
+
+class Sha256QueryLocal(Action):
+    """
+    Applies SHA-256 with a per-query random salt, making the output non-deterministic
+    across queries while remaining consistent within a single query.
+
+    The engine MUST generate a cryptographically random salt for each query and apply it as:
+      SHA-256(salt_bytes || canonical_bytes)
+    where canonical_bytes follows the same encoding rules as sha-256-global.
+
+    Output encoding follows the same rules as sha-256-global.
+
+    Applicable to: string, int, long, uuid, binary
+
+    """
+
+    action: Literal['sha-256-query-local'] = 'sha-256-query-local'
 
 
 class LoadCredentialsResponse(BaseModel):
@@ -1254,15 +1353,6 @@ class SetStatisticsUpdate(BaseUpdate):
     statistics: StatisticsFile
 
 
-class ApplyTransform(Action):
-    """
-    Replace the field with the result of a transform expression. Produce the original field name with the transformed values.
-    """
-
-    action: Literal['apply-transform'] = Field('apply-transform', const=True)
-    term: Term | None = None
-
-
 class UnaryExpression(BaseModel):
     type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
         ...,
@@ -1512,12 +1602,23 @@ class ReadRestrictions(BaseModel):
     """
 
     required_column_projections: (
-        list[MaskHashSha256 | ReplaceWithNull | MaskAlphanumeric | ApplyTransform]
+        list[
+            MaskAlphanum
+            | MaskToDefault
+            | ReplaceWithNull
+            | ShowFirst4
+            | ShowLast4
+            | TruncateToYear
+            | TruncateToMonth
+            | Sha256Global
+            | Sha256QueryLocal
+            | ApplyExpression
+        ]
         | None
     ) = Field(
         None,
         alias='required-column-projections',
-        description="A list of columns that require specific projections or transforms to be applied.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified projection or action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action or transform.\n\n2. The reader MUST apply the action and replace all references to the underlying\n  column with the transformed value. For example, if the action specifies\n  truncate[4](cc), the reader MUST project it as truncate[4](cc) AS cc, and all\n  references to cc during query evaluation (including in required-row-filter)\n  MUST resolve to this transformed alias.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader,\n  the reader MUST fail rather than ignore or skip the transform.\n\n6. The data type of a projected column MUST match the data type defined for\n  the transform result.\n",
+        description="A list of columns that require specific actions to be applied when reading.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action before returning values for that column.\n\n2. The reader MUST replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader MUST\n  return the masked value as cc in the query output.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader,\n  the reader MUST fail rather than ignore or skip the action.\n\n6. Each action defines the output type for its column. For all predefined\n  actions except apply-expression, the output type matches the input column\n  type. For apply-expression, the output type is determined by the expression.\n",
     )
     required_row_filter: Expression | None = Field(
         None,
@@ -1525,6 +1626,14 @@ class ReadRestrictions(BaseModel):
         description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. A reader MUST discard any row for which the filter evaluates to false or null, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
     )
 
+
+class ApplyExpression(Action):
+    """
+    Replace the field with the result of an expression. Produce the original field name with the expression result.
+    """
+
+    action: Literal['apply-expression'] = 'apply-expression'
+    expression: Expression | None = None
 
 
 class LoadTableResult(BaseModel):
@@ -1939,6 +2048,8 @@ NotExpression.model_rebuild()
 TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
+ReadRestrictions.model_rebuild()
+ApplyExpression.model_rebuild()
 ScanTasks.model_rebuild()
 CommitTableRequest.model_rebuild()
 CommitViewRequest.model_rebuild()
