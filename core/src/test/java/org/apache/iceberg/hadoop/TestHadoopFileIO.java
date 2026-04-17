@@ -145,6 +145,38 @@ public class TestHadoopFileIO {
         .hasMessage("Failed to delete 2 files");
   }
 
+  @Test
+  public void testHadoopConfPrefixedPropertiesApplied() {
+    Configuration baseConf = new Configuration();
+    baseConf.set("fs.s3a.endpoint", "original");
+    HadoopFileIO io = new HadoopFileIO(baseConf);
+    io.initialize(
+        ImmutableMap.of(
+            "iceberg.hadoop.conf.fs.s3a.endpoint", "https://s3.example.com",
+            "iceberg.hadoop.conf.fs.s3a.path.style.access", "true",
+            "unrelated.property", "ignored"));
+
+    assertThat(io.conf().get("fs.s3a.endpoint")).isEqualTo("https://s3.example.com");
+    assertThat(io.conf().get("fs.s3a.path.style.access")).isEqualTo("true");
+    assertThat(io.conf().get("unrelated.property")).isNull();
+    assertThat(io.conf().get("iceberg.hadoop.conf.fs.s3a.endpoint")).isNull();
+    assertThat(baseConf.get("fs.s3a.endpoint")).isEqualTo("original");
+  }
+
+  @Test
+  public void testHadoopConfPrefixedPropertiesAppliedOnSetConf() {
+    HadoopFileIO io = new HadoopFileIO();
+    io.initialize(ImmutableMap.of("iceberg.hadoop.conf.fs.s3a.endpoint", "https://s3.example.com"));
+
+    Configuration otherBase = new Configuration();
+    otherBase.set("fs.s3a.access.key", "AKIA");
+    io.setConf(otherBase);
+
+    assertThat(io.conf().get("fs.s3a.endpoint")).isEqualTo("https://s3.example.com");
+    assertThat(io.conf().get("fs.s3a.access.key")).isEqualTo("AKIA");
+    assertThat(otherBase.get("fs.s3a.endpoint")).isNull();
+  }
+
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void testHadoopFileIOSerialization(
