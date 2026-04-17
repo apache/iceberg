@@ -19,11 +19,14 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.util.concurrent.CountDownLatch;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.jupiter.api.Test;
 
 public class TestCoordinatorThread {
@@ -44,5 +47,50 @@ public class TestCoordinatorThread {
 
     verify(coordinator, timeout(1000)).stop();
     assertThat(coordinatorThread.isTerminated()).isTrue();
+  }
+
+  @Test
+  public void testTerminateDuringProcess() throws InterruptedException {
+    Coordinator coordinator = mock(Coordinator.class);
+    CountDownLatch processStarted = new CountDownLatch(1);
+    CountDownLatch processUnblock = new CountDownLatch(1);
+    doAnswer(
+            inv -> {
+              processStarted.countDown();
+              processUnblock.await();
+              return null;
+            })
+        .when(coordinator)
+        .process();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    processStarted.await();
+    coordinatorThread.terminate();
+    processUnblock.countDown();
+
+    coordinatorThread.join(2000);
+    assertThat(coordinatorThread.isAlive()).isFalse();
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+  }
+
+  @Test
+  public void testProcessExceptionExitsThread() throws InterruptedException {
+    Coordinator coordinator = mock(Coordinator.class);
+    doAnswer(
+            inv -> {
+              throw new ConnectException("simulated failure");
+            })
+        .when(coordinator)
+        .process();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    coordinatorThread.join(2000);
+    assertThat(coordinatorThread.isAlive()).isFalse();
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+    verify(coordinator, timeout(1000)).stop();
   }
 }

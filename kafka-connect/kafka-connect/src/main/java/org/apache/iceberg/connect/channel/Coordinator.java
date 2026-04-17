@@ -149,6 +149,9 @@ class Coordinator extends Channel {
     try {
       doCommit(partialCommit);
     } catch (Exception e) {
+      if (terminated) {
+        throw e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
+      }
       LOG.warn("Commit failed, will try again next cycle", e);
     } finally {
       commitState.endCurrentCommit();
