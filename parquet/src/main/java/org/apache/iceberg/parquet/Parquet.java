@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVE
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_VERSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
@@ -271,7 +272,7 @@ public class Parquet {
           version == WriterVersion.PARQUET_1_0 || version == WriterVersion.PARQUET_2_0,
           "Unsupported writer version: %s",
           version);
-      this.config.put(PARQUET_PAGE_VERSION, version == WriterVersion.PARQUET_2_0 ? "v2" : "v1");
+      config.put(PARQUET_PAGE_VERSION, version.name());
       return this;
     }
 
@@ -656,7 +657,11 @@ public class Parquet {
                 config, DELETE_PARQUET_DICT_SIZE_BYTES, dataContext.dictionaryPageSize());
         Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
 
-        WriterVersion writerVersion = dataContext.writerVersion();
+        String deletePageVersion = config.get(DELETE_PARQUET_PAGE_VERSION);
+        WriterVersion writerVersion =
+            deletePageVersion != null
+                ? toWriterVersion(deletePageVersion)
+                : dataContext.writerVersion();
 
         String codecAsString = config.get(DELETE_PARQUET_COMPRESSION);
         CompressionCodecName codec =

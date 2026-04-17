@@ -124,6 +124,28 @@ class TestParquetPageVersion {
   }
 
   @Test
+  void testDeleteWriterUsesDeleteSpecificPageVersion() throws IOException {
+    OutputFile outputFile = newOutputFile();
+
+    EqualityDeleteWriter<Record> deleteWriter =
+        Parquet.writeDeletes(outputFile)
+            .createWriterFunc(GenericParquetWriter::create)
+            .set(TableProperties.PARQUET_PAGE_VERSION, "v1")
+            .set(TableProperties.DELETE_PARQUET_PAGE_VERSION, "v2")
+            .overwrite()
+            .rowSchema(SCHEMA)
+            .withSpec(PartitionSpec.unpartitioned())
+            .equalityFieldIds(1)
+            .buildEqualityWriter();
+
+    try (EqualityDeleteWriter<Record> writer = deleteWriter) {
+      writer.write(records);
+    }
+
+    assertThat(firstDataPage(outputFile)).isInstanceOf(DataPageV2.class);
+  }
+
+  @Test
   void testExplicitWriterVersion2OverridesPageVersionProperty() throws IOException {
     OutputFile outputFile = newOutputFile();
 
@@ -185,6 +207,24 @@ class TestParquetPageVersion {
                     .set(TableProperties.PARQUET_PAGE_VERSION, "3")
                     .createWriterFunc(GenericParquetWriter::create)
                     .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported Parquet page version: 3 (must be v1 or v2)");
+  }
+
+  @Test
+  void testInvalidDeletePageVersionFails() throws IOException {
+    OutputFile outputFile = newOutputFile();
+
+    assertThatThrownBy(
+            () ->
+                Parquet.writeDeletes(outputFile)
+                    .createWriterFunc(GenericParquetWriter::create)
+                    .set(TableProperties.DELETE_PARQUET_PAGE_VERSION, "3")
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(1)
+                    .buildEqualityWriter())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported Parquet page version: 3 (must be v1 or v2)");
   }
