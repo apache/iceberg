@@ -45,6 +45,8 @@ class WatermarkExtractorRecordEmitter<T> implements SerializableRecordEmitter<T>
       RecordAndPosition<T> element, SourceOutput<T> output, IcebergSourceSplit split) {
     if (!split.splitId().equals(lastSplitId)) {
       long extracted = timeExtractor.extractWatermark(split);
+      // Subtract 1 because watermark W means all records with eventTime <= W have arrived;
+      // records in this split have eventTime == extracted, so watermark must be extracted - 1.
       long newWatermark = extracted > Long.MIN_VALUE ? extracted - 1 : Long.MIN_VALUE;
       if (newWatermark < watermark) {
         LOG.info(
