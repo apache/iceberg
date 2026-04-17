@@ -19,11 +19,15 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
@@ -44,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +69,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   private final int subTaskId;
   private final int attemptId;
   private final Catalog catalog;
+  private final ExecutorService flushExecutor;
 
   DynamicWriter(
       Catalog catalog,
@@ -81,6 +87,9 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     this.attemptId = attemptId;
     this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
     this.writers = Maps.newHashMap();
+    this.flushExecutor =
+        ThreadPools.newFixedThreadPool(
+            "iceberg-dynamic-writer-flush-" + subTaskId, cacheMaximumSize);
 
     LOG.debug("DynamicIcebergSinkWriter created for subtask {} attemptId {}", subTaskId, attemptId);
   }
@@ -159,6 +168,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     for (TaskWriter<RowData> writer : writers.values()) {
       writer.close();
     }
+    flushExecutor.shutdownNow();
   }
 
   @Override
@@ -172,32 +182,63 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   @Override
   public Collection<DynamicWriteResult> prepareCommit() throws IOException {
-    List<DynamicWriteResult> result = Lists.newArrayList();
-    for (Map.Entry<WriteTarget, TaskWriter<RowData>> entry : writers.entrySet()) {
-      long startNano = System.nanoTime();
-      WriteResult writeResult = entry.getValue().complete();
-      WriteTarget writeTarget = entry.getKey();
-      metrics.updateFlushResult(writeTarget.tableName(), writeResult);
-      metrics.flushDuration(
-          writeTarget.tableName(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
-      LOG.debug(
-          "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
-          writeTarget.tableName(),
-          subTaskId,
-          attemptId,
-          writeResult.dataFiles().length,
-          writeResult.deleteFiles().length);
-
-      result.add(
-          new DynamicWriteResult(
-              new TableKey(writeTarget.tableName(), writeTarget.branch()),
-              writeTarget.specId(),
-              writeResult));
-    }
-
+    List<CompletableFuture<FlushOutcome>> futures =
+        writers.entrySet().stream().map(e -> flushAsync(e.getKey(), e.getValue())).toList();
     writers.clear();
 
+    try {
+      CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+    } catch (CompletionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof UncheckedIOException uncheckedIOException) {
+        throw uncheckedIOException.getCause();
+      }
+      throw new IOException(cause);
+    }
+
+    List<DynamicWriteResult> result = Lists.newArrayList();
+    for (CompletableFuture<FlushOutcome> future : futures) {
+      FlushOutcome flush = future.join();
+      recordFlushMetrics(flush.writeTarget(), flush.writeResult(), flush.durationNanos());
+      result.add(
+          new DynamicWriteResult(
+              new TableKey(flush.writeTarget().tableName(), flush.writeTarget().branch()),
+              flush.writeTarget().specId(),
+              flush.writeResult()));
+    }
+
     return result;
+  }
+
+  private CompletableFuture<FlushOutcome> flushAsync(
+      WriteTarget writeTarget, TaskWriter<RowData> writer) {
+    return CompletableFuture.supplyAsync(
+        () -> {
+          try {
+            long startNano = System.nanoTime();
+            WriteResult writeResult = writer.complete();
+            return new FlushOutcome(writeTarget, writeResult, System.nanoTime() - startNano);
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        },
+        flushExecutor);
+  }
+
+  private record FlushOutcome(
+      WriteTarget writeTarget, WriteResult writeResult, long durationNanos) {}
+
+  private void recordFlushMetrics(
+      WriteTarget writeTarget, WriteResult writeResult, long durationNanos) {
+    metrics.updateFlushResult(writeTarget.tableName(), writeResult);
+    metrics.flushDuration(writeTarget.tableName(), TimeUnit.NANOSECONDS.toMillis(durationNanos));
+    LOG.debug(
+        "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
+        writeTarget.tableName(),
+        subTaskId,
+        attemptId,
+        writeResult.dataFiles().length,
+        writeResult.deleteFiles().length);
   }
 
   private static Set<Integer> getEqualityFields(Table table, Set<Integer> equalityFieldIds) {
