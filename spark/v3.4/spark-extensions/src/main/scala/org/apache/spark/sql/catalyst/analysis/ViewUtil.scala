@@ -18,6 +18,7 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.source.HasIcebergCatalog
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.View
@@ -36,7 +37,7 @@ object ViewUtil {
   }
 
   def isViewCatalog(catalog: CatalogPlugin): Boolean = {
-    catalog.isInstanceOf[ViewCatalog]
+    catalog.isInstanceOf[ViewCatalog] && catalog.isInstanceOf[HasIcebergCatalog]
   }
 
   implicit class IcebergViewHelper(plugin: CatalogPlugin) {
