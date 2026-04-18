@@ -219,7 +219,9 @@ class RESTTableScan extends DataTableScan {
         return fetchPlanningResult();
       case FAILED:
         throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
+            String.format(
+                "Received status: %s for planId: %s. Server error: %s",
+                PlanStatus.FAILED, planId, response.errorMessage()));
       case CANCELLED:
         throw new IllegalStateException(
             String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
@@ -289,7 +291,8 @@ class RESTTableScan extends DataTableScan {
                 } else if (response.planStatus() != PlanStatus.COMPLETED) {
                   throw new IllegalStateException(
                       String.format(
-                          "Invalid planStatus: %s for planId: %s", response.planStatus(), id));
+                          "Invalid planStatus: %s for planId: %s. Server error: %s",
+                          response.planStatus(), id, response.errorMessage()));
                 }
 
                 result.set(response);

@@ -31,10 +31,12 @@ import org.apache.iceberg.rest.credentials.Credential;
 
 public class FetchPlanningResultResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
+  private final ErrorResponse errorResponse;
   private final List<Credential> credentials;
 
   private FetchPlanningResultResponse(
       PlanStatus planStatus,
+      ErrorResponse errorResponse,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
@@ -42,12 +44,21 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
       List<Credential> credentials) {
     super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
+    this.errorResponse = errorResponse;
     this.credentials = credentials;
     validate();
   }
 
   public PlanStatus planStatus() {
     return planStatus;
+  }
+
+  public ErrorResponse errorResponse() {
+    return errorResponse;
+  }
+
+  public String errorMessage() {
+    return errorResponse != null ? errorResponse.message() : null;
   }
 
   public List<Credential> credentials() {
@@ -76,10 +87,16 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     private Builder() {}
 
     private PlanStatus planStatus;
+    private ErrorResponse errorResponse;
     private final List<Credential> credentials = Lists.newArrayList();
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
+      return this;
+    }
+
+    public Builder withErrorResponse(ErrorResponse response) {
+      this.errorResponse = response;
       return this;
     }
 
@@ -91,7 +108,13 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     @Override
     public FetchPlanningResultResponse build() {
       return new FetchPlanningResultResponse(
-          planStatus, planTasks(), fileScanTasks(), deleteFiles(), specsById(), credentials);
+          planStatus,
+          errorResponse,
+          planTasks(),
+          fileScanTasks(),
+          deleteFiles(),
+          specsById(),
+          credentials);
     }
   }
 }
