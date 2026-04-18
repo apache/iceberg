@@ -173,6 +173,12 @@ public class ParquetFormatModel<D, S, R>
     }
 
     @Override
+    public ModelWriteBuilder<D, S> setAll(Map<String, String> properties) {
+      properties.forEach(this::set);
+      return this;
+    }
+
+    @Override
     public ModelWriteBuilder<D, S> meta(String property, String value) {
       internal.meta(property, value);
       return this;
@@ -216,16 +222,14 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public FileAppender<D> build() throws IOException {
-      Preconditions.checkState(content != null, "File content type must be set before building");
+      boolean shredVariants = false;
       switch (content) {
         case DATA:
           internal.createContextFunc(Parquet.WriteBuilder.Context::dataContext);
           internal.createWriterFunc(
               (icebergSchema, messageType) ->
                   writerFunction.write(icebergSchema, messageType, engineSchema));
-          if (shreddingEnabled && variantAnalyzer != null && hasVariantColumns(schema)) {
-            return buildShreddedAppender();
-          }
+          shredVariants = shreddingEnabled && variantAnalyzer != null && hasVariantColumns(schema);
           break;
         case EQUALITY_DELETES:
           internal.createContextFunc(Parquet.WriteBuilder.Context::deleteContext);
@@ -254,6 +258,10 @@ public class ParquetFormatModel<D, S, R>
           break;
         default:
           throw new IllegalArgumentException("Unknown file content: " + content);
+      }
+
+      if (shredVariants) {
+        return buildShreddedAppender();
       }
 
       return internal.build();

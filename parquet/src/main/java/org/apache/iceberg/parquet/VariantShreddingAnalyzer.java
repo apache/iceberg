@@ -134,6 +134,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
         }
       }
     }
+
     return shreddedTypes;
   }
 

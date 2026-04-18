@@ -31,6 +31,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -63,7 +64,7 @@ public class TestBufferedFileAppender {
             .overwrite()
             .build();
       } catch (IOException e) {
-        throw new org.apache.iceberg.exceptions.RuntimeIOException(e);
+        throw new RuntimeIOException(e);
       }
     };
   }
