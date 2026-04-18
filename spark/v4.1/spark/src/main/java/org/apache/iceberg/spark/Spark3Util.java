@@ -74,10 +74,13 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
@@ -108,6 +111,20 @@ public class Spark3Util {
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 
   private Spark3Util() {}
+
+  public static TableInfo tableInfo(
+      StructType schema, Transform[] transforms, Map<String, String> properties) {
+    return tableInfo(CatalogV2Util.structTypeToV2Columns(schema), transforms, properties);
+  }
+
+  public static TableInfo tableInfo(
+      Column[] columns, Transform[] transforms, Map<String, String> properties) {
+    return new TableInfo.Builder()
+        .withColumns(columns)
+        .withPartitions(transforms)
+        .withProperties(properties)
+        .build();
+  }
 
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
     ImmutableMap.Builder<String, String> tableProperties = ImmutableMap.builder();
