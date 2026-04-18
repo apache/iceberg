@@ -597,7 +597,7 @@ class Action(BaseModel):
 
 class MaskAlphanum(Action):
     """
-    Redacts the column value character by character using the following rules:
+    Redacts the column value Unicode code point by code point using the following rules:
     - Digits (U+0030–U+0039, 0-9) are replaced with 'n' - The following punctuation characters are kept as-is:
         U+0028 '('  LEFT PARENTHESIS
         U+0029 ')'  RIGHT PARENTHESIS
@@ -639,7 +639,7 @@ class ReplaceWithNull(Action):
 
 class ShowFirst4(Action):
     """
-    Preserves the first 4 characters of the column value and redacts the remainder using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer characters are returned unchanged.
+    Preserves the first 4 Unicode code points of the column value and redacts the remainder using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
     For example: "prashant010696@gmail.com" → "prasxxxxnnnnnn@xxxxx.xxx"
     Applicable to: string
 
@@ -650,7 +650,7 @@ class ShowFirst4(Action):
 
 class ShowLast4(Action):
     """
-    Redacts all characters except the last 4 using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer characters are returned unchanged.
+    Redacts all Unicode code points except the last 4 using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
     For example: "4111-1111-1111-4444" → "nnnn-nnnn-nnnn-4444"
     Applicable to: string
 
@@ -662,7 +662,7 @@ class ShowLast4(Action):
 class TruncateToYear(Action):
     """
     Truncates the column value to year precision, setting month, day, and time components to their minimum values. The output type matches the input type.
-    For example: 2024-07-15 → 2024-01-01
+    For example: 2024-07-15 → 2024-01-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
     Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
 
     """
@@ -673,7 +673,7 @@ class TruncateToYear(Action):
 class TruncateToMonth(Action):
     """
     Truncates the column value to year and month precision, setting day and time components to their minimum values. The output type matches the input type.
-    For example: 2024-07-15 → 2024-07-01
+    For example: 2024-07-15 → 2024-07-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
     Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
 
     """
@@ -695,10 +695,10 @@ class Sha256Global(Action):
 
     Output encoding by type:
     - string: 64-character lowercase hexadecimal string
-    - int: first 4 bytes of the digest, read as a little-endian int
-    - long: first 8 bytes of the digest, read as a little-endian long
+    - int: first 4 bytes of the digest, read as a signed two's complement little-endian int
+    - long: first 8 bytes of the digest, read as a signed two's complement little-endian long
     - uuid: all 16 bytes of the digest, interpreted as a UUID (RFC 4122 byte order)
-    - binary: the full 32-byte raw SHA-256 digest, output type is binary(32)
+    - binary: the full 32-byte raw SHA-256 digest
 
     Applicable to: string, int, long, uuid, binary
 
@@ -712,7 +712,7 @@ class Sha256QueryLocal(Action):
     Applies SHA-256 with a per-query random salt, making the output non-deterministic
     across queries while remaining consistent within a single query.
 
-    The engine MUST generate a cryptographically random salt for each query and apply it as:
+    The engine MUST generate a cryptographically random salt of at least 16 bytes for each query and apply it as:
       SHA-256(salt_bytes || canonical_bytes)
     where canonical_bytes follows the same encoding rules as sha-256-global.
 
@@ -1667,6 +1667,7 @@ class ReadRestrictions(BaseModel):
     Read restrictions for a table, including column projections and row filter expressions.
     A client MUST enforce the restrictions defined in this object when reading data from the table.
     These restrictions apply only to the authenticated principal, user, or account associated with the request. They MUST NOT be interpreted as global policy and MUST NOT be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
+    If both properties are absent or empty, the ReadRestrictions object imposes no restrictions and is equivalent to the field being absent from the response. A server MUST NOT return an action for a column whose type is not listed in that action's "Applicable to" set. For all actions, if the input column value is NULL, the output MUST be NULL.
 
     """
 
@@ -1687,7 +1688,7 @@ class ReadRestrictions(BaseModel):
     ) = Field(
         None,
         alias='required-column-projections',
-        description="A list of columns that require specific actions to be applied when reading.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action before returning values for that column.\n\n2. The reader MUST replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader MUST\n  return the masked value as cc in the query output.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader,\n  the reader MUST fail rather than ignore or skip the action.\n\n6. Each action defines the output type for its column. For all predefined\n  actions except apply-expression, the output type matches the input column\n  type. For apply-expression, the output type is determined by the expression.\n",
+        description="A list of columns that require specific actions to be applied when reading.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action before returning values for that column.\n\n2. The reader MUST replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader MUST\n  return the masked value as cc in the query output.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader\n  (including unrecognized action types), the reader MUST fail rather than\n  ignore or skip the action.\n\n6. Each action defines the output type for its column. For all predefined\n  actions except apply-expression, the output type matches the input column\n  type. For apply-expression, the output type is determined by the expression.\n",
     )
     required_row_filter: Expression | None = Field(
         None,
@@ -1699,10 +1700,12 @@ class ReadRestrictions(BaseModel):
 class ApplyExpression(Action):
     """
     Replace the field with the result of an expression. Produce the original field name with the expression result.
+    Applicable to: all data types
+
     """
 
-    action: Literal['apply-expression'] = 'apply-expression'
-    expression: Expression | None = None
+    action: Literal['apply-expression']
+    expression: Expression
 
 
 class LoadTableResult(BaseModel):
