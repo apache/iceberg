@@ -33,7 +33,7 @@ arrow = "15.0.2"
 avro = "1.12.1"
 assertj-core = "3.27.7"
 awaitility = "4.3.0"
-awssdk-bom = "2.42.23"
+awssdk-bom = "2.42.28"
 azuresdk-bom = "1.3.5"
 awssdk-s3accessgrants = "2.4.1"
 bson-ver = "4.11.5"
@@ -65,7 +65,7 @@ jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
-jetty = "12.1.7"
+jetty = "12.1.8"
 junit = "5.14.3"
 junit-platform = "1.14.3"
 junit-pioneer = "2.3.0"
@@ -202,7 +202,8 @@ flink21-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", 
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
-jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
+jetty-compression-server = { module = "org.eclipse.jetty.compression:jetty-compression-server", version.ref = "jetty" }
+jetty-compression-gzip = { module = "org.eclipse.jetty.compression:jetty-compression-gzip", version.ref = "jetty" }
 jetty-servlet = { module = "org.eclipse.jetty.ee10:jetty-ee10-servlet", version.ref = "jetty" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }

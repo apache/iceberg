@@ -34,20 +34,40 @@ public class DynamicRecord {
   private Schema schema;
   private RowData rowData;
   private PartitionSpec partitionSpec;
-  private DistributionMode distributionMode;
+  @Nullable private DistributionMode distributionMode;
   private int writeParallelism;
   private boolean upsertMode;
   @Nullable private Set<String> equalityFields;
 
   /**
-   * Constructs a new DynamicRecord.
+   * Constructs a new DynamicRecord with forward (no shuffle) writes.
    *
    * @param tableIdentifier The target table identifier.
    * @param branch The target table branch.
    * @param schema The target table schema.
    * @param rowData The data matching the provided schema.
    * @param partitionSpec The target table {@link PartitionSpec}.
-   * @param distributionMode The {@link DistributionMode}.
+   */
+  public DynamicRecord(
+      TableIdentifier tableIdentifier,
+      String branch,
+      Schema schema,
+      RowData rowData,
+      PartitionSpec partitionSpec) {
+    this(tableIdentifier, branch, schema, rowData, partitionSpec, null, -1);
+  }
+
+  /**
+   * Constructs a new DynamicRecord. This record will be shuffled as specified by {@code
+   * distributionMode}.
+   *
+   * @param tableIdentifier The target table identifier.
+   * @param branch The target table branch.
+   * @param schema The target table schema.
+   * @param rowData The data matching the provided schema.
+   * @param partitionSpec The target table {@link PartitionSpec}.
+   * @param distributionMode The {@link DistributionMode}. {@code null} indicates forward (no
+   *     shuffle) writes.
    * @param writeParallelism The number of parallel writers. Can be set to any value {@literal > 0},
    *     but will always be automatically capped by the maximum write parallelism, which is the
    *     parallelism of the sink. Set to Integer.MAX_VALUE for always using the maximum available

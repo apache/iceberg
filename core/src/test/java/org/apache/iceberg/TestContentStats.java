@@ -16,22 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
-import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.stats.FieldStatistic.EXACT_BOUNDS;
-import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
-import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
-import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
-import static org.apache.iceberg.stats.FieldStatistic.NULL_VALUE_COUNT;
-import static org.apache.iceberg.stats.FieldStatistic.UPPER_BOUND;
-import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE;
+import static org.apache.iceberg.FieldStatistic.EXACT_BOUNDS;
+import static org.apache.iceberg.FieldStatistic.LOWER_BOUND;
+import static org.apache.iceberg.FieldStatistic.MAX_VALUE_SIZE;
+import static org.apache.iceberg.FieldStatistic.NAN_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.UPPER_BOUND;
+import static org.apache.iceberg.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
@@ -154,7 +153,7 @@ public class TestContentStats {
     assertThatThrownBy(() -> stats.get(0, Long.class))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Wrong class, expected java.lang.Long but was org.apache.iceberg.stats.BaseFieldStats for object:");
+            "Wrong class, expected java.lang.Long but was org.apache.iceberg.BaseFieldStats for object:");
   }
 
   @Test

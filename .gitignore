@@ -77,3 +77,6 @@ derby.log
 
 # sdkman
 .sdkmanrc
+
+# git hooks like pre-commit
+.githooks/

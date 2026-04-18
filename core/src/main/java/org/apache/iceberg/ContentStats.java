@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
 import java.util.List;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
 
-public interface ContentStats extends StructLike {
+interface ContentStats extends StructLike {
 
   /** A list of all the {@link FieldStats} */
   List<FieldStats<?>> fieldStats();

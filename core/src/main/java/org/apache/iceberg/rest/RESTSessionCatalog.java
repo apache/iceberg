@@ -265,7 +265,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             PropertyUtil.propertyAsString(
                     mergedProps,
                     RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
-                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
+                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT.name())
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
@@ -279,7 +279,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         PropertyUtil.propertyAsString(
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
-            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+            RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -615,7 +615,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     RESTCatalogProperties.ScanPlanningMode effectiveMode =
         effectiveModeConfig != null
             ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
-            : RESTCatalogProperties.ScanPlanningMode.CLIENT;
+            : RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
 
     if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER) {
       Preconditions.checkState(

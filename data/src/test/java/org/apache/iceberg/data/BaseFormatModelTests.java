@@ -134,12 +134,7 @@ public abstract class BaseFormatModelTests<T> {
     FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
 
-    DataWriter<T> writer =
-        writerBuilder
-            .schema(schema)
-            .engineSchema(engineSchema(schema))
-            .spec(PartitionSpec.unpartitioned())
-            .build();
+    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
@@ -219,7 +214,6 @@ public abstract class BaseFormatModelTests<T> {
     EqualityDeleteWriter<T> writer =
         writerBuilder
             .schema(schema)
-            .engineSchema(engineSchema(schema))
             .spec(PartitionSpec.unpartitioned())
             .equalityFieldIds(1)
             .build();
@@ -383,7 +377,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(projectedSchema)
-            .engineProjection(engineSchema(projectedSchema))
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
@@ -398,9 +391,6 @@ public abstract class BaseFormatModelTests<T> {
     assumeSupports(fileFormat, FEATURE_FILTER);
 
     Schema schema = SCHEMA;
-    new Schema(
-        Types.NestedField.required(1, "id", Types.IntegerType.get()),
-        Types.NestedField.required(2, "data", Types.StringType.get()));
 
     // Generate records with known id values [0, count)
     int count = 10000;
@@ -419,7 +409,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .filter(lessThanFilter)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
@@ -433,7 +422,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .filter(greaterThanFilter)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
@@ -471,7 +459,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .filter(upperCaseFilter)
             .caseSensitive(false)
             .build()) {
@@ -486,7 +473,6 @@ public abstract class BaseFormatModelTests<T> {
               try (CloseableIterable<T> reader =
                   FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
                       .project(schema)
-                      .engineProjection(engineSchema(schema))
                       .filter(upperCaseFilter)
                       .caseSensitive(true)
                       .build()) {
@@ -529,7 +515,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .split(firstSplitStart, firstSplitLength)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
@@ -542,7 +527,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .split(fileLength, 0)
             .build()) {
       emptyReadRecords = ImmutableList.copyOf(reader);
@@ -554,7 +538,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .split(0, fileLength)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
@@ -584,7 +567,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .build()) {
       noReuseRecords = ImmutableList.copyOf(reader);
     }
@@ -600,7 +582,6 @@ public abstract class BaseFormatModelTests<T> {
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .engineProjection(engineSchema(schema))
             .reuseContainers()
             .build()) {
       reuseRecords = ImmutableList.copyOf(reader);
