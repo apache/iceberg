@@ -138,6 +138,7 @@ public class AwsClientFactories {
           .applyMutation(
               b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+          .applyMutation(s3FileIOProperties::applyServiceConfigurations)
           .build();
     }
 

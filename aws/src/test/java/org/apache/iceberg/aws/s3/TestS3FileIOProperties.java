@@ -498,6 +498,44 @@ public class TestS3FileIOProperties {
   }
 
   @Test
+  public void testApplyS3AsyncServiceConfigurations() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.DUALSTACK_ENABLED, "true");
+    properties.put(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
+    properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+    properties.put(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
+    properties.put(S3FileIOProperties.ACCELERATION_ENABLED, "false");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3AsyncClientBuilder mockBuilder = Mockito.mock(S3AsyncClientBuilder.class);
+
+    ArgumentCaptor<S3Configuration> s3ConfigurationCaptor =
+        ArgumentCaptor.forClass(S3Configuration.class);
+
+    Mockito.doReturn(mockBuilder).when(mockBuilder).dualstackEnabled(Mockito.anyBoolean());
+    Mockito.doReturn(mockBuilder)
+        .when(mockBuilder)
+        .crossRegionAccessEnabled(Mockito.anyBoolean());
+    Mockito.doReturn(mockBuilder)
+        .when(mockBuilder)
+        .serviceConfiguration(Mockito.any(S3Configuration.class));
+
+    s3FileIOProperties.applyServiceConfigurations(mockBuilder);
+
+    Mockito.verify(mockBuilder).serviceConfiguration(s3ConfigurationCaptor.capture());
+
+    S3Configuration s3Configuration = s3ConfigurationCaptor.getValue();
+    assertThat(s3Configuration.pathStyleAccessEnabled())
+        .as("s3 async path style access enabled parameter should be set to true")
+        .isTrue();
+    assertThat(s3Configuration.useArnRegionEnabled())
+        .as("s3 async use arn region enabled parameter should be set to true")
+        .isTrue();
+    assertThat(s3Configuration.accelerateModeEnabled())
+        .as("s3 async acceleration mode enabled parameter should be set to false")
+        .isFalse();
+  }
+
+  @Test
   public void testApplySignerConfiguration() {
     Map<String, String> properties =
         ImmutableMap.of(
