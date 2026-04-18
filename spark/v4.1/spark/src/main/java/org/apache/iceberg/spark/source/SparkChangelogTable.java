@@ -25,6 +25,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
@@ -46,6 +48,7 @@ public class SparkChangelogTable
 
   private SparkSession lazySpark = null;
   private StructType lazySparkSchema = null;
+  private Column[] lazySparkColumns = null;
 
   public SparkChangelogTable(Table table) {
     this.table = table;
@@ -57,6 +60,10 @@ public class SparkChangelogTable
     return table.name() + "." + TABLE_NAME;
   }
 
+  /**
+   * @deprecated since 1.12.0, use columns() instead
+   */
+  @Deprecated
   @Override
   public StructType schema() {
     if (lazySparkSchema == null) {
@@ -64,6 +71,14 @@ public class SparkChangelogTable
     }
 
     return lazySparkSchema;
+  }
+
+  @Override
+  public Column[] columns() {
+    if (lazySparkColumns == null) {
+      this.lazySparkColumns = CatalogV2Util.structTypeToV2Columns(SparkSchemaUtil.convert(schema));
+    }
+    return lazySparkColumns;
   }
 
   @Override

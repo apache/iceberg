@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
@@ -85,9 +86,18 @@ public class RollbackStagedTable
     return table.name();
   }
 
+  /**
+   * @deprecated since 1.12.0, use columns() instead
+   */
+  @Deprecated
   @Override
   public StructType schema() {
     return table.schema();
+  }
+
+  @Override
+  public Column[] columns() {
+    return table.columns();
   }
 
   @Override
