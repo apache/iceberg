@@ -682,17 +682,15 @@ class Sha256Global(Action):
     - string: UTF-8 encoded bytes
     - int: 4 bytes, little-endian
     - long: 8 bytes, little-endian
-    - uuid: 16 bytes, big-endian (RFC 4122 byte order)
     - binary: raw bytes as-is
 
     Output encoding by type:
     - string: 64-character lowercase hexadecimal string
     - int: first 4 bytes of the digest, read as a signed two's complement little-endian int
     - long: first 8 bytes of the digest, read as a signed two's complement little-endian long
-    - uuid: all 16 bytes of the digest, interpreted as a UUID (RFC 4122 byte order)
     - binary: the full 32-byte raw SHA-256 digest
 
-    Applicable to: string, int, long, uuid, binary
+    Applicable to: string, int, long, binary
 
     """
 
@@ -710,7 +708,7 @@ class Sha256QueryLocal(Action):
 
     Output encoding follows the same rules as sha-256-global.
 
-    Applicable to: string, int, long, uuid, binary
+    Applicable to: string, int, long, binary
 
     """
 
