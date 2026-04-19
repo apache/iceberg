@@ -200,9 +200,7 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean lt(Bound<T> term, Literal<T> lit) {
-      // all terms are null preserving. see #isNullPreserving(Bound)
-      int id = term.ref().fieldId();
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (containsNullsOrNaNsOnly(term)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -227,9 +225,7 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean ltEq(Bound<T> term, Literal<T> lit) {
-      // all terms are null preserving. see #isNullPreserving(Bound)
-      int id = term.ref().fieldId();
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (containsNullsOrNaNsOnly(term)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -254,9 +250,7 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean gt(Bound<T> term, Literal<T> lit) {
-      // all terms are null preserving. see #isNullPreserving(Bound)
-      int id = term.ref().fieldId();
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (containsNullsOrNaNsOnly(term)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -275,9 +269,7 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean gtEq(Bound<T> term, Literal<T> lit) {
-      // all terms are null preserving. see #isNullPreserving(Bound)
-      int id = term.ref().fieldId();
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (containsNullsOrNaNsOnly(term)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -296,9 +288,7 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean eq(Bound<T> term, Literal<T> lit) {
-      // all terms are null preserving. see #isNullPreserving(Bound)
-      int id = term.ref().fieldId();
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (containsNullsOrNaNsOnly(term)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -340,9 +330,7 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean in(Bound<T> term, Set<T> literalSet) {
-      // all terms are null preserving. see #isNullPreserving(Bound)
-      int id = term.ref().fieldId();
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (containsNullsOrNaNsOnly(term)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -504,6 +492,12 @@ public class InclusiveMetricsEvaluator {
           && nanCounts.containsKey(id)
           && valueCounts != null
           && nanCounts.get(id).equals(valueCounts.get(id));
+    }
+
+    private boolean containsNullsOrNaNsOnly(Bound<?> term) {
+      // all terms are null preserving. see #isNullPreserving(Bound)
+      int id = term.ref().fieldId();
+      return containsNullsOnly(id) || containsNaNsOnly(id);
     }
 
     /**
