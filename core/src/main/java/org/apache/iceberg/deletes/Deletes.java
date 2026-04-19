@@ -177,7 +177,7 @@ public class Deletes {
       CloseableIterable<Long> posDeletes, List<DeleteFile> files) {
     try (CloseableIterable<Long> deletes = posDeletes) {
       PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex(files);
-      deletes.forEach(positionDeleteIndex::delete);
+      PositionDeleteRangeConsumer.forEach(deletes, positionDeleteIndex);
       return positionDeleteIndex;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
