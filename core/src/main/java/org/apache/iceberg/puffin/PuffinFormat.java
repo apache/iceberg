@@ -21,13 +21,18 @@ package org.apache.iceberg.puffin;
 import io.airlift.compress.Compressor;
 import io.airlift.compress.zstd.ZstdCompressor;
 import io.airlift.compress.zstd.ZstdDecompressor;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import net.jpountz.lz4.LZ4FrameInputStream;
+import net.jpountz.lz4.LZ4FrameOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ByteBuffers;
@@ -108,9 +113,7 @@ final class PuffinFormat {
       case NONE:
         return input.duplicate();
       case LZ4:
-        // TODO requires LZ4 frame compressor, e.g.
-        // https://github.com/airlift/aircompressor/pull/142
-        break;
+        return compressLz4(input);
       case ZSTD:
         return compress(new ZstdCompressor(), input);
     }
@@ -130,15 +133,38 @@ final class PuffinFormat {
         return input.duplicate();
 
       case LZ4:
-        // TODO requires LZ4 frame decompressor, e.g.
-        // https://github.com/airlift/aircompressor/pull/142
-        break;
+        return decompressLz4(input);
 
       case ZSTD:
         return decompressZstd(input);
     }
 
     throw new UnsupportedOperationException("Unsupported codec: " + codec);
+  }
+
+  private static ByteBuffer compressLz4(ByteBuffer input) {
+    try {
+      byte[] inputBytes = ByteBuffers.toByteArray(input);
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      try (LZ4FrameOutputStream lz4Out = new LZ4FrameOutputStream(baos)) {
+        lz4Out.write(inputBytes);
+      }
+      return ByteBuffer.wrap(baos.toByteArray());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static ByteBuffer decompressLz4(ByteBuffer input) {
+    try {
+      byte[] inputBytes = ByteBuffers.toByteArray(input);
+      try (LZ4FrameInputStream lz4In =
+          new LZ4FrameInputStream(new ByteArrayInputStream(inputBytes))) {
+        return ByteBuffer.wrap(lz4In.readAllBytes());
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private static ByteBuffer decompressZstd(ByteBuffer input) {
