@@ -443,6 +443,7 @@ public class DynamicIcebergSink
                   operatorName("Forward-Writer"),
                   writeResultTypeInfo,
                   new SinkWriterOperatorFactory<>(forwardWriterSink))
+              .setParallelism(converted.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-forward-writer"));
 
       // Inject forward write results into sink — they'll be unioned in addPreCommitTopology
