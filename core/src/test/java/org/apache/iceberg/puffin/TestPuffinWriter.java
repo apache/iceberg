@@ -46,19 +46,17 @@ public class TestPuffinWriter {
   @TempDir private Path temp;
 
   @Test
-  public void testEmptyFooterCompressed() {
+  public void testEmptyFooterCompressed() throws Exception {
     InMemoryOutputFile outputFile = new InMemoryOutputFile();
 
     PuffinWriter writer = Puffin.write(outputFile).compressFooter().build();
     assertThatThrownBy(writer::footerSize)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Footer not written yet");
-    assertThatThrownBy(writer::finish)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported codec: LZ4");
-    assertThatThrownBy(writer::close)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported codec: LZ4");
+    writer.finish();
+    assertThat(writer.footerSize()).isGreaterThan(0);
+    writer.close();
+    assertThat(writer.writtenBlobsMetadata()).isEmpty();
   }
 
   @Test

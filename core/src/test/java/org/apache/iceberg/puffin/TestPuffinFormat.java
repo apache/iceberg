@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.puffin;
 
+import static org.apache.iceberg.puffin.PuffinFormat.compress;
+import static org.apache.iceberg.puffin.PuffinFormat.decompress;
 import static org.apache.iceberg.puffin.PuffinFormat.readIntegerLittleEndian;
 import static org.apache.iceberg.puffin.PuffinFormat.writeIntegerLittleEndian;
 import static org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkArgument;
@@ -26,11 +28,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.junit.jupiter.api.Test;
 
 public class TestPuffinFormat {
+  @Test
+  public void testLz4RoundTrip() {
+    byte[] original = "Puffin LZ4 footer compression round-trip test data".getBytes(StandardCharsets.UTF_8);
+    ByteBuffer input = ByteBuffer.wrap(original);
+    ByteBuffer compressed = compress(PuffinCompressionCodec.LZ4, input);
+    assertThat(compressed).isNotEqualTo(input);
+    ByteBuffer decompressed = decompress(PuffinCompressionCodec.LZ4, compressed);
+    assertThat(decompressed).isEqualTo(ByteBuffer.wrap(original));
+  }
   @Test
   public void testWriteIntegerLittleEndian() throws Exception {
     testWriteIntegerLittleEndian(0, bytes(0, 0, 0, 0));
