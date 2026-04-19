@@ -190,7 +190,7 @@ public class OAuth2Util {
           config.credential(),
           config.scope(),
           config.oauth2ServerUri(),
-          ImmutableMap.of());
+          optionalOAuthParams);
     }
   }
 
@@ -563,7 +563,7 @@ public class OAuth2Util {
             client, config, basicHeaders, token(), tokenType(), optionalOAuthParams());
       } else {
         return fetchToken(
-            client, Map.of(), credential(), scope(), oauth2ServerUri(), ImmutableMap.of());
+            client, Map.of(), credential(), scope(), oauth2ServerUri(), optionalOAuthParams());
       }
     }
 

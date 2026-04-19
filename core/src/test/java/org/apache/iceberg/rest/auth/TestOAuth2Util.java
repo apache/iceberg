@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
@@ -130,6 +131,82 @@ public class TestOAuth2Util {
                   formData ->
                       formData.containsKey(GRANT_TYPE)
                           && formData.get(GRANT_TYPE).equals(CLIENT_CREDENTIALS)),
+              Mockito.eq(OAuthTokenResponse.class),
+              anyMap(),
+              any());
+    }
+  }
+
+  @Test
+  public void testRefreshExpiredTokenIncludesOptionalOAuthParams() throws IOException {
+    String audience = "https://my-catalog.example.com";
+    String resource = "https://my-resource.example.com";
+    AuthConfig authConfig =
+        ImmutableAuthConfig.builder()
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .token("expired_token")
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .expiresAtMillis(System.currentTimeMillis() - 10_000)
+            .optionalOAuthParams(ImmutableMap.of("audience", audience, "resource", resource))
+            .build();
+
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder().withToken("refreshed_token").withTokenType(BEARER).build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(Map.of(), authConfig)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      session.refresh(client);
+
+      Mockito.verify(client)
+          .postForm(
+              any(),
+              argThat(
+                  formData ->
+                      CLIENT_CREDENTIALS.equals(formData.get(GRANT_TYPE))
+                          && audience.equals(formData.get("audience"))
+                          && resource.equals(formData.get("resource"))),
+              Mockito.eq(OAuthTokenResponse.class),
+              anyMap(),
+              any());
+    }
+  }
+
+  @Test
+  public void testRefreshCurrentTokenIncludesOptionalOAuthParams() throws IOException {
+    String audience = "https://my-catalog.example.com";
+    String resource = "https://my-resource.example.com";
+    AuthConfig authConfig =
+        ImmutableAuthConfig.builder()
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .token("valid_token")
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .expiresAtMillis(System.currentTimeMillis() + 300_000)
+            .optionalOAuthParams(ImmutableMap.of("audience", audience, "resource", resource))
+            .build();
+
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder().withToken("refreshed_token").withTokenType(BEARER).build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(Map.of(), authConfig)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      session.refresh(client);
+
+      Mockito.verify(client)
+          .postForm(
+              any(),
+              argThat(
+                  formData ->
+                      CLIENT_CREDENTIALS.equals(formData.get(GRANT_TYPE))
+                          && audience.equals(formData.get("audience"))
+                          && resource.equals(formData.get("resource"))),
               Mockito.eq(OAuthTokenResponse.class),
               anyMap(),
               any());
