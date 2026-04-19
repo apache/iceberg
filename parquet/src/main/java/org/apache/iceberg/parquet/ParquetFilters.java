@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -29,6 +31,10 @@ import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -152,8 +158,19 @@ class ParquetFilters {
         case UUID:
         case FIXED:
         case BINARY:
-        case DECIMAL:
           return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
+        case DECIMAL:
+          Types.DecimalType decimalType = (Types.DecimalType) ref.type();
+          int precision = decimalType.precision();
+          int scale = decimalType.scale();
+          if (precision <= TypeToMessageType.DECIMAL_INT32_MAX_DIGITS) {
+            return pred(op, FilterApi.intColumn(path), getDecimalAsInt(lit));
+          } else if (precision <= TypeToMessageType.DECIMAL_INT64_MAX_DIGITS) {
+            return pred(op, FilterApi.longColumn(path), getDecimalAsLong(lit));
+          } else {
+            return pred(
+                op, FilterApi.binaryColumn(path), getDecimalAsBinary(lit, precision, scale));
+          }
       }
 
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
@@ -220,7 +237,6 @@ class ParquetFilters {
       return null;
     }
 
-    // TODO: this needs to convert to handle BigDecimal and UUID
     Object value = lit.value();
     if (value instanceof Number) {
       return (C) lit.value();
@@ -228,9 +244,39 @@ class ParquetFilters {
       return (C) Binary.fromString(value.toString());
     } else if (value instanceof ByteBuffer) {
       return (C) Binary.fromReusedByteBuffer((ByteBuffer) value);
+    } else if (value instanceof UUID) {
+      return (C) Binary.fromConstantByteArray(UUIDUtil.convert((UUID) value));
     }
     throw new UnsupportedOperationException(
         "Type not supported yet: " + value.getClass().getName());
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <C extends Comparable<C>> C getDecimalAsInt(Literal<?> lit) {
+    if (lit == null) {
+      return null;
+    }
+    return (C) (Integer) ((BigDecimal) lit.value()).unscaledValue().intValueExact();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <C extends Comparable<C>> C getDecimalAsLong(Literal<?> lit) {
+    if (lit == null) {
+      return null;
+    }
+    return (C) (Long) ((BigDecimal) lit.value()).unscaledValue().longValueExact();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <C extends Comparable<C>> C getDecimalAsBinary(
+      Literal<?> lit, int precision, int scale) {
+    if (lit == null) {
+      return null;
+    }
+    BigDecimal decimal = (BigDecimal) lit.value();
+    byte[] bytes = new byte[TypeUtil.decimalRequiredBytes(precision)];
+    byte[] result = DecimalUtil.toReusedFixLengthBytes(precision, scale, decimal, bytes);
+    return (C) Binary.fromConstantByteArray(result);
   }
 
   private static class AlwaysTrue implements FilterPredicate {
