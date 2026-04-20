@@ -860,6 +860,25 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
+  public void testDropNamespaceWithChildNamespace() {
+    Namespace parent = Namespace.of("parent_ns");
+    Namespace child = Namespace.of("parent_ns", "child_ns");
+
+    // 1. Create the parent and child namespaces
+    catalog.createNamespace(parent);
+    catalog.createNamespace(child);
+
+    // 2. Assert that dropping the parent fails because the child exists
+    assertThatThrownBy(() -> catalog.dropNamespace(parent))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageStartingWith("Namespace parent_ns is not empty. Contains 1 child namespace(s).");
+
+    // 3. Verify the namespaces still safely exist in the catalog
+    assertThat(catalog.namespaceExists(parent)).isTrue();
+    assertThat(catalog.namespaceExists(child)).isTrue();
+  }
+
+  @Test
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
