@@ -22,9 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
@@ -295,6 +298,40 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testPrepareCommitPropagatesIOException() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog);
+    dynamicWriter.write(getDynamicRecordInternal(table1), null);
+    IOException injected = new IOException("flush failed");
+    replaceTaskWriters(dynamicWriter, new FailingTaskWriter(injected));
+
+    assertThatThrownBy(dynamicWriter::prepareCommit).isSameAs(injected);
+
+    dynamicWriter.close();
+  }
+
+  @Test
+  void testPrepareCommitFlushesWritersConcurrently() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+    Table table2 = catalog.createTable(TABLE2, SimpleDataUtil.SCHEMA);
+    Table table3 = catalog.createTable(TableIdentifier.of("myTable3"), SimpleDataUtil.SCHEMA);
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog);
+    dynamicWriter.write(getDynamicRecordInternal(table1), null);
+    dynamicWriter.write(getDynamicRecordInternal(table2), null);
+    dynamicWriter.write(getDynamicRecordInternal(table3), null);
+    CyclicBarrier barrier = new CyclicBarrier(3);
+    replaceTaskWriters(dynamicWriter, new BarrierTaskWriter(barrier));
+
+    Collection<DynamicWriteResult> results = dynamicWriter.prepareCommit();
+
+    assertThat(results).hasSize(3);
+
+    dynamicWriter.close();
+  }
+
+  @Test
   void testUniqueFileSuffixOnFactoryRecreation() throws Exception {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
@@ -359,6 +396,61 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
       return dataDir.listFiles((dir, name) -> !name.startsWith(".")).length;
     }
     return 0;
+  }
+
+  private static void replaceTaskWriters(DynamicWriter dynamicWriter, TaskWriter<RowData> fake) {
+    DynFields.BoundField<Map<WriteTarget, TaskWriter<RowData>>> writersField =
+        DynFields.builder().hiddenImpl(DynamicWriter.class, "writers").build(dynamicWriter);
+    writersField.get().replaceAll((target, writer) -> fake);
+  }
+
+  private static class FailingTaskWriter implements TaskWriter<RowData> {
+    private final IOException exception;
+
+    FailingTaskWriter(IOException exception) {
+      this.exception = exception;
+    }
+
+    @Override
+    public void write(RowData row) {}
+
+    @Override
+    public void abort() {}
+
+    @Override
+    public WriteResult complete() throws IOException {
+      throw exception;
+    }
+
+    @Override
+    public void close() {}
+  }
+
+  private static class BarrierTaskWriter implements TaskWriter<RowData> {
+    private final CyclicBarrier barrier;
+
+    BarrierTaskWriter(CyclicBarrier barrier) {
+      this.barrier = barrier;
+    }
+
+    @Override
+    public void write(RowData row) {}
+
+    @Override
+    public void abort() {}
+
+    @Override
+    public WriteResult complete() throws IOException {
+      try {
+        barrier.await(5, TimeUnit.SECONDS);
+      } catch (Exception e) {
+        throw new IOException(e);
+      }
+      return WriteResult.builder().build();
+    }
+
+    @Override
+    public void close() {}
   }
 
   private Map<String, String> properties(DynamicWriter dynamicWriter) {
