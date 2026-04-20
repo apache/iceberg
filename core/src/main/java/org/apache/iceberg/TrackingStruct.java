@@ -36,19 +36,21 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
           Tracking.DV_SNAPSHOT_ID,
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
-          Tracking.REPLACED_POSITIONS);
+          Tracking.REPLACED_POSITIONS,
+          MetadataColumns.ROW_POSITION);
 
   private EntryStatus status = null;
   private Long snapshotId = null;
-  private Long sequenceNumber = null;
+  private Long dataSequenceNumber = null;
   private Long fileSequenceNumber = null;
   private Long dvSnapshotId = null;
   private Long firstRowId = null;
   private byte[] deletedPositions = null;
   private byte[] replacedPositions = null;
 
-  // not serialized, set by manifest readers for metadata inheritance
-  private transient TrackedFile manifestContext = null;
+  // not serialized, set by manifest readers
+  private String manifestLocation = null;
+  private long manifestPos = 0L;
 
   TrackingStruct(Types.StructType type) {
     super(BASE_TYPE, type);
@@ -58,7 +60,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
     super(toCopy);
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
-    this.sequenceNumber = toCopy.sequenceNumber;
+    this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
     this.dvSnapshotId = toCopy.dvSnapshotId;
     this.firstRowId = toCopy.firstRowId;
@@ -70,14 +72,39 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
         toCopy.replacedPositions != null
             ? Arrays.copyOf(toCopy.replacedPositions, toCopy.replacedPositions.length)
             : null;
+    this.manifestLocation = toCopy.manifestLocation;
+    this.manifestPos = toCopy.manifestPos;
   }
 
-  TrackingStruct copy() {
+  @Override
+  public TrackingStruct copy() {
     return new TrackingStruct(this);
   }
 
-  void setManifestContext(TrackedFile manifest) {
-    this.manifestContext = manifest;
+  void inheritFrom(Tracking manifestTracking) {
+    if (manifestTracking != null) {
+      if (snapshotId == null) {
+        this.snapshotId = manifestTracking.snapshotId();
+      }
+
+      if (status == EntryStatus.ADDED) {
+        if (dataSequenceNumber == null) {
+          this.dataSequenceNumber = manifestTracking.dataSequenceNumber();
+        }
+
+        if (fileSequenceNumber == null) {
+          this.fileSequenceNumber = manifestTracking.dataSequenceNumber();
+        }
+      }
+    }
+  }
+
+  void setManifestLocation(String location) {
+    this.manifestLocation = location;
+  }
+
+  void setManifestPos(long pos) {
+    this.manifestPos = pos;
   }
 
   @Override
@@ -87,37 +114,17 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
 
   @Override
   public Long snapshotId() {
-    if (snapshotId != null) {
-      return snapshotId;
-    }
-
-    return manifestContext != null ? manifestContext.tracking().snapshotId() : null;
+    return snapshotId;
   }
 
   @Override
   public Long dataSequenceNumber() {
-    if (sequenceNumber != null) {
-      return sequenceNumber;
-    }
-
-    if (manifestContext != null && status == EntryStatus.ADDED) {
-      return manifestContext.tracking().dataSequenceNumber();
-    }
-
-    return null;
+    return dataSequenceNumber;
   }
 
   @Override
   public Long fileSequenceNumber() {
-    if (fileSequenceNumber != null) {
-      return fileSequenceNumber;
-    }
-
-    if (manifestContext != null && status == EntryStatus.ADDED) {
-      return manifestContext.tracking().dataSequenceNumber();
-    }
-
-    return null;
+    return fileSequenceNumber;
   }
 
   @Override
@@ -138,6 +145,16 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
   @Override
   public ByteBuffer replacedPositions() {
     return replacedPositions != null ? ByteBuffer.wrap(replacedPositions) : null;
+  }
+
+  @Override
+  public String manifestLocation() {
+    return manifestLocation;
+  }
+
+  @Override
+  public long manifestPos() {
+    return manifestPos;
   }
 
   @Override
@@ -163,6 +180,8 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
         return deletedPositions();
       case 7:
         return replacedPositions();
+      case 8:
+        return manifestPos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -178,7 +197,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
         this.snapshotId = (Long) value;
         break;
       case 2:
-        this.sequenceNumber = (Long) value;
+        this.dataSequenceNumber = (Long) value;
         break;
       case 3:
         this.fileSequenceNumber = (Long) value;
@@ -195,6 +214,9 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
       case 7:
         this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
+      case 8:
+        this.manifestPos = (long) value;
+        break;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -205,7 +227,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking {
     return MoreObjects.toStringHelper(this)
         .add("status", status)
         .add("snapshot_id", snapshotId == null ? "null" : snapshotId)
-        .add("data_sequence_number", sequenceNumber == null ? "null" : sequenceNumber)
+        .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
         .add("dv_snapshot_id", dvSnapshotId == null ? "null" : dvSnapshotId)
         .add("first_row_id", firstRowId == null ? "null" : firstRowId)

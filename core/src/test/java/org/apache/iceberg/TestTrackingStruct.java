@@ -95,11 +95,10 @@ class TestTrackingStruct {
   }
 
   @Test
-  void inheritSnapshotIdFromManifestContext() {
-    TrackedFile manifest = createManifestContext(100L, 50L);
+  void inheritSnapshotId() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.ADDED.id());
+    tracking.inheritFrom(createManifestTracking(100L, 50L));
 
     // snapshotId is null, should inherit from manifest
     assertThat(tracking.snapshotId()).isEqualTo(100L);
@@ -107,10 +106,9 @@ class TestTrackingStruct {
 
   @Test
   void inheritSequenceNumberForAddedEntries() {
-    TrackedFile manifest = createManifestContext(100L, 50L);
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.ADDED.id());
+    tracking.inheritFrom(createManifestTracking(100L, 50L));
 
     // sequence numbers are null and status is ADDED, should inherit
     assertThat(tracking.dataSequenceNumber()).isEqualTo(50L);
@@ -119,10 +117,9 @@ class TestTrackingStruct {
 
   @Test
   void doNotInheritSequenceNumberForExistingEntries() {
-    TrackedFile manifest = createManifestContext(100L, 50L);
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.EXISTING.id());
+    tracking.inheritFrom(createManifestTracking(100L, 50L));
 
     // sequence numbers are null but status is EXISTING, should not inherit
     assertThat(tracking.dataSequenceNumber()).isNull();
@@ -130,14 +127,13 @@ class TestTrackingStruct {
   }
 
   @Test
-  void explicitValuesOverrideManifestContext() {
-    TrackedFile manifest = createManifestContext(100L, 50L);
+  void explicitValuesOverrideInheritance() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.setManifestContext(manifest);
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 200L);
     tracking.set(2, 75L);
     tracking.set(3, 76L);
+    tracking.inheritFrom(createManifestTracking(100L, 50L));
 
     // explicit values should take precedence
     assertThat(tracking.snapshotId()).isEqualTo(200L);
@@ -146,29 +142,22 @@ class TestTrackingStruct {
   }
 
   @Test
-  void noDefaultingWithoutManifestContext() {
+  void noDefaultingWithoutInheritance() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
 
-    // no manifest context, nulls stay null
+    // no inheritance, nulls stay null
     assertThat(tracking.snapshotId()).isNull();
     assertThat(tracking.dataSequenceNumber()).isNull();
     assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
-  private static TrackedFile createManifestContext(long snapshotId, long sequenceNumber) {
-    TrackedFileStruct manifest = new TrackedFileStruct();
-    TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
-    manifestTracking.set(0, EntryStatus.ADDED.id());
-    manifestTracking.set(1, snapshotId);
-    manifestTracking.set(2, sequenceNumber);
-    manifest.set(0, manifestTracking);
-    manifest.set(1, FileContent.DATA_MANIFEST.id());
-    manifest.set(2, "s3://bucket/manifest.avro");
-    manifest.set(3, "avro");
-    manifest.set(4, 0L);
-    manifest.set(5, 0L);
-    return manifest;
+  private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(1, snapshotId);
+    tracking.set(2, sequenceNumber);
+    return tracking;
   }
 
   @Test

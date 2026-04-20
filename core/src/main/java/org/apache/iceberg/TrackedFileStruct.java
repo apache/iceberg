@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -53,8 +52,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.MANIFEST_INFO,
           TrackedFile.KEY_METADATA,
           TrackedFile.SPLIT_OFFSETS,
-          TrackedFile.EQUALITY_IDS,
-          MetadataColumns.ROW_POSITION);
+          TrackedFile.EQUALITY_IDS);
 
   private FileContent contentType = null;
   private String location = null;
@@ -72,10 +70,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
-
-  // not serialized to manifest, set by manifest readers
-  private transient TrackedFile manifestContext = null;
-  private long manifestPos = 0L;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -97,19 +91,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
 
-    this.manifestContext = toCopy.manifestContext;
-    this.manifestPos = toCopy.manifestPos;
-
-    this.tracking = toCopy.tracking != null ? ((TrackingStruct) toCopy.tracking).copy() : null;
-    if (tracking != null && manifestContext != null) {
-      ((TrackingStruct) tracking).setManifestContext(manifestContext);
-    }
+    this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
 
     this.sortOrderId = toCopy.sortOrderId;
-    this.deletionVector =
-        toCopy.deletionVector != null
-            ? ((DeletionVectorStruct) toCopy.deletionVector).copy()
-            : null;
+    this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
 
     if (withStats && toCopy.contentStats != null) {
       ContentStats filtered = BaseContentStats.buildFrom(toCopy.contentStats, statsIds).build();
@@ -118,8 +103,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       this.contentStats = null;
     }
 
-    this.manifestInfo =
-        toCopy.manifestInfo != null ? ((ManifestInfoStruct) toCopy.manifestInfo).copy() : null;
+    this.manifestInfo = toCopy.manifestInfo != null ? toCopy.manifestInfo.copy() : null;
     this.keyMetadata =
         toCopy.keyMetadata != null
             ? Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length)
@@ -132,13 +116,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         toCopy.equalityIds != null
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
-  }
-
-  void setManifestContext(TrackedFile manifest) {
-    this.manifestContext = manifest;
-    if (tracking != null) {
-      ((TrackingStruct) tracking).setManifestContext(manifest);
-    }
   }
 
   @Override
@@ -222,20 +199,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
-  public String manifestLocation() {
-    if (tracking == null) {
-      return null;
-    }
-
-    return manifestContext != null ? manifestContext.location() : null;
-  }
-
-  @Override
-  public long manifestPos() {
-    return manifestPos;
-  }
-
-  @Override
   protected <T> T internalGet(int pos, Class<T> javaClass) {
     return javaClass.cast(getByPos(pos));
   }
@@ -245,7 +208,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 0:
         return tracking;
       case 1:
-        return contentType.id();
+        return contentType != null ? contentType.id() : null;
       case 2:
         return location;
       case 3:
@@ -270,8 +233,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         return splitOffsets();
       case 13:
         return equalityIds();
-      case 14:
-        return manifestPos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -282,7 +243,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     switch (pos) {
       case 0:
         this.tracking = (Tracking) value;
-        ((TrackingStruct) tracking).setManifestContext(manifestContext);
         break;
       case 1:
         this.contentType = FileContent.fromId((Integer) value);
@@ -324,9 +284,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 13:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         break;
-      case 14:
-        this.manifestPos = (long) value;
-        break;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -335,7 +292,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("content", contentType.toString().toLowerCase(Locale.ROOT))
+        .add("content", contentType != null ? contentType.lowerCaseName() : null)
         .add("location", location)
         .add("file_format", fileFormat)
         .add("record_count", recordCount)

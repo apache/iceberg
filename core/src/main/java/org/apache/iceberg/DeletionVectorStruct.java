@@ -48,7 +48,8 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     this.cardinality = toCopy.cardinality;
   }
 
-  DeletionVectorStruct copy() {
+  @Override
+  public DeletionVectorStruct copy() {
     return new DeletionVectorStruct(this);
   }
 

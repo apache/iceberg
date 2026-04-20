@@ -91,46 +91,14 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void manifestContextInheritsToTrackingSetBeforeContext() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
-    // snapshotId and sequenceNumber left null. Should inherit from context
-
-    file.set(0, tracking);
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
-
-    // context set after tracking -- must propagate to already-set tracking
-    TrackedFileStruct manifest = new TrackedFileStruct();
-    TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
-    manifestTracking.set(0, EntryStatus.ADDED.id());
-    manifestTracking.set(1, 42L);
-    manifestTracking.set(2, 10L);
-    manifest.set(0, manifestTracking);
-    manifest.set(1, FileContent.DATA_MANIFEST.id());
-    manifest.set(2, "s3://bucket/manifest.avro");
-    manifest.set(3, "avro");
-    manifest.set(4, 0L);
-    manifest.set(5, 0L);
-
-    file.setManifestContext(manifest);
-
-    assertThat(file.tracking().snapshotId()).isEqualTo(42L);
-    assertThat(file.tracking().dataSequenceNumber()).isEqualTo(10L);
-    assertThat(file.tracking().fileSequenceNumber()).isEqualTo(10L);
-    assertThat(file.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
-  }
-
-  @Test
   void readerSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
+    tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
+    tracking.setManifestPos(7L);
+
     file.set(0, tracking);
     file.set(1, FileContent.DATA.id());
     file.set(2, "test");
@@ -138,12 +106,8 @@ class TestTrackedFileStruct {
     file.set(4, 0L);
     file.set(5, 0L);
 
-    file.setManifestContext(
-        TestTrackedFileStruct.createManifestContext("s3://bucket/metadata/manifest.avro"));
-    file.set(14, 7L);
-
-    assertThat(file.manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
-    assertThat(file.manifestPos()).isEqualTo(7L);
+    assertThat(file.tracking().manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
+    assertThat(file.tracking().manifestPos()).isEqualTo(7L);
   }
 
   @Test
@@ -166,16 +130,17 @@ class TestTrackedFileStruct {
     assertThat(copy.keyMetadata()).isNotNull();
     assertThat(copy.splitOffsets()).containsExactly(50L);
     assertThat(copy.equalityIds()).isNull();
-    assertThat(copy.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
-    assertThat(copy.manifestPos()).isEqualTo(3L);
+    assertThat(copy.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(copy.tracking().manifestPos()).isEqualTo(3L);
   }
 
   @Test
-  void copyPreservesManifestContextInheritance() {
+  void copyPreservesManifestLocation() {
     TrackedFileStruct file = new TrackedFileStruct();
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
-    // leave snapshotId and sequenceNumber null so they inherit from manifest context
+    tracking.set(1, 42L);
+    tracking.set(2, 10L);
 
     file.set(0, tracking);
     file.set(1, FileContent.DATA.id());
@@ -184,31 +149,13 @@ class TestTrackedFileStruct {
     file.set(4, 100L);
     file.set(5, 1024L);
 
-    TrackedFileStruct manifest = new TrackedFileStruct();
-    TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
-    manifestTracking.set(0, EntryStatus.ADDED.id());
-    manifestTracking.set(1, 42L);
-    manifestTracking.set(2, 10L);
-    manifest.set(0, manifestTracking);
-    manifest.set(1, FileContent.DATA_MANIFEST.id());
-    manifest.set(2, "s3://bucket/manifest.avro");
-    manifest.set(3, "avro");
-    manifest.set(4, 0L);
-    manifest.set(5, 0L);
-
-    file.setManifestContext(manifest);
-
-    // verify inheritance works before copy
-    assertThat(file.tracking().snapshotId()).isEqualTo(42L);
-    assertThat(file.tracking().dataSequenceNumber()).isEqualTo(10L);
+    tracking.setManifestLocation("s3://bucket/manifest.avro");
 
     TrackedFile copy = file.copy();
 
-    // inherited values must survive the copy
     assertThat(copy.tracking().snapshotId()).isEqualTo(42L);
     assertThat(copy.tracking().dataSequenceNumber()).isEqualTo(10L);
-    assertThat(copy.tracking().fileSequenceNumber()).isEqualTo(10L);
-    assertThat(copy.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(copy.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
   }
 
   @Test
@@ -249,7 +196,7 @@ class TestTrackedFileStruct {
   @Test
   void structLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
-    assertThat(file.size()).isEqualTo(15);
+    assertThat(file.size()).isEqualTo(14);
   }
 
   @Test
@@ -333,8 +280,8 @@ class TestTrackedFileStruct {
     assertThat(deserialized.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
-    assertThat(deserialized.manifestPos()).isEqualTo(3L);
-    assertThat(deserialized.manifestLocation()).isNull();
+    assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
+    assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
   }
 
   @Test
@@ -355,8 +302,8 @@ class TestTrackedFileStruct {
     assertThat(deserialized.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
-    assertThat(deserialized.manifestPos()).isEqualTo(3L);
-    assertThat(deserialized.manifestLocation()).isNull();
+    assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
+    assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
   }
 
   static TrackedFileStruct createFullTrackedFile() {
@@ -367,6 +314,8 @@ class TestTrackedFileStruct {
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
     tracking.set(2, 10L);
+    tracking.setManifestLocation("s3://bucket/manifest.avro");
+    tracking.setManifestPos(3L);
 
     dv.set(0, "s3://bucket/dv.puffin");
     dv.set(1, 100L);
@@ -384,10 +333,6 @@ class TestTrackedFileStruct {
     file.set(9, dv);
     file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(12, ImmutableList.of(50L));
-
-    file.setManifestContext(
-        TestTrackedFileStruct.createManifestContext("s3://bucket/manifest.avro"));
-    file.set(14, 3L);
 
     return file;
   }
@@ -453,15 +398,5 @@ class TestTrackedFileStruct {
     file.set(7, (StructLike) stats);
 
     return file;
-  }
-
-  static TrackedFile createManifestContext(String location) {
-    TrackedFileStruct manifest = new TrackedFileStruct();
-    manifest.set(1, FileContent.DATA_MANIFEST.id());
-    manifest.set(2, location);
-    manifest.set(3, "avro");
-    manifest.set(4, 0L);
-    manifest.set(5, 0L);
-    return manifest;
   }
 }

@@ -72,7 +72,8 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.dvCardinality = toCopy.dvCardinality;
   }
 
-  ManifestInfoStruct copy() {
+  @Override
+  public ManifestInfoStruct copy() {
     return new ManifestInfoStruct(this);
   }
 

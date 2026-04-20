@@ -163,10 +163,4 @@ interface TrackedFile {
   default TrackedFile copyWithoutStats() {
     return copyWithStats(Collections.emptySet());
   }
-
-  /** Returns the manifest location this entry was read from, or null. */
-  String manifestLocation();
-
-  /** Returns the ordinal position of this entry within the manifest. */
-  long manifestPos();
 }

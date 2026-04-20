@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.util.Locale;
+
 /** Content type stored in a file. */
 public enum FileContent {
   DATA(0),
@@ -29,13 +31,19 @@ public enum FileContent {
   private static final FileContent[] VALUES = FileContent.values();
 
   private final int id;
+  private final String lowerCaseName;
 
   FileContent(int id) {
     this.id = id;
+    this.lowerCaseName = name().toLowerCase(Locale.ROOT);
   }
 
   public int id() {
     return id;
+  }
+
+  public String lowerCaseName() {
+    return lowerCaseName;
   }
 
   public static FileContent fromId(int id) {
