@@ -24,11 +24,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class TestTrackingStruct {
 
   @Test
-  void fieldAccess() {
+  void testFieldAccess() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
@@ -49,7 +51,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void copy() {
+  void testCopy() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
@@ -68,17 +70,16 @@ class TestTrackingStruct {
     assertThat(copy.deletedPositions()).isNotSameAs(tracking.deletedPositions());
   }
 
-  @Test
-  void allStatuses() {
-    for (EntryStatus status : EntryStatus.values()) {
-      TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-      tracking.set(0, status.id());
-      assertThat(tracking.status()).isEqualTo(status);
-    }
+  @ParameterizedTest
+  @EnumSource(EntryStatus.class)
+  void testAllStatuses(EntryStatus status) {
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(0, status.id());
+    assertThat(tracking.status()).isEqualTo(status);
   }
 
   @Test
-  void isLive() {
+  void testIsLive() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
     tracking.set(0, EntryStatus.ADDED.id());
@@ -95,7 +96,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void inheritSnapshotId() {
+  void testInheritSnapshotId() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.inheritFrom(createManifestTracking(100L, 50L));
@@ -105,7 +106,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void inheritSequenceNumberForAddedEntries() {
+  void testInheritSequenceNumberForAddedEntries() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.inheritFrom(createManifestTracking(100L, 50L));
@@ -116,7 +117,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void doNotInheritSequenceNumberForExistingEntries() {
+  void testDoNotInheritSequenceNumberForExistingEntries() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.EXISTING.id());
     tracking.inheritFrom(createManifestTracking(100L, 50L));
@@ -127,7 +128,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void explicitValuesOverrideInheritance() {
+  void testExplicitValuesOverrideInheritance() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 200L);
@@ -142,7 +143,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void noDefaultingWithoutInheritance() {
+  void testNoDefaultingWithoutInheritance() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
 
@@ -161,7 +162,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void projectedStructLike() {
+  void testProjectedStructLike() {
     // project only snapshot_id (field ID 1) and first_row_id (field ID 142)
     Types.StructType projection = Types.StructType.of(Tracking.SNAPSHOT_ID, Tracking.FIRST_ROW_ID);
 
@@ -180,7 +181,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
@@ -196,7 +197,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void kryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTrip() throws IOException {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);

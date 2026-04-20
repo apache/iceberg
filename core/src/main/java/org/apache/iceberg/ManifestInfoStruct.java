@@ -74,11 +74,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   }
 
   @Override
-  public ManifestInfoStruct copy() {
-    return new ManifestInfoStruct(this);
-  }
-
-  @Override
   public int addedFilesCount() {
     return addedFilesCount;
   }
@@ -131,6 +126,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   @Override
   public Long dvCardinality() {
     return dvCardinality;
+  }
+
+  @Override
+  public ManifestInfoStruct copy() {
+    return new ManifestInfoStruct(this);
   }
 
   @Override

@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 class TestDeletionVectorStruct {
 
   @Test
-  void fieldAccess() {
+  void testFieldAccess() {
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
 
     dv.set(0, "s3://bucket/data/dv.puffin");
@@ -42,7 +42,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void copy() {
+  void testCopy() {
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
 
     dv.set(0, "s3://bucket/data/dv.puffin");
@@ -59,13 +59,13 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void size() {
+  void testSize() {
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     assertThat(dv.size()).isEqualTo(4);
   }
 
   @Test
-  void projectedStructLike() {
+  void testProjectedStructLike() {
     // project only location (field ID 155) and cardinality (field ID 156)
     Types.StructType projection =
         Types.StructType.of(DeletionVector.LOCATION, DeletionVector.CARDINALITY);
@@ -85,7 +85,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     dv.set(0, "s3://bucket/data/dv.puffin");
     dv.set(1, 256L);
@@ -101,7 +101,7 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void kryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTrip() throws IOException {
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     dv.set(0, "s3://bucket/data/dv.puffin");
     dv.set(1, 256L);

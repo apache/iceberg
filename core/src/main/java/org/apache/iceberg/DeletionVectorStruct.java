@@ -50,11 +50,6 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   }
 
   @Override
-  public DeletionVectorStruct copy() {
-    return new DeletionVectorStruct(this);
-  }
-
-  @Override
   public String location() {
     return location;
   }
@@ -72,6 +67,11 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   @Override
   public long cardinality() {
     return cardinality;
+  }
+
+  @Override
+  public DeletionVectorStruct copy() {
+    return new DeletionVectorStruct(this);
   }
 
   @Override

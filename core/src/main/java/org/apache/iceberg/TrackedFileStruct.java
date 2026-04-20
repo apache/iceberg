@@ -81,6 +81,23 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     super(BASE_TYPE.fields().size());
   }
 
+  /** Constructor that accepts required fields. */
+  TrackedFileStruct(
+      Tracking tracking,
+      FileContent contentType,
+      String location,
+      FileFormat fileFormat,
+      long recordCount,
+      long fileSizeInBytes) {
+    super(BASE_TYPE.fields().size());
+    this.tracking = tracking;
+    this.contentType = contentType;
+    this.location = location;
+    this.fileFormat = fileFormat;
+    this.recordCount = recordCount;
+    this.fileSizeInBytes = fileSizeInBytes;
+  }
+
   /** Copy constructor. */
   private TrackedFileStruct(TrackedFileStruct toCopy, boolean withStats, Set<Integer> statsIds) {
     super(toCopy);

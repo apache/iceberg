@@ -30,9 +30,20 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 class TestTrackedFileStruct {
+  private static final Types.StructType TRACKING_WITH_POS =
+      Types.StructType.of(
+          Tracking.STATUS,
+          Tracking.SNAPSHOT_ID,
+          Tracking.SEQUENCE_NUMBER,
+          Tracking.FILE_SEQUENCE_NUMBER,
+          Tracking.DV_SNAPSHOT_ID,
+          Tracking.FIRST_ROW_ID,
+          Tracking.DELETED_POSITIONS,
+          Tracking.REPLACED_POSITIONS,
+          MetadataColumns.ROW_POSITION);
 
   @Test
-  void trackedFileStructFieldAccess() {
+  void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
@@ -80,24 +91,21 @@ class TestTrackedFileStruct {
     assertThat(file.fileSizeInBytes()).isEqualTo(512L);
     assertThat(file.specId()).isEqualTo(1);
     assertThat(file.sortOrderId()).isEqualTo(5);
-    assertThat(file.deletionVector()).isNotNull();
-    assertThat(file.deletionVector().location()).isEqualTo("s3://bucket/dv.puffin");
-    assertThat(file.deletionVector().cardinality()).isEqualTo(5L);
-    assertThat(file.manifestInfo()).isNotNull();
-    assertThat(file.manifestInfo().addedFilesCount()).isEqualTo(10);
+    assertThat(file.deletionVector()).isSameAs(dv);
+    assertThat(file.manifestInfo()).isSameAs(info);
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
   }
 
   @Test
-  void readerSideFields() {
+  void testReaderSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    TrackingStruct tracking = new TrackingStruct(TRACKING_WITH_POS);
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
-    tracking.setManifestPos(7L);
+    tracking.set(8, 7L);
 
     file.set(0, tracking);
     file.set(1, FileContent.DATA.id());
@@ -111,7 +119,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void copyPreservesAllFields() {
+  void testCopy() {
     TrackedFileStruct file = createFullTrackedFile();
 
     TrackedFile copy = file.copy();
@@ -135,31 +143,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void copyPreservesManifestLocation() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-
-    file.set(0, tracking);
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
-
-    tracking.setManifestLocation("s3://bucket/manifest.avro");
-
-    TrackedFile copy = file.copy();
-
-    assertThat(copy.tracking().snapshotId()).isEqualTo(42L);
-    assertThat(copy.tracking().dataSequenceNumber()).isEqualTo(10L);
-    assertThat(copy.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
-  }
-
-  @Test
-  void copyWithoutStatsDropsStats() {
+  void testCopyWithoutStats() {
     TrackedFileStruct file = createTrackedFileWithStats();
     assertThat(file.contentStats()).isNotNull();
 
@@ -171,7 +155,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void copyWithStatsFilters() {
+  void testCopyWithStatsFilters() {
     TrackedFileStruct file = createTrackedFileWithStats();
     Set<Integer> keepFieldIds = ImmutableSet.of(1);
 
@@ -184,7 +168,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void copyIsDeep() {
+  void testCopyIsDeep() {
     TrackedFileStruct file = createFullTrackedFile();
 
     TrackedFile copy = file.copy();
@@ -194,13 +178,13 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void structLikeSize() {
+  void testStructLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
     assertThat(file.size()).isEqualTo(14);
   }
 
   @Test
-  void structLikeGetSet() {
+  void testStructLikeGetSet() {
     TrackedFileStruct file = new TrackedFileStruct();
 
     file.set(1, FileContent.DATA.id());
@@ -214,7 +198,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void projectedStructLike() {
+  void testProjectedStructLike() {
     // project only location (field ID 100) and file_size_in_bytes (field ID 104)
     Types.StructType projection =
         Types.StructType.of(TrackedFile.LOCATION, TrackedFile.FILE_SIZE_IN_BYTES);
@@ -234,14 +218,14 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void contentStatsReturnedWhenPresent() {
+  void testContentStatsReturnedWhenPresent() {
     TrackedFileStruct file = createTrackedFileWithStats();
     assertThat(file.contentStats()).isNotNull();
     assertThat(file.contentStats().fieldStats()).hasSize(2);
   }
 
   @Test
-  void contentStatsNullWhenNotSet() {
+  void testContentStatsNullWhenNotSet() {
     TrackedFileStruct file = new TrackedFileStruct();
     file.set(1, FileContent.DATA.id());
     file.set(2, "test");
@@ -254,7 +238,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void allFileContentTypesSupported() {
+  void testAllFileContentTypesSupported() {
     for (FileContent content : FileContent.values()) {
       TrackedFileStruct file = new TrackedFileStruct();
       file.set(1, content.id());
@@ -263,7 +247,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     TrackedFileStruct file = createFullTrackedFile();
 
     TrackedFileStruct deserialized = TestHelpers.roundTripSerialize(file);
@@ -285,7 +269,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void kryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTrip() throws IOException {
     TrackedFileStruct file = createFullTrackedFile();
 
     TrackedFileStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(file);
@@ -307,27 +291,27 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-
+    TrackingStruct tracking = new TrackingStruct(TRACKING_WITH_POS);
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
     tracking.set(2, 10L);
     tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.setManifestPos(3L);
+    tracking.set(8, 3L);
 
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     dv.set(0, "s3://bucket/dv.puffin");
     dv.set(1, 100L);
     dv.set(2, 50L);
     dv.set(3, 5L);
 
-    file.set(0, tracking);
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            100L,
+            1024L);
     file.set(6, 0);
     file.set(8, 1);
     file.set(9, dv);
@@ -388,14 +372,16 @@ class TestTrackedFileStruct {
             .withFieldStats(fieldStatsList)
             .build();
 
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            100L,
+            1024L);
     file.set(6, 0);
-    file.set(7, (StructLike) stats);
+    file.set(7, stats);
 
     return file;
   }

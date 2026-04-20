@@ -77,11 +77,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.manifestPos = toCopy.manifestPos;
   }
 
-  @Override
-  public TrackingStruct copy() {
-    return new TrackingStruct(this);
-  }
-
   void inheritFrom(Tracking manifestTracking) {
     if (manifestTracking != null) {
       if (snapshotId == null) {
@@ -102,10 +97,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
 
   void setManifestLocation(String location) {
     this.manifestLocation = location;
-  }
-
-  void setManifestPos(long pos) {
-    this.manifestPos = pos;
   }
 
   @Override
@@ -156,6 +147,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   @Override
   public long manifestPos() {
     return manifestPos;
+  }
+
+  @Override
+  public TrackingStruct copy() {
+    return new TrackingStruct(this);
   }
 
   @Override

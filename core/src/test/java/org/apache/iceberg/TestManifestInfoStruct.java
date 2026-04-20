@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 class TestManifestInfoStruct {
 
   @Test
-  void fieldAccess() {
+  void testFieldAccess() {
     ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
     info.set(0, 10);
@@ -57,7 +57,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void copy() {
+  void testCopy() {
     ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
     info.set(0, 10);
@@ -85,12 +85,12 @@ class TestManifestInfoStruct {
     assertThat(copy.minSequenceNumber()).isEqualTo(5L);
     assertThat(copy.dvCardinality()).isEqualTo(1L);
 
-    // verify deep copy of dv ByteBuffer
-    assertThat(copy.dv()).isNotSameAs(info.dv());
+    // verify deep copy of dv byte array
+    assertThat(copy.dv().array()).isNotSameAs(info.dv().array());
   }
 
   @Test
-  void nullableFields() {
+  void testNullableFields() {
     ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
     info.set(0, 0);
@@ -108,7 +108,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void projectedStructLike() {
+  void testProjectedStructLike() {
     // project only added_files_count (field ID 504) and min_sequence_number (field ID 516)
     Types.StructType projection =
         Types.StructType.of(ManifestInfo.ADDED_FILES_COUNT, ManifestInfo.MIN_SEQUENCE_NUMBER);
@@ -128,7 +128,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void javaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
     info.set(0, 10);
     info.set(1, 20);
@@ -146,13 +146,19 @@ class TestManifestInfoStruct {
 
     assertThat(deserialized.addedFilesCount()).isEqualTo(10);
     assertThat(deserialized.existingFilesCount()).isEqualTo(20);
+    assertThat(deserialized.deletedFilesCount()).isEqualTo(3);
+    assertThat(deserialized.replacedFilesCount()).isEqualTo(2);
+    assertThat(deserialized.addedRowsCount()).isEqualTo(1000L);
+    assertThat(deserialized.existingRowsCount()).isEqualTo(2000L);
+    assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
+    assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
     assertThat(deserialized.dvCardinality()).isEqualTo(1L);
   }
 
   @Test
-  void kryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTrip() throws IOException {
     ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
     info.set(0, 10);
     info.set(1, 20);
@@ -170,6 +176,12 @@ class TestManifestInfoStruct {
 
     assertThat(deserialized.addedFilesCount()).isEqualTo(10);
     assertThat(deserialized.existingFilesCount()).isEqualTo(20);
+    assertThat(deserialized.deletedFilesCount()).isEqualTo(3);
+    assertThat(deserialized.replacedFilesCount()).isEqualTo(2);
+    assertThat(deserialized.addedRowsCount()).isEqualTo(1000L);
+    assertThat(deserialized.existingRowsCount()).isEqualTo(2000L);
+    assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
+    assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
     assertThat(deserialized.dvCardinality()).isEqualTo(1L);
