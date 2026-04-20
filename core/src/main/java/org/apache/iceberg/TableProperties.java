@@ -191,6 +191,12 @@ public class TableProperties {
   public static final String DELETE_AVRO_COMPRESSION_LEVEL = "write.delete.avro.compression-level";
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
 
+  public static final String MANIFEST_COMPRESSION = "write.manifest.compression-codec";
+  public static final String MANIFEST_COMPRESSION_DEFAULT = "gzip";
+
+  public static final String MANIFEST_COMPRESSION_LEVEL = "write.manifest.compression-level";
+  public static final String MANIFEST_COMPRESSION_LEVEL_DEFAULT = null;
+
   public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
 
   public static final String ORC_BLOOM_FILTER_COLUMNS = "write.orc.bloom.filter.columns";
@@ -339,6 +345,10 @@ public class TableProperties {
 
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
+  public static final String SPARK_WRITE_AUTO_SCHEMA_EVOLUTION =
+      "write.spark.auto-schema-evolution.enabled";
+  public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
   public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
       "write.spark.advisory-partition-size-bytes";

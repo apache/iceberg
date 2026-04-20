@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -262,9 +263,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     assertThat(table.currentSnapshot().summary().get(TOTAL_DATA_FILES))
         .isEqualTo(String.valueOf(expectedCurrent));
-    Set<DataFile> actualAdded = Sets.newHashSet(table.currentSnapshot().addedDataFiles(table.io()));
-    Set<DataFile> actualRemoved =
-        Sets.newHashSet(table.currentSnapshot().removedDataFiles(table.io()));
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).build();
+    Set<DataFile> actualAdded = Sets.newHashSet(changes.addedDataFiles());
+    Set<DataFile> actualRemoved = Sets.newHashSet(changes.removedDataFiles());
     assertThat(actualAdded.stream().map(DataFile::location).collect(Collectors.toSet()))
         .isEqualTo(expectedAdded.stream().map(DataFile::location).collect(Collectors.toSet()));
     assertThat(actualRemoved.stream().map(DataFile::location).collect(Collectors.toSet()))

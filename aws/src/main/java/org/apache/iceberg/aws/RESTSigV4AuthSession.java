@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.HTTPHeaders.HTTPHeader;
@@ -64,16 +67,23 @@ public class RESTSigV4AuthSession implements AuthSession {
   private final Region signingRegion;
   private final String signingName;
   private final AwsCredentialsProvider credentialsProvider;
+  private final CloseableGroup closeableGroup;
 
   @SuppressWarnings("deprecation")
   public RESTSigV4AuthSession(
       Aws4Signer aws4Signer, AuthSession delegateAuthSession, AwsProperties awsProperties) {
+    this.closeableGroup = new CloseableGroup();
+    this.closeableGroup.setSuppressCloseFailure(true);
     this.signer = Preconditions.checkNotNull(aws4Signer, "Invalid signer: null");
     this.delegate = Preconditions.checkNotNull(delegateAuthSession, "Invalid delegate: null");
+    this.closeableGroup.addCloseable(this.delegate);
     Preconditions.checkNotNull(awsProperties, "Invalid AWS properties: null");
     this.signingRegion = awsProperties.restSigningRegion();
     this.signingName = awsProperties.restSigningName();
     this.credentialsProvider = awsProperties.restCredentialsProvider();
+    if (credentialsProvider instanceof AutoCloseable closeableCredentialsProvider) {
+      this.closeableGroup.addCloseable(closeableCredentialsProvider);
+    }
   }
 
   public AuthSession delegate() {
@@ -87,7 +97,11 @@ public class RESTSigV4AuthSession implements AuthSession {
 
   @Override
   public void close() {
-    delegate.close();
+    try {
+      closeableGroup.close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @SuppressWarnings("deprecation")

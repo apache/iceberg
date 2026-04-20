@@ -159,7 +159,7 @@ public class DynamicIcebergSink
             prefixIfNotNull(uidPrefix, sinkId + " Pre Commit"),
             typeInformation,
             new DynamicWriteResultAggregator(catalogLoader, cacheMaximumSize))
-        .uid(prefixIfNotNull(uidPrefix, sinkId + "-pre-commit-topology"));
+        .uid(prefixIfNotNull(uidPrefix, "-pre-commit-topology"));
   }
 
   @Override
@@ -407,6 +407,7 @@ public class DynamicIcebergSink
                       tableCreator,
                       caseSensitive,
                       dropUnusedColumns))
+              .setParallelism(input.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);

@@ -66,4 +66,6 @@ project(":iceberg-aws-bundle") {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }

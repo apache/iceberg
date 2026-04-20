@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.util.List;
@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -33,14 +32,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class BaseContentStats implements ContentStats, Serializable {
+class BaseContentStats implements ContentStats, Serializable {
 
   private final List<FieldStats<?>> fieldStats;
   private final Map<Integer, FieldStats<?>> fieldStatsById;
   private final Types.StructType statsStruct;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
-  public BaseContentStats(Types.StructType projection) {
+  BaseContentStats(Types.StructType projection) {
     this.statsStruct = projection;
     this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
     this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());
@@ -59,6 +58,7 @@ public class BaseContentStats implements ContentStats, Serializable {
       fieldStats.add(
           BaseFieldStats.builder()
               .fieldId(StatsUtil.fieldIdForStatsField(field.fieldId()))
+              .statsStruct(structType)
               .type(type)
               .build());
     }
@@ -243,6 +243,7 @@ public class BaseContentStats implements ContentStats, Serializable {
       return this;
     }
 
+    @SuppressWarnings("rawtypes")
     public BaseContentStats build() {
       Preconditions.checkArgument(
           null != statsStruct || null != schema, "Either stats struct or table schema must be set");
@@ -252,7 +253,21 @@ public class BaseContentStats implements ContentStats, Serializable {
         this.statsStruct = StatsUtil.contentStatsFor(schema).type().asStructType();
       }
 
-      return new BaseContentStats(statsStruct, stats);
+      List<FieldStats<?>> resolvedStats = Lists.newArrayListWithCapacity(stats.size());
+      for (FieldStats<?> stat : stats) {
+        int statsFieldId = StatsUtil.statsFieldIdForField(stat.fieldId());
+        Types.NestedField statsField = statsStruct.field(statsFieldId);
+        if (null != statsField && statsField.type().isStructType()) {
+          resolvedStats.add(
+              ((BaseFieldStats.Builder) BaseFieldStats.buildFrom(stat))
+                  .statsStruct(statsField.type().asStructType())
+                  .build());
+        } else {
+          resolvedStats.add(stat);
+        }
+      }
+
+      return new BaseContentStats(statsStruct, resolvedStats);
     }
   }
 }

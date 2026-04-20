@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.gcs.analyticscore.client.GcsObjectRange;
 import com.google.cloud.gcs.analyticscore.core.GoogleCloudStorageInputStream;
+import com.google.cloud.storage.BlobId;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -44,7 +45,10 @@ public class TestGcsInputStreamWrapper {
   @BeforeEach
   public void before() {
     inputStreamWrapper =
-        new GcsInputStreamWrapper(googleCloudStorageInputStream, MetricsContext.nullMetrics());
+        new GcsInputStreamWrapper(
+            googleCloudStorageInputStream,
+            BlobId.of("mockbucket", "mockname"),
+            MetricsContext.nullMetrics());
   }
 
   @Test

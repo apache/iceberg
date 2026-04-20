@@ -57,7 +57,7 @@ public class ResourcePaths {
         PropertyUtil.propertyAsString(
             properties,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
-            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
+            RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT));
   }
 
   public static String config() {

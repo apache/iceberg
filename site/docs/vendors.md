@@ -157,6 +157,10 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 
 [Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, based on actual usage patterns. The Ryft engine runs compaction intelligently, adapting to different use cases like streaming, batch jobs, CDC, and more. Ryft also automates compliance, disaster recovery and data lifecycle management for Iceberg tables, to ensure your lakehouse stays secure and compliant. It directly integrates with your existing catalog, storage and query engines, allowing for a very simple deployment.
 
+### [Sail](https://lakesail.com/)
+
+[Sail](https://github.com/lakehq/sail) is an open-source multimodal distributed compute framework, built in Rust, unifying batch, streaming, and AI workloads. For seamless adoption, Sail offers a drop-in replacement for the Spark SQL and DataFrame APIs in both single-host and distributed settings. Learn more about using Sail with Iceberg in the [Sail Iceberg guide](https://docs.lakesail.com/sail/latest/guide/sources/iceberg).
+
 ### [SingleStore](https://singlestore.com/)
 
 SingleStore is a high‑performance, scalable, distributed SQL platform that makes real‑time analytics and transactional processing available at scale. Its native Apache Iceberg integration removes costly ETL steps and powers intelligent, millisecond‑response applications.
@@ -167,7 +171,7 @@ By directly reading and [managing](https://docs.singlestore.com/cloud/load-data/
 ### [Snowflake](https://snowflake.com/)
 
 <!-- markdown-link-check-disable-next-line -->
-[Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) for full DML as well as [externally managed Iceberg Tables with catalog integrations](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-a-catalog-integration) for read-only access.
+[Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. [Snowflake Horizon Catalog](https://docs.snowflake.com/en/user-guide/snowflake-horizon) is the universal catalog built into every Snowflake account, providing governance, metadata, and interoperability for Apache Iceberg across engines and clouds. Snowflake supports [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) with full DDL and DML support and an [Iceberg REST API endpoint](https://docs.snowflake.com/en/user-guide/tables-iceberg-access-using-external-query-engine-snowflake-horizon) that lets external query engines such as Apache Spark, Trino, and Apache Flink read and write those tables directly. For federation, [catalog-linked databases](https://docs.snowflake.com/en/user-guide/tables-iceberg-catalog-linked-database) provide automatic table discovery and synchronization with remote Iceberg REST catalogs, and read and write access through [catalog integrations for externally managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-an-external-catalog).
 
 ### [Stackable](https://stackable.tech)
 

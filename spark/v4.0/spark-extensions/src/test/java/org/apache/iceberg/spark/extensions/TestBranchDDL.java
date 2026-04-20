@@ -114,8 +114,8 @@ public class TestBranchDDL extends ExtensionsTestBase {
                   SnapshotChanges.builderFor(table).snapshot(snapshot).build();
               assertThat(changes.addedDataFiles()).isEmpty();
               assertThat(changes.removedDataFiles()).isEmpty();
-              assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
-              assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+              assertThat(changes.addedDeleteFiles()).isEmpty();
+              assertThat(changes.removedDeleteFiles()).isEmpty();
             });
   }
 
@@ -377,8 +377,8 @@ public class TestBranchDDL extends ExtensionsTestBase {
                   SnapshotChanges.builderFor(table).snapshot(snapshot).build();
               assertThat(changes.addedDataFiles()).isEmpty();
               assertThat(changes.removedDataFiles()).isEmpty();
-              assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
-              assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+              assertThat(changes.addedDeleteFiles()).isEmpty();
+              assertThat(changes.removedDeleteFiles()).isEmpty();
             });
   }
 
