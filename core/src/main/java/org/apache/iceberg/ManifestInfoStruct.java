@@ -26,7 +26,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link ManifestInfo}. */
-class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo {
+class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo, Serializable {
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           ManifestInfo.ADDED_FILES_COUNT,

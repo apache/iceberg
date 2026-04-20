@@ -26,7 +26,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 /** Mutable {@link StructLike} implementation of {@link Tracking}. */
-class TrackingStruct extends SupportsIndexProjection implements Tracking {
+class TrackingStruct extends SupportsIndexProjection implements Tracking, Serializable {
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           Tracking.STATUS,

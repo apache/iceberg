@@ -23,7 +23,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 
 /** Mutable {@link StructLike} implementation of {@link DeletionVector}. */
-class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVector {
+class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVector, Serializable {
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
           DeletionVector.LOCATION,
