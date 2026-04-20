@@ -35,12 +35,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
+import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.OperatorIDPair;
@@ -328,6 +330,66 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
 
     assertThat(generatorAndSinkChained).isTrue();
+  }
+
+  @Test
+  void testSlotSharingGroup() {
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(Collections.emptyList(), TypeInformation.of(new TypeHint<>() {}));
+
+    // This test is a little awkward because slot sharing group is translated to internal
+    // representation after the job graph is built, losing object reference equality. Therefore, we
+    // can only test the effect of applying an SSG: in other word, we test that the resource
+    // requirements are applied to the job graph.
+    MemorySize shuffleSinkMemorySize = new MemorySize(123);
+    SlotSharingGroup shuffleSinkSSG =
+        SlotSharingGroup.newBuilder("shuffle-sink-ssg")
+            .setCpuCores(123)
+            .setTaskHeapMemory(shuffleSinkMemorySize)
+            .build();
+
+    MemorySize generatorAndForwardSinkMemorySize = new MemorySize(456);
+    SlotSharingGroup generatorAndForwardSinkSSG =
+        SlotSharingGroup.newBuilder("generator-and-forward-ssg")
+            .setCpuCores(456)
+            .setTaskHeapMemory(generatorAndForwardSinkMemorySize)
+            .build();
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new ForwardGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .immediateTableUpdate(false)
+        .shuffleSinkSlotSharingGroup(shuffleSinkSSG)
+        .generatorAndForwardSinkSlotSharingGroup(generatorAndForwardSinkSSG)
+        .append();
+
+    List<JobVertex> vertices =
+        StreamSupport.stream(env.getStreamGraph().getJobGraph().getVertices().spliterator(), false)
+            .toList();
+
+    boolean shufflingWriterSSGApplied =
+        vertices.stream()
+            .filter(vertex -> vertex.getName() != null && vertex.getName().contains("Sink: Writer"))
+            .anyMatch(
+                vertex ->
+                    vertex
+                        .getSlotSharingGroup()
+                        .getResourceProfile()
+                        .getTaskHeapMemory()
+                        .equals(shuffleSinkMemorySize));
+    boolean generatorAndForwardWriterSSGApplied =
+        vertices.stream()
+            .filter(vertex -> vertex.getName() != null && vertex.getName().contains("generator"))
+            .anyMatch(
+                vertex ->
+                    vertex
+                        .getSlotSharingGroup()
+                        .getResourceProfile()
+                        .getTaskHeapMemory()
+                        .equals(generatorAndForwardSinkMemorySize));
+
+    assertThat(shufflingWriterSSGApplied).isTrue();
+    assertThat(generatorAndForwardWriterSSGApplied).isTrue();
   }
 
   @Test
