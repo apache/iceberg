@@ -25,9 +25,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,6 +36,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -830,6 +829,14 @@ public class ParquetValueReaders {
     protected abstract T buildList(I list);
   }
 
+  private static boolean canReuseListAsReadBuffer(List<?> list) {
+    return !(list instanceof ImmutableList);
+  }
+
+  private static boolean canReuseMapAsReadBuffer(Map<?, ?> map) {
+    return !(map instanceof ImmutableMap);
+  }
+
   public static class ListReader<E> extends RepeatedReader<List<E>, List<E>, E> {
     private List<E> lastList = null;
     private Iterator<E> elements = null;
@@ -849,9 +856,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        // reuse containers may be unmodifiable (e.g. BaseFile.splitOffsets,
-        // BaseFile.equalityFieldIds) and cannot be cleared and reused
-        this.lastList = reuse instanceof ArrayList ? reuse : null;
+        this.lastList = canReuseListAsReadBuffer(reuse) ? reuse : null;
         this.elements = reuse.iterator();
       } else {
         this.lastList = null;
@@ -977,9 +982,7 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        // reuse containers may be wrapped or immutable (e.g. BaseFile.lowerBounds,
-        // BaseFile.upperBounds via SerializableByteBufferMap) and cannot be cleared and reused
-        this.lastMap = reuse instanceof LinkedHashMap ? reuse : null;
+        this.lastMap = canReuseMapAsReadBuffer(reuse) ? reuse : null;
         this.pairs = reuse.entrySet().iterator();
       } else {
         this.lastMap = null;

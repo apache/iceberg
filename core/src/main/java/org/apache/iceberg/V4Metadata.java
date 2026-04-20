@@ -23,7 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 
 class V4Metadata {
@@ -279,7 +279,8 @@ class V4Metadata {
   }
 
   static Types.StructType fileType(Types.StructType partitionType) {
-    List<Types.NestedField> fields = Lists.newArrayList();
+    ImmutableList.Builder<Types.NestedField> fields =
+        ImmutableList.builderWithExpectedSize(partitionType.fields().isEmpty() ? 18 : 19);
     fields.add(DataFile.CONTENT.asRequired());
     fields.add(DataFile.FILE_PATH);
     fields.add(DataFile.FILE_FORMAT);
@@ -307,7 +308,7 @@ class V4Metadata {
     fields.add(DataFile.REFERENCED_DATA_FILE);
     fields.add(DataFile.CONTENT_OFFSET);
     fields.add(DataFile.CONTENT_SIZE);
-    return Types.StructType.of(fields);
+    return Types.StructType.of(fields.build());
   }
 
   static class ManifestEntryWrapper<F extends ContentFile<F>>
