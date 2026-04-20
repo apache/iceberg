@@ -98,7 +98,8 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
-        this.location = (String) value;
+        // always coerce to String for Serializable
+        this.location = value.toString();
         break;
       case 1:
         this.offset = (Long) value;
