@@ -665,10 +665,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ConfigResponse.class),
             any(),
             any());
-    // use the bearer token to fetch the context token
+    // fetch the context token via client_credentials with no extra headers
     Mockito.verify(adapter)
         .execute(
-            matches(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
+            matches(HTTPMethod.POST, oauth2ServerUri, ImmutableMap.of()),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -712,8 +712,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThat(catalog.tableExists(TBL)).isFalse();
 
-    // call client credentials with no initial auth
-    Mockito.verify(adapter)
+    // both client_credentials token fetches (catalog and context) use empty headers
+    Mockito.verify(adapter, Mockito.times(2))
         .execute(
             matches(HTTPMethod.POST, oauth2ServerUri, emptyHeaders),
             eq(OAuthTokenResponse.class),
@@ -724,13 +724,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .execute(
             matches(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
             eq(ConfigResponse.class),
-            any(),
-            any());
-    // use the client credential to fetch the context token
-    Mockito.verify(adapter)
-        .execute(
-            matches(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
-            eq(OAuthTokenResponse.class),
             any(),
             any());
     // use the context token for table existence check
@@ -789,10 +782,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ConfigResponse.class),
             any(),
             any());
-    // use the client credential to fetch the context token
+    // fetch the context token via client_credentials with no extra headers
     Mockito.verify(adapter)
         .execute(
-            matches(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
+            matches(HTTPMethod.POST, oauth2ServerUri, ImmutableMap.of()),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -969,9 +962,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // token passes a static token. otherwise, validate a client credentials or token exchange
     // request
     if (!credentials.containsKey("token")) {
+      // client_credentials uses no extra headers; token exchange uses catalog headers
+      Map<String, String> tokenRequestHeaders =
+          credentials.containsKey("credential") ? ImmutableMap.of() : catalogHeaders;
       Mockito.verify(adapter)
           .execute(
-              matches(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
+              matches(HTTPMethod.POST, oauth2ServerUri, tokenRequestHeaders),
               eq(OAuthTokenResponse.class),
               any(),
               any());

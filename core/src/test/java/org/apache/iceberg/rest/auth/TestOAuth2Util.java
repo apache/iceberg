@@ -25,9 +25,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
@@ -132,6 +134,46 @@ public class TestOAuth2Util {
                           && formData.get(GRANT_TYPE).equals(CLIENT_CREDENTIALS)),
               Mockito.eq(OAuthTokenResponse.class),
               anyMap(),
+              any());
+    }
+  }
+
+  @Test
+  void fromCredentialShouldNotPassParentBearerTokenToTokenEndpoint() throws IOException {
+    String parentToken = "parent_bearer_token";
+    AuthConfig parentConfig =
+        ImmutableAuthConfig.builder()
+            .token(parentToken)
+            .scope("catalog")
+            .oauth2ServerUri("/v1/token")
+            .build();
+    OAuth2Util.AuthSession parent =
+        new OAuth2Util.AuthSession(OAuth2Util.authHeaders(parentToken), parentConfig);
+
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder()
+            .withToken("child_token")
+            .withTokenType(BEARER)
+            .setExpirationInSeconds(3600)
+            .build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      OAuth2Util.AuthSession.fromCredential(client, null, "clientId:clientSecret", parent);
+
+      // Verify that the token endpoint request does NOT include the parent's Bearer header.
+      // The headers map passed to postForm must be empty.
+      Mockito.verify(client)
+          .postForm(
+              eq("/v1/token"),
+              argThat(
+                  formData ->
+                      CLIENT_CREDENTIALS.equals(formData.get(GRANT_TYPE))
+                          && "clientId".equals(formData.get("client_id"))
+                          && "clientSecret".equals(formData.get("client_secret"))),
+              eq(OAuthTokenResponse.class),
+              eq(ImmutableMap.of()),
               any());
     }
   }

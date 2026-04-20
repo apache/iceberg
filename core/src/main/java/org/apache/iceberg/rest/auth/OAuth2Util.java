@@ -658,7 +658,7 @@ public class OAuth2Util {
       OAuthTokenResponse response =
           fetchToken(
               client,
-              parent.headers(),
+              Map.of(),
               credential,
               parent.scope(),
               parent.oauth2ServerUri(),
