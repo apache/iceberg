@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import org.apache.iceberg.DataFile;
@@ -705,15 +706,14 @@ public abstract class BaseFormatModelTests<T> {
     Map<Integer, Object> idToConstant =
         ImmutableMap.of(MetadataColumns.FILE_PATH.fieldId(), filePath);
 
-    List<Record> expected =
-        IntStream.range(0, genericRecords.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(MetadataColumns.FILE_PATH.name(), filePath))
-            .toList();
-
-    readAndAssertMetadataColumn(fileFormat, projectionSchema, idToConstant, expected);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        genericRecords,
+        ignored ->
+            GenericRecord.create(projectionSchema)
+                .copy(MetadataColumns.FILE_PATH.name(), filePath));
   }
 
   @ParameterizedTest
@@ -730,15 +730,13 @@ public abstract class BaseFormatModelTests<T> {
 
     Map<Integer, Object> idToConstant = ImmutableMap.of(MetadataColumns.SPEC_ID.fieldId(), specId);
 
-    List<Record> expected =
-        IntStream.range(0, genericRecords.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(MetadataColumns.SPEC_ID.name(), specId))
-            .toList();
-
-    readAndAssertMetadataColumn(fileFormat, projectionSchema, idToConstant, expected);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        genericRecords,
+        ignored ->
+            GenericRecord.create(projectionSchema).copy(MetadataColumns.SPEC_ID.name(), specId));
   }
 
   @ParameterizedTest
@@ -752,15 +750,14 @@ public abstract class BaseFormatModelTests<T> {
 
     Schema projectionSchema = new Schema(MetadataColumns.ROW_POSITION);
 
-    List<Record> expected =
-        IntStream.range(0, genericRecords.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(MetadataColumns.ROW_POSITION.name(), (long) i))
-            .toList();
-
-    readAndAssertMetadataColumn(fileFormat, projectionSchema, null, expected);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        null,
+        genericRecords,
+        (position, ignored) ->
+            GenericRecord.create(projectionSchema)
+                .copy(MetadataColumns.ROW_POSITION.name(), (long) position));
   }
 
   @ParameterizedTest
@@ -774,15 +771,13 @@ public abstract class BaseFormatModelTests<T> {
 
     Schema projectionSchema = new Schema(MetadataColumns.IS_DELETED);
 
-    List<Record> expected =
-        IntStream.range(0, genericRecords.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(MetadataColumns.IS_DELETED.name(), false))
-            .toList();
-
-    readAndAssertMetadataColumn(fileFormat, projectionSchema, null, expected);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        null,
+        genericRecords,
+        ignored ->
+            GenericRecord.create(projectionSchema).copy(MetadataColumns.IS_DELETED.name(), false));
   }
 
   @ParameterizedTest
@@ -805,19 +800,18 @@ public abstract class BaseFormatModelTests<T> {
             MetadataColumns.ROW_ID.fieldId(), baseRowId,
             MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(), fileSeqNumber);
 
-    List<Record> expected =
-        IntStream.range(0, genericRecords.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(
-                            MetadataColumns.ROW_ID.name(),
-                            baseRowId + i,
-                            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
-                            fileSeqNumber))
-            .toList();
-
-    readAndAssertMetadataColumn(fileFormat, projectionSchema, idToConstant, expected);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        genericRecords,
+        (position, ignored) ->
+            GenericRecord.create(projectionSchema)
+                .copy(
+                    MetadataColumns.ROW_ID.name(),
+                    baseRowId + position,
+                    MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+                    fileSeqNumber));
   }
 
   @ParameterizedTest
@@ -874,29 +868,28 @@ public abstract class BaseFormatModelTests<T> {
     // - Even rows (explicit values): _row_id = 555+i, _last_updated_sequence_number = 7
     // - Odd rows (null values): _row_id = baseRowId+pos, _last_updated_sequence_number =
     // fileSeqNumber
-    List<Record> expected =
-        IntStream.range(0, baseRecords.size())
-            .mapToObj(
-                i -> {
-                  if (i % 2 == 0) {
-                    return GenericRecord.create(projectionSchema)
-                        .copy(
-                            MetadataColumns.ROW_ID.name(),
-                            555L + i,
-                            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
-                            7L);
-                  } else {
-                    return GenericRecord.create(projectionSchema)
-                        .copy(
-                            MetadataColumns.ROW_ID.name(),
-                            baseRowId + i,
-                            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
-                            fileSeqNumber);
-                  }
-                })
-            .toList();
-
-    readAndAssertMetadataColumn(fileFormat, projectionSchema, idToConstant, expected);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        baseRecords,
+        (position, ignored) -> {
+          if (position % 2 == 0) {
+            return GenericRecord.create(projectionSchema)
+                .copy(
+                    MetadataColumns.ROW_ID.name(),
+                    555L + position,
+                    MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+                    7L);
+          } else {
+            return GenericRecord.create(projectionSchema)
+                .copy(
+                    MetadataColumns.ROW_ID.name(),
+                    baseRowId + position,
+                    MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+                    fileSeqNumber);
+          }
+        });
   }
 
   @ParameterizedTest
@@ -933,15 +926,14 @@ public abstract class BaseFormatModelTests<T> {
         ImmutableMap.of(MetadataColumns.PARTITION_COLUMN_ID, partitionData);
 
     Record partitionRecord = structLikeToRecord(partitionData, partitionType);
-    List<Record> expected =
-        IntStream.range(0, records.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(MetadataColumns.PARTITION_COLUMN_NAME, partitionRecord))
-            .toList();
-
-    readAndAssertMetadataColumn(fileFormat, projectionSchema, idToConstant, expected);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        records,
+        ignored ->
+            GenericRecord.create(projectionSchema)
+                .copy(MetadataColumns.PARTITION_COLUMN_NAME, partitionRecord));
   }
 
   @ParameterizedTest
@@ -992,27 +984,15 @@ public abstract class BaseFormatModelTests<T> {
     Map<Integer, Object> idToConstant =
         ImmutableMap.of(MetadataColumns.PARTITION_COLUMN_ID, oldPartitionData);
 
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(projectionSchema)
-            .idToConstant(convertConstantsToEngine(projectionSchema, idToConstant))
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
     Record partitionRecord = structLikeToRecord(oldPartitionData, unifiedPartitionType);
-    List<Record> expected =
-        IntStream.range(0, records.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(MetadataColumns.PARTITION_COLUMN_NAME, partitionRecord))
-            .toList();
-
-    assertThat(readRecords).hasSize(records.size());
-    assertEquals(projectionSchema, convertToEngineRecords(expected, projectionSchema), readRecords);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        records,
+        ignored ->
+            GenericRecord.create(projectionSchema)
+                .copy(MetadataColumns.PARTITION_COLUMN_NAME, partitionRecord));
   }
 
   @ParameterizedTest
@@ -1059,27 +1039,15 @@ public abstract class BaseFormatModelTests<T> {
     Map<Integer, Object> idToConstant =
         ImmutableMap.of(MetadataColumns.PARTITION_COLUMN_ID, oldPartitionData);
 
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(projectionSchema)
-            .idToConstant(convertConstantsToEngine(projectionSchema, idToConstant))
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
     Record partitionRecord = structLikeToRecord(oldPartitionData, newPartitionType);
-    List<Record> expected =
-        IntStream.range(0, records.size())
-            .mapToObj(
-                i ->
-                    GenericRecord.create(projectionSchema)
-                        .copy(MetadataColumns.PARTITION_COLUMN_NAME, partitionRecord))
-            .toList();
-
-    assertThat(readRecords).hasSize(records.size());
-    assertEquals(projectionSchema, convertToEngineRecords(expected, projectionSchema), readRecords);
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        records,
+        ignored ->
+            GenericRecord.create(projectionSchema)
+                .copy(MetadataColumns.PARTITION_COLUMN_NAME, partitionRecord));
   }
 
   private void readAndAssertGenericRecords(
@@ -1208,6 +1176,33 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     return record;
+  }
+
+  private void readAndAssertMetadataColumn(
+      FileFormat fileFormat,
+      Schema projectionSchema,
+      Map<Integer, Object> idToConstant,
+      List<Record> sourceRecords,
+      Function<Record, Record> transform)
+      throws IOException {
+    readAndAssertMetadataColumn(
+        fileFormat, projectionSchema, idToConstant, sourceRecords.stream().map(transform).toList());
+  }
+
+  private void readAndAssertMetadataColumn(
+      FileFormat fileFormat,
+      Schema projectionSchema,
+      Map<Integer, Object> idToConstant,
+      List<Record> sourceRecords,
+      BiFunction<Integer, Record, Record> transform)
+      throws IOException {
+    readAndAssertMetadataColumn(
+        fileFormat,
+        projectionSchema,
+        idToConstant,
+        IntStream.range(0, sourceRecords.size())
+            .mapToObj(index -> transform.apply(index, sourceRecords.get(index)))
+            .toList());
   }
 
   private void readAndAssertMetadataColumn(
