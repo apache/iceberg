@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -33,41 +34,32 @@ class UdfTypeUtil {
 
   private UdfTypeUtil() {}
 
-  /**
-   * Reads a UDF type from a JSON node. Returns a String for primitive types or a Map for nested
-   * types.
-   */
-  static Object readType(JsonNode node) {
+  /** Reads a UDF type from a JSON node. */
+  static UdfType readType(JsonNode node) {
     Preconditions.checkArgument(node != null, "Cannot read type from null node");
 
     if (node.isTextual()) {
-      return node.asText();
+      return UdfType.primitive(node.asText());
     } else if (node.isObject()) {
-      return JsonUtil.mapper().convertValue(node, java.util.Map.class);
+      Map<String, Object> nested = JsonUtil.mapper().convertValue(node, Map.class);
+      return UdfType.nested(nested);
     } else {
       throw new IllegalArgumentException(
           String.format("Cannot parse UDF type from node: %s", node));
     }
   }
 
-  /**
-   * Writes a UDF type to a JSON generator under the given field name. The type can be a String
-   * (primitive) or a Map (nested type).
-   */
-  @SuppressWarnings("unchecked")
-  static void writeType(String fieldName, Object type, JsonGenerator generator) throws IOException {
+  /** Writes a UDF type to a JSON generator under the given field name. */
+  static void writeType(String fieldName, UdfType type, JsonGenerator generator)
+      throws IOException {
     Preconditions.checkArgument(type != null, "Invalid type: null");
 
-    if (type instanceof String) {
-      generator.writeStringField(fieldName, (String) type);
-    } else if (type instanceof java.util.Map) {
-      generator.writeFieldName(fieldName);
-      ObjectNode objectNode =
-          JsonUtil.mapper().convertValue((java.util.Map<String, Object>) type, ObjectNode.class);
-      generator.writeTree(objectNode);
+    if (type.isPrimitive()) {
+      generator.writeStringField(fieldName, type.asPrimitive());
     } else {
-      throw new IllegalArgumentException(
-          String.format("Cannot serialize UDF type: %s (%s)", type, type.getClass().getName()));
+      generator.writeFieldName(fieldName);
+      ObjectNode objectNode = JsonUtil.mapper().convertValue(type.asNested(), ObjectNode.class);
+      generator.writeTree(objectNode);
     }
   }
 
@@ -75,19 +67,14 @@ class UdfTypeUtil {
    * Writes a UDF type value (without a field name) to a JSON generator. Used when writing array
    * elements.
    */
-  @SuppressWarnings("unchecked")
-  static void writeTypeValue(Object type, JsonGenerator generator) throws IOException {
+  static void writeTypeValue(UdfType type, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(type != null, "Invalid type: null");
 
-    if (type instanceof String) {
-      generator.writeString((String) type);
-    } else if (type instanceof java.util.Map) {
-      ObjectNode objectNode =
-          JsonUtil.mapper().convertValue((java.util.Map<String, Object>) type, ObjectNode.class);
-      generator.writeTree(objectNode);
+    if (type.isPrimitive()) {
+      generator.writeString(type.asPrimitive());
     } else {
-      throw new IllegalArgumentException(
-          String.format("Cannot serialize UDF type: %s (%s)", type, type.getClass().getName()));
+      ObjectNode objectNode = JsonUtil.mapper().convertValue(type.asNested(), ObjectNode.class);
+      generator.writeTree(objectNode);
     }
   }
 }

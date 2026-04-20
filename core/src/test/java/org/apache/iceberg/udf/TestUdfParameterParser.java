@@ -31,11 +31,12 @@ public class TestUdfParameterParser {
   @Test
   public void testParsePrimitiveTypeParameter() {
     String json = "{\"name\":\"x\",\"type\":\"int\"}";
-    UdfParameter parameter = ImmutableUdfParameter.builder().name("x").type("int").build();
+    UdfParameter parameter =
+        ImmutableUdfParameter.builder().name("x").type(UdfType.primitive("int")).build();
 
     UdfParameter parsed = UdfParameterParser.fromJson(json);
     assertThat(parsed.name()).isEqualTo("x");
-    assertThat(parsed.type()).isEqualTo("int");
+    assertThat(parsed.type()).isEqualTo(UdfType.primitive("int"));
     assertThat(parsed.doc()).isNull();
     assertThat(parsed).isEqualTo(parameter);
   }
@@ -44,11 +45,15 @@ public class TestUdfParameterParser {
   public void testParseParameterWithDoc() {
     String json = "{\"name\":\"x\",\"type\":\"int\",\"doc\":\"Input integer\"}";
     UdfParameter parameter =
-        ImmutableUdfParameter.builder().name("x").type("int").doc("Input integer").build();
+        ImmutableUdfParameter.builder()
+            .name("x")
+            .type(UdfType.primitive("int"))
+            .doc("Input integer")
+            .build();
 
     UdfParameter parsed = UdfParameterParser.fromJson(json);
     assertThat(parsed.name()).isEqualTo("x");
-    assertThat(parsed.type()).isEqualTo("int");
+    assertThat(parsed.type()).isEqualTo(UdfType.primitive("int"));
     assertThat(parsed.doc()).isEqualTo("Input integer");
     assertThat(parsed).isEqualTo(parameter);
   }
@@ -58,7 +63,7 @@ public class TestUdfParameterParser {
     String json = "{\"name\":\"amount\",\"type\":\"decimal(9,2)\"}";
     UdfParameter parsed = UdfParameterParser.fromJson(json);
     assertThat(parsed.name()).isEqualTo("amount");
-    assertThat(parsed.type()).isEqualTo("decimal(9,2)");
+    assertThat(parsed.type()).isEqualTo(UdfType.primitive("decimal(9,2)"));
   }
 
   @Test
@@ -66,32 +71,30 @@ public class TestUdfParameterParser {
     String json = "{\"name\":\"data\",\"type\":\"variant\"}";
     UdfParameter parsed = UdfParameterParser.fromJson(json);
     assertThat(parsed.name()).isEqualTo("data");
-    assertThat(parsed.type()).isEqualTo("variant");
+    assertThat(parsed.type()).isEqualTo(UdfType.primitive("variant"));
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testParseListTypeParameter() {
     String json = "{\"name\":\"items\",\"type\":{\"type\":\"list\",\"element\":\"string\"}}";
     UdfParameter parsed = UdfParameterParser.fromJson(json);
     assertThat(parsed.name()).isEqualTo("items");
-    assertThat(parsed.type()).isInstanceOf(Map.class);
+    assertThat(parsed.type().isPrimitive()).isFalse();
 
-    Map<String, Object> typeMap = (Map<String, Object>) parsed.type();
+    Map<String, Object> typeMap = parsed.type().asNested();
     assertThat(typeMap).containsEntry("type", "list");
     assertThat(typeMap).containsEntry("element", "string");
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testParseMapTypeParameter() {
     String json =
         "{\"name\":\"lookup\",\"type\":{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}}";
     UdfParameter parsed = UdfParameterParser.fromJson(json);
     assertThat(parsed.name()).isEqualTo("lookup");
-    assertThat(parsed.type()).isInstanceOf(Map.class);
+    assertThat(parsed.type().isPrimitive()).isFalse();
 
-    Map<String, Object> typeMap = (Map<String, Object>) parsed.type();
+    Map<String, Object> typeMap = parsed.type().asNested();
     assertThat(typeMap).containsEntry("type", "map");
     assertThat(typeMap).containsEntry("key", "string");
     assertThat(typeMap).containsEntry("value", "int");
@@ -100,7 +103,11 @@ public class TestUdfParameterParser {
   @Test
   public void testRoundTripPrimitiveType() {
     UdfParameter parameter =
-        ImmutableUdfParameter.builder().name("x").type("int").doc("Input integer").build();
+        ImmutableUdfParameter.builder()
+            .name("x")
+            .type(UdfType.primitive("int"))
+            .doc("Input integer")
+            .build();
 
     String serialized = UdfParameterParser.toJson(parameter);
     UdfParameter deserialized = UdfParameterParser.fromJson(serialized);
@@ -109,16 +116,16 @@ public class TestUdfParameterParser {
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testRoundTripNestedType() {
     Map<String, Object> listType = ImmutableMap.of("type", "list", "element", "string");
-    UdfParameter parameter = ImmutableUdfParameter.builder().name("items").type(listType).build();
+    UdfParameter parameter =
+        ImmutableUdfParameter.builder().name("items").type(UdfType.nested(listType)).build();
 
     String serialized = UdfParameterParser.toJson(parameter);
     UdfParameter deserialized = UdfParameterParser.fromJson(serialized);
 
     assertThat(deserialized.name()).isEqualTo("items");
-    Map<String, Object> roundTrippedType = (Map<String, Object>) deserialized.type();
+    Map<String, Object> roundTrippedType = deserialized.type().asNested();
     assertThat(roundTrippedType).containsEntry("type", "list");
     assertThat(roundTrippedType).containsEntry("element", "string");
   }

@@ -32,61 +32,61 @@ public class TestUdfTypeUtil {
   @Test
   public void testReadPrimitiveType() {
     JsonNode node = JsonUtil.mapper().valueToTree("int");
-    Object type = UdfTypeUtil.readType(node);
-    assertThat(type).isInstanceOf(String.class);
-    assertThat(type).isEqualTo("int");
+    UdfType type = UdfTypeUtil.readType(node);
+    assertThat(type.isPrimitive()).isTrue();
+    assertThat(type.asPrimitive()).isEqualTo("int");
   }
 
   @Test
   public void testReadDecimalType() {
     JsonNode node = JsonUtil.mapper().valueToTree("decimal(9,2)");
-    Object type = UdfTypeUtil.readType(node);
-    assertThat(type).isEqualTo("decimal(9,2)");
+    UdfType type = UdfTypeUtil.readType(node);
+    assertThat(type.isPrimitive()).isTrue();
+    assertThat(type.asPrimitive()).isEqualTo("decimal(9,2)");
   }
 
   @Test
   public void testReadVariantType() {
     JsonNode node = JsonUtil.mapper().valueToTree("variant");
-    Object type = UdfTypeUtil.readType(node);
-    assertThat(type).isEqualTo("variant");
+    UdfType type = UdfTypeUtil.readType(node);
+    assertThat(type.isPrimitive()).isTrue();
+    assertThat(type.asPrimitive()).isEqualTo("variant");
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testReadListType() {
     Map<String, Object> listType = ImmutableMap.of("type", "list", "element", "string");
     JsonNode node = JsonUtil.mapper().valueToTree(listType);
-    Object type = UdfTypeUtil.readType(node);
-    assertThat(type).isInstanceOf(Map.class);
+    UdfType type = UdfTypeUtil.readType(node);
+    assertThat(type.isPrimitive()).isFalse();
 
-    Map<String, Object> typeMap = (Map<String, Object>) type;
+    Map<String, Object> typeMap = type.asNested();
     assertThat(typeMap).containsEntry("type", "list");
     assertThat(typeMap).containsEntry("element", "string");
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testReadMapType() {
     Map<String, Object> mapType = ImmutableMap.of("type", "map", "key", "string", "value", "int");
     JsonNode node = JsonUtil.mapper().valueToTree(mapType);
-    Object type = UdfTypeUtil.readType(node);
+    UdfType type = UdfTypeUtil.readType(node);
+    assertThat(type.isPrimitive()).isFalse();
 
-    Map<String, Object> typeMap = (Map<String, Object>) type;
+    Map<String, Object> typeMap = type.asNested();
     assertThat(typeMap).containsEntry("type", "map");
     assertThat(typeMap).containsEntry("key", "string");
     assertThat(typeMap).containsEntry("value", "int");
   }
 
   @Test
-  @SuppressWarnings("unchecked")
   public void testReadStructType() {
     String structJson =
         "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"}]}";
     JsonNode node = JsonUtil.parse(structJson, n -> n);
-    Object type = UdfTypeUtil.readType(node);
-    assertThat(type).isInstanceOf(Map.class);
+    UdfType type = UdfTypeUtil.readType(node);
+    assertThat(type.isPrimitive()).isFalse();
 
-    Map<String, Object> typeMap = (Map<String, Object>) type;
+    Map<String, Object> typeMap = type.asNested();
     assertThat(typeMap).containsEntry("type", "struct");
     assertThat(typeMap).containsKey("fields");
   }
@@ -112,7 +112,7 @@ public class TestUdfTypeUtil {
         JsonUtil.generate(
             gen -> {
               gen.writeStartObject();
-              UdfTypeUtil.writeType("return-type", "int", gen);
+              UdfTypeUtil.writeType("return-type", UdfType.primitive("int"), gen);
               gen.writeEndObject();
             },
             false);
@@ -127,7 +127,7 @@ public class TestUdfTypeUtil {
         JsonUtil.generate(
             gen -> {
               gen.writeStartObject();
-              UdfTypeUtil.writeType("return-type", listType, gen);
+              UdfTypeUtil.writeType("return-type", UdfType.nested(listType), gen);
               gen.writeEndObject();
             },
             false);
@@ -153,27 +153,12 @@ public class TestUdfTypeUtil {
   }
 
   @Test
-  public void testWriteUnsupportedType() {
-    assertThatThrownBy(
-            () ->
-                JsonUtil.generate(
-                    gen -> {
-                      gen.writeStartObject();
-                      UdfTypeUtil.writeType("type", 42, gen);
-                      gen.writeEndObject();
-                    },
-                    false))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot serialize UDF type:");
-  }
-
-  @Test
   public void testWriteTypeValue() {
     String json =
         JsonUtil.generate(
             gen -> {
               gen.writeStartArray();
-              UdfTypeUtil.writeTypeValue("int", gen);
+              UdfTypeUtil.writeTypeValue(UdfType.primitive("int"), gen);
               gen.writeEndArray();
             },
             false);
@@ -188,7 +173,7 @@ public class TestUdfTypeUtil {
         JsonUtil.generate(
             gen -> {
               gen.writeStartArray();
-              UdfTypeUtil.writeTypeValue(listType, gen);
+              UdfTypeUtil.writeTypeValue(UdfType.nested(listType), gen);
               gen.writeEndArray();
             },
             false);

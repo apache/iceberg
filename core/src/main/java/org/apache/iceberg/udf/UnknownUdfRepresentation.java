@@ -21,4 +21,4 @@ package org.apache.iceberg.udf;
 import org.immutables.value.Value;
 
 @Value.Immutable
-public interface UnknownUdfRepresentation extends UdfRepresentation {}
+interface UnknownUdfRepresentation extends UdfRepresentation {}

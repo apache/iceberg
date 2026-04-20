@@ -26,11 +26,8 @@ public interface UdfParameter {
   /** The parameter name. */
   String name();
 
-  /**
-   * The parameter data type, encoded as a type string for primitives/semi-structured types or as a
-   * JSON object for nested types (struct, list, map).
-   */
-  Object type();
+  /** The parameter data type. */
+  UdfType type();
 
   /** Optional documentation string. */
   @Nullable
