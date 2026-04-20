@@ -553,7 +553,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     List<Namespace> childNamespaces = listNamespaces(namespace);
     if (childNamespaces != null && !childNamespaces.isEmpty()) {
       throw new NamespaceNotEmptyException(
-          "Namespace %s is not empty. Contains %d child namespace(s).", namespace, childNamespaces.size());
+          "Namespace %s is not empty. Contains %d child namespace(s).",
+          namespace, childNamespaces.size());
     }
 
     int deletedRows =
