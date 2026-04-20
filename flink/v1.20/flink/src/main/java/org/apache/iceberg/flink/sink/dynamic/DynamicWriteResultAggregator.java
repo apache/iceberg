@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
@@ -218,5 +219,13 @@ class DynamicWriteResultAggregator
 
     Table table = catalog.loadTable(TableIdentifier.parse(tableName));
     return table.specs().get(specId);
+  }
+
+  @Override
+  public void close() throws Exception {
+    super.close();
+    if (catalog instanceof Closeable) {
+      ((Closeable) catalog).close();
+    }
   }
 }

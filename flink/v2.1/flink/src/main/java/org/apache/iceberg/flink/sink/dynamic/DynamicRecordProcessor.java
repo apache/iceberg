@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
@@ -49,6 +50,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final TableCreator tableCreator;
   private final boolean caseSensitive;
 
+  private transient Catalog catalog;
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
   private transient TableUpdater updater;
@@ -81,7 +83,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   @Override
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
-    Catalog catalog = catalogLoader.loadCatalog();
+    this.catalog = catalogLoader.loadCatalog();
     this.tableCache =
         new TableMetadataCache(
             catalog,
@@ -214,6 +216,14 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       super.close();
     } catch (Exception e) {
       throw new RuntimeException(e);
+    }
+
+    if (catalog instanceof Closeable rs) {
+      try {
+        rs.close();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 }

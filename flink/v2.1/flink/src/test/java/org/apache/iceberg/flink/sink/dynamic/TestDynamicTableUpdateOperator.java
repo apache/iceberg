@@ -22,16 +22,21 @@ import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.apache.iceberg.flink.TestFixtures.TABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Path;
 import java.util.Collections;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -42,6 +47,8 @@ class TestDynamicTableUpdateOperator {
 
   private static final boolean DROP_COLUMNS = true;
   private static final boolean PRESERVE_COLUMNS = false;
+
+  @TempDir private Path tempDir;
 
   @RegisterExtension
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
@@ -130,6 +137,85 @@ class TestDynamicTableUpdateOperator {
     DynamicRecordInternal output2 = operator.map(input);
     assertThat(output2).isEqualTo(output);
     assertThat(catalog.loadTable(table).schema().schemaId()).isEqualTo(output.schema().schemaId());
+  }
+
+  @Test
+  void testCloseOperatorWithNonCloseableCatalog() throws Exception {
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            10,
+            1000,
+            10,
+            TableCreator.DEFAULT,
+            CASE_SENSITIVE,
+            PRESERVE_COLUMNS);
+    operator.open(null);
+
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            SCHEMA1,
+            GenericRowData.of(1),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+    operator.map(input);
+
+    // HadoopCatalog is not Closeable, so close should complete without error
+    operator.close();
+  }
+
+  @Test
+  void testCloseOperatorWithCloseableCatalog() throws Exception {
+    InMemoryCatalog closeableCatalog = new InMemoryCatalog();
+    closeableCatalog.initialize("test", Collections.singletonMap("warehouse", tempDir.toString()));
+    closeableCatalog.createNamespace(Namespace.of(DATABASE));
+
+    CatalogLoader closeableCatalogLoader =
+        new CatalogLoader() {
+          @Override
+          public Catalog loadCatalog() {
+            return closeableCatalog;
+          }
+
+          @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+          @Override
+          public CatalogLoader clone() {
+            return this;
+          }
+        };
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            closeableCatalogLoader,
+            10,
+            1000,
+            10,
+            TableCreator.DEFAULT,
+            CASE_SENSITIVE,
+            PRESERVE_COLUMNS);
+    operator.open(null);
+
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            DATABASE + "." + TABLE,
+            "branch",
+            SCHEMA1,
+            GenericRowData.of(1),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+    operator.map(input);
+
+    // InMemoryCatalog implements Closeable, so close should invoke catalog.close()
+    operator.close();
+
+    // After close, the catalog's internal state should be cleared
+    assertThat(closeableCatalog.listNamespaces()).isEmpty();
   }
 
   @ParameterizedTest
