@@ -34,6 +34,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -41,6 +42,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -108,15 +110,20 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_SPLIT = "split";
   static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
   static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
+  static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
           FileFormat.AVRO,
           new String[] {
-            FEATURE_FILTER, FEATURE_CASE_SENSITIVE, FEATURE_SPLIT, FEATURE_COLUMN_LEVEL_METRICS
+            FEATURE_FILTER,
+            FEATURE_CASE_SENSITIVE,
+            FEATURE_SPLIT,
+            FEATURE_COLUMN_LEVEL_METRICS,
+            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY
           },
           FileFormat.ORC,
-          new String[] {FEATURE_REUSE_CONTAINERS});
+          new String[] {FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY});
 
   private InMemoryFileIO fileIO;
   private EncryptedOutputFile encryptedFile;
@@ -668,17 +675,7 @@ public abstract class BaseFormatModelTests<T> {
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
-    TestTables.TestTable table =
-        TestTables.create(
-            tableDir,
-            "test",
-            schema,
-            PartitionSpec.unpartitioned(),
-            3,
-            ImmutableMap.of(
-                TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.None.get().toString()));
-
-    MetricsConfig noneConfig = MetricsConfig.forTable(table);
+    MetricsConfig noneConfig = config(schema, MetricsModes.None.get());
     List<Record> genericRecords = dataGenerator.generateRecords();
     DataFile dataFile = writeGenericRecords(fileFormat, schema, genericRecords, noneConfig);
 
@@ -692,18 +689,7 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterMetricsWithCountsMode(FileFormat fileFormat) throws IOException {
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
-    TestTables.TestTable table =
-        TestTables.create(
-            tableDir,
-            "test",
-            schema,
-            PartitionSpec.unpartitioned(),
-            3,
-            ImmutableMap.of(
-                TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.Counts.get().toString()));
-
-    MetricsConfig countsConfig = MetricsConfig.forTable(table);
-
+    MetricsConfig countsConfig = config(schema, MetricsModes.Counts.get());
     List<Record> genericRecords = dataGenerator.generateRecords();
     DataFile dataFile = writeGenericRecords(fileFormat, schema, genericRecords, countsConfig);
 
@@ -723,55 +709,65 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(1, "col_str", Types.StringType.get()),
             Types.NestedField.required(2, "col_int", Types.IntegerType.get()));
 
-    TestTables.TestTable table =
-        TestTables.create(
-            tableDir,
-            "test",
-            schema,
-            PartitionSpec.unpartitioned(),
-            3,
-            ImmutableMap.of(
-                TableProperties.DEFAULT_WRITE_METRICS_MODE,
-                MetricsModes.Truncate.withLength(truncateLength).toString()));
-
-    MetricsConfig truncateConfig = MetricsConfig.forTable(table);
-
     List<Record> records = Lists.newArrayList();
     records.add(GenericRecord.create(schema).copy("col_str", "abcdefghij", "col_int", 10));
     records.add(GenericRecord.create(schema).copy("col_str", "abcdezyxwv", "col_int", 20));
     records.add(GenericRecord.create(schema).copy("col_str", "abcdeAAAAA", "col_int", 5));
 
-    DataFile dataFile = writeGenericRecords(fileFormat, schema, records, truncateConfig);
+    assertTruncateBoundsForFirstColumn(
+        fileFormat,
+        schema,
+        records,
+        truncateLength,
+        FEATURE_COLUMN_LEVEL_METRICS,
+        (lower, upper) -> {
+          // Lower bound: "abcdeAAAAA" truncated to "abcde"
+          CharSequence actualLower = Conversions.fromByteBuffer(Types.StringType.get(), lower);
+          assertThat(actualLower.toString()).hasSize(truncateLength);
+          assertThat(actualLower.toString()).isEqualTo("abcde");
 
-    assertCounts(fileFormat, schema, records, dataFile);
+          // Upper bound: "abcdezyxwv" truncated and incremented to "abcdf"
+          CharSequence actualUpper = Conversions.fromByteBuffer(Types.StringType.get(), upper);
+          assertThat(actualUpper.toString()).hasSize(truncateLength);
+          assertThat(actualUpper.toString()).isEqualTo("abcdf");
+        });
+  }
 
-    if (!supportsFeature(fileFormat, FEATURE_COLUMN_LEVEL_METRICS)) {
-      return;
-    }
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterMetricsWithTruncateModeForBinary(FileFormat fileFormat) throws IOException {
+    int truncateLength = 5;
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col_bin", Types.BinaryType.get()),
+            Types.NestedField.required(2, "col_int", Types.IntegerType.get()));
 
-    // String column bounds should be truncated
-    Map<Integer, ByteBuffer> lowerBounds = dataFile.lowerBounds();
-    Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
+    List<Record> records = Lists.newArrayList();
+    records.add(
+        GenericRecord.create(schema)
+            .copy(
+                "col_bin",
+                ByteBuffer.wrap(
+                    new byte[] {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0x10, 0xA, 0xB}),
+                "col_int",
+                10));
 
-    assertThat(lowerBounds).containsKey(1);
-    assertThat(upperBounds).containsKey(1);
+    assertTruncateBoundsForFirstColumn(
+        fileFormat,
+        schema,
+        records,
+        truncateLength,
+        FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
+        (lower, upper) -> {
+          ByteBuffer actualLower = Conversions.fromByteBuffer(Types.BinaryType.get(), lower);
+          ByteBuffer actualUpper = Conversions.fromByteBuffer(Types.BinaryType.get(), upper);
 
-    // Lower bound: "abcdeAAAAA" truncated to "abcde"
-    CharSequence actualLower =
-        Conversions.fromByteBuffer(Types.StringType.get(), lowerBounds.get(1));
-    assertThat(actualLower.toString()).hasSize(truncateLength);
-    assertThat(actualLower.toString()).isEqualTo("abcde");
+          ByteBuffer expectedLower = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x5});
+          ByteBuffer expectedUpper = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x6});
 
-    // Upper bound: "abcdezyxwv" truncated and incremented to "abcdf"
-    CharSequence actualUpper =
-        Conversions.fromByteBuffer(Types.StringType.get(), upperBounds.get(1));
-    assertThat(actualUpper.toString()).hasSize(truncateLength);
-    assertThat(actualUpper.toString()).isEqualTo("abcdf");
-
-    Schema intSchema = new Schema(schema.findField("col_int"));
-    assertBounds(fileFormat, intSchema, records, dataFile);
-
-    assertThat(dataFile.columnSizes()).isNotNull().isNotEmpty();
+          assertThat(actualLower).isEqualTo(expectedLower);
+          assertThat(actualUpper).isEqualTo(expectedUpper);
+        });
   }
 
   @ParameterizedTest
@@ -835,22 +831,11 @@ public abstract class BaseFormatModelTests<T> {
     Schema schema = dataGenerator.schema();
 
     // Default mode is "counts", col_b is overridden to "full", col_a is overridden to "none"
-    TestTables.TestTable table =
-        TestTables.create(
-            tableDir,
-            "test",
+    MetricsConfig perColumnConfig =
+        config(
             schema,
-            PartitionSpec.unpartitioned(),
-            3,
-            ImmutableMap.of(
-                TableProperties.DEFAULT_WRITE_METRICS_MODE,
-                MetricsModes.Counts.get().toString(),
-                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col_b",
-                MetricsModes.Full.get().toString(),
-                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col_a",
-                MetricsModes.None.get().toString()));
-
-    MetricsConfig perColumnConfig = MetricsConfig.forTable(table);
+            MetricsModes.Counts.get(),
+            ImmutableMap.of("col_b", MetricsModes.Full.get(), "col_a", MetricsModes.None.get()));
 
     List<Record> genericRecords = dataGenerator.generateRecords();
     DataFile dataFile = writeGenericRecords(fileFormat, schema, genericRecords, perColumnConfig);
@@ -1235,5 +1220,56 @@ public abstract class BaseFormatModelTests<T> {
       // Multiple file references: bounds are also removed
       assertBoundsNull(positionDeleteSchema, deleteFile);
     }
+  }
+
+  private MetricsConfig config(Schema schema, MetricsMode defaultMode) {
+    return config(schema, defaultMode, ImmutableMap.of());
+  }
+
+  private MetricsConfig config(
+      Schema schema, MetricsMode defaultMode, Map<String, MetricsMode> columnModes) {
+    ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
+    properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, defaultMode.toString());
+    columnModes.forEach(
+        (column, mode) ->
+            properties.put(
+                TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + column, mode.toString()));
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", schema, PartitionSpec.unpartitioned(), 3, properties.build());
+
+    return MetricsConfig.forTable(table);
+  }
+
+  private void assertTruncateBoundsForFirstColumn(
+      FileFormat fileFormat,
+      Schema schema,
+      List<Record> records,
+      int truncateLength,
+      String requiredFeature,
+      BiConsumer<ByteBuffer, ByteBuffer> boundsAssertion)
+      throws IOException {
+    MetricsConfig truncateConfig = config(schema, MetricsModes.Truncate.withLength(truncateLength));
+
+    DataFile dataFile = writeGenericRecords(fileFormat, schema, records, truncateConfig);
+    assertCounts(fileFormat, schema, records, dataFile);
+
+    if (!supportsFeature(fileFormat, requiredFeature)) {
+      return;
+    }
+
+    Map<Integer, ByteBuffer> lowerBounds = dataFile.lowerBounds();
+    Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
+
+    assertThat(lowerBounds).containsKey(1);
+    assertThat(upperBounds).containsKey(1);
+
+    boundsAssertion.accept(lowerBounds.get(1), upperBounds.get(1));
+
+    Schema intSchema = new Schema(schema.findField("col_int"));
+    assertBounds(fileFormat, intSchema, records, dataFile);
+
+    assertThat(dataFile.columnSizes()).isNotNull().isNotEmpty();
   }
 }
