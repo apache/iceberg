@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.iceberg.avro.SupportsIndexProjection;

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.iceberg.avro.SupportsIndexProjection;
@@ -50,7 +51,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
 
   // not serialized, set by manifest readers
   private String manifestLocation = null;
-  private long manifestPos = 0L;
+  private long manifestPos = -1L;
 
   TrackingStruct(Types.StructType type) {
     super(BASE_TYPE, type);
@@ -165,7 +166,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   private Object getByPos(int pos) {
     switch (pos) {
       case 0:
-        return status.id();
+        return status != null ? status.id() : null;
       case 1:
         return snapshotId();
       case 2:
