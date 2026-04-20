@@ -816,7 +816,9 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionTypePromotionDateToTimestampNano(FileFormat fileFormat)
       throws IOException {
-    assumeThat(TypeUtil.isPromotionAllowed(Types.DateType.get(), Types.TimestampType.withoutZone()))
+    assumeThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampNanoType.withoutZone()))
         .isTrue();
     runTypePromotionCheck(
         fileFormat,
