@@ -228,7 +228,7 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testDefaultManifestCompression() throws IOException {
+  public void testDefaultAvroManifestCompression() throws IOException {
     assumeThat(formatVersion)
         .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
         .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
@@ -240,7 +240,7 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testManifestCompressionFromTableProperty() throws IOException {
+  public void testAvroManifestCompressionFromTableProperty() throws IOException {
     assumeThat(formatVersion)
         .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
         .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);

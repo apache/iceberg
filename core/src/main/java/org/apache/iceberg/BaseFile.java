@@ -588,8 +588,12 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       return null;
     }
 
-    // This is required as long as we have Map<Integer, ByteBuffer> in the API since Parquet is
-    // re-using buffers.
+    return SerializableByteBufferMap.wrap(deepCopyByteBufferMap(map, keys));
+  }
+
+  // Required as long as we have Map<Integer, ByteBuffer> in the API since Parquet reuses buffers.
+  private static Map<Integer, ByteBuffer> deepCopyByteBufferMap(
+      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
     Map<Integer, ByteBuffer> deepCopy = Maps.newHashMapWithExpectedSize(map.size());
     for (Map.Entry<Integer, ByteBuffer> entry : map.entrySet()) {
       if (keys == null || keys.contains(entry.getKey())) {
@@ -605,7 +609,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       }
     }
 
-    return SerializableByteBufferMap.wrap(deepCopy);
+    return deepCopy;
   }
 
   // Returns an unmodifiable view of the map. The SerializableMap check is needed because
