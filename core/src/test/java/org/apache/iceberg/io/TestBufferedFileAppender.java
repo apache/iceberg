@@ -27,6 +27,7 @@ import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -106,10 +107,14 @@ public class TestBufferedFileAppender {
     appender.add(createRecord(5L, "e"));
     appender.close();
 
-    List<Record> actual = readBack();
-    assertThat(actual).hasSize(5);
-    assertThat(actual.get(0).getField("id")).isEqualTo(1L);
-    assertThat(actual.get(4).getField("id")).isEqualTo(5L);
+    List<Record> expected =
+        Lists.newArrayList(
+            createRecord(1L, "a"),
+            createRecord(2L, "b"),
+            createRecord(3L, "c"),
+            createRecord(4L, "d"),
+            createRecord(5L, "e"));
+    DataTestHelpers.assertEquals(SCHEMA.asStruct(), expected, readBack());
   }
 
   @Test
@@ -126,10 +131,9 @@ public class TestBufferedFileAppender {
     // close flushes partial buffer through factory
     appender.close();
 
-    List<Record> actual = readBack();
-    assertThat(actual).hasSize(3);
-    assertThat(actual.get(0).getField("data")).isEqualTo("a");
-    assertThat(actual.get(2).getField("data")).isEqualTo("c");
+    List<Record> expected =
+        Lists.newArrayList(createRecord(1L, "a"), createRecord(2L, "b"), createRecord(3L, "c"));
+    DataTestHelpers.assertEquals(SCHEMA.asStruct(), expected, readBack());
   }
 
   @Test
@@ -151,13 +155,10 @@ public class TestBufferedFileAppender {
 
     appender.close();
 
-    List<Record> actual = readBack();
-    assertThat(actual).hasSize(3);
-    // without copyFunc, all 3 rows would have the last values (3, "third")
-    assertThat(actual.get(0).getField("id")).isEqualTo(1L);
-    assertThat(actual.get(0).getField("data")).isEqualTo("first");
-    assertThat(actual.get(1).getField("id")).isEqualTo(2L);
-    assertThat(actual.get(1).getField("data")).isEqualTo("second");
+    List<Record> expected =
+        Lists.newArrayList(
+            createRecord(1L, "first"), createRecord(2L, "second"), createRecord(3L, "third"));
+    DataTestHelpers.assertEquals(SCHEMA.asStruct(), expected, readBack());
   }
 
   @Test
@@ -209,10 +210,7 @@ public class TestBufferedFileAppender {
     appender.addAll(records);
     appender.close();
 
-    List<Record> actual = readBack();
-    assertThat(actual).hasSize(4);
-    assertThat(actual.get(0).getField("id")).isEqualTo(1L);
-    assertThat(actual.get(3).getField("id")).isEqualTo(4L);
+    DataTestHelpers.assertEquals(SCHEMA.asStruct(), records, readBack());
   }
 
   @Test
