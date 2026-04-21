@@ -510,7 +510,7 @@ class RecordConverter {
       Map<?, ?> map = (Map<?, ?>) value;
       for (Map.Entry<?, ?> entry : map.entrySet()) {
         Object key = entry.getKey();
-        if (key != null && key instanceof String) {
+        if (key instanceof String) {
           names.add((String) key);
           collectFieldNames(entry.getValue(), names);
         } else {
@@ -521,8 +521,7 @@ class RecordConverter {
       }
       return;
     }
-    if (value instanceof Struct) {
-      Struct struct = (Struct) value;
+    if (value instanceof Struct struct) {
       for (Field field : struct.schema().fields()) {
         names.add(field.name());
         collectFieldNames(struct.get(field), names);
@@ -555,8 +554,7 @@ class RecordConverter {
     if (value instanceof Map) {
       return mapToVariantValue(value, metadata, schema);
     }
-    if (value instanceof Struct) {
-      Struct struct = (Struct) value;
+    if (value instanceof Struct struct) {
       ShreddedObject object = Variants.object(metadata);
       for (Field field : struct.schema().fields()) {
         object.put(field.name(), objectToVariantValue(struct.get(field), metadata, field.schema()));
@@ -574,7 +572,7 @@ class RecordConverter {
         schema != null ? schema.valueSchema() : null;
     map.forEach(
         (key, val) -> {
-          if (key != null && key instanceof String) {
+          if (key instanceof String) {
             object.put((String) key, objectToVariantValue(val, metadata, mapValueSchema));
           } else {
             throw new IllegalArgumentException(
