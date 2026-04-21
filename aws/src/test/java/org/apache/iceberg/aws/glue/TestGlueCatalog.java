@@ -26,7 +26,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -40,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LockManagers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -310,6 +314,44 @@ public class TestGlueCatalog {
         .when(glue)
         .deleteTable(Mockito.any(DeleteTableRequest.class));
     glueCatalog.dropTable(TableIdentifier.of("db1", "t1"));
+  }
+
+  @Test
+  public void testDropTableWithPurgeFailure() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+    Mockito.doReturn(
+            GetTableResponse.builder()
+                .table(
+                    Table.builder().databaseName("db1").name("t1").parameters(properties).build())
+                .build())
+        .when(glue)
+        .getTable(Mockito.any(GetTableRequest.class));
+    Mockito.doReturn(
+            GetDatabaseResponse.builder().database(Database.builder().name("db1").build()).build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    Mockito.doReturn(DeleteTableResponse.builder().build())
+        .when(glue)
+        .deleteTable(Mockito.any(DeleteTableRequest.class));
+
+    TableMetadata mockMetadata = Mockito.mock(TableMetadata.class);
+    TableOperations mockOps = Mockito.mock(TableOperations.class);
+    Mockito.when(mockOps.current()).thenReturn(mockMetadata);
+
+    GlueCatalog spyCatalog = Mockito.spy(glueCatalog);
+    Mockito.doReturn(mockOps).when(spyCatalog).newTableOps(Mockito.any(TableIdentifier.class));
+
+    try (MockedStatic<CatalogUtil> mockedCatalogUtil = Mockito.mockStatic(CatalogUtil.class)) {
+      mockedCatalogUtil
+          .when(() -> CatalogUtil.dropTableData(Mockito.any(), Mockito.any()))
+          .thenThrow(new RuntimeException("Cannot delete files from S3 Table Bucket"));
+
+      boolean result = spyCatalog.dropTable(TableIdentifier.of("db1", "t1"), true);
+      assertThat(result).isTrue();
+    }
   }
 
   @Test

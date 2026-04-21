@@ -356,8 +356,13 @@ public class GlueCatalog extends BaseMetastoreCatalog
               .build());
       LOG.info("Successfully dropped table {} from Glue", identifier);
       if (purge && lastMetadata != null) {
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
-        LOG.info("Glue table {} data purged", identifier);
+        try {
+          CatalogUtil.dropTableData(ops.io(), lastMetadata);
+          LOG.info("Glue table {} data purged", identifier);
+        } catch (Exception e) {
+          LOG.warn(
+              "Failed to purge data for table: {}, continuing drop without purge", identifier, e);
+        }
       }
       LOG.info("Dropped table: {}", identifier);
       return true;
