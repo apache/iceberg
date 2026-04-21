@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.TimeTravel;
@@ -210,12 +211,12 @@ public class SparkTable extends BaseSparkTable
 
     String scanBranch =
         SparkTableUtil.determineReadBranch(
-            sparkSession(), icebergTable, branch, CaseInsensitiveStringMap.empty());
+            spark(), table(), branch, CaseInsensitiveStringMap.empty());
     return canDeleteUsingMetadata(deleteExpr, scanBranch);
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
-  private boolean canDeleteUsingMetadata(Expression deleteExpr) {
+  private boolean canDeleteUsingMetadata(Expression deleteExpr, String scanBranch) {
     boolean caseSensitive = SparkUtil.caseSensitive(spark());
 
     if (ExpressionUtil.selectsPartitions(deleteExpr, table(), caseSensitive)) {
@@ -230,7 +231,9 @@ public class SparkTable extends BaseSparkTable
             .includeColumnStats()
             .ignoreResiduals();
 
-    if (snapshot != null) {
+    if (scanBranch != null) {
+      scan = scan.useRef(scanBranch);
+    } else if (snapshot != null) {
       scan = scan.useSnapshot(snapshot.snapshotId());
     }
 
@@ -272,8 +275,12 @@ public class SparkTable extends BaseSparkTable
             .set("spark.app.id", spark().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
-    if (branch != null) {
-      deleteFiles.toBranch(branch);
+    String writeBranch =
+        SparkTableUtil.determineWriteBranch(
+            spark(), table(), branch, CaseInsensitiveStringMap.empty());
+
+    if (writeBranch != null) {
+      deleteFiles.toBranch(writeBranch);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
