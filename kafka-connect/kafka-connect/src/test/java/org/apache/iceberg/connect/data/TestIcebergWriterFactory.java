@@ -19,8 +19,11 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,12 +39,15 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -95,5 +101,43 @@ public class TestIcebergWriterFactory {
     assertThat(capturedArguments.get(0)).isEqualTo(Namespace.of("foo1"));
     assertThat(capturedArguments.get(1)).isEqualTo(Namespace.of("foo1", "foo2"));
     assertThat(capturedArguments.get(2)).isEqualTo(Namespace.of("foo1", "foo2", "foo3"));
+  }
+
+  @Test
+  public void testCreateNamespacePropagatesForbiddenException() {
+    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(SupportsNamespaces.class));
+    when(((SupportsNamespaces) catalog).namespaceExists(any())).thenReturn(false);
+    doThrow(new ForbiddenException("access denied"))
+        .when((SupportsNamespaces) catalog)
+        .createNamespace(any());
+
+    assertThatThrownBy(
+            () -> IcebergWriterFactory.createNamespaceIfNotExist(catalog, Namespace.of("db")))
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("access denied");
+  }
+
+  @Test
+  public void testCreateNamespacePropagatesNotAuthorizedException() {
+    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(SupportsNamespaces.class));
+    when(((SupportsNamespaces) catalog).namespaceExists(any())).thenReturn(false);
+    doThrow(new NotAuthorizedException("not authorized"))
+        .when((SupportsNamespaces) catalog)
+        .createNamespace(any());
+
+    assertThatThrownBy(
+            () -> IcebergWriterFactory.createNamespaceIfNotExist(catalog, Namespace.of("db")))
+        .isInstanceOf(NotAuthorizedException.class)
+        .hasMessage("not authorized");
+  }
+
+  @Test
+  public void testCreateNamespaceSkipsCreateWhenExists() {
+    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(SupportsNamespaces.class));
+    when(((SupportsNamespaces) catalog).namespaceExists(any())).thenReturn(true);
+
+    IcebergWriterFactory.createNamespaceIfNotExist(catalog, Namespace.of("db"));
+
+    verify((SupportsNamespaces) catalog, never()).createNamespace(any());
   }
 }

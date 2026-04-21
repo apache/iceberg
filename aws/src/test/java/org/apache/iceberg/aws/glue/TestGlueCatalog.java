@@ -44,6 +44,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseResponse;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
@@ -447,6 +448,19 @@ public class TestGlueCatalog {
               "to Glue database name, "
                   + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
     }
+  }
+
+  @Test
+  public void testCreateNamespaceAccessDenied() {
+    Mockito.doThrow(
+            AccessDeniedException.builder()
+                .message("User is not authorized to perform: glue:CreateDatabase")
+                .build())
+        .when(glue)
+        .createDatabase(Mockito.any(CreateDatabaseRequest.class));
+    assertThatThrownBy(() -> glueCatalog.createNamespace(Namespace.of("db")))
+        .isInstanceOf(org.apache.iceberg.exceptions.ForbiddenException.class)
+        .hasMessageContaining("cannot access the requested resources");
   }
 
   @Test
