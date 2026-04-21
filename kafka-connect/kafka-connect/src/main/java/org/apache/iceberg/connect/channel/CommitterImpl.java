@@ -221,7 +221,16 @@ public class CommitterImpl implements Committer {
 
   private void stopCoordinator() {
     if (coordinatorThread != null) {
-      coordinatorThread.terminate();
+      try {
+        coordinatorThread.terminate();
+      } finally {
+        try {
+          coordinatorThread.join(30_000L);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          LOG.warn("Interrupted waiting for coordinator thread to stop", e);
+        }
+      }
       coordinatorThread = null;
     }
   }
