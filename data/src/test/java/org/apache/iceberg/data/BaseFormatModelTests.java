@@ -30,9 +30,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -52,8 +49,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.avro.RemoveIds;
+import org.apache.iceberg.avro.AvroTestHelpers;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -77,11 +73,11 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
+import org.apache.iceberg.orc.TestORCSchemaUtil;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
@@ -107,11 +103,6 @@ public abstract class BaseFormatModelTests<T> {
   protected abstract T convertToEngine(Record record, Schema schema);
 
   protected abstract void assertEquals(Schema schema, List<T> expected, List<T> actual);
-
-  protected Object convertConstantToEngine(Type type, Object value) {
-    return null;
-  }
-  ;
 
   protected boolean supportsBatchReads() {
     return false;
@@ -677,22 +668,20 @@ public abstract class BaseFormatModelTests<T> {
             .ofType(Types.IntegerType.get())
             .build());
     Schema readSchema = new Schema(evolvedColumns);
-    List<Record> expectedGenericRecords =
-        genericRecords.stream()
-            .map(
-                record -> {
-                  Record expected = GenericRecord.create(readSchema);
-                  for (Types.NestedField col : writeSchema.columns()) {
-                    expected.setField(col.name(), record.getField(col.name()));
-                  }
+    readAndAssertEngineRecords(
+        fileFormat,
+        readSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(readSchema);
+          for (Types.NestedField col : writeSchema.columns()) {
+            expected.setField(col.name(), record.getField(col.name()));
+          }
 
-                  expected.setField("new_string_col", null);
-                  expected.setField("new_int_col", null);
-                  return expected;
-                })
-            .toList();
-
-    readAndAssertEngineRecords(fileFormat, readSchema, expectedGenericRecords);
+          expected.setField("new_string_col", null);
+          expected.setField("new_int_col", null);
+          return expected;
+        });
   }
 
   /**
@@ -713,20 +702,18 @@ public abstract class BaseFormatModelTests<T> {
     Schema projectedSchema =
         new Schema(writeColumns.get(0), writeColumns.get(writeColumns.size() - 1));
 
-    List<Record> expectedGenericRecords =
-        genericRecords.stream()
-            .map(
-                record -> {
-                  Record expected = GenericRecord.create(projectedSchema);
-                  for (Types.NestedField col : projectedSchema.columns()) {
-                    expected.setField(col.name(), record.getField(col.name()));
-                  }
+    readAndAssertEngineRecords(
+        fileFormat,
+        projectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(projectedSchema);
+          for (Types.NestedField col : projectedSchema.columns()) {
+            expected.setField(col.name(), record.getField(col.name()));
+          }
 
-                  return expected;
-                })
-            .toList();
-
-    readAndAssertEngineRecords(fileFormat, projectedSchema, expectedGenericRecords);
+          return expected;
+        });
   }
 
   /**
@@ -753,21 +740,19 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(4, "col_d", Types.FloatType.get()),
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
 
-    List<Record> expectedGenericRecords =
-        genericRecords.stream()
-            .map(
-                record -> {
-                  Record expected = GenericRecord.create(readSchema);
-                  expected.setField("col_a", record.getField("col_a"));
-                  expected.setField("col_b", null);
-                  expected.setField("col_c", record.getField("col_c"));
-                  expected.setField("col_d", record.getField("col_d"));
-                  expected.setField("col_e", record.getField("col_e"));
-                  return expected;
-                })
-            .toList();
-
-    readAndAssertEngineRecords(fileFormat, readSchema, expectedGenericRecords);
+    readAndAssertEngineRecords(
+        fileFormat,
+        readSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(readSchema);
+          expected.setField("col_a", record.getField("col_a"));
+          expected.setField("col_b", null);
+          expected.setField("col_c", record.getField("col_c"));
+          expected.setField("col_d", record.getField("col_d"));
+          expected.setField("col_e", record.getField("col_e"));
+          return expected;
+        });
   }
 
   @ParameterizedTest
@@ -800,33 +785,6 @@ public abstract class BaseFormatModelTests<T> {
         java.util.function.Function.identity());
   }
 
-  @ParameterizedTest
-  @FieldSource("FILE_FORMATS")
-  void testSchemaEvolutionTypePromotionDateToTimestamp(FileFormat fileFormat) throws IOException {
-    assumeThat(TypeUtil.isPromotionAllowed(Types.DateType.get(), Types.TimestampType.withoutZone()))
-        .isTrue();
-    runTypePromotionCheck(
-        fileFormat,
-        Types.DateType.get(),
-        Types.TimestampType.withoutZone(),
-        value -> value == null ? null : LocalDateTime.of((LocalDate) value, LocalTime.MIDNIGHT));
-  }
-
-  @ParameterizedTest
-  @FieldSource("FILE_FORMATS")
-  void testSchemaEvolutionTypePromotionDateToTimestampNano(FileFormat fileFormat)
-      throws IOException {
-    assumeThat(
-            TypeUtil.isPromotionAllowed(
-                Types.DateType.get(), Types.TimestampNanoType.withoutZone()))
-        .isTrue();
-    runTypePromotionCheck(
-        fileFormat,
-        Types.DateType.get(),
-        Types.TimestampNanoType.withoutZone(),
-        value -> value == null ? null : LocalDateTime.of((LocalDate) value, LocalTime.MIDNIGHT));
-  }
-
   /**
    * Schema evolution: Reorder columns. Write with DefaultSchema {col_a, col_b, col_c, col_d,
    * col_e}, read with reordered schema {col_e, col_c, col_a, col_d, col_b}.
@@ -848,20 +806,18 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(4, "col_d", Types.FloatType.get()),
             Types.NestedField.required(2, "col_b", Types.IntegerType.get()));
 
-    List<Record> expectedGenericRecords =
-        genericRecords.stream()
-            .map(
-                record -> {
-                  Record expected = GenericRecord.create(reorderedSchema);
-                  for (Types.NestedField col : reorderedSchema.columns()) {
-                    expected.setField(col.name(), record.getField(col.name()));
-                  }
+    readAndAssertEngineRecords(
+        fileFormat,
+        reorderedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(reorderedSchema);
+          for (Types.NestedField col : reorderedSchema.columns()) {
+            expected.setField(col.name(), record.getField(col.name()));
+          }
 
-                  return expected;
-                })
-            .toList();
-
-    readAndAssertEngineRecords(fileFormat, reorderedSchema, expectedGenericRecords);
+          return expected;
+        });
   }
 
   /**
@@ -887,21 +843,19 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(4, "column_d", Types.FloatType.get()),
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
 
-    List<Record> expectedGenericRecords =
-        genericRecords.stream()
-            .map(
-                record -> {
-                  Record expected = GenericRecord.create(renamedSchema);
-                  expected.setField("col_a", record.getField("col_a"));
-                  expected.setField("column_b", record.getField("col_b"));
-                  expected.setField("col_c", record.getField("col_c"));
-                  expected.setField("column_d", record.getField("col_d"));
-                  expected.setField("col_e", record.getField("col_e"));
-                  return expected;
-                })
-            .toList();
-
-    readAndAssertEngineRecords(fileFormat, renamedSchema, expectedGenericRecords);
+    readAndAssertEngineRecords(
+        fileFormat,
+        renamedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(renamedSchema);
+          expected.setField("col_a", record.getField("col_a"));
+          expected.setField("column_b", record.getField("col_b"));
+          expected.setField("col_c", record.getField("col_c"));
+          expected.setField("column_d", record.getField("col_d"));
+          expected.setField("col_e", record.getField("col_e"));
+          return expected;
+        });
   }
 
   /**
@@ -927,20 +881,18 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.optional(4, "col_d", Types.FloatType.get()),
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
 
-    List<Record> expectedGenericRecords =
-        genericRecords.stream()
-            .map(
-                record -> {
-                  Record expected = GenericRecord.create(readSchema);
-                  for (Types.NestedField col : readSchema.columns()) {
-                    expected.setField(col.name(), record.getField(col.name()));
-                  }
+    readAndAssertEngineRecords(
+        fileFormat,
+        readSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(readSchema);
+          for (Types.NestedField col : readSchema.columns()) {
+            expected.setField(col.name(), record.getField(col.name()));
+          }
 
-                  return expected;
-                })
-            .toList();
-
-    readAndAssertEngineRecords(fileFormat, readSchema, expectedGenericRecords);
+          return expected;
+        });
   }
 
   /**
@@ -968,7 +920,7 @@ public abstract class BaseFormatModelTests<T> {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertThat(readRecords).hasSize(genericRecords.size());
+    assertThat(readRecords).hasSameSizeAs(genericRecords);
   }
 
   @ParameterizedTest
@@ -1101,7 +1053,7 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private void writeAvroWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = RemoveIds.removeIds(schema);
+    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
 
     OutputFile outputFile = encryptedFile.encryptingOutputFile();
     DatumWriter<GenericData.Record> datumWriter = new GenericDatumWriter<>(avroSchemaWithoutIds);
@@ -1120,12 +1072,12 @@ public abstract class BaseFormatModelTests<T> {
 
     try (DataFileStream<GenericData.Record> reader =
         new DataFileStream<>(outputFile.toInputFile().newStream(), new GenericDatumReader<>())) {
-      assertThat(AvroSchemaUtil.hasIds(reader.getSchema())).isFalse();
+      assertThat(AvroTestHelpers.hasIds(reader.getSchema())).isFalse();
     }
   }
 
   private void writeParquetWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = RemoveIds.removeIds(schema);
+    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
 
     Path tempFile = Files.createTempFile("iceberg-test-no-ids-", ".parquet");
     Files.deleteIfExists(tempFile);
@@ -1136,7 +1088,7 @@ public abstract class BaseFormatModelTests<T> {
                   new org.apache.hadoop.fs.Path(tempFile.toUri()))
               .withDataModel(GenericData.get())
               .withSchema(avroSchemaWithoutIds)
-              .withConf(new org.apache.hadoop.conf.Configuration())
+              .withConf(new Configuration())
               .build()) {
         for (Record record : records) {
           GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
@@ -1151,8 +1103,7 @@ public abstract class BaseFormatModelTests<T> {
       try (ParquetFileReader reader =
           ParquetFileReader.open(
               HadoopInputFile.fromPath(
-                  new org.apache.hadoop.fs.Path(tempFile.toUri()),
-                  new org.apache.hadoop.conf.Configuration()))) {
+                  new org.apache.hadoop.fs.Path(tempFile.toUri()), new Configuration()))) {
         assertThat(ParquetSchemaUtil.hasIds(reader.getFooter().getFileMetaData().getSchema()))
             .isFalse();
       }
@@ -1168,7 +1119,7 @@ public abstract class BaseFormatModelTests<T> {
 
   private void writeOrcWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
     TypeDescription typeWithIds = ORCSchemaUtil.convert(schema);
-    TypeDescription typeWithoutIds = ORCSchemaUtil.removeIds(typeWithIds);
+    TypeDescription typeWithoutIds = TestORCSchemaUtil.removeIds(typeWithIds);
 
     Configuration conf = new Configuration();
     OrcFile.WriterOptions options =
@@ -1198,7 +1149,7 @@ public abstract class BaseFormatModelTests<T> {
       }
 
       try (Reader reader = OrcFile.createReader(hadoopPath, OrcFile.readerOptions(conf))) {
-        assertThat(ORCSchemaUtil.hasIds(reader.getSchema())).isFalse();
+        assertThat(TestORCSchemaUtil.hasIds(reader.getSchema())).isFalse();
       }
 
       byte[] bytes = Files.readAllBytes(tempFile);
@@ -1220,22 +1171,24 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
-    List<Record> expectedGenericRecords =
-        genericRecords.stream()
-            .map(
-                record -> {
-                  Record expected = GenericRecord.create(readSchema);
-                  expected.setField(columnName, promoteValue.apply(record.getField(columnName)));
-                  return expected;
-                })
-            .toList();
-
-    readAndAssertEngineRecords(fileFormat, readSchema, expectedGenericRecords);
+    readAndAssertEngineRecords(
+        fileFormat,
+        readSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(readSchema);
+          expected.setField(columnName, promoteValue.apply(record.getField(columnName)));
+          return expected;
+        });
   }
 
   private void readAndAssertEngineRecords(
-      FileFormat fileFormat, Schema readSchema, List<Record> expectedGenericRecords)
+      FileFormat fileFormat,
+      Schema readSchema,
+      List<Record> sourceRecords,
+      Function<Record, Record> converter)
       throws IOException {
+    List<Record> expectedGenericRecords = sourceRecords.stream().map(converter).toList();
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<T> readRecords;
     try (CloseableIterable<T> reader =

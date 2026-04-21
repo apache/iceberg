@@ -560,4 +560,12 @@ public class TestORCSchemaUtil {
 
     return true;
   }
+
+  public static TypeDescription removeIds(TypeDescription type) {
+    return ORCSchemaUtil.removeIds(type);
+  }
+
+  public static boolean hasIds(TypeDescription orcSchema) {
+    return ORCSchemaUtil.hasIds(orcSchema);
+  }
 }

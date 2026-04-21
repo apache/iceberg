@@ -515,11 +515,11 @@ public final class ORCSchemaUtil {
     return true;
   }
 
-  public static TypeDescription removeIds(TypeDescription type) {
+  static TypeDescription removeIds(TypeDescription type) {
     return OrcSchemaVisitor.visit(type, new RemoveIds());
   }
 
-  public static boolean hasIds(TypeDescription orcSchema) {
+  static boolean hasIds(TypeDescription orcSchema) {
     return OrcSchemaVisitor.visit(orcSchema, new HasIds());
   }
 
