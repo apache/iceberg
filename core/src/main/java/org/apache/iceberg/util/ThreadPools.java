@@ -303,16 +303,12 @@ public class ThreadPools {
     /** Shut down all registered thread pools. */
     private synchronized void shutdownAll() {
       long startTime = System.nanoTime();
-      List<ExecutorServiceWithTimeout> pendingShutdown = Lists.newArrayList();
 
       for (ExecutorServiceWithTimeout item : threadPoolsToShutdown) {
         item.service().shutdown();
-        pendingShutdown.add(item);
       }
 
-      threadPoolsToShutdown.clear();
-
-      for (ExecutorServiceWithTimeout item : pendingShutdown) {
+      for (ExecutorServiceWithTimeout item : threadPoolsToShutdown) {
         long timeElapsed = System.nanoTime() - startTime;
         long remainingTime = item.timeout().toNanos() - timeElapsed;
         if (remainingTime > 0) {
@@ -327,6 +323,8 @@ public class ThreadPools {
           item.service().shutdownNow();
         }
       }
+
+      threadPoolsToShutdown.clear();
     }
   }
 
