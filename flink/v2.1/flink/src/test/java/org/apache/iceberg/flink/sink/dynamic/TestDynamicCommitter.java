@@ -618,8 +618,7 @@ class TestDynamicCommitter {
     // Two committables, one for each snapshot / table / branch.
     assertThat(table.snapshots()).hasSize(2);
 
-    Snapshot snapshot1 = Iterables.getFirst(table.snapshots(), null);
-    assertThat(snapshot1.snapshotId()).isEqualTo(table.refs().get("branch1").snapshotId());
+    Snapshot snapshot1 = table.snapshot(table.refs().get("branch1").snapshotId());
     assertThat(snapshot1.summary())
         .containsAllEntriesOf(
             ImmutableMap.<String, String>builder()
@@ -637,8 +636,7 @@ class TestDynamicCommitter {
                 .put("total-records", "66")
                 .build());
 
-    Snapshot snapshot2 = Iterables.get(table.snapshots(), 1);
-    assertThat(snapshot2.snapshotId()).isEqualTo(table.refs().get("branch2").snapshotId());
+    Snapshot snapshot2 = table.snapshot(table.refs().get("branch2").snapshotId());
     assertThat(snapshot2.summary())
         .containsAllEntriesOf(
             ImmutableMap.<String, String>builder()
