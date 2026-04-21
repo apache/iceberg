@@ -308,6 +308,9 @@ public class ThreadPools {
         item.service().shutdown();
       }
 
+      threadPoolsToShutdown.sort(
+          (a, b) -> Long.compare(a.timeout().toNanos(), b.timeout().toNanos()));
+
       for (ExecutorServiceWithTimeout item : threadPoolsToShutdown) {
         long timeElapsed = System.nanoTime() - startTime;
         long remainingTime = item.timeout().toNanos() - timeElapsed;
