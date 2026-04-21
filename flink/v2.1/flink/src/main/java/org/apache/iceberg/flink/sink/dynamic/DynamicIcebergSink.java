@@ -243,7 +243,7 @@ public class DynamicIcebergSink
     private long cacheRefreshMs = 1_000;
     private int inputSchemasPerTableCacheMaximumSize = 10;
     private boolean caseSensitive = true;
-    @Nullable private SlotSharingGroup generatorAndForwardSinkSlotSharingGroup;
+    @Nullable private SlotSharingGroup generatorSlotSharingGroup;
     @Nullable private SlotSharingGroup shuffeSinkSlotSharingGroup;
 
     Builder() {}
@@ -320,8 +320,8 @@ public class DynamicIcebergSink
       return this;
     }
 
-    public Builder<T> generatorAndForwardSinkSlotSharingGroup(SlotSharingGroup ssg) {
-      generatorAndForwardSinkSlotSharingGroup = ssg;
+    public Builder<T> generatorSlotSharingGroup(SlotSharingGroup ssg) {
+      generatorSlotSharingGroup = ssg;
       return this;
     }
 
@@ -460,8 +460,8 @@ public class DynamicIcebergSink
               .setParallelism(converted.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-forward-writer"));
 
-      if (generatorAndForwardSinkSlotSharingGroup != null) {
-        forwardWriteResults.slotSharingGroup(generatorAndForwardSinkSlotSharingGroup);
+      if (generatorSlotSharingGroup != null) {
+        forwardWriteResults.slotSharingGroup(generatorSlotSharingGroup);
       }
 
       // Inject forward write results into sink — they'll be unioned in addPreCommitTopology
@@ -525,8 +525,8 @@ public class DynamicIcebergSink
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
-      if (generatorAndForwardSinkSlotSharingGroup != null) {
-        converted.slotSharingGroup(generatorAndForwardSinkSlotSharingGroup);
+      if (generatorSlotSharingGroup != null) {
+        converted.slotSharingGroup(generatorSlotSharingGroup);
       }
 
       DynamicIcebergSink sink = build(converted, sideOutputType);

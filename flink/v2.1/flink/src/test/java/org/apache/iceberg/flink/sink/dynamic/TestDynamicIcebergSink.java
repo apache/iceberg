@@ -348,11 +348,11 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
             .setTaskHeapMemory(shuffleSinkMemorySize)
             .build();
 
-    MemorySize generatorAndForwardSinkMemorySize = new MemorySize(456);
-    SlotSharingGroup generatorAndForwardSinkSSG =
-        SlotSharingGroup.newBuilder("generator-and-forward-ssg")
+    MemorySize generatorMemorySize = new MemorySize(456);
+    SlotSharingGroup generatorSSG =
+        SlotSharingGroup.newBuilder("generator-ssg")
             .setCpuCores(456)
-            .setTaskHeapMemory(generatorAndForwardSinkMemorySize)
+            .setTaskHeapMemory(generatorMemorySize)
             .build();
 
     DynamicIcebergSink.forInput(dataStream)
@@ -360,7 +360,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         .catalogLoader(CATALOG_EXTENSION.catalogLoader())
         .immediateTableUpdate(false)
         .shuffleSinkSlotSharingGroup(shuffleSinkSSG)
-        .generatorAndForwardSinkSlotSharingGroup(generatorAndForwardSinkSSG)
+        .generatorSlotSharingGroup(generatorSSG)
         .append();
 
     List<JobVertex> vertices =
@@ -377,7 +377,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                         .getResourceProfile()
                         .getTaskHeapMemory()
                         .equals(shuffleSinkMemorySize));
-    boolean generatorAndForwardWriterSSGApplied =
+    boolean generatorSSGApplied =
         vertices.stream()
             .filter(vertex -> vertex.getName() != null && vertex.getName().contains("generator"))
             .anyMatch(
@@ -386,10 +386,10 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                         .getSlotSharingGroup()
                         .getResourceProfile()
                         .getTaskHeapMemory()
-                        .equals(generatorAndForwardSinkMemorySize));
+                        .equals(generatorMemorySize));
 
     assertThat(shufflingWriterSSGApplied).isTrue();
-    assertThat(generatorAndForwardWriterSSGApplied).isTrue();
+    assertThat(generatorSSGApplied).isTrue();
   }
 
   @Test
