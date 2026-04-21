@@ -150,7 +150,8 @@ class TestTableSerializerCache {
           }
         };
 
-    TableSerializerCache tableSerializerCache = new TableSerializerCache(closeableCatalogLoader, 10);
+    TableSerializerCache tableSerializerCache =
+        new TableSerializerCache(closeableCatalogLoader, 10);
 
     Tuple3<RowDataSerializer, Schema, PartitionSpec> serializerWithSchemaAndSpec =
         tableSerializerCache.serializerWithSchemaAndSpec(
