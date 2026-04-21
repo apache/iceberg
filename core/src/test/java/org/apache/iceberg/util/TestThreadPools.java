@@ -38,14 +38,22 @@ class TestThreadPools {
   }
 
   @Test
-  void testRemoveShutdownHook() {
+  void removeShutdownHook() {
     assertThat(ThreadPools.isShutdownHookRegistered()).isTrue();
     ThreadPools.removeShutdownHook();
     assertThat(ThreadPools.isShutdownHookRegistered()).isFalse();
   }
 
   @Test
-  void testNewExitingWorkerPoolShutdown() {
+  void staticPoolsAreShutdown() {
+    ThreadPools.shutdownThreadPools();
+
+    assertThat(ThreadPools.getWorkerPool().isShutdown()).isTrue();
+    assertThat(ThreadPools.getDeleteWorkerPool().isShutdown()).isTrue();
+  }
+
+  @Test
+  void newExitingWorkerPoolShutdown() {
     ExecutorService pool = ThreadPools.newExitingWorkerPool("test-exiting-pool", 2);
 
     ThreadPools.shutdownThreadPools();
@@ -54,7 +62,7 @@ class TestThreadPools {
   }
 
   @Test
-  void testMultipleExitingPoolsShutdown() {
+  void multipleExitingPoolsShutdown() {
     ExecutorService pool1 = ThreadPools.newExitingWorkerPool("test-pool-1", 1);
     ExecutorService pool2 = ThreadPools.newExitingWorkerPool("test-pool-2", 1);
 
@@ -65,7 +73,7 @@ class TestThreadPools {
   }
 
   @Test
-  void testExitingScheduledPoolShutdown() {
+  void exitingScheduledPoolShutdown() {
     ExecutorService scheduled =
         ThreadPools.newExitingScheduledPool("test-scheduled", 1, Duration.ofSeconds(5));
 
@@ -75,7 +83,7 @@ class TestThreadPools {
   }
 
   @Test
-  void testShutdownThreadPoolsInterruptsRunningTasks() throws Exception {
+  void shutdownThreadPoolsInterruptsRunningTasks() throws Exception {
     final AtomicBoolean interrupted = new AtomicBoolean(false);
     // Use a short termination timeout so shutdownThreadPools will call shutdownNow
     ExecutorService slowPool =
