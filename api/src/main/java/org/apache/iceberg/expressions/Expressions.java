@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -39,6 +41,8 @@ public class Expressions {
       return right;
     } else if (right == alwaysTrue()) {
       return left;
+    } else if (isContradiction(left, right)) {
+      return alwaysFalse();
     }
     return new And(left, right);
   }
@@ -278,6 +282,150 @@ public class Expressions {
 
   public static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr) {
     return new UnboundPredicate<>(op, expr);
+  }
+
+  /**
+   * Checks whether two expressions form a logical contradiction (always false when ANDed).
+   *
+   * <p>Detects patterns like {@code col == 'a' AND col != 'a'} or {@code col == 'a' AND col ==
+   * 'b'} that can never be satisfied. This enables early pruning of scans that would otherwise plan
+   * file tasks only to discard every row.
+   */
+  private static boolean isContradiction(Expression left, Expression right) {
+    // Both are simple predicates
+    if (left instanceof Predicate && right instanceof Predicate) {
+      return arePredicatesContradictory(left, right);
+    }
+
+    // Left is And, right is a predicate: contradiction if right contradicts any leaf of left
+    if (left instanceof And && right instanceof Predicate) {
+      And and = (And) left;
+      return isContradiction(and.left(), right) || isContradiction(and.right(), right);
+    }
+
+    // Right is And, left is a predicate: symmetric case
+    if (right instanceof And && left instanceof Predicate) {
+      And and = (And) right;
+      return isContradiction(left, and.left()) || isContradiction(left, and.right());
+    }
+
+    return false;
+  }
+
+  private static boolean arePredicatesContradictory(Expression left, Expression right) {
+    // Bound literal vs bound literal (post-binding path)
+    if (left instanceof BoundLiteralPredicate && right instanceof BoundLiteralPredicate) {
+      return areBoundLiteralsContradictory(
+          (BoundLiteralPredicate<?>) left, (BoundLiteralPredicate<?>) right);
+    }
+
+    // Bound literal vs bound set (e.g., EQ vs NOT_IN)
+    if (left instanceof BoundLiteralPredicate && right instanceof BoundSetPredicate) {
+      return isBoundLiteralSetContradiction(
+          (BoundLiteralPredicate<?>) left, (BoundSetPredicate<?>) right);
+    }
+
+    if (left instanceof BoundSetPredicate && right instanceof BoundLiteralPredicate) {
+      return isBoundLiteralSetContradiction(
+          (BoundLiteralPredicate<?>) right, (BoundSetPredicate<?>) left);
+    }
+
+    // Unbound predicates (pre-binding path, used by SparkScanBuilder)
+    if (left instanceof UnboundPredicate && right instanceof UnboundPredicate) {
+      return areUnboundContradictory(
+          (UnboundPredicate<?>) left, (UnboundPredicate<?>) right);
+    }
+
+    return false;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static boolean areBoundLiteralsContradictory(
+      BoundLiteralPredicate<?> left, BoundLiteralPredicate<?> right) {
+    if (left.ref().fieldId() != right.ref().fieldId()) {
+      return false;
+    }
+
+    Comparator<Object> cmp = (Comparator<Object>) left.literal().comparator();
+    int comparison = cmp.compare(left.literal().value(), right.literal().value());
+
+    Operation leftOp = left.op();
+    Operation rightOp = right.op();
+
+    // EQ(col, a) AND NOT_EQ(col, a) with same value
+    if (comparison == 0) {
+      return (leftOp == Operation.EQ && rightOp == Operation.NOT_EQ)
+          || (leftOp == Operation.NOT_EQ && rightOp == Operation.EQ);
+    }
+
+    // EQ(col, a) AND EQ(col, b) with different values
+    return leftOp == Operation.EQ && rightOp == Operation.EQ;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static boolean isBoundLiteralSetContradiction(
+      BoundLiteralPredicate<?> literal, BoundSetPredicate<?> set) {
+    if (literal.ref().fieldId() != set.ref().fieldId()) {
+      return false;
+    }
+
+    Object value = literal.literal().value();
+
+    // EQ(col, val) AND NOT_IN(col, {val, ...}) => false
+    if (literal.op() == Operation.EQ && set.op() == Operation.NOT_IN) {
+      return set.literalSet().contains(value);
+    }
+
+    // EQ(col, val) AND IN(col, set) where val not in set => false
+    if (literal.op() == Operation.EQ && set.op() == Operation.IN) {
+      return !set.literalSet().contains(value);
+    }
+
+    return false;
+  }
+
+  private static boolean areUnboundContradictory(
+      UnboundPredicate<?> left, UnboundPredicate<?> right) {
+    // Only handle simple column references, not transforms
+    if (!(left.term() instanceof NamedReference) || !(right.term() instanceof NamedReference)) {
+      return false;
+    }
+
+    String leftName = ((NamedReference<?>) left.term()).name();
+    String rightName = ((NamedReference<?>) right.term()).name();
+    if (!leftName.equals(rightName)) {
+      return false;
+    }
+
+    // Both must have literals
+    if (left.literals() == null || right.literals() == null) {
+      return false;
+    }
+
+    Operation leftOp = left.op();
+    Operation rightOp = right.op();
+    boolean leftIsSingle = leftOp != Operation.IN && leftOp != Operation.NOT_IN;
+    boolean rightIsSingle = rightOp != Operation.IN && rightOp != Operation.NOT_IN;
+
+    if (leftIsSingle && rightIsSingle) {
+      Object leftVal = left.literal().value();
+      Object rightVal = right.literal().value();
+      boolean sameValue = Objects.equals(leftVal, rightVal);
+
+      // EQ AND NOT_EQ with same value
+      if (sameValue
+          && ((leftOp == Operation.EQ && rightOp == Operation.NOT_EQ)
+              || (leftOp == Operation.NOT_EQ && rightOp == Operation.EQ))) {
+        return true;
+      }
+
+      // EQ AND EQ with different values
+      if (!sameValue && leftOp == Operation.EQ && rightOp == Operation.EQ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   public static True alwaysTrue() {

@@ -279,6 +279,125 @@ public class TestExpressionHelpers {
         .hasMessage("Cannot create expression literal from NaN");
   }
 
+  @Test
+  public void testContradictionUnboundEqAndNotEq() {
+    // col == 'a' AND col != 'a' => alwaysFalse
+    assertThat(and(equal("x", 5), notEqual("x", 5)))
+        .as("EQ and NOT_EQ on same column with same value should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+
+    // symmetric
+    assertThat(and(notEqual("x", 5), equal("x", 5)))
+        .as("NOT_EQ and EQ on same column with same value should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testContradictionUnboundEqAndEqDifferentValues() {
+    // col == 5 AND col == 10 => alwaysFalse
+    assertThat(and(equal("x", 5), equal("x", 10)))
+        .as("EQ and EQ on same column with different values should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testContradictionUnboundStringValues() {
+    // col == 'desktop' AND col != 'desktop' => alwaysFalse
+    assertThat(and(equal("service_name", "desktop"), notEqual("service_name", "desktop")))
+        .as("EQ and NOT_EQ on same string column with same value should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+
+    // col == 'desktop' AND col == 'webapp' => alwaysFalse
+    assertThat(and(equal("service_name", "desktop"), equal("service_name", "webapp")))
+        .as("EQ and EQ on same string column with different values should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testNoContradictionDifferentColumns() {
+    // Different columns should not be detected as contradiction
+    Expression result = and(equal("x", 5), notEqual("y", 5));
+    assertThat(result).as("Different columns should not be a contradiction").isInstanceOf(And.class);
+  }
+
+  @Test
+  public void testNoContradictionSameColumnCompatible() {
+    // col == 5 AND col != 10 is satisfiable
+    Expression result = and(equal("x", 5), notEqual("x", 10));
+    assertThat(result).as("EQ and NOT_EQ with different values is satisfiable").isInstanceOf(And.class);
+
+    // col == 5 AND col == 5 is satisfiable (redundant but not contradictory)
+    result = and(equal("x", 5), equal("x", 5));
+    assertThat(result).as("EQ and EQ with same value is not a contradiction").isInstanceOf(And.class);
+  }
+
+  @Test
+  public void testContradictionNestedAnd() {
+    // (col == 5 AND col > 0) AND col != 5 => alwaysFalse
+    // because col == 5 AND col != 5 is a contradiction
+    Expression nested = and(equal("x", 5), greaterThan("x", 0));
+    assertThat(and(nested, notEqual("x", 5)))
+        .as("Contradiction should be detected through nested AND")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testContradictionBoundPredicates() {
+    StructType struct = StructType.of(
+        NestedField.required(1, "x", Types.IntegerType.get()),
+        NestedField.required(2, "s", Types.StringType.get()));
+
+    // Bind predicates first, then AND them
+    Expression boundEq = Binder.bind(struct, equal("x", 5));
+    Expression boundNotEq = Binder.bind(struct, notEqual("x", 5));
+    assertThat(and(boundEq, boundNotEq))
+        .as("Bound EQ and NOT_EQ on same field should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+
+    // Different values
+    Expression boundEq5 = Binder.bind(struct, equal("x", 5));
+    Expression boundEq10 = Binder.bind(struct, equal("x", 10));
+    assertThat(and(boundEq5, boundEq10))
+        .as("Bound EQ and EQ with different values should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testContradictionBoundEqAndNotIn() {
+    StructType struct = StructType.of(
+        NestedField.required(1, "x", Types.IntegerType.get()));
+
+    Expression boundEq = Binder.bind(struct, equal("x", 5));
+    Expression boundNotIn = Binder.bind(struct, notIn("x", 5, 10, 15));
+    assertThat(and(boundEq, boundNotIn))
+        .as("Bound EQ(5) and NOT_IN({5, 10, 15}) should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testContradictionBoundEqAndInWithoutValue() {
+    StructType struct = StructType.of(
+        NestedField.required(1, "x", Types.IntegerType.get()));
+
+    Expression boundEq = Binder.bind(struct, equal("x", 5));
+    Expression boundIn = Binder.bind(struct, in("x", 10, 15, 20));
+    assertThat(and(boundEq, boundIn))
+        .as("Bound EQ(5) and IN({10, 15, 20}) should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testNoContradictionBoundEqAndInWithValue() {
+    StructType struct = StructType.of(
+        NestedField.required(1, "x", Types.IntegerType.get()));
+
+    Expression boundEq = Binder.bind(struct, equal("x", 5));
+    Expression boundIn = Binder.bind(struct, in("x", 5, 10, 15));
+    assertThat(and(boundEq, boundIn))
+        .as("Bound EQ(5) and IN({5, 10, 15}) is satisfiable")
+        .isInstanceOf(And.class);
+  }
+
   private <T> UnboundTerm<T> self(String name) {
     return new UnboundTransform<>(ref(name), Transforms.identity());
   }
