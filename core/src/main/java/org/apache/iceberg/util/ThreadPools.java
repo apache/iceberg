@@ -195,8 +195,7 @@ public class ThreadPools {
           Executors.defaultThreadFactory()
               .newThread(
                   () -> {
-                    shutdownHook = null;
-                    shutdownThreadPools();
+                    THREAD_POOL_MANAGER.shutdownAll();
                   });
 
       try {
