@@ -2293,6 +2293,7 @@ components:
           type: boolean
         doc:
           type: string
+          nullable: true
         initial-default:
           $ref: "#/components/schemas/PrimitiveTypeValue"
         write-default:
