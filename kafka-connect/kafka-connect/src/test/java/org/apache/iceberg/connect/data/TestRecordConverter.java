@@ -904,6 +904,12 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testConvertVariantValuePassThrough() {
+    Variant original = variantConverter().convertVariantValue("hello");
+    assertThat(variantConverter().convertVariantValue(original)).isSameAs(original);
+  }
+
+  @Test
   public void testConvertVariantValueFromPrimitiveString() {
     Variant variant = variantConverter().convertVariantValue("hello");
     assertThat(variant).isNotNull();

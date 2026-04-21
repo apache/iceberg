@@ -480,8 +480,8 @@ class RecordConverter {
   }
 
   protected Variant convertVariantValue(Object value) {
-    if (value instanceof ByteBuffer) {
-      return Variant.from((ByteBuffer) value);
+    if (value instanceof Variant variant) {
+      return variant;
     }
 
     Set<String> fieldNames = Sets.newHashSet();
