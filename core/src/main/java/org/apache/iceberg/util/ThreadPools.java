@@ -216,7 +216,7 @@ public class ThreadPools {
   }
 
   /**
-   * Stop the shutdown hook for the thread pools created via the {@link
+   * Remove the shutdown hook for the thread pools created via the {@link
    * #newExitingWorkerPool(String, int)}.
    *
    * <p>Thread pools can still be stopped manually via the {@link #shutdownThreadPools()} method.
