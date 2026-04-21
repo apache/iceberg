@@ -52,14 +52,12 @@ public class ThreadPools {
 
   private static final ThreadPoolManager THREAD_POOL_MANAGER = new ThreadPoolManager();
 
-  private static final ExecutorService WORKER_POOL =
-      newExitingWorkerPool("iceberg-worker-pool", WORKER_THREAD_POOL_SIZE);
+  private static ExecutorService WORKER_POOL = createWorkerPool();
 
   public static final int DELETE_WORKER_THREAD_POOL_SIZE =
       SystemConfigs.DELETE_WORKER_THREAD_POOL_SIZE.value();
 
-  private static final ExecutorService DELETE_WORKER_POOL =
-      newExitingWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
+  private static ExecutorService DELETE_WORKER_POOL = createDeleteWorkerPool();
 
   public static final int AUTH_REFRESH_THREAD_POOL_SIZE =
       SystemConfigs.AUTH_REFRESH_THREAD_POOL_SIZE.value();
@@ -67,7 +65,7 @@ public class ThreadPools {
   private static Thread shutdownHook;
 
   static {
-    initShutdownHook();
+    init();
   }
 
   /**
@@ -191,7 +189,7 @@ public class ThreadPools {
    */
   @SuppressWarnings("ShutdownHook")
   @VisibleForTesting
-  static synchronized void initShutdownHook() {
+  static synchronized void init() {
     if (shutdownHook == null) {
       shutdownHook =
           Executors.defaultThreadFactory()
@@ -212,6 +210,12 @@ public class ThreadPools {
       } catch (SecurityException e) {
         LOG.warn("Cannot install a shutdown hook for thread pools clean up", e);
       }
+    }
+    if (null == WORKER_POOL || WORKER_POOL.isShutdown()) {
+      WORKER_POOL = createWorkerPool();
+    }
+    if (null == DELETE_WORKER_POOL || DELETE_WORKER_POOL.isShutdown()) {
+      DELETE_WORKER_POOL = createDeleteWorkerPool();
     }
   }
 
@@ -328,4 +332,12 @@ public class ThreadPools {
   }
 
   private record ExecutorServiceWithTimeout(ExecutorService service, Duration timeout) {}
+
+  private static ExecutorService createWorkerPool() {
+    return newExitingWorkerPool("iceberg-worker-pool", WORKER_THREAD_POOL_SIZE);
+  }
+
+  private static ExecutorService createDeleteWorkerPool() {
+    return newExitingWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
+  }
 }

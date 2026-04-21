@@ -33,8 +33,8 @@ import org.junit.jupiter.api.Timeout;
 class TestThreadPools {
 
   @AfterEach
-  void restoreShutdownHook() {
-    ThreadPools.initShutdownHook();
+  void restoreThreadPoolsState() {
+    ThreadPools.init();
   }
 
   @Test
@@ -46,6 +46,9 @@ class TestThreadPools {
 
   @Test
   void staticPoolsAreShutdown() {
+    assertThat(ThreadPools.getWorkerPool().isShutdown()).isFalse();
+    assertThat(ThreadPools.getDeleteWorkerPool().isShutdown()).isFalse();
+
     ThreadPools.shutdownThreadPools();
 
     assertThat(ThreadPools.getWorkerPool().isShutdown()).isTrue();
