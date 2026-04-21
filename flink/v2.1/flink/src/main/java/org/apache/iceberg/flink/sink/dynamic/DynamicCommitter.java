@@ -119,28 +119,28 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       DynamicWriteResultAggregator. Iceberg 1.12 will remove this, and users should upgrade to the 1.11 release first
       to migrate their state to a single commit request per checkpoint.
     */
-    Map<TableKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>> commitRequestMap =
-        Maps.newHashMap();
+    Map<CommitGroupKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>
+        commitRequestMap = Maps.newHashMap();
     for (CommitRequest<DynamicCommittable> request : commitRequests) {
       NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> committables =
           commitRequestMap.computeIfAbsent(
-              new TableKey(request.getCommittable()), unused -> Maps.newTreeMap());
+              new CommitGroupKey(request.getCommittable()), unused -> Maps.newTreeMap());
       committables
           .computeIfAbsent(request.getCommittable().checkpointId(), unused -> Lists.newArrayList())
           .add(request);
     }
 
-    for (Map.Entry<TableKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>> entry :
-        commitRequestMap.entrySet()) {
-      Table table = catalog.loadTable(TableIdentifier.parse(entry.getKey().tableName()));
-      DynamicCommittable last = entry.getValue().lastEntry().getValue().get(0).getCommittable();
-      Snapshot latestSnapshot = table.snapshot(entry.getKey().branch());
+    for (Map.Entry<CommitGroupKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>
+        entry : commitRequestMap.entrySet()) {
+      CommitGroupKey groupKey = entry.getKey();
+      Table table = catalog.loadTable(TableIdentifier.parse(groupKey.tableName()));
+      Snapshot latestSnapshot = table.snapshot(groupKey.branch());
       Iterable<Snapshot> ancestors =
           latestSnapshot != null
               ? SnapshotUtil.ancestorsOf(latestSnapshot.snapshotId(), table::snapshot)
               : List.of();
       long maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(ancestors, last.jobId(), last.operatorId());
+          getMaxCommittedCheckpointId(ancestors, groupKey.jobId(), groupKey.operatorId());
 
       NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> skippedCommitRequests =
           entry.getValue().headMap(maxCommittedCheckpointId, true);
@@ -155,7 +155,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           entry.getValue().tailMap(maxCommittedCheckpointId, false);
       if (!uncommitted.isEmpty()) {
         commitPendingRequests(
-            table, entry.getKey().branch(), uncommitted, last.jobId(), last.operatorId());
+            table, groupKey.branch(), uncommitted, groupKey.jobId(), groupKey.operatorId());
       }
     }
   }

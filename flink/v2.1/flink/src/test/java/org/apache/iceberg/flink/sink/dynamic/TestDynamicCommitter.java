@@ -327,6 +327,112 @@ class TestDynamicCommitter {
   }
 
   @Test
+  void testDedupsCommittablesTaggedWithPreviousJobIdAfterRestart() throws Exception {
+    // Reproduces duplication bug: after a stop-with-savepoint rescale, the committer's state
+    // contains a committable tagged with the previous Flink jobId alongside fresh committables
+    // tagged with the new jobId. Dedup must recognise that the previous-jobId committable's
+    // data is already present in the ancestor chain (stamped with the previous jobId) and skip it,
+    // otherwise the underlying data files are committed twice and rows are duplicated.
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    boolean overwriteMode = false;
+    int workerPoolSize = 1;
+    String uidPrefix = "uidPrefix";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    JobID previousJobId = JobID.generate();
+    DynamicCommitterMetrics previousCommitterMetrics = new DynamicCommitterMetrics(metricGroup);
+    DynamicCommitter previousCommitter =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            workerPoolSize,
+            uidPrefix,
+            previousCommitterMetrics);
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    TableKey tableKey = new TableKey(TABLE1, "branch");
+    // Operator id is stable across Flink job restarts, jobId is not.
+    final String operatorId = new OperatorID().toHexString();
+    final String previousJobIdStr = previousJobId.toHexString();
+    final int previousCheckpointId = 10;
+
+    byte[][] previousManifests =
+        aggregator.writeToManifests(
+            tableKey.tableName(), WRITE_RESULT_BY_SPEC, previousCheckpointId);
+
+    DynamicCommittable previousCommittable =
+        new DynamicCommittable(
+            tableKey, previousManifests, previousJobIdStr, operatorId, previousCheckpointId);
+    previousCommitter.commit(Sets.newHashSet(new MockCommitRequest<>(previousCommittable)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+
+    // Simulate the savepoint-driven restart: a new Flink jobId is assigned, yet the committer
+    // state replays the previous committable tagged with previousJobIdStr and adds a fresh
+    // committable for the next checkpoint tagged with newJobIdStr.
+    JobID newJobId = JobID.generate();
+    DynamicCommitterMetrics newCommitterMetrics = new DynamicCommitterMetrics(metricGroup);
+    DynamicCommitter newCommitter =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            workerPoolSize,
+            uidPrefix,
+            newCommitterMetrics);
+
+    final String newJobIdStr = newJobId.toHexString();
+    final int newCheckpointId = previousCheckpointId + 1;
+
+    byte[][] previousManifestsNew =
+        aggregator.writeToManifests(
+            tableKey.tableName(), WRITE_RESULT_BY_SPEC, previousCheckpointId);
+    byte[][] newManifests =
+        aggregator.writeToManifests(tableKey.tableName(), WRITE_RESULT_BY_SPEC_2, newCheckpointId);
+
+    CommitRequest<DynamicCommittable> replayedPreviousCommitRequest =
+        new MockCommitRequest<>(
+            new DynamicCommittable(
+                tableKey,
+                previousManifestsNew,
+                previousJobIdStr,
+                operatorId,
+                previousCheckpointId));
+    CommitRequest<DynamicCommittable> newCommitRequest =
+        new MockCommitRequest<>(
+            new DynamicCommittable(
+                tableKey, newManifests, newJobIdStr, operatorId, newCheckpointId));
+
+    newCommitter.commit(Sets.newHashSet(replayedPreviousCommitRequest, newCommitRequest));
+
+    table.refresh();
+    // Exactly two snapshots: the original one stamped with previousJobIdStr and the one added
+    // under newJobIdStr. Without the dedup fix the replayed committable would produce a third
+    // snapshot that re-adds the same data files, yielding duplicate rows.
+    assertThat(table.snapshots()).hasSize(2);
+
+    Snapshot first = Iterables.get(table.snapshots(), 0);
+    assertThat(first.summary())
+        .containsEntry("flink.job-id", previousJobIdStr)
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(previousCheckpointId))
+        .containsEntry("flink.operator-id", operatorId);
+
+    Snapshot second = Iterables.get(table.snapshots(), 1);
+    assertThat(second.summary())
+        .containsEntry("flink.job-id", newJobIdStr)
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(newCheckpointId))
+        .containsEntry("flink.operator-id", operatorId);
+  }
+
+  @Test
   void testCommitDeleteInDifferentFormatVersion() throws Exception {
     Table table1 = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table1.snapshots()).isEmpty();

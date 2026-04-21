@@ -18,19 +18,19 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.io.IOException;
 import java.util.Objects;
-import org.apache.flink.core.memory.DataInputView;
-import org.apache.flink.core.memory.DataOutputView;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-class TableKey {
+class CommitGroupKey {
   private final String tableName;
   private final String branch;
+  private final String jobId;
+  private final String operatorId;
 
-  TableKey(String tableName, String branch) {
-    this.tableName = tableName;
-    this.branch = branch;
+  CommitGroupKey(DynamicCommittable committable) {
+    this.tableName = committable.key().tableName();
+    this.branch = committable.key().branch();
+    this.jobId = committable.jobId();
+    this.operatorId = committable.operatorId();
   }
 
   String tableName() {
@@ -41,13 +41,12 @@ class TableKey {
     return branch;
   }
 
-  void serializeTo(DataOutputView view) throws IOException {
-    view.writeUTF(tableName);
-    view.writeUTF(branch);
+  String jobId() {
+    return jobId;
   }
 
-  static TableKey deserializeFrom(DataInputView view) throws IOException {
-    return new TableKey(view.readUTF(), view.readUTF());
+  String operatorId() {
+    return operatorId;
   }
 
   @Override
@@ -55,25 +54,17 @@ class TableKey {
     if (this == other) {
       return true;
     }
-
-    if (other == null || getClass() != other.getClass()) {
+    if (!(other instanceof CommitGroupKey that)) {
       return false;
     }
-
-    TableKey that = (TableKey) other;
-    return tableName.equals(that.tableName) && branch.equals(that.branch);
+    return tableName.equals(that.tableName)
+        && branch.equals(that.branch)
+        && Objects.equals(jobId, that.jobId)
+        && Objects.equals(operatorId, that.operatorId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(tableName, branch);
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("tableName", tableName)
-        .add("branch", branch)
-        .toString();
+    return Objects.hash(tableName, branch, jobId, operatorId);
   }
 }
