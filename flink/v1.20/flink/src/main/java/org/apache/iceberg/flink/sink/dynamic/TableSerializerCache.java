@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
@@ -52,7 +55,6 @@ class TableSerializerCache implements Serializable {
   private final CatalogLoader catalogLoader;
   private final int maximumSize;
   private transient Map<String, SerializerInfo> serializers;
-  private transient Catalog catalog;
 
   TableSerializerCache(CatalogLoader catalogLoader, int maximumSize) {
     this.catalogLoader = catalogLoader;
@@ -108,6 +110,16 @@ class TableSerializerCache implements Serializable {
     return maximumSize;
   }
 
+  private static void closeCatalog(Catalog catalog) {
+    if (catalog instanceof Closeable closeableCatalog) {
+      try {
+        closeableCatalog.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close catalog", e);
+      }
+    }
+  }
+
   private class SerializerInfo {
     private final String tableName;
     private final Map<Schema, RowDataSerializer> serializers;
@@ -122,13 +134,14 @@ class TableSerializerCache implements Serializable {
     }
 
     private void update() {
-      if (catalog == null) {
-        catalog = catalogLoader.loadCatalog();
+      Catalog loadedCatalog = catalogLoader.loadCatalog();
+      try {
+        Table table = loadedCatalog.loadTable(TableIdentifier.parse(tableName));
+        schemas = table.schemas();
+        specs = table.specs();
+      } finally {
+        closeCatalog(loadedCatalog);
       }
-
-      Table table = catalog.loadTable(TableIdentifier.parse(tableName));
-      schemas = table.schemas();
-      specs = table.specs();
     }
   }
 

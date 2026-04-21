@@ -25,6 +25,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.iceberg.types.Types.StringType;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Path;
+import java.util.Collections;
 import java.util.function.Supplier;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
@@ -32,13 +34,18 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 
 class TestTableSerializerCache {
+
+  @TempDir private Path tempDir;
 
   @RegisterExtension
   static final HadoopCatalogExtension CATALOG_EXTENSION = new HadoopCatalogExtension("db", "table");
@@ -120,5 +127,36 @@ class TestTableSerializerCache {
   void testCacheSize() {
     cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1000);
     assertThat(cache.maximumSize()).isEqualTo(1000);
+  }
+
+  @Test
+  void testSchemaLookupClosesCloseableCatalog() {
+    InMemoryCatalog closeableCatalog = new InMemoryCatalog();
+    closeableCatalog.initialize("test", Collections.singletonMap("warehouse", tempDir.toString()));
+    closeableCatalog.createNamespace(Namespace.of("db"));
+    Table table = closeableCatalog.createTable(TableIdentifier.of("db", "table"), schema1);
+
+    CatalogLoader closeableCatalogLoader =
+        new CatalogLoader() {
+          @Override
+          public Catalog loadCatalog() {
+            return closeableCatalog;
+          }
+
+          @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+          @Override
+          public CatalogLoader clone() {
+            return this;
+          }
+        };
+
+    TableSerializerCache tableSerializerCache = new TableSerializerCache(closeableCatalogLoader, 10);
+
+    Tuple3<RowDataSerializer, Schema, PartitionSpec> serializerWithSchemaAndSpec =
+        tableSerializerCache.serializerWithSchemaAndSpec(
+            "db.table", table.schema().schemaId(), table.spec().specId());
+
+    assertThat(serializerWithSchemaAndSpec).isNotNull();
+    assertThat(closeableCatalog.listNamespaces()).isEmpty();
   }
 }

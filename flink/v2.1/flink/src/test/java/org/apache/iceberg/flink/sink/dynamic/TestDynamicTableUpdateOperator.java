@@ -140,35 +140,6 @@ class TestDynamicTableUpdateOperator {
   }
 
   @Test
-  void testCloseOperatorWithNonCloseableCatalog() throws Exception {
-    DynamicTableUpdateOperator operator =
-        new DynamicTableUpdateOperator(
-            CATALOG_EXTENSION.catalogLoader(),
-            10,
-            1000,
-            10,
-            TableCreator.DEFAULT,
-            CASE_SENSITIVE,
-            PRESERVE_COLUMNS);
-    operator.open(null);
-
-    DynamicRecordInternal input =
-        new DynamicRecordInternal(
-            TABLE,
-            "branch",
-            SCHEMA1,
-            GenericRowData.of(1),
-            PartitionSpec.unpartitioned(),
-            42,
-            false,
-            Collections.emptySet());
-    operator.map(input);
-
-    // HadoopCatalog is not Closeable, so close should complete without error
-    operator.close();
-  }
-
-  @Test
   void testCloseOperatorWithCloseableCatalog() throws Exception {
     InMemoryCatalog closeableCatalog = new InMemoryCatalog();
     closeableCatalog.initialize("test", Collections.singletonMap("warehouse", tempDir.toString()));

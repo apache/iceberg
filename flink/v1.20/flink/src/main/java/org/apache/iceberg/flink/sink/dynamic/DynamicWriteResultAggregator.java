@@ -224,8 +224,8 @@ class DynamicWriteResultAggregator
   @Override
   public void close() throws Exception {
     super.close();
-    if (catalog instanceof Closeable) {
-      ((Closeable) catalog).close();
+    if (catalog instanceof Closeable rs) {
+      rs.close();
     }
   }
 }
