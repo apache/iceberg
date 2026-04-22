@@ -23,7 +23,7 @@ import java.util.Map;
 import org.apache.flink.annotation.Experimental;
 
 /**
- * Callback invoked after each successful Iceberg snapshot commit.
+ * Best-effort callback invoked after a successful Iceberg snapshot commit.
  *
  * <p>Implementations can react to committed snapshots for use cases such as:
  *
@@ -50,17 +50,28 @@ import org.apache.flink.annotation.Experimental;
  *       independently bootstrapping catalog access.
  * </ul>
  *
- * <p>{@code PostCommitHook} addresses all three: it is per-sink-instance scoped, lets the
- * implementer control error propagation, and runs inside {@code IcebergCommitter} where {@code
- * TableLoader} and the Flink checkpoint lifecycle are available.
+ * <p>{@code PostCommitHook} addresses the first and third limitations directly: it is
+ * per-sink-instance scoped and runs inside {@code IcebergCommitter} where {@code TableLoader} and
+ * the Flink checkpoint lifecycle are available. Unlike {@code Listeners}, the sink can also make
+ * hook failures explicit in its own logs.
+ *
+ * <p><b>Invocation semantics</b>
+ *
+ * <p>The hook is invoked inline after a commit becomes visible on the target branch. A single Flink
+ * checkpoint may produce multiple snapshots, in which case the hook may be invoked multiple times
+ * in commit order. Checkpoints that do not produce a snapshot do not invoke the hook.
  *
  * <p><b>Error semantics</b>
  *
  * <p>The hook is called after the Iceberg commit succeeds but before the Flink checkpoint
- * completes. If the hook throws an exception, the Flink checkpoint fails but the Iceberg commit has
- * already succeeded. On recovery, the committed checkpoint is detected via {@code
- * MAX_COMMITTED_CHECKPOINT_ID} in the snapshot summary and will not be re-committed. The hook will
- * <b>not</b> be re-invoked for that snapshot.
+ * completes. If the hook throws a {@link RuntimeException}, the sink logs the failure and ignores
+ * it so the successful Iceberg commit can still complete its normal cleanup path. The hook failure
+ * does not fail the Flink checkpoint and is not retried for an already-committed snapshot.
+ *
+ * <p>On recovery, committed checkpoints are detected via {@code MAX_COMMITTED_CHECKPOINT_ID} in the
+ * snapshot summary and will not be re-committed. If the process fails after the Iceberg commit
+ * succeeds but before the hook runs, the hook is not replayed for that snapshot. {@link Error}s
+ * thrown by the hook are not intercepted.
  */
 @Experimental
 @FunctionalInterface

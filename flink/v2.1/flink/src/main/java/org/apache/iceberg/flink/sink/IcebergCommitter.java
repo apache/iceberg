@@ -337,7 +337,17 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     if (postCommitHook != null) {
       Snapshot snapshot = table.snapshot(branch);
       if (snapshot != null) {
-        postCommitHook.afterCommit(snapshot.snapshotId(), snapshot.summary());
+        try {
+          postCommitHook.afterCommit(snapshot.snapshotId(), snapshot.summary());
+        } catch (RuntimeException e) {
+          LOG.warn(
+              "Ignoring PostCommitHook failure after committing {} to table: {}, branch: {}, checkpointId {}.",
+              description,
+              table.name(),
+              branch,
+              checkpointId,
+              e);
+        }
       }
     }
   }

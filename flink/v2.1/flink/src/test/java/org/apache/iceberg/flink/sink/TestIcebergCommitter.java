@@ -23,11 +23,12 @@ import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitt
 import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableWithLineage;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -118,6 +119,11 @@ class TestIcebergCommitter extends TestBase {
 
   private final String jobId = "jobId";
   private final long dataFIleRowCount = 5L;
+
+  // Mockito mock for the most recent committer created by getCommitter(). Exposed for tests that
+  // need to verify committer-metrics interactions (e.g., updateCommitSummary ran after a failing
+  // PostCommitHook).
+  private IcebergFilesCommitterMetrics lastCommitterMetrics;
 
   private final TestCommittableMessageTypeSerializer committableMessageTypeSerializer =
       new TestCommittableMessageTypeSerializer();
@@ -1323,7 +1329,7 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testPostCommitHookExceptionPropagates() throws Exception {
+  public void testPostCommitHookExceptionIsIgnored() throws Exception {
     PostCommitHook hook =
         (snapshotId, summary) -> {
           throw new RuntimeException("hook failure");
@@ -1336,15 +1342,30 @@ class TestIcebergCommitter extends TestBase {
     Committer.CommitRequest<IcebergCommittable> commitRequest =
         buildCommitRequestFor(jobId, 1, Lists.newArrayList(writeResult));
 
-    assertThatThrownBy(() -> committer.commit(Lists.newArrayList(commitRequest)))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessage("hook failure");
+    // Before commit: the write-aggregator produced a Flink-side manifest file that must be
+    // cleaned up after a successful Iceberg commit, even if the post-commit hook then throws.
+    assertFlinkManifests(1);
+
+    committer.commit(Lists.newArrayList(commitRequest));
+
+    // The Iceberg commit did succeed before the hook threw; the checkpoint is recorded.
+    assertMaxCommittedCheckpointId(jobId, 1);
+    assertSnapshotSize(1);
+
+    // Cleanup must still run even though the hook threw. Without the fix,
+    // FlinkManifestUtil.deleteCommittedManifests is skipped and the manifest file leaks
+    // permanently (on recovery the checkpoint is treated as already committed, so the cleanup
+    // path never re-runs).
+    assertFlinkManifests(0);
+
+    // Commit-summary metrics must also still run.
+    verify(lastCommitterMetrics).updateCommitSummary(any());
   }
 
   // ------------------------------- Utility Methods --------------------------------
 
   private IcebergCommitter getCommitter() {
-    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    lastCommitterMetrics = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
         branch,
@@ -1352,12 +1373,12 @@ class TestIcebergCommitter extends TestBase {
         false,
         10,
         "sinkId",
-        metric,
+        lastCommitterMetrics,
         false);
   }
 
   private IcebergCommitter getCommitter(PostCommitHook hook) {
-    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    lastCommitterMetrics = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
         branch,
@@ -1365,7 +1386,7 @@ class TestIcebergCommitter extends TestBase {
         false,
         10,
         "sinkId",
-        metric,
+        lastCommitterMetrics,
         false,
         hook);
   }
