@@ -35,11 +35,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
+import org.apache.flink.api.connector.sink2.mocks.MockCommitRequest;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MemorySize;
@@ -1175,6 +1177,44 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(totalAddedRecords).isEqualTo(records.size());
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testSkipsAlreadyCommittedDataAfterJobIdChanges(boolean overwriteMode) throws Exception {
+    TableIdentifier tableId = TableIdentifier.of(DATABASE, "t1");
+    List<DynamicIcebergDataImpl> records =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                tableId.name(),
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()));
+
+    DataFile seedDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/seed-data-1.parquet")
+            .withFileSizeInBytes(0)
+            .withRecordCount(1)
+            .build();
+
+    executeDynamicSink(
+        records, env, true, 1, new ReplayPreviousJobIdCommittableHook(seedDataFile), overwriteMode);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(tableId);
+
+    Snapshot mainSnapshot =
+        StreamSupport.stream(table.snapshots().spliterator(), false)
+            .filter(
+                s ->
+                    !ReplayPreviousJobIdCommittableHook.PREVIOUS_JOB_ID.equals(
+                        s.summary().get("flink.job-id")))
+            .filter(s -> s.summary().get("flink.job-id") != null)
+            .reduce((first, second) -> second)
+            .orElseThrow();
+    assertThat(mainSnapshot.summary())
+        .containsEntry("added-data-files", "1")
+        .containsEntry("added-records", String.valueOf(records.size()));
+  }
+
   @Test
   void testCommitsOncePerTableBranchAndCheckpoint() throws Exception {
     String tableName = "t1";
@@ -1544,6 +1584,59 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         commitRequests.clear();
         hasTriggered = true;
       }
+    }
+  }
+
+  /**
+   * Seeds an ancestor snapshot under a synthetic previous jobId and injects a replay committable
+   * tagged with that jobId into the main batch. The seed uses {@code table.newAppend()} directly
+   * rather than a side committer so the real committable's manifest stays intact.
+   */
+  static class ReplayPreviousJobIdCommittableHook implements CommitHook {
+    static final String PREVIOUS_JOB_ID = JobID.generate().toHexString();
+
+    private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+    private static final String FLINK_JOB_ID = "flink.job-id";
+    private static final String OPERATOR_ID = "flink.operator-id";
+
+    // Static to survive Flink operator serialization.
+    private static boolean hasTriggered = false;
+
+    private final DataFile seedDataFile;
+
+    ReplayPreviousJobIdCommittableHook(DataFile seedDataFile) {
+      this.seedDataFile = seedDataFile;
+      hasTriggered = false;
+    }
+
+    @Override
+    public void beforeCommit(Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
+      if (hasTriggered || requests.isEmpty()) {
+        return;
+      }
+
+      hasTriggered = true;
+      DynamicCommittable original = requests.iterator().next().getCommittable();
+
+      Table table =
+          CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.parse(original.key().tableName()));
+      table
+          .newAppend()
+          .appendFile(seedDataFile)
+          .set(FLINK_JOB_ID, PREVIOUS_JOB_ID)
+          .set(OPERATOR_ID, original.operatorId())
+          .set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(original.checkpointId()))
+          .toBranch(original.key().branch())
+          .commit();
+
+      DynamicCommittable replayed =
+          new DynamicCommittable(
+              original.key(),
+              original.manifests(),
+              PREVIOUS_JOB_ID,
+              original.operatorId(),
+              original.checkpointId());
+      requests.add(new MockCommitRequest<>(replayed));
     }
   }
 

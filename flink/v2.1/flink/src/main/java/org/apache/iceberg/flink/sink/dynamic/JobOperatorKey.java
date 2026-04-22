@@ -20,25 +20,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Objects;
 
-class CommitGroupKey {
-  private final String tableName;
-  private final String branch;
+class JobOperatorKey {
   private final String jobId;
   private final String operatorId;
 
-  CommitGroupKey(DynamicCommittable committable) {
-    this.tableName = committable.key().tableName();
-    this.branch = committable.key().branch();
+  JobOperatorKey(DynamicCommittable committable) {
     this.jobId = committable.jobId();
     this.operatorId = committable.operatorId();
-  }
-
-  String tableName() {
-    return tableName;
-  }
-
-  String branch() {
-    return branch;
   }
 
   String jobId() {
@@ -54,17 +42,16 @@ class CommitGroupKey {
     if (this == other) {
       return true;
     }
-    if (!(other instanceof CommitGroupKey that)) {
+
+    if (!(other instanceof JobOperatorKey that)) {
       return false;
     }
-    return tableName.equals(that.tableName)
-        && branch.equals(that.branch)
-        && Objects.equals(jobId, that.jobId)
-        && Objects.equals(operatorId, that.operatorId);
+
+    return jobId.equals(that.jobId) && operatorId.equals(that.operatorId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(tableName, branch, jobId, operatorId);
+    return Objects.hash(jobId, operatorId);
   }
 }

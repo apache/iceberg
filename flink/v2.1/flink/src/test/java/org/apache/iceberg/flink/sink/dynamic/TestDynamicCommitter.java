@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.connector.sink2.Committer.CommitRequest;
@@ -327,12 +328,7 @@ class TestDynamicCommitter {
   }
 
   @Test
-  void testDedupsCommittablesTaggedWithPreviousJobIdAfterRestart() throws Exception {
-    // Reproduces duplication bug: after a stop-with-savepoint rescale, the committer's state
-    // contains a committable tagged with the previous Flink jobId alongside fresh committables
-    // tagged with the new jobId. Dedup must recognise that the previous-jobId committable's
-    // data is already present in the ancestor chain (stamped with the previous jobId) and skip it,
-    // otherwise the underlying data files are committed twice and rows are duplicated.
+  void testSkipsAlreadyCommittedDataAfterJobIdChanges() throws Exception {
     Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table.snapshots()).isEmpty();
 
@@ -375,9 +371,6 @@ class TestDynamicCommitter {
     table.refresh();
     assertThat(table.snapshots()).hasSize(1);
 
-    // Simulate the savepoint-driven restart: a new Flink jobId is assigned, yet the committer
-    // state replays the previous committable tagged with previousJobIdStr and adds a fresh
-    // committable for the next checkpoint tagged with newJobIdStr.
     JobID newJobId = JobID.generate();
     DynamicCommitterMetrics newCommitterMetrics = new DynamicCommitterMetrics(metricGroup);
     DynamicCommitter newCommitter =
@@ -414,9 +407,6 @@ class TestDynamicCommitter {
     newCommitter.commit(Sets.newHashSet(replayedPreviousCommitRequest, newCommitRequest));
 
     table.refresh();
-    // Exactly two snapshots: the original one stamped with previousJobIdStr and the one added
-    // under newJobIdStr. Without the dedup fix the replayed committable would produce a third
-    // snapshot that re-adds the same data files, yielding duplicate rows.
     assertThat(table.snapshots()).hasSize(2);
 
     Snapshot first = Iterables.get(table.snapshots(), 0);
@@ -1081,8 +1071,9 @@ class TestDynamicCommitter {
     @Override
     public void commit(Collection<CommitRequest<DynamicCommittable>> commitRequests)
         throws IOException, InterruptedException {
-      commitHook.beforeCommit(commitRequests);
-      super.commit(commitRequests);
+      List<CommitRequest<DynamicCommittable>> mutableRequests = Lists.newArrayList(commitRequests);
+      commitHook.beforeCommit(mutableRequests);
+      super.commit(mutableRequests);
       commitHook.afterCommit();
     }
 
