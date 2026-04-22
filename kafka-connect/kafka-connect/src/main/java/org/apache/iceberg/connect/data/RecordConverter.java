@@ -39,6 +39,7 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.Temporal;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -484,49 +485,59 @@ class RecordConverter {
       return variant;
     }
 
-    Set<String> fieldNames = Sets.newHashSet();
-    collectFieldNames(value, fieldNames);
-    List<String> allFieldNames = fieldNames.stream().sorted().collect(Collectors.toList());
-    VariantMetadata metadata = Variants.metadata(allFieldNames);
-    VariantValue variantValue = objectToVariantValue(value, metadata, null);
-    return Variant.of(metadata, variantValue);
+    List<String> sortedFieldNames =
+        collectFieldNames(value).stream().sorted().collect(Collectors.toList());
+    VariantMetadata metadata = Variants.metadata(sortedFieldNames);
+    return Variant.of(metadata, objectToVariantValue(value, metadata, null));
   }
 
   /**
-   * Collects all field names (map keys) from the entire object tree into the given set. Used to
-   * build a single VariantMetadata for the whole Variant (required for nested maps).
+   * Recursively collects field names from collections, maps, and structs. Returns an empty set for
+   * null, scalar values, and empty maps, lists, or structs. Map keys must be strings; non-string
+   * keys cause IllegalArgumentException.
    */
-  private static void collectFieldNames(Object value, Set<String> names) {
+  private static Set<String> collectFieldNames(Object value) {
     if (value == null) {
-      return;
+      return Collections.emptySet();
     }
-    if (value instanceof Collection) {
-      for (Object element : (Collection<?>) value) {
-        collectFieldNames(element, names);
+    if (value instanceof Collection<?> collection) {
+      if (collection.isEmpty()) {
+        return Collections.emptySet();
       }
-      return;
-    }
-    if (value instanceof Map) {
-      Map<?, ?> map = (Map<?, ?>) value;
-      for (Map.Entry<?, ?> entry : map.entrySet()) {
-        Object key = entry.getKey();
-        if (key instanceof String) {
-          names.add((String) key);
-          collectFieldNames(entry.getValue(), names);
-        } else {
-          throw new IllegalArgumentException(
-              "Cannot convert map to variant: keys must be non-null strings, was: "
-                  + (key == null ? "null" : key.getClass().getName()));
-        }
+      Set<String> names = Sets.newHashSet();
+      collection.forEach(element -> names.addAll(collectFieldNames(element)));
+      return names;
+    } else if (value instanceof Map<?, ?> map) {
+      if (map.isEmpty()) {
+        return Collections.emptySet();
       }
-      return;
-    }
-    if (value instanceof Struct struct) {
-      for (Field field : struct.schema().fields()) {
-        names.add(field.name());
-        collectFieldNames(struct.get(field), names);
+      Set<String> names = Sets.newHashSet();
+      map.forEach(
+          (key, val) -> {
+            if (key instanceof String keyStr) {
+              names.add(keyStr);
+              names.addAll(collectFieldNames(val));
+            } else {
+              throw new IllegalArgumentException(
+                  "Cannot convert map to variant: keys must be non-null strings, was: "
+                      + (key == null ? "null" : key.getClass().getName()));
+            }
+          });
+      return names;
+    } else if (value instanceof Struct struct) {
+      List<Field> fields = struct.schema().fields();
+      if (fields.isEmpty()) {
+        return Collections.emptySet();
       }
+      Set<String> names = Sets.newHashSet();
+      fields.forEach(
+          field -> {
+            names.add(field.name());
+            names.addAll(collectFieldNames(struct.get(field)));
+          });
+      return names;
     }
+    return Collections.emptySet();
   }
 
   /**
