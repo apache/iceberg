@@ -1364,7 +1364,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-<<<<<<< HEAD
   void testGeneratorDefaultParallelism() {
     StreamExecutionEnvironment streamEnv = StreamExecutionEnvironment.getExecutionEnvironment();
     streamEnv.setParallelism(4);
@@ -1389,7 +1388,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
             .orElseThrow(() -> new AssertionError("Generator node not found"));
 
     assertThat(generatorParallelism).isEqualTo(source.getParallelism());
-=======
+  }
+
+  @Test
   void testFallBackParallelismFromConfig() throws Exception {
     List<DynamicIcebergDataImpl> rows =
         Lists.newArrayList(
@@ -1416,7 +1417,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     runTest(
         rows, this.env, true, 2, ImmutableMap.of(FlinkWriteOptions.WRITE_PARALLELISM.key(), "1"));
->>>>>>> b354ebcfbd (pr feedback)
   }
 
   private Set<String> createSinkAndReturnUIds(String uidPrefix) {
@@ -1637,7 +1637,14 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         Map<String, String> writeProperties,
         Configuration flinkConfig,
         DataStream<CommittableMessage<DynamicWriteResult>> forwardWritten) {
-      super(catalogLoader, snapshotProperties, uidPrefix, writeProperties, flinkConfig, 100, forwardWritten);
+      super(
+          catalogLoader,
+          snapshotProperties,
+          uidPrefix,
+          writeProperties,
+          flinkConfig,
+          100,
+          forwardWritten);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
     }

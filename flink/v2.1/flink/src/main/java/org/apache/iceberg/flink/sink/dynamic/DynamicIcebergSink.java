@@ -89,7 +89,6 @@ public class DynamicIcebergSink
       String uidPrefix,
       Map<String, String> writeProperties,
       Configuration flinkConfig,
-      Configuration flinkConfig,
       int cacheMaximumSize,
       DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults) {
     this.catalogLoader = catalogLoader;
