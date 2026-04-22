@@ -771,12 +771,10 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     stats.set(PartitionStatistics.DATA_FILE_COUNT_POSITION, 5);
     stats.set(PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 50000L);
 
-    List<PartitionStatistics> result =
-        PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
+    PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
 
-    assertThat(result).hasSize(1);
-    assertThat(result.get(0).totalRecords()).isEqualTo(1000L);
-    assertThat(result.get(0).dataRecordCount()).isEqualTo(1000L);
+    assertThat(stats.totalRecords()).isEqualTo(1000L);
+    assertThat(stats.dataRecordCount()).isEqualTo(1000L);
   }
 
   @Test
@@ -790,12 +788,10 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     stats.set(PartitionStatistics.DV_COUNT_POSITION, 3);
     // positionDeleteFileCount stays 0 (no V2 pos delete files, only DVs)
 
-    List<PartitionStatistics> result =
-        PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
+    PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
 
-    assertThat(result).hasSize(1);
     // total = data_record_count - position_delete_record_count = 1000 - 200 = 800
-    assertThat(result.get(0).totalRecords()).isEqualTo(800L);
+    assertThat(stats.totalRecords()).isEqualTo(800L);
   }
 
   @Test
@@ -808,12 +804,10 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     stats.set(PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION, 50L);
     stats.set(PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION, 1);
 
-    List<PartitionStatistics> result =
-        PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
+    PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
 
-    assertThat(result).hasSize(1);
     // total must be null — equality deletes make exact count impossible without scanning
-    assertThat(result.get(0).totalRecords()).isNull();
+    assertThat(stats.totalRecords()).isNull();
   }
 
   @Test
@@ -826,12 +820,10 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     stats.set(PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION, 100L);
     stats.set(PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION, 2);
 
-    List<PartitionStatistics> result =
-        PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
+    PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
 
-    assertThat(result).hasSize(1);
     // total must be null — V2 position delete files make exact count uncertain
-    assertThat(result.get(0).totalRecords()).isNull();
+    assertThat(stats.totalRecords()).isNull();
   }
 
   @Test
@@ -860,14 +852,12 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     withEqDeletes.set(PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION, 10L);
     withEqDeletes.set(PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION, 1);
 
-    List<PartitionStatistics> result =
-        PartitionStatsHandler.populateTotalRecordCount(
-            ImmutableList.of(noDeletes, onlyDVs, withEqDeletes));
+    List<PartitionStatistics> statsList = Lists.newArrayList(noDeletes, onlyDVs, withEqDeletes);
+    PartitionStatsHandler.populateTotalRecordCount(statsList);
 
-    assertThat(result).hasSize(3);
-    assertThat(result.get(0).totalRecords()).isEqualTo(500L);
-    assertThat(result.get(1).totalRecords()).isEqualTo(900L);
-    assertThat(result.get(2).totalRecords()).isNull();
+    assertThat(noDeletes.totalRecords()).isEqualTo(500L);
+    assertThat(onlyDVs.totalRecords()).isEqualTo(900L);
+    assertThat(withEqDeletes.totalRecords()).isNull();
   }
 
   @Test
@@ -881,18 +871,15 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     stats.set(PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION, 1); // V2 pos file
     stats.set(PartitionStatistics.DV_COUNT_POSITION, 2); // also has DVs
 
-    List<PartitionStatistics> result =
-        PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
+    PartitionStatsHandler.populateTotalRecordCount(Collections.singletonList(stats));
 
-    assertThat(result).hasSize(1);
     // total must be null — V2 position delete files present even though DVs exist
-    assertThat(result.get(0).totalRecords()).isNull();
+    assertThat(stats.totalRecords()).isNull();
   }
 
   @Test
   void testTotalRecordCountEmptyStats() {
-    List<PartitionStatistics> result =
-        PartitionStatsHandler.populateTotalRecordCount(Collections.emptyList());
-    assertThat(result).isEmpty();
+    PartitionStatsHandler.populateTotalRecordCount(Collections.emptyList());
+    // no exception expected
   }
 }

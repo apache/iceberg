@@ -166,6 +166,22 @@ public class BasePartitionStatistics extends SupportsIndexProjection
 
   @Override
   protected <T> void internalSet(int pos, T value) {
+    // Handle optional metadata fields first — these accept null
+    switch (pos) {
+      case TOTAL_RECORD_COUNT_POSITION:
+        this.totalRecordCount = (Long) value;
+        return;
+      case LAST_UPDATED_AT_POSITION:
+        this.lastUpdatedAt = (Long) value;
+        return;
+      case LAST_UPDATED_SNAPSHOT_ID_POSITION:
+        this.lastUpdatedSnapshotId = (Long) value;
+        return;
+      default:
+        break;
+    }
+
+    // For counter fields, null means "not present" — keep the 0-initialized default
     if (value == null) {
       return;
     }
@@ -197,15 +213,6 @@ public class BasePartitionStatistics extends SupportsIndexProjection
         break;
       case EQUALITY_DELETE_FILE_COUNT_POSITION:
         this.equalityDeleteFileCount = (int) value;
-        break;
-      case TOTAL_RECORD_COUNT_POSITION:
-        this.totalRecordCount = (Long) value;
-        break;
-      case LAST_UPDATED_AT_POSITION:
-        this.lastUpdatedAt = (Long) value;
-        break;
-      case LAST_UPDATED_SNAPSHOT_ID_POSITION:
-        this.lastUpdatedSnapshotId = (Long) value;
         break;
       case DV_COUNT_POSITION:
         this.dvCount = (int) value;
