@@ -21,12 +21,15 @@ package org.apache.spark.sql.catalyst.expressions.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
 import org.apache.iceberg.restrictions.Action;
 import org.apache.iceberg.restrictions.Actions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.Literal;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.types.BinaryType$;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Decimal;
@@ -34,6 +37,7 @@ import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.Test;
+import scala.jdk.javaapi.CollectionConverters;
 
 public class TestIcebergRestrictionExpressions {
 
@@ -45,6 +49,16 @@ public class TestIcebergRestrictionExpressions {
       org.apache.spark.sql.catalyst.expressions.Expression child,
       SerializableFunction<Object, Object> fn) {
     return new IcebergRestricted(child, fn);
+  }
+
+  private static UnsafeProjection codegenProjection(Expression expr) {
+    UnsafeProjection proj =
+        UnsafeProjection.create(
+            CollectionConverters.asScala(Arrays.<Expression>asList(expr)).toSeq());
+    // UnsafeProjection.create falls back to interpretation only if codegen compile fails;
+    // asserting the fallback wasn't used verifies the generated Java source is valid.
+    assertThat(proj.getClass().getSimpleName()).doesNotContain("Interpreted");
+    return proj;
   }
 
   @Test
@@ -148,5 +162,76 @@ public class TestIcebergRestrictionExpressions {
     IcebergRowFilterExpr filter =
         new IcebergRowFilterExpr(Literal.create(true, DataTypes.BooleanType));
     assertThat(filter.eval(InternalRow.empty())).isEqualTo(true);
+  }
+
+  @Test
+  public void codegenStringMaskMatchesEval() {
+    SerializableFunction<Object, Object> fn =
+        Actions.bind(new Action.MaskAlphanum(1), Types.StringType.get());
+    IcebergRestricted expr = restricted(str("prashant010696@gmail.com"), fn);
+    InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
+    assertThat(result.getUTF8String(0).toString()).isEqualTo("xxxxxxxxnnnnnn@xxxxx.xxx");
+  }
+
+  @Test
+  public void codegenIntegerMaskMatchesEval() {
+    SerializableFunction<Object, Object> fn =
+        Actions.bind(new Action.MaskToDefault(1), Types.IntegerType.get());
+    IcebergRestricted expr = restricted(Literal.create(42, DataTypes.IntegerType), fn);
+    InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
+    assertThat(result.getInt(0)).isEqualTo(999999999);
+  }
+
+  @Test
+  public void codegenLongMaskMatchesEval() {
+    SerializableFunction<Object, Object> fn =
+        Actions.bind(new Action.MaskToDefault(1), Types.LongType.get());
+    IcebergRestricted expr = restricted(Literal.create(42L, DataTypes.LongType), fn);
+    InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
+    assertThat(result.getLong(0)).isEqualTo(999999999L);
+  }
+
+  @Test
+  public void codegenBinaryMaskMatchesEval() {
+    SerializableFunction<Object, Object> fn =
+        Actions.bind(new Action.Sha256Global(1), Types.BinaryType.get());
+    IcebergRestricted expr =
+        restricted(Literal.create(new byte[] {1, 2, 3}, BinaryType$.MODULE$), fn);
+    InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
+    assertThat(result.getBinary(0)).hasSize(32);
+  }
+
+  @Test
+  public void codegenDecimalMaskMatchesEval() {
+    SerializableFunction<Object, Object> fn =
+        Actions.bind(new Action.MaskToDefault(1), Types.DecimalType.of(10, 2));
+    DecimalType sparkType = DecimalType.apply(10, 2);
+    IcebergRestricted expr = restricted(Literal.create(Decimal.apply(1234, 10, 2), sparkType), fn);
+    InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
+    assertThat(
+            result
+                .getDecimal(0, 10, 2)
+                .toBigDecimal()
+                .bigDecimal()
+                .unscaledValue()
+                .longValueExact())
+        .isEqualTo(0L);
+  }
+
+  @Test
+  public void codegenNullInputReturnsNull() {
+    SerializableFunction<Object, Object> fn =
+        Actions.bind(new Action.MaskAlphanum(1), Types.StringType.get());
+    IcebergRestricted expr = restricted(Literal.create(null, StringType$.MODULE$), fn);
+    InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
+    assertThat(result.isNullAt(0)).isTrue();
+  }
+
+  @Test
+  public void codegenRowFilterDelegatesToChild() {
+    IcebergRowFilterExpr filter =
+        new IcebergRowFilterExpr(Literal.create(true, DataTypes.BooleanType));
+    InternalRow result = codegenProjection(filter).apply(InternalRow.empty());
+    assertThat(result.getBoolean(0)).isTrue();
   }
 }
