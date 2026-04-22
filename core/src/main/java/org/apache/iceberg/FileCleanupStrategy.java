@@ -83,8 +83,11 @@ abstract class FileCleanupStrategy {
               "manifest_path",
               "manifest_length",
               "partition_spec_id",
+              "content",
               "added_snapshot_id",
-              "deleted_data_files_count");
+              "added_files_count",
+              "existing_files_count",
+              "deleted_files_count");
 
   protected CloseableIterable<ManifestFile> readManifests(Snapshot snapshot) {
     if (snapshot.manifestListLocation() != null) {

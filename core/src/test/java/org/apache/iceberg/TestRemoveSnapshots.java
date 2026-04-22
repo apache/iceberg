@@ -2207,4 +2207,101 @@ public class TestRemoveSnapshots extends TestBase {
   private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
   }
+
+  /**
+   * Verifies that the manifest list projection in FileCleanupStrategy correctly reads
+   * deleted_files_count, content, added_files_count and existing_files_count. Before the fix, the
+   * projection used the wrong field name "deleted_data_files_count" (which does not exist in
+   * ManifestFile.schema() where the correct name is "deleted_files_count"). Schema.select()
+   * silently drops non-matching names, so deletedFilesCount was always null, making
+   * hasDeletedFiles() always return true and causing unnecessary manifest scanning during cleanup.
+   */
+  @TestTemplate
+  public void testManifestListProjectionCorrectlyReadsManifestMetadata() throws IOException {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    assertThat(snapshot.manifestListLocation()).isNotNull();
+
+    // Read manifests through the same projection that FileCleanupStrategy uses internally
+    TestableCleanupStrategy strategy = new TestableCleanupStrategy(table.io());
+
+    try (org.apache.iceberg.io.CloseableIterable<ManifestFile> manifests =
+        strategy.projectedManifests(snapshot)) {
+      for (ManifestFile manifest : manifests) {
+        // The manifest was created by an append with 1 data file, so:
+        // - deletedFilesCount should be 0 (not null)
+        // - hasDeletedFiles() should return false (not true)
+        //
+        // Before the fix: deletedFilesCount was null (wrong field name in projection)
+        // causing hasDeletedFiles() to return true (null assumed non-zero)
+        assertThat(manifest.deletedFilesCount())
+            .as("deletedFilesCount should be projected correctly, not null")
+            .isNotNull();
+        assertThat(manifest.deletedFilesCount())
+            .as("Append-only manifest should have 0 deleted files")
+            .isEqualTo(0);
+        assertThat(manifest.hasDeletedFiles())
+            .as("Append-only manifest should report no deleted files")
+            .isFalse();
+        assertThat(manifest.addedFilesCount())
+            .as("addedFilesCount should be projected correctly, not null")
+            .isNotNull();
+        assertThat(manifest.existingFilesCount())
+            .as("existingFilesCount should be projected correctly, not null")
+            .isNotNull();
+        assertThat(manifest.content())
+            .as("Data manifest should have DATA content type")
+            .isEqualTo(ManifestContent.DATA);
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testManifestListProjectionAfterDelete() throws IOException {
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+
+    Snapshot afterDelete = table.currentSnapshot();
+    TestableCleanupStrategy strategy = new TestableCleanupStrategy(table.io());
+
+    try (org.apache.iceberg.io.CloseableIterable<ManifestFile> manifests =
+        strategy.projectedManifests(afterDelete)) {
+      boolean foundManifestWithDeletes = false;
+      for (ManifestFile manifest : manifests) {
+        assertThat(manifest.deletedFilesCount())
+            .as("deletedFilesCount should be projected, not null")
+            .isNotNull();
+        if (manifest.deletedFilesCount() > 0) {
+          foundManifestWithDeletes = true;
+          assertThat(manifest.hasDeletedFiles()).isTrue();
+        }
+      }
+
+      assertThat(foundManifestWithDeletes)
+          .as("After delete, at least one manifest should have deleted files")
+          .isTrue();
+    }
+  }
+
+  /** Exposes the protected readManifests method using the same MANIFEST_PROJECTION. */
+  private static class TestableCleanupStrategy extends FileCleanupStrategy {
+    TestableCleanupStrategy(org.apache.iceberg.io.FileIO fileIO) {
+      super(
+          fileIO,
+          java.util.concurrent.Executors.newSingleThreadExecutor(),
+          java.util.concurrent.Executors.newSingleThreadExecutor(),
+          null);
+    }
+
+    @Override
+    public void cleanFiles(
+        TableMetadata beforeExpiration,
+        TableMetadata afterExpiration,
+        ExpireSnapshots.CleanupLevel cleanupLevel) {}
+
+    org.apache.iceberg.io.CloseableIterable<ManifestFile> projectedManifests(Snapshot snapshot) {
+      return readManifests(snapshot);
+    }
+  }
 }
