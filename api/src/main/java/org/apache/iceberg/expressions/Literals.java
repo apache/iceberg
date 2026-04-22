@@ -755,10 +755,10 @@ class Literals {
 
   /**
    * A sentinel literal representing an explicit null default value. This is distinct from a Java
-   * {@code null} literal reference, which means "not set." Engines use this distinction to decide
+   * {@code null} literal reference, which means "not set". Engines use this distinction to decide
    * whether to fall back to initial-default when write-default is not set.
    */
-  static class NullLiteral<T> implements Literal<T> {
+  static final class NullLiteral<T> implements Literal<T> {
     private static final NullLiteral<?> INSTANCE = new NullLiteral<>();
 
     private NullLiteral() {}

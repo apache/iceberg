@@ -74,7 +74,7 @@ public interface Literal<T> extends Serializable {
   /**
    * Returns a sentinel literal representing an explicit null default value.
    *
-   * <p>This is distinct from a Java {@code null} literal reference, which means "not set." When
+   * <p>This is distinct from a Java {@code null} literal reference, which means "not set". When
    * used as a field default, this literal indicates that the default is explicitly null rather than
    * absent. Engines use this distinction to avoid falling back to initial-default when
    * write-default is explicitly set to null.
