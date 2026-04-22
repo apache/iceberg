@@ -39,8 +39,32 @@ import org.apache.spark.unsafe.types.UTF8String;
  * <p>Replaces alphanumeric code points with {@code x} (letters) or {@code n} (digits) while
  * preserving a small punctuation allow-list. String-typed input only.
  *
- * <p>Delegates to {@link Actions#bind(Action, org.apache.iceberg.types.Type)} for the canonical
- * masking semantics so Flink/Trino and the interpreted path share one implementation.
+ * <h3>Why a ScalarFunction (and not a custom Catalyst expression)</h3>
+ *
+ * <p>Read-restriction masks are server-specified per-column transformations. Three options were on
+ * the table: (1) a custom Catalyst {@code UnaryExpression} with hand-rolled {@code doGenCode}, (2)
+ * wrapping an opaque {@code SerializableFunction} via reflective eval (the {@code CodegenFallback}
+ * shape), or (3) a Spark V2 {@link org.apache.spark.sql.connector.catalog.functions.ScalarFunction
+ * ScalarFunction}. ScalarFunction wins on three axes:
+ *
+ * <ul>
+ *   <li><b>Whole-stage codegen comes free.</b> A static {@code invoke(...)} magic method is
+ *       discovered by Spark and inlined into the generated Java source of the enclosing stage, so
+ *       the mask is a direct static call inside the per-row loop rather than a virtual dispatch
+ *       through {@code references[]}. No custom {@code doGenCode}, no Janino quirks.
+ *   <li><b>It's the forward-compatible shape.</b> If Spark adds a standard table-level API for
+ *       surfacing masks and row filters (analogous to how {@code Constraint} publishes CHECK
+ *       expressions), the Iceberg-side Catalyst rule that wires up masks today becomes unnecessary
+ *       — the table publishes the mask as a function-call {@code Expression} and Spark's generic
+ *       planner applies it. The ScalarFunction registered here is exactly what Spark's generic path
+ *       would invoke. Ryan Blue's Iceberg expression proposal (apply(iceberg_functions.name, args))
+ *       aligns with this same function-call shape on the wire, so the upgrade path is a wire-format
+ *       change, not an implementation rewrite.
+ *   <li><b>Engine reuse.</b> Masking semantics stay in core's {@link Actions#bind(Action,
+ *       org.apache.iceberg.types.Type)} factory. Flink/Trino only need to register equivalent
+ *       ScalarFunctions (or their native equivalents) pointing at the same core factory — they
+ *       don't reimplement the bit-level behavior.
+ * </ul>
  */
 public class MaskAlphanumFunction implements UnboundFunction {
 
