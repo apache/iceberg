@@ -65,6 +65,23 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
     val actionByFieldId: Map[Int, Action] =
       restrictions.columnProjections.asScala.iterator.map(a => a.fieldId -> a).toMap
 
+    // The spec permits actions on any fieldId including nested fields, but this
+    // rule currently only rewrites top-level columns. Fail closed on nested or
+    // unknown fieldIds so masks are never silently bypassed; lift this when nested
+    // projection through struct paths is implemented.
+    val topLevelFieldIds: Set[Int] =
+      icebergSchema.asStruct.fields.asScala.iterator.map(_.fieldId).toSet
+    actionByFieldId.keys.foreach { fid =>
+      if (!topLevelFieldIds.contains(fid)) {
+        val path = icebergSchema.findColumnName(fid)
+        throw new IllegalStateException(
+          if (path == null) s"ReadRestrictions references unknown fieldId $fid"
+          else
+            s"ReadRestrictions on nested fields are not yet supported " +
+              s"(fieldId=$fid, path='$path')")
+      }
+    }
+
     val projectList: Seq[NamedExpression] =
       if (actionByFieldId.isEmpty) {
         relation.output
