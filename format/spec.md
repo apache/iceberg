@@ -242,12 +242,49 @@ For `geometry` type, the CRS does not affect geometric calculations, which are a
 
 The default CRS value `OGC:CRS84` means that the objects must be stored in longitude, latitude based on the WGS84 datum.
 
-Non-defaullt CRS values are specified by any string that uniquely identifies coordinate reference system associated with this type.
-To maximize interoperability suggested (but not limited to) formats for CRS are:
-* `authorithy:identifier` - where `authorithy` represents some well known authorities - examples are `OGC:CRS84`, `OGC:CRS83`, `OGC:CRS27`.
-* `inlined_projjson` - Inlining whole CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format.
-* `srid:identifier` - [SRID - Spatial reference identifier](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), `identifier` is the SRID itself.
-* `projjson:table_property_name` - where `table_property_name` is the name of a table property where the projjson string is stored.
+Non-default CRS values are specified by any case insensitive string that uniquely identifies a coordinate reference system associated with this type.
+To maximize interoperability, suggested (but not limited to) formats for CRS are:
+* `authorithy:code` - where `authorithy` represents some well known authorities, and `code` is the code used by the authority to identify the CRS  - examples are `OGC:CRS84`, `OGC:CRS83`, `OGC:CRS27`, `EPSG:4326`. See [https://spatialreference.org/](https://spatialreference.org/) for definitions coordinate reference systems provided by some well known authorities.
+* `srid:identifier` -  A reference using a [Spatial reference identifier (SRID)](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), where identifier is the numeric SRID value. For example: `SRID:0`.
+* `projjson:table_property_name` - where `table_property_name` is a reference to a CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html), stored in the table property.
+* `projjson` - A complete CRS definition embedded directly using the [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) specification. Example for OGC:CRS83:
+```
+{
+  "type": "GeographicCRS",
+  "name": "NAD83",
+  "datum": {
+    "type": "GeodeticReferenceFrame",
+    "name": "North American Datum 1983",
+    "ellipsoid": {
+      "name": "GRS 1980",
+      "semi_major_axis": 6378137,
+      "semi_minor_axis": 6356752.314140356,
+      "unit": "metre"
+    }
+  },
+  "coordinate_system": {
+    "subtype": "ellipsoidal",
+    "axis": [
+      {
+        "name": "Geodetic longitude",
+        "abbreviation": "Lon",
+        "direction": "east",
+        "unit": "degree"
+      },
+      {
+        "name": "Geodetic latitude",
+        "abbreviation": "Lat",
+        "direction": "north",
+        "unit": "degree"
+      }
+    ]
+  },
+  "id": {
+    "authority": "EPSG",
+    "code": 4269
+  }
+}
+```
 
 For `geography` types, the custom CRS must be geographic, with longitudes bound by [-180, 180] and latitudes bound by [-90, 90].
 
