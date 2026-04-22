@@ -99,7 +99,7 @@ class TestTrackingStruct {
   void testInheritSnapshotId() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
-    tracking.inheritFrom(createManifestTracking(100L, 50L));
+    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
 
     // snapshotId is null, should inherit from manifest
     assertThat(tracking.snapshotId()).isEqualTo(100L);
@@ -109,18 +109,18 @@ class TestTrackingStruct {
   void testInheritSequenceNumberForAddedEntries() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
-    tracking.inheritFrom(createManifestTracking(100L, 50L));
+    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
 
     // sequence numbers are null and status is ADDED, should inherit
     assertThat(tracking.dataSequenceNumber()).isEqualTo(50L);
-    assertThat(tracking.fileSequenceNumber()).isEqualTo(50L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(60L);
   }
 
   @Test
   void testDoNotInheritSequenceNumberForExistingEntries() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.EXISTING.id());
-    tracking.inheritFrom(createManifestTracking(100L, 50L));
+    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
 
     // sequence numbers are null but status is EXISTING, should not inherit
     assertThat(tracking.dataSequenceNumber()).isNull();
@@ -134,7 +134,7 @@ class TestTrackingStruct {
     tracking.set(1, 200L);
     tracking.set(2, 75L);
     tracking.set(3, 76L);
-    tracking.inheritFrom(createManifestTracking(100L, 50L));
+    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
 
     // explicit values should take precedence
     assertThat(tracking.snapshotId()).isEqualTo(200L);
@@ -153,11 +153,13 @@ class TestTrackingStruct {
     assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
-  private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
+  private static Tracking createManifestTracking(
+      long snapshotId, long dataSequenceNumber, long fileSequenceNumber) {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, snapshotId);
-    tracking.set(2, sequenceNumber);
+    tracking.set(2, dataSequenceNumber);
+    tracking.set(3, fileSequenceNumber);
     return tracking;
   }
 
