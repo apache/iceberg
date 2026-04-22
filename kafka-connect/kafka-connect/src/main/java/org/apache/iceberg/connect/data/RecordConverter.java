@@ -553,17 +553,17 @@ class RecordConverter {
     if (primitive != null) {
       return primitive;
     }
-    if (value instanceof Collection) {
+    if (value instanceof Collection<?> collection) {
       ValueArray array = Variants.array();
       org.apache.kafka.connect.data.Schema elementSchema =
           schema != null ? schema.valueSchema() : null;
-      for (Object element : (Collection<?>) value) {
+      for (Object element : collection) {
         array.add(objectToVariantValue(element, metadata, elementSchema));
       }
       return array;
     }
-    if (value instanceof Map) {
-      return mapToVariantValue(value, metadata, schema);
+    if (value instanceof Map<?, ?> map) {
+      return mapToVariantValue(map, metadata, schema);
     }
     if (value instanceof Struct struct) {
       ShreddedObject object = Variants.object(metadata);
@@ -575,16 +575,16 @@ class RecordConverter {
     throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
   }
 
+  /** Converts a Map to VariantValue; throw IllegalArgumentException if the key is not a string. */
   private static VariantValue mapToVariantValue(
-      Object value, VariantMetadata metadata, org.apache.kafka.connect.data.Schema schema) {
-    Map<?, ?> map = (Map<?, ?>) value;
+      Map<?, ?> map, VariantMetadata metadata, org.apache.kafka.connect.data.Schema schema) {
     ShreddedObject object = Variants.object(metadata);
     org.apache.kafka.connect.data.Schema mapValueSchema =
         schema != null ? schema.valueSchema() : null;
     map.forEach(
         (key, val) -> {
-          if (key instanceof String) {
-            object.put((String) key, objectToVariantValue(val, metadata, mapValueSchema));
+          if (key instanceof String keyStr) {
+            object.put(keyStr, objectToVariantValue(val, metadata, mapValueSchema));
           } else {
             throw new IllegalArgumentException(
                 "Cannot convert map to variant: keys must be non-null strings, was: "
@@ -601,27 +601,27 @@ class RecordConverter {
    */
   private static VariantValue primitiveToVariantValue(
       Object value, org.apache.kafka.connect.data.Schema schema) {
-    if (value instanceof Boolean) {
-      return Variants.of((Boolean) value);
+    if (value instanceof Boolean booleanValue) {
+      return Variants.of(booleanValue);
     }
     VariantValue temporal = temporalObjectToVariantValue(value, schema);
     if (temporal != null) {
       return temporal;
     }
-    if (value instanceof Number) {
-      return numberToVariantValue((Number) value);
+    if (value instanceof Number number) {
+      return numberToVariantValue(number);
     }
-    if (value instanceof String) {
-      return Variants.of((String) value);
+    if (value instanceof String stringValue) {
+      return Variants.of(stringValue);
     }
-    if (value instanceof ByteBuffer) {
-      return Variants.of((ByteBuffer) value);
+    if (value instanceof ByteBuffer byteBuffer) {
+      return Variants.of(byteBuffer);
     }
-    if (value instanceof byte[]) {
-      return Variants.of(ByteBuffer.wrap((byte[]) value));
+    if (value instanceof byte[] byteArray) {
+      return Variants.of(ByteBuffer.wrap(byteArray));
     }
-    if (value instanceof UUID) {
-      return Variants.ofUUID((UUID) value);
+    if (value instanceof UUID uuid) {
+      return Variants.ofUUID(uuid);
     }
     return null;
   }
@@ -632,30 +632,30 @@ class RecordConverter {
    */
   private static VariantValue temporalObjectToVariantValue(
       Object value, org.apache.kafka.connect.data.Schema schema) {
-    if (value instanceof Instant) {
-      return Variants.ofTimestamptz(DateTimeUtil.microsFromInstant((Instant) value));
+    if (value instanceof Instant instant) {
+      return Variants.ofTimestamptz(DateTimeUtil.microsFromInstant(instant));
     }
-    if (value instanceof OffsetDateTime) {
-      return Variants.ofTimestamptz(DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value));
+    if (value instanceof OffsetDateTime offsetDateTime) {
+      return Variants.ofTimestamptz(DateTimeUtil.microsFromTimestamptz(offsetDateTime));
     }
-    if (value instanceof ZonedDateTime) {
+    if (value instanceof ZonedDateTime zonedDateTime) {
       return Variants.ofTimestamptz(
-          DateTimeUtil.microsFromTimestamptz(((ZonedDateTime) value).toOffsetDateTime()));
+          DateTimeUtil.microsFromTimestamptz(zonedDateTime.toOffsetDateTime()));
     }
-    if (value instanceof LocalDateTime) {
-      return Variants.ofTimestampntz(DateTimeUtil.microsFromTimestamp((LocalDateTime) value));
+    if (value instanceof LocalDateTime localDateTime) {
+      return Variants.ofTimestampntz(DateTimeUtil.microsFromTimestamp(localDateTime));
     }
-    if (value instanceof LocalDate) {
-      return Variants.ofDate(DateTimeUtil.daysFromDate((LocalDate) value));
+    if (value instanceof LocalDate localDate) {
+      return Variants.ofDate(DateTimeUtil.daysFromDate(localDate));
     }
-    if (value instanceof LocalTime) {
-      return Variants.ofTime(DateTimeUtil.microsFromTime((LocalTime) value));
+    if (value instanceof LocalTime localTime) {
+      return Variants.ofTime(DateTimeUtil.microsFromTime(localTime));
     }
-    if (value instanceof Date) {
+    if (value instanceof Date date) {
       String logicalName = schema != null ? schema.name() : null;
       // Connect represents Timestamp, Time, and Date logical types as java.util.Date at runtime;
       // normalize to Instant once, then interpret using the schema logical type name.
-      Instant connectInstant = ((Date) value).toInstant();
+      Instant connectInstant = date.toInstant();
       if (org.apache.kafka.connect.data.Timestamp.LOGICAL_NAME.equals(logicalName)) {
         return Variants.ofTimestamptz(DateTimeUtil.microsFromInstant(connectInstant));
       }
@@ -675,33 +675,37 @@ class RecordConverter {
     return null;
   }
 
-  private static VariantValue numberToVariantValue(Number value) {
-    if (value instanceof BigDecimal) {
-      return Variants.of((BigDecimal) value);
+  /**
+   * Converts a Number to VariantValue; throw IllegalArgumentException if the value is not a
+   * supported number representation.
+   */
+  private static VariantValue numberToVariantValue(Number number) {
+    if (number instanceof BigDecimal bigDecimal) {
+      return Variants.of(bigDecimal);
     }
-    if (value instanceof BigInteger) {
-      return Variants.of(new BigDecimal((BigInteger) value));
+    if (number instanceof BigInteger bigInteger) {
+      return Variants.of(new BigDecimal(bigInteger));
     }
-    if (value instanceof Integer) {
-      return Variants.of((Integer) value);
+    if (number instanceof Integer integer) {
+      return Variants.of(integer);
     }
-    if (value instanceof Long) {
-      return Variants.of((Long) value);
+    if (number instanceof Long longValue) {
+      return Variants.of(longValue);
     }
-    if (value instanceof Float) {
-      return Variants.of((Float) value);
+    if (number instanceof Float floatValue) {
+      return Variants.of(floatValue);
     }
-    if (value instanceof Double) {
-      return Variants.of((Double) value);
+    if (number instanceof Double doubleValue) {
+      return Variants.of(doubleValue);
     }
-    if (value instanceof Byte) {
-      return Variants.of((Byte) value);
+    if (number instanceof Byte byteValue) {
+      return Variants.of(byteValue);
     }
-    if (value instanceof Short) {
-      return Variants.of((Short) value);
+    if (number instanceof Short shortValue) {
+      return Variants.of(shortValue);
     }
     throw new IllegalArgumentException(
-        "Cannot convert Number to variant (unknown type): " + value.getClass().getName());
+        "Cannot convert Number to variant (unknown type): " + number.getClass().getName());
   }
 
   @SuppressWarnings("JavaUtilDate")
