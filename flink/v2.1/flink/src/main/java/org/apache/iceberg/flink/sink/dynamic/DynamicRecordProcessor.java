@@ -218,9 +218,9 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       throw new RuntimeException(e);
     }
 
-    if (catalog instanceof Closeable rs) {
+    if (catalog instanceof Closeable closeableCatalog) {
       try {
-        rs.close();
+        closeableCatalog.close();
       } catch (Exception e) {
         throw new RuntimeException(e);
       }

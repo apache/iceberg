@@ -135,8 +135,8 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
     @Override
     public void close() throws IOException {
-      if (catalog instanceof Closeable rs) {
-        rs.close();
+      if (catalog instanceof Closeable closeableCatalog) {
+        closeableCatalog.close();
       }
 
       catalog = null;
