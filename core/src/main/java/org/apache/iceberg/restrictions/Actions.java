@@ -82,6 +82,12 @@ public class Actions {
       Preconditions.checkArgument(
           salt != null && salt.length >= 16, "sha-256-query-local salt must be >= 16 bytes");
       return new Sha256Function(type.typeId(), salt);
+    } else if (action instanceof Action.Unknown) {
+      throw new IllegalStateException(
+          "Cannot bind unknown action type '"
+              + action.actionType()
+              + "': this client does not recognize the action. Upgrade the client or remove the "
+              + "action from the server-side policy.");
     }
 
     throw new IllegalArgumentException("Unrecognized action: " + action.actionType());
@@ -166,8 +172,7 @@ public class Actions {
   // Per spec: nanos types use 2261-12-31 because 9999 overflows Long nanoseconds from epoch.
   private static final Long TIMESTAMP_DEFAULT_NANOS =
       DateTimeUtil.nanosFromTimestamp(LocalDateTime.of(2261, 12, 31, 0, 0));
-  private static final UUID UUID_DEFAULT =
-      UUID.fromString("00000000-0000-0000-0000-000000000000");
+  private static final UUID UUID_DEFAULT = UUID.fromString("00000000-0000-0000-0000-000000000000");
   private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
 
   // ---- code-point masking helpers ----

@@ -85,12 +85,18 @@ public class TestReadRestrictionsParser {
   }
 
   @Test
-  public void unknownActionTypeRejected() {
+  public void unknownActionTypePreserved() {
+    // Forward-compat: parsing an unrecognized discriminator must not throw, so older clients
+    // keep interoperating with newer servers. Enforcement code is responsible for failing
+    // closed when it encounters Action.Unknown; silently skipping would leak unmasked data.
     String json =
         "{\"required-column-projections\":[{\"action\":\"xxx-not-real\",\"field-id\":1}]}";
-    assertThatThrownBy(() -> ReadRestrictionsParser.fromJson(json))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("xxx-not-real");
+    ReadRestrictions restrictions = ReadRestrictionsParser.fromJson(json);
+    assertThat(restrictions.columnProjections()).hasSize(1);
+    Action action = restrictions.columnProjections().get(0);
+    assertThat(action).isInstanceOf(Action.Unknown.class);
+    assertThat(action.actionType()).isEqualTo("xxx-not-real");
+    assertThat(action.fieldId()).isEqualTo(1);
   }
 
   @Test

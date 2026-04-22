@@ -31,7 +31,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.restrictions.ReadRestrictions;
-import org.apache.iceberg.restrictions.ReadRestrictionsAware;
+import org.apache.iceberg.restrictions.SupportsReadRestrictions;
 
 /**
  * Base {@link Table} implementation.
@@ -47,7 +47,7 @@ public class BaseTable
         HasTableOperations,
         Serializable,
         SupportsDistributedScanPlanning,
-        ReadRestrictionsAware {
+        SupportsReadRestrictions {
   private final TableOperations ops;
   private final String name;
   private MetricsReporter reporter;

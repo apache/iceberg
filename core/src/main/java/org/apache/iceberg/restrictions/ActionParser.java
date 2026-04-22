@@ -96,7 +96,10 @@ public class ActionParser {
             "Cannot parse apply-expression action: missing field: expression");
         return new Action.ApplyExpression(fieldId, ExpressionParser.fromJson(node.get(EXPRESSION)));
       default:
-        throw new IllegalArgumentException("Unrecognized action type: " + actionType);
+        // Preserve unknown action types so older clients don't break when the spec evolves.
+        // Enforcement code (engine rules) must fail closed on Action.Unknown, since silently
+        // skipping an unknown mask would leak unmasked data.
+        return new Action.Unknown(fieldId, actionType);
     }
   }
 }

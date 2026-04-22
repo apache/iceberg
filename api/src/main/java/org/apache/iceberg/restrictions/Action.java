@@ -177,4 +177,25 @@ public interface Action extends Serializable {
       return APPLY_EXPRESSION;
     }
   }
+
+  /**
+   * Preserves an action with a discriminator string this client doesn't recognize so that newer
+   * server-side action types don't break parsing. Callers that intend to enforce the action
+   * (engine-side rules) must fail closed when they encounter this — silent skipping would leak
+   * unmasked data.
+   */
+  class Unknown extends Base {
+    private final String actionType;
+
+    public Unknown(int fieldId, String actionType) {
+      super(fieldId);
+      Preconditions.checkArgument(actionType != null, "Invalid action type: null");
+      this.actionType = actionType;
+    }
+
+    @Override
+    public String actionType() {
+      return actionType;
+    }
+  }
 }

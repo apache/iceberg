@@ -34,6 +34,7 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -48,7 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.restrictions.ReadRestrictions;
-import org.apache.iceberg.restrictions.ReadRestrictionsAware;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -137,10 +137,7 @@ public class SparkTable extends BaseSparkTable
   }
 
   private static ReadRestrictions extractReadRestrictions(Table table) {
-    if (table instanceof ReadRestrictionsAware) {
-      return ((ReadRestrictionsAware) table).readRestrictions().orElse(ReadRestrictions.empty());
-    }
-    return ReadRestrictions.empty();
+    return TableUtil.readRestrictions(table).orElse(ReadRestrictions.empty());
   }
 
   /**
