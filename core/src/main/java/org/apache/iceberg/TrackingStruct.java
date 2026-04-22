@@ -49,12 +49,16 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   private byte[] deletedPositions = null;
   private byte[] replacedPositions = null;
 
-  // not serialized, set by manifest readers
+  // set by manifest readers, not written to manifests
   private String manifestLocation = null;
   private long manifestPos = -1L;
 
   TrackingStruct(Types.StructType type) {
     super(BASE_TYPE, type);
+  }
+
+  TrackingStruct() {
+    super(BASE_TYPE.fields().size());
   }
 
   private TrackingStruct(TrackingStruct toCopy) {
@@ -89,7 +93,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         }
 
         if (fileSequenceNumber == null) {
-          this.fileSequenceNumber = manifestTracking.dataSequenceNumber();
+          this.fileSequenceNumber = manifestTracking.fileSequenceNumber();
         }
       }
     }

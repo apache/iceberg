@@ -30,22 +30,10 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 class TestTrackedFileStruct {
-  private static final Types.StructType TRACKING_WITH_POS =
-      Types.StructType.of(
-          Tracking.STATUS,
-          Tracking.SNAPSHOT_ID,
-          Tracking.SEQUENCE_NUMBER,
-          Tracking.FILE_SEQUENCE_NUMBER,
-          Tracking.DV_SNAPSHOT_ID,
-          Tracking.FIRST_ROW_ID,
-          Tracking.DELETED_POSITIONS,
-          Tracking.REPLACED_POSITIONS,
-          MetadataColumns.ROW_POSITION);
-
   @Test
   void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    TrackingStruct tracking = new TrackingStruct();
     DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
     ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
 
@@ -102,7 +90,7 @@ class TestTrackedFileStruct {
   void testReaderSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
-    TrackingStruct tracking = new TrackingStruct(TRACKING_WITH_POS);
+    TrackingStruct tracking = new TrackingStruct();
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
     tracking.set(8, 7L);
@@ -116,6 +104,62 @@ class TestTrackedFileStruct {
 
     assertThat(file.tracking().manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
     assertThat(file.tracking().manifestPos()).isEqualTo(7L);
+  }
+
+  @Test
+  void testInheritFrom() {
+    TrackingStruct tracking = new TrackingStruct();
+    tracking.set(0, EntryStatus.ADDED.id());
+
+    TrackingStruct manifestTracking = new TrackingStruct();
+    manifestTracking.set(1, 99L);
+    manifestTracking.set(2, 10L);
+    manifestTracking.set(3, 20L);
+
+    tracking.inheritFrom(manifestTracking);
+
+    assertThat(tracking.snapshotId()).isEqualTo(99L);
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(10L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(20L);
+  }
+
+  @Test
+  void testInheritFromDoesNotOverrideExisting() {
+    TrackingStruct tracking = new TrackingStruct();
+    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(1, 1L);
+    tracking.set(2, 2L);
+    tracking.set(3, 3L);
+
+    TrackingStruct manifestTracking = new TrackingStruct();
+    manifestTracking.set(1, 99L);
+    manifestTracking.set(2, 10L);
+    manifestTracking.set(3, 20L);
+
+    tracking.inheritFrom(manifestTracking);
+
+    assertThat(tracking.snapshotId()).isEqualTo(1L);
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(2L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(3L);
+  }
+
+  @Test
+  void testInheritFromOnlyForAdded() {
+    TrackingStruct tracking = new TrackingStruct();
+    tracking.set(0, EntryStatus.EXISTING.id());
+
+    TrackingStruct manifestTracking = new TrackingStruct();
+    manifestTracking.set(1, 99L);
+    manifestTracking.set(2, 10L);
+    manifestTracking.set(3, 20L);
+
+    tracking.inheritFrom(manifestTracking);
+
+    // snapshotId is inherited regardless of status
+    assertThat(tracking.snapshotId()).isEqualTo(99L);
+    // sequence numbers are only inherited for ADDED entries
+    assertThat(tracking.dataSequenceNumber()).isNull();
+    assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
   @Test
@@ -291,7 +335,7 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking = new TrackingStruct(TRACKING_WITH_POS);
+    TrackingStruct tracking = new TrackingStruct();
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, 42L);
     tracking.set(2, 10L);
