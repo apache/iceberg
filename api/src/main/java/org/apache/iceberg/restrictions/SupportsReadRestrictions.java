@@ -21,12 +21,16 @@ package org.apache.iceberg.restrictions;
 import java.util.Optional;
 
 /**
- * Marker interface for table implementations that can carry per-principal {@link ReadRestrictions}.
+ * Capability interface for table implementations that can carry per-principal {@link
+ * ReadRestrictions}.
  *
- * <p>The default returns {@link Optional#empty()} so implementations that never produce
- * restrictions (most non-REST catalogs) need not implement anything.
+ * <p>Implemented by tables loaded via a catalog that honors server-specified read restrictions (the
+ * REST catalog today). Non-REST catalogs and wrapper implementations (SerializableTable, metadata
+ * tables) don't implement this; callers should route through {@link
+ * org.apache.iceberg.TableUtil#readRestrictions(org.apache.iceberg.Table)} instead of raw {@code
+ * instanceof} checks so the decision locus stays consistent.
  */
-public interface ReadRestrictionsAware {
+public interface SupportsReadRestrictions {
   default Optional<ReadRestrictions> readRestrictions() {
     return Optional.empty();
   }

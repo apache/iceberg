@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg;
 
+import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.restrictions.ReadRestrictions;
+import org.apache.iceberg.restrictions.SupportsReadRestrictions;
 
 public class TableUtil {
   private TableUtil() {}
@@ -68,5 +71,20 @@ public class TableUtil {
     }
 
     return formatVersion(table) >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE;
+  }
+
+  /**
+   * Returns the server-provided read restrictions carried by the given table, if any. Returns
+   * {@link Optional#empty()} for tables that don't participate in the {@link
+   * SupportsReadRestrictions} contract (most non-REST catalogs) and for wrapper tables
+   * (SerializableTable, metadata tables) — restrictions are a driver-side planning concept and
+   * don't propagate across wrappers.
+   */
+  public static Optional<ReadRestrictions> readRestrictions(Table table) {
+    Preconditions.checkArgument(null != table, "Invalid table: null");
+    if (table instanceof SupportsReadRestrictions) {
+      return ((SupportsReadRestrictions) table).readRestrictions();
+    }
+    return Optional.empty();
   }
 }
