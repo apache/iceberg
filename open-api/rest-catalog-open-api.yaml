@@ -3771,8 +3771,8 @@ components:
         - time: 00:00:00
         - timestamp: 9999-12-31T00:00:00
         - timestamptz: 9999-12-31T00:00:00+00:00
-        - timestamp_ns: 9999-12-31T00:00:00.000000000
-        - timestamptz_ns: 9999-12-31T00:00:00.000000000+00:00
+        - timestamp_ns: 2261-12-31T00:00:00.000000000
+        - timestamptz_ns: 2261-12-31T00:00:00.000000000+00:00
         - uuid: 00000000-0000-0000-0000-000000000000
         - fixed(n): n zero bytes
         - binary: empty byte sequence
@@ -3782,6 +3782,10 @@ components:
         - list: empty list []
         - map: empty map {}
         - struct: struct with each field set to its type-specific default (applied recursively)
+
+        Note: nanosecond-precision timestamps (timestamp_ns, timestamptz_ns) cannot represent
+        9999-12-31 because nanoseconds from epoch overflows a 64-bit signed integer past
+        approximately 2262-04-11; 2261-12-31 is used as the closest clean far-future sentinel.
 
         Applicable to: all data types
       allOf:
