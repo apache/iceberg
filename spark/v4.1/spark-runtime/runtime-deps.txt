@@ -36,5 +36,5 @@ org.eclipse.microprofile.openapi:microprofile-openapi-api:4.1.1
 org.locationtech.jts:jts-core:1.20.0
 org.projectnessie.nessie:nessie-client:0.107.4
 org.projectnessie.nessie:nessie-model:0.107.4
-org.roaringbitmap:RoaringBitmap:1.6.13
+org.roaringbitmap:RoaringBitmap:1.6.14
 org.threeten:threeten-extra:1.7.1
