@@ -26,6 +26,8 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.CredentialParser;
+import org.apache.iceberg.restrictions.ReadRestrictions;
+import org.apache.iceberg.restrictions.ReadRestrictionsParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class LoadTableResponseParser {
@@ -34,6 +36,7 @@ public class LoadTableResponseParser {
   private static final String METADATA = "metadata";
   private static final String CONFIG = "config";
   private static final String STORAGE_CREDENTIALS = "storage-credentials";
+  private static final String READ_RESTRICTIONS = "read-restrictions";
 
   private LoadTableResponseParser() {}
 
@@ -70,6 +73,11 @@ public class LoadTableResponseParser {
       gen.writeEndArray();
     }
 
+    if (!response.readRestrictions().isEmpty()) {
+      gen.writeFieldName(READ_RESTRICTIONS);
+      ReadRestrictionsParser.toJson(response.readRestrictions(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -99,6 +107,13 @@ public class LoadTableResponseParser {
 
     if (json.hasNonNull(STORAGE_CREDENTIALS)) {
       builder.addAllCredentials(LoadCredentialsResponseParser.fromJson(json).credentials());
+    }
+
+    if (json.hasNonNull(READ_RESTRICTIONS)) {
+      ReadRestrictions restrictions = ReadRestrictionsParser.fromJson(json.get(READ_RESTRICTIONS));
+      if (!restrictions.isEmpty()) {
+        builder.withReadRestrictions(restrictions);
+      }
     }
 
     return builder.build();

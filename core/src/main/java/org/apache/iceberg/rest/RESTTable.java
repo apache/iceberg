@@ -30,6 +30,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.restrictions.ReadRestrictions;
 
 class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final RESTClient client;
@@ -51,8 +52,9 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf) {
-    super(ops, name, reporter);
+      Object hadoopConf,
+      ReadRestrictions readRestrictions) {
+    super(ops, name, reporter, readRestrictions);
     this.reporter = reporter;
     this.client = client;
     this.headers = headers;

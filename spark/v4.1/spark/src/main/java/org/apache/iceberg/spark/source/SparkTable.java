@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFiles;
@@ -46,6 +47,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.restrictions.ReadRestrictions;
+import org.apache.iceberg.restrictions.ReadRestrictionsAware;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -98,6 +101,7 @@ public class SparkTable extends BaseSparkTable
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
   private final Set<TableCapability> capabilities;
+  private final ReadRestrictions readRestrictions;
 
   public SparkTable(Table table) {
     this(table, null /* main branch */);
@@ -129,6 +133,24 @@ public class SparkTable extends BaseSparkTable
     this.branch = branch;
     this.timeTravel = timeTravel;
     this.capabilities = computeCapabilities(table);
+    this.readRestrictions = extractReadRestrictions(table);
+  }
+
+  private static ReadRestrictions extractReadRestrictions(Table table) {
+    if (table instanceof ReadRestrictionsAware) {
+      return ((ReadRestrictionsAware) table).readRestrictions().orElse(ReadRestrictions.empty());
+    }
+    return ReadRestrictions.empty();
+  }
+
+  /**
+   * The per-principal read restrictions attached to this table load, if any.
+   *
+   * <p>Returns an empty {@link Optional} when there are no restrictions. Consumed by the
+   * spark-extensions Catalyst rule that rewrites the logical plan to enforce the restrictions.
+   */
+  public Optional<ReadRestrictions> readRestrictions() {
+    return readRestrictions.isEmpty() ? Optional.empty() : Optional.of(readRestrictions);
   }
 
   public SparkTable copyWithBranch(String newBranch) {
@@ -185,12 +207,20 @@ public class SparkTable extends BaseSparkTable
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(timeTravel == null, "Cannot write to table with time travel");
+    Preconditions.checkArgument(
+        readRestrictions.isEmpty(),
+        "Cannot write to table with read restrictions: %s",
+        table().name());
     return new SparkWriteBuilder(spark(), table(), branch, info);
   }
 
   @Override
   public RowLevelOperationBuilder newRowLevelOperationBuilder(RowLevelOperationInfo info) {
     Preconditions.checkArgument(timeTravel == null, "Cannot modify table with time travel");
+    Preconditions.checkArgument(
+        readRestrictions.isEmpty(),
+        "Cannot modify table with read restrictions: %s",
+        table().name());
     return new SparkRowLevelOperationBuilder(spark(), table(), snapshot, branch, info);
   }
 
