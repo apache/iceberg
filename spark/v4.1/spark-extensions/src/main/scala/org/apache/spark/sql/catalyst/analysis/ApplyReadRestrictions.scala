@@ -22,9 +22,13 @@ import java.security.SecureRandom
 import org.apache.iceberg.restrictions.Action
 import org.apache.iceberg.restrictions.Actions
 import org.apache.iceberg.restrictions.ReadRestrictions
+import org.apache.iceberg.spark.functions.MaskAlphanumFunction
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
+import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.expressions.iceberg.IcebergRestricted
 import org.apache.spark.sql.catalyst.expressions.iceberg.IcebergRowFilterExpr
@@ -34,6 +38,8 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.types.StructField
+import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
 
 /**
@@ -94,12 +100,7 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
             actionByFieldId.get(icebergField.fieldId) match {
               case Some(action) =>
                 val icebergType = icebergField.`type`()
-                val salt = action match {
-                  case _: Action.Sha256QueryLocal => ApplyReadRestrictions.generateSalt()
-                  case _ => null
-                }
-                val boundFn = Actions.bind(action, icebergType, salt)
-                val masked = IcebergRestricted(attr, boundFn)
+                val masked = buildMaskExpression(attr, action, icebergType)
                 Alias(masked, attr.name)(exprId = attr.exprId, qualifier = attr.qualifier)
               case None => attr
             }
@@ -118,6 +119,32 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
       }
 
     if (actionByFieldId.isEmpty) filtered else Project(projectList, filtered)
+  }
+
+  /**
+   * Build the masking expression for a single column. Prefers Spark's native
+   * [[ApplyFunctionExpression]] backed by an Iceberg [[org.apache.spark.sql.connector.catalog.functions.ScalarFunction]]
+   * for actions that have a ScalarFunction implementation (gets whole-stage codegen
+   * for free); falls back to [[IcebergRestricted]] for actions still using the
+   * hand-rolled expression path.
+   */
+  private def buildMaskExpression(
+      attr: AttributeReference,
+      action: Action,
+      icebergType: org.apache.iceberg.types.Type): Expression = action match {
+    case _: Action.MaskAlphanum =>
+      val unbound = new MaskAlphanumFunction()
+      val bound = unbound.bind(StructType(Array(StructField(attr.name, attr.dataType))))
+      ApplyFunctionExpression(
+        bound.asInstanceOf[org.apache.spark.sql.connector.catalog.functions.ScalarFunction[_]],
+        Seq(attr))
+    case _ =>
+      val salt = action match {
+        case _: Action.Sha256QueryLocal => ApplyReadRestrictions.generateSalt()
+        case _ => null
+      }
+      val boundFn = Actions.bind(action, icebergType, salt)
+      IcebergRestricted(attr, boundFn)
   }
 }
 
