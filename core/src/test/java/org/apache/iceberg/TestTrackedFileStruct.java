@@ -107,62 +107,6 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void testInheritFrom() {
-    TrackingStruct tracking = new TrackingStruct();
-    tracking.set(0, EntryStatus.ADDED.id());
-
-    TrackingStruct manifestTracking = new TrackingStruct();
-    manifestTracking.set(1, 99L);
-    manifestTracking.set(2, 10L);
-    manifestTracking.set(3, 20L);
-
-    tracking.inheritFrom(manifestTracking);
-
-    assertThat(tracking.snapshotId()).isEqualTo(99L);
-    assertThat(tracking.dataSequenceNumber()).isEqualTo(10L);
-    assertThat(tracking.fileSequenceNumber()).isEqualTo(20L);
-  }
-
-  @Test
-  void testInheritFromDoesNotOverrideExisting() {
-    TrackingStruct tracking = new TrackingStruct();
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 1L);
-    tracking.set(2, 2L);
-    tracking.set(3, 3L);
-
-    TrackingStruct manifestTracking = new TrackingStruct();
-    manifestTracking.set(1, 99L);
-    manifestTracking.set(2, 10L);
-    manifestTracking.set(3, 20L);
-
-    tracking.inheritFrom(manifestTracking);
-
-    assertThat(tracking.snapshotId()).isEqualTo(1L);
-    assertThat(tracking.dataSequenceNumber()).isEqualTo(2L);
-    assertThat(tracking.fileSequenceNumber()).isEqualTo(3L);
-  }
-
-  @Test
-  void testInheritFromOnlyForAdded() {
-    TrackingStruct tracking = new TrackingStruct();
-    tracking.set(0, EntryStatus.EXISTING.id());
-
-    TrackingStruct manifestTracking = new TrackingStruct();
-    manifestTracking.set(1, 99L);
-    manifestTracking.set(2, 10L);
-    manifestTracking.set(3, 20L);
-
-    tracking.inheritFrom(manifestTracking);
-
-    // snapshotId is inherited regardless of status
-    assertThat(tracking.snapshotId()).isEqualTo(99L);
-    // sequence numbers are only inherited for ADDED entries
-    assertThat(tracking.dataSequenceNumber()).isNull();
-    assertThat(tracking.fileSequenceNumber()).isNull();
-  }
-
-  @Test
   void testCopy() {
     TrackedFileStruct file = createFullTrackedFile();
 

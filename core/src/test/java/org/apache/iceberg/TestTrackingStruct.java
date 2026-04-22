@@ -120,11 +120,13 @@ class TestTrackingStruct {
   void testDoNotInheritSequenceNumberForExistingEntries() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.EXISTING.id());
+    tracking.set(2, 5L);
+    tracking.set(3, 6L);
     tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
 
-    // sequence numbers are null but status is EXISTING, should not inherit
-    assertThat(tracking.dataSequenceNumber()).isNull();
-    assertThat(tracking.fileSequenceNumber()).isNull();
+    // sequence numbers are not inherited for EXISTING entries
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(5L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(6L);
   }
 
   @Test
