@@ -236,7 +236,7 @@ public class TestSchemaParser extends DataTestBase {
                     .withWriteDefault(Literal.ofNull())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot use null write default for required field");
+        .hasMessageContaining("Cannot use null default for required field");
   }
 
   @Test
