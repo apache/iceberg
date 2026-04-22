@@ -37,6 +37,7 @@ import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,9 +60,9 @@ public class TestOutputFileFactoryProvider {
     AtomicBoolean providerCalled = new AtomicBoolean(false);
 
     OutputFileFactoryProvider provider =
-        (tbl, taskId, attemptId, format, spec) -> {
+        (tableSupplier, taskId, attemptId, format, spec) -> {
           providerCalled.set(true);
-          return OutputFileFactory.builderFor(tbl, taskId, attemptId)
+          return OutputFileFactory.builderFor(tableSupplier.get(), taskId, attemptId)
               .format(format)
               .defaultSpec(spec)
               .build();
@@ -96,18 +97,20 @@ public class TestOutputFileFactoryProvider {
     int expectedTaskId = 42;
     int expectedAttemptId = 7;
 
+    AtomicReference<SerializableSupplier<Table>> capturedSupplier = new AtomicReference<>();
     AtomicInteger capturedTaskId = new AtomicInteger(-1);
     AtomicInteger capturedAttemptId = new AtomicInteger(-1);
     AtomicReference<FileFormat> capturedFormat = new AtomicReference<>();
     AtomicReference<PartitionSpec> capturedSpec = new AtomicReference<>();
 
     OutputFileFactoryProvider provider =
-        (tbl, taskId, attemptId, format, spec) -> {
+        (tableSupplier, taskId, attemptId, format, spec) -> {
+          capturedSupplier.set(tableSupplier);
           capturedTaskId.set(taskId);
           capturedAttemptId.set(attemptId);
           capturedFormat.set(format);
           capturedSpec.set(spec);
-          return OutputFileFactory.builderFor(tbl, taskId, attemptId)
+          return OutputFileFactory.builderFor(tableSupplier.get(), taskId, attemptId)
               .format(format)
               .defaultSpec(spec)
               .build();
@@ -116,6 +119,8 @@ public class TestOutputFileFactoryProvider {
     TaskWriterFactory<RowData> factory = createTaskWriterFactory(provider);
     factory.initialize(expectedTaskId, expectedAttemptId);
 
+    assertThat(capturedSupplier.get()).isNotNull();
+    assertThat(capturedSupplier.get().get()).isSameAs(table);
     assertThat(capturedTaskId.get()).isEqualTo(expectedTaskId);
     assertThat(capturedAttemptId.get()).isEqualTo(expectedAttemptId);
     assertThat(capturedFormat.get()).isEqualTo(FileFormat.PARQUET);
@@ -123,8 +128,40 @@ public class TestOutputFileFactoryProvider {
   }
 
   @Test
+  public void testProviderReceivesLiveSupplier() throws IOException {
+    File refreshedFolder = Files.createTempDirectory(temporaryFolder, "refreshed").toFile();
+    Table refreshed =
+        SimpleDataUtil.createTable(refreshedFolder.getAbsolutePath(), ImmutableMap.of(), false);
+
+    AtomicReference<Table> currentTable = new AtomicReference<>(table);
+    AtomicReference<SerializableSupplier<Table>> capturedSupplier = new AtomicReference<>();
+
+    OutputFileFactoryProvider provider =
+        (tableSupplier, taskId, attemptId, format, spec) -> {
+          capturedSupplier.set(tableSupplier);
+          return OutputFileFactory.builderFor(tableSupplier.get(), taskId, attemptId)
+              .format(format)
+              .ioSupplier(() -> tableSupplier.get().io())
+              .defaultSpec(spec)
+              .build();
+        };
+
+    SerializableSupplier<Table> liveSupplier = currentTable::get;
+    TaskWriterFactory<RowData> factory = createTaskWriterFactory(provider, liveSupplier);
+    factory.initialize(0, 0);
+
+    assertThat(capturedSupplier.get().get()).isSameAs(table);
+
+    // Swap the underlying table; the provider-held supplier must observe the new value rather
+    // than a snapshot captured at initialize() time.
+    currentTable.set(refreshed);
+
+    assertThat(capturedSupplier.get().get()).isSameAs(refreshed);
+  }
+
+  @Test
   public void testProviderReturningNullThrows() {
-    OutputFileFactoryProvider provider = (tbl, taskId, attemptId, format, spec) -> null;
+    OutputFileFactoryProvider provider = (tableSupplier, taskId, attemptId, format, spec) -> null;
 
     TaskWriterFactory<RowData> factory = createTaskWriterFactory(provider);
 
@@ -134,8 +171,13 @@ public class TestOutputFileFactoryProvider {
   }
 
   private TaskWriterFactory<RowData> createTaskWriterFactory(OutputFileFactoryProvider provider) {
+    return createTaskWriterFactory(provider, () -> table);
+  }
+
+  private TaskWriterFactory<RowData> createTaskWriterFactory(
+      OutputFileFactoryProvider provider, SerializableSupplier<Table> tableSupplier) {
     return new RowDataTaskWriterFactory(
-        (org.apache.iceberg.util.SerializableSupplier<Table>) () -> table,
+        tableSupplier,
         SimpleDataUtil.ROW_TYPE,
         TARGET_FILE_SIZE,
         FileFormat.PARQUET,

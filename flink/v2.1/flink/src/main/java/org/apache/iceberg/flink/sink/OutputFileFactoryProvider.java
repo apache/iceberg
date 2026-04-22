@@ -24,6 +24,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * Plugin interface for providing a custom {@link OutputFileFactory}.
@@ -43,5 +44,9 @@ import org.apache.iceberg.io.OutputFileFactory;
 @FunctionalInterface
 public interface OutputFileFactoryProvider extends Serializable {
   OutputFileFactory create(
-      Table table, int taskId, int attemptId, FileFormat format, PartitionSpec spec);
+      SerializableSupplier<Table> tableSupplier,
+      int taskId,
+      int attemptId,
+      FileFormat format,
+      PartitionSpec spec);
 }

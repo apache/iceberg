@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -45,7 +44,7 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
-  private final Supplier<Table> tableSupplier;
+  private final SerializableSupplier<Table> tableSupplier;
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -204,7 +203,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     if (outputFileFactoryProvider != null) {
       this.outputFileFactory =
           Preconditions.checkNotNull(
-              outputFileFactoryProvider.create(table, taskId, attemptId, format, spec),
+              outputFileFactoryProvider.create(tableSupplier, taskId, attemptId, format, spec),
               "OutputFileFactoryProvider must not return null");
     } else {
       this.outputFileFactory =
