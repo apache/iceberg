@@ -425,7 +425,7 @@ public class DynamicIcebergSink
           generator != null, "Please use withGenerator() to convert the input DataStream.");
       Preconditions.checkNotNull(catalogLoader, "Catalog loader shouldn't be null");
 
-      Configuration flinkConfig = getConfiguration();
+      Configuration flinkConfig = fromReadableConfig();
       FlinkDynamicSinkConf flinkDynamicSinkConf =
           new FlinkDynamicSinkConf(writeOptions, flinkConfig);
 
@@ -489,8 +489,7 @@ public class DynamicIcebergSink
 
       FlinkDynamicSinkConf flinkDynamicSinkConf =
           new FlinkDynamicSinkConf(writeOptions, readableConfig);
-      FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
-      Configuration flinkConfig = getConfiguration();
+      Configuration flinkConfig = fromReadableConfig();
 
       DynamicRecordInternalType type =
           new DynamicRecordInternalType(catalogLoader, false, flinkDynamicSinkConf.cacheMaxSize());
@@ -533,6 +532,7 @@ public class DynamicIcebergSink
               .sinkTo(sink) // Forward write results are implicitly injected here
               .uid(prefixIfNotNull(uidPrefix, "-sink"));
 
+      FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
       if (flinkWriteConf.writeParallelism() != null) {
         result.setParallelism(flinkWriteConf.writeParallelism());
       }
@@ -540,7 +540,7 @@ public class DynamicIcebergSink
       return result;
     }
 
-    private Configuration getConfiguration() {
+    private Configuration fromReadableConfig() {
       return readableConfig instanceof Configuration
           ? (Configuration) readableConfig
           : Configuration.fromMap(readableConfig.toMap());

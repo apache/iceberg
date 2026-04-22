@@ -40,11 +40,11 @@ import org.apache.iceberg.flink.FlinkConfParser;
  * applicable value is found in the write options, this class uses the default values.
  */
 @Experimental
-public class FlinkDynamicSinkConf {
+class FlinkDynamicSinkConf {
 
   private final FlinkConfParser confParser;
 
-  public FlinkDynamicSinkConf(Map<String, String> writeOptions, ReadableConfig readableConfig) {
+  FlinkDynamicSinkConf(Map<String, String> writeOptions, ReadableConfig readableConfig) {
     this.confParser = new FlinkConfParser(writeOptions, readableConfig);
   }
 

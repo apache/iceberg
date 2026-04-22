@@ -20,13 +20,12 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.flink.FlinkWriteConf;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** A DynamicRecord contains RowData alongside with the Iceberg table metadata. */
 public class DynamicRecord {
@@ -40,7 +39,9 @@ public class DynamicRecord {
   private int writeParallelism;
   private boolean upsertMode;
   @Nullable private Set<String> equalityFields;
-  @Nullable private FlinkWriteConf flinkWriteConf;
+
+  @Internal
+  DynamicRecord() {}
 
   /**
    * Constructs a new DynamicRecord with forward (no shuffle) writes.
@@ -102,8 +103,7 @@ public class DynamicRecord {
   }
 
   public String branch() {
-    return MoreObjects.firstNonNull(
-        branch, flinkWriteConf == null ? null : flinkWriteConf.branch());
+    return branch;
   }
 
   public void setBranch(String branch) {
@@ -135,8 +135,7 @@ public class DynamicRecord {
   }
 
   public DistributionMode distributionMode() {
-    return MoreObjects.firstNonNull(
-        distributionMode, flinkWriteConf == null ? null : flinkWriteConf.distributionMode());
+    return distributionMode;
   }
 
   public void setDistributionMode(DistributionMode distributionMode) {
@@ -144,13 +143,7 @@ public class DynamicRecord {
   }
 
   public int writeParallelism() {
-    if (writeParallelism > 0) {
-      return writeParallelism;
-    }
-
-    return flinkWriteConf == null
-        ? writeParallelism
-        : MoreObjects.firstNonNull(flinkWriteConf.writeParallelism(), writeParallelism);
+    return writeParallelism;
   }
 
   public void writeParallelism(int parallelism) {
@@ -171,13 +164,5 @@ public class DynamicRecord {
 
   public void setEqualityFields(Set<String> equalityFields) {
     this.equalityFields = equalityFields;
-  }
-
-  void setFlinkWriteConf(FlinkWriteConf flinkWriteConf) {
-    this.flinkWriteConf = flinkWriteConf;
-  }
-
-  FlinkWriteConf flinkWriteConf() {
-    return flinkWriteConf;
   }
 }

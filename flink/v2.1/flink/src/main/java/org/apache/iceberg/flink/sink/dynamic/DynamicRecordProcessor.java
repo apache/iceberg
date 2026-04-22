@@ -60,28 +60,27 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private transient OutputTag<DynamicRecordInternal> updateStream;
   private transient OutputTag<DynamicRecordInternal> forwardStream;
   private transient Collector<DynamicRecordInternal> collector;
-  private transient FlinkWriteConf flinkWriteConf;
+  private transient DynamicRecordWithDefaults dynamicRecordWithDefaults;
   private transient Context context;
 
   DynamicRecordProcessor(
       DynamicRecordGenerator<T> generator,
       CatalogLoader catalogLoader,
       TableCreator tableCreator,
-      FlinkDynamicSinkConf flinkDynamicSinkConf,
+      FlinkDynamicSinkConf sinkConfig,
       Map<String, String> writeProperties,
       Configuration flinkConfig) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.flinkConfig = flinkConfig;
     this.writeProperties = writeProperties;
-    this.immediateUpdate = flinkDynamicSinkConf.immediateTableUpdate();
-    this.cacheMaximumSize = flinkDynamicSinkConf.cacheMaxSize();
-    this.cacheRefreshMs = flinkDynamicSinkConf.cacheRefreshMs();
-    this.inputSchemasPerTableCacheMaximumSize =
-        flinkDynamicSinkConf.inputSchemasPerTableCacheMaxSize();
+    this.immediateUpdate = sinkConfig.immediateTableUpdate();
+    this.cacheMaximumSize = sinkConfig.cacheMaxSize();
+    this.cacheRefreshMs = sinkConfig.cacheRefreshMs();
+    this.inputSchemasPerTableCacheMaximumSize = sinkConfig.inputSchemasPerTableCacheMaxSize();
     this.tableCreator = tableCreator;
-    this.caseSensitive = flinkDynamicSinkConf.caseSensitive();
-    this.dropUnusedColumns = flinkDynamicSinkConf.dropUnusedColumns();
+    this.caseSensitive = sinkConfig.caseSensitive();
+    this.dropUnusedColumns = sinkConfig.dropUnusedColumns();
   }
 
   @Override
@@ -113,7 +112,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
               new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
     }
 
-    this.flinkWriteConf = new FlinkWriteConf(writeProperties, flinkConfig);
+    this.dynamicRecordWithDefaults =
+        new DynamicRecordWithDefaults(new FlinkWriteConf(writeProperties, flinkConfig));
     generator.open(openContext);
   }
 
@@ -126,10 +126,9 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   }
 
   @Override
-  public void collect(DynamicRecord data) {
-    // Config to load values not set on Dynamic Record.
-    data.setFlinkWriteConf(flinkWriteConf);
-    boolean isForward = data.distributionMode() == null;
+  public void collect(DynamicRecord inputData) {
+    boolean isForward = inputData.distributionMode() == null;
+    DynamicRecordWithDefaults data = dynamicRecordWithDefaults.wrap(inputData);
 
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;

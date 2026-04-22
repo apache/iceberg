@@ -525,11 +525,13 @@ class TestHashKeyGenerator {
       GenericRowData row,
       FlinkWriteConf flinkWriteConf)
       throws Exception {
-    DynamicRecord record =
+    DynamicRecord inputRecord =
         new DynamicRecord(TABLE_IDENTIFIER, BRANCH, SCHEMA, row, spec, mode, writeParallelism);
-    record.setFlinkWriteConf(flinkWriteConf);
-    record.setEqualityFields(equalityFields);
-    return generator.generateKey(record);
+    inputRecord.setEqualityFields(equalityFields);
+
+    DynamicRecordWithDefaults dynamicRecordWithDefaults =
+        new DynamicRecordWithDefaults(flinkWriteConf);
+    return generator.generateKey(dynamicRecordWithDefaults.wrap(inputRecord));
   }
 
   private static int getSubTaskId(int writeKey1, int writeParallelism, int maxWriteParallelism) {
