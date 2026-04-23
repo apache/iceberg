@@ -27,7 +27,7 @@ import org.apache.iceberg.rest.restrictions.ReadRestrictions;
  *
  * <p>Currently populated only by the REST catalog. Non-REST catalogs either don't implement this or
  * return {@link Optional#empty()} from {@link #readRestrictions()}. Consumers should route through
- * {@code TableUtil.readRestrictions(Table)} (also in iceberg-core) to handle both cases uniformly.
+ * {@code TableUtil.readRestrictions(Table)} to handle both cases uniformly.
  */
 public interface SupportsReadRestrictions {
   default Optional<ReadRestrictions> readRestrictions() {
