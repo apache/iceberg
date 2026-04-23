@@ -183,6 +183,12 @@ public class TableProperties {
   public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
       "write.parquet.stats-enabled.column.";
 
+  public static final String PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX =
+      "write.parquet.compression-codec.column.";
+
+  public static final String PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX =
+      "write.parquet.compression-level.column.";
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
