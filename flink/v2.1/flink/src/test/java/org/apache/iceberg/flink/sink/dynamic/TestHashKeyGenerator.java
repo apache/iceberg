@@ -513,7 +513,14 @@ class TestHashKeyGenerator {
       Set<String> equalityFields,
       GenericRowData row)
       throws Exception {
-    return getWriteKey(generator, spec, mode, writeParallelism, equalityFields, row, null);
+    return getWriteKey(
+        generator,
+        spec,
+        mode,
+        writeParallelism,
+        equalityFields,
+        row,
+        new FlinkWriteConf(Collections.emptyMap(), new Configuration()));
   }
 
   private static int getWriteKey(
