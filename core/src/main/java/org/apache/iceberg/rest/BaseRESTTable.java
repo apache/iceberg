@@ -36,7 +36,7 @@ import org.apache.iceberg.rest.restrictions.ReadRestrictions;
  * capability — they have no pathway to produce a {@link ReadRestrictions}.
  */
 class BaseRESTTable extends BaseTable implements SupportsReadRestrictions {
-  private final ReadRestrictions readRestrictions;
+  private final Optional<ReadRestrictions> readRestrictions;
 
   BaseRESTTable(
       TableOperations ops,
@@ -44,11 +44,14 @@ class BaseRESTTable extends BaseTable implements SupportsReadRestrictions {
       MetricsReporter reporter,
       ReadRestrictions readRestrictions) {
     super(ops, name, reporter);
-    this.readRestrictions = readRestrictions;
+    this.readRestrictions =
+        readRestrictions != null && !readRestrictions.isEmpty()
+            ? Optional.of(readRestrictions)
+            : Optional.empty();
   }
 
   @Override
   public Optional<ReadRestrictions> readRestrictions() {
-    return Optional.ofNullable(readRestrictions).filter(r -> !r.isEmpty());
+    return readRestrictions;
   }
 }

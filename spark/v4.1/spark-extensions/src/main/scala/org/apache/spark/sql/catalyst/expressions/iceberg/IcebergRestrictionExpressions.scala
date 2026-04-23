@@ -163,7 +163,7 @@ object IcebergRestrictedCodegenSupport {
  */
 case class IcebergRowFilterExpr(child: Expression) extends UnaryExpression {
   override def dataType: DataType = BooleanType
-  override def nullable: Boolean = false
+  override def nullable: Boolean = child.nullable
   override def prettyName: String = "iceberg_row_filter"
 
   override def sql: String = "iceberg_row_filter()"

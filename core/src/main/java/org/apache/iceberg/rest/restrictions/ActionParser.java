@@ -70,6 +70,7 @@ public class ActionParser {
 
     String actionType = JsonUtil.getString(ACTION, node);
     int fieldId = JsonUtil.getInt(FIELD_ID, node);
+    Preconditions.checkArgument(fieldId > 0, "Invalid field id: %s (must be positive)", fieldId);
 
     switch (actionType) {
       case Action.MASK_ALPHANUM:

@@ -37,6 +37,7 @@ import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.trees.TreeNodeTag
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
@@ -59,16 +60,16 @@ import scala.jdk.CollectionConverters._
 case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
-    // Generate the Sha256QueryLocal salt once per rule invocation. resolveOperators
-    // can re-enter the match arm on fixed-point iterations; generating salt inside
-    // the arm would produce a different value each pass and break plan stability
-    // (sameResult comparisons, explain determinism, and — more importantly — any
-    // per-query semantic guarantee that a single value hashes identically across
-    // references within the query).
+    // Generate the Sha256QueryLocal salt once per rule invocation. The tag guard
+    // below ensures this rule fires at most once per DataSourceV2Relation, so the
+    // salt is effectively per-query: subsequent fixed-point passes see the tag and
+    // skip the already-rewritten relation.
     val querySalt = ApplyReadRestrictions.generateSalt()
     plan resolveOperators {
       case r @ DataSourceV2Relation(table: SparkTable, _, _, _, _, _)
-          if table.readRestrictions.isPresent =>
+          if table.readRestrictions.isPresent
+            && r.getTagValue(ApplyReadRestrictions.RESTRICTIONS_APPLIED).isEmpty =>
+        r.setTagValue(ApplyReadRestrictions.RESTRICTIONS_APPLIED, ())
         rewrite(r, table.readRestrictions.get, querySalt)
     }
   }
@@ -166,6 +167,7 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
 object ApplyReadRestrictions {
   private val RANDOM = new SecureRandom()
   private val SALT_LENGTH = 16
+  private val RESTRICTIONS_APPLIED = new TreeNodeTag[Unit]("readRestrictionsApplied")
 
   def generateSalt(): Array[Byte] = {
     val salt = new Array[Byte](SALT_LENGTH)
