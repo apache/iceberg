@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -99,7 +100,7 @@ class TestTrackingStruct {
   void testInheritSnapshotId() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
-    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
+    tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // snapshotId is null, should inherit from manifest
     assertThat(tracking.snapshotId()).isEqualTo(100L);
@@ -109,9 +110,9 @@ class TestTrackingStruct {
   void testInheritSequenceNumberForAddedEntries() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
-    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
+    tracking.inheritFrom(createManifestTracking(100L, 60L));
 
-    // sequence numbers are null and status is ADDED, should inherit from file sequence number
+    // sequence numbers are null and status is ADDED, should inherit
     assertThat(tracking.dataSequenceNumber()).isEqualTo(60L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(60L);
   }
@@ -122,7 +123,7 @@ class TestTrackingStruct {
     tracking.set(0, EntryStatus.EXISTING.id());
     tracking.set(2, 5L);
     tracking.set(3, 6L);
-    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
+    tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are not inherited for EXISTING entries
     assertThat(tracking.dataSequenceNumber()).isEqualTo(5L);
@@ -136,12 +137,28 @@ class TestTrackingStruct {
     tracking.set(1, 200L);
     tracking.set(2, 75L);
     tracking.set(3, 76L);
-    tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
+    tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // explicit values should take precedence
     assertThat(tracking.snapshotId()).isEqualTo(200L);
     assertThat(tracking.dataSequenceNumber()).isEqualTo(75L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(76L);
+  }
+
+  @Test
+  void testInheritFromRejectsUnequalSequenceNumbers() {
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(0, EntryStatus.ADDED.id());
+
+    TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
+    manifestTracking.set(0, EntryStatus.ADDED.id());
+    manifestTracking.set(1, 100L);
+    manifestTracking.set(2, 50L);
+    manifestTracking.set(3, 60L);
+
+    assertThatThrownBy(() -> tracking.inheritFrom(manifestTracking))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Manifest data and file sequence numbers must be equal, got 50 and 60");
   }
 
   @Test
@@ -155,15 +172,12 @@ class TestTrackingStruct {
     assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
-  // uses distinct data and file sequence numbers to verify that inheritance uses file sequence
-  // number
-  private static Tracking createManifestTracking(
-      long snapshotId, long dataSequenceNumber, long fileSequenceNumber) {
+  private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.set(1, snapshotId);
-    tracking.set(2, dataSequenceNumber);
-    tracking.set(3, fileSequenceNumber);
+    tracking.set(2, sequenceNumber);
+    tracking.set(3, sequenceNumber);
     return tracking;
   }
 

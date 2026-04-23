@@ -21,8 +21,10 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Objects;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -87,8 +89,14 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         this.snapshotId = manifestTracking.snapshotId();
       }
 
-      // both sequence numbers inherit from file sequence number because manifests
-      // do not distinguish between data and file sequence numbers
+      // manifests do not distinguish between data and file sequence numbers
+      Preconditions.checkArgument(
+          Objects.equals(
+              manifestTracking.dataSequenceNumber(), manifestTracking.fileSequenceNumber()),
+          "Manifest data and file sequence numbers must be equal, got %s and %s",
+          manifestTracking.dataSequenceNumber(),
+          manifestTracking.fileSequenceNumber());
+
       if (status == EntryStatus.ADDED) {
         if (dataSequenceNumber == null) {
           this.dataSequenceNumber = manifestTracking.fileSequenceNumber();
