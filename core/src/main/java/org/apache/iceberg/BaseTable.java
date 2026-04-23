@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -30,7 +29,6 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 
 /**
  * Base {@link Table} implementation.
@@ -40,43 +38,22 @@ import org.apache.iceberg.rest.restrictions.ReadRestrictions;
  * <p>Serializing and deserializing a BaseTable object returns a read only implementation of the
  * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
  * when reading the table data after deserialization.
- *
- * <p>BaseTable can carry per-principal {@link ReadRestrictions} as opaque data (populated by the
- * REST catalog), but deliberately does <b>not</b> implement {@link SupportsReadRestrictions}. Only
- * REST-loaded subclasses ({@link org.apache.iceberg.rest.RESTTable}) advertise the capability, so
- * {@code instanceof SupportsReadRestrictions} discriminates between table sources. The inherited
- * public {@code readRestrictions()} method satisfies the interface contract when a subclass
- * declares the marker.
  */
 public class BaseTable
     implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
   private final TableOperations ops;
   private final String name;
   private MetricsReporter reporter;
-  private final ReadRestrictions readRestrictions;
 
   public BaseTable(TableOperations ops, String name) {
     this(ops, name, LoggingMetricsReporter.instance());
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
-    this(ops, name, reporter, null);
-  }
-
-  public BaseTable(
-      TableOperations ops,
-      String name,
-      MetricsReporter reporter,
-      ReadRestrictions readRestrictions) {
     Preconditions.checkNotNull(reporter, "reporter cannot be null");
     this.ops = ops;
     this.name = name;
     this.reporter = reporter;
-    this.readRestrictions = readRestrictions;
-  }
-
-  public Optional<ReadRestrictions> readRestrictions() {
-    return Optional.ofNullable(readRestrictions).filter(r -> !r.isEmpty());
   }
 
   public MetricsReporter reporter() {
