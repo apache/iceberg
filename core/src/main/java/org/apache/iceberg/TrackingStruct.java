@@ -87,9 +87,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         this.snapshotId = manifestTracking.snapshotId();
       }
 
+      // both sequence numbers inherit from file sequence number because manifests
+      // do not distinguish between data and file sequence numbers
       if (status == EntryStatus.ADDED) {
         if (dataSequenceNumber == null) {
-          this.dataSequenceNumber = manifestTracking.dataSequenceNumber();
+          this.dataSequenceNumber = manifestTracking.fileSequenceNumber();
         }
 
         if (fileSequenceNumber == null) {

@@ -111,8 +111,8 @@ class TestTrackingStruct {
     tracking.set(0, EntryStatus.ADDED.id());
     tracking.inheritFrom(createManifestTracking(100L, 50L, 60L));
 
-    // sequence numbers are null and status is ADDED, should inherit
-    assertThat(tracking.dataSequenceNumber()).isEqualTo(50L);
+    // sequence numbers are null and status is ADDED, should inherit from file sequence number
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(60L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(60L);
   }
 
@@ -155,6 +155,8 @@ class TestTrackingStruct {
     assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
+  // uses distinct data and file sequence numbers to verify that inheritance uses file sequence
+  // number
   private static Tracking createManifestTracking(
       long snapshotId, long dataSequenceNumber, long fileSequenceNumber) {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
