@@ -42,10 +42,11 @@ import org.apache.iceberg.rest.restrictions.ReadRestrictions;
  * when reading the table data after deserialization.
  *
  * <p>BaseTable can carry per-principal {@link ReadRestrictions} as opaque data (populated by the
- * REST catalog), but deliberately does <b>not</b> implement {@link
- * org.apache.iceberg.rest.restrictions.SupportsReadRestrictions}. Only REST-loaded subclasses (e.g.
- * {@link org.apache.iceberg.rest.RESTTable}) advertise the capability so that {@code instanceof
- * SupportsReadRestrictions} discriminates correctly between table sources.
+ * REST catalog), but deliberately does <b>not</b> implement {@link SupportsReadRestrictions}. Only
+ * REST-loaded subclasses ({@link org.apache.iceberg.rest.RESTTable}) advertise the capability, so
+ * {@code instanceof SupportsReadRestrictions} discriminates between table sources. The inherited
+ * public {@code readRestrictions()} method satisfies the interface contract when a subclass
+ * declares the marker.
  */
 public class BaseTable
     implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
