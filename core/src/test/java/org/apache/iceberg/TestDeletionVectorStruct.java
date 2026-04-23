@@ -28,12 +28,8 @@ class TestDeletionVectorStruct {
 
   @Test
   void testFieldAccess() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
 
     assertThat(dv.location()).isEqualTo("s3://bucket/data/dv.puffin");
     assertThat(dv.offset()).isEqualTo(256L);
@@ -43,12 +39,8 @@ class TestDeletionVectorStruct {
 
   @Test
   void testCopy() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
 
     DeletionVectorStruct copy = dv.copy();
 
@@ -86,11 +78,8 @@ class TestDeletionVectorStruct {
 
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
 
     DeletionVectorStruct deserialized = TestHelpers.roundTripSerialize(dv);
 
@@ -102,11 +91,8 @@ class TestDeletionVectorStruct {
 
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
 
     DeletionVectorStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(dv);
 

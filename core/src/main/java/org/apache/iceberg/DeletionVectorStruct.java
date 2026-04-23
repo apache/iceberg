@@ -41,6 +41,14 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     super(BASE_TYPE, type);
   }
 
+  DeletionVectorStruct(String location, long offset, long sizeInBytes, long cardinality) {
+    super(BASE_TYPE.fields().size());
+    this.location = location;
+    this.offset = offset;
+    this.sizeInBytes = sizeInBytes;
+    this.cardinality = cardinality;
+  }
+
   private DeletionVectorStruct(DeletionVectorStruct toCopy) {
     super(toCopy);
     this.location = toCopy.location;

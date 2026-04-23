@@ -98,8 +98,7 @@ class TestTrackingStruct {
 
   @Test
   void testInheritSnapshotId() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
+    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, null);
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // snapshotId is null, should inherit from manifest
@@ -108,8 +107,7 @@ class TestTrackingStruct {
 
   @Test
   void testInheritSequenceNumberForAddedEntries() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
+    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, null);
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are null and status is ADDED, should inherit
@@ -119,8 +117,7 @@ class TestTrackingStruct {
 
   @Test
   void testDoNotInheritSequenceNumberForExistingEntries() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.EXISTING.id());
+    TrackingStruct tracking = new TrackingStruct(EntryStatus.EXISTING, null);
     tracking.set(2, 5L);
     tracking.set(3, 6L);
     tracking.inheritFrom(createManifestTracking(100L, 60L));
@@ -132,9 +129,7 @@ class TestTrackingStruct {
 
   @Test
   void testExplicitValuesOverrideInheritance() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 200L);
+    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, 200L);
     tracking.set(2, 75L);
     tracking.set(3, 76L);
     tracking.inheritFrom(createManifestTracking(100L, 60L));
@@ -163,8 +158,7 @@ class TestTrackingStruct {
 
   @Test
   void testNoDefaultingWithoutInheritance() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
+    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, null);
 
     // no inheritance, nulls stay null
     assertThat(tracking.snapshotId()).isNull();
@@ -173,9 +167,7 @@ class TestTrackingStruct {
   }
 
   private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, snapshotId);
+    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, snapshotId);
     tracking.set(2, sequenceNumber);
     tracking.set(3, sequenceNumber);
     return tracking;

@@ -63,6 +63,12 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     super(BASE_TYPE.fields().size());
   }
 
+  TrackingStruct(EntryStatus status, Long snapshotId) {
+    super(BASE_TYPE.fields().size());
+    this.status = status;
+    this.snapshotId = snapshotId;
+  }
+
   private TrackingStruct(TrackingStruct toCopy) {
     super(toCopy);
     this.status = toCopy.status;
