@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.restrictions;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -39,10 +38,17 @@ public class ReadRestrictions implements Serializable {
 
   private final Expression rowFilter;
   private final List<Action> columnProjections;
+  private final Set<Integer> maskedFieldIds;
 
   private ReadRestrictions(Expression rowFilter, List<Action> columnProjections) {
     this.rowFilter = rowFilter;
     this.columnProjections = ImmutableList.copyOf(columnProjections);
+    this.maskedFieldIds =
+        this.columnProjections.isEmpty()
+            ? ImmutableSet.of()
+            : this.columnProjections.stream()
+                .map(Action::fieldId)
+                .collect(ImmutableSet.toImmutableSet());
   }
 
   public static ReadRestrictions empty() {
@@ -71,9 +77,6 @@ public class ReadRestrictions implements Serializable {
 
   /** Field ids covered by a column projection action. */
   public Set<Integer> maskedFieldIds() {
-    if (columnProjections.isEmpty()) {
-      return ImmutableSet.of();
-    }
-    return columnProjections.stream().map(Action::fieldId).collect(Collectors.toSet());
+    return maskedFieldIds;
   }
 }

@@ -187,19 +187,6 @@ public class Actions {
     }
   }
 
-  static int[] toCodePoints(String input) {
-    int count = input.codePointCount(0, input.length());
-    int[] result = new int[count];
-    int idx = 0;
-    int offset = 0;
-    while (offset < input.length()) {
-      int cp = input.codePointAt(offset);
-      result[idx++] = cp;
-      offset += Character.charCount(cp);
-    }
-    return result;
-  }
-
   // ==== Inner function classes ====
 
   /**
@@ -239,14 +226,17 @@ public class Actions {
     @Override
     Object applyNonNull(Object value) {
       String input = value.toString();
-      int[] codePoints = toCodePoints(input);
-      if (codePoints.length <= 4) {
+      if (input.codePointCount(0, input.length()) <= 4) {
         return input;
       }
       StringBuilder sb = new StringBuilder(input.length());
-      for (int i = 0; i < codePoints.length; i++) {
-        int cp = codePoints[i];
-        sb.appendCodePoint(i < 4 ? cp : mapCodePoint(cp));
+      int cpIndex = 0;
+      int offset = 0;
+      while (offset < input.length()) {
+        int cp = input.codePointAt(offset);
+        sb.appendCodePoint(cpIndex < 4 ? cp : mapCodePoint(cp));
+        offset += Character.charCount(cp);
+        cpIndex++;
       }
       return sb.toString();
     }
@@ -258,15 +248,19 @@ public class Actions {
     @Override
     Object applyNonNull(Object value) {
       String input = value.toString();
-      int[] codePoints = toCodePoints(input);
-      if (codePoints.length <= 4) {
+      int totalCps = input.codePointCount(0, input.length());
+      if (totalCps <= 4) {
         return input;
       }
-      int keepFrom = codePoints.length - 4;
+      int keepFrom = totalCps - 4;
       StringBuilder sb = new StringBuilder(input.length());
-      for (int i = 0; i < codePoints.length; i++) {
-        int cp = codePoints[i];
-        sb.appendCodePoint(i >= keepFrom ? cp : mapCodePoint(cp));
+      int cpIndex = 0;
+      int offset = 0;
+      while (offset < input.length()) {
+        int cp = input.codePointAt(offset);
+        sb.appendCodePoint(cpIndex >= keepFrom ? cp : mapCodePoint(cp));
+        offset += Character.charCount(cp);
+        cpIndex++;
       }
       return sb.toString();
     }
@@ -301,6 +295,9 @@ public class Actions {
 
     @Override
     Object applyNonNull(Object value) {
+      if (defaultValue instanceof ByteBuffer) {
+        return ((ByteBuffer) defaultValue).duplicate();
+      }
       return defaultValue;
     }
   }
@@ -311,8 +308,8 @@ public class Actions {
     @Override
     Object applyNonNull(Object value) {
       int days = (Integer) value;
-      LocalDate truncated = LocalDate.ofEpochDay(days).withMonth(1).withDayOfMonth(1);
-      return (int) truncated.toEpochDay();
+      LocalDate truncated = DateTimeUtil.dateFromDays(days).withMonth(1).withDayOfMonth(1);
+      return DateTimeUtil.daysFromDate(truncated);
     }
   }
 
@@ -349,8 +346,8 @@ public class Actions {
     @Override
     Object applyNonNull(Object value) {
       int days = (Integer) value;
-      LocalDate truncated = LocalDate.ofEpochDay(days).withDayOfMonth(1);
-      return (int) truncated.toEpochDay();
+      LocalDate truncated = DateTimeUtil.dateFromDays(days).withDayOfMonth(1);
+      return DateTimeUtil.daysFromDate(truncated);
     }
   }
 
@@ -397,7 +394,7 @@ public class Actions {
 
     Sha256Function(Type.TypeID typeId, byte[] salt) {
       this.typeId = typeId;
-      this.salt = salt;
+      this.salt = salt != null ? salt.clone() : null;
     }
 
     @Override
@@ -431,11 +428,7 @@ public class Actions {
           }
           break;
         case BINARY:
-          ByteBuffer buf = (ByteBuffer) value;
-          ByteBuffer dup = buf.duplicate();
-          byte[] bytes = new byte[dup.remaining()];
-          dup.get(bytes);
-          md.update(bytes);
+          md.update(((ByteBuffer) value).duplicate());
           break;
         default:
           throw new UnsupportedOperationException("sha-256 is not supported for type: " + typeId);
