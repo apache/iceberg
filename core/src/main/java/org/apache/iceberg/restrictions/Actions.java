@@ -202,14 +202,25 @@ public class Actions {
 
   // ==== Inner function classes ====
 
-  private static class MaskAlphanumFunction implements SerializableFunction<Object, Object> {
+  /**
+   * Base for masking functions where null input must pass through as null unchanged (spec: "For all
+   * actions, if the input column value is NULL, the output MUST be NULL."). Subclasses implement
+   * {@link #applyNonNull(Object)} and don't have to repeat the guard.
+   */
+  private abstract static class NullSafeFunction implements SerializableFunction<Object, Object> {
+    @Override
+    public final Object apply(Object value) {
+      return value == null ? null : applyNonNull(value);
+    }
+
+    abstract Object applyNonNull(Object value);
+  }
+
+  private static class MaskAlphanumFunction extends NullSafeFunction {
     static final MaskAlphanumFunction INSTANCE = new MaskAlphanumFunction();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       String input = value.toString();
       StringBuilder sb = new StringBuilder(input.length());
       int offset = 0;
@@ -222,14 +233,11 @@ public class Actions {
     }
   }
 
-  private static class ShowFirst4Function implements SerializableFunction<Object, Object> {
+  private static class ShowFirst4Function extends NullSafeFunction {
     static final ShowFirst4Function INSTANCE = new ShowFirst4Function();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       String input = value.toString();
       int[] codePoints = toCodePoints(input);
       if (codePoints.length <= 4) {
@@ -244,14 +252,11 @@ public class Actions {
     }
   }
 
-  private static class ShowLast4Function implements SerializableFunction<Object, Object> {
+  private static class ShowLast4Function extends NullSafeFunction {
     static final ShowLast4Function INSTANCE = new ShowLast4Function();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       String input = value.toString();
       int[] codePoints = toCodePoints(input);
       if (codePoints.length <= 4) {
@@ -287,7 +292,7 @@ public class Actions {
     }
   }
 
-  private static class MaskToDefaultFunction implements SerializableFunction<Object, Object> {
+  private static class MaskToDefaultFunction extends NullSafeFunction {
     private final Object defaultValue;
 
     MaskToDefaultFunction(Object defaultValue) {
@@ -295,37 +300,27 @@ public class Actions {
     }
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       return defaultValue;
     }
   }
 
-  private static class TruncateToYearDateFunction implements SerializableFunction<Object, Object> {
+  private static class TruncateToYearDateFunction extends NullSafeFunction {
     static final TruncateToYearDateFunction INSTANCE = new TruncateToYearDateFunction();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       int days = (Integer) value;
       LocalDate truncated = LocalDate.ofEpochDay(days).withMonth(1).withDayOfMonth(1);
       return (int) truncated.toEpochDay();
     }
   }
 
-  private static class TruncateToYearTimestampFunction
-      implements SerializableFunction<Object, Object> {
+  private static class TruncateToYearTimestampFunction extends NullSafeFunction {
     static final TruncateToYearTimestampFunction INSTANCE = new TruncateToYearTimestampFunction();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       long micros = (Long) value;
       LocalDateTime ldt = DateTimeUtil.timestampFromMicros(micros);
       LocalDateTime truncated =
@@ -334,16 +329,12 @@ public class Actions {
     }
   }
 
-  private static class TruncateToYearTimestampNanoFunction
-      implements SerializableFunction<Object, Object> {
+  private static class TruncateToYearTimestampNanoFunction extends NullSafeFunction {
     static final TruncateToYearTimestampNanoFunction INSTANCE =
         new TruncateToYearTimestampNanoFunction();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       long nanos = (Long) value;
       LocalDateTime ldt = DateTimeUtil.timestampFromNanos(nanos);
       LocalDateTime truncated =
@@ -352,29 +343,22 @@ public class Actions {
     }
   }
 
-  private static class TruncateToMonthDateFunction implements SerializableFunction<Object, Object> {
+  private static class TruncateToMonthDateFunction extends NullSafeFunction {
     static final TruncateToMonthDateFunction INSTANCE = new TruncateToMonthDateFunction();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       int days = (Integer) value;
       LocalDate truncated = LocalDate.ofEpochDay(days).withDayOfMonth(1);
       return (int) truncated.toEpochDay();
     }
   }
 
-  private static class TruncateToMonthTimestampFunction
-      implements SerializableFunction<Object, Object> {
+  private static class TruncateToMonthTimestampFunction extends NullSafeFunction {
     static final TruncateToMonthTimestampFunction INSTANCE = new TruncateToMonthTimestampFunction();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       long micros = (Long) value;
       LocalDateTime ldt = DateTimeUtil.timestampFromMicros(micros);
       LocalDateTime truncated =
@@ -383,16 +367,12 @@ public class Actions {
     }
   }
 
-  private static class TruncateToMonthTimestampNanoFunction
-      implements SerializableFunction<Object, Object> {
+  private static class TruncateToMonthTimestampNanoFunction extends NullSafeFunction {
     static final TruncateToMonthTimestampNanoFunction INSTANCE =
         new TruncateToMonthTimestampNanoFunction();
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       long nanos = (Long) value;
       LocalDateTime ldt = DateTimeUtil.timestampFromNanos(nanos);
       LocalDateTime truncated =
@@ -401,7 +381,7 @@ public class Actions {
     }
   }
 
-  private static class Sha256Function implements SerializableFunction<Object, Object> {
+  private static class Sha256Function extends NullSafeFunction {
     private static final ThreadLocal<MessageDigest> DIGEST =
         ThreadLocal.withInitial(
             () -> {
@@ -421,10 +401,7 @@ public class Actions {
     }
 
     @Override
-    public Object apply(Object value) {
-      if (value == null) {
-        return null;
-      }
+    Object applyNonNull(Object value) {
       MessageDigest md = DIGEST.get();
       md.reset();
       if (salt != null) {
