@@ -804,11 +804,12 @@ public abstract class BaseFormatModelTests<T> {
     // Single file reference: counts are removed but bounds are preserved.
     List<PositionDelete<T>> deletes =
         ImmutableList.of(
-            PositionDelete.<T>create().set("d-file-1.parquet", 0L),
-            PositionDelete.<T>create().set("d-file-1.parquet", 5L),
-            PositionDelete.<T>create().set("d-file-1.parquet", 3L));
+            PositionDelete.<T>create().set("d-file-1.file", 0L),
+            PositionDelete.<T>create().set("d-file-1.file", 5L),
+            PositionDelete.<T>create().set("d-file-1.file", 3L));
 
-    writePositionDeletesAndAssertMetrics(fileFormat, deletes, true /* checkBounds */);
+    DeleteFile deleteFile = writePositionDeletes(fileFormat, deletes);
+    assertPositionDeleteMetrics(fileFormat, deletes, deleteFile, true /* checkBounds */);
   }
 
   @ParameterizedTest
@@ -817,11 +818,12 @@ public abstract class BaseFormatModelTests<T> {
     // Multiple file references: both counts and bounds are removed.
     List<PositionDelete<T>> deletes =
         ImmutableList.of(
-            PositionDelete.<T>create().set("d-file-1.parquet", 0L),
-            PositionDelete.<T>create().set("d-file-1.parquet", 5L),
-            PositionDelete.<T>create().set("d-file-2.parquet", 3L));
+            PositionDelete.<T>create().set("d-file-1.file", 0L),
+            PositionDelete.<T>create().set("d-file-1.file", 5L),
+            PositionDelete.<T>create().set("d-file-2.file", 3L));
 
-    writePositionDeletesAndAssertMetrics(fileFormat, deletes, false /* checkBounds */);
+    DeleteFile deleteFile = writePositionDeletes(fileFormat, deletes);
+    assertPositionDeleteMetrics(fileFormat, deletes, deleteFile, false /* checkBounds */);
   }
 
   @ParameterizedTest
@@ -986,6 +988,21 @@ public abstract class BaseFormatModelTests<T> {
     assumeThat(MISSING_FEATURES.getOrDefault(fileFormat, new String[] {})).doesNotContain(feature);
   }
 
+  /**
+   * Returns whether the given file format supports the specified feature.
+   *
+   * <p>The check is based on {@link #MISSING_FEATURES}. Features not listed as missing for a format
+   * are treated as supported.
+   *
+   * <p>Prefer this method over {@link #assumeSupports(FileFormat, String)} when only part of a test
+   * should be skipped conditionally. Unlike {@code assumeSupports}, this method does not abort the
+   * entire test via an assumption failure; it returns {@code false} so callers can skip only
+   * feature-specific assertions while still validating shared behavior.
+   *
+   * @param fileFormat the file format under test
+   * @param feature the feature name
+   * @return {@code true} if the feature is supported by the format; {@code false} otherwise
+   */
   private static boolean supportsFeature(FileFormat fileFormat, String feature) {
     String[] missing = MISSING_FEATURES.getOrDefault(fileFormat, new String[] {});
     return !Arrays.asList(missing).contains(feature);
@@ -1183,11 +1200,8 @@ public abstract class BaseFormatModelTests<T> {
     }
   }
 
-  private void writePositionDeletesAndAssertMetrics(
-      FileFormat fileFormat, List<PositionDelete<T>> deletes, boolean checkBounds)
+  private DeleteFile writePositionDeletes(FileFormat fileFormat, List<PositionDelete<T>> deletes)
       throws IOException {
-    Schema positionDeleteSchema = DeleteSchemaUtil.pathPosSchema();
-
     FileWriterBuilder<PositionDeleteWriter<T>, ?> writerBuilder =
         FormatModelRegistry.positionDeleteWriteBuilder(fileFormat, encryptedFile);
 
@@ -1196,7 +1210,15 @@ public abstract class BaseFormatModelTests<T> {
       deletes.forEach(writer::write);
     }
 
-    DeleteFile deleteFile = writer.toDeleteFile();
+    return writer.toDeleteFile();
+  }
+
+  private void assertPositionDeleteMetrics(
+      FileFormat fileFormat,
+      List<PositionDelete<T>> deletes,
+      DeleteFile deleteFile,
+      boolean checkBounds) {
+    Schema positionDeleteSchema = DeleteSchemaUtil.pathPosSchema();
 
     assertThat(deleteFile).isNotNull();
     assertThat(deleteFile.recordCount()).isEqualTo(deletes.size());
