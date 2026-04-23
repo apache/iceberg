@@ -48,9 +48,11 @@ class UndeleteColumnProcedure extends BaseProcedure {
       requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter COLUMN_PARAM =
       requiredInParameter("column", DataTypes.StringType);
+  private static final ProcedureParameter SET_NULLABLE_PARAM =
+      optionalInParameter("set_nullable", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, COLUMN_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, COLUMN_PARAM, SET_NULLABLE_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -88,11 +90,12 @@ class UndeleteColumnProcedure extends BaseProcedure {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
     String columnName = input.asString(COLUMN_PARAM, null);
+    boolean setNullable = input.asBoolean(SET_NULLABLE_PARAM, false);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          table.updateSchema().undeleteColumn(columnName).commit();
+          table.updateSchema().undeleteColumn(columnName, setNullable).commit();
 
           // Get the restored field info
           Types.NestedField restoredField = table.schema().findField(columnName);

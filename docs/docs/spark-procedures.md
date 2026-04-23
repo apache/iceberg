@@ -251,17 +251,18 @@ CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch');
 
 Restores a previously deleted column from the table's schema history.
 
-The column is restored with its original field ID, preserving data file compatibility. This allows you to recover columns that were accidentally deleted without losing access to existing data.
+The column is restored with its original field ID and nullability, preserving data file compatibility. This allows you to recover columns that were accidentally deleted without losing access to existing data.
 
 !!! info
-    Restored columns are always made optional, even if the original column was required. This is because new data may have been written without this column after it was deleted.
+    If the original column was required (non-nullable), the procedure verifies that no data has been written to the table since the column was deleted. If data was written after deletion, the procedure fails — restoring the column as required would violate the non-null constraint for rows added after deletion. Pass `set_nullable => true` to restore the column as optional instead, bypassing the check.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `column`      | ✔️  | string | Name of the column to restore (use dotted notation for nested fields, e.g., `struct.field`) |
+| Argument Name   | Required? | Type    | Description |
+|-----------------|-----------|---------|-------------|
+| `table`         | ✔️       | string  | Name of the table to update |
+| `column`        | ✔️       | string  | Name of the column to restore (use dotted notation for nested fields, e.g., `struct.field`) |
+| `set_nullable`  |          | boolean | If `true`, restore the column as optional even if the original was required. Default: `false`. |
 
 #### Output
 
@@ -286,6 +287,11 @@ CALL catalog_name.system.undelete_column('db.sample', 'location.lat');
 Restore a column using named arguments:
 ```sql
 CALL catalog_name.system.undelete_column(table => 'db.sample', column => 'deleted_col');
+```
+
+Restore a required column as optional because data was written since deletion:
+```sql
+CALL catalog_name.system.undelete_column(table => 'db.sample', column => 'required_col', set_nullable => true);
 ```
 
 !!! warning

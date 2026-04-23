@@ -568,15 +568,20 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * Restore a previously deleted column from the schema history.
    *
    * <p>The name is used to search for the column in historical schemas. The column is restored with
-   * its original field ID, preserving data file compatibility. Restored columns are always
-   * optional.
+   * its original field ID and nullability, preserving data file compatibility.
+   *
+   * <p>If the original column was required, this method verifies that no data has been written to
+   * the table since the column was deleted. If data was written, the undelete fails because the
+   * restored required column cannot satisfy its non-null constraint for rows added after deletion.
+   * Pass {@code setNullable=true} to bypass this check and restore the column as optional instead.
    *
    * @param name name of the column to restore (supports dot notation for nested fields)
+   * @param setNullable if true, restore as optional even if the original was required
    * @return this for method chaining
-   * @throws IllegalArgumentException if name already exists, was never deleted, or parent struct
-   *     does not exist
+   * @throws IllegalArgumentException if name already exists, was never deleted, parent struct does
+   *     not exist, or the column was originally required and data was written after deletion
    */
-  UpdateSchema undeleteColumn(String name);
+  UpdateSchema undeleteColumn(String name, boolean setNullable);
 
   /**
    * Move a column from its current position to the start of the schema or its parent struct.

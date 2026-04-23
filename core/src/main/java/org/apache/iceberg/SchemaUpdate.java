@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -191,7 +192,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
-  public UpdateSchema undeleteColumn(String name) {
+  public UpdateSchema undeleteColumn(String name, boolean setNullable) {
     Types.NestedField existingField = findField(name);
     Preconditions.checkArgument(
         existingField == null,
@@ -211,8 +212,17 @@ class SchemaUpdate implements UpdateSchema {
     int parentId = deletedInfo.parentId();
     Types.NestedField originalField = deletedInfo.field();
 
-    // undeleted columns are always optional since new data may not have values
-    Types.NestedField field = originalField.asOptional();
+    Types.NestedField field;
+    if (setNullable || originalField.isOptional()) {
+      field = originalField.asOptional();
+    } else {
+      Preconditions.checkArgument(
+          !dataWrittenSinceDeletion(originalField.fieldId()),
+          "Cannot undelete required column '%s': data was written after the column was deleted. "
+              + "Pass setNullable=true to restore the column as optional.",
+          name);
+      field = originalField;
+    }
 
     if (parentId != TABLE_ROOT_ID) {
       idToParent.put(field.fieldId(), parentId);
@@ -223,6 +233,30 @@ class SchemaUpdate implements UpdateSchema {
     addedNameToId.put(name, field.fieldId());
 
     return this;
+  }
+
+  /**
+   * Returns true if any snapshot after the column's last presence added data files. Walks snapshots
+   * newest-first: once we hit a snapshot whose schema contains the field, no later snapshot wrote
+   * data without it.
+   */
+  private boolean dataWrittenSinceDeletion(int fieldId) {
+    List<Snapshot> snapshots = Lists.newArrayList(base.snapshots());
+    snapshots.sort(Comparator.comparingLong(Snapshot::sequenceNumber).reversed());
+    Map<Integer, Schema> schemasById = base.schemasById();
+
+    for (Snapshot snapshot : snapshots) {
+      Integer schemaId = snapshot.schemaId();
+      if (schemaId != null && schemasById.get(schemaId).findField(fieldId) != null) {
+        return false;
+      }
+      Map<String, String> summary = snapshot.summary();
+      String added = summary != null ? summary.get(SnapshotSummary.ADDED_FILES_PROP) : null;
+      if (added != null && !"0".equals(added)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private record DeletedColumnInfo(int parentId, Types.NestedField field) {}

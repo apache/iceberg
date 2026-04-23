@@ -21,6 +21,10 @@ package org.apache.iceberg.hadoop;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotParser;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
@@ -41,7 +45,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(table.schema().findField("count")).isNull();
 
     // Undelete the column
-    table.updateSchema().undeleteColumn("count").commit();
+    table.updateSchema().undeleteColumn("count", false).commit();
 
     Types.NestedField restoredField = table.schema().findField("count");
     assertThat(restoredField).isNotNull();
@@ -70,7 +74,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(table.schema().findField("location.lat")).isNull();
 
     // Undelete the nested field
-    table.updateSchema().undeleteColumn("location.lat").commit();
+    table.updateSchema().undeleteColumn("location.lat", false).commit();
 
     Types.NestedField restoredField = table.schema().findField("location.lat");
     assertThat(restoredField).isNotNull();
@@ -81,7 +85,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
   @Test
   public void testUndeleteColumnAlreadyExists() {
     // Try to undelete a column that already exists (id is part of SCHEMA)
-    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("id").commit())
+    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("id", false).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("already exists in the current schema");
   }
@@ -89,7 +93,8 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
   @Test
   public void testUndeleteColumnNotFound() {
     // Try to undelete a column that was never in the schema
-    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("nonexistent_column").commit())
+    assertThatThrownBy(
+            () -> table.updateSchema().undeleteColumn("nonexistent_column", false).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("not found in any historical schema");
   }
@@ -109,7 +114,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     table.updateSchema().deleteColumn("temp_col").commit();
 
     // Undelete temp_col
-    table.updateSchema().undeleteColumn("temp_col").commit();
+    table.updateSchema().undeleteColumn("temp_col", false).commit();
 
     Types.NestedField restored = table.schema().findField("temp_col");
     assertThat(restored.fieldId())
@@ -137,7 +142,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(table.schema().findField("prefs")).isNull();
 
     // Try to undelete nested field when parent doesn't exist
-    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("prefs.setting1").commit())
+    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("prefs.setting1", false).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("parent struct")
         .hasMessageContaining("does not exist")
@@ -166,14 +171,14 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(table.schema().findField("config")).isNull();
 
     // Undelete the parent struct first
-    table.updateSchema().undeleteColumn("config").commit();
+    table.updateSchema().undeleteColumn("config", false).commit();
 
     Types.NestedField restoredConfig = table.schema().findField("config");
     assertThat(restoredConfig).isNotNull();
     assertThat(restoredConfig.fieldId()).isEqualTo(configId);
 
     // Now undelete the nested field
-    table.updateSchema().undeleteColumn("config.enabled").commit();
+    table.updateSchema().undeleteColumn("config.enabled", false).commit();
 
     Types.NestedField restoredEnabled = table.schema().findField("config.enabled");
     assertThat(restoredEnabled).isNotNull();
@@ -181,10 +186,9 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
   }
 
   @Test
-  public void testUndeleteRequiredColumnBecomesOptional() {
-    // Add a required column, delete it, then undelete it
-    // The undeleted column should be optional because new data may have been written
-    // without this column after it was deleted
+  public void testUndeleteRequiredColumnPreservedWhenNoData() {
+    // Add a required column, delete it, then undelete with setNullable=false.
+    // No data has been written, so the column should be restored as required.
     table
         .updateSchema()
         .allowIncompatibleChanges()
@@ -195,21 +199,140 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(originalField.isRequired()).isTrue();
     int originalFieldId = originalField.fieldId();
 
-    // Delete the required column
     table.updateSchema().deleteColumn("required_col").commit();
     assertThat(table.schema().findField("required_col")).isNull();
 
-    // Undelete the column - it should now be optional
-    table.updateSchema().undeleteColumn("required_col").commit();
+    table.updateSchema().undeleteColumn("required_col", false).commit();
 
     Types.NestedField restoredField = table.schema().findField("required_col");
     assertThat(restoredField).isNotNull();
     assertThat(restoredField.fieldId()).isEqualTo(originalFieldId);
-    assertThat(restoredField.isOptional())
-        .as(
-            "Undeleted column must be optional (not required) because new data may have been "
-                + "written without this column")
+    assertThat(restoredField.isRequired())
+        .as("Required column must stay required when no data was written since deletion")
         .isTrue();
+  }
+
+  @Test
+  public void testUndeleteRequiredColumnPreservedAcrossAppends() {
+    // Data appended *while the column is present* is fine. After deletion, no more data is
+    // written, so undelete should succeed as required.
+    table
+        .updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("required_col", Types.StringType.get())
+        .commit();
+    int originalFieldId = table.schema().findField("required_col").fieldId();
+
+    // Append data while the column exists — not a blocker.
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    table.updateSchema().deleteColumn("required_col").commit();
+    assertThat(table.schema().findField("required_col")).isNull();
+
+    table.updateSchema().undeleteColumn("required_col", false).commit();
+
+    Types.NestedField restoredField = table.schema().findField("required_col");
+    assertThat(restoredField).isNotNull();
+    assertThat(restoredField.fieldId()).isEqualTo(originalFieldId);
+    assertThat(restoredField.isRequired()).isTrue();
+  }
+
+  @Test
+  public void testUndeleteRequiredColumnFailsWhenDataWritten() {
+    table
+        .updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("required_col", Types.StringType.get())
+        .commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.updateSchema().deleteColumn("required_col").commit();
+    // Data written while the column is absent — blocks the undelete.
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("required_col", false).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("data was written after the column was deleted")
+        .hasMessageContaining("setNullable=true");
+  }
+
+  @Test
+  public void testUndeleteRequiredColumnAsNullableWithDataWritten() {
+    table
+        .updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("required_col", Types.StringType.get())
+        .commit();
+    int originalFieldId = table.schema().findField("required_col").fieldId();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.updateSchema().deleteColumn("required_col").commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    // setNullable=true bypasses the safety check and restores the column as optional.
+    table.updateSchema().undeleteColumn("required_col", true).commit();
+
+    Types.NestedField restoredField = table.schema().findField("required_col");
+    assertThat(restoredField).isNotNull();
+    assertThat(restoredField.fieldId()).isEqualTo(originalFieldId);
+    assertThat(restoredField.isOptional()).isTrue();
+  }
+
+  @Test
+  public void testUndeleteOptionalColumnWithDataWritten() {
+    // Optional columns skip the data-since-deletion check entirely.
+    table.updateSchema().addColumn("opt_col", Types.StringType.get()).commit();
+    int originalFieldId = table.schema().findField("opt_col").fieldId();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.updateSchema().deleteColumn("opt_col").commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    table.updateSchema().undeleteColumn("opt_col", false).commit();
+
+    Types.NestedField restoredField = table.schema().findField("opt_col");
+    assertThat(restoredField).isNotNull();
+    assertThat(restoredField.fieldId()).isEqualTo(originalFieldId);
+    assertThat(restoredField.isOptional()).isTrue();
+  }
+
+  @Test
+  public void testUndeleteRequiredColumnFailsWithLegacySnapshotNoSchemaId() {
+    table
+        .updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("required_col", Types.StringType.get())
+        .commit();
+
+    table.updateSchema().deleteColumn("required_col").commit();
+
+    // Inject a synthetic snapshot with null schemaId (simulating a pre-schema-id Iceberg
+    // snapshot) that claims to have added data. Constructed via SnapshotParser.fromJson so
+    // we don't need package-private BaseSnapshot access.
+    BaseTable baseTable = (BaseTable) table;
+    TableMetadata current = baseTable.operations().current();
+    long nextSeq = current.lastSequenceNumber() + 1;
+    long snapshotId = nextSeq + 1000L;
+    String legacySnapshotJson =
+        String.format(
+            "{\"snapshot-id\":%d,\"sequence-number\":%d,\"timestamp-ms\":%d,"
+                + "\"summary\":{\"operation\":\"append\",\"added-data-files\":\"1\"},"
+                + "\"manifest-list\":\"no-such-manifest-list.avro\"}",
+            snapshotId, nextSeq, System.currentTimeMillis());
+    Snapshot legacySnapshot = SnapshotParser.fromJson(legacySnapshotJson);
+    TableMetadata withLegacySnapshot =
+        TableMetadata.buildFrom(current).addSnapshot(legacySnapshot).build();
+    baseTable.operations().commit(current, withLegacySnapshot);
+    table.refresh();
+
+    assertThatThrownBy(() -> table.updateSchema().undeleteColumn("required_col", false).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("data was written after the column was deleted");
+
+    // setNullable=true should bypass the check even with a legacy snapshot present.
+    table.updateSchema().undeleteColumn("required_col", true).commit();
+    assertThat(table.schema().findField("required_col")).isNotNull();
+    assertThat(table.schema().findField("required_col").isOptional()).isTrue();
   }
 
   @Test
@@ -220,7 +343,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     table.updateSchema().deleteColumn("MixedCase").commit();
 
     // Undelete with different case (case insensitive mode)
-    table.updateSchema().caseSensitive(false).undeleteColumn("mixedcase").commit();
+    table.updateSchema().caseSensitive(false).undeleteColumn("mixedcase", false).commit();
 
     Types.NestedField restored = table.schema().findField("MixedCase");
     assertThat(restored).isNotNull();
@@ -247,7 +370,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(table.schema().findField("count")).isNull();
 
     // Undelete the column
-    table.updateSchema().undeleteColumn("count").commit();
+    table.updateSchema().undeleteColumn("count", false).commit();
 
     Types.NestedField restoredField = table.schema().findField("count");
     assertThat(restoredField).isNotNull();
@@ -282,7 +405,7 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(table.schema().findField("reused_name")).isNull();
 
     // Undelete - should restore the most recently deleted field (the second one)
-    table.updateSchema().undeleteColumn("reused_name").commit();
+    table.updateSchema().undeleteColumn("reused_name", false).commit();
 
     Types.NestedField restored = table.schema().findField("reused_name");
     assertThat(restored).isNotNull();
