@@ -596,7 +596,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         return table;
       }
 
-      return new BaseTable(
+      return new BaseRESTTable(
           ops,
           fullTableName(identifier),
           metricsReporter(paths.metrics(identifier), tableClient),
@@ -745,7 +745,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return restTable;
     }
 
-    return new BaseTable(
+    return new BaseRESTTable(
         ops,
         fullTableName(ident),
         metricsReporter(paths.metrics(ident), tableClient),
@@ -1018,7 +1018,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         return restTable;
       }
 
-      return new BaseTable(
+      return new BaseRESTTable(
           ops,
           fullTableName(ident),
           metricsReporter(paths.metrics(ident), tableClient),
