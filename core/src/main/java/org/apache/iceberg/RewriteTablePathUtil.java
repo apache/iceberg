@@ -432,6 +432,9 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
+    // keep the following entries in metadata but exclude them from copyPlan
+    // 1) deleted data files
+    // 2) entries not changed by snapshotIds (incremental copy only)
     if (entry.isLive() && (snapshotIds == null || snapshotIds.contains(entry.snapshotId()))) {
       result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
     }
@@ -454,6 +457,9 @@ public class RewriteTablePathUtil {
       case POSITION_DELETES:
         DeleteFile posDeleteFile = newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, posDeleteFile);
+        // keep the following entries in metadata but exclude them from copyPlan
+        // 1) deleted position delete files
+        // 2) entries not changed by snapshotIds (incremental copy only)
         if (entry.isLive() && (snapshotIds == null || snapshotIds.contains(entry.snapshotId()))) {
           result
               .copyPlan()
@@ -467,6 +473,9 @@ public class RewriteTablePathUtil {
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
+        // keep the following entries in metadata but exclude them from copyPlan
+        // 1) deleted equality delete files
+        // 2) entries not changed by snapshotIds (incremental copy only)
         if (entry.isLive() && (snapshotIds == null || snapshotIds.contains(entry.snapshotId()))) {
           // No need to rewrite equality delete files as they do not contain absolute file paths.
           result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));

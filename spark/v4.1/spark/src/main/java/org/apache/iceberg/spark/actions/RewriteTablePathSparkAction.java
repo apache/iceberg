@@ -313,9 +313,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     // For full copy (no start version), pass null so all live entries are included
     // in the copy plan. Current snapshot IDs may not cover entries whose original
     // adding snapshot has been expired, but those files can still be live.
-    Set<Snapshot> snapshotFilter = startMetadata == null ? null : deltaSnapshots;
+    Set<Snapshot> deltaSnapshotIds = startMetadata == null ? null : deltaSnapshots;
     RewriteContentFileResult rewriteManifestResult =
-        rewriteManifests(snapshotFilter, endMetadata, metaFiles);
+        rewriteManifests(deltaSnapshotIds, endMetadata, metaFiles);
 
     // rebuild position delete files
     Set<DeleteFile> deleteFiles =
