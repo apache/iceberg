@@ -310,6 +310,17 @@ public class TestActions {
   }
 
   @Test
+  public void bindFailsClosedOnUnknownAction() {
+    // Pairs with the forward-compat preservation in ActionParser: a parsed but unrecognized
+    // action MUST fail loudly at enforcement rather than be silently ignored, otherwise older
+    // clients would leak unmasked data when a newer server emits a new mask type.
+    assertThatThrownBy(
+            () -> Actions.bind(new Action.Unknown(1, "future-mask-v2"), Types.StringType.get()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("future-mask-v2");
+  }
+
+  @Test
   public void sha256NullInNullOut() {
     SerializableFunction<Object, Object> fn =
         Actions.bind(new Action.Sha256Global(1), Types.StringType.get());

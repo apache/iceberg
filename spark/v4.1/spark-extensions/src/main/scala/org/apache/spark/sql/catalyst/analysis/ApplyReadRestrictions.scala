@@ -65,18 +65,18 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
     // (sameResult comparisons, explain determinism, and — more importantly — any
     // per-query semantic guarantee that a single value hashes identically across
     // references within the query).
-    val salt = ApplyReadRestrictions.generateSalt()
+    val querySalt = ApplyReadRestrictions.generateSalt()
     plan resolveOperators {
       case r @ DataSourceV2Relation(table: SparkTable, _, _, _, _, _)
           if table.readRestrictions.isPresent =>
-        rewrite(r, table.readRestrictions.get, salt)
+        rewrite(r, table.readRestrictions.get, querySalt)
     }
   }
 
   private def rewrite(
       relation: DataSourceV2Relation,
       restrictions: ReadRestrictions,
-      salt: Array[Byte]): LogicalPlan = {
+      querySalt: Array[Byte]): LogicalPlan = {
     val table = relation.table.asInstanceOf[SparkTable]
     val icebergSchema = table.table().schema()
 
@@ -112,7 +112,7 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
             actionByFieldId.get(icebergField.fieldId) match {
               case Some(action) =>
                 val icebergType = icebergField.`type`()
-                val masked = buildMaskExpression(attr, action, icebergType, salt)
+                val masked = buildMaskExpression(attr, action, icebergType, querySalt)
                 Alias(masked, attr.name)(exprId = attr.exprId, qualifier = attr.qualifier)
               case None => attr
             }
@@ -144,7 +144,7 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
       attr: AttributeReference,
       action: Action,
       icebergType: org.apache.iceberg.types.Type,
-      salt: Array[Byte]): Expression = action match {
+      querySalt: Array[Byte]): Expression = action match {
     case _: Action.MaskAlphanum =>
       val unbound = new MaskAlphanumFunction()
       val bound = unbound.bind(StructType(Array(StructField(attr.name, attr.dataType))))
@@ -152,11 +152,11 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
         bound.asInstanceOf[org.apache.spark.sql.connector.catalog.functions.ScalarFunction[_]],
         Seq(attr))
     case _ =>
-      val perActionSalt = action match {
-        case _: Action.Sha256QueryLocal => salt
+      val actionSalt = action match {
+        case _: Action.Sha256QueryLocal => querySalt
         case _ => null
       }
-      val boundFn = Actions.bind(action, icebergType, perActionSalt)
+      val boundFn = Actions.bind(action, icebergType, actionSalt)
       IcebergRestricted(attr, boundFn)
   }
 }
