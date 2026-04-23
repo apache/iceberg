@@ -356,6 +356,46 @@ public class Parquet {
               });
     }
 
+    private void setColumnCompressionConfig(
+        Context context,
+        Map<String, String> colNameToParquetPathMap,
+        BiConsumer<String, CompressionCodecName> withCompressionCodec,
+        BiConsumer<String, Integer> withCompressionLevel) {
+
+      Map<String, String> columnCompressionCodec = context.columnCompressionCodec();
+      Map<String, String> columnCompressionLevel = context.columnCompressionLevel();
+
+      Sets.union(columnCompressionCodec.keySet(), columnCompressionLevel.keySet())
+          .forEach(
+              colName -> {
+                String parquetColumnPath = colNameToParquetPathMap.get(colName);
+                if (parquetColumnPath == null) {
+                  LOG.warn("Skipping per-column compression config for missing field: {}", colName);
+                  return;
+                }
+
+                String codecStr = columnCompressionCodec.get(colName);
+                try {
+                  withCompressionCodec.accept(
+                      parquetColumnPath,
+                      codecStr != null ? Context.toCodec(codecStr) : context.codec());
+                } catch (IllegalArgumentException e) {
+                  throw new IllegalArgumentException(
+                      "Invalid compression codec for column " + colName + ": " + codecStr, e);
+                }
+
+                String level = columnCompressionLevel.get(colName);
+                if (level != null) {
+                  try {
+                    withCompressionLevel.accept(parquetColumnPath, Integer.parseInt(level));
+                  } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                        "Invalid compression level for column " + colName + ": " + level, e);
+                  }
+                }
+              });
+    }
+
     @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
@@ -453,6 +493,12 @@ public class Parquet {
 
         setColumnStatsConfig(context, colNameToParquetPathMap, propsBuilder::withStatisticsEnabled);
 
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            propsBuilder::withCompressionCodec,
+            propsBuilder::withCompressionLevel);
+
         ParquetProperties parquetProperties = propsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
@@ -494,6 +540,12 @@ public class Parquet {
 
         setColumnStatsConfig(
             context, colNameToParquetPathMap, parquetWriteBuilder::withStatisticsEnabled);
+
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            parquetWriteBuilder::withCompressionCodec,
+            parquetWriteBuilder::withCompressionLevel);
 
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }

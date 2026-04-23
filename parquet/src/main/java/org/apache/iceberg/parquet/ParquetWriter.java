@@ -50,7 +50,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final long targetRowGroupSize;
   private final Map<String, String> metadata;
   private final ParquetProperties props;
-  private final CompressionCodecFactory.BytesInputCompressor compressor;
+  private final CompressionCodecFactory codecFactory;
+  private final CompressionCodecName codec;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
@@ -89,8 +90,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
     this.metadata = ImmutableMap.copyOf(metadata);
-    this.compressor =
-        new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
+    this.codecFactory = new ParquetCodecFactory(conf, props.getPageSizeThreshold());
+    this.codec = codec;
     this.parquetSchema = parquetSchema;
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(schema, parquetSchema);
     this.metricsConfig = metricsConfig;
@@ -237,7 +238,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
     this.pageStore =
         new ColumnChunkPageWriteStore(
-            compressor,
+            codecFactory,
+            codec,
+            props,
             parquetSchema,
             props.getAllocator(),
             this.columnIndexTruncateLength,
@@ -260,8 +263,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       if (writer != null) {
         writer.end(metadata);
       }
-      if (compressor != null) {
-        compressor.release();
+      if (codecFactory != null) {
+        codecFactory.release();
       }
     }
   }
