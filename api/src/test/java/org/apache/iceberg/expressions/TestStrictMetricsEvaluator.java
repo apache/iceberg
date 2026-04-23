@@ -801,6 +801,29 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
+  void testNotStartsWithEmptyPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: all strings start with empty prefix").isFalse();
+  }
+
+  @Test
+  void testNotStartsWithExactBoundMatch() {
+    // FILE_3 has column 5 (some_nulls) with exact bounds ["bbb", "bbb"]
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "bbb")).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: bounds exactly equal the prefix").isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "zzz")).eval(FILE_3);
+    assertThat(shouldRead).as("Should match: all values are below the prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "aaa")).eval(FILE_3);
+    assertThat(shouldRead).as("Should match: all values are above the prefix").isTrue();
+  }
+
+  @Test
   public void testNotStartsWithNestedColumn() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith("struct.nested_string_col", "a"))
