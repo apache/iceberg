@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.restrictions;
+package org.apache.iceberg;
 
 import java.util.Optional;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 
 /**
  * Capability interface for table implementations that can carry per-principal {@link
  * ReadRestrictions}.
  *
- * <p>Implemented by tables loaded via a catalog that honors server-specified read restrictions (the
- * REST catalog today). Non-REST catalogs and wrapper implementations (SerializableTable, metadata
- * tables) don't implement this; callers should route through {@code TableUtil.readRestrictions} in
- * iceberg-core instead of raw {@code instanceof} checks so the decision locus stays consistent.
+ * <p>Currently populated only by the REST catalog. Non-REST catalogs either don't implement this or
+ * return {@link Optional#empty()} from {@link #readRestrictions()}. Consumers should route through
+ * {@code TableUtil.readRestrictions(Table)} (also in iceberg-core) to handle both cases uniformly.
  */
 public interface SupportsReadRestrictions {
   default Optional<ReadRestrictions> readRestrictions() {
