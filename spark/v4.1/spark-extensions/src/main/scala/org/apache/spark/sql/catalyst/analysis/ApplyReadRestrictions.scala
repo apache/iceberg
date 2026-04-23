@@ -92,11 +92,13 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
     actionByFieldId.keys.foreach { fid =>
       if (!topLevelFieldIds.contains(fid)) {
         val path = icebergSchema.findColumnName(fid)
-        throw new IllegalStateException(
-          if (path == null) s"ReadRestrictions references unknown fieldId $fid"
-          else
+        if (path == null) {
+          throw new IllegalStateException(s"ReadRestrictions references unknown fieldId $fid")
+        } else {
+          throw new IllegalStateException(
             s"ReadRestrictions on nested fields are not yet supported " +
               s"(fieldId=$fid, path='$path')")
+        }
       }
     }
 
@@ -135,10 +137,10 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
 
   /**
    * Build the masking expression for a single column. Prefers Spark's native
-   * [[ApplyFunctionExpression]] backed by an Iceberg [[org.apache.spark.sql.connector.catalog.functions.ScalarFunction]]
-   * for actions that have a ScalarFunction implementation (gets whole-stage codegen
-   * for free); falls back to [[IcebergRestricted]] for actions still using the
-   * hand-rolled expression path.
+   * [[ApplyFunctionExpression]] backed by an Iceberg
+   * [[org.apache.spark.sql.connector.catalog.functions.ScalarFunction]] for actions that have a
+   * ScalarFunction implementation (gets whole-stage codegen for free); falls back to
+   * [[IcebergRestricted]] for actions still using the hand-rolled expression path.
    */
   private def buildMaskExpression(
       attr: AttributeReference,

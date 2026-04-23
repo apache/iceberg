@@ -26,9 +26,8 @@ import java.util.Optional;
  *
  * <p>Implemented by tables loaded via a catalog that honors server-specified read restrictions (the
  * REST catalog today). Non-REST catalogs and wrapper implementations (SerializableTable, metadata
- * tables) don't implement this; callers should route through {@link
- * org.apache.iceberg.TableUtil#readRestrictions(org.apache.iceberg.Table)} instead of raw {@code
- * instanceof} checks so the decision locus stays consistent.
+ * tables) don't implement this; callers should route through {@code TableUtil.readRestrictions} in
+ * iceberg-core instead of raw {@code instanceof} checks so the decision locus stays consistent.
  */
 public interface SupportsReadRestrictions {
   default Optional<ReadRestrictions> readRestrictions() {
