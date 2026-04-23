@@ -245,6 +245,7 @@ public class DynamicIcebergSink
     private boolean caseSensitive = true;
     @Nullable private SlotSharingGroup generatorSlotSharingGroup;
     @Nullable private SlotSharingGroup shuffeSinkSlotSharingGroup;
+    private boolean disableSlotSharing = false;
 
     Builder() {}
 
@@ -327,6 +328,16 @@ public class DynamicIcebergSink
 
     public Builder<T> shuffleSinkSlotSharingGroup(SlotSharingGroup ssg) {
       shuffeSinkSlotSharingGroup = ssg;
+      return this;
+    }
+
+    /**
+     * Put generator and sink into each own's unique slot sharing group.
+     *
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder<T> disableSlotSharing(boolean newDisableSlotSharing) {
+      disableSlotSharing = newDisableSlotSharing;
       return this;
     }
 
@@ -437,6 +448,17 @@ public class DynamicIcebergSink
       Preconditions.checkArgument(
           generator != null, "Please use withGenerator() to convert the input DataStream.");
       Preconditions.checkNotNull(catalogLoader, "Catalog loader shouldn't be null");
+
+      if (disableSlotSharing) {
+        if (generatorSlotSharingGroup == null) {
+          generatorSlotSharingGroup =
+              SlotSharingGroup.newBuilder(prefixIfNotNull(uidPrefix, "-generator")).build();
+        }
+        if (shuffeSinkSlotSharingGroup == null) {
+          shuffeSinkSlotSharingGroup =
+              SlotSharingGroup.newBuilder(prefixIfNotNull(uidPrefix, "-sink")).build();
+        }
+      }
 
       Configuration flinkConfig =
           readableConfig instanceof Configuration
