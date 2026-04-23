@@ -35,10 +35,10 @@ import org.apache.iceberg.rest.restrictions.ReadRestrictions;
  * Hive, Glue, JDBC, Nessie, etc.) construct {@link BaseTable} directly and do not advertise the
  * capability — they have no pathway to produce a {@link ReadRestrictions}.
  */
-public class BaseRESTTable extends BaseTable implements SupportsReadRestrictions {
+class BaseRESTTable extends BaseTable implements SupportsReadRestrictions {
   private final ReadRestrictions readRestrictions;
 
-  public BaseRESTTable(
+  BaseRESTTable(
       TableOperations ops,
       String name,
       MetricsReporter reporter,
