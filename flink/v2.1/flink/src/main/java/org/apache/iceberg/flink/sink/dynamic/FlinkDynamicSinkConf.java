@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Map;
-import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.flink.FlinkConfParser;
 
