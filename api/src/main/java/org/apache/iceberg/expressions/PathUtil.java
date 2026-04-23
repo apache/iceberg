@@ -115,7 +115,6 @@ public class PathUtil {
     return builder.toString();
   }
 
-  @SuppressWarnings("StatementSwitchToExpressionSwitch")
   private static List<PathSegment> parseAfterRoot(String path) {
     List<PathSegment> segments = Lists.newArrayList();
     Matcher bracketMatcher = BRACKET_SEGMENT.matcher(path);
@@ -124,36 +123,39 @@ public class PathUtil {
 
     while (pos < len) {
       char ch = path.charAt(pos);
-      switch (ch) {
-        case '.':
-          pos = appendDotSegment(path, pos, segments);
-          break;
-
-        case '[':
-          pos = appendBracketOrIndexSegment(path, pos, segments, bracketMatcher);
-          break;
-
-        default:
-          throw new IllegalArgumentException(
-              String.format("Invalid path, expected '.' or '[' at position %s: %s", pos, path));
-      }
+      pos =
+          switch (ch) {
+            case '.' -> appendDotSegment(segments, path, pos);
+            case '[' -> appendBracketOrIndexSegment(segments, path, pos, bracketMatcher);
+            default ->
+                throw new IllegalArgumentException(
+                    String.format(
+                        "Invalid path, expected '.' or '[' at position %s: %s", pos, path));
+          };
     }
 
     return segments;
   }
 
-  /** Consumes from {@code path[dotPos]} a leading {@code .} and RFC 9535 shorthand member name. */
-  private static int appendDotSegment(String path, int dotPos, List<PathSegment> segments) {
+  /**
+   * Appends a dot-style segment to {@code segments} by reading from {@code path[dotPos]}: a single
+   * leading {@code .} then an RFC 9535 shorthand name until the next {@code .} or {@code [}.
+   *
+   * @param segments output; segments parsed so far, updated in place
+   * @param path full path
+   * @param dotPos index of the {@code .} starting the segment
+   */
+  private static int appendDotSegment(List<PathSegment> segments, String path, int dotPos) {
     int pos = dotPos + 1;
-    int len = path.length();
-    Preconditions.checkArgument(pos < len, "Invalid path, trailing dot: %s", path);
+    int pathLen = path.length();
+    Preconditions.checkArgument(pos < pathLen, "Invalid path, trailing dot: %s", path);
     int start = pos;
-    while (pos < len) {
+    while (pos < pathLen) {
       char ch = path.charAt(pos);
       if (ch == '.' || ch == '[') {
         break;
       }
-      pos += 1;
+      pos++;
     }
 
     Preconditions.checkArgument(pos > start, "Invalid path, empty segment after '.': %s", path);
@@ -168,42 +170,72 @@ public class PathUtil {
   }
 
   /**
-   * Consumes either a numeric array index {@code [n]} or a quoted name {@code ['...']} starting at
-   * {@code path[bracketPos]}.
+   * Appends a bracket segment to {@code segments} starting at {@code path[bracketPos]}. If the next
+   * character is a digit, consumes a numeric array index {@code [n]}; otherwise consumes a quoted
+   * name {@code ['...']}. A lone {@code [} with no following quoted form (e.g. the path ends at
+   * {@code $[}) is rejected in {@link #appendQuotedBracketSegment} when the pattern does not match.
+   *
+   * @param segments output; segments parsed so far, updated in place
+   * @param path full path
+   * @param bracketPos index of the opening {@code [}
    */
   private static int appendBracketOrIndexSegment(
-      String path, int bracketPos, List<PathSegment> segments, Matcher bracketMatcher) {
+      List<PathSegment> segments, String path, int bracketPos, Matcher bracketMatcher) {
     Preconditions.checkArgument(
         bracketPos < path.length() && path.charAt(bracketPos) == '[', "Invalid path: %s", path);
     if (bracketPos + 1 < path.length() && isAsciiDigit(path.charAt(bracketPos + 1))) {
-      return appendArrayIndexSegment(path, bracketPos, segments);
+      return appendArrayIndexSegment(segments, path, bracketPos);
     }
-    return appendQuotedBracketSegment(path, bracketPos, segments, bracketMatcher);
+    return appendQuotedBracketSegment(segments, path, bracketPos, bracketMatcher);
   }
 
   private static boolean isAsciiDigit(char ch) {
     return ch >= '0' && ch <= '9';
   }
 
+  /**
+   * Appends a non-negative array index from {@code [n]} to {@code segments}, starting with {@code
+   * [} at {@code path[bracketPos]}.
+   *
+   * @param segments output; segments parsed so far, updated in place
+   * @param path full path
+   * @param bracketPos index of the opening {@code [} before the digits
+   */
   private static int appendArrayIndexSegment(
-      String path, int bracketPos, List<PathSegment> segments) {
+      List<PathSegment> segments, String path, int bracketPos) {
     int pos = bracketPos + 1;
     int len = path.length();
     int start = pos;
     while (pos < len && isAsciiDigit(path.charAt(pos))) {
-      pos += 1;
+      pos++;
     }
     Preconditions.checkArgument(pos > start, "Invalid path, empty array index in: %s", path);
     Preconditions.checkArgument(
         pos < len && path.charAt(pos) == ']', "Invalid path, unclosed array index in: %s", path);
-    int index = Integer.parseInt(path.substring(start, pos));
+    int index;
+    String digits = path.substring(start, pos);
+    try {
+      index = Integer.parseInt(digits);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid path, array index out of int range: %s", path), e);
+    }
     Preconditions.checkArgument(index >= 0, "Invalid path, negative array index in: %s", path);
     segments.add(new PathSegment.Index(index));
     return pos + 1;
   }
 
+  /**
+   * Appends a name from a {@code ['...']} segment to {@code segments} using the bracket matcher
+   * (inner text may use RFC 9535 escapes). Expects a full quoted bracket token at {@code
+   * path[bracketPos]}; otherwise the matcher or alignment checks throw.
+   *
+   * @param segments output; segments parsed so far, updated in place
+   * @param path full path
+   * @param bracketPos index of the opening {@code [} that must begin {@code ['}
+   */
   private static int appendQuotedBracketSegment(
-      String path, int bracketPos, List<PathSegment> segments, Matcher bracketMatcher) {
+      List<PathSegment> segments, String path, int bracketPos, Matcher bracketMatcher) {
     Preconditions.checkArgument(
         bracketMatcher.find(bracketPos), "Invalid path, malformed bracket segment: %s", path);
     Preconditions.checkArgument(

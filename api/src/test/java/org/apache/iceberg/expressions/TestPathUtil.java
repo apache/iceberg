@@ -196,6 +196,8 @@ public class TestPathUtil {
     assertThat(PathUtil.parse("$['*']")).isEqualTo(names("*"));
     assertThat(PathUtil.parse("$['[']")).isEqualTo(names("["));
     assertThat(PathUtil.parse("$[']']")).isEqualTo(names("]"));
+    // RFC 9535 simple escape \f in a quoted segment (also covered in ESCAPE_CASES round-trips)
+    assertThat(PathUtil.parse("$['\\f']")).isEqualTo(List.of(new Name("\f")));
 
     assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$['']"))).isEqualTo("$['']");
     assertThat(PathUtil.toNormalizedPath(PathUtil.parse("$['[]']"))).isEqualTo("$['[]']");
@@ -280,11 +282,14 @@ public class TestPathUtil {
         "event_id",
         "$.a..b",
         "$.events.*",
+        "$$", // second $ is not a path step after root
         "$['a'", // unclosed
+        "$[", // [ without quoted ['...'] or index
         "$['a']x", // trailing junk
         "$.['a']", // empty dot segment before bracket
         "$a.b", // missing separator after $
         "$.a[]", // empty array index
+        "$.a[2147483648]", // index does not fit in int
         "$.a[-1]", // negative index (not valid JSONPath index syntax here)
       };
 
@@ -292,6 +297,7 @@ public class TestPathUtil {
   @FieldSource("INVALID_PARSE_PATHS")
   public void testParseInvalid(String path) {
     assertThatThrownBy(() -> PathUtil.parse(path))
+        .as("parse of %s", path)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageMatching("(Unsupported|Invalid) path.*");
   }

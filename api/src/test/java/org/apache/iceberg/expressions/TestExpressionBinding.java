@@ -64,6 +64,12 @@ public class TestExpressionBinding {
           optional(5, "nullable", Types.IntegerType.get()),
           optional(6, "always_null", Types.UnknownType.get()));
 
+  private static void assertBoundVariantLongExtractPath(String extractPath, String expectedPath) {
+    Expression bound = Binder.bind(STRUCT, lessThan(extract("var", extractPath, "long"), 100));
+    BoundExtract<?> term = (BoundExtract<?>) TestHelpers.assertAndUnwrap(bound).term();
+    assertThat(term.path()).isEqualTo(expectedPath);
+  }
+
   @Test
   public void testMissingReference() {
     Expression expr = and(equal("t", 5), equal("x", 7));
@@ -352,33 +358,23 @@ public class TestExpressionBinding {
 
   @Test
   public void testVariantExtractBindingPreservesBracketInputPath() {
-    Expression bound = Binder.bind(STRUCT, lessThan(extract("var", "$['event_id']", "long"), 100));
-    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
-    BoundExtract<?> boundExtract = (BoundExtract<?>) pred.term();
-    assertThat(boundExtract.path()).isEqualTo("$['event_id']");
+    assertBoundVariantLongExtractPath("$['event_id']", "$['event_id']");
   }
 
   @Test
   public void testVariantExtractBindingMixedDotAndBracketPath() {
-    Expression bound =
-        Binder.bind(STRUCT, lessThan(extract("var", "$.employee['user.name']", "long"), 100));
-    BoundExtract<?> boundExtract = (BoundExtract<?>) TestHelpers.assertAndUnwrap(bound).term();
-    assertThat(boundExtract.path()).isEqualTo("$['employee']['user.name']");
+    assertBoundVariantLongExtractPath("$.employee['user.name']", "$['employee']['user.name']");
   }
 
   @Test
   public void testVariantExtractBindingBracketPathWithRfc9535Unescape() {
     // Inner segment is a'b after unescaping; normalized bracket form uses \' for the quote.
-    Expression bound = Binder.bind(STRUCT, lessThan(extract("var", "$['a\\'b']", "long"), 100));
-    BoundExtract<?> boundExtract = (BoundExtract<?>) TestHelpers.assertAndUnwrap(bound).term();
-    assertThat(boundExtract.path()).isEqualTo("$['a\\'b']");
+    assertBoundVariantLongExtractPath("$['a\\'b']", "$['a\\'b']");
   }
 
   @Test
   public void testVariantExtractBindingBracketPathWithUnicodeEscape() {
-    Expression bound = Binder.bind(STRUCT, lessThan(extract("var", "$['\\u00e9']", "long"), 100));
-    BoundExtract<?> boundExtract = (BoundExtract<?>) TestHelpers.assertAndUnwrap(bound).term();
-    assertThat(boundExtract.path()).isEqualTo("$['é']");
+    assertBoundVariantLongExtractPath("$['\\u00e9']", "$['é']");
   }
 
   @Test
@@ -422,6 +418,13 @@ public class TestExpressionBinding {
         .hasMessage("Cannot bind extract, not a variant: x");
   }
 
+  /**
+   * Param smoke list for "extract binds". Dot path normalization, keys with dots, mixed bracket
+   * form, and array index paths are covered in dedicated tests above (e.g. {@link
+   * #testVariantExtractBindingNormalizesDotPathToBracket}, {@link
+   * #testVariantExtractBindingBracketPathWithRfc9535Unescape}, array cases from {@link
+   * #testVariantExtractUnbindPreservesNormalizedPathAfterArrayAccesses}).
+   */
   private static final String[] VALID_PATHS =
       new String[] {
         "$", // root path
