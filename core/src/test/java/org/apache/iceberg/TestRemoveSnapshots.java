@@ -2209,99 +2209,108 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   /**
-   * Verifies that the manifest list projection in FileCleanupStrategy correctly reads
-   * deleted_files_count, content, added_files_count and existing_files_count. Before the fix, the
-   * projection used the wrong field name "deleted_data_files_count" (which does not exist in
-   * ManifestFile.schema() where the correct name is "deleted_files_count"). Schema.select()
-   * silently drops non-matching names, so deletedFilesCount was always null, making
-   * hasDeletedFiles() always return true and causing unnecessary manifest scanning during cleanup.
+   * Verifies that during incremental cleanup, manifests containing only added/existing files are
+   * not opened for scanning. Before the fix, the manifest list projection used the wrong field name
+   * "deleted_data_files_count" causing hasDeletedFiles() to always return true and every manifest
+   * to be unnecessarily scanned.
    */
   @TestTemplate
-  public void testManifestListProjectionCorrectlyReadsManifestMetadata() throws IOException {
-    table.newAppend().appendFile(FILE_A).commit();
+  public void testAppendOnlyManifestsNotScannedDuringCleanup() {
+    // This optimization is specific to incremental cleanup
+    assumeThat(incrementalCleanup).isTrue();
 
-    Snapshot snapshot = table.currentSnapshot();
-    assertThat(snapshot.manifestListLocation()).isNotNull();
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "testAppendOnlyManifests";
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
 
-    // Read manifests through the same projection that FileCleanupStrategy uses internally
-    TestableCleanupStrategy strategy = new TestableCleanupStrategy(table.io());
+    // Append FILE_A: manifest has added_files_count=1, deleted_files_count=0
+    testTable.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = testTable.currentSnapshot();
 
-    try (org.apache.iceberg.io.CloseableIterable<ManifestFile> manifests =
-        strategy.projectedManifests(snapshot)) {
-      for (ManifestFile manifest : manifests) {
-        // The manifest was created by an append with 1 data file, so:
-        // - deletedFilesCount should be 0 (not null)
-        // - hasDeletedFiles() should return false (not true)
-        //
-        // Before the fix: deletedFilesCount was null (wrong field name in projection)
-        // causing hasDeletedFiles() to return true (null assumed non-zero)
-        assertThat(manifest.deletedFilesCount())
-            .as("deletedFilesCount should be projected correctly, not null")
-            .isNotNull();
-        assertThat(manifest.deletedFilesCount())
-            .as("Append-only manifest should have 0 deleted files")
-            .isEqualTo(0);
-        assertThat(manifest.hasDeletedFiles())
-            .as("Append-only manifest should report no deleted files")
-            .isFalse();
-        assertThat(manifest.addedFilesCount())
-            .as("addedFilesCount should be projected correctly, not null")
-            .isNotNull();
-        assertThat(manifest.existingFilesCount())
-            .as("existingFilesCount should be projected correctly, not null")
-            .isNotNull();
-        assertThat(manifest.content())
-            .as("Data manifest should have DATA content type")
-            .isEqualTo(ManifestContent.DATA);
-      }
+    // Collect manifest paths from the first snapshot (append-only manifests)
+    Set<String> appendOnlyManifestPaths =
+        firstSnapshot.allManifests(testTable.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    // Append FILE_B
+    testTable.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(testTable.currentSnapshot().timestampMillis());
+
+    // Clear spy interactions before expiration so we only track expiration reads
+    Mockito.clearInvocations(spyFileIO);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(testTable)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    // No data files should be deleted since all manifests only have added files
+    assertThat(deletedFiles)
+        .as("No data files should be deleted for append-only snapshots")
+        .noneMatch(f -> f.endsWith(".parquet"));
+
+    // Verify that the append-only manifests were NOT opened for entry scanning
+    for (String manifestPath : appendOnlyManifestPaths) {
+      Mockito.verify(spyFileIO, Mockito.never()).newInputFile(manifestPath);
     }
   }
 
+  /**
+   * Verifies that during incremental cleanup, manifests with deleted entries are properly scanned
+   * and the deleted data files are cleaned up.
+   */
   @TestTemplate
-  public void testManifestListProjectionAfterDelete() throws IOException {
-    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
-    table.newDelete().deleteFile(FILE_A).commit();
+  public void testManifestsWithDeletesScannedDuringCleanup() {
+    // This optimization is specific to incremental cleanup
+    assumeThat(incrementalCleanup).isTrue();
 
-    Snapshot afterDelete = table.currentSnapshot();
-    TestableCleanupStrategy strategy = new TestableCleanupStrategy(table.io());
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "testManifestsWithDeletes";
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
 
-    try (org.apache.iceberg.io.CloseableIterable<ManifestFile> manifests =
-        strategy.projectedManifests(afterDelete)) {
-      boolean foundManifestWithDeletes = false;
-      for (ManifestFile manifest : manifests) {
-        assertThat(manifest.deletedFilesCount())
-            .as("deletedFilesCount should be projected, not null")
-            .isNotNull();
-        if (manifest.deletedFilesCount() > 0) {
-          foundManifestWithDeletes = true;
-          assertThat(manifest.hasDeletedFiles()).isTrue();
-        }
-      }
+    // Append FILE_A and FILE_B
+    testTable.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-      assertThat(foundManifestWithDeletes)
-          .as("After delete, at least one manifest should have deleted files")
-          .isTrue();
-    }
-  }
+    waitUntilAfter(testTable.currentSnapshot().timestampMillis());
 
-  /** Exposes the protected readManifests method using the same MANIFEST_PROJECTION. */
-  private static class TestableCleanupStrategy extends FileCleanupStrategy {
-    TestableCleanupStrategy(org.apache.iceberg.io.FileIO fileIO) {
-      super(
-          fileIO,
-          java.util.concurrent.Executors.newSingleThreadExecutor(),
-          java.util.concurrent.Executors.newSingleThreadExecutor(),
-          null);
-    }
+    // Delete FILE_A: creates a manifest with deleted_files_count > 0
+    testTable.newDelete().deleteFile(FILE_A).commit();
 
-    @Override
-    public void cleanFiles(
-        TableMetadata beforeExpiration,
-        TableMetadata afterExpiration,
-        ExpireSnapshots.CleanupLevel cleanupLevel) {}
+    waitUntilAfter(testTable.currentSnapshot().timestampMillis());
 
-    org.apache.iceberg.io.CloseableIterable<ManifestFile> projectedManifests(Snapshot snapshot) {
-      return readManifests(snapshot);
-    }
+    // Append FILE_C to keep the table active with a newer snapshot
+    testTable.newAppend().appendFile(FILE_C).commit();
+    long tAfterCommits = waitUntilAfter(testTable.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(testTable)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    // FILE_A should be deleted since it was removed in an expired ancestor snapshot
+    assertThat(deletedFiles)
+        .as("Deleted data file should be cleaned up during expiration")
+        .contains(FILE_A.location());
   }
 }
