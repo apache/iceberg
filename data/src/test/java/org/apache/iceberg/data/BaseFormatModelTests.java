@@ -28,8 +28,6 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -73,8 +71,10 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
+import org.apache.iceberg.orc.OrcWritingTestUtils;
 import org.apache.iceberg.orc.TestORCSchemaUtil;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetWritingTestUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -87,7 +87,6 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -673,10 +672,7 @@ public abstract class BaseFormatModelTests<T> {
         readSchema,
         genericRecords,
         record -> {
-          Record expected = GenericRecord.create(readSchema);
-          for (Types.NestedField col : writeSchema.columns()) {
-            expected.setField(col.name(), record.getField(col.name()));
-          }
+          Record expected = copy(record, writeSchema, readSchema);
 
           expected.setField("new_string_col", null);
           expected.setField("new_int_col", null);
@@ -706,14 +702,7 @@ public abstract class BaseFormatModelTests<T> {
         fileFormat,
         projectedSchema,
         genericRecords,
-        record -> {
-          Record expected = GenericRecord.create(projectedSchema);
-          for (Types.NestedField col : projectedSchema.columns()) {
-            expected.setField(col.name(), record.getField(col.name()));
-          }
-
-          return expected;
-        });
+        record -> copy(record, projectedSchema, projectedSchema));
   }
 
   /**
@@ -810,14 +799,7 @@ public abstract class BaseFormatModelTests<T> {
         fileFormat,
         reorderedSchema,
         genericRecords,
-        record -> {
-          Record expected = GenericRecord.create(reorderedSchema);
-          for (Types.NestedField col : reorderedSchema.columns()) {
-            expected.setField(col.name(), record.getField(col.name()));
-          }
-
-          return expected;
-        });
+        record -> copy(record, reorderedSchema, reorderedSchema));
   }
 
   /**
@@ -882,17 +864,7 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
 
     readAndAssertEngineRecords(
-        fileFormat,
-        readSchema,
-        genericRecords,
-        record -> {
-          Record expected = GenericRecord.create(readSchema);
-          for (Types.NestedField col : readSchema.columns()) {
-            expected.setField(col.name(), record.getField(col.name()));
-          }
-
-          return expected;
-        });
+        fileFormat, readSchema, genericRecords, record -> copy(record, readSchema, readSchema));
   }
 
   /**
@@ -982,17 +954,7 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private List<Record> projectRecords(List<Record> records, Schema projectedSchema) {
-    return records.stream()
-        .map(
-            record -> {
-              Record projected = GenericRecord.create(projectedSchema.asStruct());
-              projectedSchema
-                  .columns()
-                  .forEach(
-                      field -> projected.setField(field.name(), record.getField(field.name())));
-              return projected;
-            })
-        .toList();
+    return records.stream().map(record -> copy(record, projectedSchema, projectedSchema)).toList();
   }
 
   private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
@@ -1079,41 +1041,28 @@ public abstract class BaseFormatModelTests<T> {
   private void writeParquetWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
     org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
 
-    Path tempFile = Files.createTempFile("iceberg-test-no-ids-", ".parquet");
-    Files.deleteIfExists(tempFile);
+    OutputFile outputFile = encryptedFile.encryptingOutputFile();
 
-    try {
-      try (ParquetWriter<GenericData.Record> writer =
-          AvroParquetWriter.<GenericData.Record>builder(
-                  new org.apache.hadoop.fs.Path(tempFile.toUri()))
-              .withDataModel(GenericData.get())
-              .withSchema(avroSchemaWithoutIds)
-              .withConf(new Configuration())
-              .build()) {
-        for (Record record : records) {
-          GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
-          for (Types.NestedField field : schema.columns()) {
-            avroRecord.put(field.name(), record.getField(field.name()));
-          }
-
-          writer.write(avroRecord);
+    try (ParquetWriter<GenericData.Record> writer =
+        AvroParquetWriter.<GenericData.Record>builder(ParquetWritingTestUtils.file(outputFile))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchemaWithoutIds)
+            .withConf(new Configuration())
+            .build()) {
+      for (Record record : records) {
+        GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
+        for (Types.NestedField field : schema.columns()) {
+          avroRecord.put(field.name(), record.getField(field.name()));
         }
-      }
 
-      try (ParquetFileReader reader =
-          ParquetFileReader.open(
-              HadoopInputFile.fromPath(
-                  new org.apache.hadoop.fs.Path(tempFile.toUri()), new Configuration()))) {
-        assertThat(ParquetSchemaUtil.hasIds(reader.getFooter().getFileMetaData().getSchema()))
-            .isFalse();
+        writer.write(avroRecord);
       }
+    }
 
-      byte[] bytes = Files.readAllBytes(tempFile);
-      try (OutputStream out = encryptedFile.encryptingOutputFile().create()) {
-        out.write(bytes);
-      }
-    } finally {
-      Files.deleteIfExists(tempFile);
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetWritingTestUtils.file(outputFile.toInputFile()))) {
+      assertThat(ParquetSchemaUtil.hasIds(reader.getFooter().getFileMetaData().getSchema()))
+          .isFalse();
     }
   }
 
@@ -1121,43 +1070,43 @@ public abstract class BaseFormatModelTests<T> {
     TypeDescription typeWithIds = ORCSchemaUtil.convert(schema);
     TypeDescription typeWithoutIds = TestORCSchemaUtil.removeIds(typeWithIds);
 
+    OutputFile outputFile = encryptedFile.encryptingOutputFile();
+    org.apache.hadoop.fs.Path hadoopPath = new org.apache.hadoop.fs.Path(outputFile.location());
+
     Configuration conf = new Configuration();
     OrcFile.WriterOptions options =
-        OrcFile.writerOptions(conf).useUTCTimestamp(true).setSchema(typeWithoutIds);
+        OrcFile.writerOptions(conf)
+            .useUTCTimestamp(true)
+            .setSchema(typeWithoutIds)
+            .fileSystem(OrcWritingTestUtils.outputFileSystem(outputFile));
 
     OrcRowWriter<Record> rowWriter = GenericOrcWriter.buildWriter(schema, typeWithIds);
 
-    Path tempFile = Files.createTempFile("iceberg-test-no-ids-", ".orc");
-    Files.deleteIfExists(tempFile);
-    org.apache.hadoop.fs.Path hadoopPath = new org.apache.hadoop.fs.Path(tempFile.toUri());
-
-    try {
-      try (Writer orcWriter = OrcFile.createWriter(hadoopPath, options)) {
-        VectorizedRowBatch batch = typeWithoutIds.createRowBatch();
-        for (Record record : records) {
-          rowWriter.write(record, batch);
-          if (batch.size == batch.getMaxSize()) {
-            orcWriter.addRowBatch(batch);
-            batch.reset();
-          }
-        }
-
-        if (batch.size > 0) {
+    try (Writer orcWriter = OrcFile.createWriter(hadoopPath, options)) {
+      VectorizedRowBatch batch = typeWithoutIds.createRowBatch();
+      for (Record record : records) {
+        rowWriter.write(record, batch);
+        if (batch.size == batch.getMaxSize()) {
           orcWriter.addRowBatch(batch);
           batch.reset();
         }
       }
 
-      try (Reader reader = OrcFile.createReader(hadoopPath, OrcFile.readerOptions(conf))) {
-        assertThat(TestORCSchemaUtil.hasIds(reader.getSchema())).isFalse();
+      if (batch.size > 0) {
+        orcWriter.addRowBatch(batch);
+        batch.reset();
       }
+    }
 
-      byte[] bytes = Files.readAllBytes(tempFile);
-      try (OutputStream out = encryptedFile.encryptingOutputFile().create()) {
-        out.write(bytes);
-      }
-    } finally {
-      Files.deleteIfExists(tempFile);
+    InputFile inputFile = outputFile.toInputFile();
+    OrcFile.ReaderOptions readerOptions =
+        OrcFile.readerOptions(conf)
+            .useUTCTimestamp(true)
+            .filesystem(OrcWritingTestUtils.inputFileSystem(inputFile))
+            .maxLength(inputFile.getLength());
+
+    try (Reader reader = OrcFile.createReader(hadoopPath, readerOptions)) {
+      assertThat(TestORCSchemaUtil.hasIds(reader.getSchema())).isFalse();
     }
   }
 
@@ -1201,5 +1150,14 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(readRecords).hasSize(expectedGenericRecords.size());
     assertEquals(
         readSchema, convertToEngineRecords(expectedGenericRecords, readSchema), readRecords);
+  }
+
+  private static Record copy(Record source, Schema sourceSchema, Schema targetSchema) {
+    Record result = GenericRecord.create(targetSchema);
+    for (Types.NestedField col : sourceSchema.columns()) {
+      result.setField(col.name(), source.getField(col.name()));
+    }
+
+    return result;
   }
 }

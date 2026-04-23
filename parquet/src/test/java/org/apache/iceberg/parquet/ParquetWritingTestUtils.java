@@ -32,10 +32,12 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.parquet.io.InputFile;
+import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 
 /** Utilities for tests that need to write Parquet files. */
-class ParquetWritingTestUtils {
+public class ParquetWritingTestUtils {
 
   private ParquetWritingTestUtils() {}
 
@@ -74,5 +76,13 @@ class ParquetWritingTestUtils {
     File tmpFolder = temp.resolve("parquet").toFile();
     String filename = UUID.randomUUID().toString();
     return new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
+  }
+
+  public static OutputFile file(org.apache.iceberg.io.OutputFile file) {
+    return ParquetIO.file(file);
+  }
+
+  public static InputFile file(org.apache.iceberg.io.InputFile file) {
+    return ParquetIO.file(file);
   }
 }
