@@ -20,8 +20,8 @@ package org.apache.iceberg;
 
 import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.restrictions.ReadRestrictions;
-import org.apache.iceberg.restrictions.SupportsReadRestrictions;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
+import org.apache.iceberg.rest.restrictions.SupportsReadRestrictions;
 
 public class TableUtil {
   private TableUtil() {}

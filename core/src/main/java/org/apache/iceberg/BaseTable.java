@@ -30,8 +30,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.restrictions.ReadRestrictions;
-import org.apache.iceberg.restrictions.SupportsReadRestrictions;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 
 /**
  * Base {@link Table} implementation.
@@ -41,13 +40,15 @@ import org.apache.iceberg.restrictions.SupportsReadRestrictions;
  * <p>Serializing and deserializing a BaseTable object returns a read only implementation of the
  * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
  * when reading the table data after deserialization.
+ *
+ * <p>BaseTable can carry per-principal {@link ReadRestrictions} as opaque data (populated by the
+ * REST catalog), but deliberately does <b>not</b> implement {@link
+ * org.apache.iceberg.rest.restrictions.SupportsReadRestrictions}. Only REST-loaded subclasses (e.g.
+ * {@link org.apache.iceberg.rest.RESTTable}) advertise the capability so that {@code instanceof
+ * SupportsReadRestrictions} discriminates correctly between table sources.
  */
 public class BaseTable
-    implements Table,
-        HasTableOperations,
-        Serializable,
-        SupportsDistributedScanPlanning,
-        SupportsReadRestrictions {
+    implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
   private final TableOperations ops;
   private final String name;
   private MetricsReporter reporter;
@@ -73,7 +74,6 @@ public class BaseTable
     this.readRestrictions = readRestrictions;
   }
 
-  @Override
   public Optional<ReadRestrictions> readRestrictions() {
     return Optional.ofNullable(readRestrictions).filter(r -> !r.isEmpty());
   }

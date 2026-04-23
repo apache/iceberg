@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.rest.credentials.Credential;
-import org.apache.iceberg.restrictions.ReadRestrictions;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 
 /**
  * A REST response that is used when a table is successfully loaded.
