@@ -26,8 +26,8 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.CredentialParser;
-import org.apache.iceberg.restrictions.ReadRestrictions;
-import org.apache.iceberg.restrictions.ReadRestrictionsParser;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
+import org.apache.iceberg.rest.restrictions.ReadRestrictionsParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class LoadTableResponseParser {

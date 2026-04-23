@@ -22,8 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
-import org.apache.iceberg.restrictions.Action;
-import org.apache.iceberg.restrictions.Actions;
+import org.apache.iceberg.rest.restrictions.Action;
+import org.apache.iceberg.rest.restrictions.Actions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 import org.apache.spark.sql.catalyst.InternalRow;

@@ -97,7 +97,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
-import org.apache.iceberg.restrictions.ReadRestrictions;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseView;

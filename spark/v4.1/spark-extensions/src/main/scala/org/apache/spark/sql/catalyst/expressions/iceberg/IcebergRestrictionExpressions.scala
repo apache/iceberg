@@ -37,7 +37,7 @@ import org.apache.spark.unsafe.types.UTF8String
 
 /**
  * Generic opaque masking wrapper. Applies a bound masking function from
- * [[org.apache.iceberg.restrictions.Actions]] to the child expression's value.
+ * [[org.apache.iceberg.rest.restrictions.Actions]] to the child expression's value.
  *
  * Type bridging between Spark internal representation and Iceberg Java types:
  *  - String: UTF8String <-> String

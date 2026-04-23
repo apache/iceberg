@@ -30,9 +30,11 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
-import org.apache.iceberg.restrictions.ReadRestrictions;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
+import org.apache.iceberg.rest.restrictions.SupportsReadRestrictions;
 
-class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
+class RESTTable extends BaseTable
+    implements SupportsDistributedScanPlanning, SupportsReadRestrictions {
   private final RESTClient client;
   private final Supplier<Map<String, String>> headers;
   private final MetricsReporter reporter;
