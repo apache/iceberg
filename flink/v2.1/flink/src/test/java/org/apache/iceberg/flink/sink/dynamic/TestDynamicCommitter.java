@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.connector.sink2.Committer.CommitRequest;
@@ -992,7 +991,10 @@ class TestDynamicCommitter {
   }
 
   interface CommitHook extends Serializable {
-    default void beforeCommit(Collection<CommitRequest<DynamicCommittable>> commitRequests) {}
+    default Collection<CommitRequest<DynamicCommittable>> beforeCommit(
+        Collection<CommitRequest<DynamicCommittable>> commitRequests) {
+      return commitRequests;
+    }
 
     default void beforeCommitOperation() {}
 
@@ -1013,11 +1015,14 @@ class TestDynamicCommitter {
     }
 
     @Override
-    public void beforeCommit(Collection<CommitRequest<DynamicCommittable>> ignored) {
+    public Collection<CommitRequest<DynamicCommittable>> beforeCommit(
+        Collection<CommitRequest<DynamicCommittable>> requests) {
       if (!failedBeforeCommit) {
         failedBeforeCommit = true;
         throw new RuntimeException("Failing before commit");
       }
+
+      return requests;
     }
 
     @Override
@@ -1071,9 +1076,7 @@ class TestDynamicCommitter {
     @Override
     public void commit(Collection<CommitRequest<DynamicCommittable>> commitRequests)
         throws IOException, InterruptedException {
-      List<CommitRequest<DynamicCommittable>> mutableRequests = Lists.newArrayList(commitRequests);
-      commitHook.beforeCommit(mutableRequests);
-      super.commit(mutableRequests);
+      super.commit(commitHook.beforeCommit(commitRequests));
       commitHook.afterCommit();
     }
 

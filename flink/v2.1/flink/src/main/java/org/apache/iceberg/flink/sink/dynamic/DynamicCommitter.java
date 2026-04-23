@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -137,14 +138,21 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       TableKey tableKey = tableEntry.getKey();
       Table table = catalog.loadTable(TableIdentifier.parse(tableKey.tableName()));
       Snapshot latestSnapshot = table.snapshot(tableKey.branch());
-      List<Snapshot> ancestors =
+      Iterable<Snapshot> ancestors =
           latestSnapshot != null
-              ? Lists.newArrayList(
-                  SnapshotUtil.ancestorsOf(latestSnapshot.snapshotId(), table::snapshot))
+              ? SnapshotUtil.ancestorsOf(latestSnapshot.snapshotId(), table::snapshot)
               : List.of();
 
+      List<Map.Entry<JobOperatorKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>>
+          jobEntries = Lists.newArrayList(tableEntry.getValue().entrySet());
+      // Preserve checkpoint order across groups so that older-jobId commits land before newer-jobId
+      // ones when the batch mixes committables from different jobIds (e.g. state replay after a
+      // restart). Within a (jobId, operatorId) group, checkpoint order is already guaranteed by
+      // the inner NavigableMap.
+      jobEntries.sort(Comparator.comparingLong(entry -> entry.getValue().firstKey()));
+
       for (Map.Entry<JobOperatorKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>
-          jobEntry : tableEntry.getValue().entrySet()) {
+          jobEntry : jobEntries) {
         JobOperatorKey jobKey = jobEntry.getKey();
         long maxCommittedCheckpointId =
             getMaxCommittedCheckpointId(ancestors, jobKey.jobId(), jobKey.operatorId());

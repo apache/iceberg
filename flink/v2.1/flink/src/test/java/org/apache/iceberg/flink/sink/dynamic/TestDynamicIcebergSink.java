@@ -1213,6 +1213,10 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(mainSnapshot.summary())
         .containsEntry("added-data-files", "1")
         .containsEntry("added-records", String.valueOf(records.size()));
+
+    long expectedTotalRecords = overwriteMode ? records.size() : records.size() + 1L;
+    assertThat(Long.parseLong(mainSnapshot.summary().get("total-records")))
+        .isEqualTo(expectedTotalRecords);
   }
 
   @Test
@@ -1566,10 +1570,13 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
 
     @Override
-    public void beforeCommit(Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
+    public Collection<Committer.CommitRequest<DynamicCommittable>> beforeCommit(
+        Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
       if (!hasTriggered) {
         this.commitRequests.addAll(requests);
       }
+
+      return requests;
     }
 
     @Override
@@ -1588,9 +1595,10 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   /**
-   * Seeds an ancestor snapshot under a synthetic previous jobId and injects a replay committable
-   * tagged with that jobId into the main batch. The seed uses {@code table.newAppend()} directly
-   * rather than a side committer so the real committable's manifest stays intact.
+   * Seeds an ancestor snapshot under a synthetic previous jobId and prepends a replay committable
+   * tagged with that jobId (at an earlier checkpoint, as would happen on restart-replay) to the
+   * batch. The seed uses {@code table.newAppend()} directly rather than a side committer so the
+   * real committable's manifest stays intact.
    */
   static class ReplayPreviousJobIdCommittableHook implements CommitHook {
     static final String PREVIOUS_JOB_ID = JobID.generate().toHexString();
@@ -1610,13 +1618,15 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
 
     @Override
-    public void beforeCommit(Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
+    public Collection<Committer.CommitRequest<DynamicCommittable>> beforeCommit(
+        Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
       if (hasTriggered || requests.isEmpty()) {
-        return;
+        return requests;
       }
 
       hasTriggered = true;
       DynamicCommittable original = requests.iterator().next().getCommittable();
+      long replayedCheckpointId = original.checkpointId() - 1;
 
       Table table =
           CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.parse(original.key().tableName()));
@@ -1625,7 +1635,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .appendFile(seedDataFile)
           .set(FLINK_JOB_ID, PREVIOUS_JOB_ID)
           .set(OPERATOR_ID, original.operatorId())
-          .set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(original.checkpointId()))
+          .set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(replayedCheckpointId))
           .toBranch(original.key().branch())
           .commit();
 
@@ -1635,8 +1645,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               original.manifests(),
               PREVIOUS_JOB_ID,
               original.operatorId(),
-              original.checkpointId());
-      requests.add(new MockCommitRequest<>(replayed));
+              replayedCheckpointId);
+      List<Committer.CommitRequest<DynamicCommittable>> enriched =
+          Lists.newArrayListWithCapacity(requests.size() + 1);
+      enriched.add(new MockCommitRequest<>(replayed));
+      enriched.addAll(requests);
+      return enriched;
     }
   }
 
