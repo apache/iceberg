@@ -20,7 +20,10 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
@@ -65,6 +68,7 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -377,5 +381,189 @@ public class TestParquet {
             createWriterFunc,
             records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
+  }
+
+  @Test
+  public void testGlobalCompressionCodecAppliesToAllColumns() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", "test");
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_COMPRESSION, "snappy")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          assertThat(column.getCodec())
+              .as("column %s uses global snappy", column.getPath().toDotString())
+              .isEqualTo(CompressionCodecName.SNAPPY);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnCompressionCodec() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", "test");
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_COMPRESSION, "zstd")
+            .put(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field", "snappy")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          if (column.getPath().toDotString().equals("int_field")) {
+            assertThat(column.getCodec())
+                .as("int_field uses snappy")
+                .isEqualTo(CompressionCodecName.SNAPPY);
+          } else if (column.getPath().toDotString().equals("string_field")) {
+            assertThat(column.getCodec())
+                .as("string_field uses global zstd")
+                .isEqualTo(CompressionCodecName.ZSTD);
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPerColumnCompressionCodecForNonExistentColumnIsIgnored() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", "test");
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_COMPRESSION, "snappy")
+            .put(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "non_existent_field", "zstd")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          assertThat(column.getCodec())
+              .as("column %s falls back to global snappy", column.getPath().toDotString())
+              .isEqualTo(CompressionCodecName.SNAPPY);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testInvalidCompressionLevelThrows() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(1);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("int_field", 1);
+    record.put("string_field", "test");
+    records.add(record);
+
+    File file = createTempFile(temp);
+
+    assertThatThrownBy(
+            () ->
+                write(
+                    file,
+                    schema,
+                    ImmutableMap.<String, String>builder()
+                        .put(PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field", "zstd")
+                        .put(PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field", "not-a-number")
+                        .buildOrThrow(),
+                    ParquetAvroWriter::buildWriter,
+                    records.toArray(new GenericData.Record[] {})))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not-a-number");
+  }
+
+  @Test
+  public void testInvalidPerColumnLevelWithGlobalCodecThrows() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(1);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("int_field", 1);
+    record.put("string_field", "test");
+    records.add(record);
+
+    File file = createTempFile(temp);
+
+    assertThatThrownBy(
+            () ->
+                write(
+                    file,
+                    schema,
+                    ImmutableMap.<String, String>builder()
+                        .put(PARQUET_COMPRESSION, "zstd")
+                        .put(PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field", "not-a-number")
+                        .buildOrThrow(),
+                    ParquetAvroWriter::buildWriter,
+                    records.toArray(new GenericData.Record[] {})))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not-a-number");
   }
 }
