@@ -23,7 +23,7 @@ import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 
 @Experimental
-class FlinkDynamicSinkOptions {
+public class FlinkDynamicSinkOptions {
 
   private FlinkDynamicSinkOptions() {}
 
