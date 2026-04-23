@@ -47,10 +47,10 @@ public interface Action extends Serializable {
   /** The field id of the column this action applies to. */
   int fieldId();
 
-  abstract class Base implements Action {
+  abstract class BaseAction implements Action {
     private final int fieldId;
 
-    Base(int fieldId) {
+    BaseAction(int fieldId) {
       this.fieldId = fieldId;
     }
 
@@ -60,7 +60,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class MaskAlphanum extends Base {
+  class MaskAlphanum extends BaseAction {
     public MaskAlphanum(int fieldId) {
       super(fieldId);
     }
@@ -71,7 +71,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class MaskToDefault extends Base {
+  class MaskToDefault extends BaseAction {
     public MaskToDefault(int fieldId) {
       super(fieldId);
     }
@@ -82,7 +82,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class ReplaceWithNull extends Base {
+  class ReplaceWithNull extends BaseAction {
     public ReplaceWithNull(int fieldId) {
       super(fieldId);
     }
@@ -93,7 +93,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class ShowFirst4 extends Base {
+  class ShowFirst4 extends BaseAction {
     public ShowFirst4(int fieldId) {
       super(fieldId);
     }
@@ -104,7 +104,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class ShowLast4 extends Base {
+  class ShowLast4 extends BaseAction {
     public ShowLast4(int fieldId) {
       super(fieldId);
     }
@@ -115,7 +115,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class TruncateToYear extends Base {
+  class TruncateToYear extends BaseAction {
     public TruncateToYear(int fieldId) {
       super(fieldId);
     }
@@ -126,7 +126,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class TruncateToMonth extends Base {
+  class TruncateToMonth extends BaseAction {
     public TruncateToMonth(int fieldId) {
       super(fieldId);
     }
@@ -137,7 +137,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class Sha256Global extends Base {
+  class Sha256Global extends BaseAction {
     public Sha256Global(int fieldId) {
       super(fieldId);
     }
@@ -148,7 +148,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class Sha256QueryLocal extends Base {
+  class Sha256QueryLocal extends BaseAction {
     public Sha256QueryLocal(int fieldId) {
       super(fieldId);
     }
@@ -159,7 +159,7 @@ public interface Action extends Serializable {
     }
   }
 
-  class ApplyExpression extends Base {
+  class ApplyExpression extends BaseAction {
     private final Expression expression;
 
     public ApplyExpression(int fieldId, Expression expression) {
@@ -184,7 +184,7 @@ public interface Action extends Serializable {
    * (engine-side rules) must fail closed when they encounter this — silent skipping would leak
    * unmasked data.
    */
-  class Unknown extends Base {
+  class Unknown extends BaseAction {
     private final String actionType;
 
     public Unknown(int fieldId, String actionType) {
