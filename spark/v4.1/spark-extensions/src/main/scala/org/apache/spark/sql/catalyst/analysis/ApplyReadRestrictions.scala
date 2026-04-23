@@ -46,9 +46,11 @@ import scala.jdk.CollectionConverters._
  * Enforce server-provided [[ReadRestrictions]] by rewriting the logical plan.
  *
  * For each [[DataSourceV2Relation]] whose table is a [[SparkTable]] carrying non-empty
- * restrictions, the rule rewrites the relation node into `Filter(rowFilter, Project(masks,
- * Relation))`. Masked column outputs preserve the original `ExprId` so downstream references
- * still resolve.
+ * restrictions, the rule rewrites the relation node into `Project(masks, Filter(rowFilter,
+ * Relation))` so the row filter sees the original column values before any mask is applied
+ * (spec: "Row filters MUST be evaluated against the original, untransformed column values.
+ * Required projections MUST be applied only after row filters are applied."). Masked column
+ * outputs preserve the original `ExprId` so downstream references still resolve.
  *
  * Masking functions are bound via [[Actions.bind]] which returns engine-agnostic
  * [[org.apache.iceberg.util.SerializableFunction]]s. The Spark-side

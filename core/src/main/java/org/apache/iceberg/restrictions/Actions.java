@@ -296,6 +296,9 @@ public class Actions {
 
     @Override
     public Object apply(Object value) {
+      if (value == null) {
+        return null;
+      }
       return defaultValue;
     }
   }

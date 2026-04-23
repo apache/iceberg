@@ -178,10 +178,11 @@ public class TestActions {
   }
 
   @Test
-  public void maskToDefaultNullReturnsDefault() {
+  public void maskToDefaultNullReturnsNull() {
+    // Spec: "For all actions, if the input column value is NULL, the output MUST be NULL."
     SerializableFunction<Object, Object> fn =
         Actions.bind(new Action.MaskToDefault(1), Types.IntegerType.get());
-    assertThat(fn.apply(null)).isEqualTo(999999999);
+    assertThat(fn.apply(null)).isNull();
   }
 
   @Test
