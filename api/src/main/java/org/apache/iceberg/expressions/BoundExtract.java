@@ -26,9 +26,13 @@ public class BoundExtract<T> implements BoundTerm<T> {
   private final String path;
   private final Type type;
 
+  /**
+   * @param path normalized extract path, as from {@link UnboundExtract#path()}; already validated
+   *     and canonical in {@link UnboundExtract#bind}.
+   */
   BoundExtract(BoundReference<?> ref, String path, Type type) {
     this.ref = ref;
-    this.path = PathUtil.toNormalizedPath(PathUtil.parse(path));
+    this.path = path;
     this.type = type;
   }
 
