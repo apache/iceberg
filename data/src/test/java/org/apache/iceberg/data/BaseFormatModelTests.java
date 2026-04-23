@@ -661,11 +661,7 @@ public abstract class BaseFormatModelTests<T> {
         evolvedSchema,
         genericRecords,
         record -> {
-          Record expected = GenericRecord.create(evolvedSchema);
-          for (Types.NestedField col : writeSchema.columns()) {
-            expected.setField(col.name(), record.getField(col.name()));
-          }
-
+          Record expected = copy(record, writeSchema, evolvedSchema);
           expected.setField("col_f", defaultStringValue);
           expected.setField("col_g", defaultIntValue);
           return expected;
@@ -828,10 +824,7 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> writeRecords = Lists.newArrayListWithExpectedSize(baseRecords.size());
     for (int i = 0; i < baseRecords.size(); i++) {
       Record base = baseRecords.get(i);
-      Record rec = GenericRecord.create(writeSchema);
-      for (Types.NestedField col : dataSchema.columns()) {
-        rec.setField(col.name(), base.getField(col.name()));
-      }
+      Record rec = copy(base, dataSchema, writeSchema);
 
       if (i % 2 == 0) {
         rec.setField(MetadataColumns.ROW_ID.name(), 555L + i);
@@ -1092,17 +1085,7 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private static List<Record> projectRecords(List<Record> records, Schema projectedSchema) {
-    return records.stream()
-        .map(
-            record -> {
-              Record projected = GenericRecord.create(projectedSchema.asStruct());
-              projectedSchema
-                  .columns()
-                  .forEach(
-                      field -> projected.setField(field.name(), record.getField(field.name())));
-              return projected;
-            })
-        .toList();
+    return records.stream().map(record -> copy(record, projectedSchema, projectedSchema)).toList();
   }
 
   private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
@@ -1230,5 +1213,14 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(readRecords).hasSize(expectedRecords.size());
     assertEquals(
         projectionSchema, convertToEngineRecords(expectedRecords, projectionSchema), readRecords);
+  }
+
+  private static Record copy(Record source, Schema sourceSchema, Schema targetSchema) {
+    Record result = GenericRecord.create(targetSchema);
+    for (Types.NestedField col : sourceSchema.columns()) {
+      result.setField(col.name(), source.getField(col.name()));
+    }
+
+    return result;
   }
 }
