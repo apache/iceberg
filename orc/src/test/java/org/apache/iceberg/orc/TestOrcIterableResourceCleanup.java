@@ -100,6 +100,7 @@ public class TestOrcIterableResourceCleanup {
         writer.write(record.copy(ImmutableMap.of("id", (long) i, "data", "val" + i)));
       }
     }
+
     return outputFile.toInputFile();
   }
 
