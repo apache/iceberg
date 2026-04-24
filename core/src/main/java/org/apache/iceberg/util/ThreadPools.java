@@ -115,9 +115,9 @@ public class ThreadPools {
 
   /**
    * Creates a fixed-size thread pool that uses daemon threads. The pool will be stopped by the
-   * shutdown hook to ensure the pool terminates when the JVM exits - unless `removeShutdownHook` is
-   * called, in which case it is user's responsibility to stop the threadpools using the
-   * `shutdownThreadPools` method.
+   * shutdown hook to ensure the pool terminates when the JVM exits - unless {@link
+   * #removeShutdownHook()} is called, in which case it is user's responsibility to stop the
+   * threadpools using the {@link #shutdownThreadPools()} method.
    *
    * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
    * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
@@ -134,9 +134,9 @@ public class ThreadPools {
 
   /**
    * Creates a fixed-size thread pool that uses daemon threads. The pool will be stopped by the
-   * shutdown hook to ensure the pool terminates when the JVM exits - unless `removeShutdownHook` is
-   * called, in which case it is user's responsibility to stop the threadpools using the
-   * `shutdownThreadPools` method.
+   * shutdown hook to ensure the pool terminates when the JVM exits - unless {@link
+   * #removeShutdownHook()} is called, in which case it is user's responsibility to stop the
+   * threadpools using the {@link #shutdownThreadPools()} method.
    *
    * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
    * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
@@ -153,9 +153,9 @@ public class ThreadPools {
 
   /**
    * Creates a fixed-size thread pool that uses daemon threads. The pool will be stopped by the
-   * shutdown hook to ensure the pool terminates when the JVM exits - unless `removeShutdownHook` is
-   * called, in which case it is user's responsibility to stop the threadpools using the
-   * `shutdownThreadPools` method.
+   * shutdown hook to ensure the pool terminates when the JVM exits - unless {@link
+   * #removeShutdownHook()} is called, in which case it is user's responsibility to stop the
+   * threadpools using the {@link #shutdownThreadPools()} method.
    */
   public static ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
     ExecutorService service =
@@ -178,8 +178,8 @@ public class ThreadPools {
    *
    * <p>Only call this method at the end of the intended usage of the iceberg operations. Calling it
    * earlier will stop thread pools required for normal data export workflows. Intended use cases
-   * are: the application has called `removeShutdownHook` intending to call this method at the end
-   * of it's own shutdown hook; the application calls this method after stopping all iceberg
+   * are: the application has called {@link #removeShutdownHook()} intending to call this method at
+   * the end of it's own shutdown hook; the application calls this method after stopping all iceberg
    * operations - before unloading the iceberg jar file in a hot-reload JVM environement.
    */
   public static void shutdownThreadPools() {
