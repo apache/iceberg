@@ -57,9 +57,18 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
       ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
 
+  /**
+   * Returns true when the Apache HTTP client reports that S3 closed the response body before all
+   * declared Content-Length bytes were delivered. This happens when an S3 HTTP connection goes idle
+   * between Parquet row groups and S3 tears it down server-side. The message is reconstructed to
+   * distinguish this specific failure from unrelated {@code ConnectionClosedException} instances.
+   *
+   * @see <a
+   *     href="https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/impl/io/ContentLengthInputStream.java#L141">ContentLengthInputStream</a>
+   * @see <a
+   *     href="https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/ConnectionClosedException.java#L68">ConnectionClosedException</a>
+   */
   private boolean isPrematureConnectionCloseApacheHttpClient(Throwable ex) {
-    // https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/impl/io/ContentLengthInputStream.java#L141
-    // https://github.com/apache/httpcomponents-core/blob/rel/v4.4.16/httpcore/src/main/java/org/apache/http/ConnectionClosedException.java#L68
     return ex.getClass().getSimpleName().equals("ConnectionClosedException")
         && ex.getMessage() != null
         && ex.getMessage()
@@ -71,6 +80,13 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
                     pos - streamStart));
   }
 
+  /**
+   * Returns true when the URL connection HTTP client reports that S3 closed the response body
+   * before all declared Content-Length bytes were delivered. Unlike the Apache HTTP client, {@code
+   * UrlConnectionHttpClient} does not throw an exception on premature close; it silently returns -1
+   * from {@code read}. The {@code pos < streamEnd} guard distinguishes this from a legitimate EOF,
+   * which also returns -1 but only after all Content-Length bytes have been received.
+   */
   private boolean isPrematureConnectionCloseUrlConnectionHttpClient(Object bytesRead) {
     return Integer.valueOf(-1).equals(bytesRead) && pos < streamEnd;
   }
