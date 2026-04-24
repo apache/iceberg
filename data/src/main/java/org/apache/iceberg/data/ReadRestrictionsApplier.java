@@ -22,6 +22,9 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Evaluator;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.restrictions.Action;
@@ -31,14 +34,25 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
- * Applies column-masking {@link Action}s from {@link ReadRestrictions} to a stream of {@link
- * Record}s.
+ * Applies server-provided {@link ReadRestrictions} (row filter + column masks) to a stream of
+ * {@link Record}s.
  *
- * <p>Row filters are not handled here: they are pushed into the {@code TableScan} so manifest-level
- * pruning still applies. This helper only rewrites per-field values after rows are read.
+ * <p>The row filter is evaluated per-record against the original column values before any mask is
+ * applied, as required by the spec:
  *
- * <p>Currently supports top-level fields only. Masks on nested fieldIds fail closed at construction
- * time so unmasked nested data cannot leak.
+ * <blockquote>
+ *
+ * Row filters MUST be evaluated against the original, untransformed column values. Required
+ * projections MUST be applied only after row filters are applied.
+ *
+ * </blockquote>
+ *
+ * <p>Callers that also push the row filter into {@link org.apache.iceberg.TableScan#filter} get
+ * partition/stats-level pruning for free; this applier re-evaluates the filter at the row level so
+ * correctness does not depend on whether the surrounding reader honors residual evaluation.
+ *
+ * <p>Currently supports top-level fields only. Masks on nested fieldIds fail closed at bind time so
+ * unmasked nested data cannot leak.
  */
 class ReadRestrictionsApplier {
 
@@ -49,16 +63,29 @@ class ReadRestrictionsApplier {
 
   static CloseableIterable<Record> apply(
       CloseableIterable<Record> records, ReadRestrictions restrictions, Schema projection) {
-    if (restrictions.columnProjections().isEmpty()) {
+    CloseableIterable<Record> filtered = filterRows(records, restrictions.rowFilter(), projection);
+    return maskColumns(filtered, restrictions.columnProjections(), projection);
+  }
+
+  private static CloseableIterable<Record> filterRows(
+      CloseableIterable<Record> records, Expression rowFilter, Schema projection) {
+    if (rowFilter == null || rowFilter == Expressions.alwaysTrue()) {
       return records;
     }
 
-    Map<String, SerializableFunction<Object, Object>> masksByName =
-        bindMasks(restrictions.columnProjections(), projection);
-    if (masksByName.isEmpty()) {
+    Types.StructType struct = projection.asStruct();
+    Evaluator evaluator = new Evaluator(struct, rowFilter, true);
+    InternalRecordWrapper wrapper = new InternalRecordWrapper(struct);
+    return CloseableIterable.filter(records, record -> evaluator.eval(wrapper.wrap(record)));
+  }
+
+  private static CloseableIterable<Record> maskColumns(
+      CloseableIterable<Record> records, List<Action> actions, Schema projection) {
+    if (actions.isEmpty()) {
       return records;
     }
 
+    Map<String, SerializableFunction<Object, Object>> masksByName = bindMasks(actions, projection);
     return CloseableIterable.transform(records, record -> mask(record, masksByName));
   }
 

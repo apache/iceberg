@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -142,5 +143,62 @@ public class TestReadRestrictionsApplier {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("nested fields are not yet supported")
         .hasMessageContaining("fieldId=3");
+  }
+
+  @Test
+  public void testRowFilterDropsNonMatchingRows() {
+    CloseableIterable<Record> input =
+        CloseableIterable.withNoopClose(
+            ImmutableList.of(
+                TEMPLATE.copy(ImmutableMap.of("id", 1L, "email", "a@b.com")),
+                TEMPLATE.copy(ImmutableMap.of("id", 2L, "email", "c@d.com")),
+                TEMPLATE.copy(ImmutableMap.of("id", 3L, "email", "e@f.com"))));
+
+    ReadRestrictions restrictions =
+        ReadRestrictions.of(Expressions.greaterThan("id", 1L), ImmutableList.of());
+
+    List<Record> result =
+        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+
+    assertThat(result).hasSize(2);
+    assertThat(result.get(0).getField("id")).isEqualTo(2L);
+    assertThat(result.get(1).getField("id")).isEqualTo(3L);
+  }
+
+  @Test
+  public void testRowFilterSeesOriginalValuesBeforeMasks() {
+    CloseableIterable<Record> input =
+        CloseableIterable.withNoopClose(
+            ImmutableList.of(
+                TEMPLATE.copy(ImmutableMap.of("id", 1L, "email", "keep@example.com")),
+                TEMPLATE.copy(ImmutableMap.of("id", 2L, "email", "drop@example.com"))));
+
+    ReadRestrictions restrictions =
+        ReadRestrictions.of(
+            Expressions.equal("email", "keep@example.com"),
+            ImmutableList.of(new Action.MaskAlphanum(2)));
+
+    List<Record> result =
+        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).getField("id")).isEqualTo(1L);
+    assertThat(result.get(0).getField("email")).isEqualTo("xxxx@xxxxxxx.xxx");
+  }
+
+  @Test
+  public void testNullRowFilterSkipsFilterStep() {
+    CloseableIterable<Record> input =
+        CloseableIterable.withNoopClose(
+            ImmutableList.of(
+                TEMPLATE.copy(ImmutableMap.of("id", 1L)),
+                TEMPLATE.copy(ImmutableMap.of("id", 2L))));
+
+    ReadRestrictions restrictions = ReadRestrictions.of(null, ImmutableList.of());
+
+    List<Record> result =
+        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+
+    assertThat(result).hasSize(2);
   }
 }
