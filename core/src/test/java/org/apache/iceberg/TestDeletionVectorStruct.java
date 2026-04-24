@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import org.apache.iceberg.types.Types;
@@ -29,7 +30,12 @@ class TestDeletionVectorStruct {
   @Test
   void testFieldAccess() {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
+        new DeletionVectorStruct.Builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     assertThat(dv.location()).isEqualTo("s3://bucket/data/dv.puffin");
     assertThat(dv.offset()).isEqualTo(256L);
@@ -40,7 +46,12 @@ class TestDeletionVectorStruct {
   @Test
   void testCopy() {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
+        new DeletionVectorStruct.Builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     DeletionVectorStruct copy = dv.copy();
 
@@ -79,7 +90,12 @@ class TestDeletionVectorStruct {
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
+        new DeletionVectorStruct.Builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     DeletionVectorStruct deserialized = TestHelpers.roundTripSerialize(dv);
 
@@ -92,7 +108,12 @@ class TestDeletionVectorStruct {
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct("s3://bucket/data/dv.puffin", 256L, 128L, 42L);
+        new DeletionVectorStruct.Builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     DeletionVectorStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(dv);
 
@@ -100,5 +121,17 @@ class TestDeletionVectorStruct {
     assertThat(deserialized.offset()).isEqualTo(256L);
     assertThat(deserialized.sizeInBytes()).isEqualTo(128L);
     assertThat(deserialized.cardinality()).isEqualTo(42L);
+  }
+
+  @Test
+  void testBuildValidatesRequiredFields() {
+    assertThatThrownBy(() -> new DeletionVectorStruct.Builder().build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid location: null");
+
+    assertThatThrownBy(
+            () -> new DeletionVectorStruct.Builder().location("s3://bucket/dv.puffin").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid offset: -1");
   }
 }

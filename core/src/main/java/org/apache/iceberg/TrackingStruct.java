@@ -59,16 +59,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     super(BASE_TYPE, type);
   }
 
-  TrackingStruct() {
-    super(BASE_TYPE.fields().size());
-  }
-
-  TrackingStruct(EntryStatus status, Long snapshotId) {
-    super(BASE_TYPE.fields().size());
-    this.status = status;
-    this.snapshotId = snapshotId;
-  }
-
   private TrackingStruct(TrackingStruct toCopy) {
     super(toCopy);
     this.status = toCopy.status;
@@ -251,5 +241,71 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
         .toString();
+  }
+
+  static class Builder {
+    private EntryStatus status = null;
+    private Long snapshotId = null;
+    private Long dataSequenceNumber = null;
+    private Long fileSequenceNumber = null;
+    private Long dvSnapshotId = null;
+    private Long firstRowId = null;
+    private byte[] deletedPositions = null;
+    private byte[] replacedPositions = null;
+
+    Builder status(EntryStatus entryStatus) {
+      this.status = entryStatus;
+      return this;
+    }
+
+    Builder snapshotId(Long id) {
+      this.snapshotId = id;
+      return this;
+    }
+
+    Builder dataSequenceNumber(Long sequenceNumber) {
+      this.dataSequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    Builder fileSequenceNumber(Long sequenceNumber) {
+      this.fileSequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    Builder dvSnapshotId(Long id) {
+      this.dvSnapshotId = id;
+      return this;
+    }
+
+    Builder firstRowId(Long rowId) {
+      this.firstRowId = rowId;
+      return this;
+    }
+
+    Builder deletedPositions(ByteBuffer positions) {
+      this.deletedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
+      return this;
+    }
+
+    Builder replacedPositions(ByteBuffer positions) {
+      this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
+      return this;
+    }
+
+    TrackingStruct build() {
+      Preconditions.checkArgument(status != null, "Invalid status: null");
+
+      TrackingStruct struct = new TrackingStruct(BASE_TYPE);
+      struct.status = status;
+      struct.snapshotId = snapshotId;
+      struct.dataSequenceNumber = dataSequenceNumber;
+      struct.fileSequenceNumber = fileSequenceNumber;
+      struct.dvSnapshotId = dvSnapshotId;
+      struct.firstRowId = firstRowId;
+      struct.deletedPositions = deletedPositions;
+      struct.replacedPositions = replacedPositions;
+      return struct;
+    }
   }
 }

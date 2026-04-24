@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
 /** Mutable {@link StructLike} implementation of {@link DeletionVector}. */
@@ -39,14 +40,6 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
 
   DeletionVectorStruct(Types.StructType type) {
     super(BASE_TYPE, type);
-  }
-
-  DeletionVectorStruct(String location, long offset, long sizeInBytes, long cardinality) {
-    super(BASE_TYPE.fields().size());
-    this.location = location;
-    this.offset = offset;
-    this.sizeInBytes = sizeInBytes;
-    this.cardinality = cardinality;
   }
 
   private DeletionVectorStruct(DeletionVectorStruct toCopy) {
@@ -131,5 +124,46 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
         .add("size_in_bytes", sizeInBytes)
         .add("cardinality", cardinality)
         .toString();
+  }
+
+  static class Builder {
+    private String location = null;
+    private long offset = -1L;
+    private long sizeInBytes = -1L;
+    private long cardinality = -1L;
+
+    Builder location(String dvLocation) {
+      this.location = dvLocation;
+      return this;
+    }
+
+    Builder offset(long dvOffset) {
+      this.offset = dvOffset;
+      return this;
+    }
+
+    Builder sizeInBytes(long dvSizeInBytes) {
+      this.sizeInBytes = dvSizeInBytes;
+      return this;
+    }
+
+    Builder cardinality(long dvCardinality) {
+      this.cardinality = dvCardinality;
+      return this;
+    }
+
+    DeletionVectorStruct build() {
+      Preconditions.checkArgument(location != null, "Invalid location: null");
+      Preconditions.checkArgument(offset >= 0, "Invalid offset: %s", offset);
+      Preconditions.checkArgument(sizeInBytes >= 0, "Invalid size in bytes: %s", sizeInBytes);
+      Preconditions.checkArgument(cardinality >= 0, "Invalid cardinality: %s", cardinality);
+
+      DeletionVectorStruct struct = new DeletionVectorStruct(BASE_TYPE);
+      struct.location = location;
+      struct.offset = offset;
+      struct.sizeInBytes = sizeInBytes;
+      struct.cardinality = cardinality;
+      return struct;
+    }
   }
 }

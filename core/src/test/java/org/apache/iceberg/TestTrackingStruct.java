@@ -53,12 +53,13 @@ class TestTrackingStruct {
 
   @Test
   void testCopy() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-    tracking.set(6, ByteBuffer.wrap(new byte[] {1, 2}));
+    TrackingStruct tracking =
+        new TrackingStruct.Builder()
+            .status(EntryStatus.ADDED)
+            .snapshotId(42L)
+            .dataSequenceNumber(10L)
+            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .build();
 
     TrackingStruct copy = tracking.copy();
 
@@ -98,7 +99,7 @@ class TestTrackingStruct {
 
   @Test
   void testInheritSnapshotId() {
-    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, null);
+    TrackingStruct tracking = new TrackingStruct.Builder().status(EntryStatus.ADDED).build();
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // snapshotId is null, should inherit from manifest
@@ -107,7 +108,7 @@ class TestTrackingStruct {
 
   @Test
   void testInheritSequenceNumberForAddedEntries() {
-    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, null);
+    TrackingStruct tracking = new TrackingStruct.Builder().status(EntryStatus.ADDED).build();
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are null and status is ADDED, should inherit
@@ -117,9 +118,12 @@ class TestTrackingStruct {
 
   @Test
   void testDoNotInheritSequenceNumberForExistingEntries() {
-    TrackingStruct tracking = new TrackingStruct(EntryStatus.EXISTING, null);
-    tracking.set(2, 5L);
-    tracking.set(3, 6L);
+    TrackingStruct tracking =
+        new TrackingStruct.Builder()
+            .status(EntryStatus.EXISTING)
+            .dataSequenceNumber(5L)
+            .fileSequenceNumber(6L)
+            .build();
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are not inherited for EXISTING entries
@@ -129,9 +133,13 @@ class TestTrackingStruct {
 
   @Test
   void testExplicitValuesOverrideInheritance() {
-    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, 200L);
-    tracking.set(2, 75L);
-    tracking.set(3, 76L);
+    TrackingStruct tracking =
+        new TrackingStruct.Builder()
+            .status(EntryStatus.ADDED)
+            .snapshotId(200L)
+            .dataSequenceNumber(75L)
+            .fileSequenceNumber(76L)
+            .build();
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // explicit values should take precedence
@@ -158,7 +166,7 @@ class TestTrackingStruct {
 
   @Test
   void testNoDefaultingWithoutInheritance() {
-    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, null);
+    TrackingStruct tracking = new TrackingStruct.Builder().status(EntryStatus.ADDED).build();
 
     // no inheritance, nulls stay null
     assertThat(tracking.snapshotId()).isNull();
@@ -166,11 +174,20 @@ class TestTrackingStruct {
     assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
+  @Test
+  void testBuildValidatesRequiredFields() {
+    assertThatThrownBy(() -> new TrackingStruct.Builder().build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid status: null");
+  }
+
   private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
-    TrackingStruct tracking = new TrackingStruct(EntryStatus.ADDED, snapshotId);
-    tracking.set(2, sequenceNumber);
-    tracking.set(3, sequenceNumber);
-    return tracking;
+    return new TrackingStruct.Builder()
+        .status(EntryStatus.ADDED)
+        .snapshotId(snapshotId)
+        .dataSequenceNumber(sequenceNumber)
+        .fileSequenceNumber(sequenceNumber)
+        .build();
   }
 
   @Test
@@ -194,11 +211,13 @@ class TestTrackingStruct {
 
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-    tracking.set(6, ByteBuffer.wrap(new byte[] {1, 2}));
+    TrackingStruct tracking =
+        new TrackingStruct.Builder()
+            .status(EntryStatus.ADDED)
+            .snapshotId(42L)
+            .dataSequenceNumber(10L)
+            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .build();
 
     TrackingStruct deserialized = TestHelpers.roundTripSerialize(tracking);
 
@@ -210,11 +229,13 @@ class TestTrackingStruct {
 
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-    tracking.set(6, ByteBuffer.wrap(new byte[] {1, 2}));
+    TrackingStruct tracking =
+        new TrackingStruct.Builder()
+            .status(EntryStatus.ADDED)
+            .snapshotId(42L)
+            .dataSequenceNumber(10L)
+            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .build();
 
     TrackingStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 

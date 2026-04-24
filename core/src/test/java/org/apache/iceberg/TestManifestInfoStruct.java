@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -58,19 +59,20 @@ class TestManifestInfoStruct {
 
   @Test
   void testCopy() {
-    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
-
-    info.set(0, 10);
-    info.set(1, 20);
-    info.set(2, 3);
-    info.set(3, 2);
-    info.set(4, 1000L);
-    info.set(5, 2000L);
-    info.set(6, 300L);
-    info.set(7, 200L);
-    info.set(8, 5L);
-    info.set(9, ByteBuffer.wrap(new byte[] {0xF}));
-    info.set(10, 1L);
+    ManifestInfoStruct info =
+        new ManifestInfoStruct.Builder()
+            .addedFilesCount(10)
+            .existingFilesCount(20)
+            .deletedFilesCount(3)
+            .replacedFilesCount(2)
+            .addedRowsCount(1000L)
+            .existingRowsCount(2000L)
+            .deletedRowsCount(300L)
+            .replacedRowsCount(200L)
+            .minSequenceNumber(5L)
+            .dv(ByteBuffer.wrap(new byte[] {0xF}))
+            .dvCardinality(1L)
+            .build();
 
     ManifestInfoStruct copy = info.copy();
 
@@ -91,17 +93,18 @@ class TestManifestInfoStruct {
 
   @Test
   void testNullableFields() {
-    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
-
-    info.set(0, 0);
-    info.set(1, 0);
-    info.set(2, 0);
-    info.set(3, 0);
-    info.set(4, 0L);
-    info.set(5, 0L);
-    info.set(6, 0L);
-    info.set(7, 0L);
-    info.set(8, 0L);
+    ManifestInfoStruct info =
+        new ManifestInfoStruct.Builder()
+            .addedFilesCount(0)
+            .existingFilesCount(0)
+            .deletedFilesCount(0)
+            .replacedFilesCount(0)
+            .addedRowsCount(0L)
+            .existingRowsCount(0L)
+            .deletedRowsCount(0L)
+            .replacedRowsCount(0L)
+            .minSequenceNumber(0L)
+            .build();
 
     assertThat(info.dv()).isNull();
     assertThat(info.dvCardinality()).isNull();
@@ -129,18 +132,20 @@ class TestManifestInfoStruct {
 
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
-    info.set(0, 10);
-    info.set(1, 20);
-    info.set(2, 3);
-    info.set(3, 2);
-    info.set(4, 1000L);
-    info.set(5, 2000L);
-    info.set(6, 300L);
-    info.set(7, 200L);
-    info.set(8, 5L);
-    info.set(9, ByteBuffer.wrap(new byte[] {0xF}));
-    info.set(10, 1L);
+    ManifestInfoStruct info =
+        new ManifestInfoStruct.Builder()
+            .addedFilesCount(10)
+            .existingFilesCount(20)
+            .deletedFilesCount(3)
+            .replacedFilesCount(2)
+            .addedRowsCount(1000L)
+            .existingRowsCount(2000L)
+            .deletedRowsCount(300L)
+            .replacedRowsCount(200L)
+            .minSequenceNumber(5L)
+            .dv(ByteBuffer.wrap(new byte[] {0xF}))
+            .dvCardinality(1L)
+            .build();
 
     ManifestInfoStruct deserialized = TestHelpers.roundTripSerialize(info);
 
@@ -159,18 +164,20 @@ class TestManifestInfoStruct {
 
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
-    ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
-    info.set(0, 10);
-    info.set(1, 20);
-    info.set(2, 3);
-    info.set(3, 2);
-    info.set(4, 1000L);
-    info.set(5, 2000L);
-    info.set(6, 300L);
-    info.set(7, 200L);
-    info.set(8, 5L);
-    info.set(9, ByteBuffer.wrap(new byte[] {0xF}));
-    info.set(10, 1L);
+    ManifestInfoStruct info =
+        new ManifestInfoStruct.Builder()
+            .addedFilesCount(10)
+            .existingFilesCount(20)
+            .deletedFilesCount(3)
+            .replacedFilesCount(2)
+            .addedRowsCount(1000L)
+            .existingRowsCount(2000L)
+            .deletedRowsCount(300L)
+            .replacedRowsCount(200L)
+            .minSequenceNumber(5L)
+            .dv(ByteBuffer.wrap(new byte[] {0xF}))
+            .dvCardinality(1L)
+            .build();
 
     ManifestInfoStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(info);
 
@@ -185,5 +192,27 @@ class TestManifestInfoStruct {
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
     assertThat(deserialized.dvCardinality()).isEqualTo(1L);
+  }
+
+  @Test
+  void testBuildValidatesRequiredFields() {
+    assertThatThrownBy(() -> new ManifestInfoStruct.Builder().build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid added files count: -1");
+
+    assertThatThrownBy(
+            () ->
+                new ManifestInfoStruct.Builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid min sequence number: -1");
   }
 }

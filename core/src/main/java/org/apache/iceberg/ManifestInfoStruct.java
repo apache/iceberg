@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -223,5 +224,109 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         .add("dv", dv == null ? "null" : "(binary)")
         .add("dv_cardinality", dvCardinality == null ? "null" : dvCardinality)
         .toString();
+  }
+
+  static class Builder {
+    private int addedFilesCount = -1;
+    private int existingFilesCount = -1;
+    private int deletedFilesCount = -1;
+    private int replacedFilesCount = -1;
+    private long addedRowsCount = -1L;
+    private long existingRowsCount = -1L;
+    private long deletedRowsCount = -1L;
+    private long replacedRowsCount = -1L;
+    private long minSequenceNumber = -1L;
+    private byte[] dv = null;
+    private Long dvCardinality = null;
+
+    Builder addedFilesCount(int count) {
+      this.addedFilesCount = count;
+      return this;
+    }
+
+    Builder existingFilesCount(int count) {
+      this.existingFilesCount = count;
+      return this;
+    }
+
+    Builder deletedFilesCount(int count) {
+      this.deletedFilesCount = count;
+      return this;
+    }
+
+    Builder replacedFilesCount(int count) {
+      this.replacedFilesCount = count;
+      return this;
+    }
+
+    Builder addedRowsCount(long count) {
+      this.addedRowsCount = count;
+      return this;
+    }
+
+    Builder existingRowsCount(long count) {
+      this.existingRowsCount = count;
+      return this;
+    }
+
+    Builder deletedRowsCount(long count) {
+      this.deletedRowsCount = count;
+      return this;
+    }
+
+    Builder replacedRowsCount(long count) {
+      this.replacedRowsCount = count;
+      return this;
+    }
+
+    Builder minSequenceNumber(long sequenceNumber) {
+      this.minSequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    Builder dv(ByteBuffer buffer) {
+      this.dv = buffer != null ? ByteBuffers.toByteArray(buffer) : null;
+      return this;
+    }
+
+    Builder dvCardinality(Long cardinality) {
+      this.dvCardinality = cardinality;
+      return this;
+    }
+
+    ManifestInfoStruct build() {
+      Preconditions.checkArgument(
+          addedFilesCount >= 0, "Invalid added files count: %s", addedFilesCount);
+      Preconditions.checkArgument(
+          existingFilesCount >= 0, "Invalid existing files count: %s", existingFilesCount);
+      Preconditions.checkArgument(
+          deletedFilesCount >= 0, "Invalid deleted files count: %s", deletedFilesCount);
+      Preconditions.checkArgument(
+          replacedFilesCount >= 0, "Invalid replaced files count: %s", replacedFilesCount);
+      Preconditions.checkArgument(
+          addedRowsCount >= 0, "Invalid added rows count: %s", addedRowsCount);
+      Preconditions.checkArgument(
+          existingRowsCount >= 0, "Invalid existing rows count: %s", existingRowsCount);
+      Preconditions.checkArgument(
+          deletedRowsCount >= 0, "Invalid deleted rows count: %s", deletedRowsCount);
+      Preconditions.checkArgument(
+          replacedRowsCount >= 0, "Invalid replaced rows count: %s", replacedRowsCount);
+      Preconditions.checkArgument(
+          minSequenceNumber >= 0, "Invalid min sequence number: %s", minSequenceNumber);
+
+      ManifestInfoStruct struct = new ManifestInfoStruct(BASE_TYPE);
+      struct.addedFilesCount = addedFilesCount;
+      struct.existingFilesCount = existingFilesCount;
+      struct.deletedFilesCount = deletedFilesCount;
+      struct.replacedFilesCount = replacedFilesCount;
+      struct.addedRowsCount = addedRowsCount;
+      struct.existingRowsCount = existingRowsCount;
+      struct.deletedRowsCount = deletedRowsCount;
+      struct.replacedRowsCount = replacedRowsCount;
+      struct.minSequenceNumber = minSequenceNumber;
+      struct.dv = dv;
+      struct.dvCardinality = dvCardinality;
+      return struct;
+    }
   }
 }
