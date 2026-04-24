@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,6 +51,7 @@ import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +61,6 @@ class RESTTableScan extends DataTableScan {
   private static final long MIN_SLEEP_MS = 1000; // Initial delay
   private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
   private static final int MAX_RETRIES = 10; // Max number of poll retries
-  private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final Cache<RESTTableScan, FileIO> FILEIO_TRACKER =
@@ -249,38 +250,61 @@ class RESTTableScan extends DataTableScan {
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult() {
+    long maxWaitTimeMs =
+        PropertyUtil.propertyAsLong(
+            catalogProperties,
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT);
+    Preconditions.checkArgument(
+        maxWaitTimeMs > 0,
+        "Invalid value for %s: %s (must be positive)",
+        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
+        maxWaitTimeMs);
+
     AtomicReference<FetchPlanningResultResponse> result = new AtomicReference<>();
-    Tasks.foreach(planId)
-        .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, MAX_WAIT_TIME_MS, SCALE_FACTOR)
-        .retry(MAX_RETRIES)
-        .onlyRetryOn(NotCompleteException.class)
-        .onFailure(
-            (id, err) -> {
-              LOG.warn("Planning failed for plan ID: {}", id, err);
-              cleanupPlanResources();
-            })
-        .throwFailureWhenFinished()
-        .run(
-            id -> {
-              FetchPlanningResultResponse response =
-                  client.get(
-                      resourcePaths.plan(tableIdentifier, id),
-                      headers,
-                      FetchPlanningResultResponse.class,
-                      headers,
-                      ErrorHandlers.planErrorHandler(),
-                      parserContext);
+    try {
+      Tasks.foreach(planId)
+          .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, maxWaitTimeMs, SCALE_FACTOR)
+          .retry(MAX_RETRIES)
+          .onlyRetryOn(NotCompleteException.class)
+          .onFailure(
+              (id, err) -> {
+                LOG.warn("Planning failed for plan ID: {}", id, err);
+                cleanupPlanResources();
+              })
+          .throwFailureWhenFinished()
+          .run(
+              id -> {
+                FetchPlanningResultResponse response =
+                    client.get(
+                        resourcePaths.plan(tableIdentifier, id),
+                        headers,
+                        FetchPlanningResultResponse.class,
+                        headers,
+                        ErrorHandlers.planErrorHandler(),
+                        parserContext);
 
-              if (response.planStatus() == PlanStatus.SUBMITTED) {
-                throw new NotCompleteException();
-              } else if (response.planStatus() != PlanStatus.COMPLETED) {
-                throw new IllegalStateException(
-                    String.format(
-                        "Invalid planStatus: %s for planId: %s", response.planStatus(), id));
-              }
+                if (response.planStatus() == PlanStatus.SUBMITTED) {
+                  throw new NotCompleteException();
+                } else if (response.planStatus() != PlanStatus.COMPLETED) {
+                  throw new IllegalStateException(
+                      String.format(
+                          "Invalid planStatus: %s for planId: %s", response.planStatus(), id));
+                }
 
-              result.set(response);
-            });
+                result.set(response);
+              });
+    } catch (NotCompleteException e) {
+      throw new RemotePlanTimeoutException(
+          String.format(
+              Locale.ROOT,
+              "Remote scan planning for planId: %s did not complete within configured limits"
+                  + " (timeout=%d ms, maxRetries=%d)",
+              planId,
+              maxWaitTimeMs,
+              MAX_RETRIES),
+          e);
+    }
 
     FetchPlanningResultResponse response = result.get();
 

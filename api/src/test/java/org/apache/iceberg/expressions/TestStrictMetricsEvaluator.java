@@ -32,6 +32,7 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -72,8 +73,8 @@ public class TestStrictMetricsEvaluator {
               "struct",
               Types.StructType.of(
                   Types.NestedField.optional(16, "nested_col_no_stats", Types.IntegerType.get()),
-                  Types.NestedField.optional(
-                      17, "nested_col_with_stats", Types.IntegerType.get()))));
+                  Types.NestedField.optional(17, "nested_col_with_stats", Types.IntegerType.get()),
+                  Types.NestedField.optional(18, "nested_string_col", Types.StringType.get()))));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -171,6 +172,40 @@ public class TestStrictMetricsEvaluator {
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
           // upper bounds
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+
+  // String-focused file: required column 3 has no nulls and string bounds ["abc", "abd"]
+  private static final DataFile STRING_FILE =
+      new TestDataFile(
+          "string_file.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 50L),
+          // null value counts
+          ImmutableMap.of(),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
+          // upper bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "abd")));
+
+  // String file with wider range: required column 3 has no nulls and bounds ["aa", "dC"]
+  private static final DataFile STRING_FILE_2 =
+      new TestDataFile(
+          "string_file_2.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 50L),
+          // null value counts
+          ImmutableMap.of(),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "aa")),
+          // upper bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "dC")));
 
   @Test
   public void testAllNulls() {
@@ -683,5 +718,116 @@ public class TestStrictMetricsEvaluator {
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_with_stats")).eval(FILE);
     assertThat(shouldRead).as("notNull nested column should not match").isFalse();
+  }
+
+  @Test
+  public void testNotStartsWithAllNulls() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("all_nulls", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should match: all null values satisfy notStartsWith").isTrue();
+  }
+
+  @Test
+  public void testNotStartsWithBoundsAbovePrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aaa")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: all values are above the prefix range").isTrue();
+  }
+
+  @Test
+  public void testNotStartsWithBoundsBelowPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "zzz")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: all values are below the prefix range").isTrue();
+  }
+
+  @Test
+  public void testNotStartsWithBoundsOverlapPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "ab")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: bounds overlap the prefix range").isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "abc")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: lower bound starts with the prefix").isFalse();
+  }
+
+  @Test
+  public void testNotStartsWithWiderRange() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "e")).eval(STRING_FILE_2);
+    assertThat(shouldRead).as("Should match: all values are below the prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "a")).eval(STRING_FILE_2);
+    assertThat(shouldRead).as("Should not match: lower bound starts with the prefix").isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "c")).eval(STRING_FILE_2);
+    assertThat(shouldRead).as("Should not match: prefix is within the bounds range").isFalse();
+  }
+
+  @Test
+  public void testNotStartsWithNoStats() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should not match: no bounds available for column").isFalse();
+  }
+
+  @Test
+  public void testNotStartsWithSomeNullsBoundsOutsidePrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "zzz")).eval(FILE_2);
+    assertThat(shouldRead).as("Should match: all values are below the prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "aaa")).eval(FILE_2);
+    assertThat(shouldRead).as("Should match: all values are above the prefix").isTrue();
+  }
+
+  @Test
+  public void testNotStartsWithPrefixLongerThanBounds() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aaaaaaa")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: all values are above the long prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "zzzzzzz")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should match: all values are below the long prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "abcdef")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: prefix overlaps with bound range").isFalse();
+  }
+
+  @Test
+  void testNotStartsWithEmptyPrefix() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "")).eval(STRING_FILE);
+    assertThat(shouldRead).as("Should not match: all strings start with empty prefix").isFalse();
+  }
+
+  @Test
+  void testNotStartsWithExactBoundMatch() {
+    // FILE_3 has column 5 (some_nulls) with exact bounds ["bbb", "bbb"]
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "bbb")).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: bounds exactly equal the prefix").isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "zzz")).eval(FILE_3);
+    assertThat(shouldRead).as("Should match: all values are below the prefix").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "aaa")).eval(FILE_3);
+    assertThat(shouldRead).as("Should match: all values are above the prefix").isTrue();
+  }
+
+  @Test
+  public void testNotStartsWithNestedColumn() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notStartsWith("struct.nested_string_col", "a"))
+            .eval(FILE);
+    assertThat(shouldRead).as("notStartsWith nested column should not match").isFalse();
   }
 }

@@ -30,6 +30,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RewriteTablePathUtil;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.data.FileHelpers;
@@ -211,7 +212,12 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     List<Pair<CharSequence, Long>> rowsToDelete =
         Lists.newArrayList(
             Pair.of(
-                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                SnapshotChanges.builderFor(table)
+                    .build()
+                    .addedDataFiles()
+                    .iterator()
+                    .next()
+                    .location(),
                 0L));
 
     File file = new File(removePrefix(table.location()) + "/data/deletes.parquet");

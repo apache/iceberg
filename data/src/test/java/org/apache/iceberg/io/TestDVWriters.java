@@ -35,6 +35,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
@@ -150,8 +151,9 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
     // commit the first DV
     commit(result1);
-    assertThat(table.currentSnapshot().addedDeleteFiles(table.io())).hasSize(1);
-    assertThat(table.currentSnapshot().removedDeleteFiles(table.io())).isEmpty();
+    SnapshotChanges changes1 = SnapshotChanges.builderFor(table).build();
+    assertThat(changes1.addedDeleteFiles()).hasSize(1);
+    assertThat(changes1.removedDeleteFiles()).isEmpty();
 
     // verify correctness after committing the first DV
     assertRows(ImmutableList.of(toRow(1, "aaa"), toRow(3, "aaa")));
@@ -174,8 +176,9 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
     // replace DVs
     commit(result2);
-    assertThat(table.currentSnapshot().addedDeleteFiles(table.io())).hasSize(1);
-    assertThat(table.currentSnapshot().removedDeleteFiles(table.io())).hasSize(1);
+    SnapshotChanges changes2 = SnapshotChanges.builderFor(table).build();
+    assertThat(changes2.addedDeleteFiles()).hasSize(1);
+    assertThat(changes2.removedDeleteFiles()).hasSize(1);
 
     // verify correctness after replacing DVs
     assertRows(ImmutableList.of(toRow(1, "aaa")));
@@ -220,8 +223,9 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
     // replace the position delete file with the DV
     commit(result);
-    assertThat(table.currentSnapshot().addedDeleteFiles(table.io())).hasSize(1);
-    assertThat(table.currentSnapshot().removedDeleteFiles(table.io())).hasSize(1);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).build();
+    assertThat(changes.addedDeleteFiles()).hasSize(1);
+    assertThat(changes.removedDeleteFiles()).hasSize(1);
 
     // verify correctness
     assertRows(ImmutableList.of(toRow(3, "aaa")));
@@ -299,8 +303,9 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
     // commit the DV, ensuring the position delete file remains
     commit(result);
-    assertThat(table.currentSnapshot().addedDeleteFiles(table.io())).hasSize(1);
-    assertThat(table.currentSnapshot().removedDeleteFiles(table.io())).isEmpty();
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).build();
+    assertThat(changes.addedDeleteFiles()).hasSize(1);
+    assertThat(changes.removedDeleteFiles()).isEmpty();
 
     // verify correctness with DVs and position delete files
     assertRows(ImmutableList.of(toRow(3, "aaa"), toRow(6, "aaa")));
