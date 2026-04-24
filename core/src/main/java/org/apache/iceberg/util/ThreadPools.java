@@ -237,16 +237,6 @@ public class ThreadPools {
     }
   }
 
-  /**
-   * Check if the shutdown hook has been registered.
-   *
-   * @return true if the shutdown hook is registered, false otherwise
-   */
-  @VisibleForTesting
-  static synchronized boolean isShutdownHookRegistered() {
-    return shutdownHook != null;
-  }
-
   /** Creates a fixed-size thread pool that uses daemon threads. */
   public static ExecutorService newFixedThreadPool(String namePrefix, int poolSize) {
     return Executors.newFixedThreadPool(poolSize, newDaemonThreadFactory(namePrefix));

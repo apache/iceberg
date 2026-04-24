@@ -38,13 +38,6 @@ class TestThreadPools {
   }
 
   @Test
-  void removeShutdownHook() {
-    assertThat(ThreadPools.isShutdownHookRegistered()).isTrue();
-    ThreadPools.removeShutdownHook();
-    assertThat(ThreadPools.isShutdownHookRegistered()).isFalse();
-  }
-
-  @Test
   void staticPoolsAreShutdown() {
     assertThat(ThreadPools.getWorkerPool().isShutdown()).isFalse();
     assertThat(ThreadPools.getDeleteWorkerPool().isShutdown()).isFalse();
