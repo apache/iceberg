@@ -169,7 +169,14 @@ public class TestFlinkParquetReader extends DataTestBase {
             primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.OPTIONAL)
                 .id(117)
                 .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
-                .named("time"));
+                .named("time"),
+            // 17: required(118, "uuid", Types.UUIDType.get())
+            primitive(
+                    PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, Type.Repetition.REQUIRED)
+                .id(118)
+                .length(16)
+                .as(LogicalTypeAnnotation.uuidType())
+                .named("uuid"));
     ParquetValueReader<RowData> reader =
         FlinkParquetReaders.buildReader(new Schema(SUPPORTED_PRIMITIVES.fields()), fileSchema);
 
