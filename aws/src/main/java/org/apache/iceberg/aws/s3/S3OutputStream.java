@@ -39,6 +39,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -51,8 +53,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Predicates;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CountingOutputStream;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.internal.util.Mimetype;
@@ -109,8 +112,14 @@ class S3OutputStream extends PositionOutputStream {
       synchronized (S3OutputStream.class) {
         if (executorService == null) {
           executorService =
-              ThreadPools.newExitingWorkerPool(
-                  "iceberg-s3fileio-upload", s3FileIOProperties.multipartUploadThreads());
+              MoreExecutors.getExitingExecutorService(
+                  (ThreadPoolExecutor)
+                      Executors.newFixedThreadPool(
+                          s3FileIOProperties.multipartUploadThreads(),
+                          new ThreadFactoryBuilder()
+                              .setDaemon(true)
+                              .setNameFormat("iceberg-s3fileio-upload-%d")
+                              .build()));
         }
       }
     }
