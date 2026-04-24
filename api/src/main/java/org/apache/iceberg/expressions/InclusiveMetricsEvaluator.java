@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
@@ -631,7 +632,17 @@ public class InclusiveMetricsEvaluator {
     }
   }
 
+  /**
+   * Build a variant from the buffer, regardless of the ordering of the incoming buffer.
+   *
+   * @param buffer source data
+   * @return variant instance
+   */
   private static VariantObject parseBounds(ByteBuffer buffer) {
-    return Variant.from(buffer).value().asObject();
+    final ByteBuffer littleEnded =
+        buffer.order() == ByteOrder.LITTLE_ENDIAN
+            ? buffer
+            : buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+    return Variant.from(littleEnded).value().asObject();
   }
 }

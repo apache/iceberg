@@ -452,19 +452,15 @@ public class SparkV2Filters {
 
   private static boolean isVariantGetFunc(
       org.apache.spark.sql.connector.expressions.Expression expr) {
-    if (!(expr instanceof UserDefinedScalarFunc)) {
+    if (!(expr instanceof UserDefinedScalarFunc udf)) {
       return false;
     }
-    UserDefinedScalarFunc udf = (UserDefinedScalarFunc) expr;
     String name = udf.name().toLowerCase(Locale.ROOT);
-    if (!name.equals("variant_get") && !name.equals("try_variant_get")) {
-      return false;
-    }
-    org.apache.spark.sql.connector.expressions.Expression[] children = udf.children();
-    return children.length == 3
-        && isRef(children[0])
-        && isLiteral(children[1])
-        && isLiteral(children[2]);
+    return ("variant_get".equals(name) || "try_variant_get".equals(name))
+        && udf.children().length == 3
+        && isRef(udf.children()[0])
+        && isLiteral(udf.children()[1])
+        && isLiteral(udf.children()[2]);
   }
 
   private static UnboundTerm<Object> variantGetToTerm(UserDefinedScalarFunc udf) {
@@ -481,15 +477,11 @@ public class SparkV2Filters {
   }
 
   private static String sparkTypeNameToIceberg(String sparkTypeName) {
-    switch (sparkTypeName.toLowerCase(Locale.ROOT)) {
-      case "bigint":
-        return "long";
-      case "tinyint":
-      case "smallint":
-        return "int";
-      default:
-        return sparkTypeName;
-    }
+    return switch (sparkTypeName.toLowerCase(Locale.ROOT)) {
+      case "bigint" -> "long";
+      case "tinyint", "smallint" -> "int";
+      default -> sparkTypeName;
+    };
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

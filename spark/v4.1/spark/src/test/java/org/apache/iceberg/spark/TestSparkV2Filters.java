@@ -653,6 +653,66 @@ public class TestSparkV2Filters {
   }
 
   @Test
+  public void testVariantGet() {
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            "variant_get",
+            "variant_get",
+            expressions(
+                FieldReference.apply("v"),
+                LiteralValue.apply(UTF8String.fromString("$.city"), DataTypes.StringType),
+                LiteralValue.apply(UTF8String.fromString("string"), DataTypes.StringType)));
+    testUDF(udf, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
+  }
+
+  @Test
+  public void testTryVariantGet() {
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            "try_variant_get",
+            "try_variant_get",
+            expressions(
+                FieldReference.apply("v"),
+                LiteralValue.apply(UTF8String.fromString("$.city"), DataTypes.StringType),
+                LiteralValue.apply(UTF8String.fromString("string"), DataTypes.StringType)));
+    testUDF(udf, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
+  }
+
+  @Test
+  public void testVariantGetNestedPath() {
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            "variant_get",
+            "variant_get",
+            expressions(
+                FieldReference.apply("v"),
+                LiteralValue.apply(UTF8String.fromString("$.event.id"), DataTypes.StringType),
+                LiteralValue.apply(UTF8String.fromString("long"), DataTypes.StringType)));
+    testUDF(udf, Expressions.extract("v", "$.event.id", "long"), 42L, DataTypes.LongType);
+  }
+
+  @Test
+  public void testVariantGetInPredicate() {
+    UserDefinedScalarFunc udf =
+        new UserDefinedScalarFunc(
+            "variant_get",
+            "variant_get",
+            expressions(
+                FieldReference.apply("v"),
+                LiteralValue.apply(UTF8String.fromString("$.city"), DataTypes.StringType),
+                LiteralValue.apply(UTF8String.fromString("string"), DataTypes.StringType)));
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValues =
+        expressions(
+            udf,
+            LiteralValue.apply(UTF8String.fromString("NYC"), DataTypes.StringType),
+            LiteralValue.apply(UTF8String.fromString("LA"), DataTypes.StringType));
+    Predicate in = new Predicate("IN", attrAndValues);
+    Expression actual = SparkV2Filters.convert(in);
+    Expression expected = Expressions.in(Expressions.extract("v", "$.city", "string"), "NYC", "LA");
+    assertEquals(expected, actual);
+  }
+
+  @Test
   public void testUnsupportedUDFConvert() {
     ScalarFunction<UTF8String> icebergVersionFunc =
         (ScalarFunction<UTF8String>) new IcebergVersionFunction().bind(new StructType());

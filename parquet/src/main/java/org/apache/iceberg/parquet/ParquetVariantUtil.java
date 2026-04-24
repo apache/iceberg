@@ -27,6 +27,8 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.iceberg.expressions.PathUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -42,6 +44,7 @@ import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.VariantVisitor;
 import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -547,5 +550,47 @@ class ParquetVariantUtil {
         PrimitiveType.PrimitiveTypeName primitive, LogicalTypeAnnotation annotation, int length) {
       return Types.optional(primitive).as(annotation).length(length).named("typed_value");
     }
+  }
+
+  /** Matches bracket-notation path segments like {@code ['fieldName']} in normalized paths. */
+  private static final Pattern PATH_SEGMENT_PATTERN = Pattern.compile("\\['([^']+)'\\]");
+
+  /**
+   * Build the Parquet column path for a shredded variant field.
+   *
+   * <p>For a variant column named {@code v} and path {@code $['price']}, the physical Parquet
+   * column path is {@code ["v", "typed_value", "price", "typed_value"]}. For nested paths like
+   * {@code $['user']['name']}, the path is {@code ["v", "typed_value", "user", "typed_value",
+   * "name", "typed_value"]}. For the root path {@code $}, it is {@code ["v", "typed_value"]}.
+   */
+  static ColumnPath shreddedColumnPath(String colName, String normalizedPath) {
+    List<String> segments = parsePathSegments(normalizedPath);
+    String[] pathArray = new String[(1 + segments.size()) * 2];
+    pathArray[0] = colName;
+    pathArray[1] = "typed_value";
+    for (int i = 0, offset = 2; i < segments.size(); i++, offset += 2) {
+      pathArray[offset] = segments.get(i);
+      pathArray[offset + 1] = "typed_value";
+    }
+    return ColumnPath.get(pathArray);
+  }
+
+  /**
+   * Parse a normalized RFC9535 bracket-notation path into field name segments. The root path {@code
+   * $} returns an empty list. Paths are produced by {@link
+   * org.apache.iceberg.expressions.PathUtil#toNormalizedPath} and always use single-quoted bracket
+   * notation with identifiers that contain only letters, digits, underscores, and high-Unicode
+   * characters (no escape sequences).
+   *
+   * @param normalizedPath path to parse
+   * @return the path segments.
+   */
+  static List<String> parsePathSegments(String normalizedPath) {
+    List<String> segments = Lists.newArrayList();
+    Matcher matcher = PATH_SEGMENT_PATTERN.matcher(normalizedPath);
+    while (matcher.find()) {
+      segments.add(matcher.group(1));
+    }
+    return segments;
   }
 }
