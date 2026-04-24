@@ -1,3 +1,4 @@
+at.yawk.lz4:lz4-java:1.11.0
 com.azure:azure-core-http-netty:1.16.3
 com.azure:azure-core:1.57.1
 com.azure:azure-identity:1.18.2
