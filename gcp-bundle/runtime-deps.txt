@@ -43,7 +43,6 @@ com.google.cloud:google-cloud-core:2.66.0
 com.google.cloud:google-cloud-kms:2.91.0
 com.google.cloud:google-cloud-monitoring:3.89.0
 com.google.cloud:google-cloud-storage:2.64.1
-com.google.code.findbugs:jsr305:3.0.2
 com.google.code.gson:gson:2.12.1
 com.google.errorprone:error_prone_annotations:2.42.0
 com.google.flatbuffers:flatbuffers-java:24.3.25
