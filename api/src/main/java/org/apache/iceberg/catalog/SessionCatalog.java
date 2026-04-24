@@ -387,4 +387,38 @@ public interface SessionCatalog {
       return false;
     }
   }
+
+  /**
+   * Load a single relation by identifier.
+   *
+   * <p>This mirrors {@link SupportsRelations#loadRelation(TableIdentifier)} but carries the session
+   * context so that {@link BaseSessionCatalog.AsCatalog} can forward the call to this session
+   * catalog.
+   *
+   * @param context session context
+   * @param identifier a table or view identifier
+   * @return the loaded relation
+   * @throws UnsupportedOperationException if the session catalog does not support loading relations
+   */
+  default Relation loadRelation(SessionContext context, TableIdentifier identifier) {
+    throw new UnsupportedOperationException(
+        this.getClass().getSimpleName() + " does not support loading relations");
+  }
+
+  /**
+   * Load multiple relations in a single batch request. Relations that are not found are skipped and
+   * will not appear in the returned list.
+   *
+   * <p>This mirrors {@link SupportsRelations#loadRelations(Set)} but carries the session context so
+   * that {@link BaseSessionCatalog.AsCatalog} can forward the call to this session catalog.
+   *
+   * @param context session context
+   * @param identifiers the set of identifiers to load
+   * @return the list of loaded relations, excluding not-found identifiers
+   * @throws UnsupportedOperationException if the session catalog does not support loading relations
+   */
+  default List<Relation> loadRelations(SessionContext context, Set<TableIdentifier> identifiers) {
+    throw new UnsupportedOperationException(
+        this.getClass().getSimpleName() + " does not support loading relations");
+  }
 }

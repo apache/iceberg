@@ -62,7 +62,7 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     return task.apply(asCatalog(context));
   }
 
-  public class AsCatalog implements Catalog, SupportsNamespaces {
+  public class AsCatalog implements Catalog, SupportsNamespaces, SupportsRelations {
     private final SessionContext context;
 
     private AsCatalog(SessionContext context) {
@@ -164,6 +164,16 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     @Override
     public boolean namespaceExists(Namespace namespace) {
       return BaseSessionCatalog.this.namespaceExists(context, namespace);
+    }
+
+    @Override
+    public Relation loadRelation(TableIdentifier identifier) {
+      return BaseSessionCatalog.this.loadRelation(context, identifier);
+    }
+
+    @Override
+    public List<Relation> loadRelations(Set<TableIdentifier> identifiers) {
+      return BaseSessionCatalog.this.loadRelations(context, identifiers);
     }
   }
 }

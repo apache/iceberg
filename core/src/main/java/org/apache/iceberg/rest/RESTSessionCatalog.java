@@ -1501,6 +1501,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * Load a relation (table or view) using the universal load endpoint and construct the
    * corresponding {@link Table} or {@link View} object.
    */
+  @Override
   public Relation loadRelation(SessionContext context, TableIdentifier identifier) {
     Map<String, String> responseHeaders = Maps.newHashMap();
     TableWithETag cachedTable = tableCache.getIfPresent(context.sessionId(), identifier);
@@ -1539,6 +1540,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * Batch load relations (tables and views) using the batch load endpoint. Constructs {@link Table}
    * and {@link View} objects for each result. Not-found identifiers (404) are skipped.
    */
+  @Override
   public List<Relation> loadRelations(SessionContext context, Set<TableIdentifier> identifiers) {
     BatchLoadRelationsRequest.Builder requestBuilder = BatchLoadRelationsRequest.builder();
     for (TableIdentifier ident : identifiers) {
