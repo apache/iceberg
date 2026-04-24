@@ -156,6 +156,35 @@ public class TestNamespaceSQL extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testDropNamespaceCascade() {
+    assumeThat(catalogName).as("Session catalog has flaky behavior").isNotEqualTo("spark_catalog");
+    assumeThat(catalogName).as("Multi part namespace is unsupported").isNotEqualTo("testhive");
+
+    assertThat(validationNamespaceCatalog.namespaceExists(NS))
+        .as("Namespace should not already exist")
+        .isFalse();
+
+    sql("CREATE NAMESPACE %s", fullNamespace);
+    sql("CREATE NAMESPACE %s.nested", fullNamespace);
+    sql("CREATE TABLE %s.table (id bigint) USING iceberg", fullNamespace);
+    sql("CREATE TABLE %s.nested.table (id bigint) USING iceberg", fullNamespace);
+
+    Namespace nestedNs = Namespace.of("db", "nested");
+
+    assertThat(validationNamespaceCatalog.namespaceExists(NS)).isTrue();
+    assertThat(validationNamespaceCatalog.namespaceExists(nestedNs)).isTrue();
+    assertThat(validationCatalog.tableExists(TableIdentifier.of(NS, "table"))).isTrue();
+    assertThat(validationCatalog.tableExists(TableIdentifier.of(nestedNs, "table"))).isTrue();
+
+    sql("DROP NAMESPACE %s CASCADE", fullNamespace);
+
+    assertThat(validationNamespaceCatalog.namespaceExists(NS)).isFalse();
+    assertThat(validationNamespaceCatalog.namespaceExists(nestedNs)).isFalse();
+    assertThat(validationCatalog.tableExists(TableIdentifier.of(NS, "table"))).isFalse();
+    assertThat(validationCatalog.tableExists(TableIdentifier.of(nestedNs, "table"))).isFalse();
+  }
+
+  @TestTemplate
   public void testListTables() {
     assertThat(validationNamespaceCatalog.namespaceExists(NS))
         .as("Namespace should not already exist")
