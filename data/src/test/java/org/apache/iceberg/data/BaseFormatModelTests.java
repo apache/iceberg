@@ -42,10 +42,10 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsModes.MetricsMode;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -71,9 +71,6 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
@@ -137,7 +134,10 @@ public abstract class BaseFormatModelTests<T> {
           },
           FileFormat.ORC,
           new String[] {
-            FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_META_ROW_LINEAGE, FEATURE_READER_DEFAULT
+            FEATURE_REUSE_CONTAINERS,
+            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
+            FEATURE_META_ROW_LINEAGE,
+            FEATURE_READER_DEFAULT
           });
 
   private InMemoryFileIO fileIO;
@@ -410,7 +410,10 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, fullSchema, genericRecords);
 
-    List<Record> projectedGenericRecords = projectRecords(genericRecords, projectedSchema);
+    List<Record> projectedGenericRecords =
+        genericRecords.stream()
+            .map(record -> copy(record, projectedSchema, projectedSchema))
+            .toList();
     List<T> expectedEngineRecords =
         convertToEngineRecords(projectedGenericRecords, projectedSchema);
 
@@ -1369,10 +1372,6 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(dataFile.format()).isEqualTo(fileFormat);
 
     return dataFile;
-  }
-
-  private static List<Record> projectRecords(List<Record> records, Schema projectedSchema) {
-    return records.stream().map(record -> copy(record, projectedSchema, projectedSchema)).toList();
   }
 
   private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
