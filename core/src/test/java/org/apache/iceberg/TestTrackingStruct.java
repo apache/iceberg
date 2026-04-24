@@ -174,13 +174,6 @@ class TestTrackingStruct {
     assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
-  @Test
-  void testBuildValidatesRequiredFields() {
-    assertThatThrownBy(() -> new TrackingStruct.Builder().build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid status: null");
-  }
-
   private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
     return new TrackingStruct.Builder()
         .status(EntryStatus.ADDED)

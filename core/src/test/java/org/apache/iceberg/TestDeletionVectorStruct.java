@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import org.apache.iceberg.types.Types;
@@ -121,17 +120,5 @@ class TestDeletionVectorStruct {
     assertThat(deserialized.offset()).isEqualTo(256L);
     assertThat(deserialized.sizeInBytes()).isEqualTo(128L);
     assertThat(deserialized.cardinality()).isEqualTo(42L);
-  }
-
-  @Test
-  void testBuildValidatesRequiredFields() {
-    assertThatThrownBy(() -> new DeletionVectorStruct.Builder().build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid location: null");
-
-    assertThatThrownBy(
-            () -> new DeletionVectorStruct.Builder().location("s3://bucket/dv.puffin").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid offset: -1");
   }
 }

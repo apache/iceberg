@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -192,27 +191,5 @@ class TestManifestInfoStruct {
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
     assertThat(deserialized.dvCardinality()).isEqualTo(1L);
-  }
-
-  @Test
-  void testBuildValidatesRequiredFields() {
-    assertThatThrownBy(() -> new ManifestInfoStruct.Builder().build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid added files count: -1");
-
-    assertThatThrownBy(
-            () ->
-                new ManifestInfoStruct.Builder()
-                    .addedFilesCount(0)
-                    .existingFilesCount(0)
-                    .deletedFilesCount(0)
-                    .replacedFilesCount(0)
-                    .addedRowsCount(0L)
-                    .existingRowsCount(0L)
-                    .deletedRowsCount(0L)
-                    .replacedRowsCount(0L)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid min sequence number: -1");
   }
 }

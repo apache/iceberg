@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -295,25 +294,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     }
 
     ManifestInfoStruct build() {
-      Preconditions.checkArgument(
-          addedFilesCount >= 0, "Invalid added files count: %s", addedFilesCount);
-      Preconditions.checkArgument(
-          existingFilesCount >= 0, "Invalid existing files count: %s", existingFilesCount);
-      Preconditions.checkArgument(
-          deletedFilesCount >= 0, "Invalid deleted files count: %s", deletedFilesCount);
-      Preconditions.checkArgument(
-          replacedFilesCount >= 0, "Invalid replaced files count: %s", replacedFilesCount);
-      Preconditions.checkArgument(
-          addedRowsCount >= 0, "Invalid added rows count: %s", addedRowsCount);
-      Preconditions.checkArgument(
-          existingRowsCount >= 0, "Invalid existing rows count: %s", existingRowsCount);
-      Preconditions.checkArgument(
-          deletedRowsCount >= 0, "Invalid deleted rows count: %s", deletedRowsCount);
-      Preconditions.checkArgument(
-          replacedRowsCount >= 0, "Invalid replaced rows count: %s", replacedRowsCount);
-      Preconditions.checkArgument(
-          minSequenceNumber >= 0, "Invalid min sequence number: %s", minSequenceNumber);
-
       ManifestInfoStruct struct = new ManifestInfoStruct(BASE_TYPE);
       struct.addedFilesCount = addedFilesCount;
       struct.existingFilesCount = existingFilesCount;

@@ -294,8 +294,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
 
     TrackingStruct build() {
-      Preconditions.checkArgument(status != null, "Invalid status: null");
-
       TrackingStruct struct = new TrackingStruct(BASE_TYPE);
       struct.status = status;
       struct.snapshotId = snapshotId;

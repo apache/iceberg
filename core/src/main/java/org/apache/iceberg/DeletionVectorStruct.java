@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
 /** Mutable {@link StructLike} implementation of {@link DeletionVector}. */
@@ -153,11 +152,6 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     }
 
     DeletionVectorStruct build() {
-      Preconditions.checkArgument(location != null, "Invalid location: null");
-      Preconditions.checkArgument(offset >= 0, "Invalid offset: %s", offset);
-      Preconditions.checkArgument(sizeInBytes >= 0, "Invalid size in bytes: %s", sizeInBytes);
-      Preconditions.checkArgument(cardinality >= 0, "Invalid cardinality: %s", cardinality);
-
       DeletionVectorStruct struct = new DeletionVectorStruct(BASE_TYPE);
       struct.location = location;
       struct.offset = offset;
