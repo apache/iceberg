@@ -207,6 +207,12 @@ This binary artifact contains code from the following projects:
 
 --------------------------------------------------------------------------------
 
+Group: com.azure  Name: azure-core  Version: 1.55.5
+Project URL: https://github.com/Azure/azure-sdk-for-java
+License: The MIT License (MIT) - http://opensource.org/licenses/MIT
+
+--------------------------------------------------------------------------------
+
 Group: com.azure  Name: azure-core-http-netty  Version: 1.15.13
 Project URL: https://github.com/Azure/azure-sdk-for-java
 License: The MIT License (MIT) - http://opensource.org/licenses/MIT
@@ -249,13 +255,19 @@ License: The MIT License (MIT) - http://opensource.org/licenses/MIT
 
 --------------------------------------------------------------------------------
 
+Group: com.azure  Name: azure-xml  Version: 1.2.0
+Project URL: https://github.com/Azure/azure-sdk-for-java
+License: The MIT License (MIT) - http://opensource.org/licenses/MIT
+
+--------------------------------------------------------------------------------
+
 Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.4
 Project URL: http://github.com/FasterXML/jackson
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.4
+Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.4.1
 Project URL: https://github.com/FasterXML/jackson-core
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -276,6 +288,12 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 Group: com.github.stephenc.jcip  Name: jcip-annotations  Version: 1.0-1
 Project URL: http://stephenc.github.com/jcip-annotations
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.code.gson  Name: gson  Version: 2.11.0
+Project URL: https://github.com/google/gson
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -480,6 +498,12 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 Group: net.minidev  Name: json-smart  Version: 2.5.2
 Project URL: https://urielch.github.io/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.jctools  Name: jctools-core  Version: 4.0.5
+Project URL: https://github.com/JCTools/JCTools
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 

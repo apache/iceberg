@@ -219,6 +219,24 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
+Group: com.github.ben-manes.caffeine  Name: caffeine  Version: 2.9.3
+Project URL: https://github.com/ben-manes/caffeine
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.10.0
+Project URL: https://errorprone.info/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: dev.failsafe  Name: failsafe  Version: 3.3.2
+Project URL: https://failsafe.dev/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 Group: io.netty  Name: netty-buffer  Version: 4.1.124.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
@@ -291,6 +309,46 @@ License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.
 
 --------------------------------------------------------------------------------
 
+Group: org.apache.parquet  Name: parquet-format  Version: 2.10.0
+Project URL: https://parquet.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.thrift  Name: libthrift  Version: 0.19.0
+Project URL: https://thrift.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.checkerframework  Name: checker-qual  Version: 3.19.0
+Project URL: https://checkerframework.org/
+License: MIT License
+
+The MIT License
+
+Copyright (c) 2004-present Werner Dietl and Michael Ernst
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
 Group: org.reactivestreams  Name: reactive-streams  Version: 1.0.4
 Project URL: http://reactive-streams.org
 License: CC0 - http://creativecommons.org/publicdomain/zero/1.0/
@@ -350,6 +408,18 @@ License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 --------------------------------------------------------------------------------
 
 Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.33.0
+Project URL: https://aws.amazon.com/sdkforjava
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: cloudwatch  Version: 2.33.0
+Project URL: https://aws.amazon.com/sdkforjava
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: cloudwatch-metric-publisher  Version: 2.33.0
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
@@ -470,7 +540,25 @@ License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
+Group: software.amazon.awssdk  Name: retries  Version: 2.33.0
+Project URL: https://aws.amazon.com/sdkforjava
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: retries-spi  Version: 2.33.0
+Project URL: https://aws.amazon.com/sdkforjava
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
 Group: software.amazon.awssdk  Name: s3  Version: 2.33.0
+Project URL: https://aws.amazon.com/sdkforjava
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: s3control  Version: 2.33.0
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 

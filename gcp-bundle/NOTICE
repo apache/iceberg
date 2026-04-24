@@ -92,11 +92,14 @@ NOTICE for Group: io.grpc  Name: grpc-context  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-core  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-googleapis  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-grpclb  Version: 1.71.0
+NOTICE for Group: io.grpc  Name: grpc-inprocess  Version: 1.71.0
+NOTICE for Group: io.grpc  Name: grpc-opentelemetry  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-protobuf  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-rls  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-services  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-stub  Version: 1.71.0
+NOTICE for Group: io.grpc  Name: grpc-util  Version: 1.71.0
 NOTICE for Group: io.grpc  Name: grpc-xds  Version: 1.71.0
 
 | Copyright 2014 The gRPC Authors

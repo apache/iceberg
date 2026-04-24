@@ -536,3 +536,51 @@ This binary artifact contains Eclipse MicroProfile OpenAPI.
 
 Home page: https://github.com/microprofile/microprofile-open-api
 License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains RoaringBitmap.
+
+Copyright: 2013-2024 RoaringBitmap authors
+Home page: https://roaringbitmap.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Apache DataSketches.
+
+Copyright: 2015-2024 The Apache Software Foundation
+Home page: https://datasketches.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains LocationTech JTS.
+
+Copyright: 2019 Eclipse Foundation
+Home page: https://locationtech.github.io/jts/
+License: https://www.eclipse.org/org/documents/edl-v10.php (Eclipse Distribution License - v 1.0)
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains JCTools.
+
+Copyright: JCTools authors
+Home page: https://github.com/JCTools/JCTools
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains OpenHFT Zero-Allocation-Hashing.
+
+Copyright: 2014-2020 Higher Frequency Trading Ltd.
+Home page: https://github.com/OpenHFT/Zero-Allocation-Hashing
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Eclipse Collections.
+
+Copyright: 2004-2024 The Eclipse Foundation
+Home page: https://eclipse.dev/collections/
+License: https://www.eclipse.org/org/documents/edl-v10.php (Eclipse Distribution License - v 1.0)
