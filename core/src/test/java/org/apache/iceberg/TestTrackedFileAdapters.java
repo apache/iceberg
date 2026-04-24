@@ -33,12 +33,9 @@ class TestTrackedFileAdapters {
 
   @Test
   void testAsDataFileValidatesContentType() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
@@ -49,12 +46,14 @@ class TestTrackedFileAdapters {
 
   @Test
   void testAsDataFileRejectsNonData() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.EQUALITY_DELETES.id());
-    file.set(2, "s3://bucket/delete.avro");
-    file.set(3, "avro");
-    file.set(4, 50L);
-    file.set(5, 512L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.EQUALITY_DELETES,
+            "s3://bucket/delete.avro",
+            FileFormat.AVRO,
+            50L,
+            512L);
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned()))
@@ -66,12 +65,14 @@ class TestTrackedFileAdapters {
 
   @Test
   void testAsDeleteFileValidatesContentType() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.EQUALITY_DELETES.id());
-    file.set(2, "s3://bucket/eq-delete.avro");
-    file.set(3, "avro");
-    file.set(4, 50L);
-    file.set(5, 512L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.EQUALITY_DELETES,
+            "s3://bucket/eq-delete.avro",
+            FileFormat.AVRO,
+            50L,
+            512L);
     file.set(6, 0);
     file.set(13, ImmutableList.of(1, 2));
 
@@ -83,12 +84,9 @@ class TestTrackedFileAdapters {
 
   @Test
   void testAsDeleteFileRejectsNonEqualityDeletes() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDeleteFile(file, PartitionSpec.unpartitioned()))
@@ -100,7 +98,6 @@ class TestTrackedFileAdapters {
 
   @Test
   void testDataFileAdapterDelegatesAllFields() {
-    TrackedFileStruct file = new TrackedFileStruct();
     Types.StructType trackingWithPos =
         Types.StructType.of(
             ImmutableList.<Types.NestedField>builder()
@@ -117,12 +114,14 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(8, 3L);
 
-    file.set(0, tracking);
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            100L,
+            1024L);
     file.set(6, 0);
     file.set(8, 3);
     file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
@@ -150,7 +149,6 @@ class TestTrackedFileAdapters {
 
   @Test
   void testDeleteFileAdapterDelegatesAllFields() {
-    TrackedFileStruct file = new TrackedFileStruct();
     Types.StructType trackingWithPos =
         Types.StructType.of(
             ImmutableList.<Types.NestedField>builder()
@@ -167,12 +165,14 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(8, 5L);
 
-    file.set(0, tracking);
-    file.set(1, FileContent.EQUALITY_DELETES.id());
-    file.set(2, "s3://bucket/eq-delete.avro");
-    file.set(3, "avro");
-    file.set(4, 50L);
-    file.set(5, 512L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.EQUALITY_DELETES,
+            "s3://bucket/eq-delete.avro",
+            FileFormat.AVRO,
+            50L,
+            512L);
     file.set(6, 1);
     file.set(8, 5);
     file.set(11, ByteBuffer.wrap(new byte[] {4, 5}));
@@ -201,12 +201,9 @@ class TestTrackedFileAdapters {
 
   @Test
   void testAdapterDelegatesNullTracking() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
@@ -257,12 +254,9 @@ class TestTrackedFileAdapters {
 
   @Test
   void testDataFileAdapterStatsNullWhenNoContentStats() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
@@ -300,13 +294,13 @@ class TestTrackedFileAdapters {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).year("ts").build();
 
-    // date value 18628 = 2021-01-01 (days since epoch)
-    TrackedFileStruct file = createTrackedFileWithFieldStats(2, Types.DateType.get(), 18628);
+    // date value 20546 = 2026-04-03 (days since epoch)
+    TrackedFileStruct file = createTrackedFileWithFieldStats(2, Types.DateType.get(), 20546);
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
 
     StructLike partition = dataFile.partition();
     assertThat(partition).isNotNull();
-    assertThat(partition.get(0, Integer.class)).isEqualTo(51);
+    assertThat(partition.get(0, Integer.class)).isEqualTo(56);
   }
 
   @Test
@@ -335,12 +329,9 @@ class TestTrackedFileAdapters {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
 
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, spec.specId());
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
@@ -412,12 +403,9 @@ class TestTrackedFileAdapters {
             .withFieldStats(fieldStatsList)
             .build();
 
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, spec.specId());
     file.set(7, stats);
 
@@ -469,12 +457,9 @@ class TestTrackedFileAdapters {
 
   @Test
   void testSpecIdDefaultsToZeroWhenNull() {
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
     assertThat(dataFile.specId()).isEqualTo(0);
@@ -511,12 +496,14 @@ class TestTrackedFileAdapters {
             .withFieldStats(fieldStatsList)
             .build();
 
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            100L,
+            1024L);
     file.set(6, spec.specId());
     file.set(7, stats);
 
@@ -552,12 +539,14 @@ class TestTrackedFileAdapters {
             .withFieldStats(fieldStatsList)
             .build();
 
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            100L,
+            1024L);
     file.set(6, 0);
     file.set(7, stats);
 
@@ -615,12 +604,14 @@ class TestTrackedFileAdapters {
             .withFieldStats(fieldStatsList)
             .build();
 
-    TrackedFileStruct file = new TrackedFileStruct();
-    file.set(1, FileContent.DATA.id());
-    file.set(2, "s3://bucket/data/file.parquet");
-    file.set(3, "parquet");
-    file.set(4, 100L);
-    file.set(5, 1024L);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.DATA,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            100L,
+            1024L);
     file.set(6, 0);
     file.set(7, stats);
 
