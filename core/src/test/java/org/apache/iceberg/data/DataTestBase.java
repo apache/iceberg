@@ -101,7 +101,8 @@ public abstract class DataTestBase {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
-          required(117, "time", Types.TimeType.get()));
+          required(117, "time", Types.TimeType.get()),
+          required(118, "uuid", Types.UUIDType.get()));
 
   @TempDir protected Path temp;
 
