@@ -57,10 +57,8 @@ class RewriteUtil {
                     11,
                     10_000_000L,
                     rewriterOptions,
-                    Expressions.alwaysTrue(),
                     SnapshotRef.MAIN_BRANCH,
-                    null,
-                    null))) {
+                    Expressions::alwaysTrue))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

@@ -19,11 +19,6 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.math.RoundingMode;
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
@@ -31,26 +26,22 @@ import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.function.SerializableSupplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,11 +63,8 @@ public class DataFileRewritePlanner
   private final long maxRewriteBytes;
   private final Map<String, String> rewriterOptions;
   private transient Counter errorCounter;
-  private final Expression filter;
   private final String branch;
-  private final String partitionTimeColumn;
-  private final Duration rewriteLookback;
-  private transient Schema schema;
+  private final SerializableSupplier<Expression> filterSupplier;
 
   public DataFileRewritePlanner(
       String tableName,
@@ -86,10 +74,8 @@ public class DataFileRewritePlanner
       int newPartialProgressMaxCommits,
       long maxRewriteBytes,
       Map<String, String> rewriterOptions,
-      Expression filter,
       String branch,
-      String partitionTimeColumn,
-      Duration rewriteLookback) {
+      SerializableSupplier<Expression> filterSupplier) {
 
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
@@ -104,10 +90,8 @@ public class DataFileRewritePlanner
     this.partialProgressMaxCommits = newPartialProgressMaxCommits;
     this.maxRewriteBytes = maxRewriteBytes;
     this.rewriterOptions = rewriterOptions;
-    this.filter = filter;
     this.branch = branch;
-    this.partitionTimeColumn = partitionTimeColumn;
-    this.rewriteLookback = rewriteLookback;
+    this.filterSupplier = filterSupplier;
   }
 
   @Override
@@ -116,23 +100,6 @@ public class DataFileRewritePlanner
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
-
-    if (partitionTimeColumn != null) {
-      Table table = tableLoader.loadTable();
-      this.schema = table.schema();
-      Types.NestedField field = schema.findField(partitionTimeColumn);
-      Preconditions.checkArgument(
-          field != null,
-          "Partition time column '%s' not found in table schema: %s",
-          partitionTimeColumn,
-          schema);
-      Type.TypeID typeId = field.type().typeId();
-      Preconditions.checkArgument(
-          typeId == Type.TypeID.TIMESTAMP || typeId == Type.TypeID.DATE,
-          "Partition time column '%s' must be a timestamp or date type, but was: %s",
-          partitionTimeColumn,
-          field.type());
-    }
   }
 
   @Override
@@ -159,8 +126,7 @@ public class DataFileRewritePlanner
       }
 
       BinPackRewriteFilePlanner planner =
-          new BinPackRewriteFilePlanner(
-              table, buildEffectiveFilter(), snapshot.snapshotId(), false);
+          new BinPackRewriteFilePlanner(table, filterSupplier.get(), snapshot.snapshotId(), false);
       planner.init(rewriterOptions);
 
       FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
@@ -256,44 +222,5 @@ public class DataFileRewritePlanner
     String branch() {
       return branch;
     }
-  }
-
-  private Expression buildEffectiveFilter() {
-    if (partitionTimeColumn != null && rewriteLookback != null) {
-      String cutoffStr;
-      Types.NestedField field = schema.findField(partitionTimeColumn);
-      Type fieldType = field.type();
-
-      if (fieldType instanceof Types.DateType) {
-        LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusDays(rewriteLookback.toDays());
-        cutoffStr = cutoff.toString();
-      } else {
-        boolean shouldAdjustToUTC = false;
-        if (fieldType instanceof Types.TimestampType timestampType) {
-          shouldAdjustToUTC = timestampType.shouldAdjustToUTC();
-        }
-
-        if (shouldAdjustToUTC) {
-          OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minus(rewriteLookback);
-          cutoffStr = cutoff.toString();
-        } else {
-          LocalDateTime cutoff = LocalDateTime.now(ZoneOffset.UTC).minus(rewriteLookback);
-          cutoffStr = cutoff.toString();
-        }
-      }
-
-      Expression timeFilter = Expressions.greaterThanOrEqual(partitionTimeColumn, cutoffStr);
-      LOG.info(
-          MESSAGE_PREFIX + "Applying dynamic time filter: {} >= {}",
-          tableName,
-          taskName,
-          taskIndex,
-          "now",
-          partitionTimeColumn,
-          cutoffStr);
-      return Expressions.and(filter, timeFilter);
-    }
-
-    return filter;
   }
 }

@@ -23,10 +23,8 @@ import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_F
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataFiles;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -112,10 +110,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     1L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
                     SnapshotRef.MAIN_BRANCH,
-                    null,
-                    null))) {
+                    Expressions::alwaysTrue))) {
       testHarness.open();
 
       // Cause an exception
@@ -181,10 +177,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     maxRewriteBytes,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
                     SnapshotRef.MAIN_BRANCH,
-                    null,
-                    null))) {
+                    Expressions::alwaysTrue))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
@@ -237,10 +231,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     10_000_000L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
                     branchName,
-                    null,
-                    null))) {
+                    Expressions::alwaysTrue))) {
       testHarness.open();
 
       trigger(testHarness);
@@ -255,104 +247,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
   }
 
   @Test
-  void testPartitionTimeColumnNotInSchema() throws Exception {
-    Table table = createTable();
-    insert(table, 1, "a");
-
-    assertThatThrownBy(
-            () -> {
-              try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
-                  testHarness =
-                      ProcessFunctionTestHarnesses.forProcessFunction(
-                          new DataFileRewritePlanner(
-                              OperatorTestBase.DUMMY_TABLE_NAME,
-                              OperatorTestBase.DUMMY_TABLE_NAME,
-                              0,
-                              tableLoader(),
-                              11,
-                              10_000_000L,
-                              ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                              Expressions.alwaysTrue(),
-                              SnapshotRef.MAIN_BRANCH,
-                              "non_existent_column",
-                              Duration.ofHours(3)))) {
-                testHarness.open();
-              }
-            })
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("not found in table schema");
-  }
-
-  @Test
-  void testPartitionTimeColumnWrongType() throws Exception {
-    Table table = createTable();
-    insert(table, 1, "a");
-
-    assertThatThrownBy(
-            () -> {
-              try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
-                  testHarness =
-                      ProcessFunctionTestHarnesses.forProcessFunction(
-                          new DataFileRewritePlanner(
-                              OperatorTestBase.DUMMY_TABLE_NAME,
-                              OperatorTestBase.DUMMY_TABLE_NAME,
-                              0,
-                              tableLoader(),
-                              11,
-                              10_000_000L,
-                              ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                              Expressions.alwaysTrue(),
-                              SnapshotRef.MAIN_BRANCH,
-                              "data",
-                              Duration.ofHours(3)))) {
-                testHarness.open();
-              }
-            })
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("must be a timestamp or date type");
-  }
-
-  @Test
-  void testRewriteLookbackFiltersOldPartitions() throws Exception {
-    Table table = createTableWithTimestamp();
-
-    LocalDateTime oldTs = LocalDateTime.now(ZoneOffset.UTC).minusDays(10);
-    insertWithTimestamp(table, 1, "old_a", oldTs);
-    insertWithTimestamp(table, 2, "old_b", oldTs);
-
-    LocalDateTime recentTs = LocalDateTime.now(ZoneOffset.UTC).minusHours(1);
-    insertWithTimestamp(table, 3, "new_a", recentTs);
-    insertWithTimestamp(table, 4, "new_b", recentTs);
-
-    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
-        testHarness =
-            ProcessFunctionTestHarnesses.forProcessFunction(
-                new DataFileRewritePlanner(
-                    OperatorTestBase.DUMMY_TABLE_NAME,
-                    OperatorTestBase.DUMMY_TABLE_NAME,
-                    0,
-                    tableLoader(),
-                    11,
-                    10_000_000L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
-                    SnapshotRef.MAIN_BRANCH,
-                    "ts",
-                    Duration.ofHours(3)))) {
-      testHarness.open();
-
-      trigger(testHarness);
-
-      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
-      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
-
-      assertThat(planned).hasSize(1);
-      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
-    }
-  }
-
-  @Test
-  void testRewriteLookbackFiltersOldPartitionsWithoutZone() throws Exception {
+  void testFilterSupplierWithTimestamp() throws Exception {
     Table table = createTableWithTimestampWithoutZone();
 
     LocalDateTime oldTs = LocalDateTime.now().minusDays(10);
@@ -374,49 +269,12 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     10_000_000L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
                     SnapshotRef.MAIN_BRANCH,
-                    "ts",
-                    Duration.ofHours(3)))) {
-      testHarness.open();
-
-      trigger(testHarness);
-
-      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
-      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
-
-      assertThat(planned).hasSize(1);
-      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
-    }
-  }
-
-  @Test
-  void testRewriteLookbackFiltersOldPartitionsDate() throws Exception {
-    Table table = createTableWithDate();
-
-    LocalDate oldTs = LocalDate.now().minusDays(10);
-    insertWithDate(table, 1, "old_a", oldTs);
-    insertWithDate(table, 2, "old_b", oldTs);
-
-    LocalDate recentTs = LocalDate.now().minusDays(1);
-    insertWithDate(table, 3, "new_a", recentTs);
-    insertWithDate(table, 4, "new_b", recentTs);
-
-    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
-        testHarness =
-            ProcessFunctionTestHarnesses.forProcessFunction(
-                new DataFileRewritePlanner(
-                    OperatorTestBase.DUMMY_TABLE_NAME,
-                    OperatorTestBase.DUMMY_TABLE_NAME,
-                    0,
-                    tableLoader(),
-                    11,
-                    10_000_000L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue(),
-                    SnapshotRef.MAIN_BRANCH,
-                    "ts",
-                    Duration.ofDays(1)))) {
+                    () -> {
+                      LocalDateTime cutoff =
+                          LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3));
+                      return Expressions.greaterThanOrEqual("ts", cutoff.toString());
+                    }))) {
       testHarness.open();
 
       trigger(testHarness);

@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -66,7 +65,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,23 +82,11 @@ public class OperatorTestBase {
           ImmutableMap.of(),
           ImmutableSet.of(SimpleDataUtil.SCHEMA.columns().get(0).fieldId()));
 
-  private static final Schema SCHEMA_WITH_TIMESTAMP =
-      new Schema(
-          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-          Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "ts", Types.TimestampType.withZone()));
-
   private static final Schema SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE =
       new Schema(
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()));
-
-  private static final Schema SCHEMA_WITH_DATE =
-      new Schema(
-          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-          Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "ts", Types.DateType.get()));
 
   protected static final String UID_SUFFIX = "UID-Dummy";
   protected static final String SLOT_SHARING_GROUP = "SlotSharingGroup";
@@ -165,21 +151,6 @@ public class OperatorTestBase {
                 "100000"));
   }
 
-  protected static Table createTableWithTimestamp() {
-    return CATALOG_EXTENSION
-        .catalog()
-        .createTable(
-            TestFixtures.TABLE_IDENTIFIER,
-            SCHEMA_WITH_TIMESTAMP,
-            PartitionSpec.builderFor(SCHEMA_WITH_TIMESTAMP).identity("ts").build(),
-            null,
-            ImmutableMap.of(
-                TableProperties.FORMAT_VERSION,
-                "2",
-                "flink.max-continuous-empty-commits",
-                "100000"));
-  }
-
   protected static Table createTableWithTimestampWithoutZone() {
     return CATALOG_EXTENSION
         .catalog()
@@ -187,21 +158,6 @@ public class OperatorTestBase {
             TestFixtures.TABLE_IDENTIFIER,
             SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE,
             PartitionSpec.builderFor(SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE).identity("ts").build(),
-            null,
-            ImmutableMap.of(
-                TableProperties.FORMAT_VERSION,
-                "2",
-                "flink.max-continuous-empty-commits",
-                "100000"));
-  }
-
-  protected static Table createTableWithDate() {
-    return CATALOG_EXTENSION
-        .catalog()
-        .createTable(
-            TestFixtures.TABLE_IDENTIFIER,
-            SCHEMA_WITH_DATE,
-            PartitionSpec.builderFor(SCHEMA_WITH_DATE).identity("ts").build(),
             null,
             ImmutableMap.of(
                 TableProperties.FORMAT_VERSION,
@@ -262,20 +218,6 @@ public class OperatorTestBase {
     table.refresh();
   }
 
-  protected void insertWithTimestamp(Table table, Integer id, String data, LocalDateTime ts)
-      throws IOException {
-    GenericRecord record = GenericRecord.create(SCHEMA_WITH_TIMESTAMP);
-    record.setField("id", id);
-    record.setField("data", data);
-    record.setField("ts", ts.atOffset(ZoneOffset.UTC));
-    long tsMicros =
-        TimeUnit.SECONDS.toMicros(ts.toEpochSecond(ZoneOffset.UTC))
-            + TimeUnit.NANOSECONDS.toMicros(ts.getNano());
-    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
-        .appendToTable(TestHelpers.Row.of(tsMicros), Lists.newArrayList(record));
-    table.refresh();
-  }
-
   protected void insertWithTimestampWithoutZone(
       Table table, Integer id, String data, LocalDateTime ts) throws IOException {
     GenericRecord record = GenericRecord.create(SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE);
@@ -287,18 +229,6 @@ public class OperatorTestBase {
             + TimeUnit.NANOSECONDS.toMicros(ts.getNano());
     new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
         .appendToTable(TestHelpers.Row.of(tsMicros), Lists.newArrayList(record));
-    table.refresh();
-  }
-
-  protected void insertWithDate(Table table, Integer id, String data, LocalDate ts)
-      throws IOException {
-    GenericRecord record = GenericRecord.create(SCHEMA_WITH_DATE);
-    record.setField("id", id);
-    record.setField("data", data);
-    record.setField("ts", ts);
-    int daysSinceEpoch = DateTimeUtil.daysFromDate(ts);
-    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
-        .appendToTable(TestHelpers.Row.of(daysSinceEpoch), Lists.newArrayList(record));
     table.refresh();
   }
 
