@@ -25,9 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.PartitionStatistics;
 import org.apache.iceberg.PartitionStatisticsFile;
-import org.apache.iceberg.PartitionStatsHandler;
 import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -146,7 +144,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
             DEFAULT_POS_DEL_FILE_COUNT,
             DEFAULT_EQ_DEL_RECORD_COUNT,
             DEFAULT_EQ_DEL_FILE_COUNT,
-            DEFAULT_TOTAL_RECORD_COUNT,
+            2L, // totalRecordCount (no deletes, equals dataRecordCount)
             snapshot1.timestampMillis(), // lastUpdatedAt (added by snapshot1)
             snapshot1.snapshotId() // lastUpdatedSnapshotId
             ),
@@ -160,7 +158,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
             DEFAULT_POS_DEL_FILE_COUNT,
             DEFAULT_EQ_DEL_RECORD_COUNT,
             DEFAULT_EQ_DEL_FILE_COUNT,
-            DEFAULT_TOTAL_RECORD_COUNT,
+            2L, // totalRecordCount (no deletes, equals dataRecordCount)
             snapshot2.timestampMillis(), // lastUpdatedAt (added by snapshot2)
             snapshot2.snapshotId() // lastUpdatedSnapshotId
             ),
@@ -174,7 +172,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
             DEFAULT_POS_DEL_FILE_COUNT,
             DEFAULT_EQ_DEL_RECORD_COUNT,
             DEFAULT_EQ_DEL_FILE_COUNT,
-            DEFAULT_TOTAL_RECORD_COUNT,
+            1L, // totalRecordCount (no deletes, equals dataRecordCount)
             snapshot2.timestampMillis(), // lastUpdatedAt
             snapshot2.snapshotId() // lastUpdatedSnapshotId
             ));
@@ -207,7 +205,6 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
     assertThat(table.partitionStatisticsFiles()).containsExactly(statisticsFile);
 
     Types.StructType partitionType = Partitioning.partitionType(table);
-    Schema dataSchema = PartitionStatsHandler.schema(partitionType, 2);
     // should contain stats for only partitions of snapshot1 (no entry for partition bar, A)
     validatePartitionStats(
         table,
@@ -222,9 +219,9 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
             DEFAULT_POS_DEL_FILE_COUNT,
             DEFAULT_EQ_DEL_RECORD_COUNT,
             DEFAULT_EQ_DEL_FILE_COUNT,
-            DEFAULT_TOTAL_RECORD_COUNT,
-            snapshot1.timestampMillis(), // lastUpdatedAt
-            snapshot1.snapshotId()), // lastUpdatedSnapshotId
+            2L, // totalRecordCount (no deletes, equals dataRecordCount)
+            snapshot1.timestampMillis(),
+            snapshot1.snapshotId()),
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "B"),
             DEFAULT_SPEC_ID,
@@ -235,7 +232,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
             DEFAULT_POS_DEL_FILE_COUNT,
             DEFAULT_EQ_DEL_RECORD_COUNT,
             DEFAULT_EQ_DEL_FILE_COUNT,
-            DEFAULT_TOTAL_RECORD_COUNT,
+            1L, // totalRecordCount (no deletes, equals dataRecordCount)
             snapshot1.timestampMillis(), // lastUpdatedAt
             snapshot1.snapshotId() // lastUpdatedSnapshotId
             ));
