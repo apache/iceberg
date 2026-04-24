@@ -133,7 +133,10 @@ public class ThreadPools {
   }
 
   /**
-   * Creates a fixed-size thread pool that uses daemon threads.
+   * Creates a fixed-size thread pool that uses daemon threads. The pool will be stopped by the
+   * shutdown hook to ensure the pool terminates when the JVM exits - unless `removeShutdownHook` is
+   * called, in which case it is user's responsibility to stop the threadpools using the
+   * `shutdownThreadPools` method.
    *
    * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
    * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
@@ -149,9 +152,10 @@ public class ThreadPools {
   }
 
   /**
-   * Creates a fixed-size thread pool that uses daemon threads and registers a shutdown hook to
-   * ensure the pool terminates when the JVM exits. This is suitable for long-lived thread pools
-   * that should be automatically cleaned up on JVM shutdown.
+   * Creates a fixed-size thread pool that uses daemon threads. The pool will be stopped by the
+   * shutdown hook to ensure the pool terminates when the JVM exits - unless `removeShutdownHook` is
+   * called, in which case it is user's responsibility to stop the threadpools using the
+   * `shutdownThreadPools` method.
    */
   public static ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
     ExecutorService service =
