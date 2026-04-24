@@ -39,7 +39,7 @@ import org.apache.spark.unsafe.types.UTF8String;
  * <p>Replaces alphanumeric code points with {@code x} (letters) or {@code n} (digits) while
  * preserving a small punctuation allow-list. String-typed input only.
  *
- * <h3>Why a ScalarFunction (and not a custom Catalyst expression)</h3>
+ * <h2>Why a ScalarFunction (and not a custom Catalyst expression)</h2>
  *
  * <p>Read-restriction masks are server-specified per-column transformations. Three options were on
  * the table: (1) a custom Catalyst {@code UnaryExpression} with hand-rolled {@code doGenCode}, (2)
