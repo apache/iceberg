@@ -52,12 +52,12 @@ public class ThreadPools {
 
   private static final ThreadPoolManager THREAD_POOL_MANAGER = new ThreadPoolManager();
 
-  private static ExecutorService WORKER_POOL = createWorkerPool();
+  private static ExecutorService workerPool = createWorkerPool();
 
   public static final int DELETE_WORKER_THREAD_POOL_SIZE =
       SystemConfigs.DELETE_WORKER_THREAD_POOL_SIZE.value();
 
-  private static ExecutorService DELETE_WORKER_POOL = createDeleteWorkerPool();
+  private static ExecutorService deleteWorkerPool = createDeleteWorkerPool();
 
   public static final int AUTH_REFRESH_THREAD_POOL_SIZE =
       SystemConfigs.AUTH_REFRESH_THREAD_POOL_SIZE.value();
@@ -80,7 +80,7 @@ public class ThreadPools {
    * @return an {@link ExecutorService} that uses the worker pool
    */
   public static ExecutorService getWorkerPool() {
-    return WORKER_POOL;
+    return workerPool;
   }
 
   /**
@@ -96,7 +96,7 @@ public class ThreadPools {
    * @return an {@link ExecutorService} that uses the delete worker pool
    */
   public static ExecutorService getDeleteWorkerPool() {
-    return DELETE_WORKER_POOL;
+    return deleteWorkerPool;
   }
 
   /**
@@ -210,11 +210,11 @@ public class ThreadPools {
         LOG.warn("Cannot install a shutdown hook for thread pools clean up", e);
       }
     }
-    if (null == WORKER_POOL || WORKER_POOL.isShutdown()) {
-      WORKER_POOL = createWorkerPool();
+    if (null == workerPool || workerPool.isShutdown()) {
+      workerPool = createWorkerPool();
     }
-    if (null == DELETE_WORKER_POOL || DELETE_WORKER_POOL.isShutdown()) {
-      DELETE_WORKER_POOL = createDeleteWorkerPool();
+    if (null == deleteWorkerPool || deleteWorkerPool.isShutdown()) {
+      deleteWorkerPool = createDeleteWorkerPool();
     }
   }
 
