@@ -61,6 +61,21 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
   ThisT scanManifestsWith(ExecutorService executorService);
 
   /**
+   * Use a particular executor to write manifests during commit. The default worker pool will be
+   * used by default.
+   *
+   * <p>Implementations may require a specific executor type (such as {@link
+   * java.util.concurrent.ThreadPoolExecutor}) to derive parallelism for manifest writes.
+   *
+   * @param executorService the provided executor
+   * @return this for method chaining
+   */
+  default ThisT commitManifestsWith(ExecutorService executorService) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not support commitManifestsWith");
+  }
+
+  /**
    * Perform operations on a particular branch
    *
    * @param branch which is name of SnapshotRef of type branch.

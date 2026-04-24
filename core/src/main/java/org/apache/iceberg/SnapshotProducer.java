@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -124,6 +125,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       SnapshotAncestryValidator.NON_VALIDATING;
 
   private ExecutorService workerPool;
+  private ExecutorService commitPool;
+  private int commitPoolSize = ThreadPools.WORKER_THREAD_POOL_SIZE;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -166,6 +169,24 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  @Override
+  public ThisT commitManifestsWith(ExecutorService executorService) {
+    Preconditions.checkArgument(executorService != null, "Invalid executor service: null");
+    Preconditions.checkArgument(
+        executorService instanceof ThreadPoolExecutor,
+        "Unsupported executor type: %s. Expected a fixed-size ThreadPoolExecutor"
+            + " for manifest write with determined parallelism",
+        executorService.getClass().getName());
+    ThreadPoolExecutor pool = (ThreadPoolExecutor) executorService;
+    Preconditions.checkArgument(
+        pool.getMaximumPoolSize() < Integer.MAX_VALUE,
+        "Unbounded executor is not supported."
+            + " Use a fixed-size ThreadPoolExecutor for manifest write with determined parallelism");
+    this.commitPool = executorService;
+    this.commitPoolSize = pool.getMaximumPoolSize();
     return self();
   }
 
@@ -225,6 +246,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     return workerPool;
+  }
+
+  protected ExecutorService commitPool() {
+    if (commitPool == null) {
+      this.commitPool = ThreadPools.getWorkerPool();
+    }
+
+    return commitPool;
   }
 
   @Override
@@ -780,9 +809,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  private static <F> List<ManifestFile> writeManifests(
+  private <F> List<ManifestFile> writeManifests(
       Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
-    int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
+    int parallelism = manifestWriterCount(commitPoolSize, files.size());
     List<List<F>> groups = divide(files, parallelism);
 
     // Create a new list pairing each group with its index
@@ -796,7 +825,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Tasks.foreach(groupsWithIndex)
         .stopOnFailure()
         .throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(commitPool())
         .run(
             indexedGroup -> {
               int index = indexedGroup.first();

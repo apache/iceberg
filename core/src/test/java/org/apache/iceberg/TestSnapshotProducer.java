@@ -28,6 +28,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -251,5 +253,36 @@ public class TestSnapshotProducer extends TestBase {
 
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
     assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("snappy");
+  }
+
+  @TestTemplate
+  public void testCommitManifestsWithNullExecutorThrows() {
+    assertThatThrownBy(() -> table.newAppend().commitManifestsWith(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid executor service: null");
+  }
+
+  @TestTemplate
+  public void testCommitManifestsWithSingleThreadExecutorThrows() {
+    ExecutorService singleThread = Executors.newSingleThreadExecutor();
+    try {
+      assertThatThrownBy(() -> table.newAppend().commitManifestsWith(singleThread))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Expected a fixed-size ThreadPoolExecutor");
+    } finally {
+      singleThread.shutdownNow();
+    }
+  }
+
+  @TestTemplate
+  public void testCommitManifestsWithCachedThreadPoolThrows() {
+    ExecutorService cachedPool = Executors.newCachedThreadPool();
+    try {
+      assertThatThrownBy(() -> table.newAppend().commitManifestsWith(cachedPool))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Unbounded executor is not supported");
+    } finally {
+      cachedPool.shutdownNow();
+    }
   }
 }

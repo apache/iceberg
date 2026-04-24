@@ -382,6 +382,81 @@ public class TestMergeAppend extends TestBase {
   }
 
   @TestTemplate
+  public void testAppendWithCommitManifestsExecutor() {
+    assertThat(listManifestFiles()).isEmpty();
+
+    TableMetadata base = readMetadata();
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
+    AtomicInteger commitThreadsIndex = new AtomicInteger(0);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newAppend()
+                .appendFile(FILE_A)
+                .appendFile(FILE_B)
+                .commitManifestsWith(
+                    Executors.newFixedThreadPool(
+                        1,
+                        runnable -> {
+                          Thread thread = new Thread(runnable);
+                          thread.setName("commit-" + commitThreadsIndex.getAndIncrement());
+                          thread.setDaemon(true);
+                          return thread;
+                        })),
+            branch);
+    assertThat(commitThreadsIndex.get())
+        .as("Thread should be created in provided commit pool")
+        .isGreaterThan(0);
+    assertThat(snapshot).isNotNull();
+  }
+
+  @TestTemplate
+  public void testAppendWithSeparateScanAndCommitExecutors() {
+    assertThat(listManifestFiles()).isEmpty();
+
+    TableMetadata base = readMetadata();
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
+    AtomicInteger scanThreadsIndex = new AtomicInteger(0);
+    AtomicInteger commitThreadsIndex = new AtomicInteger(0);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newAppend()
+                .appendFile(FILE_A)
+                .appendFile(FILE_B)
+                .scanManifestsWith(
+                    Executors.newFixedThreadPool(
+                        1,
+                        runnable -> {
+                          Thread thread = new Thread(runnable);
+                          thread.setName("scan-" + scanThreadsIndex.getAndIncrement());
+                          thread.setDaemon(true);
+                          return thread;
+                        }))
+                .commitManifestsWith(
+                    Executors.newFixedThreadPool(
+                        1,
+                        runnable -> {
+                          Thread thread = new Thread(runnable);
+                          thread.setName("commit-" + commitThreadsIndex.getAndIncrement());
+                          thread.setDaemon(true);
+                          return thread;
+                        })),
+            branch);
+    assertThat(scanThreadsIndex.get())
+        .as("Thread should be created in provided scan pool")
+        .isGreaterThan(0);
+    assertThat(commitThreadsIndex.get())
+        .as("Thread should be created in provided commit pool")
+        .isGreaterThan(0);
+    assertThat(snapshot).isNotNull();
+  }
+
+  @TestTemplate
   public void testMergeWithAppendFilesAndManifest() throws IOException {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
