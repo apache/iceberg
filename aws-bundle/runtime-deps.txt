@@ -14,12 +14,8 @@ io.netty:netty-transport-native-unix-common:4.1.132.Final
 io.netty:netty-transport:4.1.132.Final
 org.apache.httpcomponents:httpclient:4.5.13
 org.apache.httpcomponents:httpcore:4.4.16
-org.apache.logging.log4j:log4j-api:2.20.0
-org.apache.logging.log4j:log4j-core:2.20.0
-org.apache.logging.log4j:log4j-slf4j-impl:2.20.0
 org.checkerframework:checker-qual:3.19.0
 org.reactivestreams:reactive-streams:1.0.4
-org.slf4j:slf4j-api:2.0.17
 software.amazon.awssdk.crt:aws-crt:0.43.9
 software.amazon.awssdk:annotations:2.42.33
 software.amazon.awssdk:apache-client:2.42.33
