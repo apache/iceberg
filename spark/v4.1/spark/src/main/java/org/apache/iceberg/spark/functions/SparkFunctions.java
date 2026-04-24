@@ -30,27 +30,23 @@ public class SparkFunctions {
   private SparkFunctions() {}
 
   private static final Map<String, UnboundFunction> FUNCTIONS =
-      ImmutableMap.<String, UnboundFunction>builder()
-          .put("iceberg_version", new IcebergVersionFunction())
-          .put("years", new YearsFunction())
-          .put("months", new MonthsFunction())
-          .put("days", new DaysFunction())
-          .put("hours", new HoursFunction())
-          .put("bucket", new BucketFunction())
-          .put("truncate", new TruncateFunction())
-          .put("iceberg_mask_alphanum", new MaskAlphanumFunction())
-          .build();
+      ImmutableMap.of(
+          "iceberg_version", new IcebergVersionFunction(),
+          "years", new YearsFunction(),
+          "months", new MonthsFunction(),
+          "days", new DaysFunction(),
+          "hours", new HoursFunction(),
+          "bucket", new BucketFunction(),
+          "truncate", new TruncateFunction());
 
   private static final Map<Class<?>, UnboundFunction> CLASS_TO_FUNCTIONS =
-      ImmutableMap.<Class<?>, UnboundFunction>builder()
-          .put(YearsFunction.class, new YearsFunction())
-          .put(MonthsFunction.class, new MonthsFunction())
-          .put(DaysFunction.class, new DaysFunction())
-          .put(HoursFunction.class, new HoursFunction())
-          .put(BucketFunction.class, new BucketFunction())
-          .put(TruncateFunction.class, new TruncateFunction())
-          .put(MaskAlphanumFunction.class, new MaskAlphanumFunction())
-          .build();
+      ImmutableMap.of(
+          YearsFunction.class, new YearsFunction(),
+          MonthsFunction.class, new MonthsFunction(),
+          DaysFunction.class, new DaysFunction(),
+          HoursFunction.class, new HoursFunction(),
+          BucketFunction.class, new BucketFunction(),
+          TruncateFunction.class, new TruncateFunction());
 
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 
