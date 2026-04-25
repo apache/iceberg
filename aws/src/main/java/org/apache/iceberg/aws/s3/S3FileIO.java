@@ -109,8 +109,8 @@ public class S3FileIO
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
-  // use modifiable collection for Kryo serde
-  private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
+  // setCredentials uses a modifiable collection for Kryo serde; refresh uses an immutable copy
+  private volatile List<StorageCredential> storageCredentials = ImmutableList.of();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
 
@@ -469,7 +469,7 @@ public class S3FileIO
               .collect(Collectors.toList());
 
       if (!refreshed.isEmpty() && !isResourceClosed.get()) {
-        this.storageCredentials = Lists.newArrayList(refreshed);
+        this.storageCredentials = ImmutableList.copyOf(refreshed);
         scheduleCredentialRefresh();
       }
     } catch (Exception e) {
