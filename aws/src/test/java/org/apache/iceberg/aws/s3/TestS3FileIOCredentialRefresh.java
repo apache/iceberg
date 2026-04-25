@@ -26,7 +26,6 @@ import static org.mockserver.model.HttpResponse.response;
 import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -35,6 +34,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HttpMethod;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
@@ -277,7 +277,7 @@ public class TestS3FileIOCredentialRefresh {
             "s3://bucket/path", ImmutableMap.of(S3FileIOProperties.ACCESS_KEY_ID, "key"));
 
     try (S3FileIO fileIO = new S3FileIO()) {
-      List<StorageCredential> input = new ArrayList<>();
+      List<StorageCredential> input = Lists.newArrayList();
       input.add(credential);
       fileIO.setCredentials(input);
 

@@ -42,7 +42,6 @@ import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -586,7 +585,7 @@ public class TestGCSFileIO {
         StorageCredential.create("gs://bucket/path", ImmutableMap.of("key1", "val1"));
 
     try (GCSFileIO fileIO = new GCSFileIO()) {
-      List<StorageCredential> input = new ArrayList<>();
+      List<StorageCredential> input = Lists.newArrayList();
       input.add(credential);
       fileIO.setCredentials(input);
 
