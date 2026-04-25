@@ -46,6 +46,7 @@ import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -1423,11 +1424,6 @@ public abstract class BaseFormatModelTests<T> {
         record -> copy(record, projectedSchema, projectedSchema));
   }
 
-  /**
-   * Schema evolution: Removing and adding a column with the same name (name mapping). Write with
-   * DefaultSchema where col_b has field ID 2. Read with a schema where col_b has field ID 6 (a new
-   * column).
-   */
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
@@ -1486,10 +1482,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionTypePromotionDecimalPrecision(FileFormat fileFormat) throws IOException {
     runTypePromotionCheck(
-        fileFormat,
-        Types.DecimalType.of(9, 2),
-        Types.DecimalType.of(18, 2),
-        java.util.function.Function.identity());
+        fileFormat, Types.DecimalType.of(9, 2), Types.DecimalType.of(18, 2), Function.identity());
   }
 
   /**
@@ -2154,7 +2147,7 @@ public abstract class BaseFormatModelTests<T> {
     TypeDescription typeWithoutIds = TestORCSchemaUtil.removeIds(typeWithIds);
 
     OutputFile outputFile = encryptedFile.encryptingOutputFile();
-    org.apache.hadoop.fs.Path hadoopPath = new org.apache.hadoop.fs.Path(outputFile.location());
+    Path hadoopPath = new Path(outputFile.location());
 
     Configuration conf = new Configuration();
     OrcFile.WriterOptions options =
