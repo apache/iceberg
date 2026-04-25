@@ -37,10 +37,10 @@ public class ReadRestrictions implements Serializable {
   private static final ReadRestrictions EMPTY = new ReadRestrictions(null, ImmutableList.of());
 
   private final Expression rowFilter;
-  private final List<Action> columnProjections;
+  private final List<Action<?, ?>> columnProjections;
   private final Set<Integer> maskedFieldIds;
 
-  private ReadRestrictions(Expression rowFilter, List<Action> columnProjections) {
+  private ReadRestrictions(Expression rowFilter, List<Action<?, ?>> columnProjections) {
     this.rowFilter = rowFilter;
     this.columnProjections = ImmutableList.copyOf(columnProjections);
     this.maskedFieldIds =
@@ -55,8 +55,8 @@ public class ReadRestrictions implements Serializable {
     return EMPTY;
   }
 
-  public static ReadRestrictions of(Expression rowFilter, List<Action> columnProjections) {
-    List<Action> actions = columnProjections == null ? ImmutableList.of() : columnProjections;
+  public static ReadRestrictions of(Expression rowFilter, List<Action<?, ?>> columnProjections) {
+    List<Action<?, ?>> actions = columnProjections == null ? ImmutableList.of() : columnProjections;
     if (rowFilter == null && actions.isEmpty()) {
       return EMPTY;
     }
@@ -67,7 +67,7 @@ public class ReadRestrictions implements Serializable {
     return rowFilter;
   }
 
-  public List<Action> columnProjections() {
+  public List<Action<?, ?>> columnProjections() {
     return columnProjections;
   }
 

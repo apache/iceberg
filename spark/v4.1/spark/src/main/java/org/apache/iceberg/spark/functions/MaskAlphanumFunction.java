@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.functions;
 
 import org.apache.iceberg.rest.restrictions.Action;
-import org.apache.iceberg.rest.restrictions.Actions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -60,10 +59,10 @@ import org.apache.spark.unsafe.types.UTF8String;
  *       would invoke. Ryan Blue's Iceberg expression proposal (apply(iceberg_functions.name, args))
  *       aligns with this same function-call shape on the wire, so the upgrade path is a wire-format
  *       change, not an implementation rewrite.
- *   <li><b>Engine reuse.</b> Masking semantics stay in core's {@link Actions#bind(Action,
- *       org.apache.iceberg.types.Type)} factory. Flink/Trino only need to register equivalent
- *       ScalarFunctions (or their native equivalents) pointing at the same core factory — they
- *       don't reimplement the bit-level behavior.
+ *   <li><b>Engine reuse.</b> Masking semantics stay in core's {@link
+ *       Action#bind(org.apache.iceberg.types.Type)} factory. Flink/Trino only need to register
+ *       equivalent ScalarFunctions (or their native equivalents) pointing at the same core factory
+ *       — they don't reimplement the bit-level behavior.
  * </ul>
  */
 public class MaskAlphanumFunction implements UnboundFunction {
@@ -97,15 +96,15 @@ public class MaskAlphanumFunction implements UnboundFunction {
   }
 
   public static class BoundMaskAlphanum implements ScalarFunction<UTF8String> {
-    private static final SerializableFunction<Object, Object> FN =
-        Actions.bind(new Action.MaskAlphanum(0), Types.StringType.get());
+    private static final SerializableFunction<String, String> FN =
+        new Action.MaskAlphanum(0).bind(Types.StringType.get());
 
     /** Magic method used in codegen. */
     public static UTF8String invoke(UTF8String value) {
       if (value == null) {
         return null;
       }
-      return UTF8String.fromString((String) FN.apply(value.toString()));
+      return UTF8String.fromString(FN.apply(value.toString()));
     }
 
     @Override

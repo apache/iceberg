@@ -81,7 +81,7 @@ public class ReadRestrictionsParser {
       rowFilter = ExpressionParser.fromJson(node.get(REQUIRED_ROW_FILTER));
     }
 
-    List<Action> actions = Lists.newArrayList();
+    List<Action<?, ?>> actions = Lists.newArrayList();
     if (node.hasNonNull(REQUIRED_COLUMN_PROJECTIONS)) {
       JsonNode array = node.get(REQUIRED_COLUMN_PROJECTIONS);
       Preconditions.checkArgument(

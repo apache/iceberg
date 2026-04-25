@@ -133,7 +133,7 @@ case class IcebergRestricted(child: Expression, mask: SerializableFunction[Objec
       case other =>
         throw new IllegalStateException(
           s"iceberg_restricted codegen has no mapping for type: $other " +
-            s"(Actions.bind should have rejected this type before reaching codegen)")
+            s"(Action#bind should have rejected this type before reaching codegen)")
     }
   }
 

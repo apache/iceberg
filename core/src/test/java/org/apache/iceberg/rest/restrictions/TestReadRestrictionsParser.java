@@ -59,7 +59,7 @@ public class TestReadRestrictionsParser {
   @Test
   public void allTenActionTypesRoundTrip() {
     Expression filterExpr = Expressions.alwaysTrue();
-    List<Action> actions =
+    List<Action<?, ?>> actions =
         ImmutableList.of(
             new Action.MaskAlphanum(1),
             new Action.MaskToDefault(2),
@@ -120,7 +120,7 @@ public class TestReadRestrictionsParser {
   public void rowFilterAndProjectionsRoundTrip() {
     Expression filter =
         Expressions.and(Expressions.equal("country", "US"), Expressions.greaterThan("amount", 100));
-    List<Action> actions =
+    List<Action<?, ?>> actions =
         ImmutableList.of(new Action.MaskAlphanum(2), new Action.ReplaceWithNull(3));
     ReadRestrictions restrictions = ReadRestrictions.of(filter, actions);
 
