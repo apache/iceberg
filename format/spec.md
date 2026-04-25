@@ -375,7 +375,7 @@ Identifier fields may be nested in structs but cannot be nested within maps or l
 
 #### Reserved Field IDs
 
-Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
+Iceberg tables must not use field ids greater than or equal to 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
 
 The set of metadata columns is:
 
