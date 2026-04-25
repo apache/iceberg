@@ -23,10 +23,13 @@ import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsProperties;
@@ -263,6 +266,25 @@ public class TestS3FileIOCredentialRefresh {
                     .containsEntry(
                         S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS, refreshedExpiryMs);
               });
+    }
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void setCredentialsPublishesThreadSafeSnapshot() throws Exception {
+    StorageCredential credential =
+        StorageCredential.create(
+            "s3://bucket/path", ImmutableMap.of(S3FileIOProperties.ACCESS_KEY_ID, "key"));
+
+    try (S3FileIO fileIO = new S3FileIO()) {
+      List<StorageCredential> input = new ArrayList<>();
+      input.add(credential);
+      fileIO.setCredentials(input);
+
+      Field field = S3FileIO.class.getDeclaredField("storageCredentials");
+      field.setAccessible(true);
+      List<StorageCredential> stored = (List<StorageCredential>) field.get(fileIO);
+      assertThat(stored).isInstanceOf(CopyOnWriteArrayList.class).containsExactly(credential);
     }
   }
 }

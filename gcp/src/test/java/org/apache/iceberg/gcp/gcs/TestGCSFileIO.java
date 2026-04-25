@@ -38,13 +38,16 @@ import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
@@ -574,5 +577,23 @@ public class TestGCSFileIO {
         .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
         .extracting(GCSFileIO::credentials)
         .isEqualTo(storageCredentials);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void setCredentialsPublishesThreadSafeSnapshot() throws Exception {
+    StorageCredential credential =
+        StorageCredential.create("gs://bucket/path", ImmutableMap.of("key1", "val1"));
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      List<StorageCredential> input = new ArrayList<>();
+      input.add(credential);
+      fileIO.setCredentials(input);
+
+      Field field = GCSFileIO.class.getDeclaredField("storageCredentials");
+      field.setAccessible(true);
+      List<StorageCredential> stored = (List<StorageCredential>) field.get(fileIO);
+      assertThat(stored).isInstanceOf(CopyOnWriteArrayList.class).containsExactly(credential);
+    }
   }
 }

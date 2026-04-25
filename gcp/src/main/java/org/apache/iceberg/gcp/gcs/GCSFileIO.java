@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import com.google.api.client.util.Lists;
 import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -30,6 +29,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -80,8 +80,9 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
-  // use modifiable collection for Kryo serde
-  private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
+  // CopyOnWriteArrayList gives a safe snapshot view for readers iterating outside
+  // the synchronized block in storageByPrefix() and is Kryo-serialisable
+  private volatile List<StorageCredential> storageCredentials = new CopyOnWriteArrayList<>();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
 
@@ -251,7 +252,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
               .toList();
 
       if (!refreshed.isEmpty() && !isResourceClosed.get()) {
-        this.storageCredentials = Lists.newArrayList(refreshed);
+        this.storageCredentials = new CopyOnWriteArrayList<>(refreshed);
         scheduleCredentialRefresh();
       }
     } catch (Exception e) {
@@ -347,8 +348,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
       refreshFuture.cancel(true);
     }
 
-    // copy credentials into a modifiable collection for Kryo serde
-    this.storageCredentials = Lists.newArrayList(credentials);
+    // use a thread-safe list so concurrent readers observe a consistent snapshot
+    this.storageCredentials = new CopyOnWriteArrayList<>(credentials);
 
     // if the clients are already initialized, we need to close and allow them to be recreated
     synchronized (this) {

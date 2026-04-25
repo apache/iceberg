@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -109,8 +110,9 @@ public class S3FileIO
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
-  // use modifiable collection for Kryo serde
-  private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
+  // CopyOnWriteArrayList gives a safe snapshot view for readers iterating outside
+  // the synchronized block in clientByPrefix() and is Kryo-serialisable
+  private volatile List<StorageCredential> storageCredentials = new CopyOnWriteArrayList<>();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
 
@@ -469,7 +471,7 @@ public class S3FileIO
               .collect(Collectors.toList());
 
       if (!refreshed.isEmpty() && !isResourceClosed.get()) {
-        this.storageCredentials = Lists.newArrayList(refreshed);
+        this.storageCredentials = new CopyOnWriteArrayList<>(refreshed);
         scheduleCredentialRefresh();
       }
     } catch (Exception e) {
@@ -619,8 +621,8 @@ public class S3FileIO
       refreshFuture.cancel(true);
     }
 
-    // copy credentials into a modifiable collection for Kryo serde
-    this.storageCredentials = Lists.newArrayList(credentials);
+    // use a thread-safe list so concurrent readers observe a consistent snapshot
+    this.storageCredentials = new CopyOnWriteArrayList<>(credentials);
 
     // if the clients are already initialized, we need to close and allow them to be recreated
     synchronized (this) {
