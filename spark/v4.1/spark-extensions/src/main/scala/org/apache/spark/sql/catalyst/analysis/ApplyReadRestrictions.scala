@@ -20,10 +20,10 @@ package org.apache.spark.sql.catalyst.analysis
 
 import java.security.SecureRandom
 import org.apache.iceberg.rest.restrictions.Action
-import org.apache.iceberg.rest.restrictions.Actions
 import org.apache.iceberg.rest.restrictions.ReadRestrictions
 import org.apache.iceberg.spark.functions.MaskAlphanumFunction
 import org.apache.iceberg.spark.source.SparkTable
+import org.apache.iceberg.util.SerializableFunction
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression
@@ -53,7 +53,7 @@ import scala.jdk.CollectionConverters._
  * Required projections MUST be applied only after row filters are applied."). Masked column
  * outputs preserve the original `ExprId` so downstream references still resolve.
  *
- * Masking functions are bound via [[Actions.bind]] which returns engine-agnostic
+ * Masking functions are bound via [[Action#bind]] which returns engine-agnostic
  * [[org.apache.iceberg.util.SerializableFunction]]s. The Spark-side
  * [[IcebergRestricted]] expression handles type bridging (UTF8String, ByteBuffer, etc.).
  */
@@ -81,7 +81,7 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
     val table = relation.table.asInstanceOf[SparkTable]
     val icebergSchema = table.table().schema()
 
-    val actionByFieldId: Map[Int, Action] =
+    val actionByFieldId: Map[Int, Action[_, _]] =
       restrictions.columnProjections.asScala.iterator.map(a => a.fieldId -> a).toMap
 
     // The spec permits actions on any fieldId including nested fields, but this
@@ -145,7 +145,7 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
    */
   private def buildMaskExpression(
       attr: AttributeReference,
-      action: Action,
+      action: Action[_, _],
       icebergType: org.apache.iceberg.types.Type,
       querySalt: Array[Byte]): Expression = action match {
     case _: Action.MaskAlphanum =>
@@ -159,7 +159,9 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
         case _: Action.Sha256QueryLocal => querySalt
         case _ => null
       }
-      val boundFn = Actions.bind(action, icebergType, actionSalt)
+      val boundFn = action
+        .bind(icebergType, actionSalt)
+        .asInstanceOf[SerializableFunction[Object, Object]]
       IcebergRestricted(attr, boundFn)
   }
 }
