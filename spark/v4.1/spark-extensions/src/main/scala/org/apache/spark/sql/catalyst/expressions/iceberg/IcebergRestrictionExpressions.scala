@@ -19,6 +19,7 @@
 package org.apache.spark.sql.catalyst.expressions.iceberg
 
 import java.nio.ByteBuffer
+import java.util.Locale
 import org.apache.iceberg.util.SerializableFunction
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -127,7 +128,7 @@ case class IcebergRestricted(child: Expression, mask: SerializableFunction[Objec
         s"$outVar = $helper.toSparkDecimal($inVar, ${dt.precision}, ${dt.scale});"
       case t if CodeGenerator.isPrimitiveType(t) =>
         val boxed = CodeGenerator.boxedType(t)
-        val prim = CodeGenerator.primitiveTypeName(t).toLowerCase(java.util.Locale.ROOT)
+        val prim = CodeGenerator.primitiveTypeName(t).toLowerCase(Locale.ROOT)
         s"$outVar = (($boxed) $inVar).${prim}Value();"
       case other =>
         throw new IllegalStateException(

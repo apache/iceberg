@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.rest.restrictions.Action;
 import org.apache.iceberg.rest.restrictions.Actions;
 import org.apache.iceberg.types.Types;
@@ -122,8 +123,7 @@ public class TestIcebergRestrictionExpressions {
   public void applyExpressionFailsOnEval() {
     SerializableFunction<Object, Object> fn =
         Actions.bind(
-            new Action.ApplyExpression(1, org.apache.iceberg.expressions.Expressions.alwaysTrue()),
-            Types.StringType.get());
+            new Action.ApplyExpression(1, Expressions.alwaysTrue()), Types.StringType.get());
     IcebergRestricted expr = restricted(str("any"), fn);
     assertThatThrownBy(() -> expr.eval(InternalRow.empty()))
         .isInstanceOf(UnsupportedOperationException.class)
