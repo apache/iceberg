@@ -28,14 +28,12 @@ import org.apache.iceberg.flink.FlinkWriteConf;
 
 class DynamicRecordWithDefaults extends DynamicRecord {
   private final String defaultBranch;
-  private final DistributionMode defaultDistributionMode;
   private final Integer defaultWriteParallelism;
 
   private DynamicRecord wrapped;
 
   DynamicRecordWithDefaults(FlinkWriteConf flinkWriteConf) {
     this.defaultBranch = flinkWriteConf.branch();
-    this.defaultDistributionMode = flinkWriteConf.distributionMode();
     this.defaultWriteParallelism = flinkWriteConf.writeParallelism();
   }
 
@@ -51,18 +49,16 @@ class DynamicRecordWithDefaults extends DynamicRecord {
 
   @Override
   public DistributionMode distributionMode() {
-    return wrapped.distributionMode() != null
-        ? wrapped.distributionMode()
-        : defaultDistributionMode;
+    return wrapped.distributionMode();
   }
 
   @Override
   public int writeParallelism() {
-    if (wrapped.writeParallelism() > 0) {
-      return wrapped.writeParallelism();
+    int originalParallelism = wrapped.writeParallelism();
+    if (originalParallelism > 0 || defaultWriteParallelism == null) {
+      return originalParallelism;
     }
-
-    return defaultWriteParallelism != null ? defaultWriteParallelism : wrapped.writeParallelism();
+    return defaultWriteParallelism;
   }
 
   @Override

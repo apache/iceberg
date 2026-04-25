@@ -127,9 +127,9 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
   @Override
   public void collect(DynamicRecord inputData) {
-    boolean isForward = inputData.distributionMode() == null;
     DynamicRecordWithDefaults data = dynamicRecordWithDefaults.wrap(inputData);
 
+    boolean isForward = data.distributionMode() == null;
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
