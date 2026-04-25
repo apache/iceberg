@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -38,9 +38,7 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Function;
 import java.util.stream.IntStream;
-import org.apache.iceberg.ContentFile;
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
@@ -48,6 +46,7 @@ import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -60,9 +59,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.avro.AvroTestHelpers;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.TestTables;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -95,8 +94,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
@@ -2236,14 +2233,5 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(readRecords).hasSize(expectedGenericRecords.size());
     assertEquals(
         readSchema, convertToEngineRecords(expectedGenericRecords, readSchema), readRecords);
-  }
-
-  private static Record copy(Record source, Schema sourceSchema, Schema targetSchema) {
-    Record result = GenericRecord.create(targetSchema);
-    for (Types.NestedField col : sourceSchema.columns()) {
-      result.setField(col.name(), source.getField(col.name()));
-    }
-
-    return result;
   }
 }
