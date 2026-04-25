@@ -687,7 +687,7 @@ public interface Action<S, T> extends Serializable {
 
       @Override
       void update(MessageDigest md, Object value) {
-        md.update(value.toString().getBytes(StandardCharsets.UTF_8));
+        md.update(((String) value).getBytes(StandardCharsets.UTF_8));
       }
 
       @Override
@@ -777,7 +777,8 @@ public interface Action<S, T> extends Serializable {
 
     @Override
     public boolean canBind(Type type) {
-      return false;
+      // bind() always succeeds (returns a function that throws on apply); this reflects that.
+      return true;
     }
 
     @Override

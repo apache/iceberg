@@ -29,6 +29,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.Test;
 
@@ -139,8 +140,8 @@ public class TestActions {
 
   @Test
   public void maskToDefaultDate() {
-    int input = (int) LocalDate.of(2024, 7, 15).toEpochDay();
-    int expected = (int) LocalDate.of(9999, 12, 31).toEpochDay();
+    int input = DateTimeUtil.daysFromDate(LocalDate.of(2024, 7, 15));
+    int expected = DateTimeUtil.daysFromDate(LocalDate.of(9999, 12, 31));
     SerializableFunction<Object, Object> fn =
         new Action.MaskToDefault(1).bind(Types.DateType.get());
     assertThat(fn.apply(input)).isEqualTo(expected);
