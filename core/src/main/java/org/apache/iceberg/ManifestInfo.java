@@ -110,4 +110,7 @@ interface ManifestInfo {
 
   /** Returns the number of entries marked as deleted in the DV, or null if not present. */
   Long dvCardinality();
+
+  /** Copies this manifest info. */
+  ManifestInfo copy();
 }

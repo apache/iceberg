@@ -410,6 +410,13 @@ project(':iceberg-core') {
       exclude group: 'junit'
     }
     testImplementation libs.awaitility
+
+    // Lock BouncyCastle versions to avoid version mismatches
+    // when these dependencies are added transitively.
+    // Required for TLS tests with MockServer.
+    testImplementation libs.bouncycastle.bcpkix
+    testImplementation libs.bouncycastle.bcutil
+    testImplementation libs.bouncycastle.bcprov
   }
 }
 

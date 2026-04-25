@@ -48,7 +48,7 @@ jobs:
       with:
         distribution: zulu
         java-version: 21
-    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
     - name: Build Iceberg Open API project
       run: ./gradlew :iceberg-open-api:shadowJar
     - name: Login to Docker Hub
@@ -69,7 +69,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
     - name: Build and Push
-      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+      uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
       with:
         context: ./
         file: ./docker/iceberg-rest-fixture/Dockerfile
