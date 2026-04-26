@@ -19,7 +19,6 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
@@ -350,10 +349,8 @@ public class TestS3FileIOCredentialRefresh {
                 List<?> internalList = (List<?>) field.get(fileIO);
                 assertThat(internalList)
                     .as("storageCredentials must be an ImmutableList after refresh")
-                    .isInstanceOf(ImmutableList.class);
-                assertThatThrownBy(() -> internalList.add(null))
-                    .as("storageCredentials must be unmodifiable after refresh")
-                    .isInstanceOf(UnsupportedOperationException.class);
+                    .isInstanceOf(ImmutableList.class)
+                    .isUnmodifiable();
               });
     }
   }
