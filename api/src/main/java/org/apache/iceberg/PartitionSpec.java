@@ -402,21 +402,22 @@ public class PartitionSpec implements Serializable {
       Types.NestedField schemaField =
           this.caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
       if (checkConflicts) {
-        if (sourceColumnId != null) {
-          // for identity transform case we allow conflicts between partition and schema field name
-          // as
-          //   long as they are sourced from the same schema field
-          Preconditions.checkArgument(
-              schemaField == null || schemaField.fieldId() == sourceColumnId,
-              "Cannot create identity partition sourced from different field in schema: %s",
-              name);
-        } else {
-          // for all other transforms we don't allow conflicts between partition name and schema
-          // field name
+        if (sourceColumnId == null) {
           Preconditions.checkArgument(
               schemaField == null,
               "Cannot create partition from name that exists in schema: %s",
               name);
+        } else {
+          boolean sourceFieldExists = schema.findField(sourceColumnId) != null;
+          // For identity transforms, require the partition name to match the source column when it
+          // still exists in the schema. When the source was dropped, the spec may be historical;
+          // skip the identity name check in that case.
+          if (sourceFieldExists) {
+            Preconditions.checkArgument(
+                schemaField == null || schemaField.fieldId() == sourceColumnId,
+                "Cannot create identity partition sourced from different field in schema: %s",
+                name);
+          }
         }
       }
       Preconditions.checkArgument(!name.isEmpty(), "Cannot use empty partition name: %s", name);

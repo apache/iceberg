@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -33,7 +32,7 @@ import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StatsUtil {
+class StatsUtil {
   private static final Logger LOG = LoggerFactory.getLogger(StatsUtil.class);
   // the number of reserved field IDs from the reserved field ID space as defined in
   // https://iceberg.apache.org/spec/#reserved-field-ids

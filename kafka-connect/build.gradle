@@ -254,6 +254,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   check.dependsOn integrationTest
 
   assemble.dependsOn distZip, hiveDistZip
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {

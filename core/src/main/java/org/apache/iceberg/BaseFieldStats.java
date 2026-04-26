@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -28,7 +28,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
-public class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T> {
+class BaseFieldStats<T> extends SupportsIndexProjection implements FieldStats<T> {
   private static final int[] IDENTITY_MAPPING = identityMapping();
   private final int fieldId;
   private final Type type;

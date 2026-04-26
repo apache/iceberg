@@ -46,7 +46,13 @@ class TestADLSInputStream {
     InternalDataLakeFileOpenInputStreamResult openInputStreamResult =
         new InternalDataLakeFileOpenInputStreamResult(inputStream, mock());
     when(fileClient.openInputStream(any())).thenReturn(openInputStreamResult);
-    adlsInputStream = new ADLSInputStream(fileClient, 0L, mock(), mock());
+    adlsInputStream =
+        new ADLSInputStream(
+            "abfs://container@account.dfs.core.windows.net/path/to/file",
+            fileClient,
+            0L,
+            mock(),
+            mock());
   }
 
   @Test

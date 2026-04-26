@@ -18,14 +18,18 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.models.DataLakeFileOpenInputStreamResult;
+import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.FileRange;
 import com.azure.storage.file.datalake.options.DataLakeFileInputStreamOptions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
@@ -46,6 +50,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
   private static final int SKIP_SIZE = 1024 * 1024;
 
   private final StackTraceElement[] createStack;
+  private final String location;
   private final DataLakeFileClient fileClient;
   private Long fileSize;
   private final AzureProperties azureProperties;
@@ -59,10 +64,12 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
   private final Counter readOperations;
 
   ADLSInputStream(
+      String location,
       DataLakeFileClient fileClient,
       Long fileSize,
       AzureProperties azureProperties,
       MetricsContext metrics) {
+    this.location = location;
     this.fileClient = fileClient;
     this.fileSize = fileSize;
     this.azureProperties = azureProperties;
@@ -184,6 +191,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     try {
       return fileClient.openInputStream(getInputOptions(range));
     } catch (RuntimeException e) {
+      throwNotFoundIfNotPresent(e, location);
       LOG.error(
           "Failed to open input stream for file {}, range {}", fileClient.getFilePath(), range, e);
       throw e;
@@ -208,5 +216,21 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
       String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed input stream created by:\n\t{}", trace);
     }
+  }
+
+  private static void throwNotFoundIfNotPresent(Throwable throwable, String location) {
+    if (isFileNotFoundException(throwable)) {
+      throw new NotFoundException(throwable, "Location does not exist: %s", location);
+    }
+  }
+
+  private static boolean isFileNotFoundException(Throwable exception) {
+    if (exception instanceof BlobStorageException blobStorageException) {
+      return BlobErrorCode.BLOB_NOT_FOUND.equals(blobStorageException.getErrorCode());
+    }
+    if (exception instanceof DataLakeStorageException dataLakeStorageException) {
+      return "PathNotFound".equals(dataLakeStorageException.getErrorCode());
+    }
+    return false;
   }
 }

@@ -380,13 +380,6 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Findbugs jsr305.
-
-Project URL: http://findbugs.sourceforge.net/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles Google Error Prone Annotations.
 
 Project URL: https://github.com/google/error-prone
