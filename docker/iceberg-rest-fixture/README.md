@@ -35,6 +35,31 @@ When making changes to the local files and test them out, you can build the imag
 docker image rm -f apache/iceberg-rest-fixture && docker build -t apache/iceberg-rest-fixture -f docker/iceberg-rest-fixture/Dockerfile .
 ```
 
+## Logging
+
+The image uses [slf4j-simple](https://www.slf4j.org/api/org/slf4j/simple/SimpleLogger.html)
+and ships with `simplelogger.properties` at `/usr/lib/iceberg-rest/`. The
+defaults keep the root level at `INFO` and quiet a couple of per-request
+loggers (`BaseMetastoreCatalog`, `BaseMetastoreTableOperations`) that would
+otherwise log on every table load and commit.
+
+Override individual loggers at runtime via `-D` system properties — no rebuild
+needed:
+
+```bash
+docker run apache/iceberg-rest-fixture \
+  java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug \
+       -cp /usr/lib/iceberg-rest:/usr/lib/iceberg-rest/iceberg-rest-adapter.jar \
+       org.apache.iceberg.rest.RESTCatalogServer
+```
+
+To replace the file entirely, mount your own:
+
+```bash
+docker run -v /path/to/simplelogger.properties:/usr/lib/iceberg-rest/simplelogger.properties \
+  apache/iceberg-rest-fixture
+```
+
 ## Browse
 
 To browse the catalog, you can use `pyiceberg`:
