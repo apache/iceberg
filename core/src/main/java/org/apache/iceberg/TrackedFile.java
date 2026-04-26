@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 
 /** A file tracked by a manifest. */
@@ -164,10 +163,4 @@ interface TrackedFile {
   default TrackedFile copyWithoutStats() {
     return copyWithStats(Collections.emptySet());
   }
-
-  /** Returns the manifest location this entry was read from, or null. */
-  String manifestLocation();
-
-  /** Returns the ordinal position of this entry within the manifest. */
-  long manifestPos();
 }

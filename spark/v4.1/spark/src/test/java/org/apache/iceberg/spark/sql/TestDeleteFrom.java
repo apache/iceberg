@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -184,5 +185,42 @@ public class TestDeleteFrom extends CatalogTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1L, new byte[] {-29, -68, -47})),
         sql("SELECT * FROM %s where data = X'e3bcd1'", tableName));
+  }
+
+  @TestTemplate
+  public void truncateWithDVs() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg TBLPROPERTIES ('format-version'='3','write.delete.mode'='merge-on-read')",
+        tableName);
+    List<SimpleRecord> records =
+        ImmutableList.of(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
+
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName))
+        .containsExactly(row(1L, "a"), row(2L, "b"), row(3L, "c"));
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    assertThat(validationCatalog.loadTable(tableIdent).currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.ADDED_POS_DELETES_PROP, "1");
+
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+    // DVs have been merged into single file
+    assertThat(validationCatalog.loadTable(tableIdent).currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.ADDED_POS_DELETES_PROP, "2");
+
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName)).containsExactly(row(3L, "c"));
+
+    sql("TRUNCATE TABLE %s", tableName);
+    assertThat(validationCatalog.loadTable(tableIdent).currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_POS_DELETES_PROP, "2");
+
+    assertThat(sql("SELECT * FROM %s ORDER BY id", tableName)).isEmpty();
   }
 }

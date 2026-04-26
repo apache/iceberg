@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 

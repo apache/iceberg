@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
@@ -25,7 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public enum FieldStatistic {
+enum FieldStatistic {
   VALUE_COUNT(1, "value_count"),
   NULL_VALUE_COUNT(2, "null_value_count"),
   NAN_VALUE_COUNT(3, "nan_value_count"),

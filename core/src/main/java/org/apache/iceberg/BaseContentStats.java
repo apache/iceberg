@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.util.List;
@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -33,14 +32,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class BaseContentStats implements ContentStats, Serializable {
+class BaseContentStats implements ContentStats, Serializable {
 
   private final List<FieldStats<?>> fieldStats;
   private final Map<Integer, FieldStats<?>> fieldStatsById;
   private final Types.StructType statsStruct;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
-  public BaseContentStats(Types.StructType projection) {
+  BaseContentStats(Types.StructType projection) {
     this.statsStruct = projection;
     this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
     this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());

@@ -88,7 +88,7 @@ jobs:
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+    - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true :iceberg-mr:check -x javadoc
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

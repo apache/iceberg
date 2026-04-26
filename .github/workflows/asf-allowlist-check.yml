@@ -43,5 +43,4 @@ jobs:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       with:
         persist-credentials: false
-    # Intentionally unpinned to always use the latest allowlist from the ASF.
-    - uses: apache/infrastructure-actions/allowlist-check@main # zizmor: ignore[unpinned-uses]
+    - uses: apache/infrastructure-actions/allowlist-check@4e9c961f587f72b170874b6f5cd4ac15f7f26eb8  # main

@@ -61,4 +61,7 @@ interface DeletionVector {
 
   /** Returns the number of set bits (deleted rows) in the vector. */
   long cardinality();
+
+  /** Copies this deletion vector. */
+  DeletionVector copy();
 }
