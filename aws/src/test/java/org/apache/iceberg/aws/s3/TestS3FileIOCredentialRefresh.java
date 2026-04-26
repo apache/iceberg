@@ -19,15 +19,18 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.StorageCredential;
@@ -262,6 +265,95 @@ public class TestS3FileIOCredentialRefresh {
                     .containsEntry(S3FileIOProperties.SESSION_TOKEN, "refreshedToken")
                     .containsEntry(
                         S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS, refreshedExpiryMs);
+              });
+    }
+  }
+
+  @Test
+  public void refreshedCredentialsAreImmutable() throws Exception {
+    // Verify that the internal storageCredentials field is an ImmutableList after a credential
+    // refresh. The prior implementation used a mutable ArrayList, which could expose a mutable
+    // list to concurrent readers between the volatile write and any subsequent iteration.
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "s3://bucket/path",
+            ImmutableMap.of(
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "initialAccessKey",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "initialSecretKey",
+                S3FileIOProperties.SESSION_TOKEN,
+                "initialToken",
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                nearExpiryMs));
+
+    String refreshedExpiryMs =
+        Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+    LoadCredentialsResponse refreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/path")
+                    .config(
+                        ImmutableMap.of(
+                            S3FileIOProperties.ACCESS_KEY_ID,
+                            "refreshedAccessKey",
+                            S3FileIOProperties.SECRET_ACCESS_KEY,
+                            "refreshedSecretKey",
+                            S3FileIOProperties.SESSION_TOKEN,
+                            "refreshedToken",
+                            S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                            refreshedExpiryMs))
+                    .build())
+            .build();
+
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    mockServer
+        .when(mockRequest)
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(refreshResponse)).withStatusCode(200));
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.CLIENT_FACTORY,
+            StaticClientFactory.class.getName(),
+            VendedCredentialsProvider.URI,
+            CREDENTIALS_URI,
+            CatalogProperties.URI,
+            CATALOG_URI,
+            "init-creation-stacktrace",
+            "false");
+
+    StaticClientFactory.client = null;
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      fileIO.client();
+
+      // Wait for the scheduled refresh to complete
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.atLeast(1)));
+
+      // Verify that the internal storageCredentials field holds an ImmutableList after refresh.
+      // A mutable ArrayList published via a volatile field would allow future mutation of the
+      // list while concurrent readers iterate it, violating safe publication guarantees.
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(
+              () -> {
+                Field field = S3FileIO.class.getDeclaredField("storageCredentials");
+                field.setAccessible(true);
+                List<?> internalList = (List<?>) field.get(fileIO);
+                assertThat(internalList)
+                    .as("storageCredentials must be an ImmutableList after refresh")
+                    .isInstanceOf(ImmutableList.class);
+                assertThatThrownBy(() -> internalList.add(null))
+                    .as("storageCredentials must be unmodifiable after refresh")
+                    .isInstanceOf(UnsupportedOperationException.class);
               });
     }
   }
