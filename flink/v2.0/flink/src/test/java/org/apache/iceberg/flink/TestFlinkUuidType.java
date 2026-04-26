@@ -33,6 +33,7 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -68,11 +69,18 @@ public class TestFlinkUuidType extends CatalogTestBase {
   private Table icebergTable;
   @TempDir private Path warehouseDir;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  @Parameter(index = 2)
+  private FileFormat fileFormat;
+
+  @Parameters(name = "catalogName={0}, baseNamespace={1}, fileFormat={2}")
   protected static List<Object[]> parameters() {
     return Arrays.asList(
-        new Object[] {"testhadoop", Namespace.empty()},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
+        new Object[] {"testhadoop", Namespace.empty(), FileFormat.PARQUET},
+        new Object[] {"testhadoop", Namespace.empty(), FileFormat.AVRO},
+        new Object[] {"testhadoop", Namespace.empty(), FileFormat.ORC},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), FileFormat.PARQUET},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), FileFormat.AVRO},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), FileFormat.ORC});
   }
 
   @Override
@@ -85,17 +93,17 @@ public class TestFlinkUuidType extends CatalogTestBase {
   }
 
   /** Writes UUID via Generic writer, reads via Flink. */
-  private void runReadRoundTripTest(FileFormat format) throws Exception {
+  private void runReadRoundTripTest() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("format-version", "3", "write.format.default", format.name()));
+            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
 
     Record record =
         GenericRecord.create(icebergTable.schema()).copy("id", 1, "uuid", EXPECTED_UUID);
-    new GenericAppenderHelper(icebergTable, format, warehouseDir)
+    new GenericAppenderHelper(icebergTable, fileFormat, warehouseDir)
         .appendToTable(ImmutableList.of(record));
     icebergTable.refresh();
 
@@ -125,28 +133,18 @@ public class TestFlinkUuidType extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testUuidWrittenByGenericWriterParquet() throws Exception {
-    runReadRoundTripTest(FileFormat.PARQUET);
-  }
-
-  @TestTemplate
-  public void testUuidWrittenByGenericWriterAvro() throws Exception {
-    runReadRoundTripTest(FileFormat.AVRO);
-  }
-
-  @TestTemplate
-  public void testUuidWrittenByGenericWriterOrc() throws Exception {
-    runReadRoundTripTest(FileFormat.ORC);
+  public void testUuidWrittenByGenericWriter() throws Exception {
+    runReadRoundTripTest();
   }
 
   /** Writes UUID via Flink TaskWriter, reads via Generic reader. */
-  private void runWriteTest(FileFormat format) throws Exception {
+  private void runWriteTest() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("format-version", "3", "write.format.default", format.name()));
+            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
 
     RowType rowType = FlinkSchemaUtil.convert(SCHEMA);
     RowDataTaskWriterFactory rowDataTaskWriterFactory =
@@ -154,7 +152,7 @@ public class TestFlinkUuidType extends CatalogTestBase {
             icebergTable,
             rowType,
             TARGET_FILE_SIZE,
-            format,
+            fileFormat,
             icebergTable.properties(),
             null,
             false);
@@ -171,6 +169,7 @@ public class TestFlinkUuidType extends CatalogTestBase {
       for (DataFile dataFile : writer.dataFiles()) {
         append.appendFile(dataFile);
       }
+
       append.commit();
     }
 
@@ -180,31 +179,21 @@ public class TestFlinkUuidType extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testWriteUuidViaFlinkWriterParquet() throws Exception {
-    runWriteTest(FileFormat.PARQUET);
-  }
-
-  @TestTemplate
-  public void testWriteUuidViaFlinkWriterAvro() throws Exception {
-    runWriteTest(FileFormat.AVRO);
-  }
-
-  @TestTemplate
-  public void testWriteUuidViaFlinkWriterOrc() throws Exception {
-    runWriteTest(FileFormat.ORC);
+  public void testWriteUuidViaFlinkWriter() throws Exception {
+    runWriteTest();
   }
 
   /**
    * SQL INSERT into a UUID column fails. Flink has no UUID type, so BINARY(16) maps to Iceberg
    * fixed[16], which is not compatible with uuid at the schema check.
    */
-  private void runSqlInsertUuidFailsTest(FileFormat format) {
+  private void runSqlInsertUuidFailsTest() {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("format-version", "3", "write.format.default", format.name()));
+            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
 
     String uuidHex = EXPECTED_UUID.toString().replace("-", "");
 
@@ -214,17 +203,7 @@ public class TestFlinkUuidType extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testSqlInsertUuidFailsParquet() {
-    runSqlInsertUuidFailsTest(FileFormat.PARQUET);
-  }
-
-  @TestTemplate
-  public void testSqlInsertUuidFailsAvro() {
-    runSqlInsertUuidFailsTest(FileFormat.AVRO);
-  }
-
-  @TestTemplate
-  public void testSqlInsertUuidFailsOrc() {
-    runSqlInsertUuidFailsTest(FileFormat.ORC);
+  public void testSqlInsertUuidFails() {
+    runSqlInsertUuidFailsTest();
   }
 }
