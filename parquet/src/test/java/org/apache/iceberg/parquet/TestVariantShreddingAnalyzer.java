@@ -374,6 +374,40 @@ public class TestVariantShreddingAnalyzer {
     assertThat(elementFields.containsField("rare")).isFalse();
   }
 
+  @Test
+  public void testLongArrayInFewRowsSurvivesPruning() {
+    DirectAnalyzer analyzer = new DirectAnalyzer();
+
+    VariantMetadata itemMeta = Variants.metadata("key");
+
+    // 2 of 100 rows have 500-element arrays with {"key": N}. Per-element counting gives
+    // observationCount=1000, so key survives the 10% pruning threshold.
+    List<VariantValue> rows = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      ValueArray arr = Variants.array();
+      if (i < 2) {
+        for (int j = 0; j < 500; j++) {
+          ShreddedObject item = Variants.object(itemMeta);
+          item.put("key", Variants.of(j));
+          arr.add(item);
+        }
+      } else {
+        arr.add(Variants.of("no_key"));
+      }
+      rows.add(arr);
+    }
+
+    Type schema = analyzer.analyzeAndCreateSchema(rows, 0);
+    assertThat(schema).isNotNull();
+
+    GroupType listType = schema.asGroupType();
+    GroupType repeatedGroup = listType.getType(0).asGroupType();
+    GroupType elementGroup = repeatedGroup.getType(0).asGroupType();
+    assertThat(elementGroup.containsField("typed_value")).isTrue();
+    GroupType elementFields = elementGroup.getType("typed_value").asGroupType();
+    assertThat(elementFields.containsField("key")).isTrue();
+  }
+
   /**
    * Builds 100 variant rows where "common" appears in every row and "rare" appears in only {@code
    * rareCount} rows (below MIN_FIELD_FREQUENCY = 0.10 when rareCount < 10).

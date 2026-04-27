@@ -43,7 +43,9 @@ import org.apache.parquet.schema.Types;
  * Analyzes variant data across buffered rows to determine an optimal shredding schema.
  *
  * <p>Determinism contract: for a given set of variant values (regardless of row arrival order),
- * this analyzer produces the same shredded schema.
+ * this analyzer produces the same shredded schema. When the number of distinct fields at any level
+ * exceeds {@code MAX_INTERMEDIATE_FIELDS}, field tracking becomes insertion-order dependent and
+ * determinism is not guaranteed.
  *
  * <ul>
  *   <li>Object fields use a TreeMap, so field ordering is alphabetical and deterministic.
@@ -224,6 +226,8 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     }
   }
 
+  // observationCount inside arrays counts per-element, not per-row, so fields in long arrays
+  // have inflated frequency and resist pruning.
   private static void traverseArray(PathNode node, VariantArray array, int depth) {
     int numElements = array.numElements();
     if (node.arrayElement == null) {

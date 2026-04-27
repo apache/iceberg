@@ -961,6 +961,37 @@ public class TestVariantShredding extends CatalogTestBase {
     assertThat(rows.get(2)[1]).isEqualTo("Charlie");
   }
 
+  @TestTemplate
+  public void testDecimalFallbackAfterBuffer() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "3");
+
+    // Buffer: scale=2, 3 integer digits -> DECIMAL(5,2)
+    // Row 4: precision overflow -> fallback to value field
+    // Row 5: scale overflow -> fallback to value field
+    // Row 6: fits typed column, scale widened from 1 to 2 via setScale
+    String values =
+        """
+            (1, parse_json('{"val": 123.45}')),\
+             (2, parse_json('{"val": 678.90}')),\
+             (3, parse_json('{"val": 999.99}')),\
+             (4, parse_json('{"val": 123456.78}')),\
+             (5, parse_json('{"val": 1.2345}')),\
+             (6, parse_json('{"val": 12.3}'))\
+            """;
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    List<Object[]> rows =
+        sql(
+            "SELECT id, variant_get(address, '$.val', 'decimal(10,4)') FROM %s ORDER BY id",
+            tableName);
+    assertThat(rows).hasSize(6);
+    assertThat(rows.get(0)[1]).isEqualTo(new java.math.BigDecimal("123.4500"));
+    assertThat(rows.get(3)[1]).isEqualTo(new java.math.BigDecimal("123456.7800"));
+    assertThat(rows.get(4)[1]).isEqualTo(new java.math.BigDecimal("1.2345"));
+    assertThat(rows.get(5)[1]).isEqualTo(new java.math.BigDecimal("12.3000"));
+  }
+
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       assertThat(tasks).isNotEmpty();
