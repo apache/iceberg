@@ -109,8 +109,8 @@ public class S3FileIO
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
-  // setCredentials uses a modifiable collection for Kryo serde; refresh uses an immutable copy
-  private volatile List<StorageCredential> storageCredentials = ImmutableList.of();
+  // use modifiable collection for Kryo serde; refresh replaces this with an immutable copy
+  private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
 
