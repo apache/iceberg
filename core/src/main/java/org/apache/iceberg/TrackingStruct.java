@@ -113,6 +113,10 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.manifestLocation = location;
   }
 
+  void setManifestPos(long pos) {
+    this.manifestPos = pos;
+  }
+
   @Override
   public EntryStatus status() {
     return status;

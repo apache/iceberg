@@ -291,7 +291,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       try {
         return InternalData.write(format(), file)
             .schema(manifestSchema)
-            .named("manifest_entry")
+            .named("tracked_file")
             .meta("schema", SchemaParser.toJson(spec.schema()))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
@@ -331,7 +331,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       try {
         return InternalData.write(format(), file)
             .schema(manifestSchema)
-            .named("manifest_entry")
+            .named("tracked_file")
             .meta("schema", SchemaParser.toJson(spec.schema()))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))

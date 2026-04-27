@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 /**
  * Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs.
@@ -40,6 +41,53 @@ import org.apache.iceberg.types.Type;
 class TrackedFileAdapters {
 
   private TrackedFileAdapters() {}
+
+  /**
+   * Creates a {@link GenericDataFile} from a TrackedFile using the reader constructor so that
+   * SupportsIndexProjection is correctly initialized for metadata table reads.
+   */
+  static GenericDataFile asGenericDataFile(TrackedFile file, PartitionSpec spec) {
+    Preconditions.checkState(
+        file.contentType() == FileContent.DATA,
+        "Cannot convert tracked file to DataFile: content type is %s, not DATA",
+        file.contentType());
+
+    Types.StructType partitionType = spec != null ? spec.rawPartitionType() : Types.StructType.of();
+    Types.StructType projection = DataFile.getType(partitionType);
+
+    // use the reader constructor for correct SupportsIndexProjection mapping
+    GenericDataFile dataFile = new GenericDataFile(projection);
+
+    // populate using DataFile.getType() positions (same as BaseFile internal positions)
+    // 0=content, 1=file_path, 2=file_format, 3=spec_id, 4=partition, 5=record_count,
+    // 6=file_size, 7=column_sizes, 8=value_counts, 9=null_value_counts, 10=nan_value_counts,
+    // 11=lower_bounds, 12=upper_bounds, 13=key_metadata, 14=split_offsets, 15=equality_ids,
+    // 16=sort_order_id, 17=first_row_id
+    Tracking tracking = file.tracking();
+    dataFile.set(0, file.contentType().id());
+    dataFile.set(1, file.location());
+    dataFile.set(2, file.fileFormat() != null ? file.fileFormat().toString() : null);
+    dataFile.set(3, file.specId() != null ? file.specId() : 0);
+    if (!partitionType.fields().isEmpty()) {
+      dataFile.set(4, extractPartition(file, spec));
+    }
+
+    dataFile.set(5, file.recordCount());
+    dataFile.set(6, file.fileSizeInBytes());
+    // 7: column_sizes - null default
+    dataFile.set(8, valueCounts(file.contentStats()));
+    dataFile.set(9, nullValueCounts(file.contentStats()));
+    dataFile.set(10, nanValueCounts(file.contentStats()));
+    dataFile.set(11, lowerBounds(file.contentStats()));
+    dataFile.set(12, upperBounds(file.contentStats()));
+    dataFile.set(13, file.keyMetadata());
+    dataFile.set(14, file.splitOffsets());
+    // 15: equality_ids - null default
+    dataFile.set(16, file.sortOrderId());
+    dataFile.set(17, tracking != null ? tracking.firstRowId() : null);
+
+    return dataFile;
+  }
 
   static DataFile asDataFile(TrackedFile file, PartitionSpec spec) {
     Preconditions.checkState(
@@ -61,8 +109,9 @@ class TrackedFileAdapters {
 
   static DeleteFile asEqualityDeleteFile(TrackedFile file, PartitionSpec spec) {
     Preconditions.checkState(
-        file.contentType() == FileContent.EQUALITY_DELETES,
-        "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
+        file.contentType() == FileContent.EQUALITY_DELETES
+            || file.contentType() == FileContent.POSITION_DELETES,
+        "Cannot convert tracked file to DeleteFile: content type is %s",
         file.contentType());
     return new TrackedDeleteFile(file, spec);
   }
@@ -186,7 +235,10 @@ class TrackedFileAdapters {
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
-  private static class TrackedDataFile implements DataFile {
+  private static class TrackedDataFile implements DataFile, StructLike, java.io.Serializable {
+    // BaseFile StructLike field count (content through fileOrdinal)
+    private static final int STRUCT_SIZE = 22;
+
     private final TrackedFile file;
     private final Tracking tracking;
     private final PartitionSpec spec;
@@ -195,6 +247,73 @@ class TrackedFileAdapters {
       this.file = file;
       this.tracking = file.tracking();
       this.spec = spec;
+    }
+
+    @Override
+    public int size() {
+      return STRUCT_SIZE;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("TrackedDataFile is read-only");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(getByPos(pos));
+    }
+
+    // positions match BaseFile / DataFile.getType() field order
+    private Object getByPos(int pos) {
+      switch (pos) {
+        case 0:
+          return content().id();
+        case 1:
+          return location();
+        case 2:
+          return format() != null ? format().toString() : null;
+        case 3:
+          return specId();
+        case 4:
+          return partition();
+        case 5:
+          return recordCount();
+        case 6:
+          return fileSizeInBytes();
+        case 7:
+          return columnSizes();
+        case 8:
+          return valueCounts();
+        case 9:
+          return nullValueCounts();
+        case 10:
+          return nanValueCounts();
+        case 11:
+          return lowerBounds();
+        case 12:
+          return upperBounds();
+        case 13:
+          return keyMetadata();
+        case 14:
+          return splitOffsets();
+        case 15:
+          return equalityFieldIds();
+        case 16:
+          return sortOrderId();
+        case 17:
+          return firstRowId();
+        case 18:
+          return null; // referencedDataFile
+        case 19:
+          return null; // contentOffset
+        case 20:
+          return null; // contentSizeInBytes
+        case 21:
+          return pos();
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      }
     }
 
     @Override
@@ -331,7 +450,7 @@ class TrackedFileAdapters {
   }
 
   /** Adapts a TrackedFile EQUALITY_DELETES entry to the {@link DeleteFile} interface. */
-  private static class TrackedDeleteFile implements DeleteFile {
+  private static class TrackedDeleteFile implements DeleteFile, java.io.Serializable {
     private final TrackedFile file;
     private final Tracking tracking;
     private final PartitionSpec spec;
@@ -355,7 +474,7 @@ class TrackedFileAdapters {
 
     @Override
     public FileContent content() {
-      return FileContent.EQUALITY_DELETES;
+      return file.contentType();
     }
 
     @SuppressWarnings("deprecation")

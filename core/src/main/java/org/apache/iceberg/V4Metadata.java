@@ -18,12 +18,9 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 
 class V4Metadata {
@@ -265,63 +262,31 @@ class V4Metadata {
   }
 
   static Schema entrySchema(Types.StructType partitionType) {
-    return wrapFileSchema(fileType(partitionType));
-  }
-
-  static Schema wrapFileSchema(Types.StructType fileSchema) {
-    // this is used to build projection schemas
     return new Schema(
-        ManifestEntry.STATUS,
-        ManifestEntry.SNAPSHOT_ID,
-        ManifestEntry.SEQUENCE_NUMBER,
-        ManifestEntry.FILE_SEQUENCE_NUMBER,
-        required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
-  }
-
-  static Types.StructType fileType(Types.StructType partitionType) {
-    ImmutableList.Builder<Types.NestedField> fields =
-        ImmutableList.builderWithExpectedSize(partitionType.fields().isEmpty() ? 18 : 19);
-    fields.add(DataFile.CONTENT.asRequired());
-    fields.add(DataFile.FILE_PATH);
-    fields.add(DataFile.FILE_FORMAT);
-    if (!partitionType.fields().isEmpty()) {
-      fields.add(
-          required(
-              DataFile.PARTITION_ID,
-              DataFile.PARTITION_NAME,
-              partitionType,
-              DataFile.PARTITION_DOC));
-    }
-    fields.add(DataFile.RECORD_COUNT);
-    fields.add(DataFile.FILE_SIZE);
-    fields.add(DataFile.COLUMN_SIZES);
-    fields.add(DataFile.VALUE_COUNTS);
-    fields.add(DataFile.NULL_VALUE_COUNTS);
-    fields.add(DataFile.NAN_VALUE_COUNTS);
-    fields.add(DataFile.LOWER_BOUNDS);
-    fields.add(DataFile.UPPER_BOUNDS);
-    fields.add(DataFile.KEY_METADATA);
-    fields.add(DataFile.SPLIT_OFFSETS);
-    fields.add(DataFile.EQUALITY_IDS);
-    fields.add(DataFile.SORT_ORDER_ID);
-    fields.add(DataFile.FIRST_ROW_ID);
-    fields.add(DataFile.REFERENCED_DATA_FILE);
-    fields.add(DataFile.CONTENT_OFFSET);
-    fields.add(DataFile.CONTENT_SIZE);
-    return Types.StructType.of(fields.build());
+        TrackedFile.TRACKING,
+        TrackedFile.CONTENT_TYPE,
+        TrackedFile.LOCATION,
+        TrackedFile.FILE_FORMAT,
+        TrackedFile.RECORD_COUNT,
+        TrackedFile.FILE_SIZE_IN_BYTES,
+        TrackedFile.SPEC_ID,
+        TrackedFile.SORT_ORDER_ID,
+        TrackedFile.DELETION_VECTOR,
+        TrackedFile.MANIFEST_INFO,
+        TrackedFile.KEY_METADATA,
+        TrackedFile.SPLIT_OFFSETS,
+        TrackedFile.EQUALITY_IDS);
   }
 
   static class ManifestEntryWrapper<F extends ContentFile<F>>
       implements ManifestEntry<F>, StructLike {
-    private final int size;
-    private final Long commitSnapshotId;
-    private final DataFileWrapper<?> fileWrapper;
+    private static final int ENTRY_FIELD_COUNT = 13;
+
+    private final TrackingWriteWrapper trackingWrapper;
     private ManifestEntry<F> wrapped = null;
 
     ManifestEntryWrapper(Long commitSnapshotId, Types.StructType partitionType) {
-      this.size = entrySchema(partitionType).columns().size();
-      this.commitSnapshotId = commitSnapshotId;
-      this.fileWrapper = new DataFileWrapper<>(partitionType);
+      this.trackingWrapper = new TrackingWriteWrapper(commitSnapshotId);
     }
 
     public ManifestEntryWrapper<F> wrap(ManifestEntry<F> entry) {
@@ -331,7 +296,7 @@ class V4Metadata {
 
     @Override
     public int size() {
-      return size;
+      return ENTRY_FIELD_COUNT;
     }
 
     @Override
@@ -347,32 +312,31 @@ class V4Metadata {
     private Object get(int pos) {
       switch (pos) {
         case 0:
-          return wrapped.status().id();
+          return trackingWrapper.wrap(wrapped);
         case 1:
-          return wrapped.snapshotId();
+          return wrapped.file().content().id();
         case 2:
-          if (wrapped.dataSequenceNumber() == null) {
-            // if the entry's data sequence number is null,
-            // then it will inherit the sequence number of the current commit.
-            // to validate that this is correct, check that the snapshot id is either null (will
-            // also be inherited) or that it matches the id of the current commit.
-            Preconditions.checkState(
-                wrapped.snapshotId() == null || wrapped.snapshotId().equals(commitSnapshotId),
-                "Found unassigned sequence number for an entry from snapshot: %s",
-                wrapped.snapshotId());
-
-            // inheritance should work only for ADDED entries
-            Preconditions.checkState(
-                wrapped.status() == Status.ADDED,
-                "Only entries with status ADDED can have null sequence number");
-
-            return null;
-          }
-          return wrapped.dataSequenceNumber();
+          return wrapped.file().location();
         case 3:
-          return wrapped.fileSequenceNumber();
+          return wrapped.file().format() != null ? wrapped.file().format().toString() : null;
         case 4:
-          return fileWrapper.wrap(wrapped.file());
+          return wrapped.file().recordCount();
+        case 5:
+          return wrapped.file().fileSizeInBytes();
+        case 6:
+          return wrapped.file().specId();
+        case 7:
+          return wrapped.file().sortOrderId();
+        case 8:
+          return null; // deletion_vector (future)
+        case 9:
+          return null; // manifest_info (null for data files)
+        case 10:
+          return wrapped.file().keyMetadata();
+        case 11:
+          return wrapped.file().splitOffsets();
+        case 12:
+          return wrapped.file().equalityFieldIds();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -429,34 +393,30 @@ class V4Metadata {
     }
   }
 
-  /** Wrapper used to write DataFile or DeleteFile to v4 metadata. */
-  static class DataFileWrapper<F extends ContentFile<F>> extends Delegates.DelegatingContentFile<F>
-      implements ContentFile<F>, StructLike {
-    private static final int PARTITION_POSITION = 3;
+  /** Wrapper that writes tracking fields from a ManifestEntry as a StructLike. */
+  static class TrackingWriteWrapper implements StructLike {
+    private static final int TRACKING_FIELD_COUNT = 8;
 
-    private final int size;
-    private final boolean hasPartition;
+    private final Long commitSnapshotId;
+    private ManifestEntry<?> entry = null;
 
-    DataFileWrapper(Types.StructType partitionType) {
-      super(null);
-      this.hasPartition = !partitionType.fields().isEmpty();
-      this.size = fileType(partitionType).fields().size();
+    TrackingWriteWrapper(Long commitSnapshotId) {
+      this.commitSnapshotId = commitSnapshotId;
     }
 
-    @SuppressWarnings("unchecked")
-    DataFileWrapper<F> wrap(ContentFile<?> file) {
-      setWrapped((F) file);
+    TrackingWriteWrapper wrap(ManifestEntry<?> newEntry) {
+      this.entry = newEntry;
       return this;
     }
 
     @Override
     public int size() {
-      return size;
+      return TRACKING_FIELD_COUNT;
     }
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify DataFileWrapper wrapper via set");
+      throw new UnsupportedOperationException("Cannot modify TrackingWriteWrapper wrapper via set");
     }
 
     @Override
@@ -465,78 +425,41 @@ class V4Metadata {
     }
 
     private Object get(int pos) {
-      // when the partition field is omitted, positions at or after where it would appear
-      // shift down by 1, so adjust back to the canonical field ordering
-      int adjusted = hasPartition ? pos : (pos >= PARTITION_POSITION ? pos + 1 : pos);
-      switch (adjusted) {
+      switch (pos) {
         case 0:
-          return wrapped.content().id();
+          return entry.status().id();
         case 1:
-          return wrapped.location();
+          return entry.snapshotId();
         case 2:
-          return wrapped.format() != null ? wrapped.format().toString() : null;
+          if (entry.dataSequenceNumber() == null) {
+            Preconditions.checkState(
+                entry.snapshotId() == null || entry.snapshotId().equals(commitSnapshotId),
+                "Found unassigned sequence number for an entry from snapshot: %s",
+                entry.snapshotId());
+            Preconditions.checkState(
+                entry.status() == ManifestEntry.Status.ADDED,
+                "Only entries with status ADDED can have null sequence number");
+            return null;
+          }
+
+          return entry.dataSequenceNumber();
         case 3:
-          return wrapped.partition();
+          return entry.fileSequenceNumber();
         case 4:
-          return wrapped.recordCount();
+          return null; // dv_snapshot_id (future)
         case 5:
-          return wrapped.fileSizeInBytes();
+          if (entry.file().content() == FileContent.DATA) {
+            return entry.file().firstRowId();
+          } else {
+            return null;
+          }
         case 6:
-          return wrapped.columnSizes();
+          return null; // deleted_positions (future)
         case 7:
-          return wrapped.valueCounts();
-        case 8:
-          return wrapped.nullValueCounts();
-        case 9:
-          return wrapped.nanValueCounts();
-        case 10:
-          return wrapped.lowerBounds();
-        case 11:
-          return wrapped.upperBounds();
-        case 12:
-          return wrapped.keyMetadata();
-        case 13:
-          return wrapped.splitOffsets();
-        case 14:
-          return wrapped.equalityFieldIds();
-        case 15:
-          return wrapped.sortOrderId();
-        case 16:
-          if (wrapped.content() == FileContent.DATA) {
-            return wrapped.firstRowId();
-          } else {
-            return null;
-          }
-        case 17:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).referencedDataFile();
-          } else {
-            return null;
-          }
-        case 18:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).contentOffset();
-          } else {
-            return null;
-          }
-        case 19:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).contentSizeInBytes();
-          } else {
-            return null;
-          }
+          return null; // replaced_positions (future)
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
-      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
-    }
-
-    @Override
-    public String manifestLocation() {
-      return null;
-    }
-
-    @Override
-    public Long pos() {
-      return null;
     }
   }
 }

@@ -40,6 +40,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -91,6 +92,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private final InputFile file;
+  private final Map<Integer, PartitionSpec> specsById;
   private final InheritableMetadata inheritableMetadata;
   private final Long firstRowId;
   private final FileType content;
@@ -130,6 +132,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         firstRowId == null || content == FileType.DATA_FILES,
         "First row ID is not valid for delete manifests");
     this.file = file;
+    this.specsById = specsById;
     this.inheritableMetadata = inheritableMetadata;
     this.firstRowId = firstRowId;
     this.content = content;
@@ -294,6 +297,10 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     Preconditions.checkArgument(
         format != null, "Unable to determine format of manifest: %s", file.location());
 
+    if (isV4Manifest(format)) {
+      return openV4();
+    }
+
     boolean unpartitioned = spec.rawPartitionType().fields().isEmpty();
 
     // V4+ manifests omit the partition field when unpartitioned (Parquet cannot represent
@@ -313,9 +320,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
       fields.add(DataFile.RECORD_COUNT);
     }
+
     if (projection.findField(DataFile.FIRST_ROW_ID.fieldId()) == null) {
       fields.add(DataFile.FIRST_ROW_ID);
     }
+
     fields.add(MetadataColumns.ROW_POSITION);
 
     CloseableIterable<ManifestEntry<F>> reader =
@@ -331,6 +340,27 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     CloseableIterable<ManifestEntry<F>> withMetadata =
         CloseableIterable.transform(reader, inheritableMetadata::apply);
+    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId));
+  }
+
+  private boolean isV4Manifest(FileFormat format) {
+    return format == FileFormat.PARQUET;
+  }
+
+  @SuppressWarnings("unchecked")
+  private CloseableIterable<ManifestEntry<F>> openV4() {
+    V4ManifestReader v4Reader =
+        new V4ManifestReader(file, specsById != null ? specsById : ImmutableMap.of());
+    addCloseable(v4Reader);
+
+    // adapt TrackedFile entries to ManifestEntry<F> via TrackedFileEntryAdapter
+    CloseableIterable<ManifestEntry<F>> adapted =
+        CloseableIterable.transform(
+            v4Reader.entries(),
+            tf -> (ManifestEntry<F>) new TrackedFileEntryAdapter(tf.copy(), spec));
+
+    CloseableIterable<ManifestEntry<F>> withMetadata =
+        CloseableIterable.transform(adapted, inheritableMetadata::apply);
     return CloseableIterable.transform(withMetadata, idAssigner(firstRowId));
   }
 

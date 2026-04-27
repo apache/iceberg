@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.StructProjection;
 
 /** Base class logic for files metadata tables */
 abstract class BaseFilesTable extends BaseMetadataTable {
@@ -161,6 +162,21 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
+      if (isV4Manifest()) {
+        Schema dataFileSchema =
+            new Schema(
+                DataFile.getType(
+                        specsById
+                            .getOrDefault(manifest.partitionSpecId(), PartitionSpec.unpartitioned())
+                            .rawPartitionType())
+                    .fields());
+        return CloseableIterable.transform(
+            v4Files(),
+            file ->
+                (StructLike)
+                    StructProjection.create(dataFileSchema, projection).wrap((StructLike) file));
+      }
+
       Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
 
       if (readableMetricsField == null) {
@@ -178,6 +194,18 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       return (long) manifest.addedFilesCount()
           + (long) manifest.deletedFilesCount()
           + (long) manifest.existingFilesCount();
+    }
+
+    private boolean isV4Manifest() {
+      return FileFormat.fromFileName(manifest.path()) == FileFormat.PARQUET;
+    }
+
+    private CloseableIterable<? extends ContentFile<?>> v4Files() {
+      V4ManifestReader reader = new V4ManifestReader(io.newInputFile(manifest), specsById);
+      PartitionSpec spec =
+          specsById.getOrDefault(manifest.partitionSpecId(), PartitionSpec.unpartitioned());
+      return CloseableIterable.transform(
+          reader.liveEntries(), tf -> TrackedFileAdapters.asGenericDataFile(tf.copy(), spec));
     }
 
     private CloseableIterable<? extends ContentFile<?>> files(Schema fileProjection) {
