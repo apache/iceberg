@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.junit.jupiter.api.AfterEach;
@@ -84,6 +86,26 @@ public class TestV4ReadEndToEnd extends TestBaseWithCatalog {
     assertThat(files).hasSize(1);
     assertThat(files.get(0)[0]).isEqualTo(3L); // total record count
     assertThat((long) files.get(0)[1]).isGreaterThanOrEqualTo(1L); // at least 1 data file
+  }
+
+  @TestTemplate
+  public void testV4RootManifestFormat() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version' = '4')",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+    // verify data is readable
+    List<Object[]> rows = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertThat(rows).hasSize(3);
+
+    // verify no snap-*.avro manifest list files exist (v4 uses root manifests in Parquet)
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = table.currentSnapshot();
+    assertThat(snapshot.manifestListLocation()).endsWith(".parquet");
+    assertThat(snapshot.manifestListLocation()).doesNotContain("snap-");
   }
 
   @TestTemplate

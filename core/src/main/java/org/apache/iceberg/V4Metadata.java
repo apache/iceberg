@@ -261,6 +261,124 @@ class V4Metadata {
     }
   }
 
+  private static final Types.StructType ROOT_MANIFEST_WRITE_TYPE =
+      entrySchema(Types.StructType.of()).asStruct();
+
+  /**
+   * Converts a {@link ManifestFile} to a {@link TrackedFileStruct} for writing into a root
+   * manifest.
+   *
+   * <p>The returned struct uses the entry schema projection so that field positions match the write
+   * schema (which excludes content_stats).
+   */
+  static TrackedFileStruct manifestFileToTrackedFile(
+      ManifestFile manifest, long commitSnapshotId, long commitSequenceNumber) {
+    long seqNum = resolveSeqNum(manifest.sequenceNumber(), commitSequenceNumber);
+    long minSeqNum = resolveSeqNum(manifest.minSequenceNumber(), commitSequenceNumber);
+
+    TrackingStruct tracking = buildTracking(manifest, commitSnapshotId, seqNum);
+    ManifestInfoStruct info = buildManifestInfo(manifest, minSeqNum);
+
+    FileContent contentType =
+        manifest.content() == ManifestContent.DATA
+            ? FileContent.DATA_MANIFEST
+            : FileContent.DELETE_MANIFEST;
+
+    int totalEntries =
+        intOrZero(manifest.addedFilesCount())
+            + intOrZero(manifest.existingFilesCount())
+            + intOrZero(manifest.deletedFilesCount());
+
+    // use the entry schema as projection so positions match the write schema
+    TrackedFileStruct tf = new TrackedFileStruct(ROOT_MANIFEST_WRITE_TYPE);
+    tf.set(0, tracking);
+    tf.set(1, contentType.id());
+    tf.set(2, manifest.path());
+    tf.set(3, FileFormat.PARQUET.toString());
+    tf.set(4, (long) totalEntries);
+    tf.set(5, manifest.length());
+    tf.set(6, manifest.partitionSpecId());
+    tf.set(9, info);
+
+    if (manifest.keyMetadata() != null) {
+      tf.set(10, manifest.keyMetadata());
+    }
+
+    return tf;
+  }
+
+  /** Converts a {@link TrackedFile} read from a root manifest back to a {@link ManifestFile}. */
+  static ManifestFile trackedFileToManifestFile(TrackedFile tf) {
+    ManifestInfo info = tf.manifestInfo();
+    Tracking tracking = tf.tracking();
+    ManifestContent content =
+        tf.contentType() == FileContent.DATA_MANIFEST
+            ? ManifestContent.DATA
+            : ManifestContent.DELETES;
+
+    return new GenericManifestFile(
+        tf.location(),
+        tf.fileSizeInBytes(),
+        tf.specId() != null ? tf.specId() : 0,
+        content,
+        sequenceNumberFrom(tracking),
+        info != null ? info.minSequenceNumber() : 0L,
+        tracking != null ? tracking.snapshotId() : null,
+        null,
+        tf.keyMetadata(),
+        info != null ? info.addedFilesCount() : 0,
+        info != null ? info.addedRowsCount() : 0L,
+        info != null ? info.existingFilesCount() : 0,
+        info != null ? info.existingRowsCount() : 0L,
+        info != null ? info.deletedFilesCount() : 0,
+        info != null ? info.deletedRowsCount() : 0L,
+        null);
+  }
+
+  private static long resolveSeqNum(long seqNum, long commitSequenceNumber) {
+    return seqNum == ManifestWriter.UNASSIGNED_SEQ ? commitSequenceNumber : seqNum;
+  }
+
+  private static TrackingStruct buildTracking(
+      ManifestFile manifest, long commitSnapshotId, long seqNum) {
+    TrackingStruct tracking = new TrackingStruct();
+    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(1, manifest.snapshotId() != null ? manifest.snapshotId() : commitSnapshotId);
+    tracking.set(2, seqNum);
+    tracking.set(3, seqNum);
+    return tracking;
+  }
+
+  private static ManifestInfoStruct buildManifestInfo(ManifestFile manifest, long minSeqNum) {
+    ManifestInfoStruct info = new ManifestInfoStruct();
+    info.set(0, intOrZero(manifest.addedFilesCount()));
+    info.set(1, intOrZero(manifest.existingFilesCount()));
+    info.set(2, intOrZero(manifest.deletedFilesCount()));
+    info.set(3, 0);
+    info.set(4, longOrZero(manifest.addedRowsCount()));
+    info.set(5, longOrZero(manifest.existingRowsCount()));
+    info.set(6, longOrZero(manifest.deletedRowsCount()));
+    info.set(7, 0L);
+    info.set(8, minSeqNum);
+    return info;
+  }
+
+  private static int intOrZero(Integer value) {
+    return value != null ? value : 0;
+  }
+
+  private static long longOrZero(Long value) {
+    return value != null ? value : 0L;
+  }
+
+  private static long sequenceNumberFrom(Tracking tracking) {
+    if (tracking != null && tracking.dataSequenceNumber() != null) {
+      return tracking.dataSequenceNumber();
+    }
+
+    return 0L;
+  }
+
   static Schema entrySchema(Types.StructType partitionType) {
     return new Schema(
         TrackedFile.TRACKING,

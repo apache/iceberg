@@ -29,7 +29,9 @@ import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -216,6 +218,56 @@ public class TestV4ManifestReadWrite {
     assertThat(adapted.fileSizeInBytes()).isEqualTo(150972L);
     assertThat(adapted.content()).isEqualTo(FileContent.DATA);
     assertThat(adapted.splitOffsets()).isEqualTo(OFFSETS);
+  }
+
+  @Test
+  public void testRootManifestRoundTrip() throws IOException {
+    ManifestFile leafManifest = writeV4Manifest(DATA_FILE);
+
+    // write a root manifest containing this leaf manifest
+    String rootFilename = FileFormat.PARQUET.addExtension("root-" + System.nanoTime());
+    OutputFile rootOutput = io.newOutputFile(rootFilename);
+
+    long commitSequenceNumber = 1L;
+    Schema schema = V4Metadata.entrySchema(Types.StructType.of());
+    try (FileAppender<StructLike> writer =
+        InternalData.write(FileFormat.PARQUET, rootOutput)
+            .schema(schema)
+            .named("tracked_file")
+            .meta("format-version", "4")
+            .meta("content", "root")
+            .overwrite()
+            .build()) {
+      writer.add(
+          V4Metadata.manifestFileToTrackedFile(leafManifest, SNAPSHOT_ID, commitSequenceNumber));
+    }
+
+    // read back the root manifest and convert to ManifestFile
+    V4ManifestReader reader = new V4ManifestReader(io.newInputFile(rootFilename), SPECS_BY_ID);
+    List<ManifestFile> manifests = Lists.newArrayList();
+    try (CloseableIterable<TrackedFile> entries = reader.liveEntries()) {
+      for (TrackedFile tf : entries) {
+        if (tf.contentType() == FileContent.DATA_MANIFEST
+            || tf.contentType() == FileContent.DELETE_MANIFEST) {
+          manifests.add(V4Metadata.trackedFileToManifestFile(tf.copy()));
+        }
+      }
+    }
+
+    assertThat(manifests).hasSize(1);
+
+    ManifestFile result = manifests.get(0);
+    assertThat(result.path()).isEqualTo(leafManifest.path());
+    assertThat(result.length()).isEqualTo(leafManifest.length());
+    assertThat(result.partitionSpecId()).isEqualTo(leafManifest.partitionSpecId());
+    assertThat(result.content()).isEqualTo(ManifestContent.DATA);
+    assertThat(result.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(result.addedFilesCount()).isEqualTo(leafManifest.addedFilesCount());
+    assertThat(result.existingFilesCount()).isEqualTo(leafManifest.existingFilesCount());
+    assertThat(result.deletedFilesCount()).isEqualTo(leafManifest.deletedFilesCount());
+    assertThat(result.addedRowsCount()).isEqualTo(leafManifest.addedRowsCount());
+    assertThat(result.existingRowsCount()).isEqualTo(leafManifest.existingRowsCount());
+    assertThat(result.deletedRowsCount()).isEqualTo(leafManifest.deletedRowsCount());
   }
 
   private ManifestFile writeV4Manifest(DataFile... files) throws IOException {

@@ -57,6 +57,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -72,6 +73,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -285,6 +287,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
+    ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
+
+    Tasks.range(manifestFiles.length)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())
+        .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+
+    if (base.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS) {
+      return applyV4(manifestFiles, sequenceNumber, parentSnapshotId);
+    } else {
+      return applyV3(manifestFiles, sequenceNumber, parentSnapshotId);
+    }
+  }
+
+  private Snapshot applyV3(
+      ManifestFile[] manifestFiles, long sequenceNumber, Long parentSnapshotId) {
     OutputFile manifestList = manifestListPath();
 
     ManifestListWriter writer =
@@ -298,17 +317,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             base.nextRowId());
 
     try (writer) {
-      // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
-
-      ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
-
-      Tasks.range(manifestFiles.length)
-          .stopOnFailure()
-          .throwFailureWhenFinished()
-          .executeWith(workerPool())
-          .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
-
       writer.addAll(Arrays.asList(manifestFiles));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
@@ -321,6 +330,59 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       assignedRows = writer.nextRowId() - base.nextRowId();
     }
 
+    validateReplace();
+
+    return new BaseSnapshot(
+        sequenceNumber,
+        snapshotId(),
+        parentSnapshotId,
+        System.currentTimeMillis(),
+        operation(),
+        summary(base),
+        base.currentSchemaId(),
+        manifestList.location(),
+        nextRowId,
+        assignedRows,
+        writer.toManifestListFile().encryptionKeyID());
+  }
+
+  private Snapshot applyV4(
+      ManifestFile[] manifestFiles, long sequenceNumber, Long parentSnapshotId) {
+    OutputFile rootManifest = rootManifestPath();
+    writeRootManifest(rootManifest, manifestFiles, snapshotId(), sequenceNumber);
+    manifestLists.add(rootManifest.location());
+
+    // compute nextRowId by summing added rows across all data manifests
+    long addedDataRows = 0L;
+    for (ManifestFile mf : manifestFiles) {
+      if (mf.content() == ManifestContent.DATA
+          && mf.snapshotId() != null
+          && mf.snapshotId() == snapshotId()
+          && mf.addedRowsCount() != null) {
+        addedDataRows += mf.addedRowsCount();
+      }
+    }
+
+    Long nextRowId = base.nextRowId();
+    Long assignedRows = addedDataRows;
+
+    validateReplace();
+
+    return new BaseSnapshot(
+        sequenceNumber,
+        snapshotId(),
+        parentSnapshotId,
+        System.currentTimeMillis(),
+        operation(),
+        summary(base),
+        base.currentSchemaId(),
+        rootManifest.location(),
+        nextRowId,
+        assignedRows,
+        null);
+  }
+
+  private void validateReplace() {
     Map<String, String> summary = summary();
     String operation = operation();
 
@@ -337,19 +399,29 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           addedRecords,
           replacedRecords);
     }
+  }
 
-    return new BaseSnapshot(
-        sequenceNumber,
-        snapshotId(),
-        parentSnapshotId,
-        System.currentTimeMillis(),
-        operation(),
-        summary(base),
-        base.currentSchemaId(),
-        manifestList.location(),
-        nextRowId,
-        assignedRows,
-        writer.toManifestListFile().encryptionKeyID());
+  private void writeRootManifest(
+      OutputFile output,
+      ManifestFile[] manifests,
+      long commitSnapshotId,
+      long commitSequenceNumber) {
+    Schema schema = V4Metadata.entrySchema(Types.StructType.of());
+    try (FileAppender<StructLike> writer =
+        InternalData.write(FileFormat.PARQUET, output)
+            .schema(schema)
+            .named("tracked_file")
+            .meta("format-version", "4")
+            .meta("content", "root")
+            .overwrite()
+            .build()) {
+      for (ManifestFile manifest : manifests) {
+        writer.add(
+            V4Metadata.manifestFileToTrackedFile(manifest, commitSnapshotId, commitSequenceNumber));
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write root manifest file");
+    }
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -603,6 +675,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                         snapshotId(),
                         attempt.incrementAndGet(),
                         commitUUID))));
+  }
+
+  protected OutputFile rootManifestPath() {
+    return ops.io()
+        .newOutputFile(
+            ops.metadataFileLocation(
+                FileFormat.PARQUET.addExtension(
+                    commitUUID + "-root-" + attempt.incrementAndGet())));
   }
 
   protected EncryptedOutputFile newManifestOutputFile() {

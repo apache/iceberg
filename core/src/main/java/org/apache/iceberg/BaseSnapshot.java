@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -182,9 +183,14 @@ class BaseSnapshot implements Snapshot {
 
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests =
-          ManifestLists.read(
-              fileIO.newInputFile(new BaseManifestListFile(manifestListLocation, keyId)));
+      FileFormat format = FileFormat.fromFileName(manifestListLocation);
+      if (format == FileFormat.PARQUET) {
+        this.allManifests = readRootManifest(fileIO);
+      } else {
+        this.allManifests =
+            ManifestLists.read(
+                fileIO.newInputFile(new BaseManifestListFile(manifestListLocation, keyId)));
+      }
     }
 
     if (dataManifests == null || deleteManifests == null) {
@@ -197,6 +203,24 @@ class BaseSnapshot implements Snapshot {
               Iterables.filter(
                   allManifests, manifest -> manifest.content() == ManifestContent.DELETES));
     }
+  }
+
+  private List<ManifestFile> readRootManifest(FileIO fileIO) {
+    List<ManifestFile> result = Lists.newArrayList();
+    V4ManifestReader reader =
+        new V4ManifestReader(fileIO.newInputFile(manifestListLocation), ImmutableMap.of());
+    try (CloseableIterable<TrackedFile> entries = reader.liveEntries()) {
+      for (TrackedFile tf : entries) {
+        if (tf.contentType() == FileContent.DATA_MANIFEST
+            || tf.contentType() == FileContent.DELETE_MANIFEST) {
+          result.add(V4Metadata.trackedFileToManifestFile(tf.copy()));
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read root manifest", e);
+    }
+
+    return result;
   }
 
   @Override

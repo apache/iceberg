@@ -58,6 +58,10 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     super(BASE_TYPE, type);
   }
 
+  ManifestInfoStruct() {
+    super(BASE_TYPE.fields().size());
+  }
+
   private ManifestInfoStruct(ManifestInfoStruct toCopy) {
     super(toCopy);
     this.addedFilesCount = toCopy.addedFilesCount;
