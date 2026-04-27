@@ -46,7 +46,7 @@ class FlinkDynamicSinkConf {
     this.confParser = new FlinkConfParser(writeOptions, readableConfig);
   }
 
-  public int cacheMaxSize() {
+  int cacheMaxSize() {
     return confParser
         .intConf()
         .option(FlinkDynamicSinkOptions.CACHE_MAX_SIZE.key())
@@ -55,7 +55,7 @@ class FlinkDynamicSinkConf {
         .parse();
   }
 
-  public boolean immediateTableUpdate() {
+  boolean immediateTableUpdate() {
     return confParser
         .booleanConf()
         .option(FlinkDynamicSinkOptions.IMMEDIATE_TABLE_UPDATE.key())
@@ -64,7 +64,7 @@ class FlinkDynamicSinkConf {
         .parse();
   }
 
-  public boolean dropUnusedColumns() {
+  boolean dropUnusedColumns() {
     return confParser
         .booleanConf()
         .option(FlinkDynamicSinkOptions.DROP_UNUSED_COLUMNS.key())
@@ -73,7 +73,7 @@ class FlinkDynamicSinkConf {
         .parse();
   }
 
-  public long cacheRefreshMs() {
+  long cacheRefreshMs() {
     return confParser
         .longConf()
         .option(FlinkDynamicSinkOptions.CACHE_REFRESH_MS.key())
@@ -82,7 +82,7 @@ class FlinkDynamicSinkConf {
         .parse();
   }
 
-  public int inputSchemasPerTableCacheMaxSize() {
+  int inputSchemasPerTableCacheMaxSize() {
     return confParser
         .intConf()
         .option(FlinkDynamicSinkOptions.INPUT_SCHEMAS_PER_TABLE_CACHE_MAX_SIZE.key())
@@ -91,7 +91,7 @@ class FlinkDynamicSinkConf {
         .parse();
   }
 
-  public boolean caseSensitive() {
+  boolean caseSensitive() {
     return confParser
         .booleanConf()
         .option(FlinkDynamicSinkOptions.CASE_SENSITIVE.key())

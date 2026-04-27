@@ -447,6 +447,7 @@ public class DynamicIcebergSink
               .setParallelism(converted.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-forward-writer"));
 
+      // Inject forward write results into sink — they'll be unioned in addPreCommitTopology
       return instantiateSink(writeOptions, flinkConfig, forwardWriteResults);
     }
 
