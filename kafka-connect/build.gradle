@@ -70,6 +70,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     all {
       exclude group: 'javax.activation', module: 'activation'
       exclude group: 'org.jspecify', module: 'jspecify'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
         force 'org.codehaus.jettison:jettison:1.5.5'
