@@ -61,7 +61,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisi
 import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
-import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -286,11 +285,6 @@ public class FlinkParquetWriters {
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(BsonLogicalTypeAnnotation ignored) {
-      return Optional.of(byteArrays(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueWriter<?>> visit(UUIDLogicalTypeAnnotation uuid) {
       return Optional.of(byteArrays(desc));
     }
   }

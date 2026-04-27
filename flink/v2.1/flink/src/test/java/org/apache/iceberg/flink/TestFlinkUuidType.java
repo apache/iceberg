@@ -93,7 +93,8 @@ public class TestFlinkUuidType extends CatalogTestBase {
   }
 
   /** Writes UUID via Generic writer, reads via Flink. */
-  private void runReadRoundTripTest() throws Exception {
+  @TestTemplate
+  public void testUuidWrittenByGenericWriter() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
@@ -132,13 +133,9 @@ public class TestFlinkUuidType extends CatalogTestBase {
     assertThat(actualUuid).isEqualTo(EXPECTED_UUID);
   }
 
-  @TestTemplate
-  public void testUuidWrittenByGenericWriter() throws Exception {
-    runReadRoundTripTest();
-  }
-
   /** Writes UUID via Flink TaskWriter, reads via Generic reader. */
-  private void runWriteTest() throws Exception {
+  @TestTemplate
+  public void testWriteUuidViaFlinkWriter() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
@@ -178,16 +175,12 @@ public class TestFlinkUuidType extends CatalogTestBase {
     assertThat(records.get(0).getField("uuid")).isEqualTo(EXPECTED_UUID);
   }
 
-  @TestTemplate
-  public void testWriteUuidViaFlinkWriter() throws Exception {
-    runWriteTest();
-  }
-
   /**
    * SQL INSERT into a UUID column fails. Flink has no UUID type, so BINARY(16) maps to Iceberg
    * fixed[16], which is not compatible with uuid at the schema check.
    */
-  private void runSqlInsertUuidFailsTest() {
+  @TestTemplate
+  public void testSqlInsertUuidFails() {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
@@ -200,10 +193,5 @@ public class TestFlinkUuidType extends CatalogTestBase {
     assertThatThrownBy(
             () -> sql("INSERT INTO %s VALUES (1, CAST(X'%s' AS BINARY(16)))", TABLE_NAME, uuidHex))
         .hasMessageContaining("fixed[16] cannot be promoted to uuid");
-  }
-
-  @TestTemplate
-  public void testSqlInsertUuidFails() {
-    runSqlInsertUuidFailsTest();
   }
 }
