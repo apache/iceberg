@@ -25,6 +25,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.BaseFormatModelTests;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
@@ -50,5 +52,10 @@ public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
     for (int i = 0; i < expected.size(); i++) {
       TestHelpers.assertEquals(schema, expected.get(i), actual.get(i));
     }
+  }
+
+  @Override
+  protected Object convertConstantToEngine(Type type, Object value) {
+    return SparkUtil.internalToSpark(type, value);
   }
 }
