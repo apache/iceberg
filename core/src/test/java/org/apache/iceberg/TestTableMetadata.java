@@ -1870,7 +1870,7 @@ public class TestTableMetadata {
               new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));
     }
 
-    return localInput(manifestList).location();
+    return "file://" + localInput(manifestList).location();
   }
 
   @Test

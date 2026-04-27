@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
 
 class V4Metadata {
   private V4Metadata() {}
@@ -272,7 +273,10 @@ class V4Metadata {
    * schema (which excludes content_stats).
    */
   static TrackedFileStruct manifestFileToTrackedFile(
-      ManifestFile manifest, long commitSnapshotId, long commitSequenceNumber) {
+      ManifestFile manifest,
+      long commitSnapshotId,
+      long commitSequenceNumber,
+      String tableLocation) {
     long seqNum = resolveSeqNum(manifest.sequenceNumber(), commitSequenceNumber);
     long minSeqNum = resolveSeqNum(manifest.minSequenceNumber(), commitSequenceNumber);
 
@@ -293,7 +297,7 @@ class V4Metadata {
     TrackedFileStruct tf = new TrackedFileStruct(ROOT_MANIFEST_WRITE_TYPE);
     tf.set(0, tracking);
     tf.set(1, contentType.id());
-    tf.set(2, manifest.path());
+    tf.set(2, LocationUtil.relativize(manifest.path(), tableLocation));
     tf.set(3, FileFormat.PARQUET.toString());
     tf.set(4, (long) totalEntries);
     tf.set(5, manifest.length());
@@ -308,7 +312,7 @@ class V4Metadata {
   }
 
   /** Converts a {@link TrackedFile} read from a root manifest back to a {@link ManifestFile}. */
-  static ManifestFile trackedFileToManifestFile(TrackedFile tf) {
+  static ManifestFile trackedFileToManifestFile(TrackedFile tf, String tableLocation) {
     ManifestInfo info = tf.manifestInfo();
     Tracking tracking = tf.tracking();
     ManifestContent content =
@@ -317,7 +321,7 @@ class V4Metadata {
             : ManifestContent.DELETES;
 
     return new GenericManifestFile(
-        tf.location(),
+        LocationUtil.resolve(tf.location(), tableLocation),
         tf.fileSizeInBytes(),
         tf.specId() != null ? tf.specId() : 0,
         content,

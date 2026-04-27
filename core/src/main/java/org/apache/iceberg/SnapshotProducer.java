@@ -349,7 +349,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private Snapshot applyV4(
       ManifestFile[] manifestFiles, long sequenceNumber, Long parentSnapshotId) {
     OutputFile rootManifest = rootManifestPath();
-    writeRootManifest(rootManifest, manifestFiles, snapshotId(), sequenceNumber);
+    writeRootManifest(rootManifest, manifestFiles, snapshotId(), sequenceNumber, base.location());
     manifestLists.add(rootManifest.location());
 
     // compute nextRowId by summing added rows across all data manifests
@@ -368,18 +368,21 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     validateReplace();
 
-    return new BaseSnapshot(
-        sequenceNumber,
-        snapshotId(),
-        parentSnapshotId,
-        System.currentTimeMillis(),
-        operation(),
-        summary(base),
-        base.currentSchemaId(),
-        rootManifest.location(),
-        nextRowId,
-        assignedRows,
-        null);
+    BaseSnapshot snapshot =
+        new BaseSnapshot(
+            sequenceNumber,
+            snapshotId(),
+            parentSnapshotId,
+            System.currentTimeMillis(),
+            operation(),
+            summary(base),
+            base.currentSchemaId(),
+            rootManifest.location(),
+            nextRowId,
+            assignedRows,
+            null);
+    snapshot.setTableLocation(base.location());
+    return snapshot;
   }
 
   private void validateReplace() {
@@ -405,7 +408,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       OutputFile output,
       ManifestFile[] manifests,
       long commitSnapshotId,
-      long commitSequenceNumber) {
+      long commitSequenceNumber,
+      String tableLocation) {
     Schema schema = V4Metadata.entrySchema(Types.StructType.of());
     try (FileAppender<StructLike> writer =
         InternalData.write(FileFormat.PARQUET, output)
@@ -417,7 +421,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             .build()) {
       for (ManifestFile manifest : manifests) {
         writer.add(
-            V4Metadata.manifestFileToTrackedFile(manifest, commitSnapshotId, commitSequenceNumber));
+            V4Metadata.manifestFileToTrackedFile(
+                manifest, commitSnapshotId, commitSequenceNumber, tableLocation));
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write root manifest file");

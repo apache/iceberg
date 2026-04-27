@@ -241,10 +241,12 @@ public class TableMetadataParser {
 
     toJson(metadata.refs(), generator);
 
+    String snapshotTableLocation = metadata.formatVersion() >= 4 ? metadata.location() : null;
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
-      SnapshotParser.toJson(snapshot, generator);
+      SnapshotParser.toJson(snapshot, generator, snapshotTableLocation);
     }
+
     generator.writeEndArray();
 
     generator.writeArrayFieldStart(STATISTICS);
@@ -510,7 +512,8 @@ public class TableMetadataParser {
       snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
       Iterator<JsonNode> iterator = snapshotArray.elements();
       while (iterator.hasNext()) {
-        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+        snapshots.add(
+            SnapshotParser.fromJson(iterator.next(), formatVersion >= 4 ? location : null));
       }
     } else {
       snapshots = ImmutableList.of();

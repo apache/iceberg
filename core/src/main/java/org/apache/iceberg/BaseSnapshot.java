@@ -48,6 +48,9 @@ class BaseSnapshot implements Snapshot {
   private final Long addedRows;
   private final String keyId;
 
+  // set by SnapshotProducer or SnapshotParser for resolving relative paths in v4 root manifests
+  private String tableLocation;
+
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
   private transient List<ManifestFile> dataManifests = null;
@@ -115,6 +118,10 @@ class BaseSnapshot implements Snapshot {
     this.firstRowId = null;
     this.addedRows = null;
     this.keyId = null;
+  }
+
+  void setTableLocation(String location) {
+    this.tableLocation = location;
   }
 
   @Override
@@ -213,7 +220,7 @@ class BaseSnapshot implements Snapshot {
       for (TrackedFile tf : entries) {
         if (tf.contentType() == FileContent.DATA_MANIFEST
             || tf.contentType() == FileContent.DELETE_MANIFEST) {
-          result.add(V4Metadata.trackedFileToManifestFile(tf.copy()));
+          result.add(V4Metadata.trackedFileToManifestFile(tf.copy(), tableLocation));
         }
       }
     } catch (IOException e) {

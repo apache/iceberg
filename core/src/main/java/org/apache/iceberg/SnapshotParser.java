@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,14 +57,21 @@ public class SnapshotParser {
   private static final String KEY_ID = "key-id";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
+    toJson(snapshot, generator, null);
+  }
+
+  static void toJson(Snapshot snapshot, JsonGenerator generator, String tableLocation)
+      throws IOException {
     generator.writeStartObject();
     if (snapshot.sequenceNumber() > TableMetadata.INITIAL_SEQUENCE_NUMBER) {
       generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
     }
+
     generator.writeNumberField(SNAPSHOT_ID, snapshot.snapshotId());
     if (snapshot.parentId() != null) {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
     }
+
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
 
     // if there is an operation, write the summary map
@@ -76,16 +84,19 @@ public class SnapshotParser {
           if (OPERATION.equals(entry.getKey())) {
             continue;
           }
+
           generator.writeStringField(entry.getKey(), entry.getValue());
         }
       }
+
       generator.writeEndObject();
     }
 
     String manifestList = snapshot.manifestListLocation();
     if (manifestList != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
-      generator.writeStringField(MANIFEST_LIST, manifestList);
+      generator.writeStringField(
+          MANIFEST_LIST, LocationUtil.relativize(manifestList, tableLocation));
     } else {
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
@@ -122,6 +133,10 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(JsonNode node) {
+    return fromJson(node, null);
+  }
+
+  static Snapshot fromJson(JsonNode node, String tableLocation) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -129,11 +144,13 @@ public class SnapshotParser {
     if (node.has(SEQUENCE_NUMBER)) {
       sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, node);
     }
+
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     Long parentId = null;
     if (node.has(PARENT_SNAPSHOT_ID)) {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
     }
+
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
 
     Map<String, String> summary = null;
@@ -156,6 +173,7 @@ public class SnapshotParser {
             builder.put(field, JsonUtil.getString(field, sNode));
           }
         }
+
         summary = builder.build();
 
         // When the operation is not found, default to overwrite
@@ -179,18 +197,22 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(
-          sequenceNumber,
-          snapshotId,
-          parentId,
-          timestamp,
-          operation,
-          summary,
-          schemaId,
-          manifestList,
-          firstRowId,
-          addedRows,
-          keyId);
+      manifestList = LocationUtil.resolve(manifestList, tableLocation);
+      BaseSnapshot snapshot =
+          new BaseSnapshot(
+              sequenceNumber,
+              snapshotId,
+              parentId,
+              timestamp,
+              operation,
+              summary,
+              schemaId,
+              manifestList,
+              firstRowId,
+              addedRows,
+              keyId);
+      snapshot.setTableLocation(tableLocation);
+      return snapshot;
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be

@@ -239,7 +239,8 @@ public class TestV4ManifestReadWrite {
             .overwrite()
             .build()) {
       writer.add(
-          V4Metadata.manifestFileToTrackedFile(leafManifest, SNAPSHOT_ID, commitSequenceNumber));
+          V4Metadata.manifestFileToTrackedFile(
+              leafManifest, SNAPSHOT_ID, commitSequenceNumber, null));
     }
 
     // read back the root manifest and convert to ManifestFile
@@ -249,7 +250,7 @@ public class TestV4ManifestReadWrite {
       for (TrackedFile tf : entries) {
         if (tf.contentType() == FileContent.DATA_MANIFEST
             || tf.contentType() == FileContent.DELETE_MANIFEST) {
-          manifests.add(V4Metadata.trackedFileToManifestFile(tf.copy()));
+          manifests.add(V4Metadata.trackedFileToManifestFile(tf.copy(), null));
         }
       }
     }
@@ -270,10 +271,65 @@ public class TestV4ManifestReadWrite {
     assertThat(result.deletedRowsCount()).isEqualTo(leafManifest.deletedRowsCount());
   }
 
+  @Test
+  public void testRootManifestRelativePathRoundTrip() throws IOException {
+    String tableLocation = "s3://bucket/table";
+    String manifestPath =
+        tableLocation
+            + "/metadata/"
+            + FileFormat.PARQUET.addExtension("manifest-" + System.nanoTime());
+    ManifestFile leafManifest = writeV4ManifestAt(manifestPath, DATA_FILE);
+
+    // write a root manifest with paths relativized against the table location
+    String rootFilename =
+        tableLocation + "/metadata/" + FileFormat.PARQUET.addExtension("root-" + System.nanoTime());
+    OutputFile rootOutput = io.newOutputFile(rootFilename);
+
+    long commitSequenceNumber = 1L;
+    Schema schema = V4Metadata.entrySchema(Types.StructType.of());
+    try (FileAppender<StructLike> writer =
+        InternalData.write(FileFormat.PARQUET, rootOutput)
+            .schema(schema)
+            .named("tracked_file")
+            .meta("format-version", "4")
+            .meta("content", "root")
+            .overwrite()
+            .build()) {
+      writer.add(
+          V4Metadata.manifestFileToTrackedFile(
+              leafManifest, SNAPSHOT_ID, commitSequenceNumber, tableLocation));
+    }
+
+    // read back the root manifest and verify the stored path is relative
+    V4ManifestReader reader = new V4ManifestReader(io.newInputFile(rootFilename), SPECS_BY_ID);
+    try (CloseableIterable<TrackedFile> entries = reader.liveEntries()) {
+      for (TrackedFile tf : entries) {
+        // the stored location should not be absolute (no scheme)
+        assertThat(tf.location()).doesNotContain("://");
+      }
+    }
+
+    // resolve back and verify the full path matches the original
+    reader = new V4ManifestReader(io.newInputFile(rootFilename), SPECS_BY_ID);
+    List<ManifestFile> manifests = Lists.newArrayList();
+    try (CloseableIterable<TrackedFile> entries = reader.liveEntries()) {
+      for (TrackedFile tf : entries) {
+        manifests.add(V4Metadata.trackedFileToManifestFile(tf.copy(), tableLocation));
+      }
+    }
+
+    assertThat(manifests).hasSize(1);
+    assertThat(manifests.get(0).path()).isEqualTo(leafManifest.path());
+  }
+
   private ManifestFile writeV4Manifest(DataFile... files) throws IOException {
     String filename = FileFormat.PARQUET.addExtension("manifest-" + System.nanoTime());
+    return writeV4ManifestAt(filename, files);
+  }
+
+  private ManifestFile writeV4ManifestAt(String path, DataFile... files) throws IOException {
     EncryptedOutputFile outputFile =
-        PlaintextEncryptionManager.instance().encrypt(io.newOutputFile(filename));
+        PlaintextEncryptionManager.instance().encrypt(io.newOutputFile(path));
     ManifestWriter<DataFile> writer =
         ManifestFiles.newWriter(4, SPEC, outputFile, SNAPSHOT_ID, FIRST_ROW_ID);
     try {
