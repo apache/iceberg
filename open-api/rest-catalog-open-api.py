@@ -847,6 +847,7 @@ class GetNamespaceResponse(BaseModel):
         description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
         examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
     )
+    labels: Labels | None = None
 
 
 class ListTablesResponse(BaseModel):
@@ -1735,6 +1736,12 @@ class LoadViewResult(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: dict[str, str] | None = None
+    labels: Labels | None = None
+    column_labels: list[ColumnLabels] | None = Field(
+        None,
+        alias='column-labels',
+        description='Column-level metadata labels, keyed by field-id for stability across schema evolution',
+    )
 
 
 class ScanReport(BaseModel):

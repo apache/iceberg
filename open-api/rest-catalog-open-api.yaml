@@ -4046,6 +4046,13 @@ components:
           type: object
           additionalProperties:
             type: string
+        labels:
+          $ref: '#/components/schemas/Labels'
+        column-labels:
+          type: array
+          description: Column-level metadata labels, keyed by field-id for stability across schema evolution
+          items:
+            $ref: '#/components/schemas/ColumnLabels'
 
     RegisterViewRequest:
       type: object
@@ -4421,6 +4428,8 @@ components:
           example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
           default: { }
           nullable: true
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     ListTablesResponse:
       type: object
