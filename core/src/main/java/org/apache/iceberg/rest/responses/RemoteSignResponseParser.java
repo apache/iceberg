@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -29,7 +30,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class RemoteSignResponseParser {
 
-  private static final String URI = "uri";
+  private static final String URI_FIELD = "uri";
   private static final String HEADERS = "headers";
 
   private RemoteSignResponseParser() {}
@@ -47,7 +48,7 @@ public class RemoteSignResponseParser {
 
     gen.writeStartObject();
 
-    gen.writeStringField(URI, response.uri().toString());
+    gen.writeStringField(URI_FIELD, response.uri().toString());
     RemoteSignRequestParser.headersToJson(HEADERS, response.headers(), gen);
 
     gen.writeEndObject();
@@ -62,7 +63,7 @@ public class RemoteSignResponseParser {
     Preconditions.checkArgument(
         json.isObject(), "Cannot parse remote sign response from non-object: %s", json);
 
-    java.net.URI uri = java.net.URI.create(JsonUtil.getString(URI, json));
+    URI uri = URI.create(JsonUtil.getString(URI_FIELD, json));
     Map<String, List<String>> headers = RemoteSignRequestParser.headersFromJson(HEADERS, json);
 
     return ImmutableRemoteSignResponse.builder().uri(uri).headers(headers).build();
