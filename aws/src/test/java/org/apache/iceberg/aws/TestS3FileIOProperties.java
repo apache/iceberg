@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
@@ -319,5 +320,59 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY, "false");
     S3FileIOProperties properties = new S3FileIOProperties(map);
     assertThat(properties.isS3DirectoryBucketListPrefixAsDirectory()).isEqualTo(false);
+  }
+
+  @Test
+  public void testApplySharedScheduledExecutorIsSingleton() {
+    S3FileIOProperties s3Properties = new S3FileIOProperties(Maps.newHashMap());
+    S3ClientBuilder builder1 = S3Client.builder();
+    S3ClientBuilder builder2 = S3Client.builder();
+
+    s3Properties.applySharedScheduledExecutor(builder1);
+    s3Properties.applySharedScheduledExecutor(builder2);
+
+    assertThat(builder1.overrideConfiguration().scheduledExecutorService()).isPresent();
+    assertThat(builder1.overrideConfiguration().scheduledExecutorService().get())
+        .isSameAs(builder2.overrideConfiguration().scheduledExecutorService().get());
+  }
+
+  @Test
+  public void testSharedScheduledExecutorPreservesExistingConfig() {
+    S3FileIOProperties s3Properties = new S3FileIOProperties(Maps.newHashMap());
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyRetryConfigurations(builder);
+    s3Properties.applySharedScheduledExecutor(builder);
+
+    assertThat(builder.overrideConfiguration().retryPolicy()).isPresent();
+    assertThat(builder.overrideConfiguration().scheduledExecutorService()).isPresent();
+  }
+
+  @Test
+  public void testSharedScheduledExecutorDisabled() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.S3_SHARED_SCHEDULED_EXECUTOR_ENABLED, "false");
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applySharedScheduledExecutor(builder);
+
+    assertThat(builder.overrideConfiguration().scheduledExecutorService()).isNotPresent();
+  }
+
+  @Test
+  public void testSharedScheduledExecutorSurvivesShutdown() {
+    S3FileIOProperties s3Properties = new S3FileIOProperties(Maps.newHashMap());
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applySharedScheduledExecutor(builder);
+
+    ScheduledExecutorService executor =
+        builder.overrideConfiguration().scheduledExecutorService().get();
+    executor.shutdown();
+    executor.shutdownNow();
+
+    assertThat(executor.isShutdown()).isFalse();
+    assertThat(executor.isTerminated()).isFalse();
   }
 }
