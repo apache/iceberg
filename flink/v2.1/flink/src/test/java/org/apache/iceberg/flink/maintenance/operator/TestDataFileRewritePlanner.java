@@ -110,8 +110,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     1L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    SnapshotRef.MAIN_BRANCH,
-                    Expressions::alwaysTrue))) {
+                    Expressions::alwaysTrue,
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       // Cause an exception
@@ -177,8 +177,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     maxRewriteBytes,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    SnapshotRef.MAIN_BRANCH,
-                    Expressions::alwaysTrue))) {
+                    Expressions::alwaysTrue,
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
@@ -231,8 +231,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     10_000_000L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    branchName,
-                    Expressions::alwaysTrue))) {
+                    Expressions::alwaysTrue,
+                    branchName))) {
       testHarness.open();
 
       trigger(testHarness);
@@ -269,12 +269,11 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     10_000_000L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    SnapshotRef.MAIN_BRANCH,
-                    () -> {
-                      LocalDateTime cutoff =
-                          LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3));
-                      return Expressions.greaterThanOrEqual("ts", cutoff.toString());
-                    }))) {
+                    () ->
+                        Expressions.greaterThanOrEqual(
+                            "ts",
+                            LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3)).toString()),
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       trigger(testHarness);

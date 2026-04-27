@@ -74,8 +74,8 @@ public class DataFileRewritePlanner
       int newPartialProgressMaxCommits,
       long maxRewriteBytes,
       Map<String, String> rewriterOptions,
-      String branch,
-      SerializableSupplier<Expression> filterSupplier) {
+      SerializableSupplier<Expression> filterSupplier,
+      String branch) {
 
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
