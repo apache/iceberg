@@ -3703,35 +3703,38 @@ components:
             $ref: '#/components/schemas/StorageCredential'
         labels:
           $ref: '#/components/schemas/Labels'
-
-    Labels:
-      type: object
-      description: |
-        Catalog-specific metadata enrichment returned alongside table metadata.
-        Labels are ephemeral API-level annotations — they are NOT part of table state,
-        do not modify table metadata files, and do not create commits or snapshots.
-
-        Catalogs MAY populate labels in LoadTableResult to provide operational context
-        such as ownership, data classification, cost attribution, or semantic hints.
-        Engines MAY use labels for operational decisions or ignore them entirely.
-
-        Labels are scoped to the catalog that serves them. Different catalogs serving
-        the same table may return different labels, reflecting each catalog's context.
-
-        The spec defines no registry of label keys. Each catalog publishes its own
-        label schema. Interoperability comes from bilateral agreements and community
-        conventions, not a centralized registry.
-      properties:
-        table:
-          type: object
-          description: Table-level metadata labels as string key-value pairs
-          additionalProperties:
-            type: string
-        columns:
+        column-labels:
           type: array
           description: Column-level metadata labels, keyed by field-id for stability across schema evolution
           items:
             $ref: '#/components/schemas/ColumnLabels'
+
+    Labels:
+      type: object
+      description: |
+        Catalog-specific metadata enrichment returned alongside catalog objects
+        (tables, views, namespaces, columns). Labels are ephemeral API-level
+        annotations — they are NOT part of object state, do not modify underlying
+        metadata files, and do not create commits or snapshots.
+
+        Catalogs MAY populate labels in API responses to provide operational
+        context such as ownership, data classification, cost attribution, or
+        semantic hints. Engines MAY use labels for operational decisions or
+        ignore them entirely.
+
+        Labels are scoped to the catalog that serves them. Different catalogs
+        serving the same object may return different labels, reflecting each
+        catalog's context.
+
+        The spec defines no registry of label keys. Each catalog publishes its
+        own label schema. Interoperability comes from bilateral agreements and
+        community conventions, not a centralized registry.
+
+        Labels are flat key-value pairs. The subject a label attaches to (table,
+        view, namespace, column) is determined by the field on the response that
+        carries it, not by internal structure on this type.
+      additionalProperties:
+        type: string
 
     ColumnLabels:
       type: object
@@ -3743,10 +3746,7 @@ components:
           type: integer
           description: Field ID from the table's current schema
         labels:
-          type: object
-          description: Metadata labels for this column as string key-value pairs
-          additionalProperties:
-            type: string
+          $ref: '#/components/schemas/Labels'
 
     ScanTasks:
       type: object

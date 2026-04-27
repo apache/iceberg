@@ -597,13 +597,40 @@ class LoadCredentialsResponse(BaseModel):
     )
 
 
+class Labels(RootModel[dict[str, str]]):
+    """
+    Catalog-specific metadata enrichment returned alongside catalog objects
+    (tables, views, namespaces, columns). Labels are ephemeral API-level
+    annotations — they are NOT part of object state, do not modify underlying
+    metadata files, and do not create commits or snapshots.
+
+    Catalogs MAY populate labels in API responses to provide operational
+    context such as ownership, data classification, cost attribution, or
+    semantic hints. Engines MAY use labels for operational decisions or
+    ignore them entirely.
+
+    Labels are scoped to the catalog that serves them. Different catalogs
+    serving the same object may return different labels, reflecting each
+    catalog's context.
+
+    The spec defines no registry of label keys. Each catalog publishes its
+    own label schema. Interoperability comes from bilateral agreements and
+    community conventions, not a centralized registry.
+
+    Labels are flat key-value pairs. The subject a label attaches to (table,
+    view, namespace, column) is determined by the field on the response that
+    carries it, not by internal structure on this type.
+
+    """
+
+    root: dict[str, str]
+
+
 class ColumnLabels(BaseModel):
     field_id: int = Field(
         ..., alias='field-id', description="Field ID from the table's current schema"
     )
-    labels: dict[str, str] = Field(
-        ..., description='Metadata labels for this column as string key-value pairs'
-    )
+    labels: Labels
 
 
 class AsyncPlanningResult(BaseModel):
@@ -1163,34 +1190,6 @@ class ViewRequirement(RootModel[AssertViewUUID]):
     root: AssertViewUUID = Field(..., discriminator='type')
 
 
-class Labels(BaseModel):
-    """
-    Catalog-specific metadata enrichment returned alongside table metadata.
-    Labels are ephemeral API-level annotations — they are NOT part of table state,
-    do not modify table metadata files, and do not create commits or snapshots.
-
-    Catalogs MAY populate labels in LoadTableResult to provide operational context
-    such as ownership, data classification, cost attribution, or semantic hints.
-    Engines MAY use labels for operational decisions or ignore them entirely.
-
-    Labels are scoped to the catalog that serves them. Different catalogs serving
-    the same table may return different labels, reflecting each catalog's context.
-
-    The spec defines no registry of label keys. Each catalog publishes its own
-    label schema. Interoperability comes from bilateral agreements and community
-    conventions, not a centralized registry.
-
-    """
-
-    table: dict[str, str] | None = Field(
-        None, description='Table-level metadata labels as string key-value pairs'
-    )
-    columns: list[ColumnLabels] | None = Field(
-        None,
-        description='Column-level metadata labels, keyed by field-id for stability across schema evolution',
-    )
-
-
 class FailedPlanningResult(IcebergErrorResponse):
     """
     Failed server-side planning result
@@ -1620,6 +1619,11 @@ class LoadTableResult(BaseModel):
         None, alias='storage-credentials'
     )
     labels: Labels | None = None
+    column_labels: list[ColumnLabels] | None = Field(
+        None,
+        alias='column-labels',
+        description='Column-level metadata labels, keyed by field-id for stability across schema evolution',
+    )
 
 
 class ScanTasks(BaseModel):
