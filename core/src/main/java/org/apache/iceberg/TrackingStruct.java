@@ -318,6 +318,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
 
     TrackingStruct build() {
+      Preconditions.checkArgument(status != null, "Invalid status: null");
       return new TrackingStruct(
           status,
           snapshotId,

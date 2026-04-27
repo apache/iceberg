@@ -184,6 +184,13 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testBuilderValidation() {
+    assertThatThrownBy(() -> TrackingStruct.builder().build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid status: null");
+  }
+
+  @Test
   void testProjectedStructLike() {
     // project only snapshot_id (field ID 1) and first_row_id (field ID 142)
     Types.StructType projection = Types.StructType.of(Tracking.SNAPSHOT_ID, Tracking.FIRST_ROW_ID);

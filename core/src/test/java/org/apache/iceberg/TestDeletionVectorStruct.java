@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import org.apache.iceberg.types.Types;
@@ -102,6 +103,44 @@ class TestDeletionVectorStruct {
     assertThat(deserialized.offset()).isEqualTo(256L);
     assertThat(deserialized.sizeInBytes()).isEqualTo(128L);
     assertThat(deserialized.cardinality()).isEqualTo(42L);
+  }
+
+  @Test
+  void testBuilderValidation() {
+    assertThatThrownBy(
+            () -> DeletionVectorStruct.builder().offset(0).sizeInBytes(1).cardinality(1).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid location: null");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .sizeInBytes(1)
+                    .cardinality(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid offset: -1");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .cardinality(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid size in bytes: -1");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .sizeInBytes(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid cardinality: -1");
   }
 
   @Test
