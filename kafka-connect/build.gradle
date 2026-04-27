@@ -70,6 +70,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     all {
       exclude group: 'javax.activation', module: 'activation'
       exclude group: 'org.jspecify', module: 'jspecify'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
       // as in iceberg-aws-bundle: no log4j binding inside the connector plugin
       exclude group: 'org.apache.logging.log4j'
       exclude group: 'org.apache.logging.slf4j'
