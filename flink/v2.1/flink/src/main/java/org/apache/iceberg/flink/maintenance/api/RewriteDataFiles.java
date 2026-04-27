@@ -224,8 +224,8 @@ public class RewriteDataFiles {
     }
 
     /**
-     * A user-provided supplier of a filter expression that determines which files are considered
-     * by the rewrite strategy.
+     * A user-provided supplier of a filter expression that determines which files are considered by
+     * the rewrite strategy.
      *
      * <p>The supplier is evaluated by the planner on every compaction trigger, allowing a fresh
      * filter to be produced for each compaction run.
