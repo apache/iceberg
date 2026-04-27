@@ -29,7 +29,7 @@ class TestDeletionVectorStruct {
   @Test
   void testFieldAccess() {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct.Builder()
+        DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
             .offset(256L)
             .sizeInBytes(128L)
@@ -45,7 +45,7 @@ class TestDeletionVectorStruct {
   @Test
   void testCopy() {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct.Builder()
+        DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
             .offset(256L)
             .sizeInBytes(128L)
@@ -89,7 +89,7 @@ class TestDeletionVectorStruct {
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct.Builder()
+        DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
             .offset(256L)
             .sizeInBytes(128L)
@@ -107,7 +107,7 @@ class TestDeletionVectorStruct {
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
     DeletionVectorStruct dv =
-        new DeletionVectorStruct.Builder()
+        DeletionVectorStruct.builder()
             .location("s3://bucket/data/dv.puffin")
             .offset(256L)
             .sizeInBytes(128L)

@@ -79,6 +79,26 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.manifestPos = toCopy.manifestPos;
   }
 
+  private TrackingStruct(
+      EntryStatus status,
+      Long snapshotId,
+      Long dataSequenceNumber,
+      Long fileSequenceNumber,
+      Long dvSnapshotId,
+      Long firstRowId,
+      byte[] deletedPositions,
+      byte[] replacedPositions) {
+    super(BASE_TYPE, BASE_TYPE);
+    this.status = status;
+    this.snapshotId = snapshotId;
+    this.dataSequenceNumber = dataSequenceNumber;
+    this.fileSequenceNumber = fileSequenceNumber;
+    this.dvSnapshotId = dvSnapshotId;
+    this.firstRowId = firstRowId;
+    this.deletedPositions = deletedPositions;
+    this.replacedPositions = replacedPositions;
+  }
+
   void inheritFrom(Tracking manifestTracking) {
     if (manifestTracking != null) {
       if (snapshotId == null) {
@@ -229,6 +249,10 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
   }
 
+  static Builder builder() {
+    return new Builder();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -294,16 +318,15 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
 
     TrackingStruct build() {
-      TrackingStruct struct = new TrackingStruct(BASE_TYPE);
-      struct.status = status;
-      struct.snapshotId = snapshotId;
-      struct.dataSequenceNumber = dataSequenceNumber;
-      struct.fileSequenceNumber = fileSequenceNumber;
-      struct.dvSnapshotId = dvSnapshotId;
-      struct.firstRowId = firstRowId;
-      struct.deletedPositions = deletedPositions;
-      struct.replacedPositions = replacedPositions;
-      return struct;
+      return new TrackingStruct(
+          status,
+          snapshotId,
+          dataSequenceNumber,
+          fileSequenceNumber,
+          dvSnapshotId,
+          firstRowId,
+          deletedPositions,
+          replacedPositions);
     }
   }
 }

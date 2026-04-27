@@ -73,6 +73,32 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.dvCardinality = toCopy.dvCardinality;
   }
 
+  private ManifestInfoStruct(
+      int addedFilesCount,
+      int existingFilesCount,
+      int deletedFilesCount,
+      int replacedFilesCount,
+      long addedRowsCount,
+      long existingRowsCount,
+      long deletedRowsCount,
+      long replacedRowsCount,
+      long minSequenceNumber,
+      byte[] dv,
+      Long dvCardinality) {
+    super(BASE_TYPE, BASE_TYPE);
+    this.addedFilesCount = addedFilesCount;
+    this.existingFilesCount = existingFilesCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.replacedFilesCount = replacedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedRowsCount = deletedRowsCount;
+    this.replacedRowsCount = replacedRowsCount;
+    this.minSequenceNumber = minSequenceNumber;
+    this.dv = dv;
+    this.dvCardinality = dvCardinality;
+  }
+
   @Override
   public int addedFilesCount() {
     return addedFilesCount;
@@ -208,6 +234,10 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     }
   }
 
+  static Builder builder() {
+    return new Builder();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -294,19 +324,18 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     }
 
     ManifestInfoStruct build() {
-      ManifestInfoStruct struct = new ManifestInfoStruct(BASE_TYPE);
-      struct.addedFilesCount = addedFilesCount;
-      struct.existingFilesCount = existingFilesCount;
-      struct.deletedFilesCount = deletedFilesCount;
-      struct.replacedFilesCount = replacedFilesCount;
-      struct.addedRowsCount = addedRowsCount;
-      struct.existingRowsCount = existingRowsCount;
-      struct.deletedRowsCount = deletedRowsCount;
-      struct.replacedRowsCount = replacedRowsCount;
-      struct.minSequenceNumber = minSequenceNumber;
-      struct.dv = dv;
-      struct.dvCardinality = dvCardinality;
-      return struct;
+      return new ManifestInfoStruct(
+          addedFilesCount,
+          existingFilesCount,
+          deletedFilesCount,
+          replacedFilesCount,
+          addedRowsCount,
+          existingRowsCount,
+          deletedRowsCount,
+          replacedRowsCount,
+          minSequenceNumber,
+          dv,
+          dvCardinality);
     }
   }
 }

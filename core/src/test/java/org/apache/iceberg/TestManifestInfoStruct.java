@@ -59,7 +59,7 @@ class TestManifestInfoStruct {
   @Test
   void testCopy() {
     ManifestInfoStruct info =
-        new ManifestInfoStruct.Builder()
+        ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)
@@ -93,7 +93,7 @@ class TestManifestInfoStruct {
   @Test
   void testNullableFields() {
     ManifestInfoStruct info =
-        new ManifestInfoStruct.Builder()
+        ManifestInfoStruct.builder()
             .addedFilesCount(0)
             .existingFilesCount(0)
             .deletedFilesCount(0)
@@ -132,7 +132,7 @@ class TestManifestInfoStruct {
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     ManifestInfoStruct info =
-        new ManifestInfoStruct.Builder()
+        ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)
@@ -164,7 +164,7 @@ class TestManifestInfoStruct {
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
     ManifestInfoStruct info =
-        new ManifestInfoStruct.Builder()
+        ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)

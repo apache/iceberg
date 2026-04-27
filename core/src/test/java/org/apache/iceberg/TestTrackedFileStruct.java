@@ -34,16 +34,16 @@ class TestTrackedFileStruct {
   void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
     TrackingStruct tracking =
-        new TrackingStruct.Builder().status(EntryStatus.ADDED).snapshotId(42L).build();
+        TrackingStruct.builder().status(EntryStatus.ADDED).snapshotId(42L).build();
     DeletionVectorStruct dv =
-        new DeletionVectorStruct.Builder()
+        DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")
             .offset(100L)
             .sizeInBytes(50L)
             .cardinality(5L)
             .build();
     ManifestInfoStruct info =
-        new ManifestInfoStruct.Builder()
+        ManifestInfoStruct.builder()
             .addedFilesCount(10)
             .existingFilesCount(20)
             .deletedFilesCount(3)
@@ -90,7 +90,7 @@ class TestTrackedFileStruct {
   void testReaderSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
-    TrackingStruct tracking = new TrackingStruct.Builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
     tracking.set(8, 7L);
 
@@ -279,7 +279,7 @@ class TestTrackedFileStruct {
 
   static TrackedFileStruct createFullTrackedFile() {
     TrackingStruct tracking =
-        new TrackingStruct.Builder()
+        TrackingStruct.builder()
             .status(EntryStatus.ADDED)
             .snapshotId(42L)
             .dataSequenceNumber(10L)
@@ -288,7 +288,7 @@ class TestTrackedFileStruct {
     tracking.set(8, 3L);
 
     DeletionVectorStruct dv =
-        new DeletionVectorStruct.Builder()
+        DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")
             .offset(100L)
             .sizeInBytes(50L)

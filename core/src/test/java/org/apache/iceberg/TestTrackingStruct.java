@@ -54,7 +54,7 @@ class TestTrackingStruct {
   @Test
   void testCopy() {
     TrackingStruct tracking =
-        new TrackingStruct.Builder()
+        TrackingStruct.builder()
             .status(EntryStatus.ADDED)
             .snapshotId(42L)
             .dataSequenceNumber(10L)
@@ -99,7 +99,7 @@ class TestTrackingStruct {
 
   @Test
   void testInheritSnapshotId() {
-    TrackingStruct tracking = new TrackingStruct.Builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // snapshotId is null, should inherit from manifest
@@ -108,7 +108,7 @@ class TestTrackingStruct {
 
   @Test
   void testInheritSequenceNumberForAddedEntries() {
-    TrackingStruct tracking = new TrackingStruct.Builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are null and status is ADDED, should inherit
@@ -119,7 +119,7 @@ class TestTrackingStruct {
   @Test
   void testDoNotInheritSequenceNumberForExistingEntries() {
     TrackingStruct tracking =
-        new TrackingStruct.Builder()
+        TrackingStruct.builder()
             .status(EntryStatus.EXISTING)
             .dataSequenceNumber(5L)
             .fileSequenceNumber(6L)
@@ -134,7 +134,7 @@ class TestTrackingStruct {
   @Test
   void testExplicitValuesOverrideInheritance() {
     TrackingStruct tracking =
-        new TrackingStruct.Builder()
+        TrackingStruct.builder()
             .status(EntryStatus.ADDED)
             .snapshotId(200L)
             .dataSequenceNumber(75L)
@@ -166,7 +166,7 @@ class TestTrackingStruct {
 
   @Test
   void testNoDefaultingWithoutInheritance() {
-    TrackingStruct tracking = new TrackingStruct.Builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
 
     // no inheritance, nulls stay null
     assertThat(tracking.snapshotId()).isNull();
@@ -175,7 +175,7 @@ class TestTrackingStruct {
   }
 
   private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
-    return new TrackingStruct.Builder()
+    return TrackingStruct.builder()
         .status(EntryStatus.ADDED)
         .snapshotId(snapshotId)
         .dataSequenceNumber(sequenceNumber)
@@ -205,7 +205,7 @@ class TestTrackingStruct {
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     TrackingStruct tracking =
-        new TrackingStruct.Builder()
+        TrackingStruct.builder()
             .status(EntryStatus.ADDED)
             .snapshotId(42L)
             .dataSequenceNumber(10L)
@@ -223,7 +223,7 @@ class TestTrackingStruct {
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
     TrackingStruct tracking =
-        new TrackingStruct.Builder()
+        TrackingStruct.builder()
             .status(EntryStatus.ADDED)
             .snapshotId(42L)
             .dataSequenceNumber(10L)

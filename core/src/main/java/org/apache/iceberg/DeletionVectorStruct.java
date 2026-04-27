@@ -49,6 +49,14 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     this.cardinality = toCopy.cardinality;
   }
 
+  private DeletionVectorStruct(String location, long offset, long sizeInBytes, long cardinality) {
+    super(BASE_TYPE, BASE_TYPE);
+    this.location = location;
+    this.offset = offset;
+    this.sizeInBytes = sizeInBytes;
+    this.cardinality = cardinality;
+  }
+
   @Override
   public String location() {
     return location;
@@ -115,6 +123,10 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     }
   }
 
+  static Builder builder() {
+    return new Builder();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -152,12 +164,7 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
     }
 
     DeletionVectorStruct build() {
-      DeletionVectorStruct struct = new DeletionVectorStruct(BASE_TYPE);
-      struct.location = location;
-      struct.offset = offset;
-      struct.sizeInBytes = sizeInBytes;
-      struct.cardinality = cardinality;
-      return struct;
+      return new DeletionVectorStruct(location, offset, sizeInBytes, cardinality);
     }
   }
 }
