@@ -28,7 +28,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.restrictions.Action;
-import org.apache.iceberg.rest.restrictions.Actions;
 import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
@@ -80,7 +79,7 @@ class ReadRestrictionsApplier {
   }
 
   private static CloseableIterable<Record> maskColumns(
-      CloseableIterable<Record> records, List<Action> actions, Schema projection) {
+      CloseableIterable<Record> records, List<Action<?, ?>> actions, Schema projection) {
     if (actions.isEmpty()) {
       return records;
     }
@@ -89,14 +88,15 @@ class ReadRestrictionsApplier {
     return CloseableIterable.transform(records, record -> mask(record, masksByName));
   }
 
+  @SuppressWarnings("unchecked")
   private static Map<String, SerializableFunction<Object, Object>> bindMasks(
-      List<Action> actions, Schema projection) {
+      List<Action<?, ?>> actions, Schema projection) {
     ImmutableMap.Builder<String, SerializableFunction<Object, Object>> builder =
         ImmutableMap.builder();
     byte[] querySalt = null;
     List<Types.NestedField> topLevelFields = projection.asStruct().fields();
 
-    for (Action action : actions) {
+    for (Action<?, ?> action : actions) {
       int fieldId = action.fieldId();
       Types.NestedField field = findTopLevel(topLevelFields, fieldId);
       if (field == null) {
@@ -126,7 +126,12 @@ class ReadRestrictionsApplier {
         salt = querySalt;
       }
 
-      builder.put(field.name(), Actions.bind(action, field.type(), salt));
+      // All masks are erased to Object at runtime; Action<?, ?>.bind(Type, byte[]) returns a
+      // SerializableFunction with wildcard params, so cast to the uniform Object->Object shape
+      // the applier uses downstream.
+      SerializableFunction<Object, Object> bound =
+          (SerializableFunction<Object, Object>) action.bind(field.type(), salt);
+      builder.put(field.name(), bound);
     }
 
     return builder.build();
