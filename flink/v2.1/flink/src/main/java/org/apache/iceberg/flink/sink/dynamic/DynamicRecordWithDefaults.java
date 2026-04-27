@@ -58,7 +58,7 @@ class DynamicRecordWithDefaults extends DynamicRecord {
     if (originalParallelism > 0 || defaultWriteParallelism == null) {
       return originalParallelism;
     }
-    
+
     return defaultWriteParallelism;
   }
 
