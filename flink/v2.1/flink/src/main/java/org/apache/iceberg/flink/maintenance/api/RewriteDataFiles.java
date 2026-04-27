@@ -224,21 +224,19 @@ public class RewriteDataFiles {
     }
 
     /**
-     * A user provided filter for determining which files will be considered by the rewrite
-     * strategy.
+     * A user-provided supplier of a filter expression that determines which files are considered
+     * by the rewrite strategy.
      *
-     * <p>Unlike {@link #filter(Expression)}, this overload does not capture a single expression up
-     * front. The supplier is invoked by the planner for each compaction trigger, so it can create a
-     * fresh filter for every compaction run.
+     * <p>The supplier is evaluated by the planner on every compaction trigger, allowing a fresh
+     * filter to be produced for each compaction run.
      *
-     * <p>This is useful for time-relative filters. For example,in TimestampType.withoutZone() the
-     * supplier can generate a filter equivalent to {@code () ->
-     * Expressions.greaterThanOrEqual("ts",
-     * LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3)).toString())}, so each compaction
-     * rewrites files from the most recent 3 days relative to when that compaction is planned rather
-     * than relative to when the job started.
+     * <p>This is particularly useful for time-relative filters. For example, a supplier such as
+     * {@code () -> Expressions.greaterThanOrEqual("ts",
+     * LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3)).toString())} ensures that each
+     * compaction rewrites files from the last 3 days relative to the time the compaction is
+     * planned, rather than relative to when the job was started.
      *
-     * @param newFilterSupplier the filter expression supplier to apply
+     * @param newFilterSupplier the supplier providing the filter expression to apply
      * @return this for method chaining
      */
     public Builder filter(SerializableSupplier<Expression> newFilterSupplier) {
