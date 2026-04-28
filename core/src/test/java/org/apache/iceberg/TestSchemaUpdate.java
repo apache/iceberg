@@ -600,7 +600,8 @@ public class TestSchemaUpdate {
                 .withWriteDefault(Literal.of("unknown"))
                 .build());
 
-    // changes only the write default because the initial default is null when adding an optional
+    // changes only the write default because the initial default is null when adding an
+    // optional
     // column, unless the default value is given in the addColumn call
     Schema result =
         new SchemaUpdate(schema, 1)
@@ -715,7 +716,7 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Incompatible change: cannot add required column without a default value: data");
+            "Incompatible change: cannot add required column without a default value:" + " data");
 
     Schema result =
         new SchemaUpdate(schema, 1)
@@ -761,7 +762,7 @@ public class TestSchemaUpdate {
                     .updateColumnDefault("data", Literal.of("unknown")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Incompatible change: cannot add required column without a default value: data");
+            "Incompatible change: cannot add required column without a default value:" + " data");
   }
 
   @Test
@@ -849,7 +850,8 @@ public class TestSchemaUpdate {
   public void testAddColumnWithUpdateColumnDefaultToRequiredColumn() {
     Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
 
-    // updateColumnDefault does not set the initial default so the column cannot be set to required
+    // updateColumnDefault does not set the initial default so the column cannot be set to
+    // required
     assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 1)
@@ -2004,12 +2006,14 @@ public class TestSchemaUpdate {
     assertThatThrownBy(() -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(2)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot add field float as an identifier field: must not be float or double field");
+            "Cannot add field float as an identifier field: must not be float or double"
+                + " field");
 
     assertThatThrownBy(() -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(3)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot add field double as an identifier field: must not be float or double field");
+            "Cannot add field double as an identifier field: must not be float or"
+                + " double field");
 
     assertThatThrownBy(
             () ->
@@ -2018,7 +2022,8 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot add field unknown as an identifier field: not found in current schema or added columns");
+            "Cannot add field unknown as an identifier field: not found in current"
+                + " schema or added columns");
 
     assertThatThrownBy(
             () ->
@@ -2027,7 +2032,7 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot add field locations as an identifier field: not a primitive type field");
+            "Cannot add field locations as an identifier field: not a primitive type" + " field");
 
     assertThatThrownBy(
             () ->
@@ -2108,13 +2113,15 @@ public class TestSchemaUpdate {
             () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_double").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot add field col_double as an identifier field: must not be float or double field");
+            "Cannot add field col_double as an identifier field: must not be float or"
+                + " double field");
 
     assertThatThrownBy(
             () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_float").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot add field col_float as an identifier field: must not be float or double field");
+            "Cannot add field col_float as an identifier field: must not be float or"
+                + " double field");
 
     assertThatThrownBy(
             () ->
@@ -2143,7 +2150,8 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot add field feature1 as an identifier field: must not be nested in an optional field "
+            "Cannot add field feature1 as an identifier field: must not be nested in an"
+                + " optional field "
                 + newSchema.findField("preferences"));
   }
 
@@ -2183,7 +2191,8 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot delete identifier field 1: id: required int. To force deletion, also call setIdentifierFields to update identifier fields.");
+            "Cannot delete identifier field 1: id: required int. To force deletion,"
+                + " also call setIdentifierFields to update identifier fields.");
   }
 
   @Test
@@ -2204,8 +2213,9 @@ public class TestSchemaUpdate {
                 new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 2).deleteColumn("out").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot delete field 24: out: required struct<25: nested: required string> "
-                + "as it will delete nested identifier field 25: nested: required string");
+            "Cannot delete field 24: out: required struct<25: nested: required string>"
+                + " as it will delete nested identifier field 25: nested: required"
+                + " string");
   }
 
   @Test
@@ -2767,8 +2777,7 @@ public class TestSchemaUpdate {
     Schema expected =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
-            optional(
-                2, "info", Types.StructType.of(required(4, "age", Types.IntegerType.get()))));
+            optional(2, "info", Types.StructType.of(required(4, "age", Types.IntegerType.get()))));
 
     Schema result = new SchemaUpdate(schema, 4).deleteColumn("info.name").apply();
 
@@ -2807,9 +2816,7 @@ public class TestSchemaUpdate {
                     optional(5, "email", Types.StringType.get()))));
 
     Schema result =
-        new SchemaUpdate(schema, 4)
-            .addColumn("info", "email", Types.StringType.get())
-            .apply();
+        new SchemaUpdate(schema, 4).addColumn("info", "email", Types.StringType.get()).apply();
 
     assertThat(result.asStruct()).isEqualTo(expected.asStruct());
     // Parent struct ID preserved
