@@ -152,8 +152,6 @@ public class FlinkValueWriters {
   private static class UUIDWriter implements ValueWriter<byte[]> {
     private static final UUIDWriter INSTANCE = new UUIDWriter();
 
-    private UUIDWriter() {}
-
     @Override
     public void write(byte[] bytes, Encoder encoder) throws IOException {
       encoder.writeFixed(bytes);
