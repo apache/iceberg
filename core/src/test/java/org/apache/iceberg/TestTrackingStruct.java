@@ -58,7 +58,7 @@ class TestTrackingStruct {
             .status(EntryStatus.ADDED)
             .snapshotId(42L)
             .dataSequenceNumber(10L)
-            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .deletedPositions(new byte[] {1, 2})
             .build();
 
     TrackingStruct copy = tracking.copy();
@@ -216,7 +216,7 @@ class TestTrackingStruct {
             .status(EntryStatus.ADDED)
             .snapshotId(42L)
             .dataSequenceNumber(10L)
-            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .deletedPositions(new byte[] {1, 2})
             .build();
 
     TrackingStruct deserialized = TestHelpers.roundTripSerialize(tracking);
@@ -234,7 +234,7 @@ class TestTrackingStruct {
             .status(EntryStatus.ADDED)
             .snapshotId(42L)
             .dataSequenceNumber(10L)
-            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .deletedPositions(new byte[] {1, 2})
             .build();
 
     TrackingStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);

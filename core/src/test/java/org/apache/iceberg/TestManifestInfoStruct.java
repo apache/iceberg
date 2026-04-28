@@ -70,7 +70,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
+            .dv(new byte[] {0xF})
             .dvCardinality(1L)
             .build();
 
@@ -143,7 +143,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
+            .dv(new byte[] {0xF})
             .dvCardinality(1L)
             .build();
 
@@ -177,7 +177,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid added files count: -1");
+        .hasMessage("Invalid added files count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -192,7 +192,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid existing files count: -1");
+        .hasMessage("Invalid existing files count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -207,7 +207,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid deleted files count: -1");
+        .hasMessage("Invalid deleted files count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -222,7 +222,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid replaced files count: -1");
+        .hasMessage("Invalid replaced files count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -237,7 +237,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid added rows count: -1");
+        .hasMessage("Invalid added rows count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -252,7 +252,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid existing rows count: -1");
+        .hasMessage("Invalid existing rows count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -267,7 +267,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid deleted rows count: -1");
+        .hasMessage("Invalid deleted rows count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -282,7 +282,7 @@ class TestManifestInfoStruct {
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid replaced rows count: -1");
+        .hasMessage("Invalid replaced rows count: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -297,7 +297,7 @@ class TestManifestInfoStruct {
                     .replacedRowsCount(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid min sequence number: -1");
+        .hasMessage("Invalid min sequence number: -1 (must be >= 0)");
   }
 
   @Test
@@ -313,7 +313,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
+            .dv(new byte[] {0xF})
             .dvCardinality(1L)
             .build();
 

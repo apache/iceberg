@@ -319,6 +319,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       return this;
     }
 
+    Builder dv(byte[] buffer) {
+      this.dv = buffer;
+      return this;
+    }
+
     Builder dvCardinality(Long cardinality) {
       this.dvCardinality = cardinality;
       return this;
@@ -326,23 +331,35 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
 
     ManifestInfoStruct build() {
       Preconditions.checkArgument(
-          addedFilesCount >= 0, "Invalid added files count: %s", addedFilesCount);
+          addedFilesCount >= 0, "Invalid added files count: %s (must be >= 0)", addedFilesCount);
       Preconditions.checkArgument(
-          existingFilesCount >= 0, "Invalid existing files count: %s", existingFilesCount);
+          existingFilesCount >= 0,
+          "Invalid existing files count: %s (must be >= 0)",
+          existingFilesCount);
       Preconditions.checkArgument(
-          deletedFilesCount >= 0, "Invalid deleted files count: %s", deletedFilesCount);
+          deletedFilesCount >= 0,
+          "Invalid deleted files count: %s (must be >= 0)",
+          deletedFilesCount);
       Preconditions.checkArgument(
-          replacedFilesCount >= 0, "Invalid replaced files count: %s", replacedFilesCount);
+          replacedFilesCount >= 0,
+          "Invalid replaced files count: %s (must be >= 0)",
+          replacedFilesCount);
       Preconditions.checkArgument(
-          addedRowsCount >= 0, "Invalid added rows count: %s", addedRowsCount);
+          addedRowsCount >= 0, "Invalid added rows count: %s (must be >= 0)", addedRowsCount);
       Preconditions.checkArgument(
-          existingRowsCount >= 0, "Invalid existing rows count: %s", existingRowsCount);
+          existingRowsCount >= 0,
+          "Invalid existing rows count: %s (must be >= 0)",
+          existingRowsCount);
       Preconditions.checkArgument(
-          deletedRowsCount >= 0, "Invalid deleted rows count: %s", deletedRowsCount);
+          deletedRowsCount >= 0, "Invalid deleted rows count: %s (must be >= 0)", deletedRowsCount);
       Preconditions.checkArgument(
-          replacedRowsCount >= 0, "Invalid replaced rows count: %s", replacedRowsCount);
+          replacedRowsCount >= 0,
+          "Invalid replaced rows count: %s (must be >= 0)",
+          replacedRowsCount);
       Preconditions.checkArgument(
-          minSequenceNumber >= 0, "Invalid min sequence number: %s", minSequenceNumber);
+          minSequenceNumber >= 0,
+          "Invalid min sequence number: %s (must be >= 0)",
+          minSequenceNumber);
       return new ManifestInfoStruct(
           addedFilesCount,
           existingFilesCount,

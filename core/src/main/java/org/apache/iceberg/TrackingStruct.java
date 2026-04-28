@@ -312,8 +312,18 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       return this;
     }
 
+    Builder deletedPositions(byte[] positions) {
+      this.deletedPositions = positions;
+      return this;
+    }
+
     Builder replacedPositions(ByteBuffer positions) {
       this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
+      return this;
+    }
+
+    Builder replacedPositions(byte[] positions) {
+      this.replacedPositions = positions;
       return this;
     }
 

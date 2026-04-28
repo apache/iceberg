@@ -120,7 +120,7 @@ class TestDeletionVectorStruct {
                     .cardinality(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid offset: -1");
+        .hasMessage("Invalid offset: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -130,7 +130,7 @@ class TestDeletionVectorStruct {
                     .cardinality(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid size in bytes: -1");
+        .hasMessage("Invalid size in bytes: -1 (must be >= 0)");
 
     assertThatThrownBy(
             () ->
@@ -140,7 +140,7 @@ class TestDeletionVectorStruct {
                     .sizeInBytes(1)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid cardinality: -1");
+        .hasMessage("Invalid cardinality: -1 (must be >= 0)");
   }
 
   @Test

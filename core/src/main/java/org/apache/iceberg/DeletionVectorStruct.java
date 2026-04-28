@@ -166,9 +166,11 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
 
     DeletionVectorStruct build() {
       Preconditions.checkArgument(location != null, "Invalid location: null");
-      Preconditions.checkArgument(offset >= 0, "Invalid offset: %s", offset);
-      Preconditions.checkArgument(sizeInBytes >= 0, "Invalid size in bytes: %s", sizeInBytes);
-      Preconditions.checkArgument(cardinality >= 0, "Invalid cardinality: %s", cardinality);
+      Preconditions.checkArgument(offset >= 0, "Invalid offset: %s (must be >= 0)", offset);
+      Preconditions.checkArgument(
+          sizeInBytes >= 0, "Invalid size in bytes: %s (must be >= 0)", sizeInBytes);
+      Preconditions.checkArgument(
+          cardinality >= 0, "Invalid cardinality: %s (must be >= 0)", cardinality);
       return new DeletionVectorStruct(location, offset, sizeInBytes, cardinality);
     }
   }
