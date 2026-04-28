@@ -590,15 +590,3 @@ This product bundles Conscrypt (uber-jar) with the following in its NOTICE:
 |     * licenses/LICENSE.harmony.txt (Apache License 2.0)
 |   * HOMEPAGE:
 |     * https://harmony.apache.org/
-
---------------------------------------------------------------------------------
-
-This product bundles Apache Flink Metrics Dropwizard with the following in its NOTICE file:
-| Apache Flink
-| Copyright 2006-2026 The Apache Software Foundation
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
-|
-| Flink : Metrics : Dropwizard
-| Copyright 2014-2026 The Apache Software Foundation
