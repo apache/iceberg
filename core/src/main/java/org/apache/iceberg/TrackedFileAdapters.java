@@ -49,14 +49,6 @@ class TrackedFileAdapters {
     return new TrackedDataFile(file, spec);
   }
 
-  static DeleteFile asDeleteFile(TrackedFile file, PartitionSpec spec) {
-    Preconditions.checkState(
-        file.contentType() == FileContent.EQUALITY_DELETES,
-        "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
-        file.contentType());
-    return new TrackedDeleteFile(file, spec);
-  }
-
   static DeleteFile asDVDeleteFile(TrackedFile file, PartitionSpec spec) {
     Preconditions.checkState(
         file.contentType() == FileContent.DATA,
@@ -65,6 +57,14 @@ class TrackedFileAdapters {
     Preconditions.checkState(
         file.deletionVector() != null, "Cannot extract DV from tracked file: no deletion vector");
     return new TrackedDVDeleteFile(file, spec);
+  }
+
+  static DeleteFile asEqualityDeleteFile(TrackedFile file, PartitionSpec spec) {
+    Preconditions.checkState(
+        file.contentType() == FileContent.EQUALITY_DELETES,
+        "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
+        file.contentType());
+    return new TrackedDeleteFile(file, spec);
   }
 
   // TODO: TrackedFile will likely get an explicit partition tuple field (using a union partition
