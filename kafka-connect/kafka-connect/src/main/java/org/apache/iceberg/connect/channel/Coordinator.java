@@ -200,25 +200,42 @@ class Coordinator extends Channel {
     }
   }
 
-  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   private void doCommit(boolean partialCommit) {
     Map<TableReference, List<CommitState.CommitGroup>> commitGroups =
         commitState.tableCommitGroups();
     OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
-    Map<Integer, Long> ctlOffsets = controlTopicOffsets();
 
     if (commitGroups.isEmpty()) {
-      LOG.info("Nothing to commit");
-      commitConsumerOffsets();
-      commitState.clearResponses();
-      Event event =
-          new Event(
-              config.connectGroupId(),
-              new CommitComplete(commitState.currentCommitId(), validThroughTs));
-      send(event);
+      handleEmptyCommit(validThroughTs);
       return;
     }
 
+    Map<Integer, Long> ctlOffsets = controlTopicOffsets();
+    CommitCycleResult result = runTableCommits(commitGroups, ctlOffsets, validThroughTs);
+    finalizeCommitCycle(commitGroups, result, validThroughTs);
+  }
+
+  private void handleEmptyCommit(OffsetDateTime validThroughTs) {
+    LOG.info(
+        "Coordinator {} found nothing to commit for commit {}",
+        taskId,
+        commitState.currentCommitId());
+    commitConsumerOffsets();
+    commitState.clearResponses();
+    Event event =
+        new Event(
+            config.connectGroupId(),
+            new CommitComplete(commitState.currentCommitId(), validThroughTs));
+    send(event);
+  }
+
+  private record CommitCycleResult(
+      List<Envelope> committedEnvelopes, RuntimeException taskException) {}
+
+  private CommitCycleResult runTableCommits(
+      Map<TableReference, List<CommitState.CommitGroup>> commitGroups,
+      Map<Integer, Long> ctlOffsets,
+      OffsetDateTime validThroughTs) {
     // Track successfully committed envelopes for selective removal.
     // Synchronized because table commits run in parallel via the exec thread pool.
     List<Envelope> committedEnvelopes = Collections.synchronizedList(Lists.newArrayList());
@@ -301,6 +318,14 @@ class Coordinator extends Channel {
     } catch (RuntimeException e) {
       taskException = e;
     }
+    return new CommitCycleResult(committedEnvelopes, taskException);
+  }
+
+  private void finalizeCommitCycle(
+      Map<TableReference, List<CommitState.CommitGroup>> commitGroups,
+      CommitCycleResult result,
+      OffsetDateTime validThroughTs) {
+    List<Envelope> committedEnvelopes = result.committedEnvelopes();
 
     // Remove only the envelopes whose groups committed successfully.
     if (!committedEnvelopes.isEmpty()) {
@@ -352,8 +377,8 @@ class Coordinator extends Channel {
     }
 
     // Re-throw after cleanup so the commit() wrapper can log it.
-    if (taskException != null) {
-      throw taskException;
+    if (result.taskException() != null) {
+      throw result.taskException();
     }
   }
 
