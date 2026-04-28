@@ -97,6 +97,151 @@ class TestTrackedFileAdapters {
   }
 
   @Test
+  void testAsDVDeleteFileValidatesContentType() {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
+    file.set(6, 0);
+    file.set(9, createDeletionVector());
+
+    DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned());
+    assertThat(dv).isNotNull();
+    assertThat(dv.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(dv.format()).isEqualTo(FileFormat.PUFFIN);
+  }
+
+  @Test
+  void testAsDVDeleteFileRejectsNonData() {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.EQUALITY_DELETES,
+            "s3://bucket/eq-delete.avro",
+            FileFormat.AVRO,
+            50L,
+            512L);
+    file.set(6, 0);
+    file.set(9, createDeletionVector());
+
+    assertThatThrownBy(
+            () -> TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot extract DV from tracked file: content type is %s, not DATA",
+            FileContent.EQUALITY_DELETES);
+  }
+
+  @Test
+  void testAsDVDeleteFileRejectsNullDV() {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
+    file.set(6, 0);
+
+    assertThatThrownBy(
+            () -> TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot extract DV from tracked file: no deletion vector");
+  }
+
+  @Test
+  void testDVDeleteFileAdapterDelegatesAllFields() {
+    Types.StructType trackingWithPos =
+        Types.StructType.of(
+            ImmutableList.<Types.NestedField>builder()
+                .addAll(Tracking.schema().fields())
+                .add(MetadataColumns.ROW_POSITION)
+                .build());
+    TrackingStruct tracking = new TrackingStruct(trackingWithPos);
+
+    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(1, 42L);
+    tracking.set(2, 10L);
+    tracking.set(3, 11L);
+    tracking.set(5, 1000L);
+    tracking.setManifestLocation("s3://bucket/manifest.avro");
+    tracking.set(8, 7L);
+
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.DATA,
+            "s3://bucket/data/file.parquet",
+            FileFormat.PARQUET,
+            100L,
+            1024L);
+    file.set(6, 2);
+    file.set(9, createDeletionVector());
+
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned());
+
+    // DV-specific fields from DeletionVector
+    assertThat(dvFile.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(dvFile.location()).isEqualTo("s3://bucket/puffin/dv-file.bin");
+    assertThat(dvFile.format()).isEqualTo(FileFormat.PUFFIN);
+    assertThat(dvFile.recordCount()).isEqualTo(10L);
+    assertThat(dvFile.fileSizeInBytes()).isEqualTo(256L);
+    assertThat(dvFile.referencedDataFile()).isEqualTo("s3://bucket/data/file.parquet");
+    assertThat(dvFile.contentOffset()).isEqualTo(128L);
+    assertThat(dvFile.contentSizeInBytes()).isEqualTo(256L);
+
+    // fields delegated from TrackedFile / Tracking
+    assertThat(dvFile.pos()).isEqualTo(7L);
+    assertThat(dvFile.specId()).isEqualTo(2);
+    assertThat(dvFile.dataSequenceNumber()).isEqualTo(10L);
+    assertThat(dvFile.fileSequenceNumber()).isEqualTo(11L);
+    assertThat(dvFile.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+
+    // fields that should be null for DVs
+    assertThat(dvFile.sortOrderId()).isNull();
+    assertThat(dvFile.firstRowId()).isNull();
+    assertThat(dvFile.keyMetadata()).isNull();
+    assertThat(dvFile.splitOffsets()).isNull();
+    assertThat(dvFile.equalityFieldIds()).isNull();
+    assertThat(dvFile.columnSizes()).isNull();
+    assertThat(dvFile.valueCounts()).isNull();
+    assertThat(dvFile.nullValueCounts()).isNull();
+    assertThat(dvFile.nanValueCounts()).isNull();
+    assertThat(dvFile.lowerBounds()).isNull();
+    assertThat(dvFile.upperBounds()).isNull();
+  }
+
+  @Test
+  void testDVDeleteFileAdapterDelegatesNullTracking() {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
+    file.set(6, 0);
+    file.set(9, createDeletionVector());
+
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned());
+
+    assertThat(dvFile.dataSequenceNumber()).isNull();
+    assertThat(dvFile.fileSequenceNumber()).isNull();
+    assertThat(dvFile.manifestLocation()).isNull();
+    assertThat(dvFile.pos()).isNull();
+  }
+
+  @Test
+  void testDVDeleteFilePartitionExtracted() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "category", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+
+    TrackedFileStruct file = createTrackedFileWithPartitionStats(spec);
+    file.set(9, createDeletionVector());
+
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, spec);
+
+    StructLike partition = dvFile.partition();
+    assertThat(partition).isNotNull();
+    assertThat(partition.get(0, CharSequence.class).toString()).isEqualTo("electronics");
+  }
+
+  @Test
   void testDataFileAdapterDelegatesAllFields() {
     Types.StructType trackingWithPos =
         Types.StructType.of(
@@ -463,6 +608,15 @@ class TestTrackedFileAdapters {
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
     assertThat(dataFile.specId()).isEqualTo(0);
+  }
+
+  private static DeletionVectorStruct createDeletionVector() {
+    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
+    dv.set(0, "s3://bucket/puffin/dv-file.bin");
+    dv.set(1, 128L);
+    dv.set(2, 256L);
+    dv.set(3, 10L);
+    return dv;
   }
 
   private static java.util.Map.Entry<Integer, Long> entry(int key, long value) {
