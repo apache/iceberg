@@ -64,7 +64,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testAsDeleteFileValidatesContentType() {
+  void testAsEqualityDeleteFileValidatesContentType() {
     TrackedFileStruct file =
         new TrackedFileStruct(
             null,
@@ -76,20 +76,22 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
     file.set(13, ImmutableList.of(1, 2));
 
-    DeleteFile deleteFile = TrackedFileAdapters.asDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile deleteFile =
+        TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned());
     assertThat(deleteFile).isNotNull();
     assertThat(deleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1, 2);
   }
 
   @Test
-  void testAsDeleteFileRejectsNonEqualityDeletes() {
+  void testAsEqualityDeleteFileRejectsNonEqualityDeletes() {
     TrackedFileStruct file =
         new TrackedFileStruct(
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
-    assertThatThrownBy(() -> TrackedFileAdapters.asDeleteFile(file, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(
+            () -> TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned()))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
@@ -293,7 +295,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testDeleteFileAdapterDelegatesAllFields() {
+  void testEqualityDeleteFileAdapterDelegatesAllFields() {
     Types.StructType trackingWithPos =
         Types.StructType.of(
             ImmutableList.<Types.NestedField>builder()
@@ -324,7 +326,8 @@ class TestTrackedFileAdapters {
     file.set(12, ImmutableList.of(200L));
     file.set(13, ImmutableList.of(1, 2, 3));
 
-    DeleteFile deleteFile = TrackedFileAdapters.asDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile deleteFile =
+        TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned());
 
     assertThat(deleteFile.pos()).isEqualTo(5L);
     assertThat(deleteFile.specId()).isEqualTo(1);
@@ -378,12 +381,13 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testDeleteFileAdapterStatsFromContentStats() {
+  void testEqualityDeleteFileAdapterStatsFromContentStats() {
     TrackedFileStruct file = createTrackedFileWithStats();
     file.set(1, FileContent.EQUALITY_DELETES.id());
     file.set(13, ImmutableList.of(1));
 
-    DeleteFile deleteFile = TrackedFileAdapters.asDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile deleteFile =
+        TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned());
 
     assertThat(deleteFile.valueCounts()).containsOnly(entry(1, 100L), entry(2, 200L));
     assertThat(deleteFile.nullValueCounts()).containsOnly(entry(1, 5L), entry(2, 10L));
@@ -585,7 +589,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testDeleteFilePartitionExtracted() {
+  void testEqualityDeleteFilePartitionExtracted() {
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -597,7 +601,7 @@ class TestTrackedFileAdapters {
     file.set(1, FileContent.EQUALITY_DELETES.id());
     file.set(13, ImmutableList.of(1));
 
-    DeleteFile deleteFile = TrackedFileAdapters.asDeleteFile(file, spec);
+    DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, spec);
 
     StructLike partition = deleteFile.partition();
     assertThat(partition).isNotNull();
