@@ -60,7 +60,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private transient OutputTag<DynamicRecordInternal> updateStream;
   private transient OutputTag<DynamicRecordInternal> forwardStream;
   private transient Collector<DynamicRecordInternal> collector;
-  private transient DynamicRecordWithDefaults dynamicRecordWithDefaults;
+  private transient DynamicRecordWithConfig dynamicRecordWithConfig;
   private transient Context context;
 
   DynamicRecordProcessor(
@@ -112,8 +112,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
               new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
     }
 
-    this.dynamicRecordWithDefaults =
-        new DynamicRecordWithDefaults(new FlinkWriteConf(writeProperties, flinkConfig));
+    this.dynamicRecordWithConfig =
+        new DynamicRecordWithConfig(new FlinkWriteConf(writeProperties, flinkConfig));
     generator.open(openContext);
   }
 
@@ -127,7 +127,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
   @Override
   public void collect(DynamicRecord inputData) {
-    DynamicRecordWithDefaults data = dynamicRecordWithDefaults.wrap(inputData);
+    DynamicRecordWithConfig data = dynamicRecordWithConfig.wrap(inputData);
 
     boolean isForward = data.distributionMode() == null;
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;

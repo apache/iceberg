@@ -26,18 +26,18 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkWriteConf;
 
-class DynamicRecordWithDefaults extends DynamicRecord {
+class DynamicRecordWithConfig extends DynamicRecord {
   private final String defaultBranch;
   private final Integer defaultWriteParallelism;
 
   private DynamicRecord wrapped;
 
-  DynamicRecordWithDefaults(FlinkWriteConf flinkWriteConf) {
+  DynamicRecordWithConfig(FlinkWriteConf flinkWriteConf) {
     this.defaultBranch = flinkWriteConf.branch();
     this.defaultWriteParallelism = flinkWriteConf.writeParallelism();
   }
 
-  DynamicRecordWithDefaults wrap(DynamicRecord newWrapped) {
+  DynamicRecordWithConfig wrap(DynamicRecord newWrapped) {
     this.wrapped = newWrapped;
     return this;
   }

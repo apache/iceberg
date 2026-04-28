@@ -536,9 +536,8 @@ class TestHashKeyGenerator {
         new DynamicRecord(TABLE_IDENTIFIER, BRANCH, SCHEMA, row, spec, mode, writeParallelism);
     inputRecord.setEqualityFields(equalityFields);
 
-    DynamicRecordWithDefaults dynamicRecordWithDefaults =
-        new DynamicRecordWithDefaults(flinkWriteConf);
-    return generator.generateKey(dynamicRecordWithDefaults.wrap(inputRecord));
+    DynamicRecordWithConfig dynamicRecordWithConfig = new DynamicRecordWithConfig(flinkWriteConf);
+    return generator.generateKey(dynamicRecordWithConfig.wrap(inputRecord));
   }
 
   private static int getSubTaskId(int writeKey1, int writeParallelism, int maxWriteParallelism) {
