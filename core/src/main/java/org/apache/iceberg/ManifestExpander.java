@@ -18,11 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -34,6 +39,7 @@ import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.ParallelIterable;
+import org.roaringbitmap.RoaringBitmap;
 
 /**
  * V4 replacement for {@link ManifestGroup}.
@@ -160,10 +166,59 @@ class ManifestExpander extends CloseableGroup {
     V4ManifestReader leafReader = new V4ManifestReader(leafFile, specsById);
     addCloseable(leafReader);
 
-    return CloseableIterable.transform(
-        CloseableIterable.filter(
-            leafReader.liveEntries(), tf -> tf.contentType() == FileContent.DATA),
-        tf -> createTask(tf.copy()));
+    RoaringBitmap deletedPositions = deletedPositions(manifestEntry);
+    CloseableIterable<TrackedFile> entries;
+    if (deletedPositions != null) {
+      // use all entries (not just live) so position counter matches manifest ordinals
+      AtomicInteger position = new AtomicInteger(0);
+      entries =
+          CloseableIterable.filter(
+              leafReader.entries(),
+              tf -> !deletedPositions.contains(position.getAndIncrement()) && isLiveData(tf));
+    } else {
+      entries =
+          CloseableIterable.filter(
+              leafReader.liveEntries(), tf -> tf.contentType() == FileContent.DATA);
+    }
+
+    return CloseableIterable.transform(entries, tf -> createTask(tf.copy()));
+  }
+
+  private static boolean isLiveData(TrackedFile tf) {
+    if (tf == null || tf.contentType() != FileContent.DATA) {
+      return false;
+    }
+
+    Tracking tracking = tf.tracking();
+    return tracking != null && tracking.isLive();
+  }
+
+  private static RoaringBitmap deletedPositions(TrackedFile manifestEntry) {
+    Tracking tracking = manifestEntry.tracking();
+    if (tracking == null) {
+      return null;
+    }
+
+    ByteBuffer deleted = tracking.deletedPositions();
+    if (deleted == null) {
+      return null;
+    }
+
+    return deserializeBitmap(deleted);
+  }
+
+  private static RoaringBitmap deserializeBitmap(ByteBuffer buffer) {
+    byte[] bytes = new byte[buffer.remaining()];
+    buffer.asReadOnlyBuffer().get(bytes);
+
+    RoaringBitmap bitmap = new RoaringBitmap();
+    try {
+      bitmap.deserialize(new DataInputStream(new ByteArrayInputStream(bytes)));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to deserialize metadata deletion vector");
+    }
+
+    return bitmap;
   }
 
   private FileScanTask createTask(TrackedFile trackedFile) {
