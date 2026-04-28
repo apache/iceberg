@@ -118,6 +118,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.view.View;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.compression.gzip.GzipCompression;
@@ -3984,6 +3985,112 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
     return catalog;
+  }
+
+  @Test
+  public void testAddSchemaWithExistingIdAndDifferentSchema() {
+    TableIdentifier ident = TableIdentifier.of("ns", "table_with_schema_error");
+    if (!catalog().namespaceExists(ident.namespace())) {
+      catalog().createNamespace(ident.namespace());
+    }
+    catalog().createTable(ident, SCHEMA);
+
+    Table table = catalog().loadTable(ident);
+    int existingSchemaId = table.schema().schemaId();
+
+    Schema newSchema =
+        new Schema(
+            existingSchemaId, Types.NestedField.required(100, "new_col", Types.StringType.get()));
+
+    UpdateTableRequest request =
+        new UpdateTableRequest(
+            ImmutableList.of(), ImmutableList.of(new MetadataUpdate.AddSchema(newSchema)));
+
+    assertThatThrownBy(() -> CatalogHandlers.updateTable(backendCatalog, ident, request))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("already exists with a different schema");
+  }
+
+  @Test
+  public void testAddSchemaWithExistingIdAndSameSchema() {
+    TableIdentifier ident = TableIdentifier.of("ns", "table_with_schema_idempotent");
+    if (!catalog().namespaceExists(ident.namespace())) {
+      catalog().createNamespace(ident.namespace());
+    }
+    catalog().createTable(ident, SCHEMA);
+
+    Table table = catalog().loadTable(ident);
+    int existingSchemaId = table.schema().schemaId();
+
+    // Use the same schema fields from the loaded table
+    Schema sameSchema =
+        new Schema(existingSchemaId, table.schema().columns(), table.schema().identifierFieldIds());
+
+    UpdateTableRequest request =
+        new UpdateTableRequest(
+            ImmutableList.of(), ImmutableList.of(new MetadataUpdate.AddSchema(sameSchema)));
+
+    // This should succeed (idempotent)
+    CatalogHandlers.updateTable(backendCatalog, ident, request);
+  }
+
+  @Test
+  public void testAddViewSchemaWithExistingIdAndDifferentSchema() {
+    TableIdentifier ident = TableIdentifier.of("ns", "view_with_schema_error");
+    if (!catalog().namespaceExists(ident.namespace())) {
+      catalog().createNamespace(ident.namespace());
+    }
+
+    backendCatalog
+        .buildView(ident)
+        .withSchema(SCHEMA)
+        .withQuery("sql", "select * from table")
+        .withDefaultNamespace(ident.namespace())
+        .create();
+
+    View view = backendCatalog.loadView(ident);
+    int existingSchemaId = view.schema().schemaId();
+
+    Schema newSchema =
+        new Schema(
+            existingSchemaId, Types.NestedField.required(100, "new_col", Types.StringType.get()));
+
+    UpdateTableRequest request =
+        new UpdateTableRequest(
+            ImmutableList.of(), ImmutableList.of(new MetadataUpdate.AddSchema(newSchema)));
+
+    assertThatThrownBy(() -> CatalogHandlers.updateView(backendCatalog, ident, request))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("already exists with a different schema");
+  }
+
+  @Test
+  public void testAddViewSchemaWithExistingIdAndSameSchema() {
+    TableIdentifier ident = TableIdentifier.of("ns", "view_with_schema_idempotent");
+    if (!catalog().namespaceExists(ident.namespace())) {
+      catalog().createNamespace(ident.namespace());
+    }
+
+    backendCatalog
+        .buildView(ident)
+        .withSchema(SCHEMA)
+        .withQuery("sql", "select * from table")
+        .withDefaultNamespace(ident.namespace())
+        .create();
+
+    View view = backendCatalog.loadView(ident);
+    int existingSchemaId = view.schema().schemaId();
+
+    // Use the same schema fields from the loaded view
+    Schema sameSchema =
+        new Schema(existingSchemaId, view.schema().columns(), view.schema().identifierFieldIds());
+
+    UpdateTableRequest request =
+        new UpdateTableRequest(
+            ImmutableList.of(), ImmutableList.of(new MetadataUpdate.AddSchema(sameSchema)));
+
+    // This should succeed (idempotent)
+    CatalogHandlers.updateView(backendCatalog, ident, request);
   }
 
   private static List<HTTPRequest> allRequests(RESTCatalogAdapter adapter) {

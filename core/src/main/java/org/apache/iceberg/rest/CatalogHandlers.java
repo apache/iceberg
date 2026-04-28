@@ -51,6 +51,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RetryableValidationException;
@@ -603,7 +604,7 @@ public class CatalogHandlers {
 
     TableMetadata.Builder builder =
         formatVersion.map(TableMetadata::buildFromEmpty).orElseGet(TableMetadata::buildFromEmpty);
-    request.updates().forEach(update -> update.applyTo(builder));
+    applyUpdates(null, builder, request.updates());
     // create transactions do not retry. if the table exists, retrying is not a solution
     ops.commit(null, builder.build());
 
@@ -637,7 +638,7 @@ public class CatalogHandlers {
                 // apply changes
                 TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
                 try {
-                  request.updates().forEach(update -> update.applyTo(metadataBuilder));
+                  applyUpdates(base, metadataBuilder, request.updates());
                 } catch (RetryableValidationException e) {
                   // Validation failed because the commit includes stale values (e.g. sequence
                   // number or first-row-id behind the current table state). This is not a conflict.
@@ -798,7 +799,7 @@ public class CatalogHandlers {
 
                 // apply changes
                 ViewMetadata.Builder metadataBuilder = ViewMetadata.buildFrom(base);
-                request.updates().forEach(update -> update.applyTo(metadataBuilder));
+                applyUpdates(base, metadataBuilder, request.updates());
 
                 ViewMetadata updated = metadataBuilder.build();
 
@@ -1037,6 +1038,50 @@ public class CatalogHandlers {
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
+  private static void applyUpdates(
+      TableMetadata base, TableMetadata.Builder builder, List<MetadataUpdate> updates) {
+    updates.forEach(
+        update -> {
+          if (update instanceof MetadataUpdate.AddSchema) {
+            Schema schema = ((MetadataUpdate.AddSchema) update).schema();
+            validateSchemaId(base, schema);
+          }
+          update.applyTo(builder);
+        });
+  }
+
+  private static void applyUpdates(
+      ViewMetadata base, ViewMetadata.Builder builder, List<MetadataUpdate> updates) {
+    updates.forEach(
+        update -> {
+          if (update instanceof MetadataUpdate.AddSchema) {
+            Schema schema = ((MetadataUpdate.AddSchema) update).schema();
+            validateSchemaId(base, schema);
+          }
+          update.applyTo(builder);
+        });
+  }
+
+  private static void validateSchemaId(TableMetadata base, Schema schema) {
+    if (base != null && base.schemasById().containsKey(schema.schemaId())) {
+      Schema existing = base.schemasById().get(schema.schemaId());
+      Preconditions.checkArgument(
+          existing.sameSchema(schema),
+          "Schema ID %s already exists with a different schema",
+          schema.schemaId());
+    }
+  }
+
+  private static void validateSchemaId(ViewMetadata base, Schema schema) {
+    if (base != null && base.schemasById().containsKey(schema.schemaId())) {
+      Schema existing = base.schemasById().get(schema.schemaId());
+      Preconditions.checkArgument(
+          existing.sameSchema(schema),
+          "Schema ID %s already exists with a different schema",
+          schema.schemaId());
+    }
+  }
+
   private static void asyncPlanFiles(
       Scan<?, FileScanTask, ?> scan,
       String asyncPlanId,
