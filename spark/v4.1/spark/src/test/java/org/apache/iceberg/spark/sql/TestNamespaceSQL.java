@@ -158,6 +158,28 @@ public class TestNamespaceSQL extends CatalogTestBase {
   @TestTemplate
   public void testDropNamespaceCascade() {
     assumeThat(catalogName).as("Session catalog has flaky behavior").isNotEqualTo("spark_catalog");
+
+    assertThat(validationNamespaceCatalog.namespaceExists(NS))
+        .as("Namespace should not already exist")
+        .isFalse();
+
+    sql("CREATE NAMESPACE %s", fullNamespace);
+    sql("CREATE TABLE %s.table (id bigint) USING iceberg", fullNamespace);
+    // Views are not tested here because Hadoop catalog does not support them.
+    // See TestViews for view drop behavior with CASCADE.
+
+    assertThat(validationNamespaceCatalog.namespaceExists(NS)).isTrue();
+    assertThat(validationCatalog.tableExists(TableIdentifier.of(NS, "table"))).isTrue();
+
+    sql("DROP NAMESPACE %s CASCADE", fullNamespace);
+
+    assertThat(validationNamespaceCatalog.namespaceExists(NS)).isFalse();
+    assertThat(validationCatalog.tableExists(TableIdentifier.of(NS, "table"))).isFalse();
+  }
+
+  @TestTemplate
+  public void testDropNestedNamespaceCascade() {
+    assumeThat(catalogName).as("Session catalog has flaky behavior").isNotEqualTo("spark_catalog");
     assumeThat(catalogName).as("Multi part namespace is unsupported").isNotEqualTo("testhive");
 
     assertThat(validationNamespaceCatalog.namespaceExists(NS))

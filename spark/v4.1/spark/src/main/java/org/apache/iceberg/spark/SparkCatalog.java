@@ -487,12 +487,8 @@ public class SparkCatalog extends BaseCatalog {
       for (String[] ns : listNamespaces(namespace)) {
         dropNamespace(ns, true);
       }
-      for (Identifier view : listViews(namespace)) {
-        dropView(view);
-      }
-      for (Identifier table : listTables(namespace)) {
-        dropTable(table);
-      }
+      Arrays.stream(listViews(namespace)).forEach(this::dropView);
+      Arrays.stream(listTables(namespace)).forEach(this::dropTable);
     }
 
     if (asNamespaceCatalog != null) {
