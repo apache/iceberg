@@ -538,34 +538,6 @@ License: MIT
 
 --------------------------------------------------------------------------------
 
-This product bundles Nimbus Content Type.
-
-Project URL: https://bitbucket.org/connect2id/nimbus-content-type
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Nimbus Lang Tag.
-
-Project URL: https://bitbucket.org/connect2id/nimbus-language-tags
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Nimbus Jose JWT.
-
-Project URL: https://bitbucket.org/connect2id/nimbus-jose-jwt
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Nimbus OAuth2 OIDC SDK.
-
-Project URL: https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles JAXB.
 
 Project URL: http://jaxb.java.net/
