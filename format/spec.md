@@ -704,21 +704,97 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     |            | _optional_ | **`4  file_sequence_number`** | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
     | _required_ | _required_ | **`2  data_file`**            | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ... |
 
-The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
+    The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
-When a file is added to the dataset, its manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
+    When a file is added to the dataset, its manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
 
-When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
+    When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
-Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
-The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
-The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
-The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
+    Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
+    The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
+    The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
+    The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
 
-Notes:
+    Notes:
 
-1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
-2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
+    1. Technically, data files can be deleted when the last snapshot that contains the file as "live" data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
+    2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
+
+=== "v4"
+    **Content Entries**
+
+    | Field id | Name | Type | Write | Read | Description |
+    |----------|------|------|-------|------|-------------|
+    | 134 | **`content_type`** | `int` (0: DATA, 2: EQUALITY DELETES, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | *required* | Type of content stored in the entry. Content types 3 and 4 are only valid in root manifests. |
+    | 157 | **`writer_format_version`** | `int` (0: PRE-V4, 1: V4) | *required* | *required* | Writer format version. V4 writers must produce `writer_format_version` 1. |
+    | 100 | **`location`** | `string` | *required* | *required* | Location of the file or manifest. |
+    | 158 | **`column_files`** | `list<column_file>` | *optional* | *optional* | Column update files associated with this entry. |
+    | 101 | **`file_format`** | `string` | *required* | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
+    | 147 | **`tracking`** | `tracking` struct | *required* | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
+    | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | *optional* | Row-level deletion vector for a data file. |
+    | 141 | **`spec_id`** | `int` | *optional* | *optional* | ID of the partition spec used to write this manifest or data file. |
+    | 140 | **`sort_order_id`** | `int` | *optional* | *optional* | ID representing sort order for this file. |
+    | 103 | **`record_count`** | `long` | *required* | *required* | Number of records in this file. |
+    | 104 | **`file_size_in_bytes`** | `long` | *required* | *required* | Total file size in bytes. |
+    | 146 | **`content_stats`** | `content_stats` struct | *optional* | *optional* | Column stats. See [Column Stats Improvements](#column-stats-improvements). |
+    | 150 | **`manifest_info`** | `manifest_info` struct | *optional* | *optional* | See manifest_info struct below. |
+    | 131 | **`key_metadata`** | `binary` | *optional* | *optional* | Implementation-specific key metadata for encryption. |
+    | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data file. Must be sorted ascending. |
+    | 135 | **`equality_ids`** | `list<136: int>` | *optional* | *optional* | Field ids for row equality in equality delete files. |
+
+    Leaf data manifests may only contain entries with `content_type` 0 (DATA); leaf delete manifests may only contain entries with `content_type` 2 (EQUALITY DELETES).
+
+    The following constraints apply based on `content_type`:
+
+    - `manifest_info` must be set when `content_type` is 3 or 4; must be null otherwise.
+    - `deletion_vector` may only be set when `content_type` is 0; must be null otherwise.
+    - `equality_ids` must be set when `content_type` is 2; must be null otherwise.
+    - `column_files` must be null when `content_type` is not 0 or 3.
+    - `sort_order_id` must be null when `content_type` is not 0.
+
+    **`tracking` struct (field 147)**
+
+    | Field id | Name | Type | Write | Read | Description |
+    |----------|------|------|-------|------|-------------|
+    | 0 | **`status`** | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED) | *required* | *required* | Used to track additions, deletions, and replacements. REPLACED indicates entries with data column updates or `deletion_vector` changes. Deleted entries are required when the snapshot has a non-null parent. Deletes are not used in scans. |
+    | 1 | **`snapshot_id`** | `long` | *optional* | *optional* | Snapshot ID where the file was added or deleted. Inherited when null. Optional for leaf manifests, required for root. |
+    | 5 | **`dv_snapshot_id`** | `long` | *optional* | *optional* | Snapshot ID where the deletion vector was added. Inherited when null. Must be null when `deletion_vector` is null. |
+    | 3 | **`sequence_number`** | `long` | *optional* | *optional* | Data sequence number of the file. Inherited when null and status is 1 (ADDED). Must equal `file_sequence_number` if `content_type` is 3 or 4. Optional for leaf manifests, required for root. |
+    | 4 | **`file_sequence_number`** | `long` | *optional* | *optional* | File sequence number indicating when the file was added. Inherited when null and status is ADDED. Must equal `sequence_number` if `content_type` is 3 or 4. |
+    | 142 | **`first_row_id`** | `long` | *optional* | *optional* | The `_row_id` for the first row in the data file if `content_type` is 0. If `content_type` is 3, this is the starting `_row_id` to assign to rows added by ADDED data files. See [First Row ID Inheritance](#first-row-id-inheritance). |
+    | 6 | **`deleted_positions`** | `binary` | *optional* | *optional* | Bitmap of positions deleted in this snapshot. |
+    | 7 | **`replaced_positions`** | `binary` | *optional* | *optional* | Bitmap of positions replaced in this snapshot. |
+
+    **`deletion_vector` struct (field 148)**
+
+    | Field id | Name | Type | Write | Read | Description |
+    |----------|------|------|-------|------|-------------|
+    | 155 | **`location`** | `string` | *required* | *required* | Location of the Puffin file. |
+    | 144 | **`offset`** | `long` | *required* | *required* | Offset in the file where the content starts. |
+    | 145 | **`size_in_bytes`** | `long` | *required* | *required* | Length of the referenced content stored in the file. |
+    | 156 | **`cardinality`** | `long` | *required* | *required* | Cardinality of the deletion vector. |
+
+    **`manifest_info` struct (field 150)**
+
+    | Field id | Name | Type | Write | Read | Description |
+    |----------|------|------|-------|------|-------------|
+    | 504 | **`added_files_count`** | `long` | *required* | *required* | Count of entries with status ADDED in the manifest. |
+    | 505 | **`existing_files_count`** | `long` | *required* | *required* | Count of entries with status EXISTING in the manifest. |
+    | 506 | **`deleted_files_count`** | `long` | *required* | *required* | Count of entries with status DELETED in the manifest. |
+    | 520 | **`replaced_files_count`** | `long` | *required* | *required* | Count of entries with status REPLACED in the manifest. |
+    | 512 | **`added_rows_count`** | `long` | *required* | *required* | Total number of rows in ADDED entries. |
+    | 513 | **`existing_rows_count`** | `long` | *required* | *required* | Total number of rows in EXISTING entries. |
+    | 514 | **`deleted_rows_count`** | `long` | *required* | *required* | Total number of rows in DELETED entries. |
+    | 521 | **`replaced_rows_count`** | `long` | *required* | *required* | Total number of rows in REPLACED entries. |
+    | 516 | **`min_sequence_number`** | `long` | *required* | *required* | Minimum data sequence number of all live entries in the manifest. |
+    | 522 | **`dv`** | `binary` | *optional* | *optional* | Roaring bitmap of entry positions in the manifest that are not live in the current snapshot. |
+    | 523 | **`dv_cardinality`** | `long` | *optional* | *optional* | Cardinality of the manifest deletion vector. Must be set when `dv` is non-null; must be null otherwise. |
+
+    When a file is added to the dataset, its content entry must set status to ADDED (1) and store the snapshot ID in which the file was added.
+
+    When a file's deletion vector or column files are updated, its content entry must set status to REPLACED (3) and store the snapshot ID of the update.
+
+    When a file is deleted from the dataset, its content entry must set status to DELETED (2) and store the snapshot ID in which the file was deleted. Writers must include DELETED entries in the manifest for the snapshot that deletes the file. The next manifest written for those entries must omit the DELETED entries. The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected.
 
 ##### Data File Fields
 
@@ -751,74 +827,6 @@ The `data_file` struct consists of the following fields:
     |            | _optional_ | _optional_ | **`143  referenced_data_file`**   | `string`                                                                    | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [4] |
     |            |            | _optional_ | **`144  content_offset`**         | `long`                                                                      | The offset in the file where the content starts [5] |
     |            |            | _optional_ | **`145  content_size_in_bytes`**  | `long`                                                                      | The length of a referenced content stored in the file; required if `content_offset` is present [5] |
-
-=== "v4"
-    **Root Manifest Content Entries**
-
-    Root manifests can contain entries with `content_type` 0 (DATA), 2 (EQUALITY DELETES), 3 (DATA_MANIFEST), or 4 (DELETE_MANIFEST).
-
-    | Field id | Name | Type | Write | Read | Description |
-    |----------|------|------|-------|------|-------------|
-    | 134 | **`content_type`** | `int` (0: DATA, 2: EQUALITY DELETES, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | *required*; absent in v1-v3 | Type of content stored in the entry. |
-    | TBD | **`writer_format_version`** | `int` (4: V4) | *required* | *required*; absent in v1-v3 | Writer format version. V4 writers must produce `writer_format_version` 4. |
-    | 100 | **`location`** | `string` | *required* | *required* | Location of the file or manifest. |
-    | TBD | **`column_files`** | `list<column_file>` | *optional*; must be null if content_type ≠ 0 or 3 | *optional*; absent in v1-v3 | Column update files associated with this entry. |
-    | 101 | **`file_format`** | `string` | *required* | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
-    | 147 | **`tracking`** | `tracking` struct | *required* | *required*; absent in v1-v3 | Groups status, snapshot, and sequence number. See tracking struct below. |
-    | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional*; must be null if content_type ≠ 0 | *optional*; absent in v1-v3 | May only be defined for `content_type` 0. |
-    | 141 | **`spec_id`** | `int` | *optional* | *optional* | ID of the partition spec used to write this manifest or data file. |
-    | 140 | **`sort_order_id`** | `int` | *optional*; must be null if content_type ≠ 0 | *optional* | ID representing sort order for this file. |
-    | 103 | **`record_count`** | `long` | *required* | *required* | Number of records in this file. |
-    | 104 | **`file_size_in_bytes`** | `long` | *required* | *required* | Total file size in bytes. |
-    | 146 | **`content_stats`** | `content_stats` struct | *optional* | *optional*; absent in v1-v3 | Column stats. See [Column Stats Improvements](#column-stats-improvements). |
-    | 150 | **`manifest_info`** | `manifest_info` struct | *required* (content_type=3,4); must be null otherwise | *optional*; absent in v1-v3 | See manifest_info struct below. |
-    | 131 | **`key_metadata`** | `binary` | *optional* | *optional* | Implementation-specific key metadata for encryption. |
-    | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data file. Must be sorted ascending. |
-    | 135 | **`equality_ids`** | `list<136: int>` | *required* (content_type=2); must be null otherwise | *optional* | Field ids for row equality in equality delete files. |
-
-    **Leaf Manifest Content Entries**
-
-    Leaf manifests (data manifests and delete manifests) may only contain entries with `content_type` 0 (DATA) or 2 (EQUALITY DELETES). Content types 3 and 4 are not valid in leaf manifests, and `manifest_info` must always be null.
-
-    | Field id | Name | Type | Write | Read | Description |
-    |----------|------|------|-------|------|-------------|
-    | 134 | **`content_type`** | `int` (0: DATA, 2: EQUALITY DELETES) | *required* | *required*; absent in v1-v3 | Type of content stored in the entry. Must be 0 or 2. |
-    | TBD | **`writer_format_version`** | `int` (4: V4) | *required* | *required*; absent in v1-v3 | Writer format version. V4 writers must produce `writer_format_version` 4. |
-    | 100 | **`location`** | `string` | *required* | *required* | Location of the file. |
-    | TBD | **`column_files`** | `list<column_file>` | *optional*; must be null if content_type ≠ 0 | *optional*; absent in v1-v3 | Column update files associated with this entry. |
-    | 101 | **`file_format`** | `string` | *required* | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
-    | 147 | **`tracking`** | `tracking` struct | *required* | *required*; absent in v1-v3 | Groups status, snapshot, and sequence number. See tracking struct below. |
-    | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional*; must be null if content_type ≠ 0 | *optional*; absent in v1-v3 | May only be defined for `content_type` 0. |
-    | 141 | **`spec_id`** | `int` | *optional* | *optional* | ID of the partition spec used to write this manifest or data file. |
-    | 140 | **`sort_order_id`** | `int` | *optional*; must be null if content_type ≠ 0 | *optional* | ID representing sort order for this file. |
-    | 103 | **`record_count`** | `long` | *required* | *required* | Number of records in this file. |
-    | 104 | **`file_size_in_bytes`** | `long` | *required* | *required* | Total file size in bytes. |
-    | 146 | **`content_stats`** | `content_stats` struct | *optional* | *optional*; absent in v1-v3 | Column stats. See [Column Stats Improvements](#column-stats-improvements). |
-    | 131 | **`key_metadata`** | `binary` | *optional* | *optional* | Implementation-specific key metadata for encryption. |
-    | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data file. Must be sorted ascending. |
-    | 135 | **`equality_ids`** | `list<136: int>` | *required* (content_type=2); must be null otherwise | *optional* | Field ids for row equality in equality delete files. |
-
-    **`tracking` struct (field 147)**
-
-    | Field id | Name | Type | Write | Read | Description |
-    |----------|------|------|-------|------|-------------|
-    | 0 | **`status`** | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED) | *required* | *required*; absent in v1-v3 | Used to track additions, deletions, and replacements. REPLACED indicates entries with data column updates or `deletion_vector` changes. Deleted entries are required when the snapshot has a non-null parent. Deletes are not used in scans. |
-    | 1 | **`snapshot_id`** | `long` | *optional* | *optional* | Snapshot ID where the file was added or deleted. Inherited when null. Optional for leaf manifests, required for root. |
-    | 5 | **`dv_snapshot_id`** | `long` | *optional*; must be null if deletion_vector is null | *optional*; absent in v1-v3 | Snapshot ID where the deletion vector was added. Inherited when null. |
-    | 3 | **`sequence_number`** | `long` | *optional* | *optional* | Data sequence number of the file. Inherited when null and status is 1 (ADDED). Must equal `file_sequence_number` if `content_type` is 3 or 4. Optional for leaf manifests, required for root. |
-    | 4 | **`file_sequence_number`** | `long` | *optional* | *optional* | File sequence number indicating when the file was added. Inherited when null and status is ADDED. Must equal `sequence_number` if `content_type` is 3 or 4. |
-    | 142 | **`first_row_id`** | `long` | *optional* | *optional* | The `_row_id` for the first row in the data file if `content_type` is 0. If `content_type` is 3, this is the starting `_row_id` to assign to rows added by ADDED data files. See [First Row ID Inheritance](#first-row-id-inheritance). |
-    | 6 | **`deleted_positions`** | `binary` | *optional* | *optional*; absent in v1-v3 | Bitmap of positions deleted in this snapshot. |
-    | 7 | **`replaced_positions`** | `binary` | *optional* | *optional*; absent in v1-v3 | Bitmap of positions replaced in this snapshot. |
-
-    **`deletion_vector` struct (field 148)**
-
-    | Field id | Name | Type | Write | Read | Description |
-    |----------|------|------|-------|------|-------------|
-    | 155 | **`location`** | `string` | *required* | *required*; absent in v1-v3 | Location of the Puffin file. |
-    | 144 | **`offset`** | `long` | *required* | *required*; absent in v1-v3 | Offset in the file where the content starts. |
-    | 145 | **`size_in_bytes`** | `long` | *required* | *required*; absent in v1-v3 | Length of the referenced content stored in the file. |
-    | 156 | **`cardinality`** | `long` | *required* | *required*; absent in v1-v3 | Cardinality of the deletion vector. |
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
