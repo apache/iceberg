@@ -469,7 +469,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testPartitionNullWhenNoContentStats() {
+  void testPartitionEmptyWhenNoContentStats() {
     Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
@@ -480,23 +480,27 @@ class TestTrackedFileAdapters {
     file.set(6, spec.specId());
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
-    assertThat(dataFile.partition()).isNull();
+    assertThat(dataFile.partition()).isNotNull();
+    assertThat(dataFile.partition().size()).isEqualTo(1);
+    assertThat(dataFile.partition().get(0, Integer.class)).isNull();
   }
 
   @Test
-  void testPartitionNullWhenNullSpec() {
+  void testPartitionEmptyWhenNullSpec() {
     TrackedFileStruct file = createTrackedFileWithStats();
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, null);
-    assertThat(dataFile.partition()).isNull();
+    assertThat(dataFile.partition()).isNotNull();
+    assertThat(dataFile.partition().size()).isEqualTo(0);
   }
 
   @Test
-  void testPartitionNullForUnpartitioned() {
+  void testPartitionEmptyForUnpartitioned() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
 
     TrackedFileStruct file = createTrackedFileWithStats();
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
-    assertThat(dataFile.partition()).isNull();
+    assertThat(dataFile.partition()).isNotNull();
+    assertThat(dataFile.partition().size()).isEqualTo(0);
   }
 
   @Test

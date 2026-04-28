@@ -70,15 +70,20 @@ class TrackedFileAdapters {
   // TODO: TrackedFile will likely get an explicit partition tuple field (using a union partition
   //  schema), replacing this transform-based derivation. Once that lands, this method should be
   //  removed and the adapter should read the tuple directly.
+  //
+  // This derives partition values by applying the partition transform to the lower bound of the
+  // source column stats. This is correct because each data file belongs to exactly one partition,
+  // so lower == upper for partition source columns. For non-identity transforms (bucket, truncate),
+  // the transform of the lower bound produces the correct partition value under this invariant.
   @SuppressWarnings({"unchecked", "rawtypes"})
   static StructLike extractPartition(TrackedFile file, PartitionSpec spec) {
     if (spec == null || spec.isUnpartitioned()) {
-      return null;
+      return BaseFile.EMPTY_PARTITION_DATA;
     }
 
     ContentStats stats = file.contentStats();
     if (stats == null) {
-      return null;
+      return new PartitionData(spec.partitionType());
     }
 
     PartitionData partition = new PartitionData(spec.partitionType());
@@ -306,22 +311,22 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copy() {
-      return this;
+      return new TrackedDataFile(file.copy(), spec);
     }
 
     @Override
     public DataFile copy(boolean withStats) {
-      return this;
+      return withStats ? copy() : copyWithoutStats();
     }
 
     @Override
     public DataFile copyWithoutStats() {
-      return this;
+      return new TrackedDataFile(file.copyWithoutStats(), spec);
     }
 
     @Override
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return this;
+      return new TrackedDataFile(file.copyWithStats(requestedColumnIds), spec);
     }
   }
 
@@ -451,22 +456,22 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return this;
+      return new TrackedDeleteFile(file.copy(), spec);
     }
 
     @Override
     public DeleteFile copy(boolean withStats) {
-      return this;
+      return withStats ? copy() : copyWithoutStats();
     }
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return this;
+      return new TrackedDeleteFile(file.copyWithoutStats(), spec);
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return this;
+      return new TrackedDeleteFile(file.copyWithStats(requestedColumnIds), spec);
     }
   }
 
@@ -527,6 +532,10 @@ class TrackedFileAdapters {
       return dv.cardinality();
     }
 
+    // Returns the DV blob size, not the full Puffin file size. The DeletionVector metadata does not
+    // include the Puffin file size, so this is the best approximation available. Space accounting
+    // that sums fileSizeInBytes() was already imprecise in v3 (multiple DVs sharing a Puffin file
+    // each reported the full file size).
     @Override
     public long fileSizeInBytes() {
       return dv.sizeInBytes();
@@ -619,22 +628,22 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return this;
+      return new TrackedDVDeleteFile(file.copy(), spec);
     }
 
     @Override
     public DeleteFile copy(boolean withStats) {
-      return this;
+      return copy();
     }
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return this;
+      return copy();
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return this;
+      return copy();
     }
   }
 }
