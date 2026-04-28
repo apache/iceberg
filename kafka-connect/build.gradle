@@ -67,9 +67,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   apply plugin: 'distribution'
 
   configurations {
-    hive {
-      extendsFrom runtimeClasspath
-    }
     all {
       exclude group: 'javax.activation', module: 'activation'
       exclude group: 'org.jspecify', module: 'jspecify'
@@ -128,34 +125,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation project(':iceberg-azure')
     implementation project(':iceberg-azure-bundle')
 
-
-    hive project(':iceberg-hive-metastore')
-    hive(libs.hive2.metastore) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-      exclude group: 'org.pentaho' // missing dependency
-      exclude group: 'org.apache.hbase'
-      exclude group: 'org.apache.logging.log4j'
-      exclude group: 'co.cask.tephra'
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
-      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
-      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
-      exclude group: 'com.tdunning', module: 'json'
-      exclude group: 'javax.transaction', module: 'transaction-api'
-      exclude group: 'com.zaxxer', module: 'HikariCP'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-common'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-applicationhistoryservice'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-resourcemanager'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-web-proxy'
-      exclude group: 'org.apache.hive', module: 'hive-service-rpc'
-      exclude group: 'com.github.joshelser', module: 'dropwizard-metrics-hadoop-metrics2-reporter'
-    }
-    hive(libs.hadoop3.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    }
-
     integrationImplementation project(':iceberg-api')
     integrationImplementation project(':iceberg-common')
     integrationImplementation project(':iceberg-core')
@@ -202,21 +171,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         }
       }
     }
-    hive {
-      contents {
-        from "${processResources.destinationDir}/manifest.json"
-        into('lib/') {
-          from configurations.hive
-        }
-        into('doc/') {
-          from "$projectDir/hive/LICENSE"
-          from "$projectDir/hive/NOTICE"
-        }
-        into('assets/') {
-          from "${processResources.destinationDir}/iceberg.png"
-        }
-      }
-    }
   }
 
   // there are no Maven artifacts so disable publishing tasks...
@@ -230,14 +184,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   distZip.dependsOn processResources
   installDist.dependsOn processResources
 
-  tasks.hiveDistTar.enabled = false
-  hiveDistZip.dependsOn processResources
-  installHiveDist.dependsOn processResources
-
   integrationTest.dependsOn installDist
   check.dependsOn integrationTest
 
-  assemble.dependsOn distZip, hiveDistZip
+  assemble.dependsOn distZip
 
   apply from: "${rootDir}/runtime-deps.gradle"
 }
