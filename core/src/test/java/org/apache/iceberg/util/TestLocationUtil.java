@@ -89,6 +89,7 @@ public class TestLocationUtil {
   public void testIsAbsolute() {
     assertThat(LocationUtil.isAbsolute("s3://bucket/table/data/file.parquet")).isTrue();
     assertThat(LocationUtil.isAbsolute("file:///tmp/table/data/file.parquet")).isTrue();
+    assertThat(LocationUtil.isAbsolute("file:/tmp/table/data/file.parquet")).isTrue();
     assertThat(LocationUtil.isAbsolute("hdfs://namenode/table/data/file.parquet")).isTrue();
     assertThat(LocationUtil.isAbsolute("/metadata/file.parquet")).isFalse();
     assertThat(LocationUtil.isAbsolute("metadata/file.parquet")).isFalse();

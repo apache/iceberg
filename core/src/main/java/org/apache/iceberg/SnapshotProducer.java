@@ -704,7 +704,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         spec,
         newManifestOutputFile(),
         snapshotId(),
-        manifestWriterProps);
+        manifestWriterProps,
+        base.location());
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
@@ -713,7 +714,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         spec,
         newManifestOutputFile(),
         snapshotId(),
-        manifestWriterProps);
+        manifestWriterProps,
+        base.location());
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {

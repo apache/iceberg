@@ -144,6 +144,37 @@ abstract class BaseDistributedDataScan
 
   @Override
   protected CloseableIterable<ScanTask> doPlanFiles() {
+    if (TableUtil.formatVersion(table()) >= 4) {
+      return doPlanFilesV4();
+    }
+
+    return doPlanFilesV3();
+  }
+
+  private CloseableIterable<ScanTask> doPlanFilesV4() {
+    Snapshot snapshot = snapshot();
+    List<ManifestFile> dataManifests = snapshot.dataManifests(table().io());
+    scanMetrics().totalDataManifests().increment((long) dataManifests.size());
+
+    ManifestExpander expander =
+        new ManifestExpander(table().io(), dataManifests, specs())
+            .tableLocation(table().location())
+            .caseSensitive(isCaseSensitive())
+            .filterData(filter())
+            .scanMetrics(scanMetrics());
+
+    if (shouldIgnoreResiduals()) {
+      expander = expander.ignoreResiduals();
+    }
+
+    if (dataManifests.size() > 1) {
+      expander = expander.planWith(planExecutor());
+    }
+
+    return CloseableIterable.transform(expander.planFiles(), task -> (ScanTask) task);
+  }
+
+  private CloseableIterable<ScanTask> doPlanFilesV3() {
     Snapshot snapshot = snapshot();
 
     List<ManifestFile> deleteManifests = findMatchingDeleteManifests(snapshot);

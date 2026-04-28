@@ -79,6 +79,7 @@ public class DataTableScan extends BaseTableScan {
 
     ManifestExpander expander =
         new ManifestExpander(io, dataManifests, specsById)
+            .tableLocation(table().location())
             .caseSensitive(isCaseSensitive())
             .filterData(filter())
             .scanMetrics(scanMetrics());

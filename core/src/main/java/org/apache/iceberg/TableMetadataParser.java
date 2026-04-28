@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.LocationUtil;
 
 public class TableMetadataParser {
 
@@ -274,9 +275,11 @@ public class TableMetadataParser {
     for (MetadataLogEntry logEntry : metadata.previousFiles()) {
       generator.writeStartObject();
       generator.writeNumberField(TIMESTAMP_MS, logEntry.timestampMillis());
-      generator.writeStringField(METADATA_FILE, logEntry.file());
+      generator.writeStringField(
+          METADATA_FILE, LocationUtil.relativize(logEntry.file(), snapshotTableLocation));
       generator.writeEndObject();
     }
+
     generator.writeEndArray();
 
     generator.writeEndObject();
@@ -550,10 +553,11 @@ public class TableMetadataParser {
       Iterator<JsonNode> logIterator = node.get(METADATA_LOG).elements();
       while (logIterator.hasNext()) {
         JsonNode entryNode = logIterator.next();
+        String metadataFile = JsonUtil.getString(METADATA_FILE, entryNode);
         metadataEntries.add(
             new MetadataLogEntry(
                 JsonUtil.getLong(TIMESTAMP_MS, entryNode),
-                JsonUtil.getString(METADATA_FILE, entryNode)));
+                LocationUtil.resolve(metadataFile, formatVersion >= 4 ? location : null)));
       }
     }
 

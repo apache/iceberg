@@ -59,9 +59,17 @@ public class LocationUtil {
     }
   }
 
-  /** Returns true if the path is an absolute URI (contains a scheme like {@code s3://}). */
+  /**
+   * Returns true if the path has a URI scheme (e.g. {@code s3://}, {@code file:/}, {@code
+   * hdfs://}).
+   */
   public static boolean isAbsolute(String path) {
-    return path != null && path.contains("://");
+    if (path == null) {
+      return false;
+    }
+
+    int colonIndex = path.indexOf(':');
+    return colonIndex > 0 && path.charAt(colonIndex - 1) != '/';
   }
 
   /**

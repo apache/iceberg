@@ -231,6 +231,23 @@ public class ManifestFiles {
     return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, null, writerProperties);
   }
 
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties,
+      String tableLocation) {
+    return newWriter(
+        formatVersion,
+        spec,
+        encryptedOutputFile,
+        snapshotId,
+        null,
+        writerProperties,
+        tableLocation);
+  }
+
   /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
@@ -267,13 +284,24 @@ public class ManifestFiles {
       OutputFile outputFile,
       Long snapshotId,
       Map<String, String> writerProperties) {
+    return write(formatVersion, spec, outputFile, snapshotId, writerProperties, null);
+  }
+
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties,
+      String tableLocation) {
     return newWriter(
         formatVersion,
         spec,
         EncryptedFiles.plainAsEncryptedOutput(outputFile),
         snapshotId,
         null,
-        writerProperties);
+        writerProperties,
+        tableLocation);
   }
 
   @VisibleForTesting
@@ -284,6 +312,18 @@ public class ManifestFiles {
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
+    return newWriter(
+        formatVersion, spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties, null);
+  }
+
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties,
+      String tableLocation) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
@@ -294,8 +334,9 @@ public class ManifestFiles {
             spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
       case 4:
         return new ManifestWriter.V4Writer(
-            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties, tableLocation);
     }
+
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
   }
@@ -359,6 +400,22 @@ public class ManifestFiles {
         writerProperties);
   }
 
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties,
+      String tableLocation) {
+    return writeDeleteManifest(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        writerProperties,
+        tableLocation);
+  }
+
   /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
@@ -389,6 +446,16 @@ public class ManifestFiles {
       EncryptedOutputFile outputFile,
       Long snapshotId,
       Map<String, String> writerProperties) {
+    return writeDeleteManifest(formatVersion, spec, outputFile, snapshotId, writerProperties, null);
+  }
+
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties,
+      String tableLocation) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
@@ -397,8 +464,10 @@ public class ManifestFiles {
       case 3:
         return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
+        return new ManifestWriter.V4DeleteWriter(
+            spec, outputFile, snapshotId, writerProperties, tableLocation);
     }
+
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
   }

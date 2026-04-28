@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
 
 /**
  * Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs.
@@ -90,11 +91,15 @@ class TrackedFileAdapters {
   }
 
   static DataFile asDataFile(TrackedFile file, PartitionSpec spec) {
+    return asDataFile(file, spec, null);
+  }
+
+  static DataFile asDataFile(TrackedFile file, PartitionSpec spec, String tableLocation) {
     Preconditions.checkState(
         file.contentType() == FileContent.DATA,
         "Cannot convert tracked file to DataFile: content type is %s, not DATA",
         file.contentType());
-    return new TrackedDataFile(file, spec);
+    return new TrackedDataFile(file, spec, tableLocation);
   }
 
   static DeleteFile asDVDeleteFile(TrackedFile file, PartitionSpec spec) {
@@ -108,12 +113,17 @@ class TrackedFileAdapters {
   }
 
   static DeleteFile asEqualityDeleteFile(TrackedFile file, PartitionSpec spec) {
+    return asEqualityDeleteFile(file, spec, null);
+  }
+
+  static DeleteFile asEqualityDeleteFile(
+      TrackedFile file, PartitionSpec spec, String tableLocation) {
     Preconditions.checkState(
         file.contentType() == FileContent.EQUALITY_DELETES
             || file.contentType() == FileContent.POSITION_DELETES,
         "Cannot convert tracked file to DeleteFile: content type is %s",
         file.contentType());
-    return new TrackedDeleteFile(file, spec);
+    return new TrackedDeleteFile(file, spec, tableLocation);
   }
 
   // TODO: TrackedFile will likely get an explicit partition tuple field (using a union partition
@@ -242,11 +252,13 @@ class TrackedFileAdapters {
     private final TrackedFile file;
     private final Tracking tracking;
     private final PartitionSpec spec;
+    private final String tableLocation;
 
-    private TrackedDataFile(TrackedFile file, PartitionSpec spec) {
+    private TrackedDataFile(TrackedFile file, PartitionSpec spec, String tableLocation) {
       this.file = file;
       this.tracking = file.tracking();
       this.spec = spec;
+      this.tableLocation = tableLocation;
     }
 
     @Override
@@ -335,7 +347,7 @@ class TrackedFileAdapters {
     @SuppressWarnings("deprecation")
     @Override
     public CharSequence path() {
-      return file.location();
+      return LocationUtil.resolve(file.location(), tableLocation);
     }
 
     @Override
@@ -430,7 +442,7 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copy() {
-      return new TrackedDataFile(file.copy(), spec);
+      return new TrackedDataFile(file.copy(), spec, tableLocation);
     }
 
     @Override
@@ -440,12 +452,12 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copyWithoutStats() {
-      return new TrackedDataFile(file.copyWithoutStats(), spec);
+      return new TrackedDataFile(file.copyWithoutStats(), spec, tableLocation);
     }
 
     @Override
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDataFile(file.copyWithStats(requestedColumnIds), spec);
+      return new TrackedDataFile(file.copyWithStats(requestedColumnIds), spec, tableLocation);
     }
   }
 
@@ -454,11 +466,13 @@ class TrackedFileAdapters {
     private final TrackedFile file;
     private final Tracking tracking;
     private final PartitionSpec spec;
+    private final String tableLocation;
 
-    private TrackedDeleteFile(TrackedFile file, PartitionSpec spec) {
+    private TrackedDeleteFile(TrackedFile file, PartitionSpec spec, String tableLocation) {
       this.file = file;
       this.tracking = file.tracking();
       this.spec = spec;
+      this.tableLocation = tableLocation;
     }
 
     @Override
@@ -480,7 +494,7 @@ class TrackedFileAdapters {
     @SuppressWarnings("deprecation")
     @Override
     public CharSequence path() {
-      return file.location();
+      return LocationUtil.resolve(file.location(), tableLocation);
     }
 
     @Override
@@ -575,7 +589,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDeleteFile(file.copy(), spec);
+      return new TrackedDeleteFile(file.copy(), spec, tableLocation);
     }
 
     @Override
@@ -585,12 +599,12 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return new TrackedDeleteFile(file.copyWithoutStats(), spec);
+      return new TrackedDeleteFile(file.copyWithoutStats(), spec, tableLocation);
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDeleteFile(file.copyWithStats(requestedColumnIds), spec);
+      return new TrackedDeleteFile(file.copyWithStats(requestedColumnIds), spec, tableLocation);
     }
   }
 

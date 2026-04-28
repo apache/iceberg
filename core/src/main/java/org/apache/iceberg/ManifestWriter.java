@@ -274,9 +274,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         EncryptedOutputFile file,
         Long snapshotId,
         Long firstRowId,
-        Map<String, String> writerProperties) {
+        Map<String, String> writerProperties,
+        String tableLocation) {
       super(spec, file, snapshotId, firstRowId, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
+      this.entryWrapper =
+          new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType(), tableLocation);
     }
 
     @Override
@@ -314,9 +316,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec,
         EncryptedOutputFile file,
         Long snapshotId,
-        Map<String, String> writerProperties) {
+        Map<String, String> writerProperties,
+        String tableLocation) {
       super(spec, file, snapshotId, null, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
+      this.entryWrapper =
+          new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType(), tableLocation);
     }
 
     @Override

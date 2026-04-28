@@ -40,18 +40,24 @@ class TrackedFileEntryAdapter<F extends ContentFile<F>> implements ManifestEntry
 
   @SuppressWarnings("unchecked")
   TrackedFileEntryAdapter(TrackedFile trackedFile, PartitionSpec spec) {
-    this.trackedFile = trackedFile;
-    this.spec = spec;
-    this.adapted = (F) adaptFile(trackedFile, spec);
+    this(trackedFile, spec, null);
   }
 
-  private static ContentFile<?> adaptFile(TrackedFile file, PartitionSpec spec) {
+  @SuppressWarnings("unchecked")
+  TrackedFileEntryAdapter(TrackedFile trackedFile, PartitionSpec spec, String tableLocation) {
+    this.trackedFile = trackedFile;
+    this.spec = spec;
+    this.adapted = (F) adaptFile(trackedFile, spec, tableLocation);
+  }
+
+  private static ContentFile<?> adaptFile(
+      TrackedFile file, PartitionSpec spec, String tableLocation) {
     if (file.contentType() == FileContent.DATA) {
-      return TrackedFileAdapters.asDataFile(file, spec);
+      return TrackedFileAdapters.asDataFile(file, spec, tableLocation);
     }
 
     // for EQUALITY_DELETES and POSITION_DELETES, use a minimal delete file adapter
-    return TrackedFileAdapters.asDeleteFile(file, spec);
+    return TrackedFileAdapters.asEqualityDeleteFile(file, spec, tableLocation);
   }
 
   @Override

@@ -32,6 +32,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.ParallelIterable;
 
 /**
@@ -56,12 +57,18 @@ class ManifestExpander extends CloseableGroup {
   private ScanMetrics scanMetrics = ScanMetrics.noop();
 
   private ExecutorService executorService = null;
+  private String tableLocation;
 
   ManifestExpander(
       FileIO io, Iterable<ManifestFile> manifests, Map<Integer, PartitionSpec> specsById) {
     this.io = io;
     this.manifests = manifests;
     this.specsById = specsById;
+  }
+
+  ManifestExpander tableLocation(String newTableLocation) {
+    this.tableLocation = newTableLocation;
+    return this;
   }
 
   ManifestExpander filterData(Expression newDataFilter) {
@@ -148,7 +155,8 @@ class ManifestExpander extends CloseableGroup {
   }
 
   private CloseableIterable<FileScanTask> expandLeafManifest(TrackedFile manifestEntry) {
-    InputFile leafFile = io.newInputFile(manifestEntry.location());
+    String leafLocation = LocationUtil.resolve(manifestEntry.location(), tableLocation);
+    InputFile leafFile = io.newInputFile(leafLocation);
     V4ManifestReader leafReader = new V4ManifestReader(leafFile, specsById);
     addCloseable(leafReader);
 
@@ -161,7 +169,7 @@ class ManifestExpander extends CloseableGroup {
   private FileScanTask createTask(TrackedFile trackedFile) {
     int specId = trackedFile.specId() != null ? trackedFile.specId() : 0;
     PartitionSpec spec = specsById.get(specId);
-    DataFile dataFile = TrackedFileAdapters.asDataFile(trackedFile, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(trackedFile, spec, tableLocation);
 
     Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
     ResidualEvaluator residuals = ResidualEvaluator.of(spec, filter, caseSensitive);

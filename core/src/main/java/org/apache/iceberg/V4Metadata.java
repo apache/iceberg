@@ -405,10 +405,13 @@ class V4Metadata {
     private static final int ENTRY_FIELD_COUNT = 13;
 
     private final TrackingWriteWrapper trackingWrapper;
+    private final String tableLocation;
     private ManifestEntry<F> wrapped = null;
 
-    ManifestEntryWrapper(Long commitSnapshotId, Types.StructType partitionType) {
+    ManifestEntryWrapper(
+        Long commitSnapshotId, Types.StructType partitionType, String tableLocation) {
       this.trackingWrapper = new TrackingWriteWrapper(commitSnapshotId);
+      this.tableLocation = tableLocation;
     }
 
     public ManifestEntryWrapper<F> wrap(ManifestEntry<F> entry) {
@@ -438,7 +441,7 @@ class V4Metadata {
         case 1:
           return wrapped.file().content().id();
         case 2:
-          return wrapped.file().location();
+          return LocationUtil.relativize(wrapped.file().location(), tableLocation);
         case 3:
           return wrapped.file().format() != null ? wrapped.file().format().toString() : null;
         case 4:
