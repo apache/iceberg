@@ -2579,4 +2579,247 @@ public class TestSchemaUpdate {
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
+
+  // Tests mirroring Delta column mapping nested field behavior
+
+  @Test
+  public void testDropAndReAddNestedStructFieldWithDifferentName() {
+    // user STRUCT<name STRING, age INT>
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "user",
+                Types.StructType.of(
+                    required(3, "name", Types.StringType.get()),
+                    required(4, "age", Types.IntegerType.get()))));
+
+    // Drop user.name, add user.new_name
+    // user(id=2) unchanged, age(id=4) unchanged, new_name gets id=5
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "user",
+                Types.StructType.of(
+                    required(4, "age", Types.IntegerType.get()),
+                    optional(5, "new_name", Types.StringType.get()))));
+
+    Schema result =
+        new SchemaUpdate(schema, 4)
+            .deleteColumn("user.name")
+            .addColumn("user", "new_name", Types.StringType.get())
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+    // Parent struct ID preserved
+    assertThat(result.findField("user").fieldId()).isEqualTo(2);
+    // Sibling age ID preserved
+    assertThat(result.findField("user.age").fieldId()).isEqualTo(4);
+    // New field gets fresh ID
+    assertThat(result.findField("user.new_name").fieldId()).isEqualTo(5);
+  }
+
+  @Test
+  public void testDropAndReAddNestedFieldWithSameName() {
+    // user STRUCT<name STRING, age INT>
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "user",
+                Types.StructType.of(
+                    required(3, "name", Types.StringType.get()),
+                    required(4, "age", Types.IntegerType.get()))));
+
+    int oldNameId = schema.findField("user.name").fieldId();
+
+    // Drop user.name (id=3), re-add user.name -> gets id=5 (not 3)
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "user",
+                Types.StructType.of(
+                    required(4, "age", Types.IntegerType.get()),
+                    optional(5, "name", Types.StringType.get()))));
+
+    Schema result =
+        new SchemaUpdate(schema, 4)
+            .deleteColumn("user.name")
+            .addColumn("user", "name", Types.StringType.get())
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+    // Same logical name but different ID (never recycled)
+    assertThat(result.findField("user.name").fieldId()).isNotEqualTo(oldNameId);
+    assertThat(result.findField("user.name").fieldId()).isEqualTo(5);
+    // Parent struct ID preserved
+    assertThat(result.findField("user").fieldId()).isEqualTo(2);
+  }
+
+  @Test
+  public void testDropAndReAddFieldInStructNestedInList() {
+    // data LIST<STRUCT<a INT, b STRING>>
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "data",
+                Types.ListType.ofOptional(
+                    3,
+                    Types.StructType.of(
+                        required(4, "a", Types.IntegerType.get()),
+                        required(5, "b", Types.StringType.get())))));
+
+    // Drop data.b, add data.c INT
+    // data(id=2) unchanged, element(id=3) unchanged, a(id=4) unchanged, c gets id=6
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "data",
+                Types.ListType.ofOptional(
+                    3,
+                    Types.StructType.of(
+                        required(4, "a", Types.IntegerType.get()),
+                        optional(6, "c", Types.IntegerType.get())))));
+
+    Schema result =
+        new SchemaUpdate(schema, 5)
+            .deleteColumn("data.b")
+            .addColumn("data", "c", Types.IntegerType.get())
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+    // Parent list column ID unchanged
+    assertThat(result.findField("data").fieldId()).isEqualTo(2);
+    // New field gets fresh ID
+    assertThat(result.findField("data.c").fieldId()).isEqualTo(6);
+  }
+
+  @Test
+  public void testDropAndReAddFieldInStructNestedInMapValue() {
+    // data MAP<STRING, STRUCT<x INT, y INT>>
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "data",
+                Types.MapType.ofOptional(
+                    3,
+                    4,
+                    Types.StringType.get(),
+                    Types.StructType.of(
+                        required(5, "x", Types.IntegerType.get()),
+                        required(6, "y", Types.IntegerType.get())))));
+
+    // Drop data.y, add data.z STRING
+    // data(id=2) unchanged, key(id=3) unchanged, value(id=4) unchanged, x(id=5) unchanged
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "data",
+                Types.MapType.ofOptional(
+                    3,
+                    4,
+                    Types.StringType.get(),
+                    Types.StructType.of(
+                        required(5, "x", Types.IntegerType.get()),
+                        optional(7, "z", Types.StringType.get())))));
+
+    Schema result =
+        new SchemaUpdate(schema, 6)
+            .deleteColumn("data.y")
+            .addColumn("data", "z", Types.StringType.get())
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+    // Parent map column ID unchanged
+    assertThat(result.findField("data").fieldId()).isEqualTo(2);
+    // New field gets fresh ID
+    assertThat(result.findField("data.z").fieldId()).isEqualTo(7);
+  }
+
+  @Test
+  public void testDropNestedFieldPreservesParentAndSiblingIds() {
+    // info STRUCT<name STRING, age INT>
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "info",
+                Types.StructType.of(
+                    required(3, "name", Types.StringType.get()),
+                    required(4, "age", Types.IntegerType.get()))));
+
+    // Drop info.name only
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2, "info", Types.StructType.of(required(4, "age", Types.IntegerType.get()))));
+
+    Schema result = new SchemaUpdate(schema, 4).deleteColumn("info.name").apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+    // Parent struct ID preserved
+    assertThat(result.findField("info").fieldId()).isEqualTo(2);
+    // Sibling age ID preserved
+    assertThat(result.findField("info.age").fieldId()).isEqualTo(4);
+    // Struct now has 1 field
+    assertThat(result.findField("info").type().asStructType().fields()).hasSize(1);
+  }
+
+  @Test
+  public void testAddNestedFieldPreservesParentAndExistingFieldIds() {
+    // info STRUCT<name STRING, age INT>
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "info",
+                Types.StructType.of(
+                    required(3, "name", Types.StringType.get()),
+                    required(4, "age", Types.IntegerType.get()))));
+
+    // Add info.email STRING
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "info",
+                Types.StructType.of(
+                    required(3, "name", Types.StringType.get()),
+                    required(4, "age", Types.IntegerType.get()),
+                    optional(5, "email", Types.StringType.get()))));
+
+    Schema result =
+        new SchemaUpdate(schema, 4)
+            .addColumn("info", "email", Types.StringType.get())
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+    // Parent struct ID preserved
+    assertThat(result.findField("info").fieldId()).isEqualTo(2);
+    // Existing fields preserved
+    assertThat(result.findField("info.name").fieldId()).isEqualTo(3);
+    assertThat(result.findField("info.age").fieldId()).isEqualTo(4);
+    // New field gets fresh ID
+    assertThat(result.findField("info.email").fieldId()).isEqualTo(5);
+    // Struct now has 3 fields
+    assertThat(result.findField("info").type().asStructType().fields()).hasSize(3);
+  }
 }
