@@ -57,9 +57,15 @@ public class GenericOrcReaders {
 
   private GenericOrcReaders() {}
 
+  /**
+   * @deprecated Use {@link #struct(TypeDescription, List, Types.StructType, Map)} instead. This
+   *     method uses position-based binding which may cause field misalignment in MOR and lineage
+   *     scenarios.
+   */
+  @Deprecated
   public static OrcValueReader<Record> struct(
       List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-    return new StructReader(null, readers, struct, idToConstant);
+    return new StructReader(readers, struct, idToConstant);
   }
 
   public static OrcValueReader<Record> struct(
@@ -239,6 +245,20 @@ public class GenericOrcReaders {
 
   private static class StructReader extends OrcValueReaders.StructReader<Record> {
     private final GenericRecord template;
+
+    /**
+     * @deprecated Use {@link #StructReader(TypeDescription, List, Types.StructType, Map)} instead.
+     *     This constructor uses position-based binding which may cause field misalignment in MOR
+     *     and lineage scenarios.
+     */
+    @Deprecated
+    protected StructReader(
+        List<OrcValueReader<?>> readers,
+        Types.StructType structType,
+        Map<Integer, ?> idToConstant) {
+      super(readers, structType, idToConstant);
+      this.template = GenericRecord.create(structType);
+    }
 
     protected StructReader(
         TypeDescription record,

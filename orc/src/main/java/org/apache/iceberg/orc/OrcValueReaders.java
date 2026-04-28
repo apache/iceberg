@@ -146,7 +146,7 @@ public class OrcValueReaders {
      * @param idToConstant constant values by field id
      * @deprecated Use {@link #StructReader(TypeDescription, List, Types.StructType, Map)} instead.
      *     This constructor uses position-based binding which may cause field misalignment in MOR
-     *     scenarios. This don`t work lineage scenarios.
+     *     scenarios. This doesn't work lineage scenarios.
      */
     @Deprecated
     protected StructReader(
