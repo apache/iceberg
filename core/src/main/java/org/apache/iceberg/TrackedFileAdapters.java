@@ -103,13 +103,17 @@ class TrackedFileAdapters {
   }
 
   static DeleteFile asDVDeleteFile(TrackedFile file, PartitionSpec spec) {
+    return asDVDeleteFile(file, spec, null);
+  }
+
+  static DeleteFile asDVDeleteFile(TrackedFile file, PartitionSpec spec, String tableLocation) {
     Preconditions.checkState(
         file.contentType() == FileContent.DATA,
         "Cannot extract DV from tracked file: content type is %s, not DATA",
         file.contentType());
     Preconditions.checkState(
         file.deletionVector() != null, "Cannot extract DV from tracked file: no deletion vector");
-    return new TrackedDVDeleteFile(file, spec);
+    return new TrackedDVDeleteFile(file, spec, tableLocation);
   }
 
   static DeleteFile asEqualityDeleteFile(TrackedFile file, PartitionSpec spec) {
@@ -119,9 +123,8 @@ class TrackedFileAdapters {
   static DeleteFile asEqualityDeleteFile(
       TrackedFile file, PartitionSpec spec, String tableLocation) {
     Preconditions.checkState(
-        file.contentType() == FileContent.EQUALITY_DELETES
-            || file.contentType() == FileContent.POSITION_DELETES,
-        "Cannot convert tracked file to DeleteFile: content type is %s",
+        file.contentType() == FileContent.EQUALITY_DELETES,
+        "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
         file.contentType());
     return new TrackedDeleteFile(file, spec, tableLocation);
   }
@@ -621,12 +624,14 @@ class TrackedFileAdapters {
     private final DeletionVector dv;
     private final Tracking tracking;
     private final PartitionSpec spec;
+    private final String tableLocation;
 
-    private TrackedDVDeleteFile(TrackedFile file, PartitionSpec spec) {
+    private TrackedDVDeleteFile(TrackedFile file, PartitionSpec spec, String tableLocation) {
       this.file = file;
       this.dv = file.deletionVector();
       this.tracking = file.tracking();
       this.spec = spec;
+      this.tableLocation = tableLocation;
     }
 
     @Override
@@ -647,7 +652,7 @@ class TrackedFileAdapters {
     @SuppressWarnings("deprecation")
     @Override
     public CharSequence path() {
-      return dv.location();
+      return LocationUtil.resolve(dv.location(), tableLocation);
     }
 
     @Override
@@ -711,7 +716,7 @@ class TrackedFileAdapters {
 
     @Override
     public String referencedDataFile() {
-      return file.location();
+      return LocationUtil.resolve(file.location(), tableLocation);
     }
 
     @Override
@@ -761,7 +766,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDVDeleteFile(file.copy(), spec);
+      return new TrackedDVDeleteFile(file.copy(), spec, tableLocation);
     }
 
     @Override

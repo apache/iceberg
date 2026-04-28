@@ -48,7 +48,8 @@ import org.roaringbitmap.RoaringBitmap;
  * leaf manifests (DATA_MANIFEST entries), and converts DATA entries to {@link FileScanTask}
  * instances using {@link TrackedFileAdapters}.
  *
- * <p>DV support is deferred to a future phase. Delete files are not matched to data files.
+ * <p>Inline deletion vectors on DATA entries are attached as {@link DeleteFile} instances on the
+ * resulting {@link FileScanTask}. Equality delete matching is deferred to a future phase.
  */
 class ManifestExpander extends CloseableGroup {
   private final FileIO io;
@@ -226,12 +227,20 @@ class ManifestExpander extends CloseableGroup {
     PartitionSpec spec = specsById.get(specId);
     DataFile dataFile = TrackedFileAdapters.asDataFile(trackedFile, spec, tableLocation);
 
+    DeleteFile[] deletes;
+    if (trackedFile.deletionVector() != null) {
+      deletes =
+          new DeleteFile[] {TrackedFileAdapters.asDVDeleteFile(trackedFile, spec, tableLocation)};
+    } else {
+      deletes = new DeleteFile[0];
+    }
+
     Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
     ResidualEvaluator residuals = ResidualEvaluator.of(spec, filter, caseSensitive);
 
     return new BaseFileScanTask(
         dataFile,
-        new DeleteFile[0],
+        deletes,
         SchemaParser.toJson(spec.schema()),
         PartitionSpecParser.toJson(spec),
         residuals);

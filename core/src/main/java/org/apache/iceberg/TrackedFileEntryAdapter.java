@@ -56,8 +56,12 @@ class TrackedFileEntryAdapter<F extends ContentFile<F>> implements ManifestEntry
       return TrackedFileAdapters.asDataFile(file, spec, tableLocation);
     }
 
-    // for EQUALITY_DELETES and POSITION_DELETES, use a minimal delete file adapter
-    return TrackedFileAdapters.asEqualityDeleteFile(file, spec, tableLocation);
+    if (file.contentType() == FileContent.EQUALITY_DELETES) {
+      return TrackedFileAdapters.asEqualityDeleteFile(file, spec, tableLocation);
+    }
+
+    // DATA entries with a deletion vector are adapted as DV delete files
+    return TrackedFileAdapters.asDVDeleteFile(file, spec, tableLocation);
   }
 
   @Override

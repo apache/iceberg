@@ -84,7 +84,7 @@ public class LocationUtil {
       return path;
     }
 
-    return tableLocation + path;
+    return normalizeScheme(tableLocation) + path;
   }
 
   /**
@@ -95,11 +95,26 @@ public class LocationUtil {
    * <p>Relativization only applies when both the path and table location have URI schemes.
    */
   public static String relativize(String path, String tableLocation) {
-    if (path != null
-        && tableLocation != null
-        && isAbsolute(tableLocation)
-        && path.startsWith(tableLocation + "/")) {
-      return path.substring(tableLocation.length());
+    if (path == null || tableLocation == null || !isAbsolute(tableLocation)) {
+      return path;
+    }
+
+    String normalizedLocation = normalizeScheme(tableLocation);
+    String normalizedPath = normalizeScheme(path);
+    if (normalizedPath.startsWith(normalizedLocation + "/")) {
+      return normalizedPath.substring(normalizedLocation.length());
+    }
+
+    return path;
+  }
+
+  /**
+   * Normalizes URI scheme variants. Converts {@code file:///path} and {@code file:/path} to {@code
+   * file:/path} for consistent comparison.
+   */
+  private static String normalizeScheme(String path) {
+    if (path.startsWith("file:///")) {
+      return "file:" + path.substring("file://".length());
     }
 
     return path;

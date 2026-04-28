@@ -383,6 +383,9 @@ class V4Metadata {
     return 0L;
   }
 
+  private static final Types.StructType ENTRY_WRITE_TYPE =
+      entrySchema(Types.StructType.of()).asStruct();
+
   static Schema entrySchema(Types.StructType partitionType) {
     return new Schema(
         TrackedFile.TRACKING,
@@ -400,71 +403,114 @@ class V4Metadata {
         TrackedFile.EQUALITY_IDS);
   }
 
+  /**
+   * Converts a {@link ManifestEntry} to a {@link TrackedFileStruct} for writing into a v4 data or
+   * delete manifest.
+   *
+   * <p>The returned struct uses the entry schema projection so that field positions match the write
+   * schema (which excludes content_stats).
+   */
+  static TrackedFileStruct entryToTrackedFile(
+      ManifestEntry<?> entry, Long commitSnapshotId, String tableLocation) {
+    TrackingStruct tracking = buildEntryTracking(entry, commitSnapshotId);
+    ContentFile<?> file = entry.file();
+
+    TrackedFileStruct tf = new TrackedFileStruct(ENTRY_WRITE_TYPE);
+    tf.set(0, tracking);
+    tf.set(1, file.content().id());
+    tf.set(2, LocationUtil.relativize(file.location(), tableLocation));
+    tf.set(3, file.format() != null ? file.format().toString() : null);
+    tf.set(4, file.recordCount());
+    tf.set(5, file.fileSizeInBytes());
+    tf.set(6, file.specId());
+    tf.set(7, file.sortOrderId());
+    // positions 8 (deletion_vector) and 9 (manifest_info) default to null
+
+    if (file.keyMetadata() != null) {
+      tf.set(10, file.keyMetadata());
+    }
+
+    if (file.splitOffsets() != null) {
+      tf.set(11, file.splitOffsets());
+    }
+
+    if (file.equalityFieldIds() != null) {
+      tf.set(12, file.equalityFieldIds());
+    }
+
+    return tf;
+  }
+
+  private static TrackingStruct buildEntryTracking(
+      ManifestEntry<?> entry, Long commitSnapshotId) {
+    TrackingStruct tracking = new TrackingStruct();
+    tracking.set(0, entry.status().id());
+    tracking.set(1, entry.snapshotId());
+
+    if (entry.dataSequenceNumber() == null) {
+      Preconditions.checkState(
+          entry.snapshotId() == null || entry.snapshotId().equals(commitSnapshotId),
+          "Found unassigned sequence number for an entry from snapshot: %s",
+          entry.snapshotId());
+      Preconditions.checkState(
+          entry.status() == ManifestEntry.Status.ADDED,
+          "Only entries with status ADDED can have null sequence number");
+      // leave sequence number as null for ADDED entries (assigned at commit)
+    } else {
+      tracking.set(2, entry.dataSequenceNumber());
+    }
+
+    if (entry.fileSequenceNumber() != null) {
+      tracking.set(3, entry.fileSequenceNumber());
+    }
+
+    if (entry.file().content() == FileContent.DATA && entry.file().firstRowId() != null) {
+      tracking.set(5, entry.file().firstRowId());
+    }
+
+    return tracking;
+  }
+
+  /**
+   * Wraps a {@link ManifestEntry} for v4 manifest writing.
+   *
+   * <p>Implements {@link ManifestEntry} for type compatibility with {@link ManifestWriter}, and
+   * delegates {@link StructLike} to an internal {@link TrackedFileStruct} built via {@link
+   * #entryToTrackedFile}.
+   */
   static class ManifestEntryWrapper<F extends ContentFile<F>>
       implements ManifestEntry<F>, StructLike {
-    private static final int ENTRY_FIELD_COUNT = 13;
 
-    private final TrackingWriteWrapper trackingWrapper;
+    private final Long commitSnapshotId;
     private final String tableLocation;
     private ManifestEntry<F> wrapped = null;
+    private TrackedFileStruct tracked = null;
 
     ManifestEntryWrapper(
         Long commitSnapshotId, Types.StructType partitionType, String tableLocation) {
-      this.trackingWrapper = new TrackingWriteWrapper(commitSnapshotId);
+      this.commitSnapshotId = commitSnapshotId;
       this.tableLocation = tableLocation;
     }
 
     public ManifestEntryWrapper<F> wrap(ManifestEntry<F> entry) {
       this.wrapped = entry;
+      this.tracked = entryToTrackedFile(entry, commitSnapshotId, tableLocation);
       return this;
     }
 
     @Override
     public int size() {
-      return ENTRY_FIELD_COUNT;
+      return tracked.size();
     }
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify ManifestEntryWrapper wrapper via set");
+      throw new UnsupportedOperationException("ManifestEntryWrapper is read-only");
     }
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(get(pos));
-    }
-
-    private Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return trackingWrapper.wrap(wrapped);
-        case 1:
-          return wrapped.file().content().id();
-        case 2:
-          return LocationUtil.relativize(wrapped.file().location(), tableLocation);
-        case 3:
-          return wrapped.file().format() != null ? wrapped.file().format().toString() : null;
-        case 4:
-          return wrapped.file().recordCount();
-        case 5:
-          return wrapped.file().fileSizeInBytes();
-        case 6:
-          return wrapped.file().specId();
-        case 7:
-          return wrapped.file().sortOrderId();
-        case 8:
-          return null; // deletion_vector (future)
-        case 9:
-          return null; // manifest_info (null for data files)
-        case 10:
-          return wrapped.file().keyMetadata();
-        case 11:
-          return wrapped.file().splitOffsets();
-        case 12:
-          return wrapped.file().equalityFieldIds();
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      }
+      return tracked.get(pos, javaClass);
     }
 
     @Override
@@ -515,76 +561,6 @@ class V4Metadata {
     @Override
     public ManifestEntry<F> copyWithoutStats() {
       return wrapped.copyWithoutStats();
-    }
-  }
-
-  /** Wrapper that writes tracking fields from a ManifestEntry as a StructLike. */
-  static class TrackingWriteWrapper implements StructLike {
-    private static final int TRACKING_FIELD_COUNT = 8;
-
-    private final Long commitSnapshotId;
-    private ManifestEntry<?> entry = null;
-
-    TrackingWriteWrapper(Long commitSnapshotId) {
-      this.commitSnapshotId = commitSnapshotId;
-    }
-
-    TrackingWriteWrapper wrap(ManifestEntry<?> newEntry) {
-      this.entry = newEntry;
-      return this;
-    }
-
-    @Override
-    public int size() {
-      return TRACKING_FIELD_COUNT;
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Cannot modify TrackingWriteWrapper wrapper via set");
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(get(pos));
-    }
-
-    private Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return entry.status().id();
-        case 1:
-          return entry.snapshotId();
-        case 2:
-          if (entry.dataSequenceNumber() == null) {
-            Preconditions.checkState(
-                entry.snapshotId() == null || entry.snapshotId().equals(commitSnapshotId),
-                "Found unassigned sequence number for an entry from snapshot: %s",
-                entry.snapshotId());
-            Preconditions.checkState(
-                entry.status() == ManifestEntry.Status.ADDED,
-                "Only entries with status ADDED can have null sequence number");
-            return null;
-          }
-
-          return entry.dataSequenceNumber();
-        case 3:
-          return entry.fileSequenceNumber();
-        case 4:
-          return null; // dv_snapshot_id (future)
-        case 5:
-          if (entry.file().content() == FileContent.DATA) {
-            return entry.file().firstRowId();
-          } else {
-            return null;
-          }
-        case 6:
-          return null; // deleted_positions (future)
-        case 7:
-          return null; // replaced_positions (future)
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      }
     }
   }
 }
