@@ -178,7 +178,7 @@ public class OrcValueReaders {
     }
 
     protected StructReader(
-        TypeDescription record,
+        TypeDescription orcType,
         List<OrcValueReader<?>> readers,
         Types.StructType struct,
         Map<Integer, ?> idToConstant) {
@@ -187,8 +187,8 @@ public class OrcValueReaders {
       this.isConstantOrMetadataField = new boolean[fields.size()];
       this.fieldVectorIndex = new int[fields.size()];
 
-      Map<Integer, OrcValueReader<?>> readersById = readersByFieldId(record, readers);
-      Map<Integer, Integer> fieldIdToVectorIndex = buildFieldIdToVectorIndex(record);
+      Map<Integer, OrcValueReader<?>> readersById = readersByFieldId(orcType, readers);
+      Map<Integer, Integer> fieldIdToVectorIndex = buildFieldIdToVectorIndex(orcType);
 
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
@@ -222,8 +222,8 @@ public class OrcValueReaders {
       }
     }
 
-    private Map<Integer, Integer> buildFieldIdToVectorIndex(TypeDescription record) {
-      List<TypeDescription> children = record.getChildren();
+    private Map<Integer, Integer> buildFieldIdToVectorIndex(TypeDescription orcType) {
+      List<TypeDescription> children = orcType.getChildren();
       Map<Integer, Integer> mapping = Maps.newHashMap();
       for (int i = 0; i < children.size(); i++) {
         mapping.put(ORCSchemaUtil.fieldId(children.get(i)), i);
@@ -233,8 +233,8 @@ public class OrcValueReaders {
     }
 
     private Map<Integer, OrcValueReader<?>> readersByFieldId(
-        TypeDescription record, List<OrcValueReader<?>> readerList) {
-      List<TypeDescription> children = record.getChildren();
+        TypeDescription orcType, List<OrcValueReader<?>> readerList) {
+      List<TypeDescription> children = orcType.getChildren();
       Preconditions.checkState(
           children.size() == readerList.size(),
           "Invalid ORC reader binding: children=%s readers=%s",
