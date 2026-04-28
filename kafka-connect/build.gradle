@@ -120,30 +120,14 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation project(':iceberg-parquet')
 
     implementation project(':iceberg-aws')
-    implementation platform(libs.awssdk.bom)
-    implementation 'software.amazon.awssdk:apache-client'
-    implementation 'software.amazon.awssdk:auth'
-    implementation "software.amazon.awssdk:http-auth-aws-crt"
-    implementation 'software.amazon.awssdk:iam'
-    implementation 'software.amazon.awssdk:sso'
-    implementation 'software.amazon.awssdk:s3'
-    implementation 'software.amazon.awssdk:kms'
-    implementation 'software.amazon.awssdk:glue'
-    implementation 'software.amazon.awssdk:sts'
-    implementation 'software.amazon.awssdk:dynamodb'
-    implementation 'software.amazon.awssdk:lakeformation'
+    implementation project(':iceberg-aws-bundle')
 
     implementation project(':iceberg-gcp')
-    implementation project(':iceberg-bigquery')
-    implementation platform(libs.google.libraries.bom)
-    implementation 'com.google.cloud:google-cloud-storage'
-    implementation 'com.google.cloud:google-cloud-bigquery'
-    implementation 'com.google.cloud:google-cloud-core'
+    implementation project(':iceberg-gcp-bundle')
 
     implementation project(':iceberg-azure')
-    implementation platform(libs.azuresdk.bom)
-    implementation 'com.azure:azure-storage-file-datalake'
-    implementation 'com.azure:azure-identity'
+    implementation project(':iceberg-azure-bundle')
+
 
     hive project(':iceberg-hive-metastore')
     hive(libs.hive2.metastore) {
