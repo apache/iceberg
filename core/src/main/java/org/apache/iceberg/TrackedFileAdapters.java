@@ -31,10 +31,11 @@ import org.apache.iceberg.types.Type;
 /**
  * Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs.
  *
- * <p>Note: V4 colocates deletion vectors with data file entries in {@link TrackedFile}. This
- * adapter does not carry over {@link TrackedFile#deletionVector()} because {@link DataFile} has no
- * way to represent it. Once {@link DataFile} is extended with deletion vector support, this adapter
- * should be updated to include it.
+ * <p>V4 colocates deletion vectors with data file entries in {@link TrackedFile}. Rather than
+ * extending {@link DataFile} with deletion vector fields, DVs are extracted as separate {@link
+ * DeleteFile} objects via {@link #asDVDeleteFile(TrackedFile, PartitionSpec)}. This matches the v3
+ * convention where DVs are tracked as {@link DeleteFile} entries in delete manifests and keeps the
+ * existing {@link FileScanTask} contract ({@code file()} + {@code deletes()}) unchanged.
  */
 class TrackedFileAdapters {
 
@@ -54,6 +55,16 @@ class TrackedFileAdapters {
         "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
         file.contentType());
     return new TrackedDeleteFile(file, spec);
+  }
+
+  static DeleteFile asDVDeleteFile(TrackedFile file, PartitionSpec spec) {
+    Preconditions.checkState(
+        file.contentType() == FileContent.DATA,
+        "Cannot extract DV from tracked file: content type is %s, not DATA",
+        file.contentType());
+    Preconditions.checkState(
+        file.deletionVector() != null, "Cannot extract DV from tracked file: no deletion vector");
+    return new TrackedDVDeleteFile(file, spec);
   }
 
   // TODO: TrackedFile will likely get an explicit partition tuple field (using a union partition
@@ -436,6 +447,174 @@ class TrackedFileAdapters {
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
       return TrackedFileAdapters.upperBounds(file.contentStats());
+    }
+
+    @Override
+    public DeleteFile copy() {
+      return this;
+    }
+
+    @Override
+    public DeleteFile copy(boolean withStats) {
+      return this;
+    }
+
+    @Override
+    public DeleteFile copyWithoutStats() {
+      return this;
+    }
+
+    @Override
+    public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
+      return this;
+    }
+  }
+
+  /**
+   * Adapts the deletion vector from a TrackedFile DATA entry to the {@link DeleteFile} interface.
+   *
+   * <p>The DV blob metadata is mapped to the DeleteFile DV fields: {@link
+   * DeleteFile#referencedDataFile()} is the data file location, and {@link
+   * DeleteFile#contentOffset()} / {@link DeleteFile#contentSizeInBytes()} point to the blob within
+   * the Puffin file.
+   */
+  private static class TrackedDVDeleteFile implements DeleteFile {
+    private final TrackedFile file;
+    private final DeletionVector dv;
+    private final Tracking tracking;
+    private final PartitionSpec spec;
+
+    private TrackedDVDeleteFile(TrackedFile file, PartitionSpec spec) {
+      this.file = file;
+      this.dv = file.deletionVector();
+      this.tracking = file.tracking();
+      this.spec = spec;
+    }
+
+    @Override
+    public Long pos() {
+      return tracking != null ? tracking.manifestPos() : null;
+    }
+
+    @Override
+    public int specId() {
+      return file.specId() != null ? file.specId() : 0;
+    }
+
+    @Override
+    public FileContent content() {
+      return FileContent.POSITION_DELETES;
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public CharSequence path() {
+      return dv.location();
+    }
+
+    @Override
+    public FileFormat format() {
+      return FileFormat.PUFFIN;
+    }
+
+    @Override
+    public StructLike partition() {
+      return extractPartition(file, spec);
+    }
+
+    @Override
+    public long recordCount() {
+      return dv.cardinality();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return dv.sizeInBytes();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return null;
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return tracking != null ? tracking.dataSequenceNumber() : null;
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return tracking != null ? tracking.fileSequenceNumber() : null;
+    }
+
+    @Override
+    public Long firstRowId() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return null;
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return null;
+    }
+
+    @Override
+    public List<Integer> equalityFieldIds() {
+      return null;
+    }
+
+    @Override
+    public String referencedDataFile() {
+      return file.location();
+    }
+
+    @Override
+    public Long contentOffset() {
+      return dv.offset();
+    }
+
+    @Override
+    public Long contentSizeInBytes() {
+      return dv.sizeInBytes();
+    }
+
+    @Override
+    public String manifestLocation() {
+      return tracking != null ? tracking.manifestLocation() : null;
+    }
+
+    @Override
+    public Map<Integer, Long> columnSizes() {
+      return null;
+    }
+
+    @Override
+    public Map<Integer, Long> valueCounts() {
+      return null;
+    }
+
+    @Override
+    public Map<Integer, Long> nullValueCounts() {
+      return null;
+    }
+
+    @Override
+    public Map<Integer, Long> nanValueCounts() {
+      return null;
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> lowerBounds() {
+      return null;
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> upperBounds() {
+      return null;
     }
 
     @Override
