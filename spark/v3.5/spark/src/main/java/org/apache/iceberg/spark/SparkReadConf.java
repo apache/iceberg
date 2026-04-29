@@ -195,7 +195,11 @@ public class SparkReadConf {
   }
 
   public Long splitSizeOption() {
-    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.SPLIT_SIZE)
+        .parseOptional();
   }
 
   public long splitSize() {
