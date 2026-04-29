@@ -317,7 +317,7 @@ class TestManifestInfoStruct {
                     .dv(new byte[] {0xF})
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("dv and dvCardinality must both be null or both be non-null");
+        .hasMessage("Invalid DV and cardinality: must both be null or non-null");
 
     assertThatThrownBy(
             () ->
@@ -334,7 +334,7 @@ class TestManifestInfoStruct {
                     .dvCardinality(1L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("dv and dvCardinality must both be null or both be non-null");
+        .hasMessage("Invalid DV and cardinality: must both be null or non-null");
   }
 
   @Test
