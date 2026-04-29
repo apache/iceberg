@@ -550,6 +550,7 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
 | `tableCreator(TableCreator creator)` | When DynamicIcebergSink creates new Iceberg tables, allows overriding how tables are created - setting custom table properties and location based on the table name. |
 | `dropUnusedColumns(boolean enabled)`                 | When enabled, drops all columns from the current table schema which are not contained in the input schema (see the caveats above on dropping columns).                  |
+| `taskWriterFactoryProvider(DynamicTaskWriterFactoryProvider provider)` | Supply a custom `TaskWriterFactory<RowData>` per write target in place of the default `RowDataTaskWriterFactory`. Useful for throughput-oriented writers that exploit known data pattern, audit/metric layering, custom file naming/layout/properties. |
 
 ### Distribution Modes
 

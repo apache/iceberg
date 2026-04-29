@@ -1644,6 +1644,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           writeProperties,
           flinkConfig,
           100,
+          DynamicTaskWriterFactoryProvider.DEFAULT,
           forwardWritten);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
