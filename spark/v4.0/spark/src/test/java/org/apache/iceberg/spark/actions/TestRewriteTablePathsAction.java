@@ -48,6 +48,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -435,9 +436,9 @@ public class TestRewriteTablePathsAction extends TestBase {
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(
-                tableWithPosDeletes
-                    .currentSnapshot()
-                    .addedDataFiles(tableWithPosDeletes.io())
+                SnapshotChanges.builderFor(tableWithPosDeletes)
+                    .build()
+                    .addedDataFiles()
                     .iterator()
                     .next()
                     .location(),
@@ -482,7 +483,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   @TestTemplate
   public void testPositionDeleteWithRow() throws Exception {
     String dataFileLocation =
-        table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location();
+        SnapshotChanges.builderFor(table).build().addedDataFiles().iterator().next().location();
     List<PositionDelete<?>> deletes = Lists.newArrayList();
     OutputFile deleteFile =
         table
@@ -532,7 +533,15 @@ public class TestRewriteTablePathsAction extends TestBase {
         .isEqualTo(2);
     Stream<DataFile> allFiles =
         StreamSupport.stream(table.snapshots().spliterator(), false)
-            .flatMap(s -> StreamSupport.stream(s.addedDataFiles(table.io()).spliterator(), false));
+            .flatMap(
+                s ->
+                    StreamSupport.stream(
+                        SnapshotChanges.builderFor(table)
+                            .snapshot(s)
+                            .build()
+                            .addedDataFiles()
+                            .spliterator(),
+                        false));
     List<Pair<CharSequence, Long>> deletes =
         allFiles.map(f -> Pair.of((CharSequence) f.location(), 0L)).collect(Collectors.toList());
 
@@ -779,7 +788,10 @@ public class TestRewriteTablePathsAction extends TestBase {
     Snapshot oldest = SnapshotUtil.oldestAncestor(tableWith3Snaps);
     String oldestDataFilePath =
         Iterables.getOnlyElement(
-                tableWith3Snaps.snapshot(oldest.snapshotId()).addedDataFiles(tableWith3Snaps.io()))
+                SnapshotChanges.builderFor(tableWith3Snaps)
+                    .snapshot(tableWith3Snaps.snapshot(oldest.snapshotId()))
+                    .build()
+                    .addedDataFiles())
             .location();
     String deletedDataFilePathInTargetLocation =
         String.format("%sdata/%s", targetTableLocation(), fileName(oldestDataFilePath));
@@ -1303,27 +1315,14 @@ public class TestRewriteTablePathsAction extends TestBase {
     // Create position delete files with same names in different nested directories
     // This simulates the scenario tested in
     // TestRewriteTablePathUtil.testStagingPathPreservesDirectoryStructure
+    SnapshotChanges sourceChanges = SnapshotChanges.builderFor(sourceTable).build();
     List<Pair<CharSequence, Long>> deletes1 =
         Lists.newArrayList(
-            Pair.of(
-                sourceTable
-                    .currentSnapshot()
-                    .addedDataFiles(sourceTable.io())
-                    .iterator()
-                    .next()
-                    .location(),
-                0L));
+            Pair.of(sourceChanges.addedDataFiles().iterator().next().location(), 0L));
 
     List<Pair<CharSequence, Long>> deletes2 =
         Lists.newArrayList(
-            Pair.of(
-                sourceTable
-                    .currentSnapshot()
-                    .addedDataFiles(sourceTable.io())
-                    .iterator()
-                    .next()
-                    .location(),
-                0L));
+            Pair.of(sourceChanges.addedDataFiles().iterator().next().location(), 0L));
 
     // Create delete files with same name in different nested paths (hash1/ and hash2/)
     File file1 =

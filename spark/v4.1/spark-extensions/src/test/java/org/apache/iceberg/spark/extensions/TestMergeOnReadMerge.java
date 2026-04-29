@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -134,6 +135,34 @@ public class TestMergeOnReadMerge extends TestMerge {
     assertThat(dvs).hasSize(1);
     assertThat(dvs).allMatch(dv -> dv.recordCount() == 3);
     assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadMergeSetsSortOrderIdOnNewDataFiles() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    createOrReplaceView("source", ImmutableList.of(1, 3), Encoders.INT());
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value "
+            + "WHEN MATCHED THEN "
+            + " UPDATE SET id = id + 10 "
+            + "WHEN NOT MATCHED THEN "
+            + " INSERT (id, dep) VALUES (s.value, 'hr')",
+        commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("All new data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   private void checkMergeDeleteGranularity(DeleteGranularity deleteGranularity) {

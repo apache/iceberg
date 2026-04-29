@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.stats;
+package org.apache.iceberg;
 
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
-public interface FieldStats<T> extends StructLike {
+interface FieldStats<T> extends StructLike {
   /** The field ID of the statistic */
   int fieldId();
 

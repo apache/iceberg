@@ -113,6 +113,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private final long targetManifestSizeBytes;
+  private final Map<String, String> manifestWriterProps;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
@@ -141,6 +142,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetManifestSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    this.manifestWriterProps = manifestWriterProperties(ops.current());
     boolean snapshotIdInheritanceEnabled =
         ops.current()
             .propertyAsBoolean(
@@ -608,12 +610,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
     return ManifestFiles.write(
-        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
+        ops.current().formatVersion(),
+        spec,
+        newManifestOutputFile(),
+        snapshotId(),
+        manifestWriterProps);
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
     return ManifestFiles.writeDeleteManifest(
-        ops.current().formatVersion(), spec, newManifestOutputFile(), snapshotId());
+        ops.current().formatVersion(),
+        spec,
+        newManifestOutputFile(),
+        snapshotId(),
+        manifestWriterProps);
   }
 
   protected RollingManifestWriter<DataFile> newRollingManifestWriter(PartitionSpec spec) {
@@ -623,6 +633,25 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected RollingManifestWriter<DeleteFile> newRollingDeleteManifestWriter(PartitionSpec spec) {
     return new RollingManifestWriter<>(
         () -> newDeleteManifestWriter(spec), targetManifestSizeBytes);
+  }
+
+  private static Map<String, String> manifestWriterProperties(TableMetadata metadata) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+
+    String codec =
+        metadata.property(
+            TableProperties.MANIFEST_COMPRESSION, TableProperties.MANIFEST_COMPRESSION_DEFAULT);
+    builder.put(TableProperties.AVRO_COMPRESSION, codec);
+
+    String level =
+        metadata.property(
+            TableProperties.MANIFEST_COMPRESSION_LEVEL,
+            TableProperties.MANIFEST_COMPRESSION_LEVEL_DEFAULT);
+    if (level != null) {
+      builder.put(TableProperties.AVRO_COMPRESSION_LEVEL, level);
+    }
+
+    return builder.build();
   }
 
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {

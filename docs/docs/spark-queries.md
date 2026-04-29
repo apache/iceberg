@@ -44,6 +44,65 @@ SELECT * FROM prod.db.table.files;
 | 0 | s3:/.../table/data/00001-4-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 02} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> b] | [1 -> , 2 -> b] | null         | [4]           | null | null |
 | 0 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 03} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           | null | null |
 
+### Spark SQL functions
+
+Iceberg adds SQL functions to each Iceberg catalog for inspecting transform results in queries and for
+writing filters that match Iceberg partition transforms. These functions are available only through an
+[Iceberg catalog](spark-configuration.md#catalog-configuration); they are not registered in Spark's
+built-in catalog.
+
+!!! note
+    Spark before 4.2.0 does not support `V2Function` in the session catalog.
+    Queries such as `SELECT spark_catalog.system.bucket(16, id)` fail even when
+    `spark_catalog` is configured with `org.apache.iceberg.spark.SparkSessionCatalog`.
+    See [SPARK-54760](https://issues.apache.org/jira/browse/SPARK-54760) ([apache/spark#53531](https://github.com/apache/spark/pull/53531)) for details.
+    To use Iceberg SQL functions, call them through a catalog configured with
+    `org.apache.iceberg.spark.SparkCatalog`.
+
+Use the `system` namespace when calling these functions:
+
+```sql
+SELECT system.iceberg_version();
+
+SELECT system.bucket(16, id), system.days(ts)
+FROM prod.db.table;
+```
+
+When you want to be explicit about the catalog, qualify the function with the catalog name:
+
+```sql
+SELECT prod.system.bucket(16, id)
+FROM prod.db.table;
+```
+
+!!! info
+    `PARTITIONED BY` clauses use singular transform expressions such as `year(ts)` and `month(ts)`.
+    The SQL functions use `system.years(ts)` and `system.months(ts)`.
+
+| Function | Supported input types | Return type | Example |
+| --- | --- | --- | --- |
+| `system.iceberg_version()` | none | `string` | `SELECT system.iceberg_version();` |
+| `system.bucket(numBuckets, col)` | `date`, `tinyint`, `smallint`, `int`, `bigint`, `timestamp`, `timestamp_ntz`, `decimal`, `string`, `binary` | `int` | `SELECT system.bucket(16, id) FROM prod.db.table;` |
+| `system.years(col)` | `date`, `timestamp`, `timestamp_ntz` | `int` | `SELECT system.years(ts) FROM prod.db.table;` |
+| `system.months(col)` | `date`, `timestamp`, `timestamp_ntz` | `int` | `SELECT system.months(ts) FROM prod.db.table;` |
+| `system.days(col)` | `date`, `timestamp`, `timestamp_ntz` | `date` | `SELECT * FROM prod.db.table WHERE system.days(ts) = date('2025-03-01');` |
+| `system.hours(col)` | `timestamp`, `timestamp_ntz` | `int` | `SELECT system.hours(ts) FROM prod.db.table;` |
+| `system.truncate(width, col)` | `tinyint`, `smallint`, `int`, `bigint`, `decimal`, `string`, `binary` | same type as `col` | `SELECT system.truncate(4, data) FROM prod.db.table;` |
+
+All transform functions return `NULL` for `NULL` inputs.
+
+`system.years`, `system.months`, `system.days`, and `system.hours` return Iceberg transform values
+rather than extracted calendar fields. For example, `system.years` returns years since 1970-01-01,
+`system.months` returns months since 1970-01, and `system.hours` returns hours since
+1970-01-01T00:00. `system.days` returns a `date` value representing the date part of the input
+(for `date` inputs it returns the same value unchanged; for timestamps it discards the time component).
+
+For numeric inputs, `system.truncate(width, col)` rounds down to the nearest multiple of `width`.
+For `string` and `binary` inputs, it keeps the first `width` characters or bytes.
+
+These functions are especially useful when you want to inspect how Iceberg transforms values or
+when writing filters for queries and row-level operations that align with partition transforms.
+
 ### Time travel Queries with SQL
 Spark supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.
