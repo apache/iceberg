@@ -182,8 +182,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         () -> {
           Map<String, String> options = ImmutableMap.of(optionName, "3");
           SparkConfParser parser = new SparkConfParser(spark, table, options);
-          Integer value =
-              parser.intConf().option(optionName).sessionConf(confName).parseOptional();
+          Integer value = parser.intConf().option(optionName).sessionConf(confName).parseOptional();
           assertThat(value).isEqualTo(3);
         });
   }
