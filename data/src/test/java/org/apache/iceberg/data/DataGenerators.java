@@ -31,32 +31,33 @@ class DataGenerators {
 
   static final DataGenerator[] ALL =
       new DataGenerator[] {
-        new DefaultSchema(),
+        new Primitives(),
+        new UUID(),
+        new Fixed(),
+        new Binary(),
         new Decimals(),
         new StructOfPrimitive(),
         new ListOfPrimitive(),
-        new MapOfPrimitive()
+        new MapOfPrimitive(),
+        new TimestampNano()
       };
 
   private DataGenerators() {}
 
-  static class DefaultSchema implements DataGenerator {
+  static class Primitives implements DataGenerator {
     private final Schema schema =
         new Schema(
-            Types.NestedField.required(1, "boolean_col", Types.BooleanType.get()),
-            Types.NestedField.required(2, "int_col", Types.IntegerType.get()),
-            Types.NestedField.required(3, "long_col", Types.LongType.get()),
-            Types.NestedField.required(4, "float_col", Types.FloatType.get()),
-            Types.NestedField.required(5, "double_col", Types.DoubleType.get()),
-            Types.NestedField.required(6, "decimal_col", Types.DecimalType.of(9, 2)),
-            Types.NestedField.required(7, "date_col", Types.DateType.get()),
-            Types.NestedField.required(8, "time_col", Types.TimeType.get()),
-            Types.NestedField.required(9, "timestamp_col", Types.TimestampType.withoutZone()),
-            Types.NestedField.required(10, "timestamp_tz_col", Types.TimestampType.withZone()),
-            Types.NestedField.required(11, "string_col", Types.StringType.get()),
-            Types.NestedField.required(12, "uuid_col", Types.UUIDType.get()),
-            Types.NestedField.required(13, "fixed_col", Types.FixedType.ofLength(16)),
-            Types.NestedField.required(14, "binary_col", Types.BinaryType.get()));
+            Types.NestedField.required(1, "col_a", Types.StringType.get()),
+            Types.NestedField.required(2, "col_b", Types.IntegerType.get()),
+            Types.NestedField.required(3, "col_c", Types.LongType.get()),
+            Types.NestedField.required(4, "col_d", Types.FloatType.get()),
+            Types.NestedField.required(5, "col_e", Types.DoubleType.get()),
+            Types.NestedField.required(6, "boolean_col", Types.BooleanType.get()),
+            Types.NestedField.required(7, "decimal_col", Types.DecimalType.of(9, 2)),
+            Types.NestedField.required(8, "date_col", Types.DateType.get()),
+            Types.NestedField.required(9, "time_col", Types.TimeType.get()),
+            Types.NestedField.required(10, "timestamp_col", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(11, "timestamp_tz_col", Types.TimestampType.withZone()));
 
     @Override
     public Schema schema() {
@@ -65,7 +66,52 @@ class DataGenerators {
 
     @Override
     public String toString() {
-      return "DefaultSchema";
+      return "Primitives";
+    }
+  }
+
+  static class UUID implements DataGenerator {
+    private final Schema schema =
+        new Schema(Types.NestedField.required(1, "uuid_col", Types.UUIDType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "UUID";
+    }
+  }
+
+  static class Fixed implements DataGenerator {
+    private final Schema schema =
+        new Schema(Types.NestedField.required(1, "fixed_col", Types.FixedType.ofLength(16)));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Fixed";
+    }
+  }
+
+  static class Binary implements DataGenerator {
+    private final Schema schema =
+        new Schema(Types.NestedField.required(1, "binary_col", Types.BinaryType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Binary";
     }
   }
 
@@ -139,6 +185,24 @@ class DataGenerators {
     @Override
     public String toString() {
       return "MapOfPrimitive";
+    }
+  }
+
+  static class TimestampNano implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_ns_col", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(
+                2, "timestamp_ns_tz_col", Types.TimestampNanoType.withZone()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "TimestampNano";
     }
   }
 

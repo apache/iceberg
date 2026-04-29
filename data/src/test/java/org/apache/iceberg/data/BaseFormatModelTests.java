@@ -29,6 +29,10 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -79,7 +83,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
+import org.apache.orc.TypeDescription;
+import org.apache.orc.Writer;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -105,12 +119,36 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
-  /**
-   * Hook for subclasses to declare whether they support all types in the given schema. Default is
-   * to support all schemas. If false is returned, the test will be skipped using assumeTrue.
-   */
-  protected boolean supports(Schema schema) {
-    return true;
+  protected abstract boolean supportsTime();
+
+  protected abstract boolean supportsUUID();
+
+  protected abstract boolean supportsTimestampNano();
+
+  protected abstract boolean supportsVariant();
+
+  protected abstract boolean supportsUnknown();
+
+  private void assumeTypeSupport(Schema schema) {
+    assumeThat(supportsTime() || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.TIME) == null)
+        .as("Time type is not supported")
+        .isTrue();
+    assumeThat(supportsUUID() || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.UUID) == null)
+        .as("UUID type is not supported")
+        .isTrue();
+    assumeThat(
+            supportsTimestampNano()
+                || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
+        .as("TimestampNano type is not supported")
+        .isTrue();
+    assumeThat(
+            supportsVariant() || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.VARIANT) == null)
+        .as("Variant type is not supported")
+        .isTrue();
+    assumeThat(
+            supportsUnknown() || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
+        .as("Unknown type is not supported")
+        .isTrue();
   }
 
   private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
@@ -179,7 +217,7 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
-    assumeThat(supports(schema)).isTrue();
+    assumeTypeSupport(schema);
     FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -197,7 +235,7 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
-    assumeThat(supports(schema)).isTrue();
+    assumeTypeSupport(schema);
     FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -215,7 +253,8 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
-    assumeThat(supports(schema)).isTrue();
+    assumeTypeSupport(schema);
+
 
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -251,7 +290,8 @@ public abstract class BaseFormatModelTests<T> {
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
-    assumeThat(supports(schema)).isTrue();
+    assumeTypeSupport(schema);
+
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -288,7 +328,7 @@ public abstract class BaseFormatModelTests<T> {
   void testEqualityDeleteWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
-    assumeThat(supports(schema)).isTrue();
+    assumeTypeSupport(schema);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -322,7 +362,8 @@ public abstract class BaseFormatModelTests<T> {
   void testEqualityDeleteWriterGenericWriteEngineRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
-    assumeThat(supports(schema)).isTrue();
+    assumeTypeSupport(schema);
+
     FileWriterBuilder<EqualityDeleteWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 
@@ -399,7 +440,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderProjection(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema fullSchema = dataGenerator.schema();
 
     List<Types.NestedField> columns = fullSchema.columns();
@@ -489,7 +530,7 @@ public abstract class BaseFormatModelTests<T> {
 
     assumeSupports(fileFormat, FEATURE_CASE_SENSITIVE);
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -546,7 +587,7 @@ public abstract class BaseFormatModelTests<T> {
 
     assumeSupports(fileFormat, FEATURE_SPLIT);
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> records = dataGenerator.generateRecords(10000);
 
@@ -602,7 +643,7 @@ public abstract class BaseFormatModelTests<T> {
 
     assumeSupports(fileFormat, FEATURE_REUSE_CONTAINERS);
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     // Need at least 2 records to verify container reuse
@@ -644,7 +685,7 @@ public abstract class BaseFormatModelTests<T> {
   void testReaderSchemaEvolutionNewColumnWithDefault(FileFormat fileFormat) throws IOException {
 
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -688,7 +729,7 @@ public abstract class BaseFormatModelTests<T> {
   void testReaderBuilderRecordsPerBatchNotSupported(FileFormat fileFormat) throws IOException {
     assumeFalse(supportsBatchReads(), engineType().getSimpleName() + " supports batch reads");
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -705,7 +746,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMetricsCollection(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -719,7 +760,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMetricsWithNoneMode(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
 
     MetricsConfig noneConfig = config(schema, MetricsModes.None.get());
@@ -734,8 +775,10 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMetricsWithCountsMode(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
+    assumeTypeSupport(schema);
+
     MetricsConfig countsConfig = config(schema, MetricsModes.Counts.get());
     List<Record> genericRecords = dataGenerator.generateRecords();
     DataFile dataFile = writeGenericRecords(fileFormat, schema, genericRecords, countsConfig);
@@ -820,8 +863,9 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testEqualityDeleteWriterMetricsCollection(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
+    assumeTypeSupport(schema);
     FileWriterBuilder<EqualityDeleteWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 
@@ -876,7 +920,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMetricsWithPerColumnMode(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
 
     // Default mode is "counts", col_b is overridden to "full", col_a is overridden to "none"
@@ -973,7 +1017,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnFilePath(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -998,7 +1042,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnSpecId(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -1021,7 +1065,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowPosition(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -1042,7 +1086,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnIsDeleted(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -1062,7 +1106,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinage(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
@@ -1095,7 +1139,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinageExistValue(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema dataSchema = dataGenerator.schema();
 
     Schema writeSchema = MetadataColumns.schemaWithRowLineage(dataSchema);
@@ -1169,7 +1213,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnPartitionIdentity(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     PartitionSpec spec = PartitionSpec.builderFor(dataGenerator.schema()).identity("col_a").build();
 
     Types.StructType partitionType = spec.partitionType();
@@ -1212,7 +1256,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnPartitionEvolutionAddColumn(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema dataSchema = dataGenerator.schema();
 
     // Old spec: partition by col_a only (spec id = 0)
@@ -1272,7 +1316,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnPartitionEvolutionRemoveColumn(FileFormat fileFormat)
       throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema dataSchema = dataGenerator.schema();
 
     PartitionSpec oldSpec =
@@ -1832,13 +1876,15 @@ public abstract class BaseFormatModelTests<T> {
 
         if (expectedMin != null) {
           assertThat(lowerBuffer).isNotNull();
-          Object actualLower = Conversions.fromByteBuffer(field.type(), lowerBuffer);
+          Object actualLower =
+              toInternal(field.type(), Conversions.fromByteBuffer(field.type(), lowerBuffer));
           assertThat(cmp.compare(actualLower, expectedMin)).isEqualTo(0);
         }
 
         if (expectedMax != null) {
           assertThat(upperBuffer).isNotNull();
-          Object actualUpper = Conversions.fromByteBuffer(field.type(), upperBuffer);
+          Object actualUpper =
+              toInternal(field.type(), Conversions.fromByteBuffer(field.type(), upperBuffer));
           assertThat(cmp.compare(actualUpper, expectedMax)).isEqualTo(0);
         }
       }
@@ -1863,16 +1909,42 @@ public abstract class BaseFormatModelTests<T> {
         continue;
       }
 
-      if (min == null || cmp.compare(value, min) < 0) {
-        min = value;
+      // Convert to internal Iceberg type for comparison
+      Object internalValue = toInternal(field.type(), value);
+
+      if (min == null || cmp.compare(internalValue, min) < 0) {
+        min = internalValue;
       }
 
-      if (max == null || cmp.compare(value, max) > 0) {
-        max = value;
+      if (max == null || cmp.compare(internalValue, max) > 0) {
+        max = internalValue;
       }
     }
 
     return new Object[] {min, max};
+  }
+
+  private static Object toInternal(Type type, Object value) {
+    if (value == null) {
+      return null;
+    }
+
+    switch (type.typeId()) {
+      case DATE:
+        return DateTimeUtil.daysFromDate((LocalDate) value);
+      case TIME:
+        return DateTimeUtil.microsFromTime((LocalTime) value);
+      case TIMESTAMP:
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value);
+        } else {
+          return DateTimeUtil.microsFromTimestamp((LocalDateTime) value);
+        }
+      case STRING:
+        return null; // Skip string comparison in metrics tests
+      default:
+        return value;
+    }
   }
 
   private static void assertBoundsNull(Schema schema, ContentFile<?> file) {

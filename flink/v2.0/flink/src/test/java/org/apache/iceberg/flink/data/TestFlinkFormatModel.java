@@ -34,13 +34,28 @@ import org.apache.iceberg.types.Types;
 public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
 
   @Override
-  protected boolean supports(Schema schema) {
-    // Flink fails on Time and UUID for some formats in TCK currently
-    return schema.columns().stream()
-        .noneMatch(
-            c ->
-                c.type().typeId() == org.apache.iceberg.types.Type.TypeID.TIME
-                    || c.type().typeId() == org.apache.iceberg.types.Type.TypeID.UUID);
+  protected boolean supportsTime() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportsUUID() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportsTimestampNano() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return false;
+  }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return false;
   }
 
   @Override
