@@ -360,6 +360,9 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           minSequenceNumber >= 0,
           "Invalid min sequence number: %s (must be >= 0)",
           minSequenceNumber);
+      Preconditions.checkArgument(
+          (dv == null) == (dvCardinality == null),
+          "dv and dvCardinality must both be null or both be non-null");
       return new ManifestInfoStruct(
           addedFilesCount,
           existingFilesCount,

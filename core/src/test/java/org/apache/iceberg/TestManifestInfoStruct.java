@@ -301,6 +301,43 @@ class TestManifestInfoStruct {
   }
 
   @Test
+  void testBuilderDvPairingValidation() {
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .minSequenceNumber(0L)
+                    .dv(new byte[] {0xF})
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("dv and dvCardinality must both be null or both be non-null");
+
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .minSequenceNumber(0L)
+                    .dvCardinality(1L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("dv and dvCardinality must both be null or both be non-null");
+  }
+
+  @Test
   void testKryoSerializationRoundTrip() throws IOException {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
