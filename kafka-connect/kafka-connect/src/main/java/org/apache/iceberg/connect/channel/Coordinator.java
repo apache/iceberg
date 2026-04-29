@@ -249,7 +249,6 @@ class Coordinator extends Channel {
                     commitToTable(
                         tableRef,
                         group.envelopes(),
-                        group.commitId(),
                         groupOffsets,
                         isCurrentGroup ? validThroughTs : null);
                     committedEnvelopes.addAll(group.envelopes());
@@ -352,7 +351,6 @@ class Coordinator extends Channel {
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
-      UUID commitId,
       Map<Integer, Long> controlTopicOffsets,
       OffsetDateTime validThroughTs) {
     TableIdentifier tableIdentifier = tableReference.identifier();
