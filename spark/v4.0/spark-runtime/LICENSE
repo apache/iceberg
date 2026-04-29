@@ -323,6 +323,14 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles JetBrains annotations.
+
+Copyright: 2000-2020 JetBrains s.r.o.
+Home page: https://github.com/JetBrains/java-annotations
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product includes code from Cloudera Kite.
 
 Copyright: 2013-2017 Cloudera Inc.
