@@ -548,7 +548,6 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `dropUnusedColumns(boolean enabled)`                 | When enabled, drops all columns from the current table schema which are not contained in the input schema (see the caveats above on dropping columns).                  |
 | `shuffeSinkSlotSharingGroup(SlotSharingGroup ssg)`   | Set the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the shuffle sink.                          |
 | `generatorSlotSharingGroup(SlotSharingGroup ssg)`    | Set the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the generator (and forward sink chained to it). |
-| `disableSlotSharing(boolean disabled)`               | Put generator and sink into each own's unique slot sharing group. This explicitly prevent them from slot sharing with other tasks.                                      |
 
 ### Distribution Modes
 
