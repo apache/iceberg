@@ -335,6 +335,24 @@ class TestManifestInfoStruct {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid DV and cardinality: must both be null or non-null");
+
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .minSequenceNumber(0L)
+                    .dv(new byte[] {0xF})
+                    .dvCardinality(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid DV cardinality: 0 (must be positive)");
   }
 
   @Test

@@ -363,6 +363,10 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       Preconditions.checkArgument(
           (dv == null) == (dvCardinality == null),
           "Invalid DV and cardinality: must both be null or non-null");
+      Preconditions.checkArgument(
+          dvCardinality == null || dvCardinality > 0,
+          "Invalid DV cardinality: %s (must be positive)",
+          dvCardinality);
       return new ManifestInfoStruct(
           addedFilesCount,
           existingFilesCount,
