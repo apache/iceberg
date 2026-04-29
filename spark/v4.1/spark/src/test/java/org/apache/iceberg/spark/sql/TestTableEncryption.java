@@ -212,14 +212,25 @@ public class TestTableEncryption extends CatalogTestBase {
         expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    sql("DELETE FROM %s WHERE id < 4", tableName);
+    sql("DELETE FROM %s WHERE id < 3", tableName);
 
-    expected = ImmutableList.of(row(4L, "d", 4.0F), row(5L, "e", 5.0F), row(6L, "f", Float.NaN));
+    expected =
+        ImmutableList.of(
+            row(3L, "c", Float.NaN),
+            row(4L, "d", 4.0F),
+            row(5L, "e", 5.0F),
+            row(6L, "f", Float.NaN));
 
     assertEquals(
         "Should return all expected rows",
         expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testInsertAndDeleteMOR() {
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('write.delete.mode'='merge-on-read')", tableName);
+    testInsertAndDelete();
   }
 
   @TestTemplate

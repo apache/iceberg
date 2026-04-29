@@ -29,10 +29,12 @@ import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -188,8 +190,16 @@ class DVUtil {
       FileIO fileIO,
       String dvOutputLocation,
       Map<String, Pair<PartitionSpec, StructLike>> partitions) {
-    OutputFile dvOutputFile = fileIO.newOutputFile(dvOutputLocation);
-    try (DVFileWriter dvFileWriter = new BaseDVFileWriter(() -> dvOutputFile, path -> null)) {
+    EncryptedOutputFile dvEncryptedOutputFile;
+    if (fileIO instanceof EncryptingFileIO) {
+      dvEncryptedOutputFile = ((EncryptingFileIO) fileIO).newEncryptingOutputFile(dvOutputLocation);
+    } else {
+      dvEncryptedOutputFile =
+          EncryptionUtil.plainAsEncryptedOutput(fileIO.newOutputFile(dvOutputLocation));
+    }
+
+    try (DVFileWriter dvFileWriter =
+        new BaseDVFileWriter(() -> dvEncryptedOutputFile, path -> null)) {
       for (Map.Entry<String, PositionDeleteIndex> entry : mergedIndexByFile.entrySet()) {
         String referencedLocation = entry.getKey();
         PositionDeleteIndex mergedPositions = entry.getValue();

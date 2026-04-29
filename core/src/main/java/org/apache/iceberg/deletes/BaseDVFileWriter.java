@@ -19,6 +19,7 @@
 package org.apache.iceberg.deletes;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -30,8 +31,10 @@ import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.DeleteWriteResult;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.BlobMetadata;
@@ -52,7 +55,7 @@ public class BaseDVFileWriter implements DVFileWriter {
   private static final String REFERENCED_DATA_FILE_KEY = "referenced-data-file";
   private static final String CARDINALITY_KEY = "cardinality";
 
-  private final Supplier<OutputFile> dvOutputFile;
+  private final Supplier<EncryptedOutputFile> dvOutputFile;
   private final Function<String, PositionDeleteIndex> loadPreviousDeletes;
   private final Map<String, Deletes> deletesByPath = Maps.newHashMap();
   private final Map<String, BlobMetadata> blobsByPath = Maps.newHashMap();
@@ -60,11 +63,11 @@ public class BaseDVFileWriter implements DVFileWriter {
 
   public BaseDVFileWriter(
       OutputFileFactory fileFactory, Function<String, PositionDeleteIndex> loadPreviousDeletes) {
-    this(() -> fileFactory.newOutputFile().encryptingOutputFile(), loadPreviousDeletes);
+    this(fileFactory::newOutputFile, loadPreviousDeletes);
   }
 
   public BaseDVFileWriter(
-      Supplier<OutputFile> dvOutputFile,
+      Supplier<EncryptedOutputFile> dvOutputFile,
       Function<String, PositionDeleteIndex> loadPreviousDeletes) {
     this.dvOutputFile = dvOutputFile;
     this.loadPreviousDeletes = loadPreviousDeletes;
@@ -108,7 +111,11 @@ public class BaseDVFileWriter implements DVFileWriter {
         return;
       }
 
-      PuffinWriter writer = newWriter();
+      EncryptedOutputFile encryptedOut = dvOutputFile.get();
+      PuffinWriter writer =
+          Puffin.write(encryptedOut.encryptingOutputFile())
+              .createdBy(IcebergBuild.fullVersion())
+              .build();
 
       try (PuffinWriter closeableWriter = writer) {
         for (Deletes deletes : deletesByPath.values()) {
@@ -133,8 +140,14 @@ public class BaseDVFileWriter implements DVFileWriter {
       String puffinPath = writer.location();
       long puffinFileSize = writer.fileSize();
 
+      ByteBuffer keyMetadataBuffer = null;
+      EncryptionKeyMetadata keyMetadata = encryptedOut.keyMetadata();
+      if (keyMetadata != null && keyMetadata.buffer() != null) {
+        keyMetadataBuffer = EncryptionUtil.setFileLength(keyMetadata.buffer(), puffinFileSize);
+      }
+
       for (String path : deletesByPath.keySet()) {
-        DeleteFile dv = createDV(puffinPath, puffinFileSize, path);
+        DeleteFile dv = createDV(puffinPath, puffinFileSize, path, keyMetadataBuffer);
         dvs.add(dv);
       }
 
@@ -142,7 +155,8 @@ public class BaseDVFileWriter implements DVFileWriter {
     }
   }
 
-  private DeleteFile createDV(String path, long size, String referencedDataFile) {
+  private DeleteFile createDV(
+      String path, long size, String referencedDataFile, ByteBuffer keyMetadataBuffer) {
     Deletes deletes = deletesByPath.get(referencedDataFile);
     BlobMetadata blobMetadata = blobsByPath.get(referencedDataFile);
     return FileMetadata.deleteFileBuilder(deletes.spec())
@@ -150,6 +164,7 @@ public class BaseDVFileWriter implements DVFileWriter {
         .withFormat(FileFormat.PUFFIN)
         .withPath(path)
         .withPartition(deletes.partition())
+        .withEncryptionKeyMetadata(keyMetadataBuffer)
         .withFileSizeInBytes(size)
         .withReferencedDataFile(referencedDataFile)
         .withContentOffset(blobMetadata.offset())
@@ -163,11 +178,6 @@ public class BaseDVFileWriter implements DVFileWriter {
     PositionDeleteIndex positions = deletes.positions();
     BlobMetadata blobMetadata = writer.write(toBlob(positions, path));
     blobsByPath.put(path, blobMetadata);
-  }
-
-  private PuffinWriter newWriter() {
-    OutputFile outputFile = dvOutputFile.get();
-    return Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build();
   }
 
   private Blob toBlob(PositionDeleteIndex positions, String path) {
