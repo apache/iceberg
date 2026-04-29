@@ -40,6 +40,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
+import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
@@ -104,6 +105,8 @@ public class RESTSerializers {
         .addDeserializer(TableIdentifier.class, new TableIdentifierDeserializer())
         .addSerializer(Namespace.class, new NamespaceSerializer())
         .addDeserializer(Namespace.class, new NamespaceDeserializer())
+        .addSerializer(CatalogObjectIdentifier.class, new CatalogObjectIdentifierSerializer())
+        .addDeserializer(CatalogObjectIdentifier.class, new CatalogObjectIdentifierDeserializer())
         .addSerializer(Schema.class, new SchemaSerializer())
         .addDeserializer(Schema.class, new SchemaDeserializer())
         .addSerializer(UnboundPartitionSpec.class, new UnboundPartitionSpecSerializer())
@@ -284,6 +287,27 @@ public class RESTSerializers {
         TableIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       TableIdentifierParser.toJson(identifier, gen);
+    }
+  }
+
+  public static class CatalogObjectIdentifierDeserializer
+      extends JsonDeserializer<CatalogObjectIdentifier> {
+    @Override
+    public CatalogObjectIdentifier deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      String[] levels = JsonUtil.getStringArray(p.getCodec().readTree(p));
+      return CatalogObjectIdentifier.of(levels);
+    }
+  }
+
+  public static class CatalogObjectIdentifierSerializer
+      extends JsonSerializer<CatalogObjectIdentifier> {
+    @Override
+    public void serialize(
+        CatalogObjectIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      String[] parts = identifier.levels();
+      gen.writeArray(parts, 0, parts.length);
     }
   }
 
