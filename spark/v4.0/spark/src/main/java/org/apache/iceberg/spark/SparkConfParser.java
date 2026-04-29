@@ -37,17 +37,20 @@ class SparkConfParser {
   private final Map<String, String> properties;
   private final RuntimeConfig sessionConf;
   private final CaseInsensitiveStringMap options;
+  private final String tableName;
 
   SparkConfParser() {
     this.properties = ImmutableMap.of();
     this.sessionConf = new org.apache.spark.sql.classic.RuntimeConfig(SQLConf.get());
     this.options = CaseInsensitiveStringMap.empty();
+    this.tableName = null;
   }
 
   SparkConfParser(SparkSession spark, Table table, Map<String, String> options) {
     this.properties = table.properties();
     this.sessionConf = spark.conf();
     this.options = asCaseInsensitiveStringMap(options);
+    this.tableName = table.name();
   }
 
   public BooleanConfParser booleanConf() {
@@ -278,6 +281,20 @@ class SparkConfParser {
       }
 
       if (sessionConfName != null) {
+        if (tableName != null) {
+          String tableSessionConfName = sessionConfName + "." + tableName;
+          String tableSessionConfValue = sessionConf.get(tableSessionConfName, null);
+          if (tableSessionConfValue != null) {
+            return conversion.apply(tableSessionConfValue);
+          }
+
+          String sparkTableSessionConfValue =
+              sessionConf.get(toCamelCase(tableSessionConfName), null);
+          if (sparkTableSessionConfValue != null) {
+            return conversion.apply(sparkTableSessionConfValue);
+          }
+        }
+
         String sessionConfValue = sessionConf.get(sessionConfName, null);
         if (sessionConfValue != null) {
           return conversion.apply(sessionConfValue);
