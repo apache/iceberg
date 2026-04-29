@@ -109,12 +109,12 @@ public class IcebergStreamWriterMetrics {
   }
 
   @Nullable
-  Histogram getDataFilesSizeHistogram() {
+  Histogram dataFilesSizeHistogram() {
     return dataFilesSizeHistogram;
   }
 
   @Nullable
-  Histogram getDeleteFilesSizeHistogram() {
+  Histogram deleteFilesSizeHistogram() {
     return deleteFilesSizeHistogram;
   }
 

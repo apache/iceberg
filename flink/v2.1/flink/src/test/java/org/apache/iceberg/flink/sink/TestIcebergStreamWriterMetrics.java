@@ -35,8 +35,8 @@ public class TestIcebergStreamWriterMetrics {
         new IcebergStreamWriterMetrics(
             UnregisteredMetricsGroup.createSinkWriterMetricGroup(), "db.table");
 
-    assertThat(metrics.getDataFilesSizeHistogram()).isNotNull();
-    assertThat(metrics.getDeleteFilesSizeHistogram()).isNotNull();
+    assertThat(metrics.dataFilesSizeHistogram()).isNotNull();
+    assertThat(metrics.deleteFilesSizeHistogram()).isNotNull();
 
     assertThatNoException()
         .isThrownBy(() -> metrics.updateFlushResult(WriteResult.builder().build()));
@@ -50,8 +50,8 @@ public class TestIcebergStreamWriterMetrics {
           new IcebergStreamWriterMetrics(
               UnregisteredMetricsGroup.createSinkWriterMetricGroup(), "db.table", loader);
 
-      assertThat(metrics.getDataFilesSizeHistogram()).isNull();
-      assertThat(metrics.getDeleteFilesSizeHistogram()).isNull();
+      assertThat(metrics.dataFilesSizeHistogram()).isNull();
+      assertThat(metrics.deleteFilesSizeHistogram()).isNull();
 
       assertThatNoException()
           .isThrownBy(() -> metrics.updateFlushResult(WriteResult.builder().build()));
