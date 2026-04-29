@@ -191,7 +191,8 @@ class DataGenerators {
   static class TimestampNano implements DataGenerator {
     private final Schema schema =
         new Schema(
-            Types.NestedField.required(1, "timestamp_ns_col", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(
+                1, "timestamp_ns_col", Types.TimestampNanoType.withoutZone()),
             Types.NestedField.required(
                 2, "timestamp_ns_tz_col", Types.TimestampNanoType.withZone()));
 

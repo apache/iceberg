@@ -142,11 +142,13 @@ public abstract class BaseFormatModelTests<T> {
         .as("TimestampNano type is not supported")
         .isTrue();
     assumeThat(
-            supportsVariant() || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.VARIANT) == null)
+            supportsVariant()
+                || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.VARIANT) == null)
         .as("Variant type is not supported")
         .isTrue();
     assumeThat(
-            supportsUnknown() || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
+            supportsUnknown()
+                || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
         .as("Unknown type is not supported")
         .isTrue();
   }
@@ -254,7 +256,6 @@ public abstract class BaseFormatModelTests<T> {
       throws IOException {
     Schema schema = dataGenerator.schema();
     assumeTypeSupport(schema);
-
 
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, schema, genericRecords);
