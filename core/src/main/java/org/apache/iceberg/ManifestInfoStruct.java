@@ -362,7 +362,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           minSequenceNumber);
       Preconditions.checkArgument(
           (dv == null) == (dvCardinality == null),
-          "dv and dvCardinality must both be null or both be non-null");
+          "Invalid DV and cardinality: must both be null or non-null");
       return new ManifestInfoStruct(
           addedFilesCount,
           existingFilesCount,
