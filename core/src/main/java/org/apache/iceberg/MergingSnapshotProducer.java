@@ -963,8 +963,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return summaryBuilder.build();
   }
 
-  // guard buffered v2 deletes against concurrent format upgrade
-  private void validateV2DeleteFilesForVersion(int currentFormatVersion) {
+  // guard buffered deletes against concurrent format upgrade
+  private void validateDeleteFilesForVersion(int currentFormatVersion) {
     for (DeleteFile file : v2Deletes) {
       validateDeleteFileForVersion(file, currentFormatVersion);
     }
@@ -972,7 +972,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    validateV2DeleteFilesForVersion(base.formatVersion());
+    validateDeleteFilesForVersion(base.formatVersion());
     // filter any existing manifests
     List<ManifestFile> filtered =
         filterManager.filterManifests(
