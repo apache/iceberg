@@ -667,7 +667,7 @@ A manifest may store either data files or delete files, but not both because man
 
 Manifests are Avro files in V1-V3. Starting in V4, writers must produce manifests in Parquet.
 
-A manifest file must store the partition spec and other metadata as properties in the file’s key-value metadata (Avro file metadata for V1-V3, Parquet file metadata for V4):
+In V1-V3, a manifest file must store the partition spec and other metadata as properties in the file’s key-value metadata:
 
 === "v1 - v3"
     | v1         | v2 and v3  | Key                 | Value                                                                                                                                       |
@@ -682,12 +682,10 @@ A manifest file must store the partition spec and other metadata as properties i
 === "v4"
     | Write      | Read       | Key                 | Value                                                                                                                                       |
     |------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-    | _required_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
-    | _required_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string                                                                             |
-    | _required_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
-    | _required_ | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
-
-    V4 removes the `schema` and `partition-spec` fields from manifest metadata to reduce redundancy. The schema and partition spec must be looked up from the table metadata using the `schema-id` and `partition-spec-id`.
+    | _optional_ | _optional_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
+    | _optional_ | _optional_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string                                                                             |
+    | _optional_ | _optional_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
+    | _optional_ | _optional_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
 The schema of a manifest file is defined by the `manifest_entry` struct (V1-V3) or `content_entry` struct (V4), described in the following section.
 
@@ -742,6 +740,8 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data file. Must be sorted ascending. |
     | 135 | **`equality_ids`** | `list<136: int>` | *optional* | *optional* | Field ids for row equality in equality delete files. |
 
+    Value 1 (POSITION_DELETES) no longer applies in entries because deletion vector metadata is colocated with data files (`content_type` 0).
+
     Leaf data manifests may only contain entries with `content_type` 0 (DATA); leaf delete manifests may only contain entries with `content_type` 2 (EQUALITY DELETES).
 
     The following constraints apply based on `content_type`:
@@ -751,6 +751,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     - `equality_ids` must be set when `content_type` is 2; must be null otherwise.
     - `column_files` must be null when `content_type` is not 0 or 3.
     - `sort_order_id` must be null when `content_type` is not 0.
+    - `deleted_positions` and `replaced_positions` must be null when `content_type` is not 3 or 4.
 
     **`tracking` struct (field 147)**
 
@@ -762,8 +763,8 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 3 | **`sequence_number`** | `long` | *optional* | *optional* | Data sequence number of the file. Inherited when null and status is 1 (ADDED). Must equal `file_sequence_number` if `content_type` is 3 or 4. Optional for leaf manifests, required for root. |
     | 4 | **`file_sequence_number`** | `long` | *optional* | *optional* | File sequence number indicating when the file was added. Inherited when null and status is ADDED. Must equal `sequence_number` if `content_type` is 3 or 4. |
     | 142 | **`first_row_id`** | `long` | *optional* | *optional* | The `_row_id` for the first row in the data file if `content_type` is 0. If `content_type` is 3, this is the starting `_row_id` to assign to rows added by ADDED data files. See [First Row ID Inheritance](#first-row-id-inheritance). |
-    | 6 | **`deleted_positions`** | `binary` | *optional* | *optional* | Bitmap of positions deleted in this snapshot. |
-    | 7 | **`replaced_positions`** | `binary` | *optional* | *optional* | Bitmap of positions replaced in this snapshot. |
+    | 6 | **`deleted_positions`** | `binary` | *optional* | *optional* | [TODO: link to roaring bitmap spec] Roaring bitmap of positions in the referenced leaf manifest that were deleted in this snapshot. |
+    | 7 | **`replaced_positions`** | `binary` | *optional* | *optional* | [TODO: link to roaring bitmap spec] Roaring bitmap of positions in the referenced leaf manifest that were replaced in this snapshot. |
 
     **`deletion_vector` struct (field 148)**
 
