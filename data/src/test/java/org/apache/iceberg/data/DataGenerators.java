@@ -31,12 +31,16 @@ class DataGenerators {
 
   static final DataGenerator[] ALL =
       new DataGenerator[] {
-        new StructOfPrimitive(), new Decimals(), new DefaultSchema(), new AllTypes()
+        new DefaultSchema(),
+        new Decimals(),
+        new StructOfPrimitive(),
+        new ListOfPrimitive(),
+        new MapOfPrimitive()
       };
 
   private DataGenerators() {}
 
-  static class AllTypes implements DataGenerator {
+  static class DefaultSchema implements DataGenerator {
     private final Schema schema =
         new Schema(
             Types.NestedField.required(1, "boolean_col", Types.BooleanType.get()),
@@ -52,19 +56,7 @@ class DataGenerators {
             Types.NestedField.required(11, "string_col", Types.StringType.get()),
             Types.NestedField.required(12, "uuid_col", Types.UUIDType.get()),
             Types.NestedField.required(13, "fixed_col", Types.FixedType.ofLength(16)),
-            Types.NestedField.required(14, "binary_col", Types.BinaryType.get()),
-            Types.NestedField.required(
-                15, "list_col", Types.ListType.ofRequired(16, Types.StringType.get())),
-            Types.NestedField.required(
-                17,
-                "map_col",
-                Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get())),
-            Types.NestedField.required(
-                20,
-                "struct_col",
-                Types.StructType.of(
-                    Types.NestedField.required(21, "nested_int", Types.IntegerType.get()),
-                    Types.NestedField.required(22, "nested_string", Types.StringType.get()))));
+            Types.NestedField.required(14, "binary_col", Types.BinaryType.get()));
 
     @Override
     public Schema schema() {
@@ -73,7 +65,7 @@ class DataGenerators {
 
     @Override
     public String toString() {
-      return "AllTypes";
+      return "DefaultSchema";
     }
   }
 
@@ -92,6 +84,11 @@ class DataGenerators {
     public Schema schema() {
       return schema;
     }
+
+    @Override
+    public String toString() {
+      return "StructOfPrimitive";
+    }
   }
 
   static class Decimals implements DataGenerator {
@@ -107,18 +104,41 @@ class DataGenerators {
     }
   }
 
-  static class DefaultSchema implements DataGenerator {
+  static class ListOfPrimitive implements DataGenerator {
     private final Schema schema =
         new Schema(
-            Types.NestedField.required(1, "col_a", Types.StringType.get()),
-            Types.NestedField.required(2, "col_b", Types.IntegerType.get()),
-            Types.NestedField.required(3, "col_c", Types.LongType.get()),
-            Types.NestedField.required(4, "col_d", Types.FloatType.get()),
-            Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
+            Types.NestedField.required(1, "row_id", Types.StringType.get()),
+            Types.NestedField.required(
+                2, "list_col", Types.ListType.ofRequired(3, Types.StringType.get())));
 
     @Override
     public Schema schema() {
       return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "ListOfPrimitive";
+    }
+  }
+
+  static class MapOfPrimitive implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "row_id", Types.StringType.get()),
+            Types.NestedField.required(
+                2,
+                "map_col",
+                Types.MapType.ofRequired(3, 4, Types.StringType.get(), Types.IntegerType.get())));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "MapOfPrimitive";
     }
   }
 
