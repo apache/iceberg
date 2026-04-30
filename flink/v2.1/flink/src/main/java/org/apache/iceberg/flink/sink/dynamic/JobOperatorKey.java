@@ -47,7 +47,7 @@ class JobOperatorKey {
       return false;
     }
 
-    return jobId.equals(that.jobId) && operatorId.equals(that.operatorId);
+    return Objects.equals(jobId, that.jobId) && Objects.equals(operatorId, that.operatorId);
   }
 
   @Override

@@ -112,6 +112,17 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
 
     /*
+      Group the incoming commit requests into a three-level structure before committing:
+
+        Map<TableKey, Map<JobOperatorKey, NavigableMap<Long, List<CommitRequest>>>>
+              |              |                  |              |
+              |              |                  |              +-- commit requests at that checkpoint
+              |              |                  +-- checkpointId, sorted ascending so older commits go first
+              |              +-- (jobId, operatorId) of the producing aggregator; deduplication against the
+              |                  table's snapshot summaries is per (jobId, operatorId), so each group is
+              |                  walked against the ancestor chain independently
+              +-- (tableName, branch); we load the table and its ancestor chain once per TableKey
+
       Each (table, branch, checkpoint) triplet must have only one commit request.
       There may be commit requests from previous checkpoints which have not been committed yet.
 
