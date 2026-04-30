@@ -526,6 +526,14 @@ License: BSD 2-Clause
 
 --------------------------------------------------------------------------------
 
+This product bundles JetBrains annotations.
+
+Copyright: 2000-2020 JetBrains s.r.o.
+Home page: https://github.com/JetBrains/java-annotations
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles JTS Topology Suite.
 
 Project URL: https://github.com/locationtech/jts
