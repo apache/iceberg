@@ -133,25 +133,31 @@ tasks.register('verifyRuntimeDepsApplied') {
   description = 'Ensures every subproject either applies runtime-deps.gradle or is explicitly excluded'
   group = 'verification'
 
-  // Modules that do not yet have runtime-deps.gradle applied.
-  // Remove entries from this list as modules are onboarded.
+  // Modules that do not ship bundled/shadow JARs and therefore do not need
+  // runtime-deps.gradle. New modules must either apply runtime-deps.gradle
+  // or be added here with justification.
   def excluded = [
-    // Core / library modules
+    // Aggregate modules — no artifacts produced
     'iceberg-bom',
+    'iceberg-spark',
+    'iceberg-flink',
+    'iceberg-kafka-connect',
+    // Internal shading — not distributed to users
+    'iceberg-bundled-guava',
+    'iceberg-open-api',
+    // Library modules — published as individual JARs to Maven Central
     'iceberg-api',
     'iceberg-common',
     'iceberg-core',
     'iceberg-data',
-    'iceberg-orc',
     'iceberg-arrow',
+    'iceberg-orc',
     'iceberg-parquet',
-    'iceberg-bundled-guava',
     'iceberg-hive-metastore',
     'iceberg-nessie',
     'iceberg-delta-lake',
     'iceberg-mr',
-    'iceberg-open-api',
-    // Cloud modules (non-bundle)
+    // Cloud catalog modules — the corresponding *-bundle carries the shadow JAR
     'iceberg-aliyun',
     'iceberg-aws',
     'iceberg-azure',
@@ -159,28 +165,24 @@ tasks.register('verifyRuntimeDepsApplied') {
     'iceberg-bigquery',
     'iceberg-dell',
     'iceberg-snowflake',
-    // Parent / aggregate modules
-    'iceberg-spark',
-    'iceberg-flink',
-    'iceberg-kafka-connect',
-    // Spark non-runtime (both Scala variants for 3.4/3.5, 2.13 only for 4.0/4.1)
+    // Spark integration modules — the corresponding spark-runtime carries the shadow JAR
     'iceberg-spark-3.4_2.12',
     'iceberg-spark-3.4_2.13',
-    'iceberg-spark-extensions-3.4_2.12',
-    'iceberg-spark-extensions-3.4_2.13',
     'iceberg-spark-3.5_2.12',
     'iceberg-spark-3.5_2.13',
+    'iceberg-spark-4.0_2.13',
+    'iceberg-spark-4.1_2.13',
+    'iceberg-spark-extensions-3.4_2.12',
+    'iceberg-spark-extensions-3.4_2.13',
     'iceberg-spark-extensions-3.5_2.12',
     'iceberg-spark-extensions-3.5_2.13',
-    'iceberg-spark-4.0_2.13',
     'iceberg-spark-extensions-4.0_2.13',
-    'iceberg-spark-4.1_2.13',
     'iceberg-spark-extensions-4.1_2.13',
-    // Flink non-runtime
+    // Flink integration modules — the corresponding flink-runtime carries the shadow JAR
     'iceberg-flink-1.20',
     'iceberg-flink-2.0',
     'iceberg-flink-2.1',
-    // Kafka Connect non-runtime
+    // Kafka Connect integration modules — kafka-connect-runtime carries the distribution
     'iceberg-kafka-connect-events',
     'iceberg-kafka-connect-transforms',
   ] as Set
