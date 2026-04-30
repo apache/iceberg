@@ -330,6 +330,14 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This binary artifact contains JetBrains annotations.
+
+Copyright: 2000-2020 JetBrains s.r.o.
+Home page: https://github.com/JetBrains/java-annotations
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Google Guava.
 
 Copyright: 2006-2020 The Guava Authors
@@ -526,18 +534,9 @@ License: BSD 2-Clause
 
 --------------------------------------------------------------------------------
 
-This product bundles JetBrains annotations.
-
-Copyright: 2000-2020 JetBrains s.r.o.
-Home page: https://github.com/JetBrains/java-annotations
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles JTS Topology Suite.
 
 Project URL: https://github.com/locationtech/jts
 License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
 
 --------------------------------------------------------------------------------
-
