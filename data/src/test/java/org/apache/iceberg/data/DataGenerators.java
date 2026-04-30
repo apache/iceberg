@@ -64,4 +64,16 @@ class DataGenerators {
       return schema;
     }
   }
+
+  static class FloatDoubleSchema implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col_float", Types.FloatType.get()),
+            Types.NestedField.required(2, "col_double", Types.DoubleType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+  }
 }

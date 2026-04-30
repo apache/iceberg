@@ -23,6 +23,14 @@ project(":iceberg-aws-bundle") {
 
   tasks.jar.dependsOn tasks.shadowJar
 
+  configurations {
+    implementation {
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.logging.slf4j'
+      exclude group: 'org.apache.logging.log4j'
+    }
+  }
+
   dependencies {
     implementation platform(libs.awssdk.bom)
     implementation libs.awssdk.s3accessgrants
@@ -50,12 +58,6 @@ project(":iceberg-aws-bundle") {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
-    }
-
-    dependencies {
-      exclude(dependency('org.slf4j:.*'))
-      exclude(dependency('org.apache.logging.log4j:.*'))
-      exclude(dependency('org.apache.logging.slf4j:.*'))
     }
 
     // relocate AWS-specific versions

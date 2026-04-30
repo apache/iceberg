@@ -227,7 +227,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Thrift.
+This product bundles Apache Thrift (bundled by Parquet).
 
 Copyright: 2006-2017 The Apache Software Foundation.
 Project URL: https://thrift.apache.org/
@@ -235,7 +235,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product includes code from Daniel Lemire's JavaFastPFOR project.
+This product includes code from Daniel Lemire's JavaFastPFOR project (bundled by Parquet).
 
 Copyright: 2013 Daniel Lemire
 Project URL: https://github.com/lemire/JavaFastPFOR
@@ -243,10 +243,17 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles fastutil.
+This product bundles fastutil (bundled by Parquet).
 
 Copyright: 2002-2014 Sebastiano Vigna
 Project URL: http://fastutil.di.unimi.it/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Zero-Allocation Hashing (bundled by Parquet).
+
+Project URL: https://github.com/OpenHFT/Zero-Allocation-Hashing
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -259,7 +266,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Hive.
+This product bundles Apache Hive's Storage API (bundled by ORC).
 
 Copyright: 2008-2020 The Apache Software Foundation
 Project URL: https://hive.apache.org/
@@ -267,11 +274,12 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Google protobuf.
+This product bundles Google protobuf (bundled by ORC).
 
 Copyright: 2008 Google Inc.
 Project URL: https://developers.google.com/protocol-buffers
 License: BSD 3-Clause
+
 | Copyright 2008 Google Inc.  All rights reserved.
 |
 | Redistribution and use in source and binary forms, with or without
@@ -390,20 +398,6 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Perfmark.
-
-Project URL: https://github.com/perfmark/perfmark
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles org.json.
-
-Project URL: https://github.com/douglascrockford/JSON-java
-License: Public Domain - https://github.com/stleary/JSON-java/blob/master/LICENSE
-
---------------------------------------------------------------------------------
-
 This product bundles Apache Arrow.
 
 Copyright: 2016-2019 The Apache Software Foundation.
@@ -425,42 +419,6 @@ This product bundles Google FlatBuffers.
 Copyright: 2013-2020 Google Inc.
 Project URL: https://google.github.io/flatbuffers/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles ThreeTen BP.
-
-Project URL: https://www.threeten.org/threetenbp
-License: BSD 3-Clause
-| Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
-| 
-| All rights reserved.
-| 
-| Redistribution and use in source and binary forms, with or without
-| modification, are permitted provided that the following conditions are met:
-| 
-| * Redistributions of source code must retain the above copyright notice,
-|   this list of conditions and the following disclaimer.
-| 
-| * Redistributions in binary form must reproduce the above copyright notice,
-|   this list of conditions and the following disclaimer in the documentation
-|   and/or other materials provided with the distribution.
-| 
-| * Neither the name of JSR-310 nor the names of its contributors
-|   may be used to endorse or promote products derived from this software
-|   without specific prior written permission.
-| 
-| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-| CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-| EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-| PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-| PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-| LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-| NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -540,19 +498,11 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache HttpComponents (client and core).
-
-Copyright: 1999-2022 The Apache Software Foundation.
-Project URL: https://hc.apache.org/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product includes code from Apache HttpComponents Client.
+This product bundles and includes code from Apache HttpComponents (core/client).
 
 * retry and error handling logic in ExponentialHttpRequestRetryStrategy.java
 
-Copyright: 1999-2022 The Apache Software Foundation.
+Copyright: 1999-2022 The Apache Software Foundation
 Project URL: https://hc.apache.org/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -573,16 +523,16 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Datasketches.
+This product bundles Eclipse Collections.
 
-Project URL: https://datasketches.apache.org
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/eclipse-collections/eclipse-collections
+License: Eclipse Public License v. 1.0 - https://www.eclipse.org/legal/epl-v10.html
 
 --------------------------------------------------------------------------------
 
-This product bundles Zero-Allocation Hashing.
+This product bundles Apache Datasketches.
 
-Project URL: https://github.com/OpenHFT/Zero-Allocation-Hashing
+Project URL: https://datasketches.apache.org
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -594,195 +544,9 @@ License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/e
 
 --------------------------------------------------------------------------------
 
-This product bundles JSpecify.
-
-Project URL: https://github.com/jspecify/jspecify
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Animal Sniffer Annotations.
-
-License: MIT
-| The MIT License
-| 
-| Copyright (c) 2009 codehaus.org.
-| 
-| Permission is hereby granted, free of charge, to any person obtaining a copy
-| of this software and associated documentation files (the "Software"), to deal
-| in the Software without restriction, including without limitation the rights
-| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-| copies of the Software, and to permit persons to whom the Software is
-| furnished to do so, subject to the following conditions:
-| 
-| The above copyright notice and this permission notice shall be included in
-| all copies or substantial portions of the Software.
-| 
-| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-| THE SOFTWARE.
-
---------------------------------------------------------------------------------
-
-This product bundles Android Annotations.
-
-Project URL: http://source.android.com/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Conscrypt (openjdk-uber).
-
-Project URL: https://conscrypt.org/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Google Cloud BigQuery Client for Java.
-
-Project URL: https://github.com/googleapis/java-bigquery
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Google Cloud Java Client Libraries.
-
-Project URL: https://github.com/googleapis/google-cloud-java
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles RoaringBitmap.
 
 Copyright: (c) 2013-... the RoaringBitmap authors
 Project URL: https://github.com/RoaringBitmap/RoaringBitmap
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
---------------------------------------------------------------------------------
-
-This product bundles Alibaba Cloud Credentials for Java.
-
-Project URL: https://github.com/aliyun/credentials-java
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Alibaba Cloud Tea for Java.
-
-Project URL: https://github.com/aliyun/tea-java
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Google GAX.
-
-Project URL: https://github.com/googleapis/gax-java
-License: BSD 3-Clause
-| Copyright 2016, Google Inc. All rights reserved.
-| 
-| Redistribution and use in source and binary forms, with or without
-| modification, are permitted provided that the following conditions are
-| met:
-| 
-|     * Redistributions of source code must retain the above copyright
-| notice, this list of conditions and the following disclaimer.
-|     * Redistributions in binary form must reproduce the above
-| copyright notice, this list of conditions and the following disclaimer
-| in the documentation and/or other materials provided with the
-| distribution.
-|     * Neither the name of Google Inc. nor the names of its
-| contributors may be used to endorse or promote products derived from
-| this software without specific prior written permission.
-| 
-| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
---------------------------------------------------------------------------------
-
-This product bundles Google Gson.
-
-Project URL: https://github.com/google/gson/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles gRPC.
-
-Project URL: https://github.com/grpc/grpc-java
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles OpenCensus.
-
-Project URL: https://github.com/census-instrumentation/opencensus-java
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles OkHttp.
-
-Project URL: https://github.com/square/okhttp
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Google Auto Value.
-
-Project URL: https://github.com/google/auto/tree/master/value
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles JaCoCo.
-
-Project URL: https://github.com/jacoco/jacoco/
-License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
-
---------------------------------------------------------------------------------
-
-This product bundles OpenTelemetry.
-
-Project URL: https://opentelemetry.io/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Kotlin.
-
-Project URL: https://github.com/JetBrains/kotlin
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles JAXB.
-
-Project URL: http://jaxb.java.net/
-License: CDDL 1.1 - https://glassfish.java.net/public/CDDL+GPL_1_1.html
-
---------------------------------------------------------------------------------
-
-This product bundles EMMA runtime.
-
-Project URL: https://github.com/ehelms/Emma/
-License: Common Public License - v 1.0
-
---------------------------------------------------------------------------------
-
-This product bundles Google j2objc.
-
-Project URL: https://github.com/google/j2objc/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
