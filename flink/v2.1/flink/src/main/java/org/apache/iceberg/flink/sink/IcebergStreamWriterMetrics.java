@@ -23,10 +23,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.util.ScanTaskUtil;
 import org.slf4j.Logger;
@@ -128,16 +128,20 @@ public class IcebergStreamWriterMetrics {
   private static Histogram loadHistogramIfAvailable(
       MetricGroup group, String name, int reservoirSize, ClassLoader classLoader) {
 
-    try {
-      Class.forName(
-          "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper", false, classLoader);
-      return HistogramLoader.load(name, group, reservoirSize);
-    } catch (ClassNotFoundException e) {
+    Class<?> wrapperClass =
+        DynClasses.builder()
+            .loader(classLoader)
+            .impl("org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper")
+            .orNull()
+            .build();
+    if (wrapperClass == null) {
       LOG.warn(
           "flink-metrics-dropwizard is not on the classpath. '{}' histogram metrics will be disabled. Add org.apache.flink:flink-metrics-dropwizard to enable them.",
           name);
       return null;
     }
+
+    return HistogramLoader.load(name, group, reservoirSize);
   }
 
   /**
