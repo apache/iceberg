@@ -72,7 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
-import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
+import org.apache.iceberg.rest.RESTTableCache.TableCacheEntry;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -460,7 +460,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     TableIdentifier loadedIdent;
 
     Map<String, String> responseHeaders = Maps.newHashMap();
-    TableWithETag cachedTable = tableCache.getIfPresent(context.sessionId(), identifier);
+    TableCacheEntry cachedTableDetails = tableCache.getIfPresent(context.sessionId(), identifier);
 
     try {
       response =
@@ -468,13 +468,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               context,
               identifier,
               snapshotMode,
-              headersForLoadTable(cachedTable),
+              headersForLoadTable(cachedTableDetails),
               responseHeaders::putAll);
 
       if (response == null) {
-        Preconditions.checkNotNull(cachedTable, "Invalid load table response: null");
+        Preconditions.checkNotNull(cachedTableDetails, "Invalid load table response: null");
 
-        return cachedTable.supplier().get();
+        return createTable(
+            identifier,
+            cachedTableDetails.tableMetadata(),
+            context,
+            cachedTableDetails.tableClient(),
+            cachedTableDetails.tableConf(),
+            cachedTableDetails.credentials());
       }
 
       loadedIdent = identifier;
@@ -487,21 +493,28 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
           responseHeaders.clear();
-          cachedTable = tableCache.getIfPresent(context.sessionId(), baseIdent);
+          cachedTableDetails = tableCache.getIfPresent(context.sessionId(), baseIdent);
 
           response =
               loadInternal(
                   context,
                   baseIdent,
                   snapshotMode,
-                  headersForLoadTable(cachedTable),
+                  headersForLoadTable(cachedTableDetails),
                   responseHeaders::putAll);
 
           if (response == null) {
-            Preconditions.checkNotNull(cachedTable, "Invalid load table response: null");
+            Preconditions.checkNotNull(cachedTableDetails, "Invalid load table response: null");
 
             return MetadataTableUtils.createMetadataTableInstance(
-                cachedTable.supplier().get(), metadataType);
+                createTable(
+                    baseIdent,
+                    cachedTableDetails.tableMetadata(),
+                    context,
+                    cachedTableDetails.tableClient(),
+                    cachedTableDetails.tableConf(),
+                    cachedTableDetails.credentials()),
+                metadataType);
           }
 
           loadedIdent = baseIdent;
@@ -542,50 +555,55 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     List<Credential> credentials = response.credentials();
     RESTClient tableClient = client.withAuthSession(tableSession);
-    Supplier<BaseTable> tableSupplier =
-        createTableSupplier(
-            finalIdentifier, tableMetadata, context, tableClient, tableConf, credentials);
 
     String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     if (eTag != null) {
-      tableCache.put(context.sessionId(), finalIdentifier, tableSupplier, eTag);
+      tableCache.put(
+          context.sessionId(),
+          finalIdentifier,
+          tableMetadata,
+          tableClient,
+          tableConf,
+          credentials,
+          eTag);
     }
+
+    BaseTable baseTable =
+        createTable(finalIdentifier, tableMetadata, context, tableClient, tableConf, credentials);
 
     if (metadataType != null) {
-      return MetadataTableUtils.createMetadataTableInstance(tableSupplier.get(), metadataType);
+      return MetadataTableUtils.createMetadataTableInstance(baseTable, metadataType);
     }
 
-    return tableSupplier.get();
+    return baseTable;
   }
 
-  private Supplier<BaseTable> createTableSupplier(
+  private BaseTable createTable(
       TableIdentifier identifier,
       TableMetadata tableMetadata,
       SessionContext context,
       RESTClient tableClient,
       Map<String, String> tableConf,
       List<Credential> credentials) {
-    return () -> {
-      RESTTableOperations ops =
-          newTableOps(
-              tableClient,
-              paths.table(identifier),
-              Map::of,
-              mutationHeaders,
-              tableFileIO(context, tableConf, credentials),
-              tableMetadata,
-              endpoints);
+    RESTTableOperations ops =
+        newTableOps(
+            tableClient,
+            paths.table(identifier),
+            Map::of,
+            mutationHeaders,
+            tableFileIO(context, tableConf, credentials),
+            tableMetadata,
+            endpoints);
 
-      trackFileIO(ops);
+    trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf);
-      if (table != null) {
-        return table;
-      }
+    RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf);
+    if (table != null) {
+      return table;
+    }
 
-      return new BaseTable(
-          ops, fullTableName(identifier), metricsReporter(paths.metrics(identifier), tableClient));
-    };
+    return new BaseTable(
+        ops, fullTableName(identifier), metricsReporter(paths.metrics(identifier), tableClient));
   }
 
   private RESTTable restTableForScanPlanning(
@@ -1549,12 +1567,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return new BaseView(ops, ViewUtil.fullViewName(name(), ident));
   }
 
-  private static Map<String, String> headersForLoadTable(TableWithETag tableWithETag) {
-    if (tableWithETag == null) {
+  private static Map<String, String> headersForLoadTable(TableCacheEntry tableDetails) {
+    if (tableDetails == null) {
       return Map.of();
     }
 
-    String eTag = tableWithETag.eTag();
+    String eTag = tableDetails.eTag();
     Preconditions.checkArgument(eTag != null, "Invalid ETag: null");
 
     return Map.of(HttpHeaders.IF_NONE_MATCH, eTag);

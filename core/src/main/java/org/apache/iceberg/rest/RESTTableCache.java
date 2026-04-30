@@ -23,12 +23,13 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
-import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -37,7 +38,7 @@ import org.slf4j.LoggerFactory;
 class RESTTableCache implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTTableCache.class);
 
-  private final Cache<SessionIdTableId, TableWithETag> tableCache;
+  private final Cache<SessionIdTableId, TableCacheEntry> tableCache;
 
   RESTTableCache(Map<String, String> props) {
     this(props, Ticker.systemTicker());
@@ -72,7 +73,7 @@ class RESTTableCache implements Closeable {
             .build();
   }
 
-  public TableWithETag getIfPresent(String sessionId, TableIdentifier identifier) {
+  public TableCacheEntry getIfPresent(String sessionId, TableIdentifier identifier) {
     SessionIdTableId cacheKey = SessionIdTableId.of(sessionId, identifier);
     return tableCache.getIfPresent(cacheKey);
   }
@@ -80,10 +81,14 @@ class RESTTableCache implements Closeable {
   public void put(
       String sessionId,
       TableIdentifier identifier,
-      Supplier<BaseTable> tableSupplier,
+      TableMetadata tableMetadata,
+      RESTClient tableClient,
+      Map<String, String> tableConf,
+      List<Credential> credentials,
       String eTag) {
     tableCache.put(
-        SessionIdTableId.of(sessionId, identifier), TableWithETag.of(tableSupplier, eTag));
+        SessionIdTableId.of(sessionId, identifier),
+        TableCacheEntry.of(tableMetadata, tableClient, tableConf, credentials, eTag));
   }
 
   public void invalidate(String sessionId, TableIdentifier identifier) {
@@ -92,7 +97,7 @@ class RESTTableCache implements Closeable {
   }
 
   @VisibleForTesting
-  Cache<SessionIdTableId, TableWithETag> cache() {
+  Cache<SessionIdTableId, TableCacheEntry> cache() {
     return tableCache;
   }
 
@@ -117,13 +122,30 @@ class RESTTableCache implements Closeable {
   }
 
   @Value.Immutable
-  interface TableWithETag {
-    Supplier<BaseTable> supplier();
+  interface TableCacheEntry {
+    TableMetadata tableMetadata();
+
+    RESTClient tableClient();
+
+    Map<String, String> tableConf();
+
+    List<Credential> credentials();
 
     String eTag();
 
-    static TableWithETag of(Supplier<BaseTable> tableSupplier, String eTag) {
-      return ImmutableTableWithETag.builder().supplier(tableSupplier).eTag(eTag).build();
+    static TableCacheEntry of(
+        TableMetadata tableMetadata,
+        RESTClient tableClient,
+        Map<String, String> tableConf,
+        List<Credential> credentials,
+        String eTag) {
+      return ImmutableTableCacheEntry.builder()
+          .tableMetadata(tableMetadata)
+          .tableClient(tableClient)
+          .tableConf(tableConf)
+          .credentials(credentials)
+          .eTag(eTag)
+          .build();
     }
   }
 }
