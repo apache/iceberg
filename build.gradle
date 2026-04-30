@@ -129,6 +129,84 @@ tasks.register('checkAllRuntimeDeps') {
   }
 }
 
+tasks.register('verifyRuntimeDepsApplied') {
+  description = 'Ensures every subproject either applies runtime-deps.gradle or is explicitly excluded'
+  group = 'verification'
+
+  // Modules that do not yet have runtime-deps.gradle applied.
+  // Remove entries from this list as modules are onboarded.
+  def excluded = [
+    // Core / library modules
+    'iceberg-bom',
+    'iceberg-api',
+    'iceberg-common',
+    'iceberg-core',
+    'iceberg-data',
+    'iceberg-orc',
+    'iceberg-arrow',
+    'iceberg-parquet',
+    'iceberg-bundled-guava',
+    'iceberg-hive-metastore',
+    'iceberg-nessie',
+    'iceberg-delta-lake',
+    'iceberg-mr',
+    'iceberg-open-api',
+    // Cloud modules (non-bundle)
+    'iceberg-aliyun',
+    'iceberg-aws',
+    'iceberg-azure',
+    'iceberg-gcp',
+    'iceberg-bigquery',
+    'iceberg-dell',
+    'iceberg-snowflake',
+    // Parent / aggregate modules
+    'iceberg-spark',
+    'iceberg-flink',
+    'iceberg-kafka-connect',
+    // Spark non-runtime (both Scala variants for 3.4/3.5, 2.13 only for 4.0/4.1)
+    'iceberg-spark-3.4_2.12',
+    'iceberg-spark-3.4_2.13',
+    'iceberg-spark-extensions-3.4_2.12',
+    'iceberg-spark-extensions-3.4_2.13',
+    'iceberg-spark-3.5_2.12',
+    'iceberg-spark-3.5_2.13',
+    'iceberg-spark-extensions-3.5_2.12',
+    'iceberg-spark-extensions-3.5_2.13',
+    'iceberg-spark-4.0_2.13',
+    'iceberg-spark-extensions-4.0_2.13',
+    'iceberg-spark-4.1_2.13',
+    'iceberg-spark-extensions-4.1_2.13',
+    // Flink non-runtime
+    'iceberg-flink-1.20',
+    'iceberg-flink-2.0',
+    'iceberg-flink-2.1',
+    // Kafka Connect non-runtime
+    'iceberg-kafka-connect-events',
+    'iceberg-kafka-connect-transforms',
+  ] as Set
+
+  doLast {
+    def uncovered = []
+    subprojects.each { subproject ->
+      if (!excluded.contains(subproject.name) &&
+          subproject.tasks.matching { it.name == 'checkRuntimeDeps' }.isEmpty()) {
+        uncovered << subproject.name
+      }
+    }
+    if (uncovered) {
+      throw new GradleException(
+        "The following modules are missing runtime-deps.gradle and are not in the exclusion list:\n" +
+        uncovered.toSorted().collect { "  - ${it}" }.join('\n') + '\n\n' +
+        "Either apply runtime-deps.gradle to the module or add it to the exclusion list in " +
+        "the verifyRuntimeDepsApplied task in build.gradle.")
+    }
+  }
+}
+
+tasks.named('checkAllRuntimeDeps') {
+  dependsOn 'verifyRuntimeDepsApplied'
+}
+
 subprojects {
   if (it.name == 'iceberg-bom') {
     // the BOM does not build anything, the code below expects "source code"
