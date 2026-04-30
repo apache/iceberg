@@ -75,7 +75,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Preconditions.checkArgument(
         format != null, "Unable to determine format of manifest: %s", file.location());
 
-    Schema readSchema = V4Metadata.entrySchema(Types.StructType.of());
+    // Hack: Exclude SPLIT_OFFSETS and EQUALITY_IDS from read projection to tolerate
+    // manifests that don't write list element field IDs
+    // TODO: Fix it
+    Schema fullSchema = V4Metadata.entrySchema(Types.StructType.of());
+    Schema readSchema =
+        new Schema(
+            fullSchema.columns().stream()
+                .filter(
+                    f ->
+                        f.fieldId() != TrackedFile.SPLIT_OFFSETS.fieldId()
+                            && f.fieldId() != TrackedFile.EQUALITY_IDS.fieldId())
+                .collect(java.util.stream.Collectors.toList()));
 
     CloseableIterable<TrackedFile> reader =
         InternalData.read(format, file)

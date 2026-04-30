@@ -84,7 +84,12 @@ public class LocationUtil {
       return path;
     }
 
-    return normalizeScheme(tableLocation) + path;
+    String normalized = normalizeScheme(tableLocation);
+    if (path.startsWith("/")) {
+      return normalized + path;
+    }
+
+    return normalized + "/" + path;
   }
 
   /**

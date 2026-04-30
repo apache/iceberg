@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class DataTableScan extends BaseTableScan {
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
@@ -73,12 +74,32 @@ public class DataTableScan extends BaseTableScan {
   private CloseableIterable<FileScanTask> doPlanFilesV4() {
     Snapshot snapshot = snapshot();
     FileIO io = table().io();
-    List<ManifestFile> dataManifests = snapshot.dataManifests(io);
     Map<Integer, PartitionSpec> specsById = specs();
-    scanMetrics().totalDataManifests().increment((long) dataManifests.size());
+
+    // Pass the root manifest to ManifestExpander, not pre-filtered dataManifests.
+    // The root manifest may contain both inlined DATA entries and DATA_MANIFEST entries.
+    String rootManifestPath = snapshot.manifestListLocation();
+    ManifestFile rootManifest =
+        new GenericManifestFile(
+            rootManifestPath,
+            0,
+            0,
+            ManifestContent.DATA,
+            0L,
+            0L,
+            null,
+            null,
+            null,
+            0,
+            0L,
+            0,
+            0L,
+            0,
+            0L,
+            null);
 
     ManifestExpander expander =
-        new ManifestExpander(io, dataManifests, specsById)
+        new ManifestExpander(io, ImmutableList.of(rootManifest), specsById)
             .tableLocation(table().location())
             .caseSensitive(isCaseSensitive())
             .filterData(filter())
@@ -86,10 +107,6 @@ public class DataTableScan extends BaseTableScan {
 
     if (shouldIgnoreResiduals()) {
       expander = expander.ignoreResiduals();
-    }
-
-    if (shouldPlanWithExecutor() && dataManifests.size() > 1) {
-      expander = expander.planWith(planExecutor());
     }
 
     return expander.planFiles();

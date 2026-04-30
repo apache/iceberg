@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanMetricsUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -153,11 +154,31 @@ abstract class BaseDistributedDataScan
 
   private CloseableIterable<ScanTask> doPlanFilesV4() {
     Snapshot snapshot = snapshot();
-    List<ManifestFile> dataManifests = snapshot.dataManifests(table().io());
-    scanMetrics().totalDataManifests().increment((long) dataManifests.size());
+
+    // Pass the root manifest directly to ManifestExpander, not pre-filtered dataManifests.
+    // The root manifest may contain both DATA entries (inlined) and DATA_MANIFEST entries.
+    String rootManifestPath = snapshot.manifestListLocation();
+    ManifestFile rootManifest =
+        new GenericManifestFile(
+            rootManifestPath,
+            0,
+            0,
+            ManifestContent.DATA,
+            0L,
+            0L,
+            null,
+            null,
+            null,
+            0,
+            0L,
+            0,
+            0L,
+            0,
+            0L,
+            null);
 
     ManifestExpander expander =
-        new ManifestExpander(table().io(), dataManifests, specs())
+        new ManifestExpander(table().io(), ImmutableList.of(rootManifest), specs())
             .tableLocation(table().location())
             .caseSensitive(isCaseSensitive())
             .filterData(filter())
@@ -165,10 +186,6 @@ abstract class BaseDistributedDataScan
 
     if (shouldIgnoreResiduals()) {
       expander = expander.ignoreResiduals();
-    }
-
-    if (dataManifests.size() > 1) {
-      expander = expander.planWith(planExecutor());
     }
 
     return CloseableIterable.transform(expander.planFiles(), task -> (ScanTask) task);

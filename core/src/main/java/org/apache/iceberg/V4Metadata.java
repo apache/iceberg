@@ -441,8 +441,7 @@ class V4Metadata {
     return tf;
   }
 
-  private static TrackingStruct buildEntryTracking(
-      ManifestEntry<?> entry, Long commitSnapshotId) {
+  private static TrackingStruct buildEntryTracking(ManifestEntry<?> entry, Long commitSnapshotId) {
     TrackingStruct tracking = new TrackingStruct();
     tracking.set(0, entry.status().id());
     tracking.set(1, entry.snapshotId());
