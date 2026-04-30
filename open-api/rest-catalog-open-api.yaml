@@ -1987,11 +1987,11 @@ paths:
         some items in order to cap total computation or response payload size. In that case it
         returns `200` with the processed items in their respective typed arrays (e.g. `relations`)
         and the remaining items under `unprocessed`, which is grouped by the same typed arrays
-        (e.g. `unprocessed.relations`). Each unprocessed entry carries the `identifier` and
-        optional `code` and `reason` for diagnostics. Clients SHOULD retry unprocessed items in
-        a subsequent request. The two mechanisms are distinct: `resolve-max-items` governs
-        whether the request is accepted at all, while `unprocessed` reports partial progress
-        within an accepted request.
+        (e.g. `unprocessed.relations`). Each unprocessed entry is echoed from the corresponding
+        request array (same shape as the request item) so clients can retry by re-submitting
+        exactly those items. The two mechanisms are distinct: `resolve-max-items` governs whether
+        the request is accepted at all, while `unprocessed` reports partial progress within an
+        accepted request.
 
 
         Authorization failures for any requested item SHOULD fail the entire request with `403`.
@@ -4082,35 +4082,18 @@ components:
         Items the server chose not to process in the current response, grouped by typed
         request array. Mirrors the typed-array shape of the request: currently only
         `relations` is defined; future typed arrays (e.g. `functions`) will surface here
-        as sibling fields.
+        as sibling fields. Each entry is echoed from the corresponding request array
+        (e.g. `unprocessed.relations` holds `ResolveRelationItem` entries) so clients can
+        retry by re-submitting exactly those items.
       type: object
       properties:
         relations:
           type: array
           description: |
-            Relations (tables and views) the server chose not to process.
+            Relations (tables and views) the server chose not to process, echoed from the
+            request so clients can retry.
           items:
-            $ref: '#/components/schemas/UnprocessedRelation'
-
-    UnprocessedRelation:
-      description: |
-        A single unprocessed relation. The identifier is echoed from the request so clients
-        can retry. Optional `code` and `reason` provide machine-readable and human-readable
-        diagnostics respectively.
-      type: object
-      required:
-        - identifier
-      properties:
-        identifier:
-          $ref: '#/components/schemas/CatalogObjectIdentifier'
-        code:
-          type: string
-          description:
-            Machine-readable reason for not processing this item (e.g.,
-            `response-size-cap`, `server-timeout`).
-        reason:
-          type: string
-          description: Optional human-readable explanation.
+            $ref: '#/components/schemas/ResolveRelationItem'
 
     ResolveRelationLoaded:
       description: |

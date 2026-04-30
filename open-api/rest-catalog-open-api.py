@@ -654,20 +654,21 @@ class ResolveRelationItem(BaseModel):
     )
 
 
-class UnprocessedRelation(BaseModel):
+class UnprocessedItem(BaseModel):
     """
-    A single unprocessed relation. The identifier is echoed from the request so clients
-    can retry. Optional `code` and `reason` provide machine-readable and human-readable
-    diagnostics respectively.
+    Items the server chose not to process in the current response, grouped by typed
+    request array. Mirrors the typed-array shape of the request: currently only
+    `relations` is defined; future typed arrays (e.g. `functions`) will surface here
+    as sibling fields. Each entry is echoed from the corresponding request array
+    (e.g. `unprocessed.relations` holds `ResolveRelationItem` entries) so clients can
+    retry by re-submitting exactly those items.
 
     """
 
-    identifier: CatalogObjectIdentifier
-    code: str | None = Field(
+    relations: list[ResolveRelationItem] | None = Field(
         None,
-        description='Machine-readable reason for not processing this item (e.g., `response-size-cap`, `server-timeout`).',
+        description='Relations (tables and views) the server chose not to process, echoed from the\nrequest so clients can retry.\n',
     )
-    reason: str | None = Field(None, description='Optional human-readable explanation.')
 
 
 class ResolveRelationNotModified(BaseModel):
@@ -1243,21 +1244,6 @@ class ResolveRequest(BaseModel):
         None,
         description='Relations (tables and views) to resolve. Each item carries an identifier and\noptional per-item hints (`etag`, `snapshots`) that apply when the resolved\nrelation is a table.\n',
         min_length=1,
-    )
-
-
-class UnprocessedItem(BaseModel):
-    """
-    Items the server chose not to process in the current response, grouped by typed
-    request array. Mirrors the typed-array shape of the request: currently only
-    `relations` is defined; future typed arrays (e.g. `functions`) will surface here
-    as sibling fields.
-
-    """
-
-    relations: list[UnprocessedRelation] | None = Field(
-        None,
-        description='Relations (tables and views) the server chose not to process.\n',
     )
 
 
