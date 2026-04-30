@@ -123,7 +123,7 @@ public class IcebergStreamWriterMetrics {
    * flink-metrics-dropwizard dependency is available.
    */
   @SuppressWarnings("CatchBlockLogException")
-  static Histogram loadHistogramIfAvailable(
+  private static Histogram loadHistogramIfAvailable(
       MetricGroup group, String name, int reservoirSize, ClassLoader classLoader) {
 
     try {
