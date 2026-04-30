@@ -75,6 +75,7 @@ subprojects {
           } else if (isOpenApi) {
             artifact testJar
             artifact testFixturesJar
+            artifact shadowJar
           } else {
             if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
               from components.java
