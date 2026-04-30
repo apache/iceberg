@@ -59,8 +59,8 @@ import org.apache.flink.table.types.logical.utils.LogicalTypeUtils;
 public class AvroToRowDataConverters {
 
   /**
-   * Runtime converter that converts Avro data structures into objects of Flink Table &amp; SQL internal
-   * data structures.
+   * Runtime converter that converts Avro data structures into objects of Flink Table &amp; SQL
+   * internal data structures.
    */
   @FunctionalInterface
   public interface AvroToRowDataConverter extends Serializable {

@@ -50,8 +50,8 @@ import org.apache.flink.util.Preconditions;
 
 /**
  * Converts an Avro schema into Flink's type information. It uses {@link RowTypeInfo} for
- * representing objects and converts Avro types into types that are compatible with Flink's Table &amp;
- * SQL API.
+ * representing objects and converts Avro types into types that are compatible with Flink's Table
+ * &amp; SQL API.
  *
  * <p>Note: Changes in this class need to be kept in sync with the corresponding runtime classes
  * {@link AvroRowDataDeserializationSchema} and {@link AvroRowDataSerializationSchema}.
