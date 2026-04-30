@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.flink.formats.avro.typeutils;
+package org.apache.iceberg.flink.formats.avro.typeutils;
 
 import java.util.List;
 import org.apache.avro.LogicalTypes;
@@ -46,7 +46,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.types.Row;
-import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Converts an Avro schema into Flink's type information. It uses {@link RowTypeInfo} for
@@ -463,11 +463,11 @@ public class AvroSchemaConverter {
         Schema bigint = SchemaBuilder.builder().longType();
         return nullable ? nullableSchema(bigint) : bigint;
       case FLOAT:
-        Schema f = SchemaBuilder.builder().floatType();
-        return nullable ? nullableSchema(f) : f;
+        Schema floatSchema = SchemaBuilder.builder().floatType();
+        return nullable ? nullableSchema(floatSchema) : floatSchema;
       case DOUBLE:
-        Schema d = SchemaBuilder.builder().doubleType();
-        return nullable ? nullableSchema(d) : d;
+        Schema doubleSchema = SchemaBuilder.builder().doubleType();
+        return nullable ? nullableSchema(doubleSchema) : doubleSchema;
       case CHAR:
       case VARCHAR:
         Schema str = SchemaBuilder.builder().stringType();

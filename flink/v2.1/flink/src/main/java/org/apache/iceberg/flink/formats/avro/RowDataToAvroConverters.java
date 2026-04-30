@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.flink.formats.avro;
-
-import static org.apache.flink.formats.avro.typeutils.AvroSchemaConverter.extractValueTypeToAvroMap;
+package org.apache.iceberg.flink.formats.avro;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
@@ -40,6 +37,8 @@ import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.util.CollectionUtil;
+import org.apache.iceberg.flink.formats.avro.typeutils.AvroSchemaConverter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Tool class used to convert from {@link RowData} to Avro {@link GenericRecord}.
@@ -49,6 +48,8 @@ import org.apache.flink.util.CollectionUtil;
  */
 @Internal
 public class RowDataToAvroConverters {
+
+  private RowDataToAvroConverters() {}
 
   // --------------------------------------------------------------------------------
   // Runtime Converters
@@ -78,6 +79,7 @@ public class RowDataToAvroConverters {
     return createConverter(type, true);
   }
 
+  @SuppressWarnings("checkstyle:MethodLength")
   public static RowDataToAvroConverter createConverter(
       LogicalType type, boolean legacyTimestampMapping) {
     final RowDataToAvroConverter converter;
@@ -351,7 +353,7 @@ public class RowDataToAvroConverters {
       public Object convert(Schema schema, Object object) {
         final Schema elementSchema = schema.getElementType();
         ArrayData arrayData = (ArrayData) object;
-        List<Object> list = new ArrayList<>();
+        List<Object> list = Lists.newArrayList();
         for (int i = 0; i < arrayData.size(); ++i) {
           list.add(
               elementConverter.convert(
@@ -364,7 +366,7 @@ public class RowDataToAvroConverters {
 
   private static RowDataToAvroConverter createMapConverter(
       LogicalType type, boolean legacyTimestampMapping) {
-    LogicalType valueType = extractValueTypeToAvroMap(type);
+    LogicalType valueType = AvroSchemaConverter.extractValueTypeToAvroMap(type);
     final ArrayData.ElementGetter valueGetter = ArrayData.createElementGetter(valueType);
     final RowDataToAvroConverter valueConverter =
         createConverter(valueType, legacyTimestampMapping);

@@ -339,6 +339,7 @@ This product includes code from Apache Flink.
 * Avro to RowData conversion logic in AvroToRowDataConverters.java
 * RowData to Avro conversion logic in RowDataToAvroConverters.java
 * Avro schema conversion logic in AvroSchemaConverter.java
+* Joda optional dependency encapsulation in JodaConverter.java
 
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://flink.apache.org/

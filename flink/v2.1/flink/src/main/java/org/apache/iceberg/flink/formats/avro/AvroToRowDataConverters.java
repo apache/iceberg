@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.flink.formats.avro;
-
-import static org.apache.flink.formats.avro.typeutils.AvroSchemaConverter.extractValueTypeToAvroMap;
+package org.apache.iceberg.flink.formats.avro;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
@@ -28,7 +26,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoField;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericFixed;
@@ -48,6 +45,8 @@ import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.utils.LogicalTypeUtils;
+import org.apache.iceberg.flink.formats.avro.typeutils.AvroSchemaConverter;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Tool class used to convert from Avro {@link GenericRecord} to {@link RowData}.
@@ -57,6 +56,8 @@ import org.apache.flink.table.types.logical.utils.LogicalTypeUtils;
  */
 @Internal
 public class AvroToRowDataConverters {
+
+  private AvroToRowDataConverters() {}
 
   /**
    * Runtime converter that converts Avro data structures into objects of Flink Table &amp; SQL
@@ -202,11 +203,12 @@ public class AvroToRowDataConverters {
     final AvroToRowDataConverter keyConverter =
         createConverter(DataTypes.STRING().getLogicalType(), legacyTimestampMapping);
     final AvroToRowDataConverter valueConverter =
-        createNullableConverter(extractValueTypeToAvroMap(type), legacyTimestampMapping);
+        createNullableConverter(
+            AvroSchemaConverter.extractValueTypeToAvroMap(type), legacyTimestampMapping);
 
     return avroObject -> {
       final Map<?, ?> map = (Map<?, ?>) avroObject;
-      Map<Object, Object> result = new HashMap<>();
+      Map<Object, Object> result = Maps.newHashMap();
       for (Map.Entry<?, ?> entry : map.entrySet()) {
         Object key = keyConverter.convert(entry.getKey());
         Object value = valueConverter.convert(entry.getValue());
