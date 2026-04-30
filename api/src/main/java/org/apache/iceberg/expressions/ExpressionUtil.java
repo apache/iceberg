@@ -239,6 +239,24 @@ public class ExpressionUtil {
           + "("
           + describe(((BoundTransform<?, ?>) term).ref())
           + ")";
+    } else if (term instanceof UnboundExtract) {
+      UnboundExtract<?> extract = (UnboundExtract<?>) term;
+      return "variant_get("
+          + extract.ref().name()
+          + ", '"
+          + extract.path()
+          + "', '"
+          + extract.type().toString()
+          + "')";
+    } else if (term instanceof BoundExtract) {
+      BoundExtract<?> extract = (BoundExtract<?>) term;
+      return "variant_get("
+          + extract.ref().name()
+          + ", '"
+          + extract.path()
+          + "', '"
+          + extract.type().toString()
+          + "')";
     } else if (term instanceof NamedReference) {
       return ((NamedReference<?>) term).name();
     } else if (term instanceof BoundReference) {
