@@ -168,6 +168,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     for (TaskWriter<RowData> writer : writers.values()) {
       writer.close();
     }
+
     flushExecutor.shutdownNow();
   }
 
@@ -182,63 +183,62 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   @Override
   public Collection<DynamicWriteResult> prepareCommit() throws IOException {
-    List<CompletableFuture<FlushOutcome>> futures =
-        writers.entrySet().stream().map(e -> flushAsync(e.getKey(), e.getValue())).toList();
+    Map<WriteTarget, CompletableFuture<WriteResult>> futures = Maps.newLinkedHashMap();
+    for (Map.Entry<WriteTarget, TaskWriter<RowData>> entry : writers.entrySet()) {
+      futures.put(entry.getKey(), flushAsync(entry.getKey(), entry.getValue()));
+    }
+
     writers.clear();
 
     try {
-      CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+      CompletableFuture.allOf(futures.values().toArray(CompletableFuture[]::new)).join();
     } catch (CompletionException e) {
       Throwable cause = e.getCause();
       if (cause instanceof UncheckedIOException uncheckedIOException) {
         throw uncheckedIOException.getCause();
+      } else {
+        throw new IOException(cause);
       }
-      throw new IOException(cause);
     }
 
     List<DynamicWriteResult> result = Lists.newArrayList();
-    for (CompletableFuture<FlushOutcome> future : futures) {
-      FlushOutcome flush = future.join();
-      recordFlushMetrics(flush.writeTarget(), flush.writeResult(), flush.durationNanos());
+    for (Map.Entry<WriteTarget, CompletableFuture<WriteResult>> entry : futures.entrySet()) {
+      WriteTarget writeTarget = entry.getKey();
+      WriteResult writeResult = entry.getValue().join();
       result.add(
           new DynamicWriteResult(
-              new TableKey(flush.writeTarget().tableName(), flush.writeTarget().branch()),
-              flush.writeTarget().specId(),
-              flush.writeResult()));
+              new TableKey(writeTarget.tableName(), writeTarget.branch()),
+              writeTarget.specId(),
+              writeResult));
     }
 
     return result;
   }
 
-  private CompletableFuture<FlushOutcome> flushAsync(
+  private CompletableFuture<WriteResult> flushAsync(
       WriteTarget writeTarget, TaskWriter<RowData> writer) {
     return CompletableFuture.supplyAsync(
         () -> {
           try {
             long startNano = System.nanoTime();
             WriteResult writeResult = writer.complete();
-            return new FlushOutcome(writeTarget, writeResult, System.nanoTime() - startNano);
+            metrics.updateFlushResult(writeTarget.tableName(), writeResult);
+            metrics.flushDuration(
+                writeTarget.tableName(),
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
+            LOG.debug(
+                "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
+                writeTarget.tableName(),
+                subTaskId,
+                attemptId,
+                writeResult.dataFiles().length,
+                writeResult.deleteFiles().length);
+            return writeResult;
           } catch (IOException e) {
             throw new UncheckedIOException(e);
           }
         },
         flushExecutor);
-  }
-
-  private record FlushOutcome(
-      WriteTarget writeTarget, WriteResult writeResult, long durationNanos) {}
-
-  private void recordFlushMetrics(
-      WriteTarget writeTarget, WriteResult writeResult, long durationNanos) {
-    metrics.updateFlushResult(writeTarget.tableName(), writeResult);
-    metrics.flushDuration(writeTarget.tableName(), TimeUnit.NANOSECONDS.toMillis(durationNanos));
-    LOG.debug(
-        "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
-        writeTarget.tableName(),
-        subTaskId,
-        attemptId,
-        writeResult.dataFiles().length,
-        writeResult.deleteFiles().length);
   }
 
   private static Set<Integer> getEqualityFields(Table table, Set<Integer> equalityFieldIds) {

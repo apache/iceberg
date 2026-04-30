@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToLongFunction;
 import org.apache.flink.metrics.groups.SinkWriterMetricGroup;
 import org.apache.iceberg.ContentFile;
@@ -27,7 +28,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.flink.sink.IcebergStreamWriterMetrics;
 import org.apache.iceberg.io.WriteResult;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ScanTaskUtil;
 
 class DynamicWriterMetrics {
@@ -37,7 +37,7 @@ class DynamicWriterMetrics {
 
   DynamicWriterMetrics(SinkWriterMetricGroup mainMetricsGroup) {
     this.mainMetricsGroup = mainMetricsGroup;
-    this.metrics = Maps.newHashMap();
+    this.metrics = new ConcurrentHashMap<>();
   }
 
   SinkWriterMetricGroup mainMetricsGroup() {
