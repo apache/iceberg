@@ -351,3 +351,17 @@ This product bundles JCTools (via Netty).
 
 Project URL: https://github.com/JCTools/JCTools
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache Parquet (shaded by AWS Analytics Accelerator S3).
+
+Project URL: https://parquet.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache Thrift (bundled by Parquet, shaded by AWS Analytics Accelerator S3).
+
+Project URL: https://thrift.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
