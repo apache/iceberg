@@ -365,10 +365,37 @@ public class TestFetchPlanningResultResponseParser {
 
   @Test
   public void parseFailedStatusWithoutErrorObject() {
+    // Spec requires an `error` object on failed responses, but parse leniently so
+    // a non-compliant server still surfaces the failure to the client.
     String json = "{\"status\":\"failed\"}";
     FetchPlanningResultResponse response =
         FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
     assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
     assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void parseFailedStatusWithPrimitiveErrorField() {
+    // Spec requires `error` to be an ErrorModel object. A primitive is non-compliant;
+    // parse leniently and skip the malformed field rather than failing the whole response.
+    String json = "{\"status\":\"failed\",\"error\":\"oops\"}";
+    FetchPlanningResultResponse response =
+        FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void cannotBuildWithErrorResponseWhenStatusIsNotFailed() {
+    ErrorResponse errorResponse =
+        ErrorResponse.builder().withMessage("boom").withType("X").responseCode(500).build();
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponse.builder()
+                    .withPlanStatus(PlanStatus.COMPLETED)
+                    .withErrorResponse(errorResponse)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid response: error can only be defined when status is 'failed'");
   }
 }

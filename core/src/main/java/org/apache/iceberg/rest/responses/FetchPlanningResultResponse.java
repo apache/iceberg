@@ -53,7 +53,7 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     return planStatus;
   }
 
-  public ErrorResponse errorResponse() {
+  ErrorResponse errorResponse() {
     return errorResponse;
   }
 
@@ -75,6 +75,9 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     Preconditions.checkArgument(
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be returned in a 'completed' status");
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.FAILED || errorResponse() == null,
+        "Invalid response: error can only be defined when status is 'failed'");
     if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),

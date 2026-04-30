@@ -684,10 +684,38 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void parseFailedStatusWithoutErrorObject() {
+    // Spec requires an `error` object on failed responses, but parse leniently so
+    // a non-compliant server still surfaces the failure to the client.
     String json = "{\"status\":\"failed\"}";
     PlanTableScanResponse response =
         PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
     assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
     assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void parseFailedStatusWithPrimitiveErrorField() {
+    // Spec requires `error` to be an ErrorModel object. A primitive is non-compliant;
+    // parse leniently and skip the malformed field rather than failing the whole response.
+    String json = "{\"status\":\"failed\",\"error\":\"oops\"}";
+    PlanTableScanResponse response =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void cannotBuildWithErrorResponseWhenStatusIsNotFailed() {
+    ErrorResponse errorResponse =
+        ErrorResponse.builder().withMessage("boom").withType("X").responseCode(500).build();
+    assertThatThrownBy(
+            () ->
+                PlanTableScanResponse.builder()
+                    .withPlanStatus(PlanStatus.COMPLETED)
+                    .withErrorResponse(errorResponse)
+                    .withSpecsById(PARTITION_SPECS_BY_ID)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid response: error can only be defined when status is 'failed'");
   }
 }

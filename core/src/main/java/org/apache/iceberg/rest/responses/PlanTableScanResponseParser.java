@@ -62,7 +62,7 @@ public class PlanTableScanResponseParser {
     gen.writeStringField(STATUS, response.planStatus().status());
 
     if (response.errorResponse() != null) {
-      ErrorResponseParser.writeErrorField(response.errorResponse(), gen);
+      ErrorResponseParser.writeError(response.errorResponse(), gen);
     }
 
     if (response.planId() != null) {

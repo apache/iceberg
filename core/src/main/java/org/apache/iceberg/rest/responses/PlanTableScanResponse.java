@@ -61,7 +61,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     return planId;
   }
 
-  public ErrorResponse errorResponse() {
+  ErrorResponse errorResponse() {
     return errorResponse;
   }
 
@@ -97,6 +97,10 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be defined when status is '%s'",
         PlanStatus.COMPLETED.status());
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.FAILED || errorResponse() == null,
+        "Invalid response: error can only be defined when status is '%s'",
+        PlanStatus.FAILED.status());
     if (null != planId()) {
       Preconditions.checkArgument(
           planStatus() == PlanStatus.SUBMITTED || planStatus() == PlanStatus.COMPLETED,

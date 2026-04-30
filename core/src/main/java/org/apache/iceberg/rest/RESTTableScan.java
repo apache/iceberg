@@ -218,13 +218,9 @@ class RESTTableScan extends DataTableScan {
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
         return fetchPlanningResult();
       case FAILED:
-        throw new IllegalStateException(
-            String.format(
-                "Received status: %s for planId: %s. Server error: %s",
-                PlanStatus.FAILED, planId, response.errorMessage()));
       case CANCELLED:
         throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
+            failureMessage(planStatus, planId, response.errorMessage()));
       default:
         throw new IllegalStateException(
             String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
@@ -286,16 +282,18 @@ class RESTTableScan extends DataTableScan {
                         ErrorHandlers.planErrorHandler(),
                         parserContext);
 
-                if (response.planStatus() == PlanStatus.SUBMITTED) {
-                  throw new NotCompleteException();
-                } else if (response.planStatus() != PlanStatus.COMPLETED) {
-                  throw new IllegalStateException(
-                      String.format(
-                          "Invalid planStatus: %s for planId: %s. Server error: %s",
-                          response.planStatus(), id, response.errorMessage()));
+                switch (response.planStatus()) {
+                  case COMPLETED:
+                    result.set(response);
+                    break;
+                  case SUBMITTED:
+                    throw new NotCompleteException();
+                  case FAILED:
+                  case CANCELLED:
+                  default:
+                    throw new IllegalStateException(
+                        failureMessage(response.planStatus(), id, response.errorMessage()));
                 }
-
-                result.set(response);
               });
     } catch (NotCompleteException e) {
       throw new RemotePlanTimeoutException(
@@ -315,6 +313,14 @@ class RESTTableScan extends DataTableScan {
         !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
 
     return scanTasksIterable(response.planTasks(), response.fileScanTasks());
+  }
+
+  private static String failureMessage(PlanStatus status, String planId, String errorMessage) {
+    if (errorMessage == null) {
+      return String.format("Received status: %s for planId: %s", status, planId);
+    }
+    return String.format(
+        "Received status: %s for planId: %s. Server error: %s", status, planId, errorMessage);
   }
 
   private CloseableIterable<FileScanTask> scanTasksIterable(
