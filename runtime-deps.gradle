@@ -42,8 +42,8 @@
 //                          lifecycle.
 //
 // Workflow:
-//   1. ./gradlew check                   -- fails if deps changed
-//   2. ./gradlew generateRuntimeDeps     -- auto-updates all baselines
+//   1. ./gradlew checkAllRuntimeDeps -DallModules=true  -- fails if deps changed
+//   2. ./gradlew generateRuntimeDeps -DallModules=true  -- auto-updates all baselines
 //   3. Update LICENSE and NOTICE if dependency licenses changed -- This is a Manual Step
 //   4. Commit
 
