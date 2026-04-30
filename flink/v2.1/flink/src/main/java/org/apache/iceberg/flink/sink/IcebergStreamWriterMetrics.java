@@ -27,6 +27,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.util.ScanTaskUtil;
 import org.slf4j.Logger;
@@ -128,33 +129,51 @@ public class IcebergStreamWriterMetrics {
   private static Histogram loadHistogramIfAvailable(
       MetricGroup group, String name, int reservoirSize, ClassLoader classLoader) {
 
-    Class<?> wrapperClass =
-        DynClasses.builder()
-            .loader(classLoader)
-            .impl("org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper")
-            .orNull()
-            .build();
-    if (wrapperClass == null) {
+    try {
+      Class<?> reservoirInterface =
+          DynClasses.builder()
+              .loader(classLoader)
+              .impl("com.codahale.metrics.Reservoir")
+              .buildChecked();
+      Class<?> slidingWindowReservoirClass =
+          DynClasses.builder()
+              .loader(classLoader)
+              .impl("com.codahale.metrics.SlidingWindowReservoir")
+              .buildChecked();
+      Class<?> codahaleHistogramClass =
+          DynClasses.builder()
+              .loader(classLoader)
+              .impl("com.codahale.metrics.Histogram")
+              .buildChecked();
+      Class<?> wrapperClass =
+          DynClasses.builder()
+              .loader(classLoader)
+              .impl("org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper")
+              .buildChecked();
+
+      Object reservoir =
+          DynConstructors.builder()
+              .impl(slidingWindowReservoirClass, int.class)
+              .buildChecked()
+              .newInstance(reservoirSize);
+      Object codahaleHistogram =
+          DynConstructors.builder()
+              .impl(codahaleHistogramClass, reservoirInterface)
+              .buildChecked()
+              .newInstance(reservoir);
+      Histogram wrapper =
+          (Histogram)
+              DynConstructors.builder()
+                  .impl(wrapperClass, codahaleHistogramClass)
+                  .buildChecked()
+                  .newInstance(codahaleHistogram);
+
+      return group.histogram(name, wrapper);
+    } catch (ClassNotFoundException | NoSuchMethodException e) {
       LOG.warn(
           "flink-metrics-dropwizard is not on the classpath. '{}' histogram metrics will be disabled. Add org.apache.flink:flink-metrics-dropwizard to enable them.",
           name);
       return null;
-    }
-
-    return HistogramLoader.load(name, group, reservoirSize);
-  }
-
-  /**
-   * Must be encapsulated into a separate class to avoid the JVM eagerly loading any non-existing
-   * referenced classes. This has been manually verified.
-   */
-  private static final class HistogramLoader {
-
-    static Histogram load(String name, MetricGroup group, int reservoirSize) {
-      com.codahale.metrics.Histogram codahaleHistogram =
-          new com.codahale.metrics.Histogram(
-              new com.codahale.metrics.SlidingWindowReservoir(reservoirSize));
-      return group.histogram(name, new DropwizardHistogramWrapper(codahaleHistogram));
     }
   }
 }
