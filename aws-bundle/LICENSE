@@ -217,13 +217,6 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Parquet.
-
-Project URL: https://parquet.apache.org
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles Netty.
 
 Project URL: https://netty.io/
@@ -291,14 +284,6 @@ This product bundles Caffeine by Ben Manes.
 
 Copyright: 2014-2020 Ben Manes and contributors
 Project URL: https://github.com/ben-manes/caffeine
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles failsafe.
-
-Copyright: Jonathan Halterman and friends
-Project URL: https://failsafe.dev/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
