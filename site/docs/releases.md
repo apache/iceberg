@@ -67,11 +67,6 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
-### 1.11.0 release
-
-* Flink
-    - Flink's optional `flink-metrics-dropwizard` dependency is no longer shipped in the `iceberg-flink-runtime` fat jar. Without this dependency, the histogram metrics "dataFilesSizeHistogram" and "deleteFilesSizeHistogram" will no longer be published. Users can add manually add back the dependency for the metrics to continue to get published.
-
 ### 1.10.1 release
 
 Apache Iceberg 1.10.1 was released on Dec 22, 2025.
