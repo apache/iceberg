@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.api.client.util.Lists;
 import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -49,7 +50,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -80,7 +80,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
-  // use modifiable collection for Kryo serde; refresh replaces this with an immutable copy
+  // use modifiable collection for Kryo serde
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
@@ -251,7 +251,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
               .toList();
 
       if (!refreshed.isEmpty() && !isResourceClosed.get()) {
-        this.storageCredentials = ImmutableList.copyOf(refreshed);
+        this.storageCredentials = Lists.newArrayList(refreshed);
         scheduleCredentialRefresh();
       }
     } catch (Exception e) {
