@@ -50,7 +50,7 @@ import org.apache.flink.util.Preconditions;
 
 /**
  * Converts an Avro schema into Flink's type information. It uses {@link RowTypeInfo} for
- * representing objects and converts Avro types into types that are compatible with Flink's Table &
+ * representing objects and converts Avro types into types that are compatible with Flink's Table &amp;
  * SQL API.
  *
  * <p>Note: Changes in this class need to be kept in sync with the corresponding runtime classes
@@ -68,7 +68,7 @@ public class AvroSchemaConverter {
 
   /**
    * Converts an Avro class into a nested row structure with deterministic field order and data
-   * types that are compatible with Flink's Table & SQL API.
+   * types that are compatible with Flink's Table &amp; SQL API.
    *
    * @param avroClass Avro specific record that contains schema information
    * @return type information matching the schema
@@ -81,7 +81,7 @@ public class AvroSchemaConverter {
 
   /**
    * Converts an Avro class into a nested row structure with deterministic field order and data
-   * types that are compatible with Flink's Table & SQL API.
+   * types that are compatible with Flink's Table &amp; SQL API.
    *
    * @param avroClass Avro specific record that contains schema information
    * @param legacyTimestampMapping legacy mapping of timestamp types
@@ -98,7 +98,7 @@ public class AvroSchemaConverter {
 
   /**
    * Converts an Avro schema string into a nested row structure with deterministic field order and
-   * data types that are compatible with Flink's Table & SQL API.
+   * data types that are compatible with Flink's Table &amp; SQL API.
    *
    * @param avroSchemaString Avro schema definition string
    * @return type information matching the schema
@@ -110,7 +110,7 @@ public class AvroSchemaConverter {
 
   /**
    * Converts an Avro schema string into a nested row structure with deterministic field order and
-   * data types that are compatible with Flink's Table & SQL API.
+   * data types that are compatible with Flink's Table &amp; SQL API.
    *
    * @param avroSchemaString Avro schema definition string
    * @param legacyTimestampMapping legacy mapping of timestamp types
@@ -238,7 +238,7 @@ public class AvroSchemaConverter {
 
   /**
    * Converts an Avro schema string into a nested row structure with deterministic field order and
-   * data types that are compatible with Flink's Table & SQL API.
+   * data types that are compatible with Flink's Table &amp; SQL API.
    *
    * @param avroSchemaString Avro schema definition string
    * @return data type matching the schema
@@ -249,7 +249,7 @@ public class AvroSchemaConverter {
 
   /**
    * Converts an Avro schema string into a nested row structure with deterministic field order and
-   * data types that are compatible with Flink's Table & SQL API.
+   * data types that are compatible with Flink's Table &amp; SQL API.
    *
    * @param avroSchemaString Avro schema definition string
    * @param legacyTimestampMapping legacy mapping of local timestamps

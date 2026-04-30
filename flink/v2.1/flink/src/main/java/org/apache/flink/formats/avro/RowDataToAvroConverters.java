@@ -55,7 +55,7 @@ public class RowDataToAvroConverters {
   // --------------------------------------------------------------------------------
 
   /**
-   * Runtime converter that converts objects of Flink Table & SQL internal data structures to
+   * Runtime converter that converts objects of Flink Table &amp; SQL internal data structures to
    * corresponding Avro data structures.
    */
   @FunctionalInterface
@@ -72,7 +72,7 @@ public class RowDataToAvroConverters {
 
   /**
    * Creates a runtime converter according to the given logical type that converts objects of Flink
-   * Table & SQL internal data structures to corresponding Avro data structures.
+   * Table &amp; SQL internal data structures to corresponding Avro data structures.
    */
   public static RowDataToAvroConverter createConverter(LogicalType type) {
     return createConverter(type, true);
