@@ -118,30 +118,23 @@ public class IcebergStreamWriterMetrics {
     return deleteFilesSizeHistogram;
   }
 
-  static Histogram loadHistogramIfAvailable(
-      MetricGroup group, String name, int reservoirSize, ClassLoader classLoader) {
-
-    if (isFlinkDropwizardAvailable(classLoader)) {
-      return HistogramLoader.load(name, group, reservoirSize);
-    } else {
-      LOG.warn(
-          "flink-metrics-dropwizard is not on the classpath. '{}' histogram metrics will be disabled. Add org.apache.flink:flink-metrics-dropwizard to enable them.",
-          name);
-      return null;
-    }
-  }
-
   /**
    * Checks whether the Dropwizard-based histogram wrapper provided through Flink's optional
    * flink-metrics-dropwizard dependency is available.
    */
-  private static boolean isFlinkDropwizardAvailable(ClassLoader classLoader) {
+  @SuppressWarnings("CatchBlockLogException")
+  static Histogram loadHistogramIfAvailable(
+      MetricGroup group, String name, int reservoirSize, ClassLoader classLoader) {
+
     try {
       Class.forName(
           "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper", false, classLoader);
-      return true;
+      return HistogramLoader.load(name, group, reservoirSize);
     } catch (ClassNotFoundException e) {
-      return false;
+      LOG.warn(
+          "flink-metrics-dropwizard is not on the classpath. '{}' histogram metrics will be disabled. Add org.apache.flink:flink-metrics-dropwizard to enable them.",
+          name);
+      return null;
     }
   }
 
