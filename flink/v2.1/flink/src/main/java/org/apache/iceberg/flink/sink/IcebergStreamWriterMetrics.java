@@ -108,11 +108,13 @@ public class IcebergStreamWriterMetrics {
     return flushedDeleteFiles;
   }
 
+  @VisibleForTesting
   @Nullable
   Histogram dataFilesSizeHistogram() {
     return dataFilesSizeHistogram;
   }
 
+  @VisibleForTesting
   @Nullable
   Histogram deleteFilesSizeHistogram() {
     return deleteFilesSizeHistogram;
