@@ -42,6 +42,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
@@ -86,7 +87,6 @@ public class SparkWriteConf {
 
   private final SparkSession spark;
   private final Table table;
-  private final String branch;
   private final RuntimeConfig sessionConf;
   private final CaseInsensitiveStringMap options;
   private final SparkConfParser confParser;
@@ -99,11 +99,15 @@ public class SparkWriteConf {
     this(spark, table, null, options);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #SparkWriteConf(SparkSession,
+   *     Table, CaseInsensitiveStringMap)} instead.
+   */
+  @Deprecated
   public SparkWriteConf(
       SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
-    this.branch = branch;
     this.sessionConf = spark.conf();
     this.options = options;
     this.confParser = new SparkConfParser(spark, table, options);
@@ -166,6 +170,25 @@ public class SparkWriteConf {
         "Output spec id %s is not a valid spec id for table",
         outputSpecId);
     return outputSpecId;
+  }
+
+  public int outputSortOrderId(SparkWriteRequirements writeRequirements) {
+    Integer explicitId =
+        confParser.intConf().option(SparkWriteOptions.OUTPUT_SORT_ORDER_ID).parseOptional();
+
+    if (explicitId != null) {
+      Preconditions.checkArgument(
+          table.sortOrders().containsKey(explicitId),
+          "Cannot use output sort order id %s because the table does not contain a sort order with that id",
+          explicitId);
+      return explicitId;
+    }
+
+    if (writeRequirements.hasOrdering()) {
+      return table.sortOrder().orderId();
+    }
+
+    return SortOrder.unsorted().orderId();
   }
 
   public FileFormat dataFileFormat() {
@@ -461,10 +484,6 @@ public class SparkWriteConf {
         .sessionConf(SQLConf.CASE_SENSITIVE().key())
         .defaultValue(SQLConf.CASE_SENSITIVE().defaultValueString())
         .parse();
-  }
-
-  public String branch() {
-    return SparkTableUtil.determineWriteBranch(spark, table, branch, options);
   }
 
   public Map<String, String> writeProperties() {

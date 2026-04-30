@@ -60,8 +60,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * A benchmark that evaluates the performance of reading Parquet data with a flat schema using
  * Iceberg and Spark Parquet readers.
  *
- * <p>To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
+ * <p>To run this benchmark for spark-3.4: <code>
+ *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetReadersFlatDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-readers-flat-data-benchmark-result.txt
  * </code>

@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -249,6 +250,17 @@ public class TableMaintenance {
      */
     public Builder add(MaintenanceTaskBuilder<?> task) {
       taskBuilders.add(task);
+      return this;
+    }
+
+    /**
+     * Adds multiple tasks with the given schedules.
+     *
+     * @param tasks to add
+     */
+    public Builder add(Collection<MaintenanceTaskBuilder<?>> tasks) {
+      Preconditions.checkNotNull(tasks, "Tasks collection should not be null");
+      taskBuilders.addAll(tasks);
       return this;
     }
 

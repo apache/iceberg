@@ -110,15 +110,16 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final String branch;
   private final Command command;
   private final SparkBatchQueryScan scan;
   private final IsolationLevel isolationLevel;
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
-  private final String branch;
   private final Map<String, String> extraSnapshotMetadata;
   private final SparkWriteRequirements writeRequirements;
+  private final int sortOrderId;
   private final Context context;
   private final Map<String, String> writeProperties;
 
@@ -128,6 +129,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
   SparkPositionDeltaWrite(
       SparkSession spark,
       Table table,
+      String branch,
       Command command,
       SparkBatchQueryScan scan,
       IsolationLevel isolationLevel,
@@ -136,15 +138,16 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       Schema dataSchema) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.branch = branch;
     this.command = command;
     this.scan = scan;
     this.isolationLevel = isolationLevel;
     this.applicationId = spark.sparkContext().applicationId();
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
+    this.sortOrderId = writeConf.outputSortOrderId(writeRequirements);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
     this.writeProperties = writeConf.writeProperties();
 
@@ -205,7 +208,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
           broadcastRewritableDeletes(),
           command,
           context,
-          writeProperties);
+          writeProperties,
+          sortOrderId);
     }
 
     private Broadcast<Map<String, DeleteFileSet>> broadcastRewritableDeletes() {
@@ -415,18 +419,21 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
     private final Command command;
     private final Context context;
     private final Map<String, String> writeProperties;
+    private final int sortOrderId;
 
     PositionDeltaWriteFactory(
         Broadcast<Table> tableBroadcast,
         Broadcast<Map<String, DeleteFileSet>> rewritableDeletesBroadcast,
         Command command,
         Context context,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        int sortOrderId) {
       this.tableBroadcast = tableBroadcast;
       this.rewritableDeletesBroadcast = rewritableDeletesBroadcast;
       this.command = command;
       this.context = context;
       this.writeProperties = writeProperties;
+      this.sortOrderId = sortOrderId;
     }
 
     @Override
@@ -453,6 +460,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
               .deleteFileFormat(context.deleteFileFormat())
               .positionDeleteSparkType(context.deleteSparkType())
               .writeProperties(writeProperties)
+              .dataSortOrder(table.sortOrders().get(sortOrderId))
               .build();
 
       if (command == DELETE) {

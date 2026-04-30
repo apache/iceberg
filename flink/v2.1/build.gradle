@@ -34,7 +34,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     compileOnly libs.flink21.avro
     compileOnly 'joda-time:joda-time:2.8.1'
-    // for dropwizard histogram metrics implementation
+    // dropwizard histogram metrics (optional in Flink)
     compileOnly libs.flink21.metrics.dropwizard
     compileOnly libs.flink21.streaming.java
     compileOnly "${libs.flink21.streaming.java.get().module}:${libs.flink21.streaming.java.get().getVersion()}:tests"
@@ -170,7 +170,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    // for dropwizard histogram metrics implementation
+    // To support dropwizard histogram metrics (not shipped by Flink by default)
     implementation libs.flink21.metrics.dropwizard
 
     // for integration testing with the flink-runtime-jar
@@ -267,4 +267,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }

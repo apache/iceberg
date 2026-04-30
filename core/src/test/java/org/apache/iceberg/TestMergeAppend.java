@@ -1473,7 +1473,8 @@ public class TestMergeAppend extends TestBase {
     // field ids of manifest entries in two manifests with different specs of the same source field
     // should be different
     ManifestEntry<DataFile> entry =
-        ManifestFiles.read(committedSnapshot.allManifests(table.io()).get(0), FILE_IO)
+        ManifestFiles.read(
+                committedSnapshot.allManifests(table.io()).get(0), FILE_IO, table.specs())
             .entries()
             .iterator()
             .next();
@@ -1486,7 +1487,8 @@ public class TestMergeAppend extends TestBase {
     assertThat(field.name()).isEqualTo("data_bucket");
 
     entry =
-        ManifestFiles.read(committedSnapshot.allManifests(table.io()).get(1), FILE_IO)
+        ManifestFiles.read(
+                committedSnapshot.allManifests(table.io()).get(1), FILE_IO, table.specs())
             .entries()
             .iterator()
             .next();

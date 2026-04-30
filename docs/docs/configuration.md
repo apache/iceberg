@@ -45,6 +45,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.delete.format.default                         | data file format            | Default delete file format for the table; parquet, avro, or orc                                                                                                                                                                                    |
 | write.parquet.row-group-size-bytes                  | 134217728 (128 MB)          | Parquet row group size                                                                                                                                                                                                                             |
 | write.parquet.page-size-bytes                       | 1048576 (1 MB)              | Parquet page size                                                                                                                                                                                                                                  |
+| write.parquet.page-version                          | v1                          | Parquet data page version: v1 (DataPage V1) or v2 (DataPage V2)                                                                                                                                                                                   |
 | write.parquet.page-row-limit                        | 20000                       | Parquet page row limit                                                                                                                                                                                                                             |
 | write.parquet.dict-size-bytes                       | 2097152 (2 MB)              | Parquet dictionary page size                                                                                                                                                                                                                       |
 | write.parquet.compression-codec                     | zstd                        | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed                                                                                                                                                                           |
@@ -155,6 +156,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | cache-enabled                     | true               | Whether to cache catalog entries |
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 | metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
+| unique-table-location             | false              | Whether to use a unique location for new tables |
 | encryption.kms-impl               | null               | a custom `KeyManagementClient` implementation to use in a catalog for interactions with KMS (key management service). See the [Encryption](encryption.md) document for additional details |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
@@ -215,6 +217,15 @@ Here are the catalog properties related to locking. They are used by some catalo
 | lock.heartbeat-timeout-ms         | 15000 (15 s)       | the maximum time without a heartbeat to consider a lock expired  |
 
 ## Hadoop configuration
+
+### HadoopTables Lock Configuration
+
+When using `HadoopTables` (tables without a catalog), lock properties from the [Lock catalog properties](#lock-catalog-properties) section can be configured by prefixing them with `iceberg.tables.hadoop.`. This ensures atomic commits on file systems like S3 that lack native write mutual exclusion.
+
+!!! info
+    To use DynamoDB as a lock manager with `HadoopTables`, set `iceberg.tables.hadoop.lock-impl` to `org.apache.iceberg.aws.dynamodb.DynamoDbLockManager` and `iceberg.tables.hadoop.lock.table` to your DynamoDB table name. See [DynamoDB Lock Manager](aws.md#dynamodb-lock-manager) for more details.
+
+### Hive Metastore Configuration
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 The HMS table locking is a 2-step process:

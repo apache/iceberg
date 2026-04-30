@@ -1,0 +1,130 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// Guards the runtime dependency surface for shadow JAR modules.
+//
+// Prevents accidental transitive dependency growth in shipped shadow JARs.
+// Without this guard, adding a single catalog module as 'implementation'
+// instead of 'compileOnly' can silently leak dozens of transitive artifacts
+// into the runtime JAR, inflating its size and introducing unlicensed code.
+//
+// Apply this script in any project that ships a bundled artifact: Spark and
+// Flink runtime shadow JARs, cloud bundles (aws, azure, gcp), and Kafka
+// Connect runtime distribution.
+//
+// It adds two tasks:
+//
+//   generateRuntimeDeps  - resolves runtimeClasspath and writes a sorted
+//                          baseline of group:artifact:version coordinates
+//                          to runtime-deps.txt in the project directory.
+//
+//   checkRuntimeDeps     - compares the resolved dependencies against the
+//                          checked-in baseline and fails with a diff if
+//                          they don't match. Patch-level version changes are
+//                          ignored so that routine Dependabot bumps don't
+//                          require a baseline update. Wired into the 'check'
+//                          lifecycle.
+//
+// Workflow:
+//   1. ./gradlew check                   -- fails if deps changed
+//   2. ./gradlew generateRuntimeDeps     -- auto-updates all baselines
+//   3. Update LICENSE and NOTICE if dependency licenses changed -- This is a Manual Step
+//   4. Commit
+
+def depsFile = file("${projectDir}/runtime-deps.txt")
+
+def resolveRuntimeDeps = {
+  configurations.runtimeClasspath.resolvedConfiguration
+    .resolvedArtifacts
+    .collect { "${it.moduleVersion.id.group}:${it.moduleVersion.id.name}:${it.moduleVersion.id.version}" }
+    .findAll { !it.startsWith('org.apache.iceberg:') }
+    .toSorted()
+    .toUnique()
+}
+
+tasks.register('generateRuntimeDeps') {
+  group = 'verification'
+  description = 'Regenerate the runtime dependency baseline after intentional dependency changes'
+  outputs.file(depsFile)
+  doLast {
+    def deps = resolveRuntimeDeps()
+    depsFile.text = deps.join('\n') + '\n'
+    logger.lifecycle("Wrote ${deps.size()} dependencies to ${depsFile}")
+    logger.lifecycle("Review the diff, then update LICENSE and NOTICE if licenses changed.")
+  }
+}
+
+tasks.register('checkRuntimeDeps') {
+  group = 'verification'
+  description = 'Verify runtime dependencies match the checked-in baseline'
+  inputs.files(configurations.runtimeClasspath)
+  outputs.file(depsFile)
+  doLast {
+    if (!depsFile.exists()) {
+      logger.warn("WARNING: Missing ${depsFile.name} in ${projectDir}. " +
+        "Run: ./gradlew ${project.path}:generateRuntimeDeps")
+      return
+    }
+
+    def actual = resolveRuntimeDeps()
+    def expected = depsFile.readLines().findAll { it.trim() }.toSorted()
+
+    def groupArtifact = { coord -> coord.substring(0, coord.lastIndexOf(':')) }
+    def majorMinor = { coord ->
+      def ver = coord.substring(coord.lastIndexOf(':') + 1)
+      def parts = ver.split('\\.')
+      parts.length >= 2 ? "${parts[0]}.${parts[1]}" : ver
+    }
+
+    def actualByModule = actual.collectEntries { [(groupArtifact(it)): it] }
+    def expectedByModule = expected.collectEntries { [(groupArtifact(it)): it] }
+
+    def added = actualByModule.keySet() - expectedByModule.keySet()
+    def removed = expectedByModule.keySet() - actualByModule.keySet()
+    def shared = actualByModule.keySet().intersect(expectedByModule.keySet())
+    def versionChanged = shared.findAll {
+      majorMinor(actualByModule[it]) != majorMinor(expectedByModule[it])
+    }
+
+    if (added || removed || versionChanged) {
+      def msg = new StringBuilder()
+      msg.append("Runtime dependency baseline mismatch for ${project.name}!\n")
+      if (versionChanged) {
+        msg.append("\n  Version changed (${versionChanged.size()}):\n")
+        versionChanged.toSorted().each { module ->
+          msg.append("    ~ ${expectedByModule[module]}  ->  ${actualByModule[module]}\n")
+        }
+      }
+      if (added) {
+        msg.append("\n  Added (${added.size()}):\n")
+        added.toSorted().each { module -> msg.append("    + ${actualByModule[module]}\n") }
+      }
+      if (removed) {
+        msg.append("\n  Removed (${removed.size()}):\n")
+        removed.toSorted().each { module -> msg.append("    - ${expectedByModule[module]}\n") }
+      }
+      msg.append("\nTo update the baseline run:\n")
+      msg.append("  ./gradlew ${project.path}:generateRuntimeDeps\n")
+      msg.append("\nThen update LICENSE and NOTICE to reflect the dependency changes.")
+      throw new GradleException(msg.toString())
+    }
+  }
+}
+
+check.dependsOn checkRuntimeDeps

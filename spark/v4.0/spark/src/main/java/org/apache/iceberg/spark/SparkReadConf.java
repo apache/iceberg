@@ -261,6 +261,39 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean asyncMicroBatchPlanningEnabled() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+        .sessionConf(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+        .defaultValue(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public long streamingSnapshotPollingIntervalMs() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS)
+        .defaultValue(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT)
+        .parse();
+  }
+
+  public long asyncQueuePreloadFileLimit() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT)
+        .defaultValue(SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT_DEFAULT)
+        .parse();
+  }
+
+  public long asyncQueuePreloadRowLimit() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT)
+        .defaultValue(SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT_DEFAULT)
+        .parse();
+  }
+
   public boolean preserveDataGrouping() {
     return confParser
         .booleanConf()
@@ -368,14 +401,6 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
         .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
-        .parse();
-  }
-
-  public ParquetReaderType parquetReaderType() {
-    return confParser
-        .enumConf(ParquetReaderType::fromString)
-        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
-        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
 }

@@ -24,6 +24,8 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.util.function.SerializableSupplier;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.expressions.Expression;
@@ -58,7 +60,8 @@ public class RewriteDataFiles {
         org.apache.iceberg.actions.RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT;
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
-    private Expression filter = Expressions.alwaysTrue();
+    private SerializableSupplier<Expression> filterSupplier = Expressions::alwaysTrue;
+    private String branch = SnapshotRef.MAIN_BRANCH;
 
     @Override
     String maintenanceTaskName() {
@@ -212,9 +215,44 @@ public class RewriteDataFiles {
      *
      * @param newFilter the filter expression to apply
      * @return this for method chaining
+     * @deprecated will be removed in 1.12.0. Use {@link #filter(SerializableSupplier)} instead
      */
+    @Deprecated
     public Builder filter(Expression newFilter) {
-      this.filter = newFilter;
+      this.filterSupplier = () -> newFilter;
+      return this;
+    }
+
+    /**
+     * A user-provided supplier of a filter expression that determines which files are considered by
+     * the rewrite strategy.
+     *
+     * <p>The supplier is evaluated by the planner on every compaction trigger, allowing a fresh
+     * filter to be produced for each compaction run.
+     *
+     * <p>This is particularly useful for time-relative filters. For example, a supplier such as
+     * {@code () -> Expressions.greaterThanOrEqual("ts",
+     * LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3)).toString())} ensures that each
+     * compaction rewrites files from the last 3 days relative to the time the compaction is
+     * planned, rather than relative to when the job was started.
+     *
+     * @param newFilterSupplier the supplier providing the filter expression to apply
+     * @return this for method chaining
+     */
+    public Builder filter(SerializableSupplier<Expression> newFilterSupplier) {
+      this.filterSupplier = newFilterSupplier;
+      return this;
+    }
+
+    /**
+     * Sets the branch to compact. When set, the planner reads from the branch's snapshot and
+     * commits are made to this branch.
+     *
+     * @param newBranch the branch name
+     * @return this for method chaining
+     */
+    public Builder branch(String newBranch) {
+      this.branch = newBranch;
       return this;
     }
 
@@ -262,7 +300,8 @@ public class RewriteDataFiles {
                       partialProgressEnabled ? partialProgressMaxCommits : 1,
                       maxRewriteBytes,
                       rewriteOptions,
-                      filter))
+                      filterSupplier,
+                      branch))
               .name(operatorName(PLANNER_TASK_NAME))
               .uid(PLANNER_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
@@ -282,7 +321,8 @@ public class RewriteDataFiles {
               .transform(
                   operatorName(COMMIT_TASK_NAME),
                   TypeInformation.of(Trigger.class),
-                  new DataFileRewriteCommitter(tableName(), taskName(), index(), tableLoader()))
+                  new DataFileRewriteCommitter(
+                      tableName(), taskName(), index(), tableLoader(), branch))
               .uid(COMMIT_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
               .forceNonParallel();

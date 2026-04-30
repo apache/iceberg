@@ -31,7 +31,6 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,10 +38,12 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterAll;
@@ -222,14 +223,40 @@ public class TestGcsFileIO {
   }
 
   @Test
-  public void readMissingLocation() {
+  public void readMissingLocation() throws IOException {
     String location = String.format("gs://%s/path/to/data.parquet", BUCKET);
+    InputFile input = fileIO.newInputFile(location);
+
+    // Creating an input stream or changing the read position in it are local operations
+    try (SeekableInputStream in = input.newStream()) {
+      in.seek(1);
+    }
+
+    try (SeekableInputStream in = input.newStream()) {
+      assertThatThrownBy(in::read)
+          .isInstanceOf(NotFoundException.class)
+          .hasCauseInstanceOf(IOException.class)
+          .hasMessage("Location does not exist: gs://test-bucket/path/to/data.parquet");
+    }
+  }
+
+  @Test
+  public void readMissingLocationGcsAnalyticsCoreEnabled() throws IOException {
+    String location = String.format("gs://%s/path/to/data.parquet", BUCKET);
+    fileIO.initialize(
+        ImmutableMap.of(
+            GCPProperties.GCS_ANALYTICS_CORE_ENABLED,
+            "true",
+            GCPProperties.GCS_NO_AUTH,
+            "true",
+            GCPProperties.GCS_SERVICE_HOST,
+            String.format("http://localhost:%d", GCS_EMULATOR_PORT)));
     InputFile in = fileIO.newInputFile(location);
 
     assertThatThrownBy(() -> in.newStream().read())
-        .isInstanceOf(IOException.class)
-        .hasCauseInstanceOf(StorageException.class)
-        .hasMessageContaining("404 Not Found");
+        .isInstanceOf(NotFoundException.class)
+        .hasCauseInstanceOf(IOException.class)
+        .hasMessage("Location does not exist: gs://test-bucket/path/to/data.parquet");
   }
 
   @Test

@@ -20,13 +20,15 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
-import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
@@ -41,11 +43,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
-import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
@@ -68,31 +70,57 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
 
-  private final CaseInsensitiveStringMap options;
+  private final Snapshot snapshot;
+  private final String branch;
+  private final TimeTravel timeTravel;
+  private final Long startSnapshotId;
+  private final Long endSnapshotId;
   private Scan localScan;
+
+  SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+    this(
+        spark,
+        table,
+        table.schema(),
+        table.currentSnapshot(),
+        null /* no branch */,
+        null /* no time travel */,
+        options);
+  }
 
   SparkScanBuilder(
       SparkSession spark,
       Table table,
-      String branch,
       Schema schema,
+      Snapshot snapshot,
+      String branch,
       CaseInsensitiveStringMap options) {
-    super(spark, table, schema, branch, options);
-    this.options = options;
-  }
-
-  SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
-    this(spark, table, table.schema(), options);
+    this(spark, table, schema, snapshot, branch, null /* no time travel */, options);
   }
 
   SparkScanBuilder(
-      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
-    this(spark, table, branch, SnapshotUtil.schemaFor(table, branch), options);
-  }
-
-  SparkScanBuilder(
-      SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
-    this(spark, table, null, schema, options);
+      SparkSession spark,
+      Table table,
+      Schema schema,
+      Snapshot snapshot,
+      String branch,
+      TimeTravel timeTravel,
+      CaseInsensitiveStringMap options) {
+    super(spark, table, schema, options);
+    this.snapshot = snapshot;
+    this.branch = branch;
+    this.timeTravel = timeTravel;
+    if (Spark3Util.containsIncrementalOptions(options)) {
+      Preconditions.checkArgument(timeTravel == null, "Cannot use time travel in incremental scan");
+      Pair<Long, Long> boundaries = readConf().incrementalAppendScanBoundaries();
+      this.startSnapshotId = boundaries.first();
+      this.endSnapshotId = boundaries.second();
+    } else {
+      this.startSnapshotId = null;
+      this.endSnapshotId = null;
+    }
+    Spark3Util.validateNoLegacyTimeTravel(options);
+    SparkTableUtil.validateReadBranch(spark, table, branch, options);
   }
 
   @Override
@@ -129,10 +157,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       return false;
     }
 
-    org.apache.iceberg.Scan scan =
-        buildIcebergBatchScan(true /* include Column Stats */, projectionWithMetadataColumns());
-
-    try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
+    try (CloseableIterable<FileScanTask> fileScanTasks = planFilesWithStats()) {
       for (FileScanTask task : fileScanTasks) {
         if (!task.deletes().isEmpty()) {
           LOG.info("Skipping aggregate pushdown: detected row level deletes");
@@ -162,7 +187,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   }
 
   private boolean canPushDownAggregation(Aggregation aggregation) {
-    if (!(table() instanceof BaseTable)) {
+    if (!isMainTable()) {
       return false;
     }
 
@@ -220,6 +245,8 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   public Scan build() {
     if (localScan != null) {
       return localScan;
+    } else if (startSnapshotId != null) {
+      return buildIncrementalAppendScan();
     } else {
       return buildBatchScan();
     }
@@ -230,99 +257,65 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     return new SparkBatchQueryScan(
         spark(),
         table(),
-        buildIcebergBatchScan(false /* not include Column Stats */, projection),
+        schema(),
+        snapshot,
+        branch,
+        buildIcebergBatchScan(projection, false /* use residuals */, false /* no stats */),
         readConf(),
         projection,
         filters(),
         metricsReporter()::scanReport);
   }
 
-  private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema projection) {
-    Long snapshotId = readConf().snapshotId();
-    Long asOfTimestamp = readConf().asOfTimestamp();
-    String branch = readConf().branch();
-    String tag = readConf().tag();
+  private Scan buildIncrementalAppendScan() {
+    Schema projection = projectionWithMetadataColumns();
+    return new SparkIncrementalAppendScan(
+        spark(),
+        table(),
+        startSnapshotId,
+        endSnapshotId,
+        buildIcebergIncrementalAppendScan(projection, false /* no stats */),
+        readConf(),
+        projection,
+        filters(),
+        metricsReporter()::scanReport);
+  }
 
-    Preconditions.checkArgument(
-        snapshotId == null || asOfTimestamp == null,
-        "Cannot set both %s and %s to select which table snapshot to scan",
-        SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP);
+  public Scan buildCopyOnWriteScan() {
+    Schema projection = projectionWithMetadataColumns();
+    return new SparkCopyOnWriteScan(
+        spark(),
+        table(),
+        schema(),
+        snapshot,
+        branch,
+        buildIcebergBatchScan(projection, true /* ignore residuals */, false /* no stats */),
+        readConf(),
+        projection,
+        filters(),
+        metricsReporter()::scanReport);
+  }
 
-    Long startSnapshotId = readConf().startSnapshotId();
-    Long endSnapshotId = readConf().endSnapshotId();
-
-    if (snapshotId != null || asOfTimestamp != null) {
-      Preconditions.checkArgument(
-          startSnapshotId == null && endSnapshotId == null,
-          "Cannot set %s and %s for incremental scans when either %s or %s is set",
-          SparkReadOptions.START_SNAPSHOT_ID,
-          SparkReadOptions.END_SNAPSHOT_ID,
-          SparkReadOptions.SNAPSHOT_ID,
-          SparkReadOptions.AS_OF_TIMESTAMP);
-    }
-
-    Preconditions.checkArgument(
-        startSnapshotId != null || endSnapshotId == null,
-        "Cannot set only %s for incremental scans. Please, set %s too.",
-        SparkReadOptions.END_SNAPSHOT_ID,
-        SparkReadOptions.START_SNAPSHOT_ID);
-
-    Long startTimestamp = readConf().startTimestamp();
-    Long endTimestamp = readConf().endTimestamp();
-    Preconditions.checkArgument(
-        startTimestamp == null && endTimestamp == null,
-        "Cannot set %s or %s for incremental scans and batch scan. They are only valid for "
-            + "changelog scans.",
-        SparkReadOptions.START_TIMESTAMP,
-        SparkReadOptions.END_TIMESTAMP);
-
-    if (startSnapshotId != null) {
-      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, projection);
+  private CloseableIterable<FileScanTask> planFilesWithStats() {
+    Schema projection = projectionWithMetadataColumns();
+    org.apache.iceberg.Scan<?, ?, ?> scan = buildIcebergScanWithStats(projection);
+    if (scan != null) {
+      return CloseableIterable.transform(scan.planFiles(), ScanTask::asFileScanTask);
     } else {
-      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, projection);
+      return CloseableIterable.empty();
     }
   }
 
-  private org.apache.iceberg.Scan buildBatchScan(
-      Long snapshotId,
-      Long asOfTimestamp,
-      String branch,
-      String tag,
-      boolean withStats,
-      Schema projection) {
-    BatchScan scan =
-        newBatchScan()
-            .caseSensitive(caseSensitive())
-            .filter(filter())
-            .project(projection)
-            .metricsReporter(metricsReporter());
-
-    if (withStats) {
-      scan = scan.includeColumnStats();
+  private org.apache.iceberg.Scan<?, ?, ?> buildIcebergScanWithStats(Schema projection) {
+    if (startSnapshotId != null) {
+      return buildIcebergIncrementalAppendScan(projection, true /* with stats */);
+    } else {
+      return buildIcebergBatchScan(projection, false /* use residuals */, true /* with stats */);
     }
-
-    if (snapshotId != null) {
-      scan = scan.useSnapshot(snapshotId);
-    }
-
-    if (asOfTimestamp != null) {
-      scan = scan.asOfTime(asOfTimestamp);
-    }
-
-    if (branch != null) {
-      scan = scan.useRef(branch);
-    }
-
-    if (tag != null) {
-      scan = scan.useRef(tag);
-    }
-
-    return configureSplitPlanning(scan);
   }
 
-  private org.apache.iceberg.Scan buildIncrementalAppendScan(
-      long startSnapshotId, Long endSnapshotId, boolean withStats, Schema projection) {
+  private IncrementalAppendScan buildIcebergIncrementalAppendScan(
+      Schema projection, boolean withStats) {
     IncrementalAppendScan scan =
         table()
             .newIncrementalAppendScan()
@@ -343,209 +336,61 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     return configureSplitPlanning(scan);
   }
 
-  @SuppressWarnings("CyclomaticComplexity")
-  public Scan buildChangelogScan() {
-    Preconditions.checkArgument(
-        readConf().snapshotId() == null
-            && readConf().asOfTimestamp() == null
-            && readConf().branch() == null
-            && readConf().tag() == null,
-        "Cannot set neither %s, %s, %s and %s for changelogs",
-        SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP,
-        SparkReadOptions.BRANCH,
-        SparkReadOptions.TAG);
-
-    Long startSnapshotId = readConf().startSnapshotId();
-    Long endSnapshotId = readConf().endSnapshotId();
-    Long startTimestamp = readConf().startTimestamp();
-    Long endTimestamp = readConf().endTimestamp();
-
-    Preconditions.checkArgument(
-        !(startSnapshotId != null && startTimestamp != null),
-        "Cannot set both %s and %s for changelogs",
-        SparkReadOptions.START_SNAPSHOT_ID,
-        SparkReadOptions.START_TIMESTAMP);
-
-    Preconditions.checkArgument(
-        !(endSnapshotId != null && endTimestamp != null),
-        "Cannot set both %s and %s for changelogs",
-        SparkReadOptions.END_SNAPSHOT_ID,
-        SparkReadOptions.END_TIMESTAMP);
-
-    if (startTimestamp != null && endTimestamp != null) {
-      Preconditions.checkArgument(
-          startTimestamp < endTimestamp,
-          "Cannot set %s to be greater than %s for changelogs",
-          SparkReadOptions.START_TIMESTAMP,
-          SparkReadOptions.END_TIMESTAMP);
-    }
-
-    boolean emptyScan = false;
-    if (startTimestamp != null) {
-      if (table().currentSnapshot() == null
-          || startTimestamp > table().currentSnapshot().timestampMillis()) {
-        emptyScan = true;
-      }
-      startSnapshotId = getStartSnapshotId(startTimestamp);
-    }
-
-    if (endTimestamp != null) {
-      endSnapshotId = getEndSnapshotId(endTimestamp);
-      if ((startSnapshotId == null && endSnapshotId == null)
-          || (startSnapshotId != null && startSnapshotId.equals(endSnapshotId))) {
-        emptyScan = true;
-      }
-    }
-
-    Schema projection = projectionWithMetadataColumns();
-
-    IncrementalChangelogScan scan =
-        table()
-            .newIncrementalChangelogScan()
-            .caseSensitive(caseSensitive())
-            .filter(filter())
-            .project(projection)
-            .metricsReporter(metricsReporter());
-
-    if (startSnapshotId != null) {
-      scan = scan.fromSnapshotExclusive(startSnapshotId);
-    }
-
-    if (endSnapshotId != null) {
-      scan = scan.toSnapshot(endSnapshotId);
-    }
-
-    scan = configureSplitPlanning(scan);
-
-    return new SparkChangelogScan(
-        spark(), table(), scan, readConf(), projection, filters(), emptyScan);
-  }
-
-  private Long getStartSnapshotId(Long startTimestamp) {
-    Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table(), startTimestamp);
-
-    if (oldestSnapshotAfter == null) {
+  private BatchScan buildIcebergBatchScan(
+      Schema projection, boolean ignoreResiduals, boolean withStats) {
+    if (shouldPinSnapshot() && snapshot == null) {
       return null;
-    } else if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
-      return oldestSnapshotAfter.snapshotId();
-    } else {
-      return oldestSnapshotAfter.parentId();
     }
-  }
-
-  private Long getEndSnapshotId(Long endTimestamp) {
-    Long endSnapshotId = null;
-    for (Snapshot snapshot : SnapshotUtil.currentAncestors(table())) {
-      if (snapshot.timestampMillis() <= endTimestamp) {
-        endSnapshotId = snapshot.snapshotId();
-        break;
-      }
-    }
-    return endSnapshotId;
-  }
-
-  public Scan buildMergeOnReadScan() {
-    Preconditions.checkArgument(
-        readConf().snapshotId() == null
-            && readConf().asOfTimestamp() == null
-            && readConf().tag() == null,
-        "Cannot set time travel options %s, %s, %s for row-level command scans",
-        SparkReadOptions.SNAPSHOT_ID,
-        SparkReadOptions.AS_OF_TIMESTAMP,
-        SparkReadOptions.TAG);
-
-    Preconditions.checkArgument(
-        readConf().startSnapshotId() == null && readConf().endSnapshotId() == null,
-        "Cannot set incremental scan options %s and %s for row-level command scans",
-        SparkReadOptions.START_SNAPSHOT_ID,
-        SparkReadOptions.END_SNAPSHOT_ID);
-
-    Snapshot snapshot = SnapshotUtil.latestSnapshot(table(), readConf().branch());
-
-    if (snapshot == null) {
-      return new SparkBatchQueryScan(
-          spark(),
-          table(),
-          null,
-          readConf(),
-          projectionWithMetadataColumns(),
-          filters(),
-          metricsReporter()::scanReport);
-    }
-
-    // remember the current snapshot ID for commit validation
-    long snapshotId = snapshot.snapshotId();
-
-    CaseInsensitiveStringMap adjustedOptions =
-        Spark3Util.setOption(SparkReadOptions.SNAPSHOT_ID, Long.toString(snapshotId), options);
-    SparkReadConf adjustedReadConf =
-        new SparkReadConf(spark(), table(), readConf().branch(), adjustedOptions);
-
-    Schema projection = projectionWithMetadataColumns();
 
     BatchScan scan =
-        newBatchScan()
-            .useSnapshot(snapshotId)
+        newIcebergBatchScan()
             .caseSensitive(caseSensitive())
             .filter(filter())
             .project(projection)
             .metricsReporter(metricsReporter());
 
-    scan = configureSplitPlanning(scan);
-
-    return new SparkBatchQueryScan(
-        spark(),
-        table(),
-        scan,
-        adjustedReadConf,
-        projection,
-        filters(),
-        metricsReporter()::scanReport);
-  }
-
-  public Scan buildCopyOnWriteScan() {
-    Snapshot snapshot = SnapshotUtil.latestSnapshot(table(), readConf().branch());
-
-    if (snapshot == null) {
-      return new SparkCopyOnWriteScan(
-          spark(),
-          table(),
-          readConf(),
-          projectionWithMetadataColumns(),
-          filters(),
-          metricsReporter()::scanReport);
+    if (shouldPinSnapshot() || timeTravel != null) {
+      scan = scan.useSnapshot(snapshot.snapshotId());
     }
 
-    Schema projection = projectionWithMetadataColumns();
-
-    BatchScan scan =
-        newBatchScan()
-            .useSnapshot(snapshot.snapshotId())
-            .ignoreResiduals()
-            .caseSensitive(caseSensitive())
-            .filter(filter())
-            .project(projection)
-            .metricsReporter(metricsReporter());
-
-    scan = configureSplitPlanning(scan);
-
-    return new SparkCopyOnWriteScan(
-        spark(),
-        table(),
-        scan,
+    Preconditions.checkState(
+        Objects.equals(snapshot, scan.snapshot()),
+        "Failed to enforce scan consistency: resolved Spark table snapshot (%s) vs scan snapshot (%s)",
         snapshot,
-        readConf(),
-        projection,
-        filters(),
-        metricsReporter()::scanReport);
+        scan.snapshot());
+
+    if (ignoreResiduals) {
+      scan = scan.ignoreResiduals();
+    }
+
+    if (withStats) {
+      scan = scan.includeColumnStats();
+    }
+
+    return configureSplitPlanning(scan);
   }
 
-  private BatchScan newBatchScan() {
+  private BatchScan newIcebergBatchScan() {
     if (readConf().distributedPlanningEnabled()) {
       return new SparkDistributedDataScan(spark(), table(), readConf());
     } else {
       return table().newBatchScan();
+    }
+  }
+
+  private boolean shouldPinSnapshot() {
+    return isMainTable() || isMetadataTableWithTimeTravel();
+  }
+
+  private boolean isMainTable() {
+    return table() instanceof BaseTable;
+  }
+
+  private boolean isMetadataTableWithTimeTravel() {
+    if (table() instanceof BaseMetadataTable metadataTable) {
+      return metadataTable.supportsTimeTravel();
+    } else {
+      return false;
     }
   }
 }

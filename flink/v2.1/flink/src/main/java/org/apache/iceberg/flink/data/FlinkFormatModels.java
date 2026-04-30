@@ -31,8 +31,7 @@ public class FlinkFormatModels {
         ParquetFormatModel.create(
             RowData.class,
             RowType.class,
-            (icebergSchema, fileSchema, engineSchema) ->
-                FlinkParquetWriters.buildWriter(engineSchema, fileSchema),
+            FlinkParquetWriters::buildWriter,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 FlinkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
@@ -40,7 +39,8 @@ public class FlinkFormatModels {
         AvroFormatModel.create(
             RowData.class,
             RowType.class,
-            (icebergSchema, fileSchema, engineSchema) -> new FlinkAvroWriter(engineSchema),
+            (icebergSchema, fileSchema, engineSchema) ->
+                new FlinkAvroWriter(icebergSchema, engineSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 FlinkPlannedAvroReader.create(icebergSchema, idToConstant)));
 

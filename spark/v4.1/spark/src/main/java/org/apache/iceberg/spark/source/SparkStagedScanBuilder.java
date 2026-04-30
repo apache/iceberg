@@ -39,6 +39,6 @@ class SparkStagedScanBuilder extends BaseSparkScanBuilder
   @Override
   public Scan build() {
     Schema projection = projectionWithMetadataColumns();
-    return new SparkStagedScan(spark(), table(), projection, taskSetId, readConf());
+    return new SparkStagedScan(spark(), table(), schema(), projection, taskSetId, readConf());
   }
 }

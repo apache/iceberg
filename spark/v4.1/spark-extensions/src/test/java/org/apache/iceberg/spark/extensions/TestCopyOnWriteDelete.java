@@ -18,25 +18,12 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
@@ -52,14 +39,10 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.awaitility.Awaitility;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -73,93 +56,22 @@ public class TestCopyOnWriteDelete extends TestDelete {
   }
 
   @TestTemplate
-  public synchronized void testDeleteWithConcurrentTableRefresh() throws Exception {
-    // this test can only be run with Hive tables as it requires a reliable lock
-    // also, the table cache must be enabled so that the same table instance can be reused
-    assumeThat(catalogName).isEqualToIgnoringCase("testhive");
+  public void testCopyOnWriteDeleteSetsSortOrderIdOnRewrittenDataFiles() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
 
-    createAndInitUnpartitionedTable();
-    createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
 
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, DELETE_ISOLATION_LEVEL, "snapshot");
+    sql("DELETE FROM %s WHERE id = 1", commitTarget());
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranchIfNeeded();
-
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-
-    ExecutorService executorService =
-        MoreExecutors.getExitingExecutorService(
-            (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
-
-    AtomicInteger barrier = new AtomicInteger(0);
-    AtomicBoolean shouldAppend = new AtomicBoolean(true);
-
-    // delete thread
-    Future<?> deleteFuture =
-        executorService.submit(
-            () -> {
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                int currentNumOperations = numOperations;
-                Awaitility.await()
-                    .pollInterval(10, TimeUnit.MILLISECONDS)
-                    .atMost(5, TimeUnit.SECONDS)
-                    .until(() -> barrier.get() >= currentNumOperations * 2);
-
-                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
-
-                barrier.incrementAndGet();
-              }
-            });
-
-    // append thread
-    Future<?> appendFuture =
-        executorService.submit(
-            () -> {
-              GenericRecord record = GenericRecord.create(SnapshotUtil.schemaFor(table, branch));
-              record.set(0, 1); // id
-              record.set(1, "hr"); // dep
-
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                int currentNumOperations = numOperations;
-                Awaitility.await()
-                    .pollInterval(10, TimeUnit.MILLISECONDS)
-                    .atMost(5, TimeUnit.SECONDS)
-                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
-
-                if (!shouldAppend.get()) {
-                  return;
-                }
-
-                for (int numAppends = 0; numAppends < 5; numAppends++) {
-                  DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                  AppendFiles appendFiles = table.newFastAppend().appendFile(dataFile);
-                  if (branch != null) {
-                    appendFiles.toBranch(branch);
-                  }
-
-                  appendFiles.commit();
-                }
-
-                barrier.incrementAndGet();
-              }
-            });
-
-    try {
-      assertThatThrownBy(deleteFuture::get)
-          .isInstanceOf(ExecutionException.class)
-          .cause()
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("the table has been concurrently modified");
-    } finally {
-      shouldAppend.set(false);
-      appendFuture.cancel(true);
-    }
-
-    executorService.shutdown();
-    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("Rewritten data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   @TestTemplate

@@ -44,6 +44,7 @@ import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -65,7 +66,6 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -79,8 +79,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -331,15 +329,15 @@ public class SparkTableUtil {
   private static SparkPartition toSparkPartition(
       CatalogTablePartition partition, CatalogTable table) {
     Option<URI> locationUri = partition.storage().locationUri();
-    Option<String> serde = partition.storage().serde();
+    Option<String> partitionSerde = partition.storage().serde();
 
     Preconditions.checkArgument(locationUri.nonEmpty(), "Partition URI should be defined");
     Preconditions.checkArgument(
-        serde.nonEmpty() || table.provider().nonEmpty(), "Partition format should be defined");
+        partitionSerde.nonEmpty() || table.provider().nonEmpty(),
+        "Partition format should be defined");
 
     String uri = Util.uriToString(locationUri.get());
-    String format = serde.nonEmpty() ? serde.get() : table.provider().get();
-
+    String format = resolveFileFormat(partitionSerde.getOrElse(() -> null), table);
     Map<String, String> partitionSpec =
         JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
     return new SparkPartition(partitionSpec, uri, format);
@@ -684,11 +682,7 @@ public class SparkTableUtil {
       ExecutorService service) {
     try {
       CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
-      Option<String> format =
-          sourceTable.storage().serde().nonEmpty()
-              ? sourceTable.storage().serde()
-              : sourceTable.provider();
-      Preconditions.checkArgument(format.nonEmpty(), "Could not determine table format");
+      String format = resolveFileFormat(null, sourceTable);
 
       Map<String, String> partition = Collections.emptyMap();
       PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -702,7 +696,7 @@ public class SparkTableUtil {
           TableMigrationUtil.listPartition(
               partition,
               Util.uriToString(sourceTable.location()),
-              format.get(),
+              format,
               spec,
               conf,
               metricsConfig,
@@ -975,19 +969,12 @@ public class SparkTableUtil {
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
-    if (io instanceof SupportsBulkOperations) {
-      ((SupportsBulkOperations) io).deleteFiles(Lists.transform(manifests, ManifestFile::path));
-    } else {
-      Tasks.foreach(manifests)
-          .executeWith(ThreadPools.getWorkerPool())
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .run(item -> io.deleteFile(item.path()));
-    }
+    CatalogUtil.deleteFiles(io, Lists.transform(manifests, ManifestFile::path), "manifests");
   }
 
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
-    SparkTable sparkTable = new SparkTable(table, snapshotId, false);
+    TimeTravel timeTravel = TimeTravel.version(String.valueOf(snapshotId));
+    SparkTable sparkTable = SparkTable.create(table, timeTravel);
     DataSourceV2Relation relation = createRelation(sparkTable, ImmutableMap.of());
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,
@@ -1006,7 +993,7 @@ public class SparkTableUtil {
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type, Map<String, String> extraOptions) {
     Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
-    SparkTable sparkMetadataTable = new SparkTable(metadataTable, false);
+    SparkTable sparkMetadataTable = new SparkTable(metadataTable);
     DataSourceV2Relation relation = createRelation(sparkMetadataTable, extraOptions);
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,
@@ -1024,8 +1011,26 @@ public class SparkTableUtil {
         sparkTable, Option.empty(), Option.empty(), options, Option.empty());
   }
 
-  public static String determineWriteBranch(SparkSession spark, Table table, String branch) {
-    return determineWriteBranch(spark, table, branch, CaseInsensitiveStringMap.empty());
+  public static void validateWriteBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    validateBranch(spark, branch, determineWriteBranch(spark, table, branch, options));
+  }
+
+  public static void validateReadBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    validateBranch(spark, branch, determineReadBranch(spark, table, branch, options));
+  }
+
+  private static void validateBranch(SparkSession spark, String branch, String targetBranch) {
+    Preconditions.checkArgument(
+        Objects.equal(branch, targetBranch) || Spark3Util.extensionsEnabled(spark),
+        "Must enable Iceberg extensions to use branching via options or SQL: operation targets branch `%s`",
+        targetBranch);
+  }
+
+  public static String determineWriteBranch(
+      SparkSession spark, SparkTable sparkTable, CaseInsensitiveStringMap options) {
+    return determineWriteBranch(spark, sparkTable.table(), sparkTable.branch(), options);
   }
 
   /**
@@ -1067,6 +1072,11 @@ public class SparkTableUtil {
     }
 
     return branch;
+  }
+
+  public static String determineReadBranch(
+      SparkSession spark, SparkTable sparkTable, CaseInsensitiveStringMap options) {
+    return determineReadBranch(spark, sparkTable.table(), sparkTable.branch(), options);
   }
 
   /**
@@ -1122,11 +1132,35 @@ public class SparkTableUtil {
     return wapBranch;
   }
 
-  public static boolean wapEnabled(Table table) {
+  private static boolean wapEnabled(Table table) {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
         Boolean.parseBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+  }
+
+  private static String resolveFileFormat(String partitionSerde, CatalogTable table) {
+    if (partitionSerde != null && isKnownFileFormat(partitionSerde)) {
+      return partitionSerde;
+    }
+
+    Option<String> serde = table.storage().serde();
+    if (serde.nonEmpty() && isKnownFileFormat(serde.get())) {
+      return serde.get();
+    }
+
+    Preconditions.checkArgument(
+        table.provider().nonEmpty(),
+        "Could not determine table format from serde %s and no provider set",
+        serde.getOrElse(() -> "unknown"));
+    return table.provider().get();
+  }
+
+  private static boolean isKnownFileFormat(String serde) {
+    String lowerSerde = serde.toLowerCase(Locale.ROOT);
+    return lowerSerde.contains("parquet")
+        || lowerSerde.contains("avro")
+        || lowerSerde.contains("orc");
   }
 
   /** Class representing a table partition. */
