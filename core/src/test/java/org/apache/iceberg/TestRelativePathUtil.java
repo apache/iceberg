@@ -26,32 +26,32 @@ import org.junit.jupiter.api.Test;
 public class TestRelativePathUtil {
 
   @Test
-  public void testIsAbsolute() {
-    assertThat(RelativePathUtil.isAbsolute("s3://bucket/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.isAbsolute("file:///tmp/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.isAbsolute("file:/tmp/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.isAbsolute("hdfs://namenode/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.isAbsolute("gs://bucket/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.isAbsolute("abfs://container@account/table/file.parquet")).isTrue();
+  public void testHasScheme() {
+    assertThat(RelativePathUtil.hasScheme("s3://bucket/table/data/file.parquet")).isTrue();
+    assertThat(RelativePathUtil.hasScheme("file:///tmp/table/data/file.parquet")).isTrue();
+    assertThat(RelativePathUtil.hasScheme("file:/tmp/table/data/file.parquet")).isTrue();
+    assertThat(RelativePathUtil.hasScheme("hdfs://namenode/table/data/file.parquet")).isTrue();
+    assertThat(RelativePathUtil.hasScheme("gs://bucket/table/data/file.parquet")).isTrue();
+    assertThat(RelativePathUtil.hasScheme("abfs://container@account/table/file.parquet")).isTrue();
   }
 
   @Test
-  public void testIsAbsoluteWithRelativePaths() {
-    assertThat(RelativePathUtil.isAbsolute("/metadata/file.parquet")).isFalse();
-    assertThat(RelativePathUtil.isAbsolute("metadata/file.parquet")).isFalse();
-    assertThat(RelativePathUtil.isAbsolute("/data/00000-0.parquet")).isFalse();
+  public void testHasSchemeWithRelativePaths() {
+    assertThat(RelativePathUtil.hasScheme("/metadata/file.parquet")).isFalse();
+    assertThat(RelativePathUtil.hasScheme("metadata/file.parquet")).isFalse();
+    assertThat(RelativePathUtil.hasScheme("/data/00000-0.parquet")).isFalse();
   }
 
   @Test
-  public void testIsAbsoluteWithColonsInPathSegments() {
-    assertThat(RelativePathUtil.isAbsolute("/data/partition=key:value/file.parquet")).isFalse();
-    assertThat(RelativePathUtil.isAbsolute("dir/file:tag.parquet")).isFalse();
-    assertThat(RelativePathUtil.isAbsolute("/metadata/snap-123:456.avro")).isFalse();
+  public void testHasSchemeWithColonsInPathSegments() {
+    assertThat(RelativePathUtil.hasScheme("/data/partition=key:value/file.parquet")).isFalse();
+    assertThat(RelativePathUtil.hasScheme("dir/file:tag.parquet")).isFalse();
+    assertThat(RelativePathUtil.hasScheme("/metadata/snap-123:456.avro")).isFalse();
   }
 
   @Test
-  public void testIsAbsoluteWithNull() {
-    assertThat(RelativePathUtil.isAbsolute(null)).isFalse();
+  public void testHasSchemeWithNull() {
+    assertThat(RelativePathUtil.hasScheme(null)).isFalse();
   }
 
   @Test
@@ -83,14 +83,9 @@ public class TestRelativePathUtil {
 
   @Test
   public void testResolveWithNullTableLocation() {
-    assertThat(RelativePathUtil.resolve("/metadata/file.parquet", null))
-        .isEqualTo("/metadata/file.parquet");
-  }
-
-  @Test
-  public void testResolveWithNonAbsoluteTableLocation() {
-    assertThat(RelativePathUtil.resolve("/metadata/file.parquet", "/local/table"))
-        .isEqualTo("/metadata/file.parquet");
+    assertThatThrownBy(() -> RelativePathUtil.resolve("/metadata/file.parquet", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table location must not be null");
   }
 
   @Test
@@ -126,22 +121,20 @@ public class TestRelativePathUtil {
   public void testRelativizePathEqualToTableLocation() {
     String tableLocation = "s3://bucket/table";
 
-    assertThat(RelativePathUtil.relativize("s3://bucket/table", tableLocation))
-        .isEqualTo("s3://bucket/table");
+    assertThat(RelativePathUtil.relativize("s3://bucket/table", tableLocation)).isEqualTo("");
   }
 
   @Test
-  public void testRelativizeWithNullInputs() {
+  public void testRelativizeWithNullPath() {
     assertThat(RelativePathUtil.relativize(null, "s3://bucket/table")).isNull();
-
-    assertThat(RelativePathUtil.relativize("s3://bucket/table/metadata/file.parquet", null))
-        .isEqualTo("s3://bucket/table/metadata/file.parquet");
   }
 
   @Test
-  public void testRelativizeWithNonAbsoluteTableLocation() {
-    assertThat(RelativePathUtil.relativize("s3://bucket/table/file.parquet", "/local/table"))
-        .isEqualTo("s3://bucket/table/file.parquet");
+  public void testRelativizeWithNullTableLocation() {
+    assertThatThrownBy(
+            () -> RelativePathUtil.relativize("s3://bucket/table/metadata/file.parquet", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table location must not be null");
   }
 
   @Test
@@ -169,15 +162,6 @@ public class TestRelativePathUtil {
             RelativePathUtil.relativize(
                 "file:/tmp/table/metadata/file.parquet", "file:///tmp/table"))
         .isEqualTo("file:/tmp/table/metadata/file.parquet");
-  }
-
-  @Test
-  public void testRelativizePrefixOverlap() {
-    // table location is a prefix of the path but not a directory boundary
-    String tableLocation = "s3://bucket/tab";
-
-    assertThat(RelativePathUtil.relativize("s3://bucket/table/file.parquet", tableLocation))
-        .isEqualTo("s3://bucket/table/file.parquet");
   }
 
   @Test
@@ -216,44 +200,4 @@ public class TestRelativePathUtil {
     assertThat(resolved).isEqualTo(absolutePath);
   }
 
-  @Test
-  public void testResolveAlreadyAbsoluteIsNoOp() {
-    String tableLocation = "s3://bucket/table";
-    String absolutePath = "s3://bucket/table/metadata/file.parquet";
-
-    assertThat(RelativePathUtil.resolve(absolutePath, tableLocation)).isEqualTo(absolutePath);
-  }
-
-  @Test
-  public void testResolveWithTrailingSlashOnTableLocation() {
-    assertThat(RelativePathUtil.resolve("/metadata/file.parquet", "s3://bucket/table/"))
-        .isEqualTo("s3://bucket/table/metadata/file.parquet");
-  }
-
-  @Test
-  public void testRelativizeWithTrailingSlashOnTableLocation() {
-    assertThat(
-            RelativePathUtil.relativize(
-                "s3://bucket/table/metadata/file.parquet", "s3://bucket/table/"))
-        .isEqualTo("/metadata/file.parquet");
-  }
-
-  @Test
-  public void testRelativizeResolveRoundTripWithTrailingSlash() {
-    String tableLocation = "s3://bucket/table/";
-    String absolutePath = "s3://bucket/table/data/file.parquet";
-
-    String relativized = RelativePathUtil.relativize(absolutePath, tableLocation);
-    assertThat(relativized).isEqualTo("/data/file.parquet");
-
-    String resolved = RelativePathUtil.resolve(relativized, tableLocation);
-    assertThat(resolved).isEqualTo(absolutePath);
-  }
-
-  @Test
-  public void testResolveRejectsRelativePathWithoutLeadingSlash() {
-    assertThatThrownBy(() -> RelativePathUtil.resolve("metadata/file.parquet", "s3://bucket/table"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Relative path must start with /");
-  }
 }

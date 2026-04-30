@@ -19,63 +19,64 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.LocationUtil;
 
 class RelativePathUtil {
+  private static final int MAX_SCHEME_LENGTH = 10;
+
   private RelativePathUtil() {}
 
   /**
-   * Returns true if the path has a URI scheme (e.g. {@code s3://}, {@code file:/}, {@code
-   * hdfs://}). Per RFC 3986, a scheme ends at the first {@code :} and cannot contain {@code /}, so
-   * a colon that appears after a slash is not a scheme delimiter.
+   * Returns true if the path contains a URI scheme (e.g. {@code s3:}, {@code hdfs:}, {@code
+   * file:}). Checks at most the first 10 characters for a {@code :} preceded by alphanumeric
+   * characters, per <a href="https://datatracker.ietf.org/doc/html/rfc3986#section-3.1">RFC 3986
+   * section 3.1</a>.
    */
-  static boolean isAbsolute(String path) {
+  static boolean hasScheme(String path) {
     if (path == null) {
       return false;
     }
 
-    int colonIndex = path.indexOf(':');
-    if (colonIndex <= 0) {
-      return false;
+    int limit = Math.min(path.length(), MAX_SCHEME_LENGTH);
+    for (int i = 0; i < limit; i += 1) {
+      char ch = path.charAt(i);
+      if (ch == ':') {
+        return i > 0;
+      }
+
+      if (!Character.isLetterOrDigit(ch)) {
+        return false;
+      }
     }
 
-    int slashIndex = path.indexOf('/');
-    return slashIndex == -1 || slashIndex > colonIndex;
+    return false;
   }
 
   /**
-   * Resolves a relative path against a table location. Relative paths (produced by {@link
-   * #relativize}) start with {@code /} and are resolved by direct concatenation with the table
-   * location. Absolute paths are returned as-is.
-   *
-   * <p>Resolution only applies when the table location has a URI scheme. Paths are never resolved
-   * against bare local paths.
+   * Resolves a relative path against a table location. If the path has a URI scheme, it is returned
+   * as-is. Otherwise, the path is appended to the table location without any additional separator.
    */
   static String resolve(String path, String tableLocation) {
-    if (path == null || isAbsolute(path) || !isAbsolute(tableLocation)) {
+    Preconditions.checkArgument(tableLocation != null, "Table location must not be null");
+    if (path == null || hasScheme(path)) {
       return path;
     }
 
-    Preconditions.checkArgument(path.startsWith("/"), "Relative path must start with /: %s", path);
-
-    return LocationUtil.stripTrailingSlash(tableLocation) + path;
+    return tableLocation + path;
   }
 
   /**
    * Relativizes a path against a table location. If the path starts with the table location, the
-   * table location prefix is stripped, leaving a relative path that starts with {@code /}. If the
-   * path is not under the table location, it is returned as-is.
-   *
-   * <p>Relativization only applies when both the path and table location have URI schemes.
+   * prefix is removed and the remaining relative portion is returned. Otherwise, the path is
+   * returned as-is.
    */
   static String relativize(String path, String tableLocation) {
-    if (path == null || !isAbsolute(tableLocation)) {
-      return path;
+    Preconditions.checkArgument(tableLocation != null, "Table location must not be null");
+    if (path == null) {
+      return null;
     }
 
-    String normalized = LocationUtil.stripTrailingSlash(tableLocation);
-    if (path.startsWith(normalized + "/")) {
-      return path.substring(normalized.length());
+    if (path.startsWith(tableLocation)) {
+      return path.substring(tableLocation.length());
     }
 
     return path;
