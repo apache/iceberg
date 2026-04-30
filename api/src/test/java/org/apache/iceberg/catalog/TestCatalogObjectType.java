@@ -26,14 +26,14 @@ import org.junit.jupiter.api.Test;
 public class TestCatalogObjectType {
 
   @Test
-  public void testType() {
+  public void type() {
     assertThat(CatalogObjectType.TABLE.type()).isEqualTo("table");
     assertThat(CatalogObjectType.VIEW.type()).isEqualTo("view");
     assertThat(CatalogObjectType.NAMESPACE.type()).isEqualTo("namespace");
   }
 
   @Test
-  public void testFromName() {
+  public void fromName() {
     assertThat(CatalogObjectType.fromName("table")).isEqualTo(CatalogObjectType.TABLE);
     assertThat(CatalogObjectType.fromName("view")).isEqualTo(CatalogObjectType.VIEW);
     assertThat(CatalogObjectType.fromName("namespace")).isEqualTo(CatalogObjectType.NAMESPACE);
@@ -41,10 +41,10 @@ public class TestCatalogObjectType {
   }
 
   @Test
-  public void testFromNameInvalid() {
+  public void fromNameInvalid() {
     assertThatThrownBy(() -> CatalogObjectType.fromName(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Catalog object type is null");
+        .hasMessage("Invalid catalog object type: null");
 
     assertThatThrownBy(() -> CatalogObjectType.fromName("unknown"))
         .isInstanceOf(IllegalArgumentException.class)

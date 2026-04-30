@@ -21,7 +21,7 @@ package org.apache.iceberg.catalog;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** The type of a catalog object referenced by a {@code CatalogObjectIdentifier}. */
+/** The type of a catalog object referenced by a {@link CatalogObjectIdentifier}. */
 public enum CatalogObjectType {
   TABLE("table"),
   VIEW("view"),
@@ -38,7 +38,7 @@ public enum CatalogObjectType {
   }
 
   public static CatalogObjectType fromName(String type) {
-    Preconditions.checkArgument(type != null, "Catalog object type is null");
+    Preconditions.checkArgument(type != null, "Invalid catalog object type: null");
     try {
       return CatalogObjectType.valueOf(type.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {

@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 public class TestCatalogObjectIdentifier {
 
   @Test
-  public void testWithNullAndEmpty() {
+  public void withNullAndEmpty() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of((String[]) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create CatalogObjectIdentifier from null array");
@@ -37,7 +37,7 @@ public class TestCatalogObjectIdentifier {
   }
 
   @Test
-  public void testCatalogObjectIdentifier() {
+  public void levelAccessors() {
     String[] levels = {"a", "b", "c", "d"};
     CatalogObjectIdentifier identifier = CatalogObjectIdentifier.of(levels);
     assertThat(identifier).isNotNull();
@@ -50,7 +50,7 @@ public class TestCatalogObjectIdentifier {
   }
 
   @Test
-  public void testEqualsAndHashCode() {
+  public void equalsAndHashCode() {
     CatalogObjectIdentifier first = CatalogObjectIdentifier.of("accounting", "tax", "paid");
     CatalogObjectIdentifier second = CatalogObjectIdentifier.of("accounting", "tax", "paid");
     CatalogObjectIdentifier different = CatalogObjectIdentifier.of("accounting", "tax");
@@ -59,14 +59,14 @@ public class TestCatalogObjectIdentifier {
   }
 
   @Test
-  public void testWithNullLevel() {
+  public void withNullLevel() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of("a", null, "b"))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Cannot create a CatalogObjectIdentifier with a null level");
   }
 
   @Test
-  public void testDisallowsNullByteInLevel() {
+  public void disallowsNullByteInLevel() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of("ac", "\u0000c", "b"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create a CatalogObjectIdentifier with the null-byte character");

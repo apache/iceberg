@@ -41,6 +41,7 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
+import org.apache.iceberg.catalog.CatalogObjectIdentifierParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
@@ -295,8 +296,8 @@ public class RESTSerializers {
     @Override
     public CatalogObjectIdentifier deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
-      String[] levels = JsonUtil.getStringArray(p.getCodec().readTree(p));
-      return CatalogObjectIdentifier.of(levels);
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return CatalogObjectIdentifierParser.fromJson(jsonNode);
     }
   }
 
@@ -306,8 +307,7 @@ public class RESTSerializers {
     public void serialize(
         CatalogObjectIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      String[] parts = identifier.levels();
-      gen.writeArray(parts, 0, parts.length);
+      CatalogObjectIdentifierParser.toJson(identifier, gen);
     }
   }
 
