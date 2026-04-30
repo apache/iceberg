@@ -55,7 +55,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
 import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
@@ -207,10 +206,29 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     PartitionSpec spec = table().spec();
     Schema tableSchema = table().schema();
 
-    // resolve GROUP BY columns to partition field positions
     List<Integer> groupByPositions = Lists.newArrayList();
     List<Types.NestedField> groupByFields = Lists.newArrayList();
+    if (!resolveGroupByPartitions(
+        aggregation, spec, tableSchema, groupByPositions, groupByFields)) {
+      return false;
+    }
 
+    Map<List<Object>, AggregateEvaluator> evaluatorsByPartition =
+        groupFilesByPartition(spec, groupByPositions, boundAggregates);
+    if (evaluatorsByPartition == null) {
+      return false;
+    }
+
+    localScan = buildGroupedLocalScan(groupByFields, evaluatorsByPartition);
+    return localScan != null;
+  }
+
+  private boolean resolveGroupByPartitions(
+      Aggregation aggregation,
+      PartitionSpec spec,
+      Schema tableSchema,
+      List<Integer> groupByPositions,
+      List<Types.NestedField> groupByFields) {
     for (org.apache.spark.sql.connector.expressions.Expression groupByExpr :
         aggregation.groupByExpressions()) {
       String colName =
@@ -233,21 +251,27 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       groupByFields.add(sourceField);
     }
 
-    // group files by partition values and compute per-partition aggregates
+    return true;
+  }
+
+  private Map<List<Object>, AggregateEvaluator> groupFilesByPartition(
+      PartitionSpec spec,
+      List<Integer> groupByPositions,
+      List<BoundAggregate<?, ?>> boundAggregates) {
     Map<List<Object>, AggregateEvaluator> evaluatorsByPartition = Maps.newLinkedHashMap();
 
     try (CloseableIterable<FileScanTask> fileScanTasks = planFilesWithStats()) {
       for (FileScanTask task : fileScanTasks) {
         if (!task.deletes().isEmpty()) {
           LOG.info("Skipping grouped aggregate pushdown: detected row level deletes");
-          return false;
+          return null;
         }
 
         if (task.file().specId() != spec.specId()) {
           LOG.info(
               "Skipping grouped aggregate pushdown: file from different spec {}",
               task.file().specId());
-          return false;
+          return null;
         }
 
         StructLike partition = task.file().partition();
@@ -262,20 +286,25 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       }
     } catch (IOException e) {
       LOG.info("Skipping grouped aggregate pushdown: ", e);
-      return false;
+      return null;
     }
 
     if (evaluatorsByPartition.isEmpty()) {
-      return false;
+      return null;
     }
 
     for (AggregateEvaluator evaluator : evaluatorsByPartition.values()) {
       if (!evaluator.allAggregatorsValid()) {
-        return false;
+        return null;
       }
     }
 
-    // build result schema: [group_by_col_1, ..., agg_1, agg_2, ...]
+    return evaluatorsByPartition;
+  }
+
+  private SparkLocalScan buildGroupedLocalScan(
+      List<Types.NestedField> groupByFields,
+      Map<List<Object>, AggregateEvaluator> evaluatorsByPartition) {
     AggregateEvaluator firstEvaluator = evaluatorsByPartition.values().iterator().next();
     List<Types.NestedField> resultFields = Lists.newArrayList();
     int fieldId = 0;
@@ -289,9 +318,8 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     }
 
     Types.StructType resultType = Types.StructType.of(resultFields);
-
-    // build result rows
     List<InternalRow> resultRows = Lists.newArrayList();
+
     for (Map.Entry<List<Object>, AggregateEvaluator> entry : evaluatorsByPartition.entrySet()) {
       List<Object> partitionValues = entry.getKey();
       StructLike aggResult = entry.getValue().result();
@@ -309,10 +337,8 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     }
 
     StructType pushedSchema = SparkSchemaUtil.convert(new Schema(resultFields));
-    localScan =
-        new SparkLocalScan(
-            table(), pushedSchema, resultRows.toArray(new InternalRow[0]), filters());
-    return true;
+    return new SparkLocalScan(
+        table(), pushedSchema, resultRows.toArray(new InternalRow[0]), filters());
   }
 
   private int findIdentityPartitionPosition(PartitionSpec spec, int sourceFieldId) {
