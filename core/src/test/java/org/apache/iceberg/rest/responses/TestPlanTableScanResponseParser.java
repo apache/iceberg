@@ -680,6 +680,9 @@ public class TestPlanTableScanResponseParser {
         .isEqualTo("Scan planning failed: table too large to plan");
     assertThat(fromResponse.errorResponse().type()).isEqualTo("IllegalStateException");
     assertThat(fromResponse.errorResponse().code()).isEqualTo(500);
+    assertThat(fromResponse.errorMessage())
+        .isEqualTo(
+            "IllegalStateException (code=500): Scan planning failed: table too large to plan");
   }
 
   @Test

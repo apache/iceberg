@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
@@ -58,7 +59,15 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
   }
 
   public String errorMessage() {
-    return errorResponse != null ? errorResponse.message() : null;
+    if (errorResponse == null) {
+      return null;
+    }
+    return String.format(
+        Locale.ROOT,
+        "%s (code=%d): %s",
+        errorResponse.type(),
+        errorResponse.code(),
+        errorResponse.message());
   }
 
   public List<Credential> credentials() {
