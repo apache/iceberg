@@ -270,4 +270,42 @@ public class TestSchemaParser extends DataTestBase {
     assertThat(explicitNull.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
     assertThat(absent).isNotEqualTo(explicitNull);
   }
+
+  @Test
+  void testNullDefaultOnNestedTypes() {
+    Types.NestedField listField =
+        Types.NestedField.optional("list_col")
+            .withId(1)
+            .ofType(Types.ListType.ofOptional(2, Types.StringType.get()))
+            .withWriteDefault(Literal.ofNull())
+            .build();
+    assertThat(listField.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+
+    Types.NestedField mapField =
+        Types.NestedField.optional("map_col")
+            .withId(3)
+            .ofType(Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.IntegerType.get()))
+            .withWriteDefault(Literal.ofNull())
+            .build();
+    assertThat(mapField.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+
+    Types.NestedField structField =
+        Types.NestedField.optional("struct_col")
+            .withId(6)
+            .ofType(
+                Types.StructType.of(Types.NestedField.required(7, "id", Types.IntegerType.get())))
+            .withWriteDefault(Literal.ofNull())
+            .build();
+    assertThat(structField.writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+
+    Schema schema = new Schema(listField, mapField, structField);
+    String json = SchemaParser.toJson(schema);
+    Schema deserialized = SchemaParser.fromJson(json);
+
+    assertThat(deserialized.findField("list_col").writeDefaultLiteral())
+        .isEqualTo(Literal.ofNull());
+    assertThat(deserialized.findField("map_col").writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+    assertThat(deserialized.findField("struct_col").writeDefaultLiteral())
+        .isEqualTo(Literal.ofNull());
+  }
 }

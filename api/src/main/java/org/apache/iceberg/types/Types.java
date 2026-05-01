@@ -886,7 +886,8 @@ public class Types {
       if (defaultValue == null) {
         return null;
       } else if (defaultValue.equals(Literal.ofNull())) {
-        Preconditions.checkArgument(isOptional, "Cannot use null default for required field");
+        Preconditions.checkArgument(
+            isOptional, "Cannot use null default for required field (%s)", type);
         return defaultValue;
       } else if (type.isNestedType()) {
         throw new IllegalArgumentException(

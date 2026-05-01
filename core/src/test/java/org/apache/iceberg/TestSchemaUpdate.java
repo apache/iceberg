@@ -313,6 +313,23 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateRequiredColumnDefaultToNullThrows() {
+    Schema schema =
+        new Schema(
+            required("data")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.of(5))
+                .withWriteDefault(Literal.of(5))
+                .build());
+
+    assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 1).updateColumnDefault("data", Literal.ofNull()).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot use null default for required field");
+  }
+
+  @Test
   public void testUpdateTypesCaseInsensitive() {
     Types.StructType expected =
         Types.StructType.of(
