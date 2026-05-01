@@ -309,6 +309,7 @@ class RESTTableOperations implements TableOperations {
     }
   }
 
+  // TODO: Integrate and test encryption with REST scan planning
   @Override
   public FileIO io() {
     if (tableKeyId == null) {
