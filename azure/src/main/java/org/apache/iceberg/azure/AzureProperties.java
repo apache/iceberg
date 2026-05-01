@@ -21,7 +21,6 @@ package org.apache.iceberg.azure;
 import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.credential.TokenRequestContext;
-import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
@@ -135,9 +134,7 @@ public class AzureProperties implements Serializable {
     }
 
     this.keyWrapAlgorithm =
-        properties.getOrDefault(
-            AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM,
-            KeyWrapAlgorithm.RSA_OAEP_256.getValue());
+        properties.getOrDefault(AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM, "RSA-OAEP-256");
   }
 
   public Optional<Integer> adlsReadBlockSize() {
@@ -204,8 +201,8 @@ public class AzureProperties implements Serializable {
     }
   }
 
-  public KeyWrapAlgorithm keyWrapAlgorithm() {
-    return KeyWrapAlgorithm.fromString(this.keyWrapAlgorithm);
+  public String keyWrapAlgorithm() {
+    return this.keyWrapAlgorithm;
   }
 
   public Optional<String> keyVaultUrl() {
