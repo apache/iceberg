@@ -219,8 +219,7 @@ class RESTTableScan extends DataTableScan {
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
         return fetchPlanningResult();
       case FAILED:
-        throw new IllegalStateException(
-            failureMessage(planStatus, planId, response.errorResponse()));
+        throw new IllegalStateException(failureMessage(planId, response.errorResponse()));
       default:
         throw new IllegalStateException(
             String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
@@ -289,10 +288,18 @@ class RESTTableScan extends DataTableScan {
                   case SUBMITTED:
                     throw new NotCompleteException();
                   case FAILED:
+                    throw new IllegalStateException(failureMessage(id, response.errorResponse()));
                   case CANCELLED:
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT, "Remote scan planning cancelled for planId: %s", id));
                   default:
                     throw new IllegalStateException(
-                        failureMessage(response.planStatus(), id, response.errorResponse()));
+                        String.format(
+                            Locale.ROOT,
+                            "Invalid planStatus: %s for planId: %s",
+                            response.planStatus(),
+                            id));
                 }
               });
     } catch (NotCompleteException e) {
@@ -315,15 +322,11 @@ class RESTTableScan extends DataTableScan {
     return scanTasksIterable(response.planTasks(), response.fileScanTasks());
   }
 
-  private static String failureMessage(PlanStatus status, String planId, ErrorResponse error) {
-    if (error == null) {
-      return String.format(
-          Locale.ROOT, "Remote scan planning %s for planId: %s", status.status(), planId);
-    }
+  private static String failureMessage(String planId, ErrorResponse error) {
+    Preconditions.checkArgument(error != null, "Error must be present for failed status");
     return String.format(
         Locale.ROOT,
-        "Remote scan planning %s for planId: %s: %s (code=%d): %s",
-        status.status(),
+        "Remote scan planning failed for planId: %s: %s (code=%d): %s",
         planId,
         error.type(),
         error.code(),
