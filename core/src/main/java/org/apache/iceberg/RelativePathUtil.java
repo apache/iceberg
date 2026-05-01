@@ -31,8 +31,13 @@ class RelativePathUtil {
    * characters, per <a href="https://datatracker.ietf.org/doc/html/rfc3986#section-3.1">RFC 3986
    * section 3.1</a>.
    */
-  static boolean hasScheme(String path) {
-    if (path == null) {
+  private static boolean hasScheme(String path) {
+    if (path == null || path.isEmpty()) {
+      return false;
+    }
+
+    // Early termination for relative paths since most commonly start with /
+    if (path.charAt(0) == '/') {
       return false;
     }
 

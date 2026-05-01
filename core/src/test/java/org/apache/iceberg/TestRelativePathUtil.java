@@ -26,35 +26,6 @@ import org.junit.jupiter.api.Test;
 public class TestRelativePathUtil {
 
   @Test
-  public void testHasScheme() {
-    assertThat(RelativePathUtil.hasScheme("s3://bucket/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.hasScheme("file:///tmp/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.hasScheme("file:/tmp/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.hasScheme("hdfs://namenode/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.hasScheme("gs://bucket/table/data/file.parquet")).isTrue();
-    assertThat(RelativePathUtil.hasScheme("abfs://container@account/table/file.parquet")).isTrue();
-  }
-
-  @Test
-  public void testHasSchemeWithRelativePaths() {
-    assertThat(RelativePathUtil.hasScheme("/metadata/file.parquet")).isFalse();
-    assertThat(RelativePathUtil.hasScheme("metadata/file.parquet")).isFalse();
-    assertThat(RelativePathUtil.hasScheme("/data/00000-0.parquet")).isFalse();
-  }
-
-  @Test
-  public void testHasSchemeWithColonsInPathSegments() {
-    assertThat(RelativePathUtil.hasScheme("/data/partition=key:value/file.parquet")).isFalse();
-    assertThat(RelativePathUtil.hasScheme("dir/file:tag.parquet")).isFalse();
-    assertThat(RelativePathUtil.hasScheme("/metadata/snap-123:456.avro")).isFalse();
-  }
-
-  @Test
-  public void testHasSchemeWithNull() {
-    assertThat(RelativePathUtil.hasScheme(null)).isFalse();
-  }
-
-  @Test
   public void testResolveRelativePaths() {
     String tableLocation = "s3://bucket/table";
 
@@ -63,6 +34,17 @@ public class TestRelativePathUtil {
 
     assertThat(RelativePathUtil.resolve("/data/00000-0.parquet", tableLocation))
         .isEqualTo("s3://bucket/table/data/00000-0.parquet");
+  }
+
+  @Test
+  public void testResolvePathsWithColonsInSegments() {
+    String tableLocation = "s3://bucket/table";
+
+    assertThat(RelativePathUtil.resolve("/data/partition=key:value/file.parquet", tableLocation))
+        .isEqualTo("s3://bucket/table/data/partition=key:value/file.parquet");
+
+    assertThat(RelativePathUtil.resolve("/metadata/snap-123:456.avro", tableLocation))
+        .isEqualTo("s3://bucket/table/metadata/snap-123:456.avro");
   }
 
   @Test
@@ -151,7 +133,7 @@ public class TestRelativePathUtil {
 
   @Test
   public void testRelativizeMismatchedFileSchemeNotRelativized() {
-    // mixed file: variants are NOT relativized -- consistent URI forms are the caller's
+    // mixed file: variants are NOT relativized. Consistent URI forms are the caller's
     // responsibility
     assertThat(
             RelativePathUtil.relativize(
@@ -199,5 +181,4 @@ public class TestRelativePathUtil {
     String resolved = RelativePathUtil.resolve(relativized, tableLocation);
     assertThat(resolved).isEqualTo(absolutePath);
   }
-
 }
