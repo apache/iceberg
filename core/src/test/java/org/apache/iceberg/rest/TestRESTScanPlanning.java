@@ -1284,6 +1284,160 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         .hasMessageContaining("must be positive");
   }
 
+  @Test
+  public void syncPlanningFailsWithServerError() {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    ErrorResponse serverError =
+        ErrorResponse.builder()
+            .withMessage("table too large to plan")
+            .withType("IllegalStateException")
+            .responseCode(500)
+            .build();
+
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
+                }
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      withPlanningMode(
+                          (LoadTableResponse) response,
+                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+                }
+                if (response instanceof PlanTableScanResponse) {
+                  return castResponse(
+                      responseType,
+                      PlanTableScanResponse.builder()
+                          .withPlanStatus(PlanStatus.FAILED)
+                          .withErrorResponse(serverError)
+                          .withSpecsById(((PlanTableScanResponse) response).specsById())
+                          .build());
+                }
+                return response;
+              }
+            });
+
+    adapter.setPlanningBehavior(TestPlanningBehavior.builder().synchronous().build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test-sync-failed",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+
+    RESTTable table = restTableFor(catalog, "sync_failed_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Remote scan planning failed")
+        .hasMessageContaining("IllegalStateException")
+        .hasMessageContaining("code=500")
+        .hasMessageContaining("table too large to plan");
+  }
+
+  @Test
+  public void asyncPlanningFailsWithServerError() {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    ErrorResponse serverError =
+        ErrorResponse.builder()
+            .withMessage("backend planner crashed")
+            .withType("RuntimeException")
+            .responseCode(500)
+            .build();
+
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
+                }
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      withPlanningMode(
+                          (LoadTableResponse) response,
+                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+                }
+                // Server-side planning returns FAILED only on the fetch call in async mode
+                if (response instanceof FetchPlanningResultResponse) {
+                  return castResponse(
+                      responseType,
+                      FetchPlanningResultResponse.builder()
+                          .withPlanStatus(PlanStatus.FAILED)
+                          .withErrorResponse(serverError)
+                          .build());
+                }
+                return response;
+              }
+            });
+
+    adapter.setPlanningBehavior(TestPlanningBehavior.builder().asynchronous().build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test-async-failed",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+
+    RESTTable table = restTableFor(catalog, "async_failed_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Remote scan planning failed")
+        .hasMessageContaining("RuntimeException")
+        .hasMessageContaining("code=500")
+        .hasMessageContaining("backend planner crashed");
+  }
+
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
   void fileIOForRemotePlanningIsPropagated(

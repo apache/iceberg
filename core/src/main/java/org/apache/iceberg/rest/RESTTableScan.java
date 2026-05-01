@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.TypeUtil;
@@ -218,9 +219,8 @@ class RESTTableScan extends DataTableScan {
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
         return fetchPlanningResult();
       case FAILED:
-      case CANCELLED:
         throw new IllegalStateException(
-            failureMessage(planStatus, planId, response.errorMessage()));
+            failureMessage(planStatus, planId, response.errorResponse()));
       default:
         throw new IllegalStateException(
             String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
@@ -292,7 +292,7 @@ class RESTTableScan extends DataTableScan {
                   case CANCELLED:
                   default:
                     throw new IllegalStateException(
-                        failureMessage(response.planStatus(), id, response.errorMessage()));
+                        failureMessage(response.planStatus(), id, response.errorResponse()));
                 }
               });
     } catch (NotCompleteException e) {
@@ -315,12 +315,19 @@ class RESTTableScan extends DataTableScan {
     return scanTasksIterable(response.planTasks(), response.fileScanTasks());
   }
 
-  private static String failureMessage(PlanStatus status, String planId, String errorMessage) {
-    if (errorMessage == null) {
-      return String.format("Received status: %s for planId: %s", status, planId);
+  private static String failureMessage(PlanStatus status, String planId, ErrorResponse error) {
+    if (error == null) {
+      return String.format(
+          Locale.ROOT, "Remote scan planning %s for planId: %s", status.status(), planId);
     }
     return String.format(
-        "Received status: %s for planId: %s. Server error: %s", status, planId, errorMessage);
+        Locale.ROOT,
+        "Remote scan planning %s for planId: %s: %s (code=%d): %s",
+        status.status(),
+        planId,
+        error.type(),
+        error.code(),
+        error.message());
   }
 
   private CloseableIterable<FileScanTask> scanTasksIterable(
