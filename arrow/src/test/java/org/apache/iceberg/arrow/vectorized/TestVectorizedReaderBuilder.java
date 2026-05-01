@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
@@ -43,24 +44,7 @@ public class TestVectorizedReaderBuilder {
             NestedField.required(1, "id", IntegerType.get()),
             NestedField.optional(2, "data", VariantType.get()));
 
-    MessageType parquetSchema =
-        Types.buildMessage()
-            .addField(
-                Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
-                    .id(1)
-                    .named("id"))
-            .addField(
-                Types.buildGroup(Type.Repetition.OPTIONAL)
-                    .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("metadata"))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("value"))
-                    .id(2)
-                    .named("data"))
-            .named("table");
+    MessageType parquetSchema = parquetSchemaWithVariant();
 
     VectorizedReaderBuilder builder =
         new VectorizedReaderBuilder(
@@ -70,5 +54,39 @@ public class TestVectorizedReaderBuilder {
             () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("Vectorized reads are not supported yet for variant fields");
+  }
+
+  @Test
+  public void testVariantSkippedWhenNotInProjection() {
+    Schema icebergSchema = new Schema(NestedField.required(1, "id", IntegerType.get()));
+
+    MessageType parquetSchema = parquetSchemaWithVariant();
+
+    VectorizedReaderBuilder builder =
+        new VectorizedReaderBuilder(
+            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null);
+
+    assertThatNoException()
+        .describedAs("Variant not in projection should not throw")
+        .isThrownBy(
+            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder));
+  }
+
+  private static MessageType parquetSchemaWithVariant() {
+    return Types.buildMessage()
+        .addField(
+            Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED).id(1).named("id"))
+        .addField(
+            Types.buildGroup(Type.Repetition.OPTIONAL)
+                .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+                .addField(
+                    Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
+                        .named("metadata"))
+                .addField(
+                    Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
+                        .named("value"))
+                .id(2)
+                .named("data"))
+        .named("table");
   }
 }
