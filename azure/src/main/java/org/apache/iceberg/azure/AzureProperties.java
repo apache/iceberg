@@ -52,6 +52,9 @@ public class AzureProperties implements Serializable {
   public static final String AZURE_KEYVAULT_KEY_WRAP_ALGORITHM =
       "azure.keyvault.key-wrap-algorithm";
 
+  // Must match KeyWrapAlgorithm.RSA_OAEP_256.getValue() from azure-security-keyvault-keys
+  private static final String DEFAULT_KEY_WRAP_ALGORITHM = "RSA-OAEP-256";
+
   /**
    * Configure the ADLS token credential provider used to get {@link TokenCredential}. A fully
    * qualified concrete class with package that implements the {@link AdlsTokenCredentialProvider}
@@ -134,7 +137,8 @@ public class AzureProperties implements Serializable {
     }
 
     this.keyWrapAlgorithm =
-        properties.getOrDefault(AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM, "RSA-OAEP-256");
+        properties.getOrDefault(
+            AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM, DEFAULT_KEY_WRAP_ALGORITHM);
   }
 
   public Optional<Integer> adlsReadBlockSize() {
