@@ -73,7 +73,7 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
         "Invalid response: tasks can only be returned in a 'completed' status");
     Preconditions.checkArgument(
         planStatus() == PlanStatus.FAILED || errorResponse() == null,
-        "Invalid response: error can only be defined when status is 'failed'");
+        "Invalid response: error can only be returned in a 'failed' status");
     if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),

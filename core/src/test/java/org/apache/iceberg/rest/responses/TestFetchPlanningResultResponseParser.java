@@ -376,8 +376,6 @@ public class TestFetchPlanningResultResponseParser {
 
   @Test
   public void parseFailedStatusWithPrimitiveErrorField() {
-    // Spec requires `error` to be an ErrorModel object. A primitive is non-compliant;
-    // parse leniently and skip the malformed field rather than failing the whole response.
     String json = "{\"status\":\"failed\",\"error\":\"oops\"}";
     FetchPlanningResultResponse response =
         FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
@@ -396,6 +394,6 @@ public class TestFetchPlanningResultResponseParser {
                     .withErrorResponse(errorResponse)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: error can only be defined when status is 'failed'");
+        .hasMessage("Invalid response: error can only be returned in a 'failed' status");
   }
 }

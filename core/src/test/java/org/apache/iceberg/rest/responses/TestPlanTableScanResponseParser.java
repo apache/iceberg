@@ -695,8 +695,6 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void parseFailedStatusWithPrimitiveErrorField() {
-    // Spec requires `error` to be an ErrorModel object. A primitive is non-compliant;
-    // parse leniently and skip the malformed field rather than failing the whole response.
     String json = "{\"status\":\"failed\",\"error\":\"oops\"}";
     PlanTableScanResponse response =
         PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
