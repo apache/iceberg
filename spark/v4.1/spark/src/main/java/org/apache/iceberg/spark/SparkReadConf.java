@@ -156,39 +156,54 @@ public class SparkReadConf {
   }
 
   public Long splitSizeOption() {
-    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.SPLIT_SIZE)
+        .parseOptional();
   }
 
   public long splitSize() {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
   }
 
   public Integer splitLookbackOption() {
-    return confParser.intConf().option(SparkReadOptions.LOOKBACK).parseOptional();
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.LOOKBACK)
+        .sessionConf(SparkSQLProperties.SPLIT_LOOKBACK)
+        .parseOptional();
   }
 
   public int splitLookback() {
     return confParser
         .intConf()
         .option(SparkReadOptions.LOOKBACK)
+        .sessionConf(SparkSQLProperties.SPLIT_LOOKBACK)
         .tableProperty(TableProperties.SPLIT_LOOKBACK)
         .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT)
         .parse();
   }
 
   public Long splitOpenFileCostOption() {
-    return confParser.longConf().option(SparkReadOptions.FILE_OPEN_COST).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.FILE_OPEN_COST)
+        .sessionConf(SparkSQLProperties.SPLIT_OPEN_FILE_COST)
+        .parseOptional();
   }
 
   public long splitOpenFileCost() {
     return confParser
         .longConf()
         .option(SparkReadOptions.FILE_OPEN_COST)
+        .sessionConf(SparkSQLProperties.SPLIT_OPEN_FILE_COST)
         .tableProperty(TableProperties.SPLIT_OPEN_FILE_COST)
         .defaultValue(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT)
         .parse();
@@ -279,6 +294,7 @@ public class SparkReadConf {
   public boolean adaptiveSplitSizeEnabled() {
     return confParser
         .booleanConf()
+        .sessionConf(SparkSQLProperties.ADAPTIVE_SPLIT_SIZE_ENABLED)
         .tableProperty(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED)
         .defaultValue(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT)
         .parse();

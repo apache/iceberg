@@ -114,4 +114,17 @@ public class SparkSQLProperties {
   public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
       "spark.sql.iceberg.async-micro-batch-planning-enabled";
   public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
+
+  // Target split size for scan planning
+  public static final String SPLIT_SIZE = "spark.sql.iceberg.split.target-size";
+
+  // Planning lookback for scan task bin packing
+  public static final String SPLIT_LOOKBACK = "spark.sql.iceberg.split.planning-lookback";
+
+  // File open cost used for scan planning
+  public static final String SPLIT_OPEN_FILE_COST = "spark.sql.iceberg.split.open-file-cost";
+
+  // Controls adaptive split sizing for scan planning
+  public static final String ADAPTIVE_SPLIT_SIZE_ENABLED =
+      "spark.sql.iceberg.split.adaptive-size.enabled";
 }

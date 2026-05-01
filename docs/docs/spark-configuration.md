@@ -206,6 +206,10 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds columns missing columns                                 |
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
 | spark.sql.iceberg.async-micro-batch-planning-enabled   | false                                                          | Enables asynchronous microbatch planning to reduce planning latency by pre-fetching file scan tasks                             |
+| spark.sql.iceberg.split.target-size                    | Table default (134217728, 128 MB)                              | Target split size for scan planning                                                                                            |
+| spark.sql.iceberg.split.planning-lookback              | Table default (10)                                             | Planning lookback for scan task bin packing                                                                                    |
+| spark.sql.iceberg.split.open-file-cost                 | Table default (4194304, 4 MB)                                  | File open cost used for scan planning                                                                                          |
+| spark.sql.iceberg.split.adaptive-size.enabled          | Table default (true)                                           | Enables adaptive split sizing for scan planning                                                                                |
 
 ### Read options
 
