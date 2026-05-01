@@ -33,7 +33,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-hive-metastore')
 
     compileOnly libs.flink20.avro
-    // for dropwizard histogram metrics implementation
+    // dropwizard histogram metrics (optional in Flink)
     compileOnly libs.flink20.metrics.dropwizard
     compileOnly libs.flink20.streaming.java
     compileOnly "${libs.flink20.streaming.java.get().module}:${libs.flink20.streaming.java.get().getVersion()}:tests"
@@ -169,7 +169,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    // for dropwizard histogram metrics implementation
+    // To support dropwizard histogram metrics (not shipped by Flink by default)
     implementation libs.flink20.metrics.dropwizard
 
     // for integration testing with the flink-runtime-jar

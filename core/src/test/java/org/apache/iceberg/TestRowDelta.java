@@ -2420,6 +2420,27 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testV2StagedPositionDeleteCannotCommitToV3() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Snapshot initial = commit(table, table.newAppend().appendFile(FILE_A), branch);
+
+    // Stage RowDelta at v2: position delete for FILE_A + add new data FILE_B.
+    RowDelta rowDelta = table.newRowDelta().addDeletes(FILE_A_DELETES).addRows(FILE_B);
+
+    // upgrade the table
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    assertThatThrownBy(rowDelta::commit)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must use DVs for position deletes in V3");
+
+    table.refresh();
+    assertThat(table.operations().current().formatVersion()).isEqualTo(3);
+    assertThat(table.snapshot(branch)).isEqualTo(initial);
+  }
+
+  @TestTemplate
   public void testInabilityToAddPositionDeleteFilesInTablesWithDVs() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     DeleteFile deleteFile = newDeleteFile(table.spec().specId(), "data_bucket=0");

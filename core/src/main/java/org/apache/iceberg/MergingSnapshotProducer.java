@@ -289,7 +289,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   protected void validateNewDeleteFile(DeleteFile file) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    switch (formatVersion()) {
+    validateDeleteFileForVersion(file, formatVersion());
+  }
+
+  private static void validateDeleteFileForVersion(DeleteFile file, int formatVersion) {
+    switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Deletes are supported in V2 and above");
       case 2:
@@ -303,11 +307,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         Preconditions.checkArgument(
             file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
             "Must use DVs for position deletes in V%s: %s",
-            formatVersion(),
+            formatVersion,
             file.location());
         break;
       default:
-        throw new IllegalArgumentException("Unsupported format version: " + formatVersion());
+        throw new IllegalArgumentException("Unsupported format version: " + formatVersion);
     }
   }
 
@@ -959,8 +963,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return summaryBuilder.build();
   }
 
+  // guard buffered deletes against concurrent format upgrade
+  private void validateDeleteFilesForVersion(int currentFormatVersion) {
+    for (DeleteFile file : v2Deletes) {
+      validateDeleteFileForVersion(file, currentFormatVersion);
+    }
+  }
+
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
+    validateDeleteFilesForVersion(base.formatVersion());
     // filter any existing manifests
     List<ManifestFile> filtered =
         filterManager.filterManifests(

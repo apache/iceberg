@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import org.apache.iceberg.types.Types;
@@ -28,12 +29,13 @@ class TestDeletionVectorStruct {
 
   @Test
   void testFieldAccess() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     assertThat(dv.location()).isEqualTo("s3://bucket/data/dv.puffin");
     assertThat(dv.offset()).isEqualTo(256L);
@@ -43,12 +45,13 @@ class TestDeletionVectorStruct {
 
   @Test
   void testCopy() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     DeletionVectorStruct copy = dv.copy();
 
@@ -86,11 +89,13 @@ class TestDeletionVectorStruct {
 
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     DeletionVectorStruct deserialized = TestHelpers.roundTripSerialize(dv);
 
@@ -101,12 +106,52 @@ class TestDeletionVectorStruct {
   }
 
   @Test
+  void testBuilderValidation() {
+    assertThatThrownBy(
+            () -> DeletionVectorStruct.builder().offset(0).sizeInBytes(1).cardinality(1).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid location: null");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .sizeInBytes(1)
+                    .cardinality(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid offset: -1 (must be >= 0)");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .cardinality(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid size in bytes: -1 (must be >= 0)");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .sizeInBytes(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid cardinality: -1 (must be >= 0)");
+  }
+
+  @Test
   void testKryoSerializationRoundTrip() throws IOException {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-    dv.set(0, "s3://bucket/data/dv.puffin");
-    dv.set(1, 256L);
-    dv.set(2, 128L);
-    dv.set(3, 42L);
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
 
     DeletionVectorStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(dv);
 

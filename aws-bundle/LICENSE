@@ -217,9 +217,41 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Parquet.
+This product bundles Apache Parquet (bundled by AWS Analytics Accelerator S3).
 
-Project URL: https://parquet.apache.org
+Copyright: 2014-2024 The Apache Software Foundation
+Project URL: https://parquet.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache Thrift (bundled by Parquet).
+
+Copyright: 2006-2017 The Apache Software Foundation.
+Project URL: https://thrift.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Daniel Lemire's JavaFastPFOR project (bundled by Parquet).
+
+Copyright: 2013 Daniel Lemire
+Project URL: https://github.com/lemire/JavaFastPFOR
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles fastutil (bundled by Parquet).
+
+Copyright: 2002-2014 Sebastiano Vigna
+Project URL: http://fastutil.di.unimi.it/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Zero-Allocation Hashing (bundled by Parquet).
+
+Project URL: https://github.com/OpenHFT/Zero-Allocation-Hashing
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -295,7 +327,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles failsafe.
+This product bundles failsafe (bundled by AWS Analytics Accelerator S3).
 
 Copyright: Jonathan Halterman and friends
 Project URL: https://failsafe.dev/
