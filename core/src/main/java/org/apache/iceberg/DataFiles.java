@@ -321,7 +321,7 @@ public class DataFiles {
       return this;
     }
 
-    public Builder withSortOrderId(int newSortOrderId) {
+    public Builder withSortOrderId(Integer newSortOrderId) {
       this.sortOrderId = newSortOrderId;
       return this;
     }
