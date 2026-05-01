@@ -27,7 +27,9 @@ import java.util.List;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.PartitionUtil;
@@ -36,6 +38,10 @@ import org.apache.iceberg.util.StructProjection;
 
 /** A {@link Table} implementation that exposes a table's partitions as rows. */
 public class PartitionsTable extends BaseMetadataTable {
+
+  // partition dependent field id
+  private static final int PARTITION_COLUMN_ID = 1;
+  private static final int SPEC_ID_COLUMN_ID = 4;
 
   private final Schema schema;
 
@@ -50,8 +56,9 @@ public class PartitionsTable extends BaseMetadataTable {
 
     this.schema =
         new Schema(
-            Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
-            Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                PARTITION_COLUMN_ID, "partition", Partitioning.partitionType(table)),
+            Types.NestedField.required(SPEC_ID_COLUMN_ID, "spec_id", Types.IntegerType.get()),
             Types.NestedField.required(
                 2, "record_count", Types.LongType.get(), "Count of records in data files"),
             Types.NestedField.required(
@@ -102,16 +109,7 @@ public class PartitionsTable extends BaseMetadataTable {
   @Override
   public Schema schema() {
     if (unpartitionedTable) {
-      return schema.select(
-          "record_count",
-          "file_count",
-          "total_data_file_size_in_bytes",
-          "position_delete_record_count",
-          "position_delete_file_count",
-          "equality_delete_record_count",
-          "equality_delete_file_count",
-          "last_updated_at",
-          "last_updated_snapshot_id");
+      return TypeUtil.selectNot(schema, ImmutableSet.of(PARTITION_COLUMN_ID, SPEC_ID_COLUMN_ID));
     }
     return schema;
   }
