@@ -60,17 +60,7 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
         });
   }
 
-  @Disabled
-  @Override
-  public void testTimestampNanoWithoutZone() {
-    // Flink does not support nanosecond timestamp without zone.
-  }
 
-  @Disabled
-  @Override
-  public void testTimestampNanoWithZone() {
-    // Flink does not support nanosecond timestamp with zone.
-  }
 
   @Override
   protected void generateAndValidate(
