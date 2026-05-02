@@ -39,15 +39,18 @@ import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.connector.read.SupportsReportOrdering;
 import org.apache.spark.sql.execution.SortExec;
 import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestSupportsReportOrdering extends TestBaseWithCatalog {
+class TestSupportsReportOrdering extends TestBaseWithCatalog {
 
   private static final Map<String, String> ENABLED_ORDERING_SQL_CONF = orderingConfig(true);
   private static final Map<String, String> DISABLED_ORDERING_SQL_CONF = orderingConfig(false);
@@ -65,19 +68,19 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @BeforeEach
-  public void useCatalog() {
+  void useCatalog() {
     sql("USE %s", catalogName);
   }
 
   @AfterEach
-  public void removeTables() {
+  void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", tableName("table_source"));
     spark.conf().unset(SparkSQLProperties.PRESERVE_DATA_ORDERING);
   }
 
   @TestTemplate
-  public void testMergingMultipleSortedFiles() throws NoSuchTableException {
+  void testMergingMultipleSortedFiles() throws NoSuchTableException {
     Table table = createSimpleTable(tableName);
     setSortOrder(table, "id");
 
@@ -109,7 +112,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMergingWithDuplicateSortKeyValues() throws NoSuchTableException {
+  void testMergingWithDuplicateSortKeyValues() throws NoSuchTableException {
     Table table = createSimpleTable(tableName);
     setSortOrder(table, "id");
 
@@ -135,7 +138,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMergingWithNullsInSortKeyColumn() throws NoSuchTableException {
+  void testMergingWithNullsInSortKeyColumn() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -164,7 +167,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMergingWithNullsInDescendingSortKeyColumn() throws NoSuchTableException {
+  void testMergingWithNullsInDescendingSortKeyColumn() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -193,7 +196,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testDescendingSortOrder() throws NoSuchTableException {
+  void testDescendingSortOrder() throws NoSuchTableException {
     Table table = createSimpleTable(tableName);
     table.replaceSortOrder().desc("id").commit();
 
@@ -213,7 +216,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMultiColumnSortOrder() throws NoSuchTableException {
+  void testMultiColumnSortOrder() throws NoSuchTableException {
     Table table = createThreeColumnTable(tableName);
     setSortOrder(table, "c3", "c1");
 
@@ -242,7 +245,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testSingleFileDoesNotRequireMerging() throws NoSuchTableException {
+  void testSingleFileDoesNotRequireMerging() throws NoSuchTableException {
     Table table = createSimpleTable(tableName);
     setSortOrder(table, "id");
 
@@ -258,7 +261,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testPartitionedTableWithMultipleFilesPerPartition() throws NoSuchTableException {
+  void testPartitionedTableWithMultipleFilesPerPartition() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -296,7 +299,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testOrderingNotReportedWhenDisabled() throws NoSuchTableException {
+  void testOrderingNotReportedWhenDisabled() throws NoSuchTableException {
     Table table = createSimpleTable(tableName);
     setSortOrder(table, "id");
 
@@ -312,7 +315,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testOrderingNotReportedWhenGroupingDisabled() throws NoSuchTableException {
+  void testOrderingNotReportedWhenGroupingDisabled() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -348,7 +351,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testOrderingNotReportedForUnsortedTable() throws NoSuchTableException {
+  void testOrderingNotReportedForUnsortedTable() throws NoSuchTableException {
     createSimpleTable(tableName);
 
     List<SimpleRecord> batch = ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
@@ -363,7 +366,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testNoMergeReaderForUnpartitionedSortedTable() throws NoSuchTableException {
+  void testNoMergeReaderForUnpartitionedSortedTable() throws NoSuchTableException {
     Table table = createSimpleTable(tableName); // unpartitioned
     setSortOrder(table, "id");
 
@@ -388,7 +391,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testSortRequiredWhenOrderingNotReported() throws NoSuchTableException {
+  void testSortRequiredWhenOrderingNotReported() throws NoSuchTableException {
     Table table = createSimpleTable(tableName);
     setSortOrder(table, "id");
 
@@ -409,7 +412,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testSortMergeJoinWithSortedTables() throws NoSuchTableException {
+  void testSortMergeJoinWithSortedTables() throws NoSuchTableException {
     createBucketedTable(tableName, "c1");
     createBucketedTable(tableName("table_source"), "c1");
 
@@ -435,7 +438,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMergeWithSortedBucketedTables() throws NoSuchTableException {
+  void testMergeWithSortedBucketedTables() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -491,7 +494,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testHistoricalSortOrderInJoin() throws NoSuchTableException {
+  void testHistoricalSortOrderInJoin() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -531,7 +534,15 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
     table2.replaceSortOrder().asc("c2").asc("c1").commit();
 
     // Both tables have files with historical sort order [c1 ASC]
-    // but current table sort order is [c2 ASC, c1 ASC]
+    // but current table sort order is [c2 ASC, c1 ASC].
+    // Verify neither scan reports ordering — SortOrderAnalyzer must decline due to mismatched IDs.
+    TableIdentifier table2Ident2 = TableIdentifier.of(Namespace.of("default"), "table_source");
+    withSQLConf(
+        ENABLED_ORDERING_SQL_CONF,
+        () -> {
+          assertScanReportsNoOrdering(tableIdent);
+          assertScanReportsNoOrdering(table2Ident2);
+        });
     assertPlanWithoutSort(
         2,
         2,
@@ -542,7 +553,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMixedSortOrdersNoReporting() throws NoSuchTableException {
+  void testMixedSortOrdersNoReporting() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -599,7 +610,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testSPJWithDifferentPartitionAndSortKeys() throws NoSuchTableException {
+  void testSPJWithDifferentPartitionAndSortKeys() throws NoSuchTableException {
     createBucketedTable(tableName, "c3", "c1");
     createBucketedTable(tableName("table_source"), "c3", "c1");
 
@@ -635,7 +646,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testHistoricalSortOrderInMerge() throws NoSuchTableException {
+  void testHistoricalSortOrderInMerge() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -683,7 +694,14 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
     validationCatalog.loadTable(tableIdent).refresh();
     validationCatalog.loadTable(sourceTableIdent).refresh();
 
-    // Files have historical sort order [c1 ASC] but tables have [c2 ASC, c1 ASC]
+    // Files have historical sort order [c1 ASC] but tables have [c2 ASC, c1 ASC].
+    // Verify neither scan reports ordering — SortOrderAnalyzer must decline due to mismatched IDs.
+    withSQLConf(
+        ENABLED_ORDERING_SQL_CONF,
+        () -> {
+          assertScanReportsNoOrdering(tableIdent);
+          assertScanReportsNoOrdering(sourceTableIdent);
+        });
     assertPlanWithoutSort(
         3,
         3,
@@ -696,7 +714,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testProjectionPushdownSortKeyNotProjected() throws NoSuchTableException {
+  void testProjectionPushdownSortKeyNotProjected() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -722,7 +740,7 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMergeOnReadWithDeleteFiles() throws NoSuchTableException {
+  void testMergeOnReadWithDeleteFiles() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -787,6 +805,15 @@ public class TestSupportsReportOrdering extends TestBaseWithCatalog {
             + "WHEN NOT MATCHED THEN INSERT *",
         tableName,
         sourceTableName);
+  }
+
+  private void assertScanReportsNoOrdering(TableIdentifier ident) {
+    Table table = validationCatalog.loadTable(ident);
+    SparkTable sparkTable = SparkTable.create(table, (String) null);
+    Scan scan = sparkTable.newScanBuilder(CaseInsensitiveStringMap.empty()).build();
+    assertThat(((SupportsReportOrdering) scan).outputOrdering())
+        .as("Scan must not report ordering when files have a historical sort order")
+        .isEmpty();
   }
 
   private Table createSimpleTable(String name) {
