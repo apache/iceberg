@@ -253,13 +253,15 @@ class RESTTableOperations implements TableOperations {
       boolean encryptionKeyRemoved =
           base.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY)
               && !metadata.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY);
-      Preconditions.checkArgument(!encryptionKeyRemoved, "Cannot remove key in encrypted table");
+      Preconditions.checkArgument(
+          !encryptionKeyRemoved, "Cannot remove key ID from an encrypted table");
 
       boolean encryptionKeyUnchanged =
           Objects.equals(
               base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
               metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY));
-      Preconditions.checkArgument(encryptionKeyUnchanged, "Cannot modify key in encrypted table");
+      Preconditions.checkArgument(
+          encryptionKeyUnchanged, "Cannot modify key ID of an encrypted table");
     }
 
     UpdateTableRequest request = new UpdateTableRequest(requirements, updates);

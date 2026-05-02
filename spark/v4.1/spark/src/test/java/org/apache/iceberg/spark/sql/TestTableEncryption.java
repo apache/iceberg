@@ -266,14 +266,14 @@ public class TestTableEncryption extends CatalogTestBase {
   public void testKeyDelete() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
-        .hasMessageContaining("Cannot remove key in encrypted table");
+        .hasMessageContaining("Cannot remove key ID from an encrypted table");
   }
 
   @TestTemplate
   public void testKeyAlter() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
-        .hasMessageContaining("Cannot modify key in encrypted table");
+        .hasMessageContaining("Cannot modify key ID of an encrypted table");
   }
 
   @TestTemplate
