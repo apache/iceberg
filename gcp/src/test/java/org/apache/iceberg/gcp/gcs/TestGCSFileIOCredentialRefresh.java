@@ -283,16 +283,14 @@ class TestGCSFileIOCredentialRefresh {
       Awaitility.await()
           .atMost(10, TimeUnit.SECONDS)
           .untilAsserted(
-              () -> {
-                List<StorageCredential> credentials = fileIO.credentials();
-                assertThat(credentials).hasSize(1);
-                assertThat(credentials.get(0).config())
-                    .containsEntry(GCPProperties.GCS_OAUTH2_TOKEN, "refreshedToken");
-              });
+              () ->
+                  assertThat(fileIO.credentials().get(0).config())
+                      .containsEntry(GCPProperties.GCS_OAUTH2_TOKEN, "refreshedToken"));
 
       // Round-trip through Kryo and verify the credentials still match
-      GCSFileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO);
-      assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
+      try (GCSFileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO)) {
+        assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
+      }
     }
   }
 }

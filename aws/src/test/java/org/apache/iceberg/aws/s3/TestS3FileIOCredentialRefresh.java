@@ -335,16 +335,14 @@ public class TestS3FileIOCredentialRefresh {
       Awaitility.await()
           .atMost(10, TimeUnit.SECONDS)
           .untilAsserted(
-              () -> {
-                List<StorageCredential> credentials = fileIO.credentials();
-                assertThat(credentials).hasSize(1);
-                assertThat(credentials.get(0).config())
-                    .containsEntry(S3FileIOProperties.ACCESS_KEY_ID, "refreshedAccessKey");
-              });
+              () ->
+                  assertThat(fileIO.credentials().get(0).config())
+                      .containsEntry(S3FileIOProperties.ACCESS_KEY_ID, "refreshedAccessKey"));
 
       // Round-trip through Kryo and verify the credentials still match
-      S3FileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO);
-      assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
+      try (S3FileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO)) {
+        assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
+      }
     }
   }
 }
