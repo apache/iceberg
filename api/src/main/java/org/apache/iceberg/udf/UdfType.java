@@ -18,87 +18,52 @@
  */
 package org.apache.iceberg.udf;
 
-import java.util.Map;
-import java.util.Objects;
-
 /**
  * Represents a UDF data type as defined in the UDF spec. UDF types are based on Iceberg types but
- * intentionally omit field IDs and element nullability. Primitive and semi-structured types (e.g.,
- * "int", "string", "decimal(9,2)", "variant") are represented as type strings. Nested types
- * (struct, list, map) are represented as structured JSON objects.
+ * intentionally omit field IDs and element nullability. Implementations include {@link
+ * UdfPrimitiveType} for primitive and semi-structured types, and the nested types {@link
+ * UdfListType}, {@link UdfMapType}, and {@link UdfStructType}.
  */
-public class UdfType {
-  private final String primitiveType;
-  private final Map<String, Object> nestedType;
+public interface UdfType {
 
-  private UdfType(String primitiveType, Map<String, Object> nestedType) {
-    this.primitiveType = primitiveType;
-    this.nestedType = nestedType;
+  enum TypeId {
+    PRIMITIVE,
+    LIST,
+    MAP,
+    STRUCT
   }
 
-  /** Creates a UdfType for a primitive or semi-structured type (e.g., "int", "decimal(9,2)"). */
-  public static UdfType primitive(String type) {
-    if (type == null) {
-      throw new IllegalArgumentException("Primitive type string must not be null");
-    }
+  TypeId typeId();
 
-    return new UdfType(type, null);
+  default boolean isPrimitive() {
+    return typeId() == TypeId.PRIMITIVE;
   }
 
-  /** Creates a UdfType for a nested type (struct, list, or map). */
-  public static UdfType nested(Map<String, Object> type) {
-    if (type == null) {
-      throw new IllegalArgumentException("Nested type map must not be null");
-    }
-
-    return new UdfType(null, type);
+  default boolean isListType() {
+    return typeId() == TypeId.LIST;
   }
 
-  /** Returns true if this is a primitive or semi-structured type. */
-  public boolean isPrimitive() {
-    return primitiveType != null;
+  default boolean isMapType() {
+    return typeId() == TypeId.MAP;
   }
 
-  /** Returns the primitive type string, or throws if this is a nested type. */
-  public String asPrimitive() {
-    if (primitiveType == null) {
-      throw new IllegalStateException("Not a primitive type: " + nestedType);
-    }
-
-    return primitiveType;
+  default boolean isStructType() {
+    return typeId() == TypeId.STRUCT;
   }
 
-  /** Returns the nested type structure, or throws if this is a primitive type. */
-  public Map<String, Object> asNested() {
-    if (nestedType == null) {
-      throw new IllegalStateException("Not a nested type: " + primitiveType);
-    }
-
-    return nestedType;
+  default UdfPrimitiveType asPrimitive() {
+    throw new IllegalArgumentException("Not a primitive type: " + this);
   }
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (!(o instanceof UdfType)) {
-      return false;
-    }
-
-    UdfType that = (UdfType) o;
-    return Objects.equals(primitiveType, that.primitiveType)
-        && Objects.equals(nestedType, that.nestedType);
+  default UdfListType asListType() {
+    throw new IllegalArgumentException("Not a list type: " + this);
   }
 
-  @Override
-  public int hashCode() {
-    return Objects.hash(primitiveType, nestedType);
+  default UdfMapType asMapType() {
+    throw new IllegalArgumentException("Not a map type: " + this);
   }
 
-  @Override
-  public String toString() {
-    return isPrimitive() ? primitiveType : nestedType.toString();
+  default UdfStructType asStructType() {
+    throw new IllegalArgumentException("Not a struct type: " + this);
   }
 }

@@ -23,10 +23,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-public class TestUdfRepresentationParser {
+class TestUdfRepresentationParser {
 
   @Test
-  public void testParseUnknownRepresentation() {
+  void parseUnknownRepresentation() {
     String json = "{\"type\":\"python\"}";
     UdfRepresentation unknownRepresentation = UdfRepresentationParser.fromJson(json);
     assertThat(unknownRepresentation)
@@ -38,14 +38,14 @@ public class TestUdfRepresentationParser {
   }
 
   @Test
-  public void testNullRepresentation() {
+  void nullRepresentation() {
     assertThatThrownBy(() -> UdfRepresentationParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid UDF representation: null");
   }
 
   @Test
-  public void testMissingType() {
+  void missingType() {
     assertThatThrownBy(() -> UdfRepresentationParser.fromJson("{\"sql\":\"x + 1\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: type");

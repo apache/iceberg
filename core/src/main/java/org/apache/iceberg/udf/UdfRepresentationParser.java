@@ -32,7 +32,7 @@ class UdfRepresentationParser {
 
   static void toJson(UdfRepresentation representation, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(representation != null, "Invalid UDF representation: null");
-    switch (representation.type().toLowerCase(Locale.ENGLISH)) {
+    switch (representation.type().toLowerCase(Locale.ROOT)) {
       case UdfRepresentation.Type.SQL:
         SQLUdfRepresentationParser.toJson((SQLUdfRepresentation) representation, generator);
         break;
@@ -44,8 +44,8 @@ class UdfRepresentationParser {
     }
   }
 
-  static String toJson(UdfRepresentation entry) {
-    return JsonUtil.generate(gen -> toJson(entry, gen), false);
+  static String toJson(UdfRepresentation representation) {
+    return JsonUtil.generate(gen -> toJson(representation, gen), false);
   }
 
   static UdfRepresentation fromJson(String json) {
@@ -56,7 +56,7 @@ class UdfRepresentationParser {
     Preconditions.checkArgument(node != null, "Cannot parse UDF representation from null object");
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse UDF representation from non-object: %s", node);
-    String type = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ENGLISH);
+    String type = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ROOT);
     switch (type) {
       case UdfRepresentation.Type.SQL:
         return SQLUdfRepresentationParser.fromJson(node);

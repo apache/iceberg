@@ -18,14 +18,21 @@
  */
 package org.apache.iceberg.udf;
 
-/** A representation of a UDF implementation. */
+/**
+ * Describes how a UDF's logic is expressed, for example as a SQL body with a specific dialect. A
+ * UDF definition version may carry one or more representations so that engines can pick a form they
+ * understand.
+ */
 public interface UdfRepresentation {
 
+  /** Standard representation type names used in UDF metadata. */
   class Type {
     private Type() {}
 
+    /** A SQL body representation, see {@link SQLUdfRepresentation}. */
     public static final String SQL = "sql";
   }
 
+  /** Returns the representation type, e.g., {@link Type#SQL}. */
   String type();
 }

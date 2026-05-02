@@ -22,84 +22,84 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
-public class TestUdfTypeUtil {
+class TestUdfTypeUtil {
 
   @Test
-  public void testReadPrimitiveType() {
+  void readPrimitiveType() {
     JsonNode node = JsonUtil.mapper().valueToTree("int");
     UdfType type = UdfTypeUtil.readType(node);
-    assertThat(type.isPrimitive()).isTrue();
-    assertThat(type.asPrimitive()).isEqualTo("int");
+    assertThat(type).isEqualTo(UdfPrimitiveType.of("int"));
   }
 
   @Test
-  public void testReadDecimalType() {
+  void readDecimalType() {
     JsonNode node = JsonUtil.mapper().valueToTree("decimal(9,2)");
     UdfType type = UdfTypeUtil.readType(node);
-    assertThat(type.isPrimitive()).isTrue();
-    assertThat(type.asPrimitive()).isEqualTo("decimal(9,2)");
+    assertThat(type).isEqualTo(UdfPrimitiveType.of("decimal(9,2)"));
   }
 
   @Test
-  public void testReadVariantType() {
+  void readVariantType() {
     JsonNode node = JsonUtil.mapper().valueToTree("variant");
     UdfType type = UdfTypeUtil.readType(node);
-    assertThat(type.isPrimitive()).isTrue();
-    assertThat(type.asPrimitive()).isEqualTo("variant");
+    assertThat(type).isEqualTo(UdfPrimitiveType.of("variant"));
   }
 
   @Test
-  public void testReadListType() {
-    Map<String, Object> listType = ImmutableMap.of("type", "list", "element", "string");
-    JsonNode node = JsonUtil.mapper().valueToTree(listType);
+  void readListType() {
+    JsonNode node = JsonUtil.parse("{\"type\":\"list\",\"element\":\"string\"}", n -> n);
     UdfType type = UdfTypeUtil.readType(node);
-    assertThat(type.isPrimitive()).isFalse();
-
-    Map<String, Object> typeMap = type.asNested();
-    assertThat(typeMap).containsEntry("type", "list");
-    assertThat(typeMap).containsEntry("element", "string");
+    assertThat(type).isEqualTo(UdfListType.of(UdfPrimitiveType.of("string")));
   }
 
   @Test
-  public void testReadMapType() {
-    Map<String, Object> mapType = ImmutableMap.of("type", "map", "key", "string", "value", "int");
-    JsonNode node = JsonUtil.mapper().valueToTree(mapType);
+  void readMapType() {
+    JsonNode node =
+        JsonUtil.parse("{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}", n -> n);
     UdfType type = UdfTypeUtil.readType(node);
-    assertThat(type.isPrimitive()).isFalse();
-
-    Map<String, Object> typeMap = type.asNested();
-    assertThat(typeMap).containsEntry("type", "map");
-    assertThat(typeMap).containsEntry("key", "string");
-    assertThat(typeMap).containsEntry("value", "int");
+    assertThat(type)
+        .isEqualTo(UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int")));
   }
 
   @Test
-  public void testReadStructType() {
+  void readStructType() {
     String structJson =
-        "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"}]}";
+        "{\"type\":\"struct\",\"fields\":["
+            + "{\"name\":\"id\",\"type\":\"int\"},"
+            + "{\"name\":\"name\",\"type\":\"string\"}]}";
     JsonNode node = JsonUtil.parse(structJson, n -> n);
-    UdfType type = UdfTypeUtil.readType(node);
-    assertThat(type.isPrimitive()).isFalse();
+    UdfType expected =
+        UdfStructType.of(
+            UdfFieldType.of("id", UdfPrimitiveType.of("int")),
+            UdfFieldType.of("name", UdfPrimitiveType.of("string")));
 
-    Map<String, Object> typeMap = type.asNested();
-    assertThat(typeMap).containsEntry("type", "struct");
-    assertThat(typeMap).containsKey("fields");
+    assertThat(UdfTypeUtil.readType(node)).isEqualTo(expected);
   }
 
   @Test
-  public void testReadNullNode() {
+  void readNestedListOfMap() {
+    String json =
+        "{\"type\":\"list\",\"element\":"
+            + "{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}}";
+    JsonNode node = JsonUtil.parse(json, n -> n);
+    UdfType expected =
+        UdfListType.of(UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int")));
+
+    assertThat(UdfTypeUtil.readType(node)).isEqualTo(expected);
+  }
+
+  @Test
+  void readNullNode() {
     assertThatThrownBy(() -> UdfTypeUtil.readType(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read type from null node");
   }
 
   @Test
-  public void testReadArrayNode() {
+  void readArrayNode() {
     JsonNode node = JsonUtil.mapper().valueToTree(new int[] {1, 2, 3});
     assertThatThrownBy(() -> UdfTypeUtil.readType(node))
         .isInstanceOf(IllegalArgumentException.class)
@@ -107,12 +107,20 @@ public class TestUdfTypeUtil {
   }
 
   @Test
-  public void testWritePrimitiveType() {
+  void readUnknownNestedType() {
+    JsonNode node = JsonUtil.parse("{\"type\":\"set\"}", n -> n);
+    assertThatThrownBy(() -> UdfTypeUtil.readType(node))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot parse UDF type from object with type: set");
+  }
+
+  @Test
+  void writePrimitiveType() {
     String json =
         JsonUtil.generate(
             gen -> {
               gen.writeStartObject();
-              UdfTypeUtil.writeType("return-type", UdfType.primitive("int"), gen);
+              UdfTypeUtil.writeType("return-type", UdfPrimitiveType.of("int"), gen);
               gen.writeEndObject();
             },
             false);
@@ -121,24 +129,60 @@ public class TestUdfTypeUtil {
   }
 
   @Test
-  public void testWriteNestedType() {
-    Map<String, Object> listType = ImmutableMap.of("type", "list", "element", "string");
+  void writeListType() {
+    UdfType listType = UdfListType.of(UdfPrimitiveType.of("string"));
     String json =
         JsonUtil.generate(
             gen -> {
               gen.writeStartObject();
-              UdfTypeUtil.writeType("return-type", UdfType.nested(listType), gen);
+              UdfTypeUtil.writeType("return-type", listType, gen);
               gen.writeEndObject();
             },
             false);
 
-    assertThat(json).contains("\"return-type\"");
-    assertThat(json).contains("\"type\":\"list\"");
-    assertThat(json).contains("\"element\":\"string\"");
+    assertThat(json).isEqualTo("{\"return-type\":{\"type\":\"list\",\"element\":\"string\"}}");
   }
 
   @Test
-  public void testWriteNullType() {
+  void writeMapType() {
+    UdfType mapType = UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int"));
+    String json =
+        JsonUtil.generate(
+            gen -> {
+              gen.writeStartObject();
+              UdfTypeUtil.writeType("return-type", mapType, gen);
+              gen.writeEndObject();
+            },
+            false);
+
+    assertThat(json)
+        .isEqualTo("{\"return-type\":{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}}");
+  }
+
+  @Test
+  void writeStructType() {
+    UdfType structType =
+        UdfStructType.of(
+            UdfFieldType.of("id", UdfPrimitiveType.of("int")),
+            UdfFieldType.of("name", UdfPrimitiveType.of("string")));
+    String json =
+        JsonUtil.generate(
+            gen -> {
+              gen.writeStartObject();
+              UdfTypeUtil.writeType("return-type", structType, gen);
+              gen.writeEndObject();
+            },
+            false);
+
+    assertThat(json)
+        .isEqualTo(
+            "{\"return-type\":{\"type\":\"struct\",\"fields\":["
+                + "{\"name\":\"id\",\"type\":\"int\"},"
+                + "{\"name\":\"name\",\"type\":\"string\"}]}}");
+  }
+
+  @Test
+  void writeNullType() {
     assertThatThrownBy(
             () ->
                 JsonUtil.generate(
@@ -153,32 +197,25 @@ public class TestUdfTypeUtil {
   }
 
   @Test
-  public void testWriteTypeValue() {
+  void roundTripStructWithListAndMap() {
+    UdfType structType =
+        UdfStructType.of(
+            UdfFieldType.of("id", UdfPrimitiveType.of("int")),
+            UdfFieldType.of("tags", UdfListType.of(UdfPrimitiveType.of("string"))),
+            UdfFieldType.of(
+                "props", UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int"))));
+
     String json =
         JsonUtil.generate(
             gen -> {
-              gen.writeStartArray();
-              UdfTypeUtil.writeTypeValue(UdfType.primitive("int"), gen);
-              gen.writeEndArray();
+              gen.writeStartObject();
+              UdfTypeUtil.writeType("type", structType, gen);
+              gen.writeEndObject();
             },
             false);
 
-    assertThat(json).isEqualTo("[\"int\"]");
-  }
-
-  @Test
-  public void testWriteNestedTypeValue() {
-    Map<String, Object> listType = ImmutableMap.of("type", "list", "element", "string");
-    String json =
-        JsonUtil.generate(
-            gen -> {
-              gen.writeStartArray();
-              UdfTypeUtil.writeTypeValue(UdfType.nested(listType), gen);
-              gen.writeEndArray();
-            },
-            false);
-
-    assertThat(json).contains("\"type\":\"list\"");
-    assertThat(json).contains("\"element\":\"string\"");
+    JsonNode node = JsonUtil.parse(json, n -> n);
+    UdfType deserialized = UdfTypeUtil.readType(node.get("type"));
+    assertThat(deserialized).isEqualTo(structType);
   }
 }

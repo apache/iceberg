@@ -29,7 +29,7 @@ public interface UdfParameter {
   /** The parameter data type. */
   UdfType type();
 
-  /** Optional documentation string. */
+  /** A documentation string for the parameter. */
   @Nullable
   String doc();
 }

@@ -24,10 +24,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
-public class TestSQLUdfRepresentationParser {
+class TestSQLUdfRepresentationParser {
 
   @Test
-  public void testParseSqlUdfRepresentation() {
+  void parseSqlUdfRepresentation() {
     String json = "{\"type\":\"sql\", \"sql\": \"x + 1\", \"dialect\": \"spark\"}";
     SQLUdfRepresentation representation =
         ImmutableSQLUdfRepresentation.builder().sql("x + 1").dialect("spark").build();
@@ -38,7 +38,7 @@ public class TestSQLUdfRepresentationParser {
   }
 
   @Test
-  public void testParseMissingRequiredFields() {
+  void parseMissingRequiredFields() {
     String missingDialect = "{\"type\":\"sql\", \"sql\": \"x + 1\"}";
     assertThatThrownBy(() -> UdfRepresentationParser.fromJson(missingDialect))
         .isInstanceOf(IllegalArgumentException.class)
@@ -56,7 +56,7 @@ public class TestSQLUdfRepresentationParser {
   }
 
   @Test
-  public void testRoundTripSerialization() {
+  void roundTripSerialization() {
     String expectedJson = "{\"type\":\"sql\",\"sql\":\"x + 1\",\"dialect\":\"spark\"}";
     SQLUdfRepresentation representation =
         ImmutableSQLUdfRepresentation.builder().sql("x + 1").dialect("spark").build();
@@ -70,7 +70,7 @@ public class TestSQLUdfRepresentationParser {
   }
 
   @Test
-  public void testRoundTripWithTrinoDialect() {
+  void roundTripWithTrinoDialect() {
     SQLUdfRepresentation representation =
         ImmutableSQLUdfRepresentation.builder().sql("x + 1.0").dialect("trino").build();
 
@@ -85,7 +85,7 @@ public class TestSQLUdfRepresentationParser {
   }
 
   @Test
-  public void testNullSqlUdfRepresentation() {
+  void nullSqlUdfRepresentation() {
     assertThatThrownBy(() -> SQLUdfRepresentationParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid SQL UDF representation: null");
