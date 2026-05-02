@@ -1311,6 +1311,27 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         .hasMessageContaining(serverError.message());
   }
 
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  public void planningFailsWithoutServerErrorIsStillSurfaced(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    // Spec requires an error payload with a FAILED status; if a server violates that,
+    // the client must still surface a meaningful failure rather than throw on top of it.
+    TestPlanningBehavior behavior = planMode.apply(TestPlanningBehavior.builder()).build();
+    CatalogWithAdapter catalogWithAdapter =
+        catalogThatFailsPlanning(null, behavior, "test-planning-failed-no-error");
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "planning_failed_no_error_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Remote scan planning failed")
+        .hasMessageContaining("unknown")
+        .hasMessageContaining("code=0");
+  }
+
   private CatalogWithAdapter catalogThatFailsPlanning(
       ErrorResponse serverError, TestPlanningBehavior behavior, String catalogName) {
     List<Endpoint> endpoints =
