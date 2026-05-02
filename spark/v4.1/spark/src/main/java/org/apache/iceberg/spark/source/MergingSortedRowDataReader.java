@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -73,6 +74,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   // non-null only when sort key columns were added to the read schema beyond what Spark projected
   private final int[] outputPositions;
   private final DataType[] outputDataTypes;
+  private final Object[] outputValues; // reused per row to avoid per-row allocation
   private InternalRow current;
 
   MergingSortedRowDataReader(SparkInputPartition partition) {
@@ -83,7 +85,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
     Preconditions.checkState(
         sortOrder.isSorted(), "Cannot create merging reader for unsorted table %s", table.name());
-    Preconditions.checkArgument(
+    Preconditions.checkState(
         taskGroup.tasks().size() > 1,
         "Merging reader requires multiple files, got %s",
         taskGroup.tasks().size());
@@ -99,6 +101,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     Schema mergeReadSchema = mergeReadSchema(projection, sortOrder, table);
     this.outputPositions = buildOutputPositions(projection, mergeReadSchema);
     this.outputDataTypes = buildOutputDataTypes(projection, outputPositions);
+    this.outputValues = outputPositions != null ? new Object[outputPositions.length] : null;
 
     this.resources = new CloseableGroup();
     this.fileReaders =
@@ -113,8 +116,6 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
                         partition.isCaseSensitive(),
                         partition.cacheDeleteFilesOnExecutors()))
             .collect(Collectors.toList());
-    fileReaders.forEach(resources::addCloseable);
-
     // Wrap each reader as a CloseableIterable and feed into SortedMerge.
     List<CloseableIterable<InternalRow>> fileIterables =
         fileReaders.stream().map(this::readerToIterable).collect(Collectors.toList());
@@ -143,7 +144,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
                     hasNext = reader.next();
                     advanced = true;
                   } catch (IOException e) {
-                    throw new RuntimeException("Failed to advance reader", e);
+                    throw new UncheckedIOException("Failed to advance reader", e);
                   }
                 }
                 return hasNext;
@@ -159,8 +160,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
               }
 
               @Override
-              public void close() {
-                // Do nothing. Reader lifecycle is owned by CloseableGroup.
+              public void close() throws IOException {
+                reader.close();
               }
             });
   }
@@ -176,11 +177,10 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
       this.current = merged;
     } else {
       // Strip the extra sort key columns that were added for comparison purposes.
-      Object[] values = new Object[outputPositions.length];
       for (int i = 0; i < outputPositions.length; i++) {
-        values[i] = merged.get(outputPositions[i], outputDataTypes[i]);
+        outputValues[i] = merged.get(outputPositions[i], outputDataTypes[i]);
       }
-      this.current = new GenericInternalRow(values);
+      this.current = new GenericInternalRow(outputValues);
     }
 
     return true;

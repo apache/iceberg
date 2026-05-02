@@ -36,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestSortOrderAnalyzer {
+class TestSortOrderAnalyzer {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -50,7 +50,7 @@ public class TestSortOrderAnalyzer {
       Types.StructType.of(Types.NestedField.required(3, "partition", Types.StringType.get()));
 
   @Test
-  public void testUnsortedTableReturnsFalse() {
+  void testUnsortedTableReturnsFalse() {
     Table table = mockTable(SortOrder.unsorted());
     List<ScanTaskGroup<?>> groups = ImmutableList.of(taskGroupWithKey(SORT_ORDER.orderId(), "P1"));
 
@@ -58,21 +58,21 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testNullTaskGroupsReturnsFalse() {
+  void testNullTaskGroupsReturnsFalse() {
     Table table = mockTable(SORT_ORDER);
 
     assertThat(SortOrderAnalyzer.canReportOrdering(table, null, KEY_TYPE)).isFalse();
   }
 
   @Test
-  public void testEmptyTaskGroupsReturnsFalse() {
+  void testEmptyTaskGroupsReturnsFalse() {
     Table table = mockTable(SORT_ORDER);
 
     assertThat(SortOrderAnalyzer.canReportOrdering(table, ImmutableList.of(), KEY_TYPE)).isFalse();
   }
 
   @Test
-  public void testFileWithMismatchedSortOrderIdReturnsFalse() {
+  void testFileWithMismatchedSortOrderIdReturnsFalse() {
     Table table = mockTable(SORT_ORDER);
     // File was written with sort order ID 999, which doesn't match the table's current order
     ScanTaskGroup<?> group = taskGroupWithKey(999, "P1");
@@ -82,7 +82,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testFileWithNullSortOrderIdReturnsFalse() {
+  void testFileWithNullSortOrderIdReturnsFalse() {
     Table table = mockTable(SORT_ORDER);
     // File has no sort order recorded (null) — written before sort order was set
     ScanTaskGroup<?> group = taskGroupWithNullSortOrderId("P1");
@@ -92,7 +92,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testOnlyOneFileWithWrongSortOrderInMultiFileGroupReturnsFalse() {
+  void testOnlyOneFileWithWrongSortOrderInMultiFileGroupReturnsFalse() {
     Table table = mockTable(SORT_ORDER);
     // Two files: one correct, one from old sort order — the group must fail
     FileScanTask goodTask = fileTask(SORT_ORDER.orderId());
@@ -104,7 +104,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testDuplicatePartitionKeyReturnsFalse() {
+  void testDuplicatePartitionKeyReturnsFalse() {
     Table table = mockTable(SORT_ORDER);
     // Two task groups that share the same partition key value — Spark coalesces them
     // without merge-sorting, destroying the ordering guarantee.
@@ -117,7 +117,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testUniquePartitionKeysReturnsTrue() {
+  void testUniquePartitionKeysReturnsTrue() {
     Table table = mockTable(SORT_ORDER);
     ScanTaskGroup<?> group1 = taskGroupWithKey(SORT_ORDER.orderId(), "partition-A");
     ScanTaskGroup<?> group2 = taskGroupWithKey(SORT_ORDER.orderId(), "partition-B");
@@ -128,7 +128,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testUnpartitionedTableSkipsUniquenessCheck() {
+  void testUnpartitionedTableSkipsUniquenessCheck() {
     Table table = mockTable(SORT_ORDER);
     // Both groups have null grouping key — acceptable for unpartitioned tables
     ScanTaskGroup<?> group1 = taskGroupWithNullKey(SORT_ORDER.orderId());
@@ -142,7 +142,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testSingleGroupSingleFileReturnsTrue() {
+  void testSingleGroupSingleFileReturnsTrue() {
     Table table = mockTable(SORT_ORDER);
     ScanTaskGroup<?> group = taskGroupWithKey(SORT_ORDER.orderId(), "P1");
 
@@ -151,7 +151,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testSingleGroupMultipleFilesAllMatchingReturnsTrue() {
+  void testSingleGroupMultipleFilesAllMatchingReturnsTrue() {
     Table table = mockTable(SORT_ORDER);
     FileScanTask task1 = fileTask(SORT_ORDER.orderId());
     FileScanTask task2 = fileTask(SORT_ORDER.orderId());
@@ -162,7 +162,7 @@ public class TestSortOrderAnalyzer {
   }
 
   @Test
-  public void testMultipleGroupsAllValidReturnsTrue() {
+  void testMultipleGroupsAllValidReturnsTrue() {
     Table table = mockTable(SORT_ORDER);
     ScanTaskGroup<?> group1 = taskGroupWithKey(SORT_ORDER.orderId(), "P1");
     ScanTaskGroup<?> group2 = taskGroupWithKey(SORT_ORDER.orderId(), "P2");
