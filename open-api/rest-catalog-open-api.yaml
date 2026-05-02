@@ -3650,6 +3650,11 @@ components:
           A server MUST NOT return an action for a column whose type is not listed in
           that action's "Applicable to" set.
           For all actions, if the input column value is NULL, the output MUST be NULL.
+
+          If a column projection targets a struct-typed field, other column projections
+          in the same ReadRestrictions MUST NOT target any of that struct's subfields
+          (at any depth). This avoids ambiguity about which action governs a given
+          leaf value.
       properties:
         required-column-projections:
           description: >
@@ -3692,8 +3697,9 @@ components:
           description: >
             An expression that filters rows in the table that the authenticated principal does not have access to.
 
-            1. A reader MUST discard any row for which the filter evaluates to false or null, and
-              no information derived from discarded rows MAY be included in the query result.
+            1. The expression MUST evaluate to a boolean. A reader MUST discard any row for which
+              the filter evaluates to FALSE, and no information derived from discarded rows
+              MAY be included in the query result.
 
             2. Row filters MUST be evaluated against the original, untransformed column values.
               Required projections MUST be applied only after row filters are applied.
@@ -3708,7 +3714,7 @@ components:
         propertyName: action
         mapping:
           mask-alphanum: '#/components/schemas/MaskAlphanum'
-          mask-to-default: '#/components/schemas/MaskToDefault'
+          mask-to-fixed-value: '#/components/schemas/MaskToFixedValue'
           replace-with-null: '#/components/schemas/ReplaceWithNull'
           show-first-4: '#/components/schemas/ShowFirst4'
           show-last-4: '#/components/schemas/ShowLast4'
@@ -3753,39 +3759,35 @@ components:
           type: string
           const: "mask-alphanum"
 
-    MaskToDefault:
+    MaskToFixedValue:
       description: >
-        Replaces the column value with a predefined type-specific default that conceals
-        the original data while preserving type compatibility. Engines MUST use exactly
-        the values listed below to ensure consistency across implementations.
+        Replaces the column value with a predefined type-specific fixed value.
+        Engines MUST use exactly the values listed below to ensure consistency
+        across implementations.
 
-        Default values by type:
+        Fixed values by type:
         - boolean: false
-        - int: 999999999
-        - long: 999999999
+        - int: 0
+        - long: 0
         - float: 0.0
         - double: 0.0
         - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2))
         - string: "XXXXXXXX"
-        - date: 9999-12-31
+        - date: 1970-01-01
         - time: 00:00:00
-        - timestamp: 9999-12-31T00:00:00
-        - timestamptz: 9999-12-31T00:00:00+00:00
-        - timestamp_ns: 2261-12-31T00:00:00.000000000
-        - timestamptz_ns: 2261-12-31T00:00:00.000000000+00:00
+        - timestamp: 1970-01-01T00:00:00
+        - timestamptz: 1970-01-01T00:00:00+00:00
+        - timestamp_ns: 1970-01-01T00:00:00.000000000
+        - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00
         - uuid: 00000000-0000-0000-0000-000000000000
         - fixed(n): n zero bytes
         - binary: empty byte sequence
-        - variant: {"masked": true}
+        - variant: {}
         - geometry: POINT EMPTY
         - geography: POINT EMPTY
         - list: empty list []
         - map: empty map {}
         - struct: struct with each field set to its type-specific default (applied recursively)
-
-        Note: nanosecond-precision timestamps (timestamp_ns, timestamptz_ns) cannot represent
-        9999-12-31 because nanoseconds from epoch overflows a 64-bit signed integer past
-        approximately 2262-04-11; 2261-12-31 is used as the closest clean far-future sentinel.
 
         Applicable to: all data types
       allOf:
@@ -3793,7 +3795,7 @@ components:
       properties:
         action:
           type: string
-          const: "mask-to-default"
+          const: "mask-to-fixed-value"
 
     ReplaceWithNull:
       description: >

@@ -616,16 +616,15 @@ class MaskAlphanum(Action):
     action: Literal['mask-alphanum'] = 'mask-alphanum'
 
 
-class MaskToDefault(Action):
+class MaskToFixedValue(Action):
     """
-    Replaces the column value with a predefined type-specific default that conceals the original data while preserving type compatibility. Engines MUST use exactly the values listed below to ensure consistency across implementations.
-    Default values by type: - boolean: false - int: 999999999 - long: 999999999 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2)) - string: "XXXXXXXX" - date: 9999-12-31 - time: 00:00:00 - timestamp: 9999-12-31T00:00:00 - timestamptz: 9999-12-31T00:00:00+00:00 - timestamp_ns: 2261-12-31T00:00:00.000000000 - timestamptz_ns: 2261-12-31T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {"masked": true} - geometry: POINT EMPTY - geography: POINT EMPTY - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
-    Note: nanosecond-precision timestamps (timestamp_ns, timestamptz_ns) cannot represent 9999-12-31 because nanoseconds from epoch overflows a 64-bit signed integer past approximately 2262-04-11; 2261-12-31 is used as the closest clean far-future sentinel.
+    Replaces the column value with a predefined type-specific fixed value. Engines MUST use exactly the values listed below to ensure consistency across implementations.
+    Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2)) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {} - geometry: POINT EMPTY - geography: POINT EMPTY - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
     Applicable to: all data types
 
     """
 
-    action: Literal['mask-to-default'] = 'mask-to-default'
+    action: Literal['mask-to-fixed-value'] = 'mask-to-fixed-value'
 
 
 class ReplaceWithNull(Action):
@@ -1667,13 +1666,14 @@ class ReadRestrictions(BaseModel):
     A client MUST enforce the restrictions defined in this object when reading data from the table.
     These restrictions apply only to the authenticated principal, user, or account associated with the request. They MUST NOT be interpreted as global policy and MUST NOT be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
     If both properties are absent or empty, the ReadRestrictions object imposes no restrictions and is equivalent to the field being absent from the response. A server MUST NOT return an action for a column whose type is not listed in that action's "Applicable to" set. For all actions, if the input column value is NULL, the output MUST be NULL.
+    If a column projection targets a struct-typed field, other column projections in the same ReadRestrictions MUST NOT target any of that struct's subfields (at any depth). This avoids ambiguity about which action governs a given leaf value.
 
     """
 
     required_column_projections: (
         list[
             MaskAlphanum
-            | MaskToDefault
+            | MaskToFixedValue
             | ReplaceWithNull
             | ShowFirst4
             | ShowLast4
@@ -1692,7 +1692,7 @@ class ReadRestrictions(BaseModel):
     required_row_filter: Expression | None = Field(
         None,
         alias='required-row-filter',
-        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. A reader MUST discard any row for which the filter evaluates to false or null, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
+        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression MUST evaluate to a boolean. A reader MUST discard any row for which\n  the filter evaluates to FALSE, and no information derived from discarded rows\n  MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
     )
 
 
