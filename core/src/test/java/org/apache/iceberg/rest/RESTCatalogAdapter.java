@@ -746,7 +746,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         queryParams
             .getOrDefault(
                 RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
-                RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
+                RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT.name())
             .toUpperCase(Locale.US));
   }
 }

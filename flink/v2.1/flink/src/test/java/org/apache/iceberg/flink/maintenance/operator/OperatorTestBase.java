@@ -24,7 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
@@ -78,6 +81,12 @@ public class OperatorTestBase {
               Types.NestedField.optional(2, "data", Types.StringType.get())),
           ImmutableMap.of(),
           ImmutableSet.of(SimpleDataUtil.SCHEMA.columns().get(0).fieldId()));
+
+  private static final Schema SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()));
 
   protected static final String UID_SUFFIX = "UID-Dummy";
   protected static final String SLOT_SHARING_GROUP = "SlotSharingGroup";
@@ -142,6 +151,21 @@ public class OperatorTestBase {
                 "100000"));
   }
 
+  protected static Table createTableWithTimestampWithoutZone() {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE,
+            PartitionSpec.builderFor(SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE).identity("ts").build(),
+            null,
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION,
+                "2",
+                "flink.max-continuous-empty-commits",
+                "100000"));
+  }
+
   protected static Table createTableWithDelete() {
     return createTableWithDelete(2);
   }
@@ -191,6 +215,20 @@ public class OperatorTestBase {
   protected void insert(Table table, Integer id, String data, String extra) throws IOException {
     new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
         .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data, extra)));
+    table.refresh();
+  }
+
+  protected void insertWithTimestampWithoutZone(
+      Table table, Integer id, String data, LocalDateTime ts) throws IOException {
+    GenericRecord record = GenericRecord.create(SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE);
+    record.setField("id", id);
+    record.setField("data", data);
+    record.setField("ts", ts);
+    long tsMicros =
+        TimeUnit.SECONDS.toMicros(ts.toEpochSecond(ZoneOffset.UTC))
+            + TimeUnit.NANOSECONDS.toMicros(ts.getNano());
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(TestHelpers.Row.of(tsMicros), Lists.newArrayList(record));
     table.refresh();
   }
 

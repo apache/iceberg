@@ -66,7 +66,9 @@ plugins:
         rss_created: rss.xml
   - macros
   - monorepo
-  - privacy
+  - privacy:
+      assets_exclude:
+        - '*bladepipe.com/*'
   - offline:
       enabled: !ENV [OFFLINE, false]
   - redirects:
@@ -116,7 +118,7 @@ extra:
       link: 'https://www.youtube.com/@ApacheIceberg'
       title: youtube
     - icon: fontawesome/brands/slack
-      link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-3kclosz6r-3heAW3d~_PHefmN2A_~cAg'
+      link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-3tkrk9gpf-1eFZ8ozS2In0~zM_BeZiRQ'
       title: slack
 
 exclude_docs: |

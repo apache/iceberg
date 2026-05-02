@@ -23,12 +23,21 @@ import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
@@ -44,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,14 +74,16 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
   private static final String ROOT_STORAGE_PREFIX = "gs";
+  private static volatile ScheduledExecutorService executorService;
 
   private SerializableSupplier<Storage> storageSupplier;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
   // use modifiable collection for Kryo serde
-  private List<StorageCredential> storageCredentials = Lists.newArrayList();
+  private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
+  private transient volatile ScheduledFuture<?> refreshFuture;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -199,11 +211,66 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
                             storageSupplier));
                   });
           this.storageByPrefix = localStorageByPrefix;
+          scheduleCredentialRefresh();
         }
       }
     }
 
     return storageByPrefix;
+  }
+
+  private void scheduleCredentialRefresh() {
+    storageCredentials.stream()
+        .map(
+            storageCredential ->
+                storageCredential.config().get(GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT))
+        .filter(Objects::nonNull)
+        .map(expiresAtString -> Instant.ofEpochMilli(Long.parseLong(expiresAtString)))
+        .min(Comparator.naturalOrder())
+        .ifPresent(
+            expiresAt -> {
+              Instant prefetchAt = expiresAt.minus(5, ChronoUnit.MINUTES);
+              long delay = Duration.between(Instant.now(), prefetchAt).toMillis();
+              this.refreshFuture =
+                  executorService()
+                      .schedule(this::refreshStorageCredentials, delay, TimeUnit.MILLISECONDS);
+            });
+  }
+
+  private void refreshStorageCredentials() {
+    if (isResourceClosed.get()) {
+      return;
+    }
+
+    try (OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(properties)) {
+      List<StorageCredential> refreshed =
+          handler.fetchCredentials().credentials().stream()
+              .filter(c -> c.prefix().startsWith(ROOT_STORAGE_PREFIX))
+              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .toList();
+
+      if (!refreshed.isEmpty() && !isResourceClosed.get()) {
+        this.storageCredentials = Lists.newArrayList(refreshed);
+        scheduleCredentialRefresh();
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to refresh storage credentials", e);
+    }
+  }
+
+  private ScheduledExecutorService executorService() {
+    if (executorService == null) {
+      synchronized (GCSFileIO.class) {
+        if (executorService == null) {
+          executorService =
+              ThreadPools.newExitingScheduledPool(
+                  "iceberg-gcsfileio-tasks", 1, Duration.ofSeconds(10));
+        }
+      }
+    }
+
+    return executorService;
   }
 
   @Override
@@ -213,6 +280,10 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
       if (storageByPrefix != null) {
         storageByPrefix.values().forEach(PrefixedStorage::close);
         this.storageByPrefix = null;
+      }
+      if (refreshFuture != null) {
+        refreshFuture.cancel(true);
+        refreshFuture = null;
       }
     }
   }
@@ -271,8 +342,21 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Override
   public void setCredentials(List<StorageCredential> credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    // stop any refresh that might be scheduled
+    if (refreshFuture != null) {
+      refreshFuture.cancel(true);
+    }
+
     // copy credentials into a modifiable collection for Kryo serde
     this.storageCredentials = Lists.newArrayList(credentials);
+
+    // if the clients are already initialized, we need to close and allow them to be recreated
+    synchronized (this) {
+      if (storageByPrefix != null) {
+        storageByPrefix.values().forEach(PrefixedStorage::close);
+        this.storageByPrefix = null;
+      }
+    }
   }
 
   @Override

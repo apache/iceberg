@@ -170,6 +170,11 @@ public final class FormatModelRegistry {
    * records that identify rows to be deleted by file path and position, producing a {@link
    * DeleteFile} that can be used for table operations.
    *
+   * <p><b>Note:</b> This method is only applicable to format-version 2 tables. Format-version 3
+   * tables use deletion vectors, which are always written in Puffin format. Registered {@link
+   * FormatModel} implementations for {@link PositionDelete} are not consulted for format-version 3+
+   * tables.
+   *
    * @param format the file format used for writing
    * @param outputFile destination for the written data
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}

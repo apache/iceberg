@@ -94,6 +94,7 @@ class V3Metadata {
         case 2:
           return wrapped.partitionSpecId();
         case 3:
+          checkContentType(wrapped.content());
           return wrapped.content().id();
         case 4:
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
@@ -454,6 +455,7 @@ class V3Metadata {
     private Object get(int pos) {
       switch (pos) {
         case 0:
+          checkContentType(wrapped.content());
           return wrapped.content().id();
         case 1:
           return wrapped.location();
@@ -522,5 +524,21 @@ class V3Metadata {
     public Long pos() {
       return null;
     }
+  }
+
+  private static void checkContentType(ManifestContent content) {
+    Preconditions.checkArgument(
+        content == ManifestContent.DATA || content == ManifestContent.DELETES,
+        "Unsupported manifest content type for v3: %s",
+        content);
+  }
+
+  private static void checkContentType(FileContent content) {
+    Preconditions.checkArgument(
+        content == FileContent.DATA
+            || content == FileContent.POSITION_DELETES
+            || content == FileContent.EQUALITY_DELETES,
+        "Unsupported file content type for v3: %s",
+        content);
   }
 }

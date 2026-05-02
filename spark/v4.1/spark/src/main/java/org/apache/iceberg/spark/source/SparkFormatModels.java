@@ -40,7 +40,8 @@ public class SparkFormatModels {
         AvroFormatModel.create(
             InternalRow.class,
             StructType.class,
-            (icebergSchema, fileSchema, engineSchema) -> new SparkAvroWriter(engineSchema),
+            (icebergSchema, fileSchema, engineSchema) ->
+                new SparkAvroWriter(icebergSchema, engineSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkPlannedAvroReader.create(icebergSchema, idToConstant)));
 
@@ -58,14 +59,6 @@ public class SparkFormatModels {
             StructType.class,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 VectorizedSparkParquetReaders.buildReader(
-                    icebergSchema, fileSchema, idToConstant)));
-
-    FormatModelRegistry.register(
-        ParquetFormatModel.create(
-            VectorizedSparkParquetReaders.CometColumnarBatch.class,
-            StructType.class,
-            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                VectorizedSparkParquetReaders.buildCometReader(
                     icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(

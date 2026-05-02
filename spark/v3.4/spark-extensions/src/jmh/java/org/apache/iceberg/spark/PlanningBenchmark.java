@@ -39,6 +39,7 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
@@ -156,7 +157,7 @@ public class PlanningBenchmark {
   private void setupSpark() {
     this.spark =
         SparkSession.builder()
-            .config("spark.ui.enabled", false)
+            .config(TestBase.DISABLE_UI)
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName())
@@ -222,14 +223,14 @@ public class PlanningBenchmark {
   private DataFile loadAddedDataFile() {
     table.refresh();
 
-    Iterable<DataFile> dataFiles = table.currentSnapshot().addedDataFiles(table.io());
+    Iterable<DataFile> dataFiles = SnapshotChanges.builderFor(table).build().addedDataFiles();
     return Iterables.getOnlyElement(dataFiles);
   }
 
   private DeleteFile loadAddedDeleteFile() {
     table.refresh();
 
-    Iterable<DeleteFile> deleteFiles = table.currentSnapshot().addedDeleteFiles(table.io());
+    Iterable<DeleteFile> deleteFiles = SnapshotChanges.builderFor(table).build().addedDeleteFiles();
     return Iterables.getOnlyElement(deleteFiles);
   }
 

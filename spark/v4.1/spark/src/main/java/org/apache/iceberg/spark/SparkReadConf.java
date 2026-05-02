@@ -57,8 +57,6 @@ public class SparkReadConf {
 
   private final SparkSession spark;
   private final Table table;
-  private final String branch;
-  private final CaseInsensitiveStringMap options;
   private final SparkConfParser confParser;
 
   public SparkReadConf(SparkSession spark, Table table) {
@@ -69,12 +67,15 @@ public class SparkReadConf {
     this(spark, table, null, options);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #SparkReadConf(SparkSession,
+   *     Table, CaseInsensitiveStringMap)} instead.
+   */
+  @Deprecated
   public SparkReadConf(
       SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
-    this.branch = branch;
-    this.options = options;
     this.confParser = new SparkConfParser(spark, table, options);
   }
 
@@ -225,6 +226,39 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean asyncMicroBatchPlanningEnabled() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+        .sessionConf(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+        .defaultValue(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public long streamingSnapshotPollingIntervalMs() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS)
+        .defaultValue(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT)
+        .parse();
+  }
+
+  public long asyncQueuePreloadFileLimit() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT)
+        .defaultValue(SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT_DEFAULT)
+        .parse();
+  }
+
+  public long asyncQueuePreloadRowLimit() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT)
+        .defaultValue(SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT_DEFAULT)
+        .parse();
+  }
+
   public boolean preserveDataGrouping() {
     return confParser
         .booleanConf()
@@ -332,14 +366,6 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
         .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
-        .parse();
-  }
-
-  public ParquetReaderType parquetReaderType() {
-    return confParser
-        .enumConf(ParquetReaderType::fromString)
-        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
-        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
 
