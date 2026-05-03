@@ -31,7 +31,7 @@ import org.apache.iceberg.util.DateTimeUtil;
  * TIMESTAMP_NANO nanos}. Kept package-private so it can change without affecting the public Action
  * surface.
  */
-final class TruncateTemporalFn extends Actions.NullSafeFunction<Object, Object> {
+final class TruncateTemporal extends Actions.NullSafeFunction<Object, Object> {
 
   enum Unit {
     YEAR,
@@ -44,19 +44,18 @@ final class TruncateTemporalFn extends Actions.NullSafeFunction<Object, Object> 
     TIMESTAMP_NANOS
   }
 
-  static final TruncateTemporalFn DATE_YEAR = new TruncateTemporalFn(Unit.YEAR, Storage.DATE_DAYS);
-  static final TruncateTemporalFn DATE_MONTH =
-      new TruncateTemporalFn(Unit.MONTH, Storage.DATE_DAYS);
-  static final TruncateTemporalFn TIMESTAMP_YEAR =
-      new TruncateTemporalFn(Unit.YEAR, Storage.TIMESTAMP_MICROS);
-  static final TruncateTemporalFn TIMESTAMP_MONTH =
-      new TruncateTemporalFn(Unit.MONTH, Storage.TIMESTAMP_MICROS);
-  static final TruncateTemporalFn TIMESTAMP_NANO_YEAR =
-      new TruncateTemporalFn(Unit.YEAR, Storage.TIMESTAMP_NANOS);
-  static final TruncateTemporalFn TIMESTAMP_NANO_MONTH =
-      new TruncateTemporalFn(Unit.MONTH, Storage.TIMESTAMP_NANOS);
+  static final TruncateTemporal DATE_YEAR = new TruncateTemporal(Unit.YEAR, Storage.DATE_DAYS);
+  static final TruncateTemporal DATE_MONTH = new TruncateTemporal(Unit.MONTH, Storage.DATE_DAYS);
+  static final TruncateTemporal TIMESTAMP_YEAR =
+      new TruncateTemporal(Unit.YEAR, Storage.TIMESTAMP_MICROS);
+  static final TruncateTemporal TIMESTAMP_MONTH =
+      new TruncateTemporal(Unit.MONTH, Storage.TIMESTAMP_MICROS);
+  static final TruncateTemporal TIMESTAMP_NANO_YEAR =
+      new TruncateTemporal(Unit.YEAR, Storage.TIMESTAMP_NANOS);
+  static final TruncateTemporal TIMESTAMP_NANO_MONTH =
+      new TruncateTemporal(Unit.MONTH, Storage.TIMESTAMP_NANOS);
 
-  static TruncateTemporalFn forType(Unit unit, Type type) {
+  static TruncateTemporal forType(Unit unit, Type type) {
     switch (type.typeId()) {
       case DATE:
         return unit == Unit.YEAR ? DATE_YEAR : DATE_MONTH;
@@ -72,7 +71,7 @@ final class TruncateTemporalFn extends Actions.NullSafeFunction<Object, Object> 
   private final Unit unit;
   private final Storage storage;
 
-  private TruncateTemporalFn(Unit unit, Storage storage) {
+  private TruncateTemporal(Unit unit, Storage storage) {
     this.unit = unit;
     this.storage = storage;
   }

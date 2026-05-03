@@ -30,7 +30,7 @@ import org.apache.iceberg.types.Type;
  * Shared SHA-256 masking function. One instance per (type, salt) pair. The type-specific update and
  * encode behavior is carried by a {@link Codec} enum rather than per-type subclasses.
  */
-final class Sha256Fn extends Actions.NullSafeFunction<Object, Object> {
+final class Sha256 extends Actions.NullSafeFunction<Object, Object> {
 
   private static final ThreadLocal<MessageDigest> DIGEST =
       ThreadLocal.withInitial(
@@ -113,16 +113,16 @@ final class Sha256Fn extends Actions.NullSafeFunction<Object, Object> {
     }
   }
 
-  static Sha256Fn forType(Type type, byte[] salt) {
+  static Sha256 forType(Type type, byte[] salt) {
     switch (type.typeId()) {
       case STRING:
-        return new Sha256Fn(Codec.STRING, salt);
+        return new Sha256(Codec.STRING, salt);
       case INTEGER:
-        return new Sha256Fn(Codec.INTEGER, salt);
+        return new Sha256(Codec.INTEGER, salt);
       case LONG:
-        return new Sha256Fn(Codec.LONG, salt);
+        return new Sha256(Codec.LONG, salt);
       case BINARY:
-        return new Sha256Fn(Codec.BINARY, salt);
+        return new Sha256(Codec.BINARY, salt);
       default:
         throw new IllegalArgumentException("sha-256 is not supported for type: " + type);
     }
@@ -131,7 +131,7 @@ final class Sha256Fn extends Actions.NullSafeFunction<Object, Object> {
   private final Codec codec;
   private final byte[] salt;
 
-  private Sha256Fn(Codec codec, byte[] salt) {
+  private Sha256(Codec codec, byte[] salt) {
     this.codec = codec;
     this.salt = salt != null ? salt.clone() : null;
   }

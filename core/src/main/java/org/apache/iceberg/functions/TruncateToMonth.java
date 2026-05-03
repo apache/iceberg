@@ -49,6 +49,6 @@ public final class TruncateToMonth extends Action.BaseAction<Object, Object> {
   public SerializableFunction<Object, Object> bind(Type type) {
     Preconditions.checkArgument(
         canBind(type), "truncate-to-month is not supported for type: %s", type);
-    return TruncateTemporalFn.forType(TruncateTemporalFn.Unit.MONTH, type);
+    return TruncateTemporal.forType(TruncateTemporal.Unit.MONTH, type);
   }
 }

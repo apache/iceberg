@@ -49,6 +49,6 @@ public final class TruncateToYear extends Action.BaseAction<Object, Object> {
   public SerializableFunction<Object, Object> bind(Type type) {
     Preconditions.checkArgument(
         canBind(type), "truncate-to-year is not supported for type: %s", type);
-    return TruncateTemporalFn.forType(TruncateTemporalFn.Unit.YEAR, type);
+    return TruncateTemporal.forType(TruncateTemporal.Unit.YEAR, type);
   }
 }
