@@ -57,11 +57,11 @@ final class Sha256 extends Actions.NullSafeFunction<Object, Object> {
     INTEGER {
       @Override
       void update(MessageDigest md, Object value) {
-        int v = (Integer) value;
-        md.update((byte) v);
-        md.update((byte) (v >>> 8));
-        md.update((byte) (v >>> 16));
-        md.update((byte) (v >>> 24));
+        int intVal = (Integer) value;
+        md.update((byte) intVal);
+        md.update((byte) (intVal >>> 8));
+        md.update((byte) (intVal >>> 16));
+        md.update((byte) (intVal >>> 24));
       }
 
       @Override
@@ -72,10 +72,10 @@ final class Sha256 extends Actions.NullSafeFunction<Object, Object> {
     LONG {
       @Override
       void update(MessageDigest md, Object value) {
-        long v = (Long) value;
+        long longVal = (Long) value;
         for (int i = 0; i < 8; i++) {
-          md.update((byte) v);
-          v >>>= 8;
+          md.update((byte) longVal);
+          longVal >>>= 8;
         }
       }
 
