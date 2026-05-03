@@ -18,24 +18,29 @@
  */
 package org.apache.iceberg.functions;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Package-private helpers shared by {@link Action} implementations. */
-final class Actions {
+/** Hashes values with SHA-256 using a fixed (unsalted) digest. Output is deterministic. */
+public final class Sha256Global extends Action.BaseAction<Object, Object> {
+  public Sha256Global(int fieldId) {
+    super(fieldId);
+  }
 
-  private Actions() {}
+  @Override
+  public String actionType() {
+    return SHA_256_GLOBAL;
+  }
 
-  /**
-   * Base for masking functions where null input must pass through as null unchanged (spec: "For all
-   * actions, if the input column value is NULL, the output MUST be NULL."). Subclasses implement
-   * {@link #applyNonNull(Object)} and don't have to repeat the guard.
-   */
-  abstract static class NullSafeFunction<S, T> implements SerializableFunction<S, T> {
-    @Override
-    public final T apply(S value) {
-      return value == null ? null : applyNonNull(value);
-    }
+  @Override
+  public boolean canBind(Type type) {
+    return Sha256Fn.isSupported(type);
+  }
 
-    protected abstract T applyNonNull(S value);
+  @Override
+  public SerializableFunction<Object, Object> bind(Type type) {
+    Preconditions.checkArgument(canBind(type), "sha-256 is not supported for type: %s", type);
+    return Sha256Fn.forType(type, null);
   }
 }

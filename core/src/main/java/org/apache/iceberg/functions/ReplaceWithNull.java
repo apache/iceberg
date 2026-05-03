@@ -18,24 +18,36 @@
  */
 package org.apache.iceberg.functions;
 
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Package-private helpers shared by {@link Action} implementations. */
-final class Actions {
+/** Returns null for every non-null input. Works for any type. */
+public final class ReplaceWithNull extends Action.BaseAction<Object, Object> {
+  public ReplaceWithNull(int fieldId) {
+    super(fieldId);
+  }
 
-  private Actions() {}
+  @Override
+  public String actionType() {
+    return REPLACE_WITH_NULL;
+  }
 
-  /**
-   * Base for masking functions where null input must pass through as null unchanged (spec: "For all
-   * actions, if the input column value is NULL, the output MUST be NULL."). Subclasses implement
-   * {@link #applyNonNull(Object)} and don't have to repeat the guard.
-   */
-  abstract static class NullSafeFunction<S, T> implements SerializableFunction<S, T> {
+  @Override
+  public boolean canBind(Type type) {
+    return true;
+  }
+
+  @Override
+  public SerializableFunction<Object, Object> bind(Type type) {
+    return ReplaceWithNullFn.INSTANCE;
+  }
+
+  private static final class ReplaceWithNullFn implements SerializableFunction<Object, Object> {
+    static final ReplaceWithNullFn INSTANCE = new ReplaceWithNullFn();
+
     @Override
-    public final T apply(S value) {
-      return value == null ? null : applyNonNull(value);
+    public Object apply(Object value) {
+      return null;
     }
-
-    protected abstract T applyNonNull(S value);
   }
 }

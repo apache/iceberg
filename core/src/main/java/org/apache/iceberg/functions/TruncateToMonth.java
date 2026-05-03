@@ -18,24 +18,37 @@
  */
 package org.apache.iceberg.functions;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Package-private helpers shared by {@link Action} implementations. */
-final class Actions {
+/** Truncates date or timestamp values to the first instant of their month. */
+public final class TruncateToMonth extends Action.BaseAction<Object, Object> {
+  public TruncateToMonth(int fieldId) {
+    super(fieldId);
+  }
 
-  private Actions() {}
+  @Override
+  public String actionType() {
+    return TRUNCATE_TO_MONTH;
+  }
 
-  /**
-   * Base for masking functions where null input must pass through as null unchanged (spec: "For all
-   * actions, if the input column value is NULL, the output MUST be NULL."). Subclasses implement
-   * {@link #applyNonNull(Object)} and don't have to repeat the guard.
-   */
-  abstract static class NullSafeFunction<S, T> implements SerializableFunction<S, T> {
-    @Override
-    public final T apply(S value) {
-      return value == null ? null : applyNonNull(value);
+  @Override
+  public boolean canBind(Type type) {
+    switch (type.typeId()) {
+      case DATE:
+      case TIMESTAMP:
+      case TIMESTAMP_NANO:
+        return true;
+      default:
+        return false;
     }
+  }
 
-    protected abstract T applyNonNull(S value);
+  @Override
+  public SerializableFunction<Object, Object> bind(Type type) {
+    Preconditions.checkArgument(
+        canBind(type), "truncate-to-month is not supported for type: %s", type);
+    return TruncateTemporalFn.forType(TruncateTemporalFn.Unit.MONTH, type);
   }
 }
