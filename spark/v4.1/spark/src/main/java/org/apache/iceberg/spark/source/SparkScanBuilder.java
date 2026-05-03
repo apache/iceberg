@@ -203,18 +203,17 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
    */
   private boolean pushGroupByAggregation(
       Aggregation aggregation, List<BoundAggregate<?, ?>> boundAggregates) {
-    PartitionSpec spec = table().spec();
     Schema tableSchema = table().schema();
 
-    List<Integer> groupByPositions = Lists.newArrayList();
+    // resolve GROUP BY columns to source field IDs (not positions, for spec evolution safety)
+    List<Integer> groupBySourceIds = Lists.newArrayList();
     List<Types.NestedField> groupByFields = Lists.newArrayList();
-    if (!resolveGroupByPartitions(
-        aggregation, spec, tableSchema, groupByPositions, groupByFields)) {
+    if (!resolveGroupByFields(aggregation, tableSchema, groupBySourceIds, groupByFields)) {
       return false;
     }
 
     Map<List<Object>, AggregateEvaluator> evaluatorsByPartition =
-        groupFilesByPartition(spec, groupByPositions, boundAggregates);
+        groupFilesByPartition(groupBySourceIds, boundAggregates);
     if (evaluatorsByPartition == null) {
       return false;
     }
@@ -223,12 +222,12 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     return localScan != null;
   }
 
-  private boolean resolveGroupByPartitions(
+  private boolean resolveGroupByFields(
       Aggregation aggregation,
-      PartitionSpec spec,
       Schema tableSchema,
-      List<Integer> groupByPositions,
+      List<Integer> groupBySourceIds,
       List<Types.NestedField> groupByFields) {
+    PartitionSpec currentSpec = table().spec();
     for (org.apache.spark.sql.connector.expressions.Expression groupByExpr :
         aggregation.groupByExpressions()) {
       String colName =
@@ -240,14 +239,14 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         return false;
       }
 
-      int pos = findIdentityPartitionPosition(spec, sourceField.fieldId());
-      if (pos < 0) {
+      // verify the field is an identity partition in the current spec
+      if (findIdentityPartitionPosition(currentSpec, sourceField.fieldId()) < 0) {
         LOG.info(
             "Skipping grouped aggregate pushdown: {} is not an identity partition field", colName);
         return false;
       }
 
-      groupByPositions.add(pos);
+      groupBySourceIds.add(sourceField.fieldId());
       groupByFields.add(sourceField);
     }
 
@@ -255,9 +254,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   }
 
   private Map<List<Object>, AggregateEvaluator> groupFilesByPartition(
-      PartitionSpec spec,
-      List<Integer> groupByPositions,
-      List<BoundAggregate<?, ?>> boundAggregates) {
+      List<Integer> groupBySourceIds, List<BoundAggregate<?, ?>> boundAggregates) {
     Map<List<Object>, AggregateEvaluator> evaluatorsByPartition = Maps.newLinkedHashMap();
 
     try (CloseableIterable<FileScanTask> fileScanTasks = planFilesWithStats()) {
@@ -267,16 +264,20 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
           return null;
         }
 
-        if (task.file().specId() != spec.specId()) {
-          LOG.info(
-              "Skipping grouped aggregate pushdown: file from different spec {}",
-              task.file().specId());
-          return null;
-        }
-
+        // resolve partition values using the file's own spec (handles spec evolution)
+        PartitionSpec fileSpec = table().specs().get(task.file().specId());
         StructLike partition = task.file().partition();
-        List<Object> key = Lists.newArrayListWithCapacity(groupByPositions.size());
-        for (int pos : groupByPositions) {
+        List<Object> key = Lists.newArrayListWithCapacity(groupBySourceIds.size());
+
+        for (int sourceId : groupBySourceIds) {
+          int pos = findIdentityPartitionPosition(fileSpec, sourceId);
+          if (pos < 0) {
+            LOG.info(
+                "Skipping grouped aggregate pushdown: field {} not in spec {}",
+                sourceId,
+                fileSpec.specId());
+            return null;
+          }
           key.add(partition.get(pos, Object.class));
         }
 
