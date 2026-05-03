@@ -80,8 +80,8 @@ final class TruncateTemporal extends Actions.NullSafeFunction<Object, Object> {
   protected Object applyNonNull(Object value) {
     switch (storage) {
       case DATE_DAYS:
-        LocalDate d = DateTimeUtil.dateFromDays((Integer) value);
-        return DateTimeUtil.daysFromDate(truncateDate(d));
+        LocalDate date = DateTimeUtil.dateFromDays((Integer) value);
+        return DateTimeUtil.daysFromDate(truncateDate(date));
       case TIMESTAMP_MICROS:
         LocalDateTime tsMicros = DateTimeUtil.timestampFromMicros((Long) value);
         return DateTimeUtil.microsFromTimestamp(truncateTimestamp(tsMicros));
@@ -98,7 +98,8 @@ final class TruncateTemporal extends Actions.NullSafeFunction<Object, Object> {
   }
 
   private LocalDateTime truncateTimestamp(LocalDateTime ts) {
-    LocalDateTime d = unit == Unit.YEAR ? ts.withMonth(1).withDayOfMonth(1) : ts.withDayOfMonth(1);
-    return d.with(LocalTime.MIDNIGHT);
+    LocalDateTime truncated =
+        unit == Unit.YEAR ? ts.withMonth(1).withDayOfMonth(1) : ts.withDayOfMonth(1);
+    return truncated.with(LocalTime.MIDNIGHT);
   }
 }

@@ -66,11 +66,11 @@ public final class ShowLast4 extends Action.BaseAction<String, String> {
       }
       int keepFromOffset = lastFourStarts[count % 4];
       StringBuilder sb = new StringBuilder(input.length());
-      int o = 0;
-      while (o < keepFromOffset) {
-        int cp = input.codePointAt(o);
+      int maskOffset = 0;
+      while (maskOffset < keepFromOffset) {
+        int cp = input.codePointAt(maskOffset);
         sb.appendCodePoint(MaskAlphanum.maskCodePoint(cp));
-        o += Character.charCount(cp);
+        maskOffset += Character.charCount(cp);
       }
       sb.append(input, keepFromOffset, input.length());
       return sb.toString();
