@@ -323,9 +323,8 @@ class RESTTableScan extends DataTableScan {
   }
 
   private static String failureMessage(String planId, ErrorResponse error) {
-    // Be lenient when reading: the spec requires an error payload with a FAILED status, but
-    // if a server violates that, still surface a meaningful message rather than throwing on
-    // top of an already-broken response.
+    // If a FAILED response lacks the expected error payload, still return a useful error
+    // message instead of throwing.
     String type = error != null ? error.type() : "unknown";
     int code = error != null ? error.code() : 0;
     String message = error != null ? error.message() : "unknown";
