@@ -114,4 +114,8 @@ public class SparkSQLProperties {
   public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
       "spark.sql.iceberg.async-micro-batch-planning-enabled";
   public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
+
+  // Session-level time-travel property; a timestamp in milliseconds.
+  // The snapshot used will be the snapshot current at this time.
+  public static final String AS_OF_TIMESTAMP = "spark.sql.iceberg.read.as-of-timestamp";
 }
