@@ -453,7 +453,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessageContaining("is not empty");
 
-    catalog.dropNamespace(nested);
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should still exist").isTrue();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should still exist").isTrue();
+
+    assertThat(catalog.dropNamespace(nested))
+        .as("Dropping an existing nested namespace should return true")
+        .isTrue();
     assertThat(catalog.namespaceExists(nested)).as("Nested namespace should not exist").isFalse();
 
     assertThat(catalog.dropNamespace(parent))
