@@ -39,7 +39,7 @@ public final class Sha256QueryLocal extends Action.BaseAction<Object, Object> {
 
   @Override
   public boolean canBind(Type type) {
-    return Sha256Fn.isSupported(type);
+    return Sha256.isSupported(type);
   }
 
   @Override
@@ -53,6 +53,6 @@ public final class Sha256QueryLocal extends Action.BaseAction<Object, Object> {
     Preconditions.checkArgument(canBind(type), "sha-256 is not supported for type: %s", type);
     Preconditions.checkArgument(
         salt != null && salt.length >= 16, "sha-256-query-local salt must be >= 16 bytes");
-    return Sha256Fn.forType(type, salt);
+    return Sha256.forType(type, salt);
   }
 }

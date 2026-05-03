@@ -35,12 +35,12 @@ public final class Sha256Global extends Action.BaseAction<Object, Object> {
 
   @Override
   public boolean canBind(Type type) {
-    return Sha256Fn.isSupported(type);
+    return Sha256.isSupported(type);
   }
 
   @Override
   public SerializableFunction<Object, Object> bind(Type type) {
     Preconditions.checkArgument(canBind(type), "sha-256 is not supported for type: %s", type);
-    return Sha256Fn.forType(type, null);
+    return Sha256.forType(type, null);
   }
 }
