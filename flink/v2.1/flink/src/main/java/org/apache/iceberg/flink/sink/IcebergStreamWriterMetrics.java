@@ -150,14 +150,13 @@ public class IcebergStreamWriterMetrics {
               .buildChecked()
               .newInstance(reservoir);
       Histogram wrapper =
-          (Histogram)
-              DynConstructors.builder()
-                  .loader(classLoader)
-                  .impl(
-                      "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
-                      codahaleHistogramClass)
-                  .buildChecked()
-                  .newInstance(codahaleHistogram);
+          DynConstructors.builder(Histogram.class)
+              .loader(classLoader)
+              .impl(
+                  "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
+                  codahaleHistogramClass)
+              .<Histogram>buildChecked()
+              .newInstance(codahaleHistogram);
 
       return group.histogram(name, wrapper);
     } catch (ClassNotFoundException | NoSuchMethodException e) {
