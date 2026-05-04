@@ -40,47 +40,9 @@ public class IcebergStreamWriterMetrics {
   // It should also produce good accuracy for histogram distribution (like percentiles).
   private static final int HISTOGRAM_RESERVOIR_SIZE = 1024;
 
-  // Histogram metrics loaded through Flink's optional flink-metrics-dropwizard dependency
-  private static final boolean DROPWIZARD_AVAILABLE;
-  private static final DynConstructors.Ctor<?> RESERVOIR_CTOR;
-  private static final DynConstructors.Ctor<?> CODAHALE_HISTOGRAM_CTOR;
-  private static final DynConstructors.Ctor<Histogram> WRAPPER_CTOR;
-
-  static {
-    DynConstructors.Ctor<?> reservoirCtor = null;
-    DynConstructors.Ctor<?> codahaleHistogramCtor = null;
-    DynConstructors.Ctor<Histogram> wrapperCtor = null;
-    boolean available = false;
-
-    try {
-      Class<?> reservoirInterface = Class.forName("com.codahale.metrics.Reservoir");
-      Class<?> codahaleHistogramClass = Class.forName("com.codahale.metrics.Histogram");
-      reservoirCtor =
-          DynConstructors.builder()
-              .impl("com.codahale.metrics.SlidingWindowReservoir", int.class)
-              .buildChecked();
-      codahaleHistogramCtor =
-          DynConstructors.builder()
-              .impl("com.codahale.metrics.Histogram", reservoirInterface)
-              .buildChecked();
-      wrapperCtor =
-          DynConstructors.builder(Histogram.class)
-              .impl(
-                  "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
-                  codahaleHistogramClass)
-              .buildChecked();
-      available = true;
-    } catch (ClassNotFoundException | NoSuchMethodException e) {
-      LOG.warn(
-          "Cannot load Dropwizard metrics; is org.apache.flink:flink-metrics-dropwizard on the classpath?",
-          e);
-    }
-
-    RESERVOIR_CTOR = reservoirCtor;
-    CODAHALE_HISTOGRAM_CTOR = codahaleHistogramCtor;
-    WRAPPER_CTOR = wrapperCtor;
-    DROPWIZARD_AVAILABLE = available;
-  }
+  // Histogram metrics loaded through Flink's optional flink-metrics-dropwizard dependency.
+  // Will be null if not available.
+  private static final DropwizardCtors DROPWIZARD = loadDropwizardCtors();
 
   private final Counter flushedDataFiles;
   private final Counter flushedDeleteFiles;
@@ -156,12 +118,41 @@ public class IcebergStreamWriterMetrics {
   }
 
   private static Histogram newDropwizardHistogram() {
-    if (!DROPWIZARD_AVAILABLE) {
+    if (DROPWIZARD == null) {
       return null;
     }
 
-    Object reservoir = RESERVOIR_CTOR.newInstance(HISTOGRAM_RESERVOIR_SIZE);
-    Object codahaleHistogram = CODAHALE_HISTOGRAM_CTOR.newInstance(reservoir);
-    return WRAPPER_CTOR.newInstance(codahaleHistogram);
+    Object reservoir = DROPWIZARD.reservoirCtor.newInstance(HISTOGRAM_RESERVOIR_SIZE);
+    Object codahaleHistogram = DROPWIZARD.histogramCtor.newInstance(reservoir);
+    return DROPWIZARD.wrapperCtor.newInstance(codahaleHistogram);
   }
+
+  private static DropwizardCtors loadDropwizardCtors() {
+    try {
+      Class<?> reservoirInterface = Class.forName("com.codahale.metrics.Reservoir");
+      Class<?> codahaleHistogramClass = Class.forName("com.codahale.metrics.Histogram");
+      return new DropwizardCtors(
+          DynConstructors.builder()
+              .impl("com.codahale.metrics.SlidingWindowReservoir", int.class)
+              .buildChecked(),
+          DynConstructors.builder()
+              .impl("com.codahale.metrics.Histogram", reservoirInterface)
+              .buildChecked(),
+          DynConstructors.builder(Histogram.class)
+              .impl(
+                  "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
+                  codahaleHistogramClass)
+              .buildChecked());
+    } catch (ClassNotFoundException | NoSuchMethodException e) {
+      LOG.warn(
+          "Cannot load Dropwizard metrics; is org.apache.flink:flink-metrics-dropwizard on the classpath?",
+          e);
+      return null;
+    }
+  }
+
+  private record DropwizardCtors(
+      DynConstructors.Ctor<?> reservoirCtor,
+      DynConstructors.Ctor<?> histogramCtor,
+      DynConstructors.Ctor<Histogram> wrapperCtor) {}
 }
