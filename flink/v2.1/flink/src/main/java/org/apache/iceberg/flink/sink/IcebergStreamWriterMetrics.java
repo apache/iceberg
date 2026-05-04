@@ -25,6 +25,7 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.util.ScanTaskUtil;
@@ -129,8 +130,10 @@ public class IcebergStreamWriterMetrics {
 
   private static DropwizardCtors loadDropwizardCtors() {
     try {
-      Class<?> reservoirInterface = Class.forName("com.codahale.metrics.Reservoir");
-      Class<?> codahaleHistogramClass = Class.forName("com.codahale.metrics.Histogram");
+      Class<?> reservoirInterface =
+          DynClasses.builder().impl("com.codahale.metrics.Reservoir").buildChecked();
+      Class<?> codahaleHistogramClass =
+          DynClasses.builder().impl("com.codahale.metrics.Histogram").buildChecked();
       return new DropwizardCtors(
           DynConstructors.builder()
               .impl("com.codahale.metrics.SlidingWindowReservoir", int.class)
