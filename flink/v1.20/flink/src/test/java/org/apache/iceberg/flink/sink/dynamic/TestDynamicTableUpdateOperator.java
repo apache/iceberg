@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
