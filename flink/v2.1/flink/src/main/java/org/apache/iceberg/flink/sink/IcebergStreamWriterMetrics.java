@@ -25,7 +25,6 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.util.ScanTaskUtil;
@@ -41,6 +40,48 @@ public class IcebergStreamWriterMetrics {
   // It should also produce good accuracy for histogram distribution (like percentiles).
   private static final int HISTOGRAM_RESERVOIR_SIZE = 1024;
 
+  // Histogram metrics loaded through Flink's optional flink-metrics-dropwizard dependency
+  private static final boolean DROPWIZARD_AVAILABLE;
+  private static final DynConstructors.Ctor<?> RESERVOIR_CTOR;
+  private static final DynConstructors.Ctor<?> CODAHALE_HISTOGRAM_CTOR;
+  private static final DynConstructors.Ctor<Histogram> WRAPPER_CTOR;
+
+  static {
+    DynConstructors.Ctor<?> reservoirCtor = null;
+    DynConstructors.Ctor<?> codahaleHistogramCtor = null;
+    DynConstructors.Ctor<Histogram> wrapperCtor = null;
+    boolean available = false;
+
+    try {
+      Class<?> reservoirInterface = Class.forName("com.codahale.metrics.Reservoir");
+      Class<?> codahaleHistogramClass = Class.forName("com.codahale.metrics.Histogram");
+      reservoirCtor =
+          DynConstructors.builder()
+              .impl("com.codahale.metrics.SlidingWindowReservoir", int.class)
+              .buildChecked();
+      codahaleHistogramCtor =
+          DynConstructors.builder()
+              .impl("com.codahale.metrics.Histogram", reservoirInterface)
+              .buildChecked();
+      wrapperCtor =
+          DynConstructors.builder(Histogram.class)
+              .impl(
+                  "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
+                  codahaleHistogramClass)
+              .buildChecked();
+      available = true;
+    } catch (ClassNotFoundException | NoSuchMethodException e) {
+      LOG.warn(
+          "flink-metrics-dropwizard is not on the classpath. Histogram metrics will be disabled. Add org.apache.flink:flink-metrics-dropwizard to enable them.",
+          e);
+    }
+
+    RESERVOIR_CTOR = reservoirCtor;
+    CODAHALE_HISTOGRAM_CTOR = codahaleHistogramCtor;
+    WRAPPER_CTOR = wrapperCtor;
+    DROPWIZARD_AVAILABLE = available;
+  }
+
   private final Counter flushedDataFiles;
   private final Counter flushedDeleteFiles;
   private final Counter flushedReferencedDataFiles;
@@ -49,11 +90,6 @@ public class IcebergStreamWriterMetrics {
   private final Histogram deleteFilesSizeHistogram;
 
   public IcebergStreamWriterMetrics(MetricGroup metrics, String fullTableName) {
-    this(metrics, fullTableName, IcebergStreamWriterMetrics.class.getClassLoader());
-  }
-
-  @VisibleForTesting
-  IcebergStreamWriterMetrics(MetricGroup metrics, String fullTableName, ClassLoader classLoader) {
     MetricGroup writerMetrics =
         metrics.addGroup("IcebergStreamWriter").addGroup("table", fullTableName);
     this.flushedDataFiles = writerMetrics.counter("flushedDataFiles");
@@ -63,11 +99,10 @@ public class IcebergStreamWriterMetrics {
     writerMetrics.gauge("lastFlushDurationMs", lastFlushDurationMs::get);
 
     this.dataFilesSizeHistogram =
-        loadHistogramIfAvailable(
-            writerMetrics, "dataFilesSizeHistogram", HISTOGRAM_RESERVOIR_SIZE, classLoader);
+        loadHistogramIfAvailable(writerMetrics, "dataFilesSizeHistogram", HISTOGRAM_RESERVOIR_SIZE);
     this.deleteFilesSizeHistogram =
         loadHistogramIfAvailable(
-            writerMetrics, "deleteFilesSizeHistogram", HISTOGRAM_RESERVOIR_SIZE, classLoader);
+            writerMetrics, "deleteFilesSizeHistogram", HISTOGRAM_RESERVOIR_SIZE);
   }
 
   public void updateFlushResult(WriteResult result) {
@@ -122,48 +157,16 @@ public class IcebergStreamWriterMetrics {
    * Checks whether the Dropwizard-based histogram wrapper provided through Flink's optional
    * flink-metrics-dropwizard dependency is available.
    */
-  @SuppressWarnings("CatchBlockLogException")
   private static Histogram loadHistogramIfAvailable(
-      MetricGroup group, String name, int reservoirSize, ClassLoader classLoader) {
+      MetricGroup group, String name, int reservoirSize) {
 
-    try {
-      Class<?> reservoirInterface =
-          DynClasses.builder()
-              .loader(classLoader)
-              .impl("com.codahale.metrics.Reservoir")
-              .buildChecked();
-      Class<?> codahaleHistogramClass =
-          DynClasses.builder()
-              .loader(classLoader)
-              .impl("com.codahale.metrics.Histogram")
-              .buildChecked();
-
-      Object reservoir =
-          DynConstructors.builder()
-              .loader(classLoader)
-              .impl("com.codahale.metrics.SlidingWindowReservoir", int.class)
-              .buildChecked()
-              .newInstance(reservoirSize);
-      Object codahaleHistogram =
-          DynConstructors.builder()
-              .impl(codahaleHistogramClass, reservoirInterface)
-              .buildChecked()
-              .newInstance(reservoir);
-      Histogram wrapper =
-          DynConstructors.builder(Histogram.class)
-              .loader(classLoader)
-              .impl(
-                  "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
-                  codahaleHistogramClass)
-              .<Histogram>buildChecked()
-              .newInstance(codahaleHistogram);
-
-      return group.histogram(name, wrapper);
-    } catch (ClassNotFoundException | NoSuchMethodException e) {
-      LOG.warn(
-          "flink-metrics-dropwizard is not on the classpath. '{}' histogram metrics will be disabled. Add org.apache.flink:flink-metrics-dropwizard to enable them.",
-          name);
+    if (!DROPWIZARD_AVAILABLE) {
       return null;
     }
+
+    Object reservoir = RESERVOIR_CTOR.newInstance(reservoirSize);
+    Object codahaleHistogram = CODAHALE_HISTOGRAM_CTOR.newInstance(reservoir);
+    Histogram wrapper = WRAPPER_CTOR.newInstance(codahaleHistogram);
+    return group.histogram(name, wrapper);
   }
 }

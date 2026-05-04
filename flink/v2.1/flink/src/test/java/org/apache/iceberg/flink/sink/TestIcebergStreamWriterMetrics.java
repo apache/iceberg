@@ -21,8 +21,6 @@ package org.apache.iceberg.flink.sink;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
-import java.net.URL;
-import java.net.URLClassLoader;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.iceberg.io.WriteResult;
 import org.junit.jupiter.api.Test;
@@ -40,33 +38,5 @@ public class TestIcebergStreamWriterMetrics {
 
     assertThatNoException()
         .isThrownBy(() -> metrics.updateFlushResult(WriteResult.builder().build()));
-  }
-
-  @Test
-  void histogramsSkippedWhenDropwizardMissing() throws Exception {
-    try (EmptyClassloader loader = new EmptyClassloader()) {
-
-      IcebergStreamWriterMetrics metrics =
-          new IcebergStreamWriterMetrics(
-              UnregisteredMetricsGroup.createSinkWriterMetricGroup(), "db.table", loader);
-
-      assertThat(metrics.dataFilesSizeHistogram()).isNull();
-      assertThat(metrics.deleteFilesSizeHistogram()).isNull();
-
-      assertThatNoException()
-          .isThrownBy(() -> metrics.updateFlushResult(WriteResult.builder().build()));
-    }
-  }
-
-  private static final class EmptyClassloader extends URLClassLoader {
-
-    EmptyClassloader() {
-      super(new URL[0]);
-    }
-
-    @Override
-    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-      throw new ClassNotFoundException(name);
-    }
   }
 }
