@@ -547,8 +547,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     assertThat(partitionSchemas).hasSize(4);
     org.apache.avro.Schema expectedSchema = partitionSchemas.get(0);
-    assertThat(partitionSchemas)
-        .allSatisfy(schema -> assertThat(schema).isSameAs(expectedSchema));
+    assertThat(partitionSchemas).allSatisfy(schema -> assertThat(schema).isSameAs(expectedSchema));
   }
 
   @TestTemplate
