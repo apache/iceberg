@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.metrics.Counter;
@@ -110,13 +109,11 @@ public class IcebergStreamWriterMetrics {
   }
 
   @VisibleForTesting
-  @Nullable
   Histogram dataFilesSizeHistogram() {
     return dataFilesSizeHistogram;
   }
 
   @VisibleForTesting
-  @Nullable
   Histogram deleteFilesSizeHistogram() {
     return deleteFilesSizeHistogram;
   }
