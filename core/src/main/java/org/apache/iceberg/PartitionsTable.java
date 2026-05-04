@@ -168,6 +168,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
+    PartitionData partitionDataTemplate = new PartitionData(partitionType);
 
     StructLikeMap<Partition> partitions =
         StructLikeMap.create(partitionType, new PartitionComparator(partitionType));
@@ -180,7 +181,7 @@ public class PartitionsTable extends BaseMetadataTable {
             PartitionUtil.coercePartition(
                 partitionType, table.specs().get(file.specId()), file.partition());
         partitions
-            .computeIfAbsent(key, () -> new Partition(key, partitionType))
+            .computeIfAbsent(key, () -> new Partition(key, partitionDataTemplate))
             .update(file, snapshot);
       }
     } catch (IOException e) {
@@ -282,8 +283,8 @@ public class PartitionsTable extends BaseMetadataTable {
     private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
 
-    Partition(StructLike key, Types.StructType keyType) {
-      this.partitionData = toPartitionData(key, keyType);
+    Partition(StructLike key, PartitionData partitionDataTemplate) {
+      this.partitionData = toPartitionData(key, partitionDataTemplate);
       this.specId = 0;
       this.dataRecordCount = 0L;
       this.dataFileCount = 0;
@@ -326,9 +327,9 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     /** Needed because StructProjection is not serializable */
-    private static PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
-      PartitionData keyTemplate = new PartitionData(keyType);
-      return keyTemplate.copyFor(key);
+    private static PartitionData toPartitionData(
+        StructLike key, PartitionData partitionDataTemplate) {
+      return partitionDataTemplate.copyFor(key);
     }
   }
 }
