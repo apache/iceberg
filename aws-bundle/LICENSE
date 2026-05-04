@@ -233,29 +233,6 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product includes code from Daniel Lemire's JavaFastPFOR project (bundled by Parquet).
-
-Copyright: 2013 Daniel Lemire
-Project URL: https://github.com/lemire/JavaFastPFOR
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles fastutil (bundled by Parquet).
-
-Copyright: 2002-2014 Sebastiano Vigna
-Project URL: http://fastutil.di.unimi.it/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Zero-Allocation Hashing (bundled by Parquet).
-
-Project URL: https://github.com/OpenHFT/Zero-Allocation-Hashing
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles Netty.
 
 Project URL: https://netty.io/

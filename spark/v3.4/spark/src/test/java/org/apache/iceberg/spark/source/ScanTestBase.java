@@ -41,7 +41,6 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
@@ -96,12 +95,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
 
     HadoopTables tables = new HadoopTables(CONF);
     // If V3 spec features are used, set the format version to 3
-    boolean requiresV3 =
-        writeSchema.columns().stream()
-                .anyMatch(f -> f.initialDefaultLiteral() != null || f.writeDefaultLiteral() != null)
-            || TypeUtil.find(writeSchema, t -> t.typeId() == Type.TypeID.UNKNOWN) != null;
-    Map<String, String> tableProperties =
-        requiresV3 ? ImmutableMap.of(TableProperties.FORMAT_VERSION, "3") : ImmutableMap.of();
+    Map<String, String> tableProperties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
     Table table =
         tables.create(
             writeSchema, PartitionSpec.unpartitioned(), tableProperties, location.toString());

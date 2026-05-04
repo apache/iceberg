@@ -33,11 +33,13 @@ import org.apache.iceberg.rest.credentials.Credential;
 public class PlanTableScanResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
   private final String planId;
+  private final ErrorResponse errorResponse;
   private final List<Credential> credentials;
 
   private PlanTableScanResponse(
       PlanStatus planStatus,
       String planId,
+      ErrorResponse errorResponse,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
@@ -46,6 +48,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
     this.planId = planId;
+    this.errorResponse = errorResponse;
     this.credentials = credentials;
     validate();
   }
@@ -56,6 +59,10 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
 
   public String planId() {
     return planId;
+  }
+
+  public ErrorResponse errorResponse() {
+    return errorResponse;
   }
 
   public List<Credential> credentials() {
@@ -86,6 +93,10 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be defined when status is '%s'",
         PlanStatus.COMPLETED.status());
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.FAILED || errorResponse() == null,
+        "Invalid response: error can only be defined when status is '%s'",
+        PlanStatus.FAILED.status());
     if (null != planId()) {
       Preconditions.checkArgument(
           planStatus() == PlanStatus.SUBMITTED || planStatus() == PlanStatus.COMPLETED,
@@ -108,6 +119,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
   public static class Builder extends BaseScanTaskResponse.Builder<Builder, PlanTableScanResponse> {
     private PlanStatus planStatus;
     private String planId;
+    private ErrorResponse errorResponse;
     private final List<Credential> credentials = Lists.newArrayList();
 
     /**
@@ -127,6 +139,11 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
       return this;
     }
 
+    public Builder withErrorResponse(ErrorResponse response) {
+      this.errorResponse = response;
+      return this;
+    }
+
     public Builder withCredentials(List<Credential> credentialsToAdd) {
       credentials.addAll(credentialsToAdd);
       return this;
@@ -137,6 +154,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
       return new PlanTableScanResponse(
           planStatus,
           planId,
+          errorResponse,
           planTasks(),
           fileScanTasks(),
           deleteFiles(),
