@@ -27,6 +27,7 @@ import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -45,8 +46,11 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
   private final StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SyncSparkMicroBatchPlanner(
-      Table table, SparkReadConf readConf, StreamingOffset lastOffsetForTriggerAvailableNow) {
-    super(table, readConf);
+      Table table,
+      SparkReadConf readConf,
+      StreamingOffset lastOffsetForTriggerAvailableNow,
+      List<Expression> pushedFilters) {
+    super(table, readConf, pushedFilters);
     this.caseSensitive = readConf().caseSensitive();
     this.fromTimestamp = readConf().streamFromTimestamp();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
@@ -102,7 +106,8 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
                   currentOffset.position(),
                   endFileIndex,
                   Long.MAX_VALUE,
-                  currentOffset.shouldScanAllFiles());
+                  currentOffset.shouldScanAllFiles(),
+                  getPushedFilters());
 
       fileScanTasks.addAll(latestMicroBatch.tasks());
     } while (currentOffset.snapshotId() != endOffset.snapshotId());
@@ -163,13 +168,14 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
         // be rest assured curPos >= startFileIndex
         curPos = indexedManifests.get(idx).second();
         try (CloseableIterable<FileScanTask> taskIterable =
-                MicroBatches.openManifestFile(
+                MicroBatches.openManifestFileWithFilter(
                     table().io(),
                     table().specs(),
                     caseSensitive,
                     curSnapshot,
                     indexedManifests.get(idx).first(),
-                    scanAllFiles);
+                    scanAllFiles,
+                    getPushedFilters());
             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();

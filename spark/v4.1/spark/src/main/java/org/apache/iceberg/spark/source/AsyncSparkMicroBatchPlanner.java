@@ -31,6 +31,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -84,8 +85,9 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       SparkReadConf readConf,
       StreamingOffset initialOffset,
       StreamingOffset maybeEndOffset,
-      StreamingOffset lastOffsetForTriggerAvailableNow) {
-    super(table, readConf);
+      StreamingOffset lastOffsetForTriggerAvailableNow,
+      List<Expression> pushedFilters) {
+    super(table, readConf, pushedFilters);
     this.minQueuedFiles = readConf().maxFilesPerMicroBatch();
     this.minQueuedRows = readConf().maxRecordsPerMicroBatch();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
@@ -403,7 +405,12 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         MicroBatches.from(snapshot, table().io())
             .caseSensitive(readConf().caseSensitive())
             .specsById(table().specs())
-            .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, shouldScanAllFile);
+            .generate(
+                startFileIndex,
+                endFileIndex,
+                Long.MAX_VALUE,
+                shouldScanAllFile,
+                getPushedFilters());
 
     long position = startFileIndex;
     for (FileScanTask task : microBatch.tasks()) {

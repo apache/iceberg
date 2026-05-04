@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -37,10 +39,12 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   private static final Logger LOG = LoggerFactory.getLogger(BaseSparkMicroBatchPlanner.class);
   private final Table table;
   private final SparkReadConf readConf;
+  private final List<Expression> pushedFilters;
 
-  BaseSparkMicroBatchPlanner(Table table, SparkReadConf readConf) {
+  BaseSparkMicroBatchPlanner(Table table, SparkReadConf readConf, List<Expression> filters) {
     this.table = table;
     this.readConf = readConf;
+    this.pushedFilters = filters;
   }
 
   protected Table table() {
@@ -49,6 +53,10 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
 
   protected SparkReadConf readConf() {
     return readConf;
+  }
+
+  protected List<Expression> getPushedFilters() {
+    return pushedFilters;
   }
 
   protected boolean shouldProcess(Snapshot snapshot) {

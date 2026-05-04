@@ -502,6 +502,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
                         SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT,
                         "10"))),
             table.schema(),
+            Lists.newArrayList(),
             temp.resolve("available-now-cap-checkpoint").toString());
 
     try {
@@ -1212,6 +1213,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         table::io,
         new SparkReadConf(spark, table, new CaseInsensitiveStringMap(allOptions)),
         table.schema(),
+        Lists.newArrayList(),
         temp.resolve(checkpointDirName).toString());
   }
 }

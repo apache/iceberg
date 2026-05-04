@@ -23,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.MicroBatches.MicroBatch;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
@@ -139,6 +142,53 @@ public class TestMicroBatchBuilder extends TestBase {
     assertThat(batch5.sizeInBytes()).isEqualTo(0);
     assertThat(batch5.tasks()).isEmpty();
     assertThat(batch5.lastIndexOfSnapshot()).isTrue();
+  }
+
+  @TestTemplate
+  public void testGenerateMicroBatchWithFilter() {
+    List<Expression> filters =
+        ImmutableList.of(Expressions.equal("data_bucket", 1), Expressions.equal("id", 1));
+    runMicroBatchWithTest(filters, true);
+  }
+
+  @TestTemplate
+  public void testGenerateMicroBatchWithFilterWithCaseInsensitive() {
+    List<Expression> filters =
+        ImmutableList.of(Expressions.equal("DATA_bucket", 1), Expressions.equal("Id", 1));
+    runMicroBatchWithTest(filters, false);
+  }
+
+  private void runMicroBatchWithTest(List<Expression> filters, boolean caseSensitive) {
+    // 1. Setup data across different partitions
+    DataFile fileA =
+        DataFiles.builder(table.spec())
+            .withPath("A.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withPartitionPath("data_bucket=0")
+            .build();
+    DataFile fileB =
+        DataFiles.builder(table.spec())
+            .withPath("B.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withPartitionPath("data_bucket=1")
+            .build();
+
+    table.newAppend().appendFile(fileA).appendFile(fileB).commit();
+
+    // 3. Generate batch with filters
+    // Note: You may need to update your MicroBatches.from() builder
+    // to accept .filter(filters) if you haven't exposed it yet.
+    MicroBatch batch =
+        MicroBatches.from(table.snapshot(1L), table.io())
+            .specsById(table.specs())
+            .caseSensitive(caseSensitive)
+            .generate(0, 2, Long.MAX_VALUE, true, filters);
+
+    // 4. Verify only File B is present despite the range covering both files
+    assertThat(batch.sizeInBytes()).isEqualTo(10);
+    filesMatch(Lists.newArrayList("B"), filesToScan(batch.tasks()));
   }
 
   private static DataFile file(String name) {

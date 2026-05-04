@@ -23,6 +23,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -30,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,11 +62,39 @@ public class MicroBatches {
       Snapshot snapshot,
       ManifestFile manifestFile,
       boolean scanAllFiles) {
+    return openManifestFileWithFilter(
+        io, specsById, caseSensitive, snapshot, manifestFile, scanAllFiles, Lists.newArrayList());
+  }
+
+  public static CloseableIterable<FileScanTask> openManifestFileWithFilter(
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive,
+      Snapshot snapshot,
+      ManifestFile manifestFile,
+      boolean scanAllFiles,
+      List<Expression> pushedFilters) {
+
+    // 1. Get the field IDs used in the partition spec
+    Expression partitionExpr = Expressions.alwaysTrue();
+    Expression dataExpr = Expressions.alwaysTrue();
+
+    for (Expression filter : pushedFilters) {
+      if (isPartitionOnly(
+          filter, specsById.values().iterator().next().partitionType(), caseSensitive)) {
+        partitionExpr = Expressions.and(partitionExpr, filter);
+      } else {
+        dataExpr = Expressions.and(dataExpr, filter);
+      }
+    }
 
     ManifestGroup manifestGroup =
         new ManifestGroup(io, ImmutableList.of(manifestFile))
             .specsById(specsById)
-            .caseSensitive(caseSensitive);
+            .caseSensitive(caseSensitive)
+            .filterPartitions(partitionExpr)
+            .filterData(dataExpr);
+
     if (!scanAllFiles) {
       manifestGroup =
           manifestGroup
@@ -74,6 +106,20 @@ public class MicroBatches {
     }
 
     return manifestGroup.planFiles();
+  }
+
+  // 2. The Helper Method using Iceberg's core Visitor
+  private static boolean isPartitionOnly(
+      Expression expr, Types.StructType partitionType, boolean caseSensitive) {
+    try {
+      // If this doesn't throw an error, it means the filter
+      // only uses columns present in the partition schema.
+      Binder.bind(partitionType, expr, caseSensitive);
+      return true;
+    } catch (org.apache.iceberg.exceptions.ValidationException e) {
+      // Filter references columns NOT in the partition spec
+      return false;
+    }
   }
 
   /**
@@ -209,11 +255,22 @@ public class MicroBatches {
           Iterables.size(
               SnapshotChanges.builderFor(snapshot, io, specsById).build().addedDataFiles()),
           targetSizeInBytes,
-          scanAllFiles);
+          scanAllFiles,
+          Lists.newArrayList());
     }
 
     public MicroBatch generate(
         long startFileIndex, long endFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+      return generate(
+          startFileIndex, endFileIndex, targetSizeInBytes, scanAllFiles, Lists.newArrayList());
+    }
+
+    public MicroBatch generate(
+        long startFileIndex,
+        long endFileIndex,
+        long targetSizeInBytes,
+        boolean scanAllFiles,
+        List<Expression> pushedFilters) {
       Preconditions.checkArgument(endFileIndex >= 0, "endFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(
           startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
@@ -225,7 +282,8 @@ public class MicroBatches {
           startFileIndex,
           endFileIndex,
           targetSizeInBytes,
-          scanAllFiles);
+          scanAllFiles,
+          pushedFilters);
     }
 
     /**
@@ -247,7 +305,8 @@ public class MicroBatches {
         long startFileIndex,
         long endFileIndex,
         long targetSizeInBytes,
-        boolean scanAllFiles) {
+        boolean scanAllFiles,
+        List<Expression> pushedFilters) {
       if (indexedManifests.isEmpty()) {
         return new MicroBatch(
             snapshot.snapshotId(), startFileIndex, endFileIndex, 0L, Collections.emptyList(), true);
@@ -262,13 +321,14 @@ public class MicroBatches {
         currentFileIndex = indexedManifests.get(idx).second();
 
         try (CloseableIterable<FileScanTask> taskIterable =
-                openManifestFile(
+                openManifestFileWithFilter(
                     io,
                     specsById,
                     caseSensitive,
                     snapshot,
                     indexedManifests.get(idx).first(),
-                    scanAllFiles);
+                    scanAllFiles,
+                    pushedFilters);
             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();

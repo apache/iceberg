@@ -34,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -57,6 +58,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
+  private static final Logger LOGGER = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
@@ -77,6 +79,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final List<Expression> filters;
   private SparkMicroBatchPlanner planner;
   private StreamingOffset lastOffsetForTriggerAvailableNow;
 
@@ -86,6 +89,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       Supplier<FileIO> fileIO,
       SparkReadConf readConf,
       Schema projection,
+      List<Expression> filters,
       String checkpointLocation) {
     this.table = table;
     this.fileIO = fileIO;
@@ -102,11 +106,13 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.filters = filters;
 
     InitialOffsetStore initialOffsetStore =
         new InitialOffsetStore(
             table, checkpointLocation, fromTimestamp, sparkContext.hadoopConfiguration());
     this.initialOffset = initialOffsetStore.initialOffset();
+    LOGGER.error("[jalpan] creating micro batch with filter {} ", filters);
   }
 
   @Override
@@ -128,6 +134,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
   @Override
   public InputPartition[] planInputPartitions(Offset start, Offset end) {
+    LOGGER.error("[jalpan] planning input partitions micro batch with filter {} ", filters);
     Preconditions.checkArgument(
         end instanceof StreamingOffset, "Invalid end offset: %s is not a StreamingOffset", end);
     Preconditions.checkArgument(
@@ -209,10 +216,11 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     if (readConf.asyncMicroBatchPlanningEnabled()) {
       this.planner =
           new AsyncSparkMicroBatchPlanner(
-              table, readConf, startOffset, endOffset, lastOffsetForTriggerAvailableNow);
+              table, readConf, startOffset, endOffset, lastOffsetForTriggerAvailableNow, filters);
     } else {
       this.planner =
-          new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
+          new SyncSparkMicroBatchPlanner(
+              table, readConf, lastOffsetForTriggerAvailableNow, filters);
     }
   }
 
