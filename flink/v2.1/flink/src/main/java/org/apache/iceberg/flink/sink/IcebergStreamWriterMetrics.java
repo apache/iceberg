@@ -132,25 +132,16 @@ public class IcebergStreamWriterMetrics {
               .loader(classLoader)
               .impl("com.codahale.metrics.Reservoir")
               .buildChecked();
-      Class<?> slidingWindowReservoirClass =
-          DynClasses.builder()
-              .loader(classLoader)
-              .impl("com.codahale.metrics.SlidingWindowReservoir")
-              .buildChecked();
       Class<?> codahaleHistogramClass =
           DynClasses.builder()
               .loader(classLoader)
               .impl("com.codahale.metrics.Histogram")
               .buildChecked();
-      Class<?> wrapperClass =
-          DynClasses.builder()
-              .loader(classLoader)
-              .impl("org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper")
-              .buildChecked();
 
       Object reservoir =
           DynConstructors.builder()
-              .impl(slidingWindowReservoirClass, int.class)
+              .loader(classLoader)
+              .impl("com.codahale.metrics.SlidingWindowReservoir", int.class)
               .buildChecked()
               .newInstance(reservoirSize);
       Object codahaleHistogram =
@@ -161,7 +152,10 @@ public class IcebergStreamWriterMetrics {
       Histogram wrapper =
           (Histogram)
               DynConstructors.builder()
-                  .impl(wrapperClass, codahaleHistogramClass)
+                  .loader(classLoader)
+                  .impl(
+                      "org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper",
+                      codahaleHistogramClass)
                   .buildChecked()
                   .newInstance(codahaleHistogram);
 
