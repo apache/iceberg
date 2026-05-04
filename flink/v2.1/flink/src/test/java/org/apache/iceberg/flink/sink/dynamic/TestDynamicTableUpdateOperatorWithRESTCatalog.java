@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
@@ -115,7 +116,7 @@ class TestDynamicTableUpdateOperatorWithRESTCatalog {
 
     operator =
         new DynamicTableUpdateOperator(
-            restCatalogLoader, 10, 1000, 10, TableCreator.DEFAULT, true, false);
+            restCatalogLoader, TableCreator.DEFAULT, flinkDynamicSinkConfiguration());
   }
 
   @AfterEach
@@ -149,5 +150,15 @@ class TestDynamicTableUpdateOperatorWithRESTCatalog {
 
     DynamicRecordInternal output = operator.map(input);
     assertThat(output).isEqualTo(input);
+  }
+
+  private static FlinkDynamicSinkConf flinkDynamicSinkConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(FlinkDynamicSinkOptions.CACHE_MAX_SIZE.key(), "10");
+    properties.put(FlinkDynamicSinkOptions.CACHE_REFRESH_MS.key(), "1000");
+    properties.put(FlinkDynamicSinkOptions.INPUT_SCHEMAS_PER_TABLE_CACHE_MAX_SIZE.key(), "10");
+    properties.put(FlinkDynamicSinkOptions.CASE_SENSITIVE.key(), "true");
+    properties.put(FlinkDynamicSinkOptions.DROP_UNUSED_COLUMNS.key(), "false");
+    return new FlinkDynamicSinkConf(properties, new Configuration());
   }
 }

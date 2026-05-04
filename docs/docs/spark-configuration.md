@@ -80,7 +80,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.view-override._propertyKey_ |                               | Enforced Iceberg view property value for property key _propertyKey_, which cannot be overridden on view creation by user                                                                                                               |
 | spark.sql.catalog._catalog-name_.use-nullable-query-schema | `true` or `false` | Whether to preserve fields' nullability when creating the table using CTAS and RTAS. If set to `true`, all fields will be marked as nullable. If set to `false`, fields' nullability will be preserved. The default value is `true`. Available in Spark 3.5 and above.   |
 
-Additional properties can be found in common [catalog configuration](configuration.md#catalog-properties).
+Additional properties can be found in common [catalog configuration](catalog-properties.md).
 
 ### Using catalogs
 

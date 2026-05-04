@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
@@ -438,12 +439,13 @@ public class SparkTable
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
+    String writeBranch = branch;
     if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+      writeBranch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
     }
 
-    if (branch != null) {
-      deleteFiles.toBranch(branch);
+    if (writeBranch != null) {
+      deleteFiles.toBranch(writeBranch);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
@@ -466,15 +468,16 @@ public class SparkTable
       return false;
     }
 
-    // use only name in order to correctly invalidate Spark cache
     SparkTable that = (SparkTable) other;
-    return icebergTable.name().equals(that.icebergTable.name());
+    return icebergTable.name().equals(that.icebergTable.name())
+        && Objects.equals(table().uuid(), that.table().uuid())
+        && Objects.equals(snapshotId, that.snapshotId)
+        && Objects.equals(branch, that.branch);
   }
 
   @Override
   public int hashCode() {
-    // use only name in order to correctly invalidate Spark cache
-    return icebergTable.name().hashCode();
+    return Objects.hash(icebergTable.name(), table().uuid(), snapshotId, branch);
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(

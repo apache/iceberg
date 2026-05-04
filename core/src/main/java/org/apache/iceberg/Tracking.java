@@ -106,4 +106,13 @@ interface Tracking {
 
   /** Returns the bitmap of positions replaced in this snapshot. */
   ByteBuffer replacedPositions();
+
+  /** Returns the manifest location this entry was read from, or null. */
+  String manifestLocation();
+
+  /** Returns the ordinal position of this entry within the manifest. */
+  long manifestPos();
+
+  /** Copies this tracking information. */
+  Tracking copy();
 }
