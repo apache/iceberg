@@ -33,14 +33,12 @@ class UdfRepresentationParser {
   static void toJson(UdfRepresentation representation, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(representation != null, "Invalid UDF representation: null");
     switch (representation.type().toLowerCase(Locale.ROOT)) {
-      case UdfRepresentation.Type.SQL:
-        SQLUdfRepresentationParser.toJson((SQLUdfRepresentation) representation, generator);
-        break;
-
-      default:
-        throw new UnsupportedOperationException(
-            String.format(
-                "Cannot serialize unsupported UDF representation: %s", representation.type()));
+      case UdfRepresentation.Type.SQL ->
+          SQLUdfRepresentationParser.toJson((SQLUdfRepresentation) representation, generator);
+      default ->
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Cannot serialize unsupported UDF representation: %s", representation.type()));
     }
   }
 
@@ -57,12 +55,9 @@ class UdfRepresentationParser {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse UDF representation from non-object: %s", node);
     String type = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ROOT);
-    switch (type) {
-      case UdfRepresentation.Type.SQL:
-        return SQLUdfRepresentationParser.fromJson(node);
-
-      default:
-        return ImmutableUnknownUdfRepresentation.builder().type(type).build();
-    }
+    return switch (type) {
+      case UdfRepresentation.Type.SQL -> SQLUdfRepresentationParser.fromJson(node);
+      default -> ImmutableUnknownUdfRepresentation.builder().type(type).build();
+    };
   }
 }

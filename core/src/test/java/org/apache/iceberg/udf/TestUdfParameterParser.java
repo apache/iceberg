@@ -28,7 +28,9 @@ class TestUdfParameterParser {
 
   @Test
   void parsePrimitiveTypeParameter() {
-    String json = "{\"name\":\"x\",\"type\":\"int\"}";
+    String json =
+        """
+        {"name":"x","type":"int"}""";
     UdfParameter expected =
         ImmutableUdfParameter.builder().name("x").type(UdfPrimitiveType.of("int")).build();
 
@@ -37,7 +39,9 @@ class TestUdfParameterParser {
 
   @Test
   void parseParameterWithDoc() {
-    String json = "{\"name\":\"x\",\"type\":\"int\",\"doc\":\"Input integer\"}";
+    String json =
+        """
+        {"name":"x","type":"int","doc":"Input integer"}""";
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("x")
@@ -50,7 +54,9 @@ class TestUdfParameterParser {
 
   @Test
   void parseDecimalTypeParameter() {
-    String json = "{\"name\":\"amount\",\"type\":\"decimal(9,2)\"}";
+    String json =
+        """
+        {"name":"amount","type":"decimal(9,2)"}""";
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("amount")
@@ -62,7 +68,9 @@ class TestUdfParameterParser {
 
   @Test
   void parseVariantTypeParameter() {
-    String json = "{\"name\":\"data\",\"type\":\"variant\"}";
+    String json =
+        """
+        {"name":"data","type":"variant"}""";
     UdfParameter expected =
         ImmutableUdfParameter.builder().name("data").type(UdfPrimitiveType.of("variant")).build();
 
@@ -71,7 +79,15 @@ class TestUdfParameterParser {
 
   @Test
   void parseListTypeParameter() {
-    String json = "{\"name\":\"items\",\"type\":{\"type\":\"list\",\"element\":\"string\"}}";
+    String json =
+        """
+        {
+          "name": "items",
+          "type": {
+            "type": "list",
+            "element": "string"
+          }
+        }""";
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("items")
@@ -84,7 +100,15 @@ class TestUdfParameterParser {
   @Test
   void parseMapTypeParameter() {
     String json =
-        "{\"name\":\"lookup\",\"type\":{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}}";
+        """
+        {
+          "name": "lookup",
+          "type": {
+            "type": "map",
+            "key": "string",
+            "value": "int"
+          }
+        }""";
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("lookup")
@@ -97,9 +121,17 @@ class TestUdfParameterParser {
   @Test
   void parseStructTypeParameter() {
     String json =
-        "{\"name\":\"row\",\"type\":{\"type\":\"struct\",\"fields\":["
-            + "{\"name\":\"id\",\"type\":\"int\"},"
-            + "{\"name\":\"label\",\"type\":\"string\"}]}}";
+        """
+        {
+          "name": "row",
+          "type": {
+            "type": "struct",
+            "fields": [
+              {"name": "id", "type": "int"},
+              {"name": "label", "type": "string"}
+            ]
+          }
+        }""";
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("row")
@@ -115,8 +147,19 @@ class TestUdfParameterParser {
   @Test
   void parseNestedListOfStruct() {
     String json =
-        "{\"name\":\"records\",\"type\":{\"type\":\"list\",\"element\":"
-            + "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"int\"}]}}}";
+        """
+        {
+          "name": "records",
+          "type": {
+            "type": "list",
+            "element": {
+              "type": "struct",
+              "fields": [
+                {"name": "id", "type": "int"}
+              ]
+            }
+          }
+        }""";
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("records")
@@ -192,12 +235,16 @@ class TestUdfParameterParser {
 
   @Test
   void missingRequiredFields() {
-    String missingName = "{\"type\":\"int\"}";
+    String missingName =
+        """
+        {"type":"int"}""";
     assertThatThrownBy(() -> UdfParameterParser.fromJson(missingName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: name");
 
-    String missingType = "{\"name\":\"x\"}";
+    String missingType =
+        """
+        {"name":"x"}""";
     assertThatThrownBy(() -> UdfParameterParser.fromJson(missingType))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read type from null node");

@@ -27,7 +27,9 @@ class TestUdfRepresentationParser {
 
   @Test
   void parseUnknownRepresentation() {
-    String json = "{\"type\":\"python\"}";
+    String json =
+        """
+        {"type":"python"}""";
     UdfRepresentation unknownRepresentation = UdfRepresentationParser.fromJson(json);
     assertThat(unknownRepresentation)
         .isEqualTo(ImmutableUnknownUdfRepresentation.builder().type("python").build());
@@ -46,7 +48,11 @@ class TestUdfRepresentationParser {
 
   @Test
   void missingType() {
-    assertThatThrownBy(() -> UdfRepresentationParser.fromJson("{\"sql\":\"x + 1\"}"))
+    assertThatThrownBy(
+            () ->
+                UdfRepresentationParser.fromJson(
+                    """
+                    {"sql":"x + 1"}"""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: type");
   }

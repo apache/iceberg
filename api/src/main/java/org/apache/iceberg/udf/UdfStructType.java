@@ -26,8 +26,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
- * A UDF struct type with an ordered list of named fields. Unlike Iceberg struct types, UDF struct
- * fields do not have field IDs.
+ * A UDF struct type with an ordered list of named fields. Based on Iceberg struct types but
+ * intentionally omits field IDs and element nullability.
  */
 public final class UdfStructType implements UdfType {
 

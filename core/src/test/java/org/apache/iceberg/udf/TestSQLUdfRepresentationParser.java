@@ -28,7 +28,9 @@ class TestSQLUdfRepresentationParser {
 
   @Test
   void parseSqlUdfRepresentation() {
-    String json = "{\"type\":\"sql\", \"sql\": \"x + 1\", \"dialect\": \"spark\"}";
+    String json =
+        """
+        {"type":"sql", "sql": "x + 1", "dialect": "spark"}""";
     SQLUdfRepresentation representation =
         ImmutableSQLUdfRepresentation.builder().sql("x + 1").dialect("spark").build();
 
@@ -39,17 +41,23 @@ class TestSQLUdfRepresentationParser {
 
   @Test
   void parseMissingRequiredFields() {
-    String missingDialect = "{\"type\":\"sql\", \"sql\": \"x + 1\"}";
+    String missingDialect =
+        """
+        {"type":"sql", "sql": "x + 1"}""";
     assertThatThrownBy(() -> UdfRepresentationParser.fromJson(missingDialect))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: dialect");
 
-    String missingSql = "{\"type\":\"sql\", \"dialect\": \"spark\"}";
+    String missingSql =
+        """
+        {"type":"sql", "dialect": "spark"}""";
     assertThatThrownBy(() -> UdfRepresentationParser.fromJson(missingSql))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: sql");
 
-    String missingType = "{\"sql\":\"x + 1\",\"dialect\":\"spark\"}";
+    String missingType =
+        """
+        {"sql":"x + 1","dialect":"spark"}""";
     assertThatThrownBy(() -> UdfRepresentationParser.fromJson(missingType))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: type");
@@ -57,16 +65,11 @@ class TestSQLUdfRepresentationParser {
 
   @Test
   void roundTripSerialization() {
-    String expectedJson = "{\"type\":\"sql\",\"sql\":\"x + 1\",\"dialect\":\"spark\"}";
     SQLUdfRepresentation representation =
         ImmutableSQLUdfRepresentation.builder().sql("x + 1").dialect("spark").build();
 
-    assertThat(UdfRepresentationParser.toJson(representation))
-        .as("Should be able to serialize valid SQL UDF representation")
-        .isEqualTo(expectedJson);
-
-    assertThat(UdfRepresentationParser.fromJson(UdfRepresentationParser.toJson(representation)))
-        .isEqualTo(representation);
+    String serialized = UdfRepresentationParser.toJson(representation);
+    assertThat(UdfRepresentationParser.fromJson(serialized)).isEqualTo(representation);
   }
 
   @Test

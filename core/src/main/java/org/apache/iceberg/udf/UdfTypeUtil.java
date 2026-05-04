@@ -52,17 +52,15 @@ class UdfTypeUtil {
       return UdfPrimitiveType.of(node.asText());
     } else if (node.isObject()) {
       String typeName = JsonUtil.getString(TYPE, node);
-      switch (typeName) {
-        case LIST:
-          return UdfListType.of(readType(node.get(ELEMENT)));
-        case MAP:
-          return UdfMapType.of(readType(node.get(KEY)), readType(node.get(VALUE)));
-        case STRUCT:
-          return readStruct(node);
-        default:
-          throw new IllegalArgumentException(
-              String.format("Cannot parse UDF type from object with type: %s", typeName));
-      }
+      return switch (typeName) {
+        case LIST -> UdfListType.of(readType(node.get(ELEMENT)));
+        case MAP -> UdfMapType.of(readType(node.get(KEY)), readType(node.get(VALUE)));
+        case STRUCT -> readStruct(node);
+        default ->
+            throw new IllegalArgumentException(
+                String.format(
+                    "Cannot parse UDF type from object with unknown type %s: %s", typeName, node));
+      };
     } else {
       throw new IllegalArgumentException(
           String.format("Cannot parse UDF type from node: %s", node));
@@ -97,24 +95,22 @@ class UdfTypeUtil {
 
   private static void writeTypeValue(UdfType type, JsonGenerator generator) throws IOException {
     switch (type.typeId()) {
-      case PRIMITIVE:
-        generator.writeString(type.asPrimitive().typeString());
-        return;
-      case LIST:
+      case PRIMITIVE -> generator.writeString(type.asPrimitive().typeString());
+      case LIST -> {
         generator.writeStartObject();
         generator.writeStringField(TYPE, LIST);
         writeType(ELEMENT, type.asListType().elementType(), generator);
         generator.writeEndObject();
-        return;
-      case MAP:
+      }
+      case MAP -> {
         UdfMapType mapType = type.asMapType();
         generator.writeStartObject();
         generator.writeStringField(TYPE, MAP);
         writeType(KEY, mapType.keyType(), generator);
         writeType(VALUE, mapType.valueType(), generator);
         generator.writeEndObject();
-        return;
-      case STRUCT:
+      }
+      case STRUCT -> {
         List<UdfFieldType> fields = type.asStructType().fields();
         generator.writeStartObject();
         generator.writeStringField(TYPE, STRUCT);
@@ -127,9 +123,8 @@ class UdfTypeUtil {
         }
         generator.writeEndArray();
         generator.writeEndObject();
-        return;
-      default:
-        throw new IllegalArgumentException("Unknown UDF type: " + type);
+      }
+      default -> throw new IllegalArgumentException("Unknown UDF type: " + type);
     }
   }
 }

@@ -50,15 +50,20 @@ class TestUdfTypeUtil {
 
   @Test
   void readListType() {
-    JsonNode node = JsonUtil.parse("{\"type\":\"list\",\"element\":\"string\"}", n -> n);
+    String json =
+        """
+        {"type":"list","element":"string"}""";
+    JsonNode node = JsonUtil.parse(json, n -> n);
     UdfType type = UdfTypeUtil.readType(node);
     assertThat(type).isEqualTo(UdfListType.of(UdfPrimitiveType.of("string")));
   }
 
   @Test
   void readMapType() {
-    JsonNode node =
-        JsonUtil.parse("{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}", n -> n);
+    String json =
+        """
+        {"type":"map","key":"string","value":"int"}""";
+    JsonNode node = JsonUtil.parse(json, n -> n);
     UdfType type = UdfTypeUtil.readType(node);
     assertThat(type)
         .isEqualTo(UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int")));
@@ -67,9 +72,14 @@ class TestUdfTypeUtil {
   @Test
   void readStructType() {
     String structJson =
-        "{\"type\":\"struct\",\"fields\":["
-            + "{\"name\":\"id\",\"type\":\"int\"},"
-            + "{\"name\":\"name\",\"type\":\"string\"}]}";
+        """
+        {
+          "type": "struct",
+          "fields": [
+            {"name": "id", "type": "int"},
+            {"name": "name", "type": "string"}
+          ]
+        }""";
     JsonNode node = JsonUtil.parse(structJson, n -> n);
     UdfType expected =
         UdfStructType.of(
@@ -82,8 +92,15 @@ class TestUdfTypeUtil {
   @Test
   void readNestedListOfMap() {
     String json =
-        "{\"type\":\"list\",\"element\":"
-            + "{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}}";
+        """
+        {
+          "type": "list",
+          "element": {
+            "type": "map",
+            "key": "string",
+            "value": "int"
+          }
+        }""";
     JsonNode node = JsonUtil.parse(json, n -> n);
     UdfType expected =
         UdfListType.of(UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int")));
@@ -108,10 +125,13 @@ class TestUdfTypeUtil {
 
   @Test
   void readUnknownNestedType() {
-    JsonNode node = JsonUtil.parse("{\"type\":\"set\"}", n -> n);
+    String json =
+        """
+        {"type":"set"}""";
+    JsonNode node = JsonUtil.parse(json, n -> n);
     assertThatThrownBy(() -> UdfTypeUtil.readType(node))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot parse UDF type from object with type: set");
+        .hasMessage("Cannot parse UDF type from object with unknown type set: {\"type\":\"set\"}");
   }
 
   @Test
@@ -125,7 +145,10 @@ class TestUdfTypeUtil {
             },
             false);
 
-    assertThat(json).isEqualTo("{\"return-type\":\"int\"}");
+    assertThat(json)
+        .isEqualTo(
+            """
+            {"return-type":"int"}""");
   }
 
   @Test
@@ -140,7 +163,10 @@ class TestUdfTypeUtil {
             },
             false);
 
-    assertThat(json).isEqualTo("{\"return-type\":{\"type\":\"list\",\"element\":\"string\"}}");
+    assertThat(json)
+        .isEqualTo(
+            """
+            {"return-type":{"type":"list","element":"string"}}""");
   }
 
   @Test
@@ -156,7 +182,9 @@ class TestUdfTypeUtil {
             false);
 
     assertThat(json)
-        .isEqualTo("{\"return-type\":{\"type\":\"map\",\"key\":\"string\",\"value\":\"int\"}}");
+        .isEqualTo(
+            """
+            {"return-type":{"type":"map","key":"string","value":"int"}}""");
   }
 
   @Test
@@ -176,9 +204,10 @@ class TestUdfTypeUtil {
 
     assertThat(json)
         .isEqualTo(
-            "{\"return-type\":{\"type\":\"struct\",\"fields\":["
-                + "{\"name\":\"id\",\"type\":\"int\"},"
-                + "{\"name\":\"name\",\"type\":\"string\"}]}}");
+            """
+            {"return-type":{"type":"struct","fields":[\
+            {"name":"id","type":"int"},\
+            {"name":"name","type":"string"}]}}""");
   }
 
   @Test

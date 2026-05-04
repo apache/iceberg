@@ -68,7 +68,7 @@ public final class UdfPrimitiveType implements UdfType {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(typeString);
+    return Objects.hash(UdfPrimitiveType.class, typeString);
   }
 
   @Override
