@@ -529,11 +529,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           TableMetadata.buildFrom(response.tableMetadata())
               .withMetadataLocation(response.metadataLocation())
               .setPreviousFileLocation(null)
-              .setSnapshotsSupplier(
+              .setDeferredMetadataSupplier(
                   () ->
                       loadInternal(context, finalIdentifier, SnapshotMode.ALL, Map.of(), h -> {})
-                          .tableMetadata()
-                          .snapshots())
+                          .tableMetadata())
               .discardChanges()
               .build();
     } else {

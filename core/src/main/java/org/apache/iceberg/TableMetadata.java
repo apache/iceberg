@@ -259,18 +259,19 @@ public class TableMetadata implements Serializable {
   private final Map<Integer, Schema> schemasById;
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, SortOrder> sortOrdersById;
-  private final List<HistoryEntry> snapshotLog;
+  private volatile List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
   private final List<StatisticsFile> statisticsFiles;
   private final List<PartitionStatisticsFile> partitionStatisticsFiles;
   private final List<MetadataUpdate> changes;
   private final long nextRowId;
   private final List<EncryptedKey> encryptionKeys;
-  private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+  @Deprecated private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+  private SerializableSupplier<TableMetadata> deferredMetadataSupplier;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
-  private volatile boolean snapshotsLoaded;
+  private volatile boolean deferredLoaded;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -292,6 +293,7 @@ public class TableMetadata implements Serializable {
       long currentSnapshotId,
       List<Snapshot> snapshots,
       SerializableSupplier<List<Snapshot>> snapshotsSupplier,
+      SerializableSupplier<TableMetadata> deferredMetadataSupplier,
       List<HistoryEntry> snapshotLog,
       List<MetadataLogEntry> previousFiles,
       Map<String, SnapshotRef> refs,
@@ -319,6 +321,9 @@ public class TableMetadata implements Serializable {
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
     Preconditions.checkArgument(encryptionKeys != null, "Encryption keys cannot be null");
+    Preconditions.checkArgument(
+        snapshotsSupplier == null || deferredMetadataSupplier == null,
+        "Cannot set both snapshotsSupplier and deferredMetadataSupplier");
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -338,7 +343,8 @@ public class TableMetadata implements Serializable {
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
     this.snapshotsSupplier = snapshotsSupplier;
-    this.snapshotsLoaded = snapshotsSupplier == null;
+    this.deferredMetadataSupplier = deferredMetadataSupplier;
+    this.deferredLoaded = snapshotsSupplier == null && deferredMetadataSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
     this.encryptionKeys = encryptionKeys;
@@ -515,7 +521,7 @@ public class TableMetadata implements Serializable {
 
   public Snapshot snapshot(long snapshotId) {
     if (!snapshotsById.containsKey(snapshotId)) {
-      ensureSnapshotsLoaded();
+      ensureDeferredLoaded();
     }
 
     return snapshotsById.get(snapshotId);
@@ -526,14 +532,24 @@ public class TableMetadata implements Serializable {
   }
 
   public List<Snapshot> snapshots() {
-    ensureSnapshotsLoaded();
+    ensureDeferredLoaded();
 
     return snapshots;
   }
 
-  private synchronized void ensureSnapshotsLoaded() {
-    if (!snapshotsLoaded) {
-      List<Snapshot> loadedSnapshots = Lists.newArrayList(snapshotsSupplier.get());
+  private synchronized void ensureDeferredLoaded() {
+    if (!deferredLoaded) {
+      List<Snapshot> loadedSnapshots;
+      if (deferredMetadataSupplier != null) {
+        TableMetadata fullMetadata = deferredMetadataSupplier.get();
+        loadedSnapshots = Lists.newArrayList(fullMetadata.snapshots());
+        this.snapshotLog = ImmutableList.copyOf(fullMetadata.snapshotLog());
+        this.deferredMetadataSupplier = null;
+      } else {
+        loadedSnapshots = Lists.newArrayList(snapshotsSupplier.get());
+        this.snapshotsSupplier = null;
+      }
+
       loadedSnapshots.removeIf(s -> s.sequenceNumber() > lastSequenceNumber);
 
       this.snapshots = ImmutableList.copyOf(loadedSnapshots);
@@ -542,8 +558,7 @@ public class TableMetadata implements Serializable {
 
       this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
 
-      this.snapshotsLoaded = true;
-      this.snapshotsSupplier = null;
+      this.deferredLoaded = true;
     }
   }
 
@@ -564,6 +579,7 @@ public class TableMetadata implements Serializable {
   }
 
   public List<HistoryEntry> snapshotLog() {
+    ensureDeferredLoaded();
     return snapshotLog;
   }
 
@@ -913,6 +929,7 @@ public class TableMetadata implements Serializable {
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
     private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+    private SerializableSupplier<TableMetadata> deferredMetadataSupplier;
     private final Map<String, SnapshotRef> refs;
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
@@ -993,7 +1010,7 @@ public class TableMetadata implements Serializable {
       this.changes = Lists.newArrayList(base.changes);
       this.startingChangeCount = changes.size();
 
-      this.snapshotLog = Lists.newArrayList(base.snapshotLog);
+      this.snapshotLog = Lists.newArrayList(base.snapshotLog());
       this.previousFileLocation = base.metadataFileLocation;
       this.previousFiles = base.previousFiles;
       this.refs = Maps.newHashMap(base.refs);
@@ -1278,8 +1295,28 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    /**
+     * Lazily loads table snapshots
+     *
+     * @param snapshotsSupplier supplier that lazily loads snapshots
+     * @return this for method chaining
+     * @deprecated use {@link #setDeferredMetadataSupplier(SerializableSupplier)} instead.
+     */
+    @Deprecated
     public Builder setSnapshotsSupplier(SerializableSupplier<List<Snapshot>> snapshotsSupplier) {
       this.snapshotsSupplier = snapshotsSupplier;
+      return this;
+    }
+
+    /**
+     * Lazily loads complete table metadata
+     *
+     * @param deferredMetadataSupplier supplier that lazily loads complete TableMetadata
+     * @return this for method chaining
+     */
+    public Builder setDeferredMetadataSupplier(
+        SerializableSupplier<TableMetadata> deferredMetadataSupplier) {
+      this.deferredMetadataSupplier = deferredMetadataSupplier;
       return this;
     }
 
@@ -1385,6 +1422,7 @@ public class TableMetadata implements Serializable {
           refs.values().stream().map(SnapshotRef::snapshotId).collect(Collectors.toSet());
       Set<Long> suppressedSnapshotIds = Sets.difference(snapshotsById.keySet(), refSnapshotIds);
       rewriteSnapshotsInternal(suppressedSnapshotIds, true);
+      this.snapshotLog.removeIf(entry -> !refSnapshotIds.contains(entry.snapshotId()));
       return this;
     }
 
@@ -1528,7 +1566,8 @@ public class TableMetadata implements Serializable {
           || (discardChanges && !changes.isEmpty())
           || metadataLocation != null
           || suppressHistoricalSnapshots
-          || null != snapshotsSupplier;
+          || null != snapshotsSupplier
+          || null != deferredMetadataSupplier;
     }
 
     public TableMetadata build() {
@@ -1583,6 +1622,7 @@ public class TableMetadata implements Serializable {
           currentSnapshotId,
           ImmutableList.copyOf(snapshots),
           snapshotsSupplier,
+          deferredMetadataSupplier,
           ImmutableList.copyOf(newSnapshotLog),
           ImmutableList.copyOf(metadataHistory),
           ImmutableMap.copyOf(refs),

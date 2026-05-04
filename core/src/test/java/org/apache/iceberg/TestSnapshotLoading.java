@@ -192,6 +192,140 @@ public class TestSnapshotLoading extends TestBase {
     verify(snapshotsSupplierMock, times(1)).get();
   }
 
+  @TestTemplate
+  public void testDeferredMetadataSnapshotsAreLoadedOnce() {
+    SerializableSupplier<TableMetadata> mock = mockDeferredMetadataSupplier();
+    TableMetadata deferred = deferredTableMetadata(mock);
+
+    deferred.snapshots();
+    deferred.snapshots();
+    deferred.snapshots();
+
+    verify(mock, times(1)).get();
+
+    assertThat(deferred.snapshots()).containsExactlyElementsOf(originalTableMetadata.snapshots());
+  }
+
+  @TestTemplate
+  public void testDeferredMetadataCurrentSnapshotDoesNotLoad() {
+    SerializableSupplier<TableMetadata> mock = mockDeferredMetadataSupplier();
+    TableMetadata deferred = deferredTableMetadata(mock);
+
+    deferred.currentSnapshot();
+    deferred.snapshot(deferred.ref(SnapshotRef.MAIN_BRANCH).snapshotId());
+
+    verify(mock, times(0)).get();
+  }
+
+  @TestTemplate
+  public void testDeferredMetadataSnapshotLogLoadedOnce() {
+    SerializableSupplier<TableMetadata> mock = mockDeferredMetadataSupplier();
+    TableMetadata deferred = deferredTableMetadata(mock);
+
+    deferred.snapshotLog();
+    deferred.snapshotLog();
+
+    verify(mock, times(1)).get();
+
+    assertThat(deferred.snapshotLog())
+        .containsExactlyElementsOf(originalTableMetadata.snapshotLog());
+  }
+
+  @TestTemplate
+  public void testDeferredMetadataSnapshotLogNotLoadedUntilAccessed() {
+    SerializableSupplier<TableMetadata> mock = mockDeferredMetadataSupplier();
+    TableMetadata deferred = deferredTableMetadata(mock);
+
+    deferred.currentSnapshot();
+
+    verify(mock, times(0)).get();
+
+    deferred.snapshotLog();
+
+    verify(mock, times(1)).get();
+
+    assertThat(deferred.snapshotLog())
+        .containsExactlyElementsOf(originalTableMetadata.snapshotLog());
+  }
+
+  @TestTemplate
+  public void testDeferredMetadataSnapshotsLoadAlsoPopulatesSnapshotLog() {
+    SerializableSupplier<TableMetadata> mock = mockDeferredMetadataSupplier();
+    TableMetadata deferred = deferredTableMetadata(mock);
+
+    deferred.snapshots();
+
+    verify(mock, times(1)).get();
+
+    deferred.snapshotLog();
+
+    verify(mock, times(1)).get();
+
+    assertThat(deferred.snapshotLog())
+        .containsExactlyElementsOf(originalTableMetadata.snapshotLog());
+  }
+
+  @TestTemplate
+  public void testDeferredMetadataBuildFromPreservesSnapshotLog() {
+    SerializableSupplier<TableMetadata> mock = mockDeferredMetadataSupplier();
+    TableMetadata deferred = deferredTableMetadata(mock);
+
+    TableMetadata rebuilt = TableMetadata.buildFrom(deferred).discardChanges().build();
+
+    verify(mock, times(1)).get();
+
+    assertThat(rebuilt.snapshotLog())
+        .containsExactlyElementsOf(originalTableMetadata.snapshotLog());
+  }
+
+  @TestTemplate
+  public void testSuppressHistoricalSnapshotsFiltersSnapshotLog() {
+    TableMetadata suppressed =
+        TableMetadata.buildFrom(originalTableMetadata)
+            .suppressHistoricalSnapshots()
+            .discardChanges()
+            .build();
+
+    assertThat(suppressed.snapshots()).hasSize(1);
+    assertThat(suppressed.snapshotLog()).hasSize(1);
+    assertThat(suppressed.snapshotLog().get(0).snapshotId())
+        .isEqualTo(currentSnapshot.snapshotId());
+  }
+
+  @TestTemplate
+  public void testCannotSetBothSuppliers() {
+    assertThatThrownBy(
+            () ->
+                TableMetadata.buildFrom(originalTableMetadata)
+                    .setSnapshotsSupplier(ImmutableList::of)
+                    .setDeferredMetadataSupplier(() -> originalTableMetadata)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set both snapshotsSupplier and deferredMetadataSupplier");
+  }
+
+  private SerializableSupplier<TableMetadata> mockDeferredMetadataSupplier() {
+    return Mockito.spy(
+        new SerializableSupplier<TableMetadata>() {
+          @Override
+          public TableMetadata get() {
+            return originalTableMetadata;
+          }
+        });
+  }
+
+  private TableMetadata deferredTableMetadata(
+      SerializableSupplier<TableMetadata> deferredMetadataSupplier) {
+    return TableMetadata.buildFrom(originalTableMetadata)
+        .removeSnapshots(
+            allSnapshots.stream()
+                .filter(Predicate.isEqual(currentSnapshot).negate())
+                .collect(Collectors.toList()))
+        .setDeferredMetadataSupplier(deferredMetadataSupplier)
+        .discardChanges()
+        .build();
+  }
+
   private static class MetadataTableOperations implements TableOperations {
     private final FileIO io;
     private final TableMetadata currentMetadata;

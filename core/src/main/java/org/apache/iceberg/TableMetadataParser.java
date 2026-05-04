@@ -573,6 +573,7 @@ public class TableMetadataParser {
         currentSnapshotId,
         snapshots,
         null,
+        null,
         entries.build(),
         metadataEntries.build(),
         refs,

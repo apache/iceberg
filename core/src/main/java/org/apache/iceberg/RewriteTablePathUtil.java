@@ -134,6 +134,7 @@ public class RewriteTablePathUtil {
         snapshotId,
         newSnapshots,
         null,
+        null,
         metadata.snapshotLog(),
         metadataLogEntries,
         metadata.refs(),
