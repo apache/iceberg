@@ -72,7 +72,7 @@ public class IcebergStreamWriterMetrics {
       available = true;
     } catch (ClassNotFoundException | NoSuchMethodException e) {
       LOG.warn(
-          "flink-metrics-dropwizard is not on the classpath. Histogram metrics will be disabled. Add org.apache.flink:flink-metrics-dropwizard to enable them.",
+          "Cannot load Dropwizard metrics; is org.apache.flink:flink-metrics-dropwizard on the classpath?",
           e);
     }
 
