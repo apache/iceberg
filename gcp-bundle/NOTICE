@@ -270,12 +270,3 @@ This product bundles Envoy with the following in its NOTICE file:
 | 
 | Licensed under Apache License 2.0.  See LICENSE for terms.
 
-
---------------------------------------------------------------------------------
-
-This product bundles Apache HttpClient with the following in its NOTICE file:
-| Apache HttpClient
-| Copyright 1999-2022 The Apache Software Foundation
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
