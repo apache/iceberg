@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -34,6 +35,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.FlinkWriteConf;
+import org.apache.iceberg.flink.FlinkWriteOptions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -227,6 +231,38 @@ class TestHashKeyGenerator {
               Collections.emptySet(),
               GenericRowData.of());
         });
+  }
+
+  @Test
+  void testNonPositiveWriteParallelismConfigFallback() throws Exception {
+    int maxWriteParallelism = 5;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+    FlinkWriteConf flinkWriteConf =
+        new FlinkWriteConf(
+            ImmutableMap.of(FlinkWriteOptions.WRITE_PARALLELISM.key(), "2"), new Configuration());
+
+    Set<Integer> writeKeys = Sets.newHashSet();
+    for (int i = 0; i < 20; i++) {
+      GenericRowData row = GenericRowData.of(i, StringData.fromString("z"));
+      writeKeys.add(
+          getWriteKey(
+              generator,
+              unpartitioned,
+              DistributionMode.NONE,
+              i % 2 == 0 ? 0 : -1,
+              Collections.emptySet(),
+              row,
+              flinkWriteConf));
+    }
+
+    assertThat(writeKeys).hasSize(2);
+    assertThat(
+            writeKeys.stream()
+                .map(key -> getSubTaskId(key, 2, maxWriteParallelism))
+                .distinct()
+                .count())
+        .isEqualTo(2);
   }
 
   @Test
@@ -477,10 +513,31 @@ class TestHashKeyGenerator {
       Set<String> equalityFields,
       GenericRowData row)
       throws Exception {
-    DynamicRecord record =
+    return getWriteKey(
+        generator,
+        spec,
+        mode,
+        writeParallelism,
+        equalityFields,
+        row,
+        new FlinkWriteConf(Collections.emptyMap(), new Configuration()));
+  }
+
+  private static int getWriteKey(
+      HashKeyGenerator generator,
+      PartitionSpec spec,
+      DistributionMode mode,
+      int writeParallelism,
+      Set<String> equalityFields,
+      GenericRowData row,
+      FlinkWriteConf flinkWriteConf)
+      throws Exception {
+    DynamicRecord inputRecord =
         new DynamicRecord(TABLE_IDENTIFIER, BRANCH, SCHEMA, row, spec, mode, writeParallelism);
-    record.setEqualityFields(equalityFields);
-    return generator.generateKey(record);
+    inputRecord.setEqualityFields(equalityFields);
+
+    DynamicRecordWithConfig dynamicRecordWithConfig = new DynamicRecordWithConfig(flinkWriteConf);
+    return generator.generateKey(dynamicRecordWithConfig.wrap(inputRecord));
   }
 
   private static int getSubTaskId(int writeKey1, int writeParallelism, int maxWriteParallelism) {
