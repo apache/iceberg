@@ -98,11 +98,8 @@ public class IcebergStreamWriterMetrics {
     this.lastFlushDurationMs = new AtomicLong();
     writerMetrics.gauge("lastFlushDurationMs", lastFlushDurationMs::get);
 
-    this.dataFilesSizeHistogram =
-        loadHistogramIfAvailable(writerMetrics, "dataFilesSizeHistogram", HISTOGRAM_RESERVOIR_SIZE);
-    this.deleteFilesSizeHistogram =
-        loadHistogramIfAvailable(
-            writerMetrics, "deleteFilesSizeHistogram", HISTOGRAM_RESERVOIR_SIZE);
+    this.dataFilesSizeHistogram = registerHistogram(writerMetrics, "dataFilesSizeHistogram");
+    this.deleteFilesSizeHistogram = registerHistogram(writerMetrics, "deleteFilesSizeHistogram");
   }
 
   public void updateFlushResult(WriteResult result) {
@@ -153,20 +150,18 @@ public class IcebergStreamWriterMetrics {
     return deleteFilesSizeHistogram;
   }
 
-  /**
-   * Checks whether the Dropwizard-based histogram wrapper provided through Flink's optional
-   * flink-metrics-dropwizard dependency is available.
-   */
-  private static Histogram loadHistogramIfAvailable(
-      MetricGroup group, String name, int reservoirSize) {
+  private static Histogram registerHistogram(MetricGroup group, String name) {
+    Histogram histogram = newDropwizardHistogram();
+    return histogram != null ? group.histogram(name, histogram) : null;
+  }
 
+  private static Histogram newDropwizardHistogram() {
     if (!DROPWIZARD_AVAILABLE) {
       return null;
     }
 
-    Object reservoir = RESERVOIR_CTOR.newInstance(reservoirSize);
+    Object reservoir = RESERVOIR_CTOR.newInstance(HISTOGRAM_RESERVOIR_SIZE);
     Object codahaleHistogram = CODAHALE_HISTOGRAM_CTOR.newInstance(reservoir);
-    Histogram wrapper = WRAPPER_CTOR.newInstance(codahaleHistogram);
-    return group.histogram(name, wrapper);
+    return WRAPPER_CTOR.newInstance(codahaleHistogram);
   }
 }
