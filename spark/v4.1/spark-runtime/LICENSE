@@ -934,6 +934,14 @@ License: BSD 3-Clause
 
 --------------------------------------------------------------------------------
 
+This product bundles Project Nessie.
+
+Copyright: 2015-2025 Dremio Corporation.
+Project URL: https://projectnessie.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles and includes code from Apache Spark.
 
 * vectorized reading of definition levels in BaseVectorizedParquetValuesReader.java
@@ -981,14 +989,6 @@ This product bundles failsafe.
 
 Copyright: Jonathan Halterman and friends
 Project URL: https://failsafe.dev/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Project Nessie.
-
-Copyright: 2015-2025 Dremio Corporation.
-Project URL: https://projectnessie.org/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
