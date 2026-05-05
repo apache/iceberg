@@ -23,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +34,10 @@ class TestManifestInfoStruct {
   @Test
   void testFieldAccess() {
     ManifestInfoStruct info = new ManifestInfoStruct(ManifestInfo.schema());
+
+    PartitionFieldSummary summary =
+        new GenericPartitionFieldSummary(
+            false, false, ByteBuffer.wrap(new byte[] {1}), ByteBuffer.wrap(new byte[] {2}));
 
     info.set(0, 10);
     info.set(1, 20);
@@ -41,8 +48,9 @@ class TestManifestInfoStruct {
     info.set(6, 300L);
     info.set(7, 200L);
     info.set(8, 5L);
-    info.set(9, ByteBuffer.wrap(new byte[] {0xF}));
-    info.set(10, 1L);
+    info.set(9, ImmutableList.of(summary));
+    info.set(10, ByteBuffer.wrap(new byte[] {0xF}));
+    info.set(11, 1L);
 
     assertThat(info.addedFilesCount()).isEqualTo(10);
     assertThat(info.existingFilesCount()).isEqualTo(20);
@@ -53,12 +61,16 @@ class TestManifestInfoStruct {
     assertThat(info.deletedRowsCount()).isEqualTo(300L);
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
+    assertThat(info.partitions()).hasSize(1).first().isSameAs(summary);
     assertThat(info.dv()).isNotNull();
     assertThat(info.dvCardinality()).isEqualTo(1L);
   }
 
   @Test
   void testCopy() {
+    PartitionFieldSummary summary =
+        new GenericPartitionFieldSummary(
+            false, false, ByteBuffer.wrap(new byte[] {1}), ByteBuffer.wrap(new byte[] {2}));
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
@@ -70,6 +82,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
+            .partitions(ImmutableList.of(summary))
             .dv(new byte[] {0xF})
             .dvCardinality(1L)
             .build();
@@ -89,6 +102,15 @@ class TestManifestInfoStruct {
 
     // verify deep copy of dv byte array
     assertThat(copy.dv().array()).isNotSameAs(info.dv().array());
+
+    // verify deep copy of partitions
+    List<PartitionFieldSummary> copiedPartitions = copy.partitions();
+    assertThat(copiedPartitions).hasSize(1);
+    assertThat(copiedPartitions.get(0)).isNotSameAs(summary);
+    assertThat(copiedPartitions.get(0).containsNull()).isEqualTo(summary.containsNull());
+    assertThat(copiedPartitions.get(0).containsNaN()).isEqualTo(summary.containsNaN());
+    assertThat(copiedPartitions.get(0).lowerBound()).isEqualTo(summary.lowerBound());
+    assertThat(copiedPartitions.get(0).upperBound()).isEqualTo(summary.upperBound());
   }
 
   @Test
@@ -106,6 +128,7 @@ class TestManifestInfoStruct {
             .minSequenceNumber(0L)
             .build();
 
+    assertThat(info.partitions()).isNull();
     assertThat(info.dv()).isNull();
     assertThat(info.dvCardinality()).isNull();
   }
@@ -132,6 +155,9 @@ class TestManifestInfoStruct {
 
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
+    PartitionFieldSummary summary =
+        new GenericPartitionFieldSummary(
+            true, true, ByteBuffer.wrap(new byte[] {1}), ByteBuffer.wrap(new byte[] {2}));
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
@@ -143,6 +169,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
+            .partitions(ImmutableList.of(summary))
             .dv(new byte[] {0xF})
             .dvCardinality(1L)
             .build();
@@ -158,6 +185,12 @@ class TestManifestInfoStruct {
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
+    assertThat(deserialized.partitions()).hasSize(1);
+    PartitionFieldSummary partition = deserialized.partitions().get(0);
+    assertThat(partition.containsNaN()).isTrue();
+    assertThat(partition.containsNull()).isTrue();
+    assertThat(partition.lowerBound()).isEqualTo(ByteBuffer.wrap(new byte[] {1}));
+    assertThat(partition.upperBound()).isEqualTo(ByteBuffer.wrap(new byte[] {2}));
     assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
     assertThat(deserialized.dvCardinality()).isEqualTo(1L);
   }
@@ -357,6 +390,9 @@ class TestManifestInfoStruct {
 
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
+    PartitionFieldSummary summary =
+        new GenericPartitionFieldSummary(
+            true, true, ByteBuffer.wrap(new byte[] {1}), ByteBuffer.wrap(new byte[] {2}));
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
             .addedFilesCount(10)
@@ -368,6 +404,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
+            .partitions(ImmutableList.of(summary))
             .dv(new byte[] {0xF})
             .dvCardinality(1L)
             .build();
@@ -383,6 +420,12 @@ class TestManifestInfoStruct {
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
+    assertThat(deserialized.partitions()).hasSize(1);
+    PartitionFieldSummary partition = deserialized.partitions().get(0);
+    assertThat(partition.containsNaN()).isTrue();
+    assertThat(partition.containsNull()).isTrue();
+    assertThat(partition.lowerBound()).isEqualTo(ByteBuffer.wrap(new byte[] {1}));
+    assertThat(partition.upperBound()).isEqualTo(ByteBuffer.wrap(new byte[] {2}));
     assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
     assertThat(deserialized.dvCardinality()).isEqualTo(1L);
   }

@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.types.Types;
 
 /** Summary information about a manifest referenced by a root manifest entry. */
@@ -53,6 +55,28 @@ interface ManifestInfo {
           "min_sequence_number",
           Types.LongType.get(),
           "Minimum sequence number of files in this manifest");
+  Types.StructType PARTITION_SUMMARY_TYPE =
+      Types.StructType.of(
+          Types.NestedField.required(
+              509,
+              "contains_null",
+              Types.BooleanType.get(),
+              "True if any file has a null partition value"),
+          Types.NestedField.optional(
+              518,
+              "contains_nan",
+              Types.BooleanType.get(),
+              "True if any file has a nan partition value"),
+          Types.NestedField.optional(
+              510, "lower_bound", Types.BinaryType.get(), "Partition lower bound for all files"),
+          Types.NestedField.optional(
+              511, "upper_bound", Types.BinaryType.get(), "Partition upper bound for all files"));
+  Types.NestedField PARTITION_SUMMARIES =
+      Types.NestedField.optional(
+          507,
+          "partitions",
+          Types.ListType.ofRequired(508, PARTITION_SUMMARY_TYPE),
+          "Summary for each partition");
   Types.NestedField DV =
       Types.NestedField.optional(
           522, "dv", Types.BinaryType.get(), "Deletion vector for manifest entries");
@@ -74,6 +98,7 @@ interface ManifestInfo {
         DELETED_ROWS_COUNT,
         REPLACED_ROWS_COUNT,
         MIN_SEQUENCE_NUMBER,
+        PARTITION_SUMMARIES,
         DV,
         DV_CARDINALITY);
   }
@@ -104,6 +129,9 @@ interface ManifestInfo {
 
   /** Returns the minimum sequence number of files in this manifest. */
   long minSequenceNumber();
+
+  /** Returns a list of {@link PartitionFieldSummary partition field summaries}, or null. */
+  List<PartitionFieldSummary> partitions();
 
   /** Returns the deletion vector bitmap, or null if not present. */
   ByteBuffer dv();

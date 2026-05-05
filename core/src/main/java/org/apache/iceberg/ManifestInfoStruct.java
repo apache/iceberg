@@ -21,6 +21,9 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
+import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,6 +43,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           ManifestInfo.DELETED_ROWS_COUNT,
           ManifestInfo.REPLACED_ROWS_COUNT,
           ManifestInfo.MIN_SEQUENCE_NUMBER,
+          ManifestInfo.PARTITION_SUMMARIES,
           ManifestInfo.DV,
           ManifestInfo.DV_CARDINALITY);
 
@@ -52,6 +56,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   private long deletedRowsCount = -1L;
   private long replacedRowsCount = -1L;
   private long minSequenceNumber = -1L;
+  private PartitionFieldSummary[] partitions = null;
   private byte[] dv = null;
   private Long dvCardinality = null;
 
@@ -70,6 +75,12 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.deletedRowsCount = toCopy.deletedRowsCount;
     this.replacedRowsCount = toCopy.replacedRowsCount;
     this.minSequenceNumber = toCopy.minSequenceNumber;
+    this.partitions =
+        toCopy.partitions != null
+            ? Stream.of(toCopy.partitions)
+                .map(PartitionFieldSummary::copy)
+                .toArray(PartitionFieldSummary[]::new)
+            : null;
     this.dv = toCopy.dv != null ? Arrays.copyOf(toCopy.dv, toCopy.dv.length) : null;
     this.dvCardinality = toCopy.dvCardinality;
   }
@@ -84,6 +95,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       long deletedRowsCount,
       long replacedRowsCount,
       long minSequenceNumber,
+      PartitionFieldSummary[] partitions,
       byte[] dv,
       Long dvCardinality) {
     super(BASE_TYPE, BASE_TYPE);
@@ -96,6 +108,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.deletedRowsCount = deletedRowsCount;
     this.replacedRowsCount = replacedRowsCount;
     this.minSequenceNumber = minSequenceNumber;
+    this.partitions = partitions;
     this.dv = dv;
     this.dvCardinality = dvCardinality;
   }
@@ -146,6 +159,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   }
 
   @Override
+  public List<PartitionFieldSummary> partitions() {
+    return partitions != null ? Arrays.asList(partitions) : null;
+  }
+
+  @Override
   public ByteBuffer dv() {
     return dv != null ? ByteBuffer.wrap(dv) : null;
   }
@@ -186,8 +204,10 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       case 8:
         return minSequenceNumber;
       case 9:
-        return dv();
+        return partitions();
       case 10:
+        return dv();
+      case 11:
         return dvCardinality;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -225,9 +245,15 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         this.minSequenceNumber = (Long) value;
         break;
       case 9:
-        this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
+        @SuppressWarnings("unchecked")
+        List<PartitionFieldSummary> summaries = (List<PartitionFieldSummary>) value;
+        this.partitions =
+            summaries != null ? summaries.toArray(new PartitionFieldSummary[0]) : null;
         break;
       case 10:
+        this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
+        break;
+      case 11:
         this.dvCardinality = (Long) value;
         break;
       default:
@@ -251,6 +277,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         .add("deleted_rows_count", deletedRowsCount)
         .add("replaced_rows_count", replacedRowsCount)
         .add("min_sequence_number", minSequenceNumber)
+        .add("partitions", Arrays.toString(partitions))
         .add("dv", dv == null ? "null" : "(binary)")
         .add("dv_cardinality", dvCardinality == null ? "null" : dvCardinality)
         .toString();
@@ -266,6 +293,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     private long deletedRowsCount = -1L;
     private long replacedRowsCount = -1L;
     private long minSequenceNumber = -1L;
+    private PartitionFieldSummary[] partitions = null;
     private byte[] dv = null;
     private Long dvCardinality = null;
 
@@ -311,6 +339,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
 
     Builder minSequenceNumber(long sequenceNumber) {
       this.minSequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    Builder partitions(List<PartitionFieldSummary> summaries) {
+      this.partitions = summaries != null ? summaries.toArray(new PartitionFieldSummary[0]) : null;
       return this;
     }
 
@@ -377,6 +410,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           deletedRowsCount,
           replacedRowsCount,
           minSequenceNumber,
+          partitions,
           dv,
           dvCardinality);
     }
