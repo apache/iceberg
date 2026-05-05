@@ -375,4 +375,54 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
       }
     }
   }
+
+  @TestTemplate
+  public void testSnapshotWithVariant() throws IOException {
+    assumeThat(catalogName)
+        .as("Variant type requires Hive 4 which is not yet supported")
+        .isNotEqualTo("testhive")
+        .isNotEqualTo("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data variant) USING parquet LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, parse_json('{\"key\": 123}'))", SOURCE_NAME);
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.snapshot('%s', '%s', properties => map('format-version','3'))",
+            catalogName, SOURCE_NAME, tableName);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, 123)),
+        sql("SELECT id, variant_get(data, '$.key', 'int') FROM %s", tableName));
+  }
+
+  @TestTemplate
+  public void testSnapshotPartitionedWithVariant() throws IOException {
+    assumeThat(catalogName)
+        .as("Variant type requires Hive 4 which is not yet supported")
+        .isNotEqualTo("testhive")
+        .isNotEqualTo("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data variant) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql(
+        "INSERT INTO TABLE %s (id, data) VALUES (1, parse_json('{\"key\": 123}')), (2, parse_json('{\"key\": 456}'))",
+        SOURCE_NAME);
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.snapshot('%s', '%s', properties => map('format-version','3'))",
+            catalogName, SOURCE_NAME, tableName);
+    assertThat(result).as("Should have added two files").isEqualTo(2L);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(123, 1L), row(456, 2L)),
+        sql("SELECT variant_get(data, '$.key', 'int'), id FROM %s ORDER BY id", tableName));
+  }
 }

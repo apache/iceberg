@@ -235,12 +235,6 @@ public class DynamicIcebergSink
     private final Map<String, String> snapshotSummary = Maps.newHashMap();
     private ReadableConfig readableConfig = new Configuration();
     private TableCreator tableCreator = TableCreator.DEFAULT;
-    private boolean immediateUpdate = false;
-    private boolean dropUnusedColumns = false;
-    private int cacheMaximumSize = 100;
-    private long cacheRefreshMs = 1_000;
-    private int inputSchemasPerTableCacheMaximumSize = 10;
-    private boolean caseSensitive = true;
 
     Builder() {}
 
@@ -361,7 +355,9 @@ public class DynamicIcebergSink
     }
 
     public Builder<T> immediateTableUpdate(boolean newImmediateUpdate) {
-      this.immediateUpdate = newImmediateUpdate;
+      writeOptions.put(
+          FlinkDynamicSinkOptions.IMMEDIATE_TABLE_UPDATE.key(),
+          Boolean.toString(newImmediateUpdate));
       return this;
     }
 
@@ -377,19 +373,21 @@ public class DynamicIcebergSink
      * will never return data of the old column.
      */
     public Builder<T> dropUnusedColumns(boolean newDropUnusedColumns) {
-      this.dropUnusedColumns = newDropUnusedColumns;
+      writeOptions.put(
+          FlinkDynamicSinkOptions.DROP_UNUSED_COLUMNS.key(),
+          Boolean.toString(newDropUnusedColumns));
       return this;
     }
 
     /** Maximum size of the caches used in Dynamic Sink for table data and serializers. */
     public Builder<T> cacheMaxSize(int maxSize) {
-      this.cacheMaximumSize = maxSize;
+      writeOptions.put(FlinkDynamicSinkOptions.CACHE_MAX_SIZE.key(), Integer.toString(maxSize));
       return this;
     }
 
     /** Maximum interval for cache items renewals. */
     public Builder<T> cacheRefreshMs(long refreshMs) {
-      this.cacheRefreshMs = refreshMs;
+      writeOptions.put(FlinkDynamicSinkOptions.CACHE_REFRESH_MS.key(), Long.toString(refreshMs));
       return this;
     }
 
@@ -399,7 +397,9 @@ public class DynamicIcebergSink
      * comparison results.
      */
     public Builder<T> inputSchemasPerTableCacheMaxSize(int inputSchemasPerTableCacheMaxSize) {
-      this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaxSize;
+      writeOptions.put(
+          FlinkDynamicSinkOptions.INPUT_SCHEMAS_PER_TABLE_CACHE_MAX_SIZE.key(),
+          Integer.toString(inputSchemasPerTableCacheMaxSize));
       return this;
     }
 
@@ -408,7 +408,8 @@ public class DynamicIcebergSink
      * field names case-sensitive.
      */
     public Builder<T> caseSensitive(boolean newCaseSensitive) {
-      this.caseSensitive = newCaseSensitive;
+      writeOptions.put(
+          FlinkDynamicSinkOptions.CASE_SENSITIVE.key(), Boolean.toString(newCaseSensitive));
       return this;
     }
 
@@ -424,14 +425,14 @@ public class DynamicIcebergSink
           generator != null, "Please use withGenerator() to convert the input DataStream.");
       Preconditions.checkNotNull(catalogLoader, "Catalog loader shouldn't be null");
 
-      Configuration flinkConfig =
-          readableConfig instanceof Configuration
-              ? (Configuration) readableConfig
-              : Configuration.fromMap(readableConfig.toMap());
+      Configuration flinkConfig = fromReadableConfig();
+      FlinkDynamicSinkConf flinkDynamicSinkConf =
+          new FlinkDynamicSinkConf(writeOptions, flinkConfig);
 
       // Forward writer: chained with generator via forward edge, no data shuffle
       ForwardWriterSink forwardWriterSink =
-          new ForwardWriterSink(catalogLoader, writeOptions, flinkConfig, cacheMaximumSize);
+          new ForwardWriterSink(
+              catalogLoader, writeOptions, flinkConfig, flinkDynamicSinkConf.cacheMaxSize());
       TypeInformation<CommittableMessage<DynamicWriteResult>> writeResultTypeInfo =
           CommittableMessageTypeInfo.of(DynamicWriteResultSerializer::new);
 
@@ -455,13 +456,15 @@ public class DynamicIcebergSink
         Map<String, String> writeProperties,
         Configuration flinkWriteConf,
         DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults) {
+      FlinkDynamicSinkConf flinkDynamicSinkConf =
+          new FlinkDynamicSinkConf(writeProperties, flinkWriteConf);
       return new DynamicIcebergSink(
           catalogLoader,
           snapshotSummary,
           uidPrefix,
           writeProperties,
           flinkWriteConf,
-          cacheMaximumSize,
+          flinkDynamicSinkConf.cacheMaxSize(),
           forwardWriteResults);
     }
 
@@ -485,10 +488,14 @@ public class DynamicIcebergSink
     public DataStreamSink<DynamicRecordInternal> append() {
       uidPrefix = Optional.ofNullable(uidPrefix).orElse("");
 
+      FlinkDynamicSinkConf flinkDynamicSinkConf =
+          new FlinkDynamicSinkConf(writeOptions, readableConfig);
+      Configuration flinkConfig = fromReadableConfig();
+
       DynamicRecordInternalType type =
-          new DynamicRecordInternalType(catalogLoader, false, cacheMaximumSize);
+          new DynamicRecordInternalType(catalogLoader, false, flinkDynamicSinkConf.cacheMaxSize());
       DynamicRecordInternalType sideOutputType =
-          new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize);
+          new DynamicRecordInternalType(catalogLoader, true, flinkDynamicSinkConf.cacheMaxSize());
 
       SingleOutputStreamOperator<DynamicRecordInternal> converted =
           input
@@ -496,13 +503,10 @@ public class DynamicIcebergSink
                   new DynamicRecordProcessor<>(
                       generator,
                       catalogLoader,
-                      immediateUpdate,
-                      cacheMaximumSize,
-                      cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize,
                       tableCreator,
-                      caseSensitive,
-                      dropUnusedColumns))
+                      flinkDynamicSinkConf,
+                      writeOptions,
+                      flinkConfig))
               .setParallelism(input.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
@@ -518,14 +522,7 @@ public class DynamicIcebergSink
                       DynamicRecordProcessor.DYNAMIC_TABLE_UPDATE_STREAM, sideOutputType))
               .keyBy((KeySelector<DynamicRecordInternal, String>) DynamicRecordInternal::tableName)
               .map(
-                  new DynamicTableUpdateOperator(
-                      catalogLoader,
-                      cacheMaximumSize,
-                      cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize,
-                      tableCreator,
-                      caseSensitive,
-                      dropUnusedColumns))
+                  new DynamicTableUpdateOperator(catalogLoader, tableCreator, flinkDynamicSinkConf))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
               .returns(type)
@@ -542,6 +539,12 @@ public class DynamicIcebergSink
       }
 
       return result;
+    }
+
+    private Configuration fromReadableConfig() {
+      return readableConfig instanceof Configuration
+          ? (Configuration) readableConfig
+          : Configuration.fromMap(readableConfig.toMap());
     }
   }
 

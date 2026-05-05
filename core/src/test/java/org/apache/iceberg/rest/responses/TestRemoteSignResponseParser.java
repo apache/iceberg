@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3.signer;
+package org.apache.iceberg.rest.responses;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,28 +28,28 @@ import java.util.Collections;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-public class TestS3SignResponseParser {
+public class TestRemoteSignResponseParser {
 
   @Test
   public void nullResponse() {
-    assertThatThrownBy(() -> S3SignResponseParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> RemoteSignResponseParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse s3 sign response from null object");
+        .hasMessage("Cannot parse remote sign response from null object");
 
-    assertThatThrownBy(() -> S3SignResponseParser.toJson(null))
+    assertThatThrownBy(() -> RemoteSignResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid s3 sign response: null");
+        .hasMessage("Invalid remote sign response: null");
   }
 
   @Test
   public void missingFields() {
-    assertThatThrownBy(() -> S3SignResponseParser.fromJson("{}"))
+    assertThatThrownBy(() -> RemoteSignResponseParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: uri");
 
     assertThatThrownBy(
             () ->
-                S3SignResponseParser.fromJson(
+                RemoteSignResponseParser.fromJson(
                     "{\"uri\" : \"http://localhost:49208/iceberg-signer-test\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: headers");
@@ -57,15 +57,15 @@ public class TestS3SignResponseParser {
 
   @Test
   public void invalidUri() {
-    assertThatThrownBy(() -> S3SignResponseParser.fromJson("{\"uri\" : 45, \"headers\" : {}}}"))
+    assertThatThrownBy(() -> RemoteSignResponseParser.fromJson("{\"uri\" : 45, \"headers\" : {}}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: uri: 45");
   }
 
   @Test
   public void roundTripSerde() {
-    S3SignResponse s3SignResponse =
-        ImmutableS3SignResponse.builder()
+    RemoteSignResponse response =
+        ImmutableRemoteSignResponse.builder()
             .uri(URI.create("http://localhost:49208/iceberg-signer-test"))
             .headers(
                 ImmutableMap.of(
@@ -79,8 +79,8 @@ public class TestS3SignResponseParser {
                     Arrays.asList("aws-sdk-java/2.20.18", "Linux/5.4.0-126")))
             .build();
 
-    String json = S3SignResponseParser.toJson(s3SignResponse, true);
-    assertThat(S3SignResponseParser.fromJson(json)).isEqualTo(s3SignResponse);
+    String json = RemoteSignResponseParser.toJson(response, true);
+    assertThat(RemoteSignResponseParser.fromJson(json)).isEqualTo(response);
     assertThat(json)
         .isEqualTo(
             "{\n"

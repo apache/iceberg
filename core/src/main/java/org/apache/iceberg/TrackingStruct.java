@@ -59,10 +59,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     super(BASE_TYPE, type);
   }
 
-  TrackingStruct() {
-    super(BASE_TYPE.fields().size());
-  }
-
   private TrackingStruct(TrackingStruct toCopy) {
     super(toCopy);
     this.status = toCopy.status;
@@ -81,6 +77,26 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
             : null;
     this.manifestLocation = toCopy.manifestLocation;
     this.manifestPos = toCopy.manifestPos;
+  }
+
+  private TrackingStruct(
+      EntryStatus status,
+      Long snapshotId,
+      Long dataSequenceNumber,
+      Long fileSequenceNumber,
+      Long dvSnapshotId,
+      Long firstRowId,
+      byte[] deletedPositions,
+      byte[] replacedPositions) {
+    super(BASE_TYPE, BASE_TYPE);
+    this.status = status;
+    this.snapshotId = snapshotId;
+    this.dataSequenceNumber = dataSequenceNumber;
+    this.fileSequenceNumber = fileSequenceNumber;
+    this.dvSnapshotId = dvSnapshotId;
+    this.firstRowId = firstRowId;
+    this.deletedPositions = deletedPositions;
+    this.replacedPositions = replacedPositions;
   }
 
   void inheritFrom(Tracking manifestTracking) {
@@ -233,6 +249,10 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
   }
 
+  static Builder builder() {
+    return new Builder();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -245,5 +265,79 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
         .toString();
+  }
+
+  static class Builder {
+    private EntryStatus status = null;
+    private Long snapshotId = null;
+    private Long dataSequenceNumber = null;
+    private Long fileSequenceNumber = null;
+    private Long dvSnapshotId = null;
+    private Long firstRowId = null;
+    private byte[] deletedPositions = null;
+    private byte[] replacedPositions = null;
+
+    Builder status(EntryStatus entryStatus) {
+      this.status = entryStatus;
+      return this;
+    }
+
+    Builder snapshotId(Long id) {
+      this.snapshotId = id;
+      return this;
+    }
+
+    Builder dataSequenceNumber(Long sequenceNumber) {
+      this.dataSequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    Builder fileSequenceNumber(Long sequenceNumber) {
+      this.fileSequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    Builder dvSnapshotId(Long id) {
+      this.dvSnapshotId = id;
+      return this;
+    }
+
+    Builder firstRowId(Long rowId) {
+      this.firstRowId = rowId;
+      return this;
+    }
+
+    Builder deletedPositions(ByteBuffer positions) {
+      this.deletedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
+      return this;
+    }
+
+    Builder deletedPositions(byte[] positions) {
+      this.deletedPositions = positions;
+      return this;
+    }
+
+    Builder replacedPositions(ByteBuffer positions) {
+      this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
+      return this;
+    }
+
+    Builder replacedPositions(byte[] positions) {
+      this.replacedPositions = positions;
+      return this;
+    }
+
+    TrackingStruct build() {
+      Preconditions.checkArgument(status != null, "Invalid status: null");
+      return new TrackingStruct(
+          status,
+          snapshotId,
+          dataSequenceNumber,
+          fileSequenceNumber,
+          dvSnapshotId,
+          firstRowId,
+          deletedPositions,
+          replacedPositions);
+    }
   }
 }

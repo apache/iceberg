@@ -288,7 +288,7 @@ This feature requires the following lock related catalog properties:
 2. Set `lock.table` as the DynamoDB table name you would like to use. If the lock table with the given name does not exist in DynamoDB, a new table is created with billing mode set as [pay-per-request](https://aws.amazon.com/blogs/aws/amazon-dynamodb-on-demand-no-capacity-planning-and-pay-per-request-pricing).
 
 Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
-For more details, please refer to [Lock catalog properties](configuration.md#lock-catalog-properties).
+For more details, please refer to [Lock catalog properties](catalog-properties.md#lock-catalog-properties).
 
 ## S3 FileIO
 
