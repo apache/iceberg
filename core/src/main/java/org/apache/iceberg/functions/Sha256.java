@@ -26,10 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Type;
 
-/**
- * Shared SHA-256 masking function. One instance per (type, salt) pair. The type-specific update and
- * encode behavior is carried by a {@link Codec} enum rather than per-type subclasses.
- */
+/** Shared SHA-256 masking function. One instance per (type, salt) pair. */
 final class Sha256 extends Actions.NullSafeFunction<Object, Object> {
 
   private static final ThreadLocal<MessageDigest> DIGEST =
