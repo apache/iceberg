@@ -24,13 +24,7 @@ import java.time.LocalTime;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.DateTimeUtil;
 
-/**
- * Collapsed truncate function for the temporal masks.
- *
- * <p>Six instances cover the cross product of {YEAR, MONTH} x {DATE days, TIMESTAMP micros,
- * TIMESTAMP_NANO nanos}. Kept package-private so it can change without affecting the public Action
- * surface.
- */
+/** Truncates date/timestamp values to the first instant of their year or month. */
 final class TruncateTemporal extends Actions.NullSafeFunction<Object, Object> {
 
   enum Unit {

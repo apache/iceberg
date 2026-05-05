@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.functions;
 
+import java.util.Objects;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -54,6 +55,28 @@ public final class ApplyExpression extends Action.BaseAction<Object, Object> {
   @Override
   public SerializableFunction<Object, Object> bind(Type type) {
     return ApplyExpressionFn.INSTANCE;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof ApplyExpression)) {
+      return false;
+    }
+    ApplyExpression other = (ApplyExpression) o;
+    return fieldId() == other.fieldId() && Objects.equals(expression, other.expression);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(actionType(), fieldId(), expression);
+  }
+
+  @Override
+  public String toString() {
+    return actionType() + "(" + fieldId() + ", " + expression + ")";
   }
 
   private static final class ApplyExpressionFn implements SerializableFunction<Object, Object> {

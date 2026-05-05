@@ -19,21 +19,18 @@
 package org.apache.iceberg.functions;
 
 import java.io.Serializable;
+import java.util.Objects;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * A column projection action from the ReadRestrictions spec.
  *
- * <p>An {@code Action} is both a data carrier (wire-format discriminator + field id) and a factory
- * for the masking function that applies its semantics. {@link #bind(Type)} dispatches to the
- * type-specific {@link SerializableFunction} that implements the action. This mirrors the pattern
- * used by {@link org.apache.iceberg.transforms.Transform} in the partition-transform hierarchy.
- *
- * <p>All bound functions honor the spec invariant that null input produces null output.
+ * <p>{@link #bind(Type)} returns the masking {@link SerializableFunction} for a given column type;
+ * all bound functions return null for null input.
  *
  * @param <S> source value type
- * @param <T> masked output type (usually equal to S; only {@link ApplyExpression} differs)
+ * @param <T> masked output type
  */
 public interface Action<S, T> extends Serializable {
 
@@ -74,10 +71,7 @@ public interface Action<S, T> extends Serializable {
   /** Returns true if this action can be bound to the given {@link Type}. */
   boolean canBind(Type type);
 
-  /**
-   * Base for all concrete actions. Holds the field id; subclasses carry any action-specific state
-   * (expression, salt, etc.) and implement {@link #bind(Type)}/{@link #canBind(Type)}.
-   */
+  /** Base for all concrete actions; holds the field id. */
   abstract class BaseAction<S, T> implements Action<S, T> {
     private final int fieldId;
 
@@ -88,6 +82,28 @@ public interface Action<S, T> extends Serializable {
     @Override
     public final int fieldId() {
       return fieldId;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof Action)) {
+        return false;
+      }
+      Action<?, ?> other = (Action<?, ?>) o;
+      return fieldId == other.fieldId() && actionType().equals(other.actionType());
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(actionType(), fieldId);
+    }
+
+    @Override
+    public String toString() {
+      return actionType() + "(" + fieldId + ")";
     }
   }
 }
