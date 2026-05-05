@@ -207,14 +207,26 @@ class TrackedFileAdapters {
    */
   private abstract static class AbstractTrackedContentFile<F extends ContentFile<F>>
       implements ContentFile<F> {
-    protected final TrackedFile file;
-    protected final Tracking tracking;
-    protected final PartitionSpec spec;
+    private final TrackedFile file;
+    private final Tracking tracking;
+    private final PartitionSpec spec;
 
     private AbstractTrackedContentFile(TrackedFile file, PartitionSpec spec) {
       this.file = file;
       this.tracking = file.tracking();
       this.spec = spec;
+    }
+
+    TrackedFile file() {
+      return file;
+    }
+
+    Tracking tracking() {
+      return tracking;
+    }
+
+    PartitionSpec spec() {
+      return spec;
     }
 
     @Override
@@ -333,7 +345,7 @@ class TrackedFileAdapters {
 
     @Override
     public Long firstRowId() {
-      return tracking != null ? tracking.firstRowId() : null;
+      return tracking() != null ? tracking().firstRowId() : null;
     }
 
     @Override
@@ -343,7 +355,7 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copy() {
-      return new TrackedDataFile(file.copy(), spec);
+      return new TrackedDataFile(file().copy(), spec());
     }
 
     @Override
@@ -353,12 +365,12 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copyWithoutStats() {
-      return new TrackedDataFile(file.copyWithoutStats(), spec);
+      return new TrackedDataFile(file().copyWithoutStats(), spec());
     }
 
     @Override
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDataFile(file.copyWithStats(requestedColumnIds), spec);
+      return new TrackedDataFile(file().copyWithStats(requestedColumnIds), spec());
     }
   }
 
@@ -381,12 +393,12 @@ class TrackedFileAdapters {
 
     @Override
     public List<Integer> equalityFieldIds() {
-      return file.equalityIds();
+      return file().equalityIds();
     }
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDeleteFile(file.copy(), spec);
+      return new TrackedDeleteFile(file().copy(), spec());
     }
 
     @Override
@@ -396,12 +408,12 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return new TrackedDeleteFile(file.copyWithoutStats(), spec);
+      return new TrackedDeleteFile(file().copyWithoutStats(), spec());
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDeleteFile(file.copyWithStats(requestedColumnIds), spec);
+      return new TrackedDeleteFile(file().copyWithStats(requestedColumnIds), spec());
     }
   }
 
