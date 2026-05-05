@@ -985,9 +985,10 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Apache Datasketches.
+This product bundles Project Nessie.
 
-Project URL: https://datasketches.apache.org
+Copyright: 2015-2025 Dremio Corporation.
+Project URL: https://projectnessie.org/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -1231,10 +1232,9 @@ License: Eclipse Public License v. 1.0 - https://www.eclipse.org/legal/epl-v10.h
 
 --------------------------------------------------------------------------------
 
-This product bundles Project Nessie.
+This product bundles Apache Datasketches.
 
-Copyright: 2015-2025 Dremio Corporation.
-Project URL: https://projectnessie.org/
+Project URL: https://datasketches.apache.org
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
