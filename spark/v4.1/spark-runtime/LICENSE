@@ -993,6 +993,13 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles Eclipse MicroProfile OpenAPI.
+
+Project URL: https://github.com/microprofile/microprofile-open-api
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Eclipse Collections.
 
 Project URL: https://github.com/eclipse-collections/eclipse-collections
@@ -1235,13 +1242,6 @@ License: Eclipse Public License v. 1.0 - https://www.eclipse.org/legal/epl-v10.h
 This product bundles Apache Datasketches.
 
 Project URL: https://datasketches.apache.org
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Eclipse MicroProfile OpenAPI.
-
-Project URL: https://github.com/microprofile/microprofile-open-api
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
