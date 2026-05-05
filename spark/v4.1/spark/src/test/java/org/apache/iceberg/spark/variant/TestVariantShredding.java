@@ -24,10 +24,12 @@ import static org.apache.parquet.schema.Types.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
@@ -986,10 +988,10 @@ public class TestVariantShredding extends CatalogTestBase {
             "SELECT id, variant_get(address, '$.val', 'decimal(10,4)') FROM %s ORDER BY id",
             tableName);
     assertThat(rows).hasSize(6);
-    assertThat(rows.get(0)[1]).isEqualTo(new java.math.BigDecimal("123.4500"));
-    assertThat(rows.get(3)[1]).isEqualTo(new java.math.BigDecimal("123456.7800"));
-    assertThat(rows.get(4)[1]).isEqualTo(new java.math.BigDecimal("1.2345"));
-    assertThat(rows.get(5)[1]).isEqualTo(new java.math.BigDecimal("12.3000"));
+    assertThat(rows.get(0)[1]).isEqualTo(new BigDecimal("123.4500"));
+    assertThat(rows.get(3)[1]).isEqualTo(new BigDecimal("123456.7800"));
+    assertThat(rows.get(4)[1]).isEqualTo(new BigDecimal("1.2345"));
+    assertThat(rows.get(5)[1]).isEqualTo(new BigDecimal("12.3000"));
   }
 
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {
@@ -999,8 +1001,7 @@ public class TestVariantShredding extends CatalogTestBase {
       for (FileScanTask task : tasks) {
         String path = task.file().location();
 
-        HadoopInputFile inputFile =
-            HadoopInputFile.fromPath(new org.apache.hadoop.fs.Path(path), new Configuration());
+        HadoopInputFile inputFile = HadoopInputFile.fromPath(new Path(path), new Configuration());
 
         try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
           MessageType actualSchema = reader.getFileMetaData().getSchema();

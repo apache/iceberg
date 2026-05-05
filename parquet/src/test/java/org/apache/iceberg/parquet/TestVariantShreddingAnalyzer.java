@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -218,10 +219,10 @@ public class TestVariantShreddingAnalyzer {
     // scale=min(20, 38-30)=8 (integer digits get priority)
     VariantMetadata meta = Variants.metadata("val");
     ShreddedObject row1 = Variants.object(meta);
-    row1.put("val", Variants.of(new java.math.BigDecimal("123456789012345678901234567890")));
+    row1.put("val", Variants.of(new BigDecimal("123456789012345678901234567890")));
 
     ShreddedObject row2 = Variants.object(meta);
-    row2.put("val", Variants.of(new java.math.BigDecimal("1.23456789012345678901")));
+    row2.put("val", Variants.of(new BigDecimal("1.23456789012345678901")));
 
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
     assertThat(schema).isNotNull();
@@ -251,8 +252,7 @@ public class TestVariantShreddingAnalyzer {
     // Value with exactly precision=38: 20 integer digits + 18 scale = 38
     VariantMetadata meta = Variants.metadata("val");
     ShreddedObject row = Variants.object(meta);
-    row.put(
-        "val", Variants.of(new java.math.BigDecimal("12345678901234567890.123456789012345678")));
+    row.put("val", Variants.of(new BigDecimal("12345678901234567890.123456789012345678")));
 
     Type schema = analyzer.analyzeAndCreateSchema(List.of(row), 0);
     assertThat(schema).isNotNull();

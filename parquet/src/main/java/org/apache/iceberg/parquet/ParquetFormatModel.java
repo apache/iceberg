@@ -49,9 +49,6 @@ import org.apache.parquet.schema.Type;
 
 public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
-  public static final String SHRED_VARIANTS_KEY = TableProperties.PARQUET_VARIANT_SHRED;
-  public static final String VARIANT_BUFFER_SIZE_KEY = TableProperties.PARQUET_VARIANT_BUFFER_SIZE;
-  public static final int DEFAULT_BUFFER_SIZE = TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT;
   private final boolean isBatchReader;
   private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
   private final UnaryOperator<D> copyFunc;
@@ -126,7 +123,7 @@ public class ParquetFormatModel<D, S, R>
     private S engineSchema;
     private FileContent content;
     private boolean shreddingEnabled = false;
-    private int bufferSize = DEFAULT_BUFFER_SIZE;
+    private int bufferSize = TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT;
 
     private WriteBuilderWrapper(
         EncryptedOutputFile outputFile,
@@ -154,11 +151,11 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> set(String property, String value) {
-      if (SHRED_VARIANTS_KEY.equals(property)) {
+      if (TableProperties.PARQUET_SHRED_VARIANTS.equals(property)) {
         shreddingEnabled = Boolean.parseBoolean(value);
       }
 
-      if (VARIANT_BUFFER_SIZE_KEY.equals(property)) {
+      if (TableProperties.PARQUET_VARIANT_BUFFER_SIZE.equals(property)) {
         bufferSize = Integer.parseInt(value);
       }
 

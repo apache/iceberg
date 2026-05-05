@@ -373,7 +373,7 @@ public class TestParquetDataWriter {
         model
             .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
             .schema(variantSchema)
-            .setAll(ImmutableMap.of(ParquetFormatModel.SHRED_VARIANTS_KEY, "true"))
+            .setAll(ImmutableMap.of(TableProperties.PARQUET_SHRED_VARIANTS, "true"))
             .content(FileContent.DATA)
             .build()) {
       assertThat(appender).isInstanceOf(BufferedFileAppender.class);
@@ -404,7 +404,7 @@ public class TestParquetDataWriter {
         model
             .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
             .schema(variantSchema)
-            .setAll(ImmutableMap.of(ParquetFormatModel.SHRED_VARIANTS_KEY, "true"))
+            .setAll(ImmutableMap.of(TableProperties.PARQUET_SHRED_VARIANTS, "true"))
             .content(FileContent.DATA)
             .build()) {
       // Even with shredding property set, null variantAnalyzer means no BufferedFileAppender
@@ -476,8 +476,8 @@ public class TestParquetDataWriter {
             .schema(variantSchema)
             .setAll(
                 ImmutableMap.of(
-                    ParquetFormatModel.SHRED_VARIANTS_KEY, "true",
-                    ParquetFormatModel.VARIANT_BUFFER_SIZE_KEY, "2"))
+                    TableProperties.PARQUET_SHRED_VARIANTS, "true",
+                    TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "2"))
             .content(FileContent.DATA)
             .build()) {
       assertThat(appender).isInstanceOf(BufferedFileAppender.class);

@@ -34,7 +34,7 @@ import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
-import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_SHRED;
+import static org.apache.iceberg.TableProperties.PARQUET_SHRED_VARIANTS;
 import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
@@ -346,7 +346,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     TableProperties.DELETE_PARQUET_COMPRESSION,
                     "snappy"),
                 ImmutableMap.of(
-                    PARQUET_VARIANT_SHRED,
+                    PARQUET_SHRED_VARIANTS,
                     "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
@@ -470,7 +470,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     PARQUET_COMPRESSION_LEVEL,
                     "5"),
                 ImmutableMap.of(
-                    PARQUET_VARIANT_SHRED,
+                    PARQUET_SHRED_VARIANTS,
                     "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
@@ -543,7 +543,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     DELETE_PARQUET_COMPRESSION_LEVEL,
                     "6"),
                 ImmutableMap.of(
-                    PARQUET_VARIANT_SHRED,
+                    PARQUET_SHRED_VARIANTS,
                     "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
@@ -734,7 +734,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   @TestTemplate
   public void testShredVariantsSessionOverridesTableProperty() {
     Table table = validationCatalog.loadTable(tableIdent);
-    table.updateProperties().set(TableProperties.PARQUET_VARIANT_SHRED, "false").commit();
+    table.updateProperties().set(TableProperties.PARQUET_SHRED_VARIANTS, "false").commit();
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SHRED_VARIANTS, "true"),
@@ -774,12 +774,12 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   @TestTemplate
   public void testWritePropertiesIncludeVariantShredding() {
     Table table = validationCatalog.loadTable(tableIdent);
-    table.updateProperties().set(TableProperties.PARQUET_VARIANT_SHRED, "true").commit();
+    table.updateProperties().set(TableProperties.PARQUET_SHRED_VARIANTS, "true").commit();
     table.updateProperties().set(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200").commit();
 
     SparkWriteConf writeConf = new SparkWriteConf(spark, table);
     Map<String, String> writeProperties = writeConf.writeProperties();
-    assertThat(writeProperties).containsEntry(PARQUET_VARIANT_SHRED, "true");
+    assertThat(writeProperties).containsEntry(PARQUET_SHRED_VARIANTS, "true");
     assertThat(writeProperties).containsEntry(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200");
   }
 }

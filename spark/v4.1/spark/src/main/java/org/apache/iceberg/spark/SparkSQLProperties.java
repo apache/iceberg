@@ -121,5 +121,5 @@ public class SparkSQLProperties {
   // Controls the buffer size for variant schema inference during writes
   // This determines how many rows are buffered before inferring shredded schema
   public static final String VARIANT_INFERENCE_BUFFER_SIZE =
-      "spark.sql.iceberg.variant.inference.buffer-size";
+      "spark.sql.iceberg.variant-inference-buffer-size";
 }

@@ -33,8 +33,8 @@ import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_SHRED_VARIANTS;
 import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_BUFFER_SIZE;
-import static org.apache.iceberg.TableProperties.PARQUET_VARIANT_SHRED;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 
 import java.util.Locale;
@@ -507,7 +507,7 @@ public class SparkWriteConf {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
         boolean shouldShredVariants = shredVariants();
-        writeProperties.put(PARQUET_VARIANT_SHRED, String.valueOf(shouldShredVariants));
+        writeProperties.put(PARQUET_SHRED_VARIANTS, String.valueOf(shouldShredVariants));
 
         // Add variant shredding configuration properties
         if (shouldShredVariants) {
@@ -740,14 +740,15 @@ public class SparkWriteConf {
         .booleanConf()
         .option(SparkWriteOptions.SHRED_VARIANTS)
         .sessionConf(SparkSQLProperties.SHRED_VARIANTS)
-        .tableProperty(TableProperties.PARQUET_VARIANT_SHRED)
-        .defaultValue(TableProperties.PARQUET_VARIANT_SHRED_DEFAULT)
+        .tableProperty(TableProperties.PARQUET_SHRED_VARIANTS)
+        .defaultValue(TableProperties.PARQUET_SHRED_VARIANTS_DEFAULT)
         .parse();
   }
 
   public int variantInferenceBufferSize() {
     return confParser
         .intConf()
+        .option(SparkWriteOptions.VARIANT_INFERENCE_BUFFER_SIZE)
         .sessionConf(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE)
         .tableProperty(TableProperties.PARQUET_VARIANT_BUFFER_SIZE)
         .defaultValue(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT)

@@ -122,16 +122,18 @@ public class BufferedFileAppender<D> implements FileAppender<D> {
   @Override
   public void close() throws IOException {
     if (!closed) {
-      if (delegate == null && buffer != null && !buffer.isEmpty()) {
-        initialize();
-      }
+      try {
+        if (delegate == null && buffer != null && !buffer.isEmpty()) {
+          initialize();
+        }
 
-      if (delegate != null) {
-        delegate.close();
+        if (delegate != null) {
+          delegate.close();
+        }
+      } finally {
+        this.closed = true;
+        this.buffer = null;
       }
-
-      this.closed = true;
-      this.buffer = null;
     }
   }
 

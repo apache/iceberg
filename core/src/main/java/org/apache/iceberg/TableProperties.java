@@ -158,10 +158,10 @@ public class TableProperties {
       "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
-  public static final String PARQUET_VARIANT_SHRED = "write.parquet.variant.shred";
-  public static final boolean PARQUET_VARIANT_SHRED_DEFAULT = false;
+  public static final String PARQUET_SHRED_VARIANTS = "write.parquet.shred-variants";
+  public static final boolean PARQUET_SHRED_VARIANTS_DEFAULT = false;
   public static final String PARQUET_VARIANT_BUFFER_SIZE =
-      "write.parquet.variant.inference.buffer-size";
+      "write.parquet.variant-inference-buffer-size";
   public static final int PARQUET_VARIANT_BUFFER_SIZE_DEFAULT = 100;
 
   public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
