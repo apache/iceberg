@@ -23,7 +23,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Redacts every Unicode code point in a string per the mask-alphanum rules. */
-public final class MaskAlphanum extends Action.BaseAction<String, String> {
+public final class MaskAlphanum extends Action.BaseAction<String> {
   public MaskAlphanum(int fieldId) {
     super(fieldId);
   }

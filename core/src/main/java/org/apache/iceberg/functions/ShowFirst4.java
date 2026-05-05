@@ -23,7 +23,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Preserves the first 4 code points of a string, redacts the rest via mask-alphanum rules. */
-public final class ShowFirst4 extends Action.BaseAction<String, String> {
+public final class ShowFirst4 extends Action.BaseAction<String> {
   public ShowFirst4(int fieldId) {
     super(fieldId);
   }

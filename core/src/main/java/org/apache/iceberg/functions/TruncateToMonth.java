@@ -23,7 +23,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Truncates date or timestamp values to the first instant of their month. */
-public final class TruncateToMonth extends Action.BaseAction<Object, Object> {
+public final class TruncateToMonth extends Action.BaseAction<Object> {
   public TruncateToMonth(int fieldId) {
     super(fieldId);
   }

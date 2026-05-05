@@ -22,7 +22,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Returns null for every non-null input. Works for any type. */
-public final class ReplaceWithNull extends Action.BaseAction<Object, Object> {
+public final class ReplaceWithNull extends Action.BaseAction<Object> {
   public ReplaceWithNull(int fieldId) {
     super(fieldId);
   }

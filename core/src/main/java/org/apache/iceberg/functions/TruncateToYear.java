@@ -23,7 +23,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Truncates date or timestamp values to the first instant of their year. */
-public final class TruncateToYear extends Action.BaseAction<Object, Object> {
+public final class TruncateToYear extends Action.BaseAction<Object> {
   public TruncateToYear(int fieldId) {
     super(fieldId);
   }

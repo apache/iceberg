@@ -23,7 +23,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Redacts all but the last 4 code points of a string via mask-alphanum rules. */
-public final class ShowLast4 extends Action.BaseAction<String, String> {
+public final class ShowLast4 extends Action.BaseAction<String> {
   public ShowLast4(int fieldId) {
     super(fieldId);
   }
