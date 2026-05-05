@@ -248,7 +248,7 @@ To maximize interoperability, suggested formats for CRS include, but are not lim
 * `projjson:<property-name>` - where <property-name> refers to a table property where CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format is stored.
 * `srid:<identifier>` -  A reference using a [Spatial reference identifier (SRID)](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), where <identifier> is the numeric SRID value. For example: `SRID:0`.
 
-CRS value must not contain inlined PROJJSON definitions and implementations must not parse the contents of the CRS as PROJJSON. If intention is for PROJJSON definition to be part of the table metadata, then it must be stored in a table property and referenced from the CRS field using the `projjson:<table_property_name>` form described above.
+CRS value must not contain inlined PROJJSON definitions and implementations must not parse the contents of the CRS as PROJJSON. PROJJSON definition are very verbose, inlining them as part of schema would cause significant performance degradation. If intention is for PROJJSON definition to be part of the table metadata, then it must be stored in a table property and referenced from the CRS field using the `projjson:<table_property_name>` form described above.
 
 For `geography` types, the custom CRS must be geographic, with longitudes bound by [-180, 180] and latitudes bound by [-90, 90].
 
