@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -453,8 +454,15 @@ public class BaseTransaction implements Transaction {
     }
 
     if (base != underlyingOps.current()) {
-      this.base = underlyingOps.current();
-      this.current = startingMetadataFor(underlyingOps.current());
+      TableMetadata refreshed = underlyingOps.current();
+
+      try {
+        this.current = startingMetadataFor(refreshed);
+      } catch (CommitFailedException e) {
+        throw new PendingUpdateFailedException(e);
+      }
+
+      this.base = refreshed;
 
       for (PendingUpdate update : updates) {
         try {
@@ -470,16 +478,30 @@ public class BaseTransaction implements Transaction {
 
   private TableMetadata startingMetadataFor(TableMetadata refreshed) {
     return switch (type) {
-      case REPLACE_TABLE, CREATE_OR_REPLACE_TABLE ->
-          refreshed.buildReplacementPreservingIds(
-              start.schema(),
-              start.spec(),
-              start.sortOrder(),
-              start.location(),
-              start.properties());
+      case REPLACE_TABLE, CREATE_OR_REPLACE_TABLE -> {
+        validateFieldIds(start.schema(), refreshed.schema());
+        yield refreshed.buildReplacementPreservingIds(
+            start.schema(), start.spec(), start.sortOrder(), start.location(), start.properties());
+      }
       case SIMPLE -> refreshed;
       default -> throw new IllegalStateException("Unexpected transaction type for update: " + type);
     };
+  }
+
+  /**
+   * Validates that field IDs in the start schema don't conflict with the refreshed schema. A
+   * conflict exists when both schemas use the same field ID for columns with different names.
+   */
+  private static void validateFieldIds(Schema startSchema, Schema refreshedSchema) {
+    for (Types.NestedField startField : startSchema.columns()) {
+      Types.NestedField refreshedField = refreshedSchema.findField(startField.fieldId());
+      if (refreshedField != null && !refreshedField.name().equals(startField.name())) {
+        throw new CommitFailedException(
+            "Cannot commit replace transaction: field ID %d is '%s' in the replace schema "
+                + "but '%s' in the current table schema",
+            startField.fieldId(), startField.name(), refreshedField.name());
+      }
+    }
   }
 
   // committedFiles returns null whenever the set of committed files

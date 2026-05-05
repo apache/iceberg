@@ -2741,9 +2741,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    // Field IDs from the second replace's start schema are preserved during rebase
     assertThat(afterSecondReplace.schema().asStruct())
-        .as("Table schema struct should match the original — field IDs are preserved on rebase")
+        .as("Table schema should match the original schema")
         .isEqualTo(original.schema().asStruct());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
@@ -2781,9 +2780,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    // Field IDs from the second replace's start schema are preserved during rebase
     assertThat(afterSecondReplace.schema().asStruct())
-        .as("Table schema should match the replacement schema — field IDs are preserved on rebase")
+        .as("Table schema should match the new schema")
         .isEqualTo(REPLACE_SCHEMA.asStruct());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
@@ -3026,6 +3024,40 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isEqualTo(TABLE_WRITE_ORDER.fields());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
+  }
+
+  @Test
+  public void testConcurrentReplaceTransactionFieldIdConflict() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    catalog.buildTable(TABLE, OTHER_SCHEMA).create();
+
+    // Two schemas with completely different column names. Both buildReplacement calls assign
+    // the same fresh IDs (starting from lastColumnId=1) to different columns.
+    Schema schemaA =
+        new Schema(
+            required(10, "col_a1", Types.IntegerType.get()),
+            required(11, "col_a2", Types.StringType.get()));
+    Schema schemaB =
+        new Schema(
+            required(20, "col_b1", Types.IntegerType.get()),
+            required(21, "col_b2", Types.StringType.get()));
+
+    Transaction replaceA = catalog.buildTable(TABLE, schemaA).replaceTransaction();
+    replaceA.newFastAppend().appendFile(FILE_A).commit();
+
+    Transaction replaceB = catalog.buildTable(TABLE, schemaB).replaceTransaction();
+    replaceB.newFastAppend().appendFile(FILE_B).commit();
+    replaceB.commitTransaction();
+
+    // A's field IDs conflict with B's — same IDs, different columns
+    assertThatThrownBy(replaceA::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Cannot commit replace transaction");
   }
 
   @Test
