@@ -27,12 +27,12 @@ import org.apache.iceberg.util.SerializableFunction;
  * A column projection action from the ReadRestrictions spec.
  *
  * <p>{@link #bind(Type)} returns the masking {@link SerializableFunction} for a given column type;
- * all bound functions return null for null input.
+ * all bound functions return null for null input. Per spec all predefined actions preserve the
+ * input column type, so the bound function maps {@code T -> T}.
  *
- * @param <S> source value type
- * @param <T> masked output type
+ * @param <T> column value type
  */
-public interface Action<S, T> extends Serializable {
+public interface Action<T> extends Serializable {
 
   String MASK_ALPHANUM = "mask-alphanum";
   String MASK_TO_FIXED_VALUE = "mask-to-fixed-value";
@@ -56,7 +56,7 @@ public interface Action<S, T> extends Serializable {
    *
    * @throws IllegalArgumentException if the type is not supported by this action.
    */
-  default SerializableFunction<S, T> bind(Type type) {
+  default SerializableFunction<T, T> bind(Type type) {
     throw new UnsupportedOperationException("bind is not implemented for " + getClass().getName());
   }
 
@@ -64,7 +64,7 @@ public interface Action<S, T> extends Serializable {
    * Variant that accepts a per-query salt. Only {@link Sha256QueryLocal} uses the salt; other
    * actions ignore it and delegate to {@link #bind(Type)}.
    */
-  default SerializableFunction<S, T> bind(Type type, byte[] salt) {
+  default SerializableFunction<T, T> bind(Type type, byte[] salt) {
     return bind(type);
   }
 
@@ -72,7 +72,7 @@ public interface Action<S, T> extends Serializable {
   boolean canBind(Type type);
 
   /** Base for all concrete actions; holds the field id. */
-  abstract class BaseAction<S, T> implements Action<S, T> {
+  abstract class BaseAction<T> implements Action<T> {
     private final int fieldId;
 
     BaseAction(int fieldId) {
@@ -92,7 +92,7 @@ public interface Action<S, T> extends Serializable {
       if (!(o instanceof Action)) {
         return false;
       }
-      Action<?, ?> other = (Action<?, ?>) o;
+      Action<?> other = (Action<?>) o;
       return fieldId == other.fieldId() && actionType().equals(other.actionType());
     }
 

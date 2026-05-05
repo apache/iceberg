@@ -29,7 +29,7 @@ import org.apache.iceberg.util.SerializableFunction;
  * client yet — Iceberg Expressions are currently boolean-only, so binding returns a function that
  * throws on apply.
  */
-public final class ApplyExpression extends Action.BaseAction<Object, Object> {
+public final class ApplyExpression extends Action.BaseAction<Object> {
   private final Expression expression;
 
   public ApplyExpression(int fieldId, Expression expression) {

@@ -28,7 +28,7 @@ import org.apache.iceberg.util.SerializableFunction;
  * (engine-side rules) must fail closed when they encounter this — silent skipping would leak
  * unmasked data.
  */
-public final class UnknownAction extends Action.BaseAction<Object, Object> {
+public final class UnknownAction extends Action.BaseAction<Object> {
   private final String actionType;
 
   public UnknownAction(int fieldId, String actionType) {

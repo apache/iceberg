@@ -31,7 +31,7 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Returns a spec-defined fixed value for the column's type. */
-public final class MaskToFixedValue extends Action.BaseAction<Object, Object> {
+public final class MaskToFixedValue extends Action.BaseAction<Object> {
 
   private static final Integer INT_DEFAULT = 0;
   private static final Long LONG_DEFAULT = 0L;
