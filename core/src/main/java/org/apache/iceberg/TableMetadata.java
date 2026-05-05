@@ -750,7 +750,8 @@ public class TableMetadata implements Serializable {
    *
    * <p>Unlike {@link #buildReplacement}, which re-derives field IDs by name-matching against the
    * current table schema, this method uses the provided schema's field IDs directly. This is used
-   * during transaction rebase to avoid reassigning field IDs that data files already reference.
+   * when refreshing replace transactions to avoid reassigning field IDs that data files already
+   * reference.
    *
    * <p>The {@code lastColumnId} is set to the maximum of the provided schema's highest field ID and
    * this metadata's {@code lastColumnId}, preventing future ID collisions.

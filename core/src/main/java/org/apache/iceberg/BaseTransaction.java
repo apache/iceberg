@@ -262,11 +262,8 @@ public class BaseTransaction implements Transaction {
 
       case REPLACE_TABLE:
       case CREATE_OR_REPLACE_TABLE:
-        commitReplaceTransaction();
-        break;
-
       case SIMPLE:
-        commitSimpleTransaction();
+        commitWithRetry();
         break;
     }
   }
@@ -295,7 +292,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  private void commitReplaceTransaction() {
+  private void commitWithRetry() {
+    if (base == current) {
+      return;
+    }
+
     Map<String, String> props = base != null ? base.properties() : current.properties();
 
     Set<Long> startingSnapshots =
@@ -318,48 +319,6 @@ public class BaseTransaction implements Transaction {
           .run(
               underlyingOps -> {
                 applyUpdates(underlyingOps);
-                underlyingOps.commit(base, current);
-              });
-
-    } catch (CommitStateUnknownException e) {
-      throw e;
-
-    } catch (PendingUpdateFailedException e) {
-      cleanUp();
-      throw e.wrapped();
-
-    } catch (RuntimeException e) {
-      if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanUp();
-      }
-
-      throw e;
-    }
-
-    cleanUpAfterCommitSuccess(startingSnapshots);
-  }
-
-  private void commitSimpleTransaction() {
-    // if there were no changes, don't try to commit
-    if (base == current) {
-      return;
-    }
-
-    Set<Long> startingSnapshots =
-        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
-    try {
-      Tasks.foreach(ops)
-          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-          .exponentialBackoff(
-              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-              2.0 /* exponential */)
-          .onlyRetryOn(CommitFailedException.class)
-          .run(
-              underlyingOps -> {
-                applyUpdates(underlyingOps);
-
                 underlyingOps.commit(base, current);
               });
 
