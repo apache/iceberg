@@ -3093,7 +3093,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table afterReplace = catalog.loadTable(TABLE);
 
     // Field IDs must match what the replace transaction originally assigned, because
-    // data files appended during the transaction reference those IDs in their Parquet metadata.
+    // files added during the transaction reference those IDs
     assertThat(afterReplace.schema().findField("id").fieldId())
         .as("id field ID must be preserved after refresh")
         .isEqualTo(idFieldId);
