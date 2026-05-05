@@ -38,16 +38,16 @@ public class CatalogObjectIdentifier {
 
   public static CatalogObjectIdentifier of(String... levels) {
     Preconditions.checkArgument(
-        null != levels, "Cannot create CatalogObjectIdentifier from null array");
+        null != levels, "Cannot create catalog object identifier from null array");
     Preconditions.checkArgument(
-        levels.length > 0, "Cannot create CatalogObjectIdentifier with no levels");
+        levels.length > 0, "Cannot create catalog object identifier with no levels");
 
     for (String level : levels) {
       Preconditions.checkNotNull(
-          level, "Cannot create a CatalogObjectIdentifier with a null level");
+          level, "Cannot create a catalog object identifier with a null level");
       Preconditions.checkArgument(
           !CONTAINS_NULL_CHARACTER.test(level),
-          "Cannot create a CatalogObjectIdentifier with the null-byte character");
+          "Cannot create a catalog object identifier with the null-byte character");
     }
 
     return new CatalogObjectIdentifier(levels);

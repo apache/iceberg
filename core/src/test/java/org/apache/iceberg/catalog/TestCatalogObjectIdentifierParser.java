@@ -82,6 +82,6 @@ public class TestCatalogObjectIdentifierParser {
   public void fromJsonRejectsEmptyArray() {
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[]"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create CatalogObjectIdentifier with no levels");
+        .hasMessage("Cannot create catalog object identifier with no levels");
   }
 }

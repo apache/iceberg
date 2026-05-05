@@ -29,11 +29,11 @@ public class TestCatalogObjectIdentifier {
   public void withNullAndEmpty() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of((String[]) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create CatalogObjectIdentifier from null array");
+        .hasMessage("Cannot create catalog object identifier from null array");
 
     assertThatThrownBy(CatalogObjectIdentifier::of)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create CatalogObjectIdentifier with no levels");
+        .hasMessage("Cannot create catalog object identifier with no levels");
   }
 
   @Test
@@ -62,17 +62,17 @@ public class TestCatalogObjectIdentifier {
   public void withNullLevel() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of("a", null, "b"))
         .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot create a CatalogObjectIdentifier with a null level");
+        .hasMessage("Cannot create a catalog object identifier with a null level");
   }
 
   @Test
   public void disallowsNullByteInLevel() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of("ac", "\u0000c", "b"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create a CatalogObjectIdentifier with the null-byte character");
+        .hasMessage("Cannot create a catalog object identifier with the null-byte character");
 
     assertThatThrownBy(() -> CatalogObjectIdentifier.of("ac", "c\0", "b"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create a CatalogObjectIdentifier with the null-byte character");
+        .hasMessage("Cannot create a catalog object identifier with the null-byte character");
   }
 }
