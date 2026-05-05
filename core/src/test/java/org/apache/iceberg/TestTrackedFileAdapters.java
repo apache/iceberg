@@ -23,13 +23,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 class TestTrackedFileAdapters {
+
+  private static final Map<Integer, PartitionSpec> UNPARTITIONED =
+      ImmutableMap.of(0, PartitionSpec.unpartitioned());
+
+  private static Map<Integer, PartitionSpec> specsById(PartitionSpec spec) {
+    return ImmutableMap.of(spec.specId(), spec);
+  }
 
   @Test
   void testAsDataFileValidatesContentType() {
@@ -38,7 +47,7 @@ class TestTrackedFileAdapters {
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
     assertThat(dataFile).isNotNull();
     assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
     assertThat(dataFile.location()).isEqualTo("s3://bucket/data.parquet");
@@ -56,7 +65,7 @@ class TestTrackedFileAdapters {
             512L);
     file.set(6, 0);
 
-    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot convert tracked file to DataFile: content type is %s, not DATA",
@@ -76,8 +85,7 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
     file.set(13, ImmutableList.of(1, 2));
 
-    DeleteFile deleteFile =
-        TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED);
     assertThat(deleteFile).isNotNull();
     assertThat(deleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1, 2);
@@ -90,8 +98,7 @@ class TestTrackedFileAdapters {
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
-    assertThatThrownBy(
-            () -> TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(() -> TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
@@ -106,7 +113,7 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
     file.set(9, createDeletionVector());
 
-    DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED);
     assertThat(dv).isNotNull();
     assertThat(dv.content()).isEqualTo(FileContent.POSITION_DELETES);
     assertThat(dv.format()).isEqualTo(FileFormat.PUFFIN);
@@ -125,8 +132,7 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
     file.set(9, createDeletionVector());
 
-    assertThatThrownBy(
-            () -> TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot extract DV from tracked file: content type is %s, not DATA",
@@ -140,8 +146,7 @@ class TestTrackedFileAdapters {
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
-    assertThatThrownBy(
-            () -> TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot extract DV from tracked file: no deletion vector");
   }
@@ -164,6 +169,8 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(8, 7L);
 
+    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(2).build();
+
     TrackedFileStruct file =
         new TrackedFileStruct(
             tracking,
@@ -175,7 +182,7 @@ class TestTrackedFileAdapters {
     file.set(6, 2);
     file.set(9, createDeletionVector());
 
-    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, specsById(spec));
 
     // DV-specific fields from DeletionVector
     assertThat(dvFile.content()).isEqualTo(FileContent.POSITION_DELETES);
@@ -216,7 +223,7 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
     file.set(9, createDeletionVector());
 
-    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED);
 
     assertThat(dvFile.dataSequenceNumber()).isNull();
     assertThat(dvFile.fileSequenceNumber()).isNull();
@@ -236,7 +243,7 @@ class TestTrackedFileAdapters {
     TrackedFileStruct file = createTrackedFileWithPartitionStats(spec);
     file.set(9, createDeletionVector());
 
-    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, spec);
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, specsById(spec));
 
     StructLike partition = dvFile.partition();
     assertThat(partition).isNotNull();
@@ -274,7 +281,7 @@ class TestTrackedFileAdapters {
     file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(12, ImmutableList.of(50L, 100L));
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
     assertThat(dataFile.pos()).isEqualTo(3L);
     assertThat(dataFile.specId()).isEqualTo(0);
@@ -312,6 +319,8 @@ class TestTrackedFileAdapters {
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(8, 5L);
 
+    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(1).build();
+
     TrackedFileStruct file =
         new TrackedFileStruct(
             tracking,
@@ -326,8 +335,7 @@ class TestTrackedFileAdapters {
     file.set(12, ImmutableList.of(200L));
     file.set(13, ImmutableList.of(1, 2, 3));
 
-    DeleteFile deleteFile =
-        TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, specsById(spec));
 
     assertThat(deleteFile.pos()).isEqualTo(5L);
     assertThat(deleteFile.specId()).isEqualTo(1);
@@ -339,7 +347,7 @@ class TestTrackedFileAdapters {
     assertThat(deleteFile.sortOrderId()).isEqualTo(5);
     assertThat(deleteFile.dataSequenceNumber()).isEqualTo(10L);
     assertThat(deleteFile.fileSequenceNumber()).isEqualTo(11L);
-    assertThat(deleteFile.firstRowId()).isEqualTo(1000L);
+    assertThat(deleteFile.firstRowId()).isNull();
     assertThat(deleteFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {4, 5}));
     assertThat(deleteFile.splitOffsets()).containsExactly(200L);
     assertThat(deleteFile.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
@@ -354,7 +362,7 @@ class TestTrackedFileAdapters {
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
     assertThat(dataFile.dataSequenceNumber()).isNull();
     assertThat(dataFile.fileSequenceNumber()).isNull();
@@ -366,7 +374,7 @@ class TestTrackedFileAdapters {
   @Test
   void testDataFileAdapterStatsFromContentStats() {
     TrackedFileStruct file = createTrackedFileWithStats();
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
     assertThat(dataFile.valueCounts()).containsOnly(entry(1, 100L), entry(2, 200L));
     assertThat(dataFile.nullValueCounts()).containsOnly(entry(1, 5L), entry(2, 10L));
@@ -386,8 +394,7 @@ class TestTrackedFileAdapters {
     file.set(1, FileContent.EQUALITY_DELETES.id());
     file.set(13, ImmutableList.of(1));
 
-    DeleteFile deleteFile =
-        TrackedFileAdapters.asEqualityDeleteFile(file, PartitionSpec.unpartitioned());
+    DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED);
 
     assertThat(deleteFile.valueCounts()).containsOnly(entry(1, 100L), entry(2, 200L));
     assertThat(deleteFile.nullValueCounts()).containsOnly(entry(1, 5L), entry(2, 10L));
@@ -408,7 +415,7 @@ class TestTrackedFileAdapters {
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, 0);
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
     assertThat(dataFile.valueCounts()).isNull();
     assertThat(dataFile.nullValueCounts()).isNull();
@@ -427,7 +434,7 @@ class TestTrackedFileAdapters {
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
 
     TrackedFileStruct file = createTrackedFileWithPartitionStats(spec);
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
 
     StructLike partition = dataFile.partition();
     assertThat(partition).isNotNull();
@@ -445,7 +452,7 @@ class TestTrackedFileAdapters {
 
     // date value 20546 = 2026-04-03 (days since epoch)
     TrackedFileStruct file = createTrackedFileWithFieldStats(2, Types.DateType.get(), 20546);
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
 
     StructLike partition = dataFile.partition();
     assertThat(partition).isNotNull();
@@ -462,7 +469,7 @@ class TestTrackedFileAdapters {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 16).build();
 
     TrackedFileStruct file = createTrackedFileWithFieldStats(2, Types.IntegerType.get(), 42);
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
 
     StructLike partition = dataFile.partition();
     assertThat(partition).isNotNull();
@@ -483,18 +490,18 @@ class TestTrackedFileAdapters {
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
     file.set(6, spec.specId());
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
     assertThat(dataFile.partition()).isNotNull();
     assertThat(dataFile.partition().size()).isEqualTo(1);
     assertThat(dataFile.partition().get(0, Integer.class)).isNull();
   }
 
   @Test
-  void testPartitionEmptyWhenNullSpec() {
+  void testAsDataFileRejectsUnknownSpecId() {
     TrackedFileStruct file = createTrackedFileWithStats();
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, null);
-    assertThat(dataFile.partition()).isNotNull();
-    assertThat(dataFile.partition().size()).isEqualTo(0);
+    assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find partition spec for spec ID");
   }
 
   @Test
@@ -502,7 +509,7 @@ class TestTrackedFileAdapters {
     PartitionSpec spec = PartitionSpec.unpartitioned();
 
     TrackedFileStruct file = createTrackedFileWithStats();
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
     assertThat(dataFile.partition()).isNotNull();
     assertThat(dataFile.partition().size()).isEqualTo(0);
   }
@@ -562,7 +569,7 @@ class TestTrackedFileAdapters {
     file.set(6, spec.specId());
     file.set(7, stats);
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
 
     StructLike partition = dataFile.partition();
     assertThat(partition).isNotNull();
@@ -580,7 +587,7 @@ class TestTrackedFileAdapters {
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").alwaysNull("data").build();
 
     TrackedFileStruct file = createTrackedFileWithFieldStats(1, Types.IntegerType.get(), 42);
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, spec);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
 
     StructLike partition = dataFile.partition();
     assertThat(partition).isNotNull();
@@ -601,7 +608,7 @@ class TestTrackedFileAdapters {
     file.set(1, FileContent.EQUALITY_DELETES.id());
     file.set(13, ImmutableList.of(1));
 
-    DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, spec);
+    DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, specsById(spec));
 
     StructLike partition = deleteFile.partition();
     assertThat(partition).isNotNull();
@@ -614,7 +621,7 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, PartitionSpec.unpartitioned());
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
     assertThat(dataFile.specId()).isEqualTo(0);
   }
 
