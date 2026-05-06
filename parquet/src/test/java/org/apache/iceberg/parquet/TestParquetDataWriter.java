@@ -57,7 +57,10 @@ import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.example.data.Group;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetReader;
+import org.apache.parquet.hadoop.example.GroupReadSupport;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
@@ -498,6 +501,27 @@ public class TestParquetDataWriter {
       GroupType typedValue = variantGroup.getType("typed_value").asGroupType();
       assertThat(typedValue.containsField("a")).isTrue();
       assertThat(typedValue.containsField("b")).isTrue();
+    }
+
+    // Verify data is in typed columns by reading raw Parquet groups
+    try (ParquetReader<Group> rawReader =
+        ParquetReader.builder(
+                new GroupReadSupport(), new org.apache.hadoop.fs.Path(outputFile.location()))
+            .build()) {
+      Group row = rawReader.read();
+      Group variantData = row.getGroup("v", 0);
+
+      assertThat(variantData.getFieldRepetitionCount("value"))
+          .as("value should be absent when fully shredded")
+          .isEqualTo(0);
+
+      Group typedValue = variantData.getGroup("typed_value", 0);
+      assertThat(typedValue.getGroup("a", 0).getInteger("typed_value", 0))
+          .as("typed_value.a should contain 42")
+          .isEqualTo(42);
+      assertThat(typedValue.getGroup("b", 0).getString("typed_value", 0))
+          .as("typed_value.b should contain hello")
+          .isEqualTo("hello");
     }
 
     // Verify data round-trips
