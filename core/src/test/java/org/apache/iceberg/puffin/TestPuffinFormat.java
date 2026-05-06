@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.junit.jupiter.api.Test;
@@ -82,5 +83,31 @@ public class TestPuffinFormat {
       bytes[i] = (byte) value;
     }
     return bytes;
+  }
+
+  @Test
+  void testLz4CompressDecompressRoundTrip() {
+    byte[] original =
+        "some test data for LZ4 compression round-trip".getBytes(StandardCharsets.UTF_8);
+    ByteBuffer input = ByteBuffer.wrap(original);
+
+    ByteBuffer compressed = PuffinFormat.compress(PuffinCompressionCodec.LZ4, input);
+    assertThat(compressed.remaining()).isGreaterThan(0);
+
+    ByteBuffer decompressed = PuffinFormat.decompress(PuffinCompressionCodec.LZ4, compressed);
+    byte[] result = new byte[decompressed.remaining()];
+    decompressed.get(result);
+    assertThat(result).isEqualTo(original);
+  }
+
+  @Test
+  void testLz4CompressDecompressEmpty() {
+    ByteBuffer input = ByteBuffer.wrap(new byte[0]);
+
+    ByteBuffer compressed = PuffinFormat.compress(PuffinCompressionCodec.LZ4, input);
+    assertThat(compressed.remaining()).isGreaterThan(0);
+
+    ByteBuffer decompressed = PuffinFormat.decompress(PuffinCompressionCodec.LZ4, compressed);
+    assertThat(decompressed.remaining()).isEqualTo(0);
   }
 }
