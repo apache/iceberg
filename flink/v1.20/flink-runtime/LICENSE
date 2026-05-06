@@ -280,8 +280,7 @@ This product bundles bigint (bundled by FastDoubleParser).
 Copyright: 2022 Tim Buktu
 Project URL: https://github.com/tbuktu/bigint
 License: BSD 2-Clause
-| 2-clause BSD License
-|
+
 | Copyright 2022 Tim Buktu
 |
 | Redistribution and use in source and binary forms, with or without
@@ -440,6 +439,7 @@ This product bundles checkerframework checker-qual.
 Copyright: 2004-2020 the Checker Framework developers
 Project URL: https://github.com/typetools/checker-framework
 License: MIT
+
 | The annotations are licensed under the MIT License.  (The text of this
 | license appears below.)  More specifically, all the parts of the Checker
 | Framework that you might want to include with your own program use the
@@ -483,6 +483,8 @@ This product bundles ThreeTen Extra.
 Copyright: 2007-present, Stephen Colebourne & Michael Nascimento Santos.
 Project URL: https://www.threeten.org/threeten-extra/
 License: BSD 3-Clause
+
+| Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
 | All rights reserved.
 |
 | * Redistribution and use in source and binary forms, with or without
@@ -570,6 +572,7 @@ This product bundles Luben Zstd.
 Copyright: Copyright (c) 2015-present, Luben Karavelov/ All rights reserved.
 Project URL: https://github.com/luben/zstd-jni/
 License: BSD 2-Clause
+
 | Zstd-jni: JNI bindings to Zstd Library
 | 
 | Copyright (c) 2015-present, Luben Karavelov/ All rights reserved.
