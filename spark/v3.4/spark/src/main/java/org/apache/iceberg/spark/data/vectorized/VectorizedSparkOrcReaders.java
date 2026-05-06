@@ -465,6 +465,8 @@ public class VectorizedSparkOrcReaders {
           DeletedColumnVector deletedVector = new DeletedColumnVector(field.type());
           deletedVector.setValue(new boolean[batchSize]);
           fieldVectors.add(deletedVector);
+        } else if (field.type().equals(Types.UnknownType.get())) {
+          fieldVectors.add(new ConstantColumnVector(field.type(), batchSize, null));
         } else {
           fieldVectors.add(
               fieldConverters

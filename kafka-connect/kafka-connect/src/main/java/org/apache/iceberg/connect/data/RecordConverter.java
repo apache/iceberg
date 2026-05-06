@@ -768,10 +768,19 @@ class RecordConverter {
     if (result.charAt(10) == ' ') {
       result = result.substring(0, 10) + 'T' + result.substring(11);
     }
-    if (result.length() > 22
-        && (result.charAt(19) == '+' || result.charAt(19) == '-')
-        && result.charAt(22) == ':') {
-      result = result.substring(0, 19) + result.substring(19).replace(":", "");
+    // Search for the timezone offset sign starting after the seconds portion (index 19+).
+    // With fractional seconds (e.g. "...T03:17:37.260514+00:00") the sign appears later
+    // than index 19, so we must locate it dynamically rather than assuming a fixed position.
+    int signIdx = -1;
+    for (int i = 19; i < result.length(); i++) {
+      char ch = result.charAt(i);
+      if (ch == '+' || ch == '-') {
+        signIdx = i;
+        break;
+      }
+    }
+    if (signIdx != -1 && signIdx + 3 < result.length() && result.charAt(signIdx + 3) == ':') {
+      result = result.substring(0, signIdx + 3) + result.substring(signIdx + 4);
     }
     return result;
   }

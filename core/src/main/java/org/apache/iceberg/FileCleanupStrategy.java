@@ -26,7 +26,9 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,14 +80,15 @@ abstract class FileCleanupStrategy {
       ExpireSnapshots.CleanupLevel cleanupLevel);
 
   private static final Schema MANIFEST_PROJECTION =
-      ManifestFile.schema()
-          .select(
-              "manifest_path",
-              "manifest_length",
-              "partition_spec_id",
-              "added_snapshot_id",
-              "added_files_count",
-              "deleted_files_count");
+      TypeUtil.select(
+          ManifestFile.schema(),
+          ImmutableSet.of(
+              ManifestFile.PATH.fieldId(),
+              ManifestFile.LENGTH.fieldId(),
+              ManifestFile.SPEC_ID.fieldId(),
+              ManifestFile.SNAPSHOT_ID.fieldId(),
+              ManifestFile.ADDED_FILES_COUNT.fieldId(),
+              ManifestFile.DELETED_FILES_COUNT.fieldId()));
 
   protected CloseableIterable<ManifestFile> readManifests(Snapshot snapshot) {
     if (snapshot.manifestListLocation() != null) {
