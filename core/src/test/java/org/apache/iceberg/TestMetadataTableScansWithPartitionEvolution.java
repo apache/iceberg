@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -290,6 +291,83 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
         "company_id=null",
         "company_id=null/dept_id=null",
         "company_id=null/dept_id=null/team_id=null");
+  }
+
+  @TestTemplate
+  public void testPartitionsTableWithDroppedPartitionSourceColumn() throws IOException {
+    // Mirrors #16217 at the core API level:
+    // - add an identity partition field for an existing column
+    // - drop the partition field
+    // - drop the source column
+    // - verify .partitions metadata table remains readable
+    Schema schema =
+        new Schema(
+            required(1, "event_id", Types.LongType.get()),
+            required(2, "event_date", Types.DateType.get()),
+            required(3, "event_hour", Types.IntegerType.get()),
+            required(4, "user_id", Types.StringType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "dropcol-partitions-metadata",
+            schema,
+            PartitionSpec.builderFor(schema).identity("event_date").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    table
+        .newFastAppend()
+        .appendFile(newDataFile("event_date=2024-03-14"))
+        .appendFile(newDataFile("event_date=2024-03-15"))
+        .commit();
+
+    table.updateSpec().addField("event_hour").commit();
+    table
+        .newFastAppend()
+        .appendFile(newDataFile("event_date=2024-03-16/event_hour=14"))
+        .appendFile(newDataFile("event_date=2024-03-16/event_hour=20"))
+        .commit();
+
+    table.updateSpec().removeField("event_hour").commit();
+    table.updateSchema().deleteColumn("event_hour").commit();
+
+    PartitionsTable partitionsTable = new PartitionsTable(table);
+    assertThatCode(() -> partitionsTable.newScan().planFiles().iterator().hasNext())
+        .doesNotThrowAnyException();
+  }
+
+  @TestTemplate
+  public void testReAddDroppedPartitionSourceColumnName() throws IOException {
+    // After dropping a column that was previously used as an identity partition field,
+    // re-adding the column with the same name should not be blocked by stale historical specs.
+    Schema schema =
+        new Schema(
+            required(1, "event_id", Types.LongType.get()),
+            required(2, "event_date", Types.DateType.get()),
+            required(3, "event_hour", Types.IntegerType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "readd-dropcol-partition-source",
+            schema,
+            PartitionSpec.builderFor(schema).identity("event_date").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    table.newFastAppend().appendFile(newDataFile("event_date=2024-03-14")).commit();
+
+    table.updateSpec().addField("event_hour").commit();
+    table.newFastAppend().appendFile(newDataFile("event_date=2024-03-16/event_hour=14")).commit();
+
+    table.updateSpec().removeField("event_hour").commit();
+    table.updateSchema().deleteColumn("event_hour").commit();
+
+    assertThatCode(() -> table.updateSchema().addColumn("event_hour", Types.IntegerType.get()).commit())
+        .doesNotThrowAnyException();
   }
 
   @TestTemplate
