@@ -207,9 +207,9 @@ They should have the following key-value tags.
 | dataFilesSizeHistogram    | Histogram  | Histogram distribution of data file sizes (in bytes).                                               |
 | deleteFilesSizeHistogram  | Histogram  | Histogram distribution of delete file sizes (in bytes).                                             |
 
-The `Histogram` metrics above require `flink-metrics-dropwizard` on the classpath, which is not shipped
-by Flink by default. When using `iceberg-flink-runtime`, this dependency is already bundled. When using
-the `iceberg-flink` artifact directly, add `org.apache.flink:flink-metrics-dropwizard` as a dependency.
+The `Histogram` metrics above require `org.apache.flink:flink-metrics-dropwizard` on the classpath,
+which is not shipped by Flink by default. Please add this artifact to your classpath to see histogram metrics.
+If not present, histogram metrics will be missing. All other metric types will continue to get published.
 
 Committer metrics are added under the sub group of `IcebergFilesCommitter`.
 They should have the following key-value tags.
