@@ -433,6 +433,8 @@ Copyright: 2006-2019 The Guava Authors
 Project URL: https://github.com/google/guava
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
+--------------------------------------------------------------------------------
+
 This product bundles the Mozilla Public Suffix List, distributed by Apache HttpComponents.
 
 Project URL: https://publicsuffix.org/
