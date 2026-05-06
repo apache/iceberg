@@ -33,9 +33,10 @@ arrow = "15.0.2"
 avro = "1.12.1"
 assertj-core = "3.27.7"
 awaitility = "4.3.0"
-awssdk-bom = "2.42.18"
-azuresdk-bom = "1.3.5"
+awssdk-bom = "2.42.41"
+azuresdk-bom = "1.3.6"
 awssdk-s3accessgrants = "2.4.1"
+bouncycastle = "1.84"
 bson-ver = "4.11.5"
 caffeine = "2.9.3"
 calcite = "1.41.0"
@@ -44,17 +45,17 @@ delta-standalone = "3.3.2"
 delta-spark = "3.3.2"
 derby = "10.15.2.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.48.0"
+errorprone-annotations = "2.49.0"
 failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
 flink21 = { strictly = "2.1.0"}
-google-libraries-bom = "26.78.0"
+google-libraries-bom = "26.80.0"
 gcs-analytics-core = "1.2.3"
-guava = "33.5.0-jre"
+guava = "33.6.0-jre"
 hadoop3 = "3.4.3"
-httpcomponents-httpclient5 = "5.6"
+httpcomponents-httpclient5 = "5.6.1"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.1"
 jackson-annotations = "2.21"
@@ -65,22 +66,23 @@ jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
-jetty = "11.0.26"
+jetty = "12.1.8"
+joda = "2.5"
 junit = "5.14.3"
 junit-platform = "1.14.3"
 junit-pioneer = "2.3.0"
 kafka = "3.9.2"
 kryo-shaded = "4.0.3"
-lz4Java = "1.10.4"
+lz4Java = "1.11.0"
 microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.107.4"
-netty-buffer = "4.2.10.Final"
+nessie = "0.107.5"
+netty-buffer = "4.2.12.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.8"
 parquet = "1.17.0"
-roaringbitmap = "1.6.13"
+roaringbitmap = "1.6.14"
 scala-collection-compat = "2.14.0"
 slf4j = "2.0.17"
 snowflake-jdbc = "3.28.0"
@@ -88,8 +90,8 @@ spark34 = "3.4.4"
 spark35 = "3.5.8"
 spark40 = "4.0.2"
 spark41 = "4.1.1"
-sqlite-jdbc = "3.51.3.0"
-testcontainers = "2.0.4"
+sqlite-jdbc = "3.53.0.0"
+testcontainers = "2.0.5"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
@@ -110,6 +112,9 @@ awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk-bom"
 awssdk-s3accessgrants = { module = "software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin", version.ref = "awssdk-s3accessgrants" }
 azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom" }
 bson = { module = "org.mongodb:bson", version.ref = "bson-ver"}
+bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-bcutil = { module = "org.bouncycastle:bcutil-jdk18on", version.ref = "bouncycastle" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
@@ -202,8 +207,10 @@ flink21-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", 
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
-jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
-jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }
+jetty-compression-server = { module = "org.eclipse.jetty.compression:jetty-compression-server", version.ref = "jetty" }
+jetty-compression-gzip = { module = "org.eclipse.jetty.compression:jetty-compression-gzip", version.ref = "jetty" }
+jetty-servlet = { module = "org.eclipse.jetty.ee10:jetty-ee10-servlet", version.ref = "jetty" }
+joda-time = { module = "joda-time:joda-time", version.ref = "joda" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-pioneer = { module = "org.junit-pioneer:junit-pioneer", version.ref = "junit-pioneer" }

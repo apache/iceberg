@@ -336,6 +336,10 @@ This product includes code from Apache Flink.
 * Parameter provider annotation for parameterized tests in Parameters.java
 * Parameter field annotation for parameterized tests in Parameter.java
 * Primary key validation logic in FlinkSchemaUtil.java
+* Avro to RowData conversion logic in AvroToRowDataConverters.java
+* RowData to Avro conversion logic in RowDataToAvroConverters.java
+* Avro schema conversion logic in AvroSchemaConverter.java
+* Joda optional dependency encapsulation in JodaConverter.java
 
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://flink.apache.org/

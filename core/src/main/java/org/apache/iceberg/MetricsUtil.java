@@ -34,9 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.stats.BaseContentStats;
-import org.apache.iceberg.stats.BaseFieldStats;
-import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -482,7 +479,7 @@ public class MetricsUtil {
     }
   }
 
-  public static ContentStats fromMetrics(Schema schema, Metrics metrics) {
+  static ContentStats fromMetrics(Schema schema, Metrics metrics) {
     if (null == metrics) {
       return null;
     }

@@ -637,6 +637,7 @@ Replace a table with an Iceberg table, loaded with the source's data files.
 Table schema, partitioning, properties, and location will be copied from the source table.
 
 Migrate will fail if any table partition uses an unsupported format. Supported formats are Avro, Parquet, and ORC.
+Migrate will also fail if the table is bucketed, as the bucketing will not be preserved.
 Existing data files are added to the Iceberg table's metadata and can be read using a name-to-id mapping created from the original table schema.
 
 To leave the original table intact while testing, use [`snapshot`](#snapshot) to create new temporary table that shares source data files and schema.

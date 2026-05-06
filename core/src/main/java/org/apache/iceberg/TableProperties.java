@@ -135,6 +135,10 @@ public class TableProperties {
       "write.delete.parquet.page-size-bytes";
   public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
+  public static final String PARQUET_PAGE_VERSION = "write.parquet.page-version";
+  public static final String DELETE_PARQUET_PAGE_VERSION = "write.delete.parquet.page-version";
+  public static final String PARQUET_PAGE_VERSION_DEFAULT = "v1";
+
   public static final String PARQUET_PAGE_ROW_LIMIT = "write.parquet.page-row-limit";
   public static final String DELETE_PARQUET_PAGE_ROW_LIMIT = "write.delete.parquet.page-row-limit";
   public static final int PARQUET_PAGE_ROW_LIMIT_DEFAULT = 20_000;
@@ -345,6 +349,10 @@ public class TableProperties {
 
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
+  public static final String SPARK_WRITE_AUTO_SCHEMA_EVOLUTION =
+      "write.spark.auto-schema-evolution.enabled";
+  public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
   public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
       "write.spark.advisory-partition-size-bytes";

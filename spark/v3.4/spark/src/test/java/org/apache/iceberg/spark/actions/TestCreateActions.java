@@ -667,7 +667,7 @@ public class TestCreateActions extends CatalogTestBase {
             "CAST(id AS FLOAT) col1",
             "CAST(id AS STRING) col2",
             "CAST(id AS INT) col3")
-        .registerTempTable("tempdata");
+        .createOrReplaceTempView("tempdata");
     sql("INSERT INTO TABLE %s SELECT * FROM tempdata", tblName);
     List<Object[]> expectedBeforeAddColumn = sql("SELECT * FROM %s ORDER BY col0", tblName);
     List<Object[]> expectedAfterAddColumn =

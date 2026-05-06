@@ -45,6 +45,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DEL
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
@@ -598,6 +599,51 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
     assertThat(writeConf.deleteFileFormat()).isEqualTo(FileFormat.PUFFIN);
+  }
+
+  @TestTemplate
+  public void testSortOrderWriteConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.replaceSortOrder().asc("id").commit();
+
+    SparkWriteConf writeConf =
+        new SparkWriteConf(
+            spark, table, ImmutableMap.of(SparkWriteOptions.OUTPUT_SORT_ORDER_ID, "1"));
+
+    assertThat(writeConf.outputSortOrderId(SparkWriteRequirements.EMPTY))
+        .isEqualTo(table.sortOrder().orderId());
+  }
+
+  @TestTemplate
+  public void testSortOrderWriteConfWithInvalidId() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.replaceSortOrder().asc("id").commit();
+
+    SparkWriteConf writeConfForUnknownSortOrder =
+        new SparkWriteConf(
+            spark, table, ImmutableMap.of(SparkWriteOptions.OUTPUT_SORT_ORDER_ID, "999"));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> writeConfForUnknownSortOrder.outputSortOrderId(SparkWriteRequirements.EMPTY))
+        .withMessage(
+            "Cannot use output sort order id 999 because the table does not contain a sort order with that id");
+  }
+
+  @TestTemplate
+  public void testSortOrderWriteConfWithNoOption() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.replaceSortOrder().asc("id").commit();
+
+    SparkWriteConf writeConfNoOption = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    assertThat(writeConfNoOption.outputSortOrderId(writeConfNoOption.writeRequirements()))
+        .isEqualTo(table.sortOrder().orderId());
+
+    assertThat(writeConfNoOption.outputSortOrderId(SparkWriteRequirements.EMPTY)).isEqualTo(0);
   }
 
   private void testWriteProperties(List<Map<String, String>> propertiesSuite) {
