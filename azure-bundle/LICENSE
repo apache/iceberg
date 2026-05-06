@@ -426,12 +426,6 @@ This product bundles JNA.
 Project URL: https://github.com/java-native-access/jna
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
-| Java Native Access (JNA) is dual-licensed under the Apache License, Version 2.0
-| (from JNA 4.0 onward) or the LGPL, version 2.1 or later. This product
-| redistributes JNA under the terms of the Apache License, Version 2.0.
-| The shaded JAR retains JNA's upstream META-INF/LGPL2.1 and META-INF/AL2.0
-| copies of both license texts as published by the JNA project.
-
 --------------------------------------------------------------------------------
 
 This product bundles Reactive Streams.
