@@ -169,9 +169,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    // To support dropwizard histogram metrics (not shipped by Flink by default)
-    implementation libs.flink20.metrics.dropwizard
-
     // for integration testing with the flink-runtime-jar
     // all of those dependencies are required because the integration test extends FlinkTestBase
     integrationCompileOnly project(':iceberg-api')
