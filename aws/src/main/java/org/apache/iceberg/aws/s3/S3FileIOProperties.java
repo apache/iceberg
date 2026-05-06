@@ -49,6 +49,7 @@ import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
+import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -506,6 +507,14 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT = true;
 
+  /**
+   * Configure a custom {@link MetricPublisher} implementation for the S3 client.
+   *
+   * <p>The class must implement {@link MetricPublisher}. It will be instantiated via a static
+   * {@code create(Map)} factory method if available, otherwise via a no-arg constructor.
+   */
+  public static final String METRICS_PUBLISHER_IMPL = "s3.metrics-publisher-impl";
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -547,6 +556,7 @@ public class S3FileIOProperties implements Serializable {
   private long s3RetryMaxWaitMs;
 
   private boolean s3DirectoryBucketListPrefixAsDirectory;
+  private final String metricsPublisherImpl;
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -590,6 +600,7 @@ public class S3FileIOProperties implements Serializable {
     this.s3AnalyticsacceleratorProperties = Maps.newHashMap();
     this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
     this.s3CrtMaxConcurrency = S3_CRT_MAX_CONCURRENCY_DEFAULT;
+    this.metricsPublisherImpl = null;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -715,6 +726,7 @@ public class S3FileIOProperties implements Serializable {
     this.s3CrtMaxConcurrency =
         PropertyUtil.propertyAsInt(
             properties, S3_CRT_MAX_CONCURRENCY, S3_CRT_MAX_CONCURRENCY_DEFAULT);
+    this.metricsPublisherImpl = properties.get(METRICS_PUBLISHER_IMPL);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -1196,5 +1208,64 @@ public class S3FileIOProperties implements Serializable {
 
   public Map<String, String> properties() {
     return allProperties;
+  }
+
+  public String metricsPublisherImpl() {
+    return metricsPublisherImpl;
+  }
+
+  /**
+   * Configure a custom {@link MetricPublisher} for an S3 client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyMetricsPublisherConfiguration)
+   * </pre>
+   */
+  public <T extends S3BaseClientBuilder<T, ?>> void applyMetricsPublisherConfiguration(T builder) {
+    if (metricsPublisherImpl != null) {
+      ClientOverrideConfiguration.Builder configBuilder =
+          null != builder.overrideConfiguration()
+              ? builder.overrideConfiguration().toBuilder()
+              : ClientOverrideConfiguration.builder();
+      builder.overrideConfiguration(
+          configBuilder.addMetricPublisher(loadMetricPublisher()).build());
+    }
+  }
+
+  private MetricPublisher loadMetricPublisher() {
+    // Phase 1: look up the factory. A NoSuchMethodException here means the class does not
+    // declare `create(Map)` — fall back to the no-arg constructor path. Any OTHER exception
+    // from a factory that DOES exist (e.g. the factory itself throws) should surface via the
+    // wrapping IllegalArgumentException in phase 2 so users can distinguish "wrong signature"
+    // from "misconfigured factory".
+    DynMethods.StaticMethod factory = null;
+    try {
+      factory =
+          DynMethods.builder("create")
+              .hiddenImpl(metricsPublisherImpl, Map.class)
+              .buildStaticChecked();
+    } catch (NoSuchMethodException e) {
+      // Expected when the implementation doesn't provide a create(Map) factory — fall through.
+    }
+
+    // Phase 2: invoke whichever path we found. Exceptions here are real failures and are
+    // surfaced with the precise path that failed so the user can diagnose.
+    try {
+      if (factory != null) {
+        return (MetricPublisher) factory.invoke(allProperties);
+      }
+      return Class.forName(metricsPublisherImpl)
+          .asSubclass(MetricPublisher.class)
+          .getDeclaredConstructor()
+          .newInstance();
+    } catch (Exception e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot create MetricPublisher from class %s via %s",
+              metricsPublisherImpl, factory != null ? "create(Map)" : "no-arg constructor"),
+          e);
+    }
   }
 }
