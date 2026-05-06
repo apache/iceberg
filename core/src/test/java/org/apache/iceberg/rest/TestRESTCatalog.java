@@ -3549,6 +3549,60 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
+  @Test
+  public void testListNamespacesRecursively() throws IOException {
+    InMemoryCatalog backend = new InMemoryCatalog();
+    backend.initialize(
+        "backend", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toString()));
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backend));
+    RESTCatalog catalog = catalog(adapter);
+
+    try {
+      // Create a namespace hierarchy:
+      // - ns1
+      //   - ns1.child1
+      //   - ns1.child2
+      //     - ns1.child2.grandchild
+      // - ns2
+      Namespace ns1 = Namespace.of("ns1");
+      Namespace ns1Child1 = Namespace.of("ns1", "child1");
+      Namespace ns1Child2 = Namespace.of("ns1", "child2");
+      Namespace ns1Child2Grandchild = Namespace.of("ns1", "child2", "grandchild");
+      Namespace ns2 = Namespace.of("ns2");
+
+      catalog.createNamespace(ns1);
+      catalog.createNamespace(ns1Child1);
+      catalog.createNamespace(ns1Child2);
+      catalog.createNamespace(ns1Child2Grandchild);
+      catalog.createNamespace(ns2);
+
+      // recursive listing - should get all namespaces in the hierarchy
+      assertThat(catalog.listNamespacesRecursively())
+          .containsExactlyInAnyOrder(ns1, ns1Child1, ns1Child2, ns1Child2Grandchild, ns2);
+
+      // non-recursive listing - should only get direct children
+      assertThat(catalog.listNamespaces()).containsExactlyInAnyOrder(ns1, ns2);
+
+      // recursive listing of ns1 - should get all descendants of ns1
+      assertThat(catalog.listNamespacesRecursively(ns1))
+          .containsExactlyInAnyOrder(ns1Child1, ns1Child2, ns1Child2Grandchild);
+
+      // non-recursive listing of ns1 - should only get direct children
+      assertThat(catalog.listNamespaces(ns1)).containsExactlyInAnyOrder(ns1Child1, ns1Child2);
+
+      // recursive listing of ns1.child2 - should only get direct children because
+      // nested namespaces don't exist
+      assertThat(catalog.listNamespacesRecursively(ns1Child2)).containsExactly(ns1Child2Grandchild);
+
+      // non-recursive listing of ns1.child2 - should only get direct children
+      assertThat(catalog.listNamespaces(ns1Child2)).containsExactly(ns1Child2Grandchild);
+      assertThat(catalog.listNamespacesRecursively(ns1Child2)).containsExactly(ns1Child2Grandchild);
+    } finally {
+      catalog.close();
+      backend.close();
+    }
+  }
+
   private RESTCatalog createCatalogWithIdempAdapter(ConfigResponse cfg, boolean expectOnMutations) {
     RESTCatalogAdapter adapter =
         Mockito.spy(
