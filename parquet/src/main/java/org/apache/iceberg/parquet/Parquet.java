@@ -32,6 +32,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
@@ -351,6 +353,46 @@ public class Parquet {
               });
     }
 
+    private void setColumnCompressionConfig(
+        Context context,
+        Map<String, String> colNameToParquetPathMap,
+        BiConsumer<String, CompressionCodecName> withCompressionCodec,
+        BiConsumer<String, Integer> withCompressionLevel) {
+
+      Map<String, String> columnCompressionCodec = context.columnCompressionCodec();
+      Map<String, String> columnCompressionLevel = context.columnCompressionLevel();
+
+      Sets.union(columnCompressionCodec.keySet(), columnCompressionLevel.keySet())
+          .forEach(
+              colName -> {
+                String parquetColumnPath = colNameToParquetPathMap.get(colName);
+                if (parquetColumnPath == null) {
+                  LOG.warn("Skipping per-column compression config for missing field: {}", colName);
+                  return;
+                }
+
+                String codecStr = columnCompressionCodec.get(colName);
+                try {
+                  withCompressionCodec.accept(
+                      parquetColumnPath,
+                      codecStr != null ? Context.toCodec(codecStr) : context.codec());
+                } catch (IllegalArgumentException e) {
+                  throw new IllegalArgumentException(
+                      "Invalid compression codec for column " + colName + ": " + codecStr, e);
+                }
+
+                String level = columnCompressionLevel.get(colName);
+                if (level != null) {
+                  try {
+                    withCompressionLevel.accept(parquetColumnPath, Integer.parseInt(level));
+                  } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                        "Invalid compression level for column " + colName + ": " + level, e);
+                  }
+                }
+              });
+    }
+
     @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
@@ -448,6 +490,12 @@ public class Parquet {
 
         setColumnStatsConfig(context, colNameToParquetPathMap, propsBuilder::withStatisticsEnabled);
 
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            propsBuilder::withCompressionCodec,
+            propsBuilder::withCompressionLevel);
+
         ParquetProperties parquetProperties = propsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
@@ -490,6 +538,12 @@ public class Parquet {
         setColumnStatsConfig(
             context, colNameToParquetPathMap, parquetWriteBuilder::withStatisticsEnabled);
 
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            parquetWriteBuilder::withCompressionCodec,
+            parquetWriteBuilder::withCompressionLevel);
+
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
     }
@@ -509,6 +563,8 @@ public class Parquet {
       private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
       private final Map<String, String> columnStatsEnabled;
+      private final Map<String, String> columnCompressionCodec;
+      private final Map<String, String> columnCompressionLevel;
       private final boolean dictionaryEnabled;
 
       private Context(
@@ -526,6 +582,8 @@ public class Parquet {
           Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
           Map<String, String> columnStatsEnabled,
+          Map<String, String> columnCompressionCodec,
+          Map<String, String> columnCompressionLevel,
           boolean dictionaryEnabled) {
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
@@ -541,6 +599,8 @@ public class Parquet {
         this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
         this.columnStatsEnabled = columnStatsEnabled;
+        this.columnCompressionCodec = columnCompressionCodec;
+        this.columnCompressionLevel = columnCompressionLevel;
         this.dictionaryEnabled = dictionaryEnabled;
       }
 
@@ -612,6 +672,12 @@ public class Parquet {
         Map<String, String> columnStatsEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_STATS_ENABLED_PREFIX);
 
+        Map<String, String> columnCompressionCodec =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX);
+
+        Map<String, String> columnCompressionLevel =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX);
+
         boolean dictionaryEnabled =
             PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
 
@@ -630,6 +696,8 @@ public class Parquet {
             columnBloomFilterNdv,
             columnBloomFilterEnabled,
             columnStatsEnabled,
+            columnCompressionCodec,
+            columnCompressionLevel,
             dictionaryEnabled);
       }
 
@@ -703,6 +771,8 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
+            ImmutableMap.of(),
+            ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
@@ -781,6 +851,14 @@ public class Parquet {
 
       Map<String, String> columnStatsEnabled() {
         return columnStatsEnabled;
+      }
+
+      Map<String, String> columnCompressionCodec() {
+        return columnCompressionCodec;
+      }
+
+      Map<String, String> columnCompressionLevel() {
+        return columnCompressionLevel;
       }
 
       boolean dictionaryEnabled() {
