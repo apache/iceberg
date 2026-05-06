@@ -215,8 +215,7 @@ This product bundles FastDoubleParser (via Jackson JSON Processor).
 Copyright: 2023 Werner Randelshofer, Switzerland
 Project URL: https://github.com/wrandelshofer/FastDoubleParser
 License: MIT
-| MIT License
-|
+
 | Copyright (c) 2023 Werner Randelshofer, Switzerland
 |
 | Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -244,8 +243,7 @@ This product bundles fast_float (bundled by FastDoubleParser).
 Copyright: 2021 The fast_float authors
 Project URL: https://github.com/fastfloat/fast_float
 License: MIT
-| MIT License
-|
+
 | Copyright (c) 2021 The fast_float authors
 |
 | Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -273,8 +271,7 @@ This product bundles bigint (bundled by FastDoubleParser).
 Copyright: 2022 Tim Buktu
 Project URL: https://github.com/tbuktu/bigint
 License: BSD 2-Clause
-| 2-clause BSD License
-|
+
 | Copyright 2022 Tim Buktu
 |
 | Redistribution and use in source and binary forms, with or without
@@ -310,7 +307,9 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 This product bundles Google API Common.
 
+Project URL: https://github.com/googleapis/api-common-java
 License: BSD 3-Clause
+
 | Copyright 2016, Google Inc.
 | Redistribution and use in source and binary forms, with or without
 | modification, are permitted provided that the following conditions are
@@ -344,6 +343,7 @@ This product bundles Google GAX.
 
 Project URL: https://github.com/googleapis/gax-java
 License: BSD 3-Clause
+
 | Copyright 2016, Google Inc. All rights reserved.
 | 
 | Redistribution and use in source and binary forms, with or without
@@ -404,7 +404,9 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 This product bundles Google Auth Library.
 
+Project URL: https://github.com/googleapis/google-auth-library-java
 License: BSD 3-Clause
+
 | Copyright 2014, Google Inc. All rights reserved.
 | 
 | Redistribution and use in source and binary forms, with or without
@@ -898,6 +900,7 @@ This product bundles Google protobuf.
 
 Project URL: https://developers.google.com/protocol-buffers/
 License: BSD 3-Clause
+
 | Copyright 2008 Google Inc.  All rights reserved.
 | 
 | Redistribution and use in source and binary forms, with or without
@@ -937,6 +940,7 @@ This product bundles Google re2j.
 
 Project URL: http://github.com/google/re2j
 License: Go License
+
 | This is a work derived from Russ Cox's RE2 in Go, whose license
 | http://golang.org/LICENSE is as follows:
 | 
@@ -1068,6 +1072,7 @@ This product bundles javax.annotation-api.
 Project URL: https://javaee.github.io/glassfish
 Project URL: http://jcp.org/en/jsr/detail?id=250
 License: CDDL 1.1 - https://github.com/javaee/javax.annotation/blob/master/LICENSE
+
 | COMMON DEVELOPMENT AND DISTRIBUTION LICENSE (CDDL) Version 1.1
 | 
 | 1. Definitions.
@@ -1425,6 +1430,7 @@ This product bundles checkerframework checker-qual and checker-compat-qual.
 
 Project URL: https://checkerframework.org/
 License: MIT
+
 | The annotations are licensed under the MIT License.  (The text of this
 | license appears below.)  More specifically, all the parts of the Checker
 | Framework that you might want to include with your own program use the
@@ -1457,9 +1463,9 @@ License: MIT
 
 This product bundles Animal Sniffer Annotations.
 
+Project URL: https://github.com/mojohaus/animal-sniffer
 License: MIT
-| The MIT License
-| 
+
 | Copyright (c) 2009 codehaus.org.
 | 
 | Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -1493,6 +1499,7 @@ This product bundles ThreeTen BP.
 
 Project URL: https://www.threeten.org/threetenbp
 License: BSD 3-Clause
+
 | Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
 | 
 | All rights reserved.
@@ -1555,8 +1562,9 @@ License: Public Domain - https://github.com/stleary/JSON-java/blob/master/LICENS
 
 This product bundles ThreeTen Extra.
 
-Project URL: https://www.threeten.org/threeten-extra 
-License: BSD 3-clause
+Project URL: https://www.threeten.org/threeten-extra
+License: BSD 3-Clause
+
 | Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
 | 
 | All rights reserved.
@@ -1628,8 +1636,7 @@ This product bundles Stax2 API.
 
 Project URL: http://github.com/FasterXML/stax2-api
 License: BSD 2-Clause
-| BSD 2-Clause License
-| 
+
 | Copyright (c) 2008+, FasterXML, LLC
 | All rights reserved.
 | 
@@ -1682,6 +1689,7 @@ This product bundles MSV xsdlib (bundled by Woodstox).
 
 Project URL: https://github.com/xmlark/msv
 License: BSD 3-Clause
+
 | Copyright 2001-2013 Oracle and/or its affiliates. All rights reserved.
 | 
 | Redistribution and use in source and binary forms, with or without
@@ -1716,6 +1724,7 @@ This product bundles isorelax (bundled by Woodstox).
 
 Project URL: https://github.com/relaxng/jing-trang
 License: CDDL 1.1
+
 | COMMON DEVELOPMENT AND DISTRIBUTION LICENSE (CDDL) Version 1.1
 | 
 | 1. Definitions.
@@ -2074,6 +2083,7 @@ This product bundles RELAX NG Datatype API (bundled by Woodstox).
 
 Project URL: https://github.com/relaxng/relaxng-datatype-java
 License: BSD 3-Clause
+
 | Copyright (c) 2018 Oracle and/or its affiliates. All rights reserved.
 | 
 | Redistribution and use in source and binary forms, with or without
