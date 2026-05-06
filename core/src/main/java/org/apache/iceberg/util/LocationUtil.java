@@ -57,4 +57,69 @@ public class LocationUtil {
       return tableIdentifier.name();
     }
   }
+
+  private static final int MAX_SCHEME_LENGTH = 10;
+
+  /**
+   * Returns true if the location contains a URI scheme (e.g. {@code s3:}, {@code hdfs:}, {@code
+   * file:}). Checks at most the first 10 characters for a {@code :} preceded by alphanumeric
+   * characters, per <a href="https://datatracker.ietf.org/doc/html/rfc3986#section-3.1">RFC 3986
+   * section 3.1</a>.
+   */
+  private static boolean hasScheme(String location) {
+    if (location == null || location.isEmpty()) {
+      return false;
+    }
+
+    // Early termination for relative locations since most commonly start with /
+    if (location.charAt(0) == '/') {
+      return false;
+    }
+
+    int limit = Math.min(location.length(), MAX_SCHEME_LENGTH);
+    for (int i = 0; i < limit; i += 1) {
+      char ch = location.charAt(i);
+      if (ch == ':') {
+        return i > 0;
+      }
+
+      if (!Character.isLetterOrDigit(ch)) {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Resolves a relative location against a table location. If the location has a URI scheme, it is
+   * returned as-is. Otherwise, the location is appended to the table location without any
+   * additional separator.
+   */
+  public static String resolveLocation(String location, String tableLocation) {
+    Preconditions.checkArgument(tableLocation != null, "Table location must not be null");
+    if (location == null || hasScheme(location)) {
+      return location;
+    }
+
+    return tableLocation + location;
+  }
+
+  /**
+   * Relativizes a location against a table location. If the location starts with the table
+   * location, the prefix is removed and the remaining relative portion is returned. Otherwise, the
+   * location is returned as-is.
+   */
+  public static String relativizeLocation(String location, String tableLocation) {
+    Preconditions.checkArgument(tableLocation != null, "Table location must not be null");
+    if (location == null) {
+      return null;
+    }
+
+    if (location.startsWith(tableLocation)) {
+      return location.substring(tableLocation.length());
+    }
+
+    return location;
+  }
 }
