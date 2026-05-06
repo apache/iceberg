@@ -460,22 +460,6 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Dropwizard Metrics.
-
-Copyright: (c) 2010-2013 Coda Hale, Yammer.com, 2014-2021 Dropwizard Team
-Project URL: https://github.com/dropwizard/metrics
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Apache Flink's optional support for Dropwizard Metrics.
-
-Copyright: 2014-2026 The Apache Software Foundation
-Project URL: https://flink.apache.org/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles RoaringBitmap.
 
 Copyright: (c) 2013-... the RoaringBitmap authors
