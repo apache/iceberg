@@ -22,8 +22,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
@@ -75,6 +77,28 @@ public interface SupportsNamespaces {
   }
 
   /**
+   * List namespaces from the catalog recursively.
+   *
+   * <p>If an object such as a table, view, or function exists, its parent namespaces must also
+   * exist and must be returned by this discovery method. For example, if table a.b.t exists, this
+   * method must return ["a"] in the result array.
+   *
+   * @return a List of namespace {@link Namespace} names
+   */
+  default List<Namespace> listNamespacesRecursively() {
+    ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
+    try {
+      for (Namespace ns : listNamespaces(Namespace.empty())) {
+        namespaces.add(ns);
+        namespaces.addAll(listNamespacesRecursively(ns));
+      }
+    } catch (NoSuchNamespaceException | ForbiddenException e) {
+      // Skip the namespace if it has been deleted concurrently or access is forbidden
+    }
+    return namespaces.build();
+  }
+
+  /**
    * List child namespaces from the namespace.
    *
    * <p>For two existing tables named 'a.b.c.table' and 'a.b.d.table', this method returns:
@@ -103,6 +127,48 @@ public interface SupportsNamespaces {
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    */
   List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException;
+
+  /**
+   * List child namespaces from the namespace recursively.
+   *
+   * <p>For two existing tables named 'a.b.c.table' and 'a.b.d.table', this method returns:
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.empty()}
+   *   <li>Returns: {@code Namespace.of("a")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a")}
+   *   <li>Returns: {@code Namespace.of("a", "b")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a", "b")}
+   *   <li>Returns: {@code Namespace.of("a", "b", "c")} and {@code Namespace.of("a", "b", "d")}
+   * </ul>
+   *
+   * <ul>
+   *   <li>Given: {@code Namespace.of("a", "b", "c")}
+   *   <li>Returns: empty list, because there are no child namespaces
+   * </ul>
+   *
+   * @return a List of child {@link Namespace} names from the given namespace
+   * @throws NoSuchNamespaceException If the namespace does not exist (optional)
+   */
+  default List<Namespace> listNamespacesRecursively(Namespace namespace)
+      throws NoSuchNamespaceException {
+    ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
+    try {
+      for (Namespace ns : listNamespaces(namespace)) {
+        namespaces.add(ns);
+        namespaces.addAll(listNamespacesRecursively(ns));
+      }
+    } catch (NoSuchNamespaceException | ForbiddenException e) {
+      // Skip the namespace if it has been deleted concurrently or access is forbidden
+    }
+    return namespaces.build();
+  }
 
   /**
    * Load metadata properties for a namespace.
