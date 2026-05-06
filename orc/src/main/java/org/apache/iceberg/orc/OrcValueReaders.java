@@ -138,7 +138,10 @@ public class OrcValueReaders {
   public abstract static class StructReader<T> implements OrcValueReader<T> {
     private final OrcValueReader<?>[] readers;
     private final boolean[] isConstantOrMetadataField;
-    private final int[] fieldVectorIndex;
+    // Maps each projected struct field position to the matching child index in the ORC schema.
+    // This allows fields to be read by Iceberg field ID when the projected struct order differs
+    // from the file schema.
+    private final int[] orcFieldIndex;
 
     /**
      * @param readers readers for each field
@@ -154,7 +157,7 @@ public class OrcValueReaders {
       List<Types.NestedField> fields = struct.fields();
       this.readers = new OrcValueReader[fields.size()];
       this.isConstantOrMetadataField = new boolean[fields.size()];
-      this.fieldVectorIndex = null;
+      this.orcFieldIndex = null;
 
       for (int pos = 0, readerIndex = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
@@ -185,20 +188,20 @@ public class OrcValueReaders {
       List<Types.NestedField> fields = struct.fields();
       this.readers = new OrcValueReader[fields.size()];
       this.isConstantOrMetadataField = new boolean[fields.size()];
-      this.fieldVectorIndex = new int[fields.size()];
+      this.orcFieldIndex = new int[fields.size()];
 
       Map<Integer, OrcValueReader<?>> readersById = readersByFieldId(orcType, readers);
-      Map<Integer, Integer> fieldIdToDataIndex = buildFieldIdToVectorIndex(orcType);
+      Map<Integer, Integer> fieldIdToOrcIndex = buildFieldIdToOrcIndex(orcType);
 
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
         OrcValueReader<?> fileReader = readersById.get(field.fieldId());
-        int dataIndex = fieldIdToDataIndex.getOrDefault(field.fieldId(), -1);
+        int orcIndex = fieldIdToOrcIndex.getOrDefault(field.fieldId(), -1);
 
         if (field.equals(MetadataColumns.ROW_ID)) {
-          handleRowIdField(pos, field, fileReader, idToConstant, dataIndex);
+          handleRowIdField(pos, field, fileReader, idToConstant, orcIndex);
         } else if (field.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER)) {
-          handleLastUpdatedSeqField(pos, field, fileReader, idToConstant, dataIndex);
+          handleLastUpdatedSeqField(pos, field, fileReader, idToConstant, orcIndex);
         } else if (idToConstant.containsKey(field.fieldId())) {
           this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = constants(idToConstant.get(field.fieldId()));
@@ -210,7 +213,7 @@ public class OrcValueReaders {
           this.readers[pos] = constants(false);
         } else if (fileReader != null) {
           this.isConstantOrMetadataField[pos] = false;
-          this.fieldVectorIndex[pos] = fieldIdToDataIndex.getOrDefault(field.fieldId(), -1);
+          this.orcFieldIndex[pos] = fieldIdToOrcIndex.getOrDefault(field.fieldId(), -1);
           this.readers[pos] = fileReader;
         } else if (MetadataColumns.isMetadataColumn(field.name())
             || field.type().typeId() == Type.TypeID.UNKNOWN) {
@@ -223,7 +226,7 @@ public class OrcValueReaders {
       }
     }
 
-    private Map<Integer, Integer> buildFieldIdToVectorIndex(TypeDescription orcType) {
+    private Map<Integer, Integer> buildFieldIdToOrcIndex(TypeDescription orcType) {
       List<TypeDescription> children = orcType.getChildren();
       Map<Integer, Integer> mapping = Maps.newHashMap();
       for (int i = 0; i < children.size(); i++) {
@@ -256,14 +259,14 @@ public class OrcValueReaders {
         Types.NestedField field,
         OrcValueReader<?> fileReader,
         Map<Integer, ?> idToConstant,
-        int dataIndex) {
+        int orcIndex) {
       Long firstRowId = (Long) idToConstant.get(field.fieldId());
       if (firstRowId != null) {
         OrcValueReader<Long> fileIdReader = (OrcValueReader<Long>) fileReader;
         this.readers[pos] = new RowIdReader(firstRowId, fileIdReader);
         this.isConstantOrMetadataField[pos] = fileIdReader == null;
         if (fileIdReader != null) {
-          this.fieldVectorIndex[pos] = dataIndex;
+          this.orcFieldIndex[pos] = orcIndex;
         }
       } else {
         this.isConstantOrMetadataField[pos] = true;
@@ -277,7 +280,7 @@ public class OrcValueReaders {
         Types.NestedField field,
         OrcValueReader<?> fileReader,
         Map<Integer, ?> idToConstant,
-        int dataIndex) {
+        int orcIndex) {
       Long fileLastUpdated = (Long) idToConstant.get(field.fieldId());
       Long firstRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
       if (fileLastUpdated != null && firstRowId != null) {
@@ -285,7 +288,7 @@ public class OrcValueReaders {
         this.readers[pos] = new LastUpdatedSeqReader(fileLastUpdated, fileSeqReader);
         this.isConstantOrMetadataField[pos] = fileSeqReader == null;
         if (fileSeqReader != null) {
-          this.fieldVectorIndex[pos] = dataIndex;
+          this.orcFieldIndex[pos] = orcIndex;
         }
       } else {
         this.isConstantOrMetadataField[pos] = true;
@@ -313,8 +316,8 @@ public class OrcValueReaders {
         ColumnVector vector;
         if (isConstantOrMetadataField[c]) {
           vector = null;
-        } else if (fieldVectorIndex != null) {
-          vector = columnVectors[fieldVectorIndex[c]];
+        } else if (orcFieldIndex != null) {
+          vector = columnVectors[orcFieldIndex[c]];
         } else {
           vector = columnVectors[vectorIndex++];
         }
