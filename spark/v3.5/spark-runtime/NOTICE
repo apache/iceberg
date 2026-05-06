@@ -391,13 +391,3 @@ This product bundles Eclipse MicroProfile OpenAPI with the following in its NOTI
 | PackageCopyrightText: <text>
 | Arthur De Magalhaes arthurdm@ca.ibm.com
 | </text>
-
---------------------------------------------------------------------------------
-
-This product bundles Apache DataSketches (datasketches-java) with the following in its NOTICE file:
-| datasketches-java
-| Copyright 2015-2024 The Apache Software Foundation
-|
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
