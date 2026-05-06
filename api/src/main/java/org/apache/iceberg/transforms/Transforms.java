@@ -280,4 +280,23 @@ public class Transforms {
   public static <T> Transform<T, Void> alwaysNull() {
     return VoidTransform.get();
   }
+
+  /**
+   * Returns a cast {@link Transform} that converts values to the specified target type.
+   *
+   * <p>The cast transform performs explicit type conversions similar to SQL CAST operations. It
+   * supports casting between compatible types with appropriate handling of overflow, precision
+   * loss, and null values.
+   *
+   * <p>Note: Cast transforms cannot be used for partition pruning because they may be lossy and
+   * don't preserve ordering guarantees required for metadata filtering.
+   *
+   * @param targetType the target {@link Type} to cast values to
+   * @param <S> source Java type
+   * @param <T> target Java type
+   * @return a cast transform
+   */
+  public static <S, T> Transform<S, T> cast(Type targetType) {
+    return Cast.get(targetType);
+  }
 }

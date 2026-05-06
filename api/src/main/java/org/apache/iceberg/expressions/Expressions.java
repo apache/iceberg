@@ -106,6 +106,10 @@ public class Expressions {
     return new UnboundExtract<>(ref(name), path, type);
   }
 
+  public static <T> UnboundTerm<T> cast(String name, org.apache.iceberg.types.Type targetType) {
+    return new UnboundTransform<>(ref(name), Transforms.cast(targetType));
+  }
+
   public static <T> UnboundPredicate<T> isNull(String name) {
     return new UnboundPredicate<>(Expression.Operation.IS_NULL, ref(name));
   }
@@ -278,6 +282,11 @@ public class Expressions {
 
   public static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr) {
     return new UnboundPredicate<>(op, expr);
+  }
+
+  public static <T> UnboundPredicate<T> predicate(
+      Operation op, UnboundTerm<T> expr, Literal<T> lit) {
+    return new UnboundPredicate<>(op, expr, lit);
   }
 
   public static True alwaysTrue() {

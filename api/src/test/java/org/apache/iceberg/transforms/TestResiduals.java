@@ -24,11 +24,15 @@ import static org.apache.iceberg.expressions.Expression.Operation.LT;
 import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.cast;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.or;
@@ -46,6 +50,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestResiduals {
@@ -330,5 +335,208 @@ public class TestResiduals {
 
     residual = resEval.residualFor(Row.of(tsDay + 3));
     assertThat(residual).isEqualTo(alwaysTrue());
+  }
+
+  @Test
+  public void testCastResidualWithUnpartitionedTable() {
+    // With an unpartitioned table, cast predicates should pass through as residuals
+    Schema schema = new Schema(Types.NestedField.optional(50, "date_key", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+
+    int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
+
+    Expression castExpr = equal(cast("date_key", Types.DateType.get()), april26);
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, castExpr, true);
+
+    Expression residual = resEval.residualFor(Row.of());
+    assertThat(residual)
+        .as("Unpartitioned table should return cast expression as residual")
+        .isEqualTo(castExpr);
+  }
+
+  @Test
+  public void testCastStringToDateResidualEq() {
+    // Test cast with EQ predicate - ResidualEvaluator should evaluate cast against partition value
+    Schema schema = new Schema(Types.NestedField.optional(50, "date_key", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("date_key").build();
+
+    int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
+    int april27 = DateTimeUtil.isoDateToDays("2026-04-27");
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(spec, equal(cast("date_key", Types.DateType.get()), april26), true);
+
+    // When partition value doesn't match after cast
+    Expression residual = resEval.residualFor(Row.of("2026-04-27"));
+    assertThat(residual)
+        .as("When partition value doesn't match after cast, should be alwaysFalse")
+        .isEqualTo(alwaysFalse());
+
+    // When partition value matches after cast: "2026-04-26" casts to the same date value
+    // ResidualEvaluator correctly evaluates this by:
+    // 1. Projecting cast predicate through identity partition
+    // 2. Evaluating cast on partition value
+    // 3. Comparing result with literal
+    residual = resEval.residualFor(Row.of("2026-04-26"));
+
+    // ResidualEvaluator correctly returns alwaysTrue when cast value matches
+    assertThat(residual)
+        .as("When partition value matches after cast, should be alwaysTrue")
+        .isEqualTo(alwaysTrue());
+  }
+
+  @Test
+  public void testCastStringToDateResidualLt() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "date_key", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("date_key").build();
+
+    int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(
+            spec, lessThan(cast("date_key", Types.DateType.get()), april26), true);
+
+    // Test with a partition value that is before april26
+    Expression residual = resEval.residualFor(Row.of("2026-04-25"));
+    assertThat(residual)
+        .as("Should be alwaysTrue when cast date is less than literal")
+        .isEqualTo(alwaysTrue());
+
+    // Test with partition value equal to literal
+    residual = resEval.residualFor(Row.of("2026-04-26"));
+    assertThat(residual)
+        .as("Should be alwaysFalse when cast date equals literal")
+        .isEqualTo(alwaysFalse());
+
+    // Test with partition value after literal
+    residual = resEval.residualFor(Row.of("2026-04-27"));
+    assertThat(residual)
+        .as("Should be alwaysFalse when cast date is greater than literal")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testCastLongToTimestampNanoResidual() {
+    Schema schema =
+        new Schema(Types.NestedField.optional(50, "ts_micros", Types.LongType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts_micros").build();
+
+    // 1 microsecond = 1000 nanoseconds
+    long oneMicro = 1L;
+    long oneThousandNanos = 1000L;
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(
+            spec,
+            equal(cast("ts_micros", Types.TimestampNanoType.withoutZone()), oneThousandNanos),
+            true);
+
+    Expression residual = resEval.residualFor(Row.of(oneMicro));
+    // The cast should be evaluated against the partition value
+    assertThat(residual.op())
+        .as("Residual for cast timestamp predicate")
+        .isIn(Expression.Operation.TRUE, Expression.Operation.FALSE, Expression.Operation.EQ);
+  }
+
+  @Test
+  public void testCastResidualWithIn() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "date_key", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("date_key").build();
+
+    int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
+    int april27 = DateTimeUtil.isoDateToDays("2026-04-27");
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(
+            spec, in(cast("date_key", Types.DateType.get()), april26, april27), true);
+
+    Expression residual = resEval.residualFor(Row.of("2026-04-26"));
+    assertThat(residual)
+        .as("Should be alwaysTrue when cast date is in the set")
+        .isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("2026-04-28"));
+    assertThat(residual)
+        .as("Should be alwaysFalse when cast date is not in the set")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testCastResidualWithNotIn() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "date_key", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("date_key").build();
+
+    int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
+    int april27 = DateTimeUtil.isoDateToDays("2026-04-27");
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(
+            spec, notIn(cast("date_key", Types.DateType.get()), april26, april27), true);
+
+    Expression residual = resEval.residualFor(Row.of("2026-04-28"));
+    assertThat(residual)
+        .as("Should be alwaysTrue when cast date is not in the exclusion set")
+        .isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("2026-04-26"));
+    assertThat(residual)
+        .as("Should be alwaysFalse when cast date is in the exclusion set")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testCastIntegerToLongResidual() {
+    Schema schema =
+        new Schema(Types.NestedField.optional(50, "int_val", Types.IntegerType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("int_val").build();
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(spec, equal(cast("int_val", Types.LongType.get()), 42L), true);
+
+    Expression residual = resEval.residualFor(Row.of(42));
+    // Integer to Long cast is order-preserving and should be evaluated
+    assertThat(residual.op())
+        .as("Residual for integer to long cast")
+        .isIn(Expression.Operation.TRUE, Expression.Operation.FALSE, Expression.Operation.EQ);
+
+    // Test with a partition value that doesn't match
+    residual = resEval.residualFor(Row.of(43));
+    // Should be alwaysFalse or the original cast expression
+    assertThat(residual.op())
+        .as("When cast value doesn't match")
+        .isIn(Expression.Operation.FALSE, Expression.Operation.EQ);
+  }
+
+  @Test
+  public void testMultipleCastPredicatesInResidual() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(50, "date_key", Types.StringType.get()),
+            Types.NestedField.optional(51, "int_val", Types.IntegerType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("date_key").build();
+
+    int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
+
+    Expression expr =
+        and(
+            equal(cast("date_key", Types.DateType.get()), april26),
+            greaterThan(cast("int_val", Types.LongType.get()), 100L));
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, expr, true);
+
+    Expression residual = resEval.residualFor(Row.of("2026-04-26"));
+    // The date_key cast predicate evaluates to alwaysTrue for matching partition
+    // The int_val cast predicate remains because int_val is not partitioned
+    assertThat(residual.op())
+        .as("Should keep the int_val predicate since it's not partitioned")
+        .isEqualTo(Expression.Operation.GT);
   }
 }

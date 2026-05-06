@@ -21,8 +21,11 @@ package org.apache.iceberg.transforms;
 import java.io.ObjectStreamException;
 import java.util.Set;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTerm;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Type;
@@ -146,14 +149,29 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
+    // Reconstruct the unbound term with the partition column name
+    UnboundTerm<T> term = unboundTerm(name, predicate.term());
+
     if (predicate.isUnaryPredicate()) {
-      return Expressions.predicate(predicate.op(), name);
+      return Expressions.predicate(predicate.op(), term);
     } else if (predicate.isLiteralPredicate()) {
-      return Expressions.predicate(predicate.op(), name, predicate.asLiteralPredicate().literal());
+      return Expressions.predicate(predicate.op(), term, predicate.asLiteralPredicate().literal());
     } else if (predicate.isSetPredicate()) {
-      return Expressions.predicate(predicate.op(), name, predicate.asSetPredicate().literalSet());
+      return Expressions.predicate(predicate.op(), term, predicate.asSetPredicate().literalSet());
     }
     return null;
+  }
+
+  @SuppressWarnings("unchecked")
+  private <S> UnboundTerm<S> unboundTerm(String name, BoundTerm<S> bound) {
+    if (bound instanceof BoundTransform) {
+      // If the term is a transform (e.g., cast), preserve it with the new reference name
+      BoundTransform<?, S> boundTransform = (BoundTransform<?, S>) bound;
+      return Expressions.transform(name, boundTransform.transform());
+    } else {
+      // Simple reference, just create a new named reference
+      return Expressions.ref(name);
+    }
   }
 
   @Override

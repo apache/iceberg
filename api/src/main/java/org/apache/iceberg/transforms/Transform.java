@@ -89,6 +89,19 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
+   * Whether the transform preserves the order of values for a specific source type.
+   *
+   * <p>Most transforms have type-independent order behavior. Some transforms, like cast, can be
+   * order preserving only for specific source and target type pairs.
+   *
+   * @param sourceType the type of values transformed by this transform
+   * @return true if the transform preserves the order of values for the source type
+   */
+  default boolean preservesOrder(Type sourceType) {
+    return preservesOrder();
+  }
+
+  /**
    * Whether ordering by this transform's result satisfies the ordering of another transform's
    * result.
    *

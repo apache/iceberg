@@ -55,8 +55,10 @@ import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.sql.connector.expressions.Cast;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.UserDefinedScalarFunc;
@@ -354,7 +356,7 @@ public class SparkV2Filters {
 
   private static boolean canConvertToTerm(
       org.apache.spark.sql.connector.expressions.Expression expr) {
-    return isRef(expr) || isSystemFunc(expr);
+    return isRef(expr) || isSystemFunc(expr) || isCast(expr);
   }
 
   private static boolean isRef(org.apache.spark.sql.connector.expressions.Expression expr) {
@@ -372,16 +374,46 @@ public class SparkV2Filters {
     return false;
   }
 
+  private static boolean isCast(org.apache.spark.sql.connector.expressions.Expression expr) {
+    if (expr instanceof Cast) {
+      Cast cast = (Cast) expr;
+      // Only support cast if the child is a direct column reference
+      return cast.children().length == 1 && isRef(cast.children()[0]);
+    }
+    return false;
+  }
+
   private static boolean isLiteral(org.apache.spark.sql.connector.expressions.Expression expr) {
     return expr instanceof Literal;
   }
 
   private static Object convertLiteral(Literal<?> literal) {
+    // Check the literal's dataType to handle typed literals properly
+    org.apache.spark.sql.types.DataType sparkType = literal.dataType();
+
+    // For Date type, convert to java.sql.Date
+    if (sparkType instanceof org.apache.spark.sql.types.DateType) {
+      // Handle both Integer and Long (days since epoch)
+      int days;
+      if (literal.value() instanceof Integer) {
+        days = (Integer) literal.value();
+      } else if (literal.value() instanceof Long) {
+        days = ((Long) literal.value()).intValue();
+      } else {
+        throw new IllegalArgumentException(
+            "Unexpected value type for DateType: " + literal.value().getClass());
+      }
+      return org.apache.spark.sql.catalyst.util.DateTimeUtils.toJavaDate(days);
+    }
+
+    // Handle value conversions based on Java type
     if (literal.value() instanceof UTF8String) {
       return ((UTF8String) literal.value()).toString();
     } else if (literal.value() instanceof Decimal) {
       return ((Decimal) literal.value()).toJavaBigDecimal();
     }
+
+    // For other types, return the raw value
     return literal.value();
   }
 
@@ -439,11 +471,32 @@ public class SparkV2Filters {
   private static <T> UnboundTerm<Object> toTerm(T input) {
     if (input instanceof NamedReference) {
       return Expressions.ref(SparkUtil.toColumnName((NamedReference) input));
+    } else if (input instanceof Cast) {
+      return castToTerm((Cast) input);
     } else if (input instanceof UserDefinedScalarFunc) {
       return udfToTerm((UserDefinedScalarFunc) input);
     } else {
       return null;
     }
+  }
+
+  private static UnboundTerm<Object> castToTerm(Cast cast) {
+    org.apache.spark.sql.connector.expressions.Expression[] children = cast.children();
+    if (children.length != 1 || !isRef(children[0])) {
+      return null;
+    }
+
+    String column = SparkUtil.toColumnName((NamedReference) children[0]);
+
+    // Get the target type from Cast.dataType()
+    org.apache.spark.sql.types.DataType sparkType = cast.dataType();
+    Type icebergType = SparkSchemaUtil.convert(sparkType);
+
+    if (icebergType != null) {
+      return Expressions.cast(column, icebergType);
+    }
+
+    return null;
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

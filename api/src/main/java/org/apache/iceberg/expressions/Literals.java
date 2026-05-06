@@ -75,6 +75,10 @@ class Literals {
       return (Literal<T>) new Literals.FloatLiteral((Float) value);
     } else if (value instanceof Double) {
       return (Literal<T>) new Literals.DoubleLiteral((Double) value);
+    } else if (value instanceof java.sql.Date) {
+      java.sql.Date sqlDate = (java.sql.Date) value;
+      int days = (int) (sqlDate.toLocalDate().toEpochDay());
+      return (Literal<T>) new Literals.DateLiteral(days);
     } else if (value instanceof CharSequence) {
       return (Literal<T>) new Literals.StringLiteral((CharSequence) value);
     } else if (value instanceof UUID) {

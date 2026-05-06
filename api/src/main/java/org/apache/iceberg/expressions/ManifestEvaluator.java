@@ -35,6 +35,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether the file contains
@@ -100,6 +101,140 @@ public class ManifestEvaluator {
     @Override
     public Boolean alwaysFalse() {
       return ROWS_CANNOT_MATCH; // all rows fail
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      // Handle transform predicates (BoundTransform) - only literal and set predicates
+      if (pred.term() instanceof BoundTransform
+          && (pred.isLiteralPredicate() || pred.isSetPredicate())) {
+        BoundTransform<?, T> transform = (BoundTransform<?, T>) pred.term();
+
+        if (transform.transform().preservesOrder(transform.ref().type())) {
+          BoundReference<?> ref = transform.ref();
+          int pos = Accessors.toPosition(ref.accessor());
+          PartitionFieldSummary fieldStats = stats.get(pos);
+
+          if (fieldStats.lowerBound() == null) {
+            return ROWS_CANNOT_MATCH;
+          }
+
+          Object lowerValue = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
+          Object upperValue = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
+
+          SerializableFunction func = transform.transform().bind(ref.type());
+          T transformedLower;
+          T transformedUpper;
+
+          try {
+            transformedLower = (T) func.apply(lowerValue);
+            transformedUpper = (T) func.apply(upperValue);
+          } catch (RuntimeException e) {
+            // If transform application fails, conservatively assume rows might match
+            return ROWS_MIGHT_MATCH;
+          }
+
+          if (transformedLower == null || transformedUpper == null) {
+            return ROWS_MIGHT_MATCH;
+          }
+
+          if (pred.isLiteralPredicate()) {
+            return evaluateTransformLiteralPredicate(
+                pred.asLiteralPredicate(), transformedLower, transformedUpper, fieldStats);
+          }
+
+          if (pred.isSetPredicate()) {
+            return evaluateTransformSetPredicate(
+                pred.asSetPredicate(), transformedLower, transformedUpper, fieldStats);
+          }
+
+          // Unknown predicate type, conservatively return ROWS_MIGHT_MATCH
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      return super.predicate(pred);
+    }
+
+    private <T> Boolean evaluateTransformLiteralPredicate(
+        BoundLiteralPredicate<T> pred,
+        T transformedLower,
+        T transformedUpper,
+        PartitionFieldSummary fieldStats) {
+
+      Comparator<T> comparator = pred.literal().comparator();
+      T literalValue = pred.literal().value();
+
+      return switch (pred.op()) {
+        case EQ -> {
+          if (comparator.compare(transformedLower, literalValue) > 0
+              || comparator.compare(transformedUpper, literalValue) < 0) {
+            yield ROWS_CANNOT_MATCH;
+          }
+          yield ROWS_MIGHT_MATCH;
+        }
+        case NOT_EQ -> {
+          if (fieldStats.containsNull()
+              || (fieldStats.containsNaN() != null && fieldStats.containsNaN())) {
+            yield ROWS_MIGHT_MATCH;
+          }
+          if (comparator.compare(transformedLower, transformedUpper) == 0
+              && comparator.compare(transformedLower, literalValue) == 0) {
+            yield ROWS_CANNOT_MATCH;
+          }
+          yield ROWS_MIGHT_MATCH;
+        }
+        case LT ->
+            comparator.compare(transformedLower, literalValue) < 0
+                ? ROWS_MIGHT_MATCH
+                : ROWS_CANNOT_MATCH;
+        case LT_EQ ->
+            comparator.compare(transformedLower, literalValue) <= 0
+                ? ROWS_MIGHT_MATCH
+                : ROWS_CANNOT_MATCH;
+        case GT ->
+            comparator.compare(transformedUpper, literalValue) > 0
+                ? ROWS_MIGHT_MATCH
+                : ROWS_CANNOT_MATCH;
+        case GT_EQ ->
+            comparator.compare(transformedUpper, literalValue) >= 0
+                ? ROWS_MIGHT_MATCH
+                : ROWS_CANNOT_MATCH;
+        default -> ROWS_MIGHT_MATCH;
+      };
+    }
+
+    private <T> Boolean evaluateTransformSetPredicate(
+        BoundSetPredicate<T> pred,
+        T transformedLower,
+        T transformedUpper,
+        PartitionFieldSummary fieldStats) {
+
+      Comparator<T> comparator = Comparators.forType(pred.term().type().asPrimitiveType());
+
+      if (pred.op() == Expression.Operation.IN) {
+        boolean hasMatch =
+            pred.literalSet().stream()
+                .anyMatch(
+                    v ->
+                        comparator.compare(transformedLower, v) <= 0
+                            && comparator.compare(transformedUpper, v) >= 0);
+
+        return hasMatch ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+      } else if (pred.op() == Expression.Operation.NOT_IN) {
+        if (fieldStats.containsNull()
+            || (fieldStats.containsNaN() != null && fieldStats.containsNaN())) {
+          return ROWS_MIGHT_MATCH;
+        }
+        if (comparator.compare(transformedLower, transformedUpper) == 0
+            && pred.literalSet().contains(transformedLower)) {
+          return ROWS_CANNOT_MATCH;
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
     }
 
     @Override
@@ -296,21 +431,17 @@ public class ManifestEvaluator {
       }
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
-      literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(lower, v) <= 0)
-              .collect(Collectors.toList());
-      if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
-        return ROWS_CANNOT_MATCH;
-      }
-
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
-      literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(upper, v) >= 0)
-              .collect(Collectors.toList());
-      if (literals
-          .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+
+      // Check if any literal is within the bounds in a single pass
+      boolean hasMatch =
+          literalSet.stream()
+              .anyMatch(
+                  v ->
+                      ref.comparator().compare(lower, v) <= 0
+                          && ref.comparator().compare(upper, v) >= 0);
+
+      if (!hasMatch) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -451,6 +582,12 @@ public class ManifestEvaluator {
       }
 
       return lower;
+    }
+
+    @Override
+    public <T> Boolean handleNonReference(Bound<T> term) {
+      // Unsupported non-reference terms must be kept because this is an inclusive evaluator.
+      return ROWS_MIGHT_MATCH;
     }
 
     private boolean allValuesAreNull(PartitionFieldSummary summary, Type.TypeID typeId) {

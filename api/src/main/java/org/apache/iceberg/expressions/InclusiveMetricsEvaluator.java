@@ -578,7 +578,7 @@ public class InclusiveMetricsEvaluator {
 
     private <S, T> T transformLowerBound(BoundTransform<S, T> boundTransform) {
       Transform<S, T> transform = boundTransform.transform();
-      if (transform.preservesOrder()) {
+      if (transform.preservesOrder(boundTransform.ref().type())) {
         S lower = parseLowerBound(boundTransform.ref());
         return boundTransform.transform().bind(boundTransform.ref().type()).apply(lower);
       }
@@ -588,7 +588,7 @@ public class InclusiveMetricsEvaluator {
 
     private <S, T> T transformUpperBound(BoundTransform<S, T> boundTransform) {
       Transform<S, T> transform = boundTransform.transform();
-      if (transform.preservesOrder()) {
+      if (transform.preservesOrder(boundTransform.ref().type())) {
         S upper = parseUpperBound(boundTransform.ref());
         return boundTransform.transform().bind(boundTransform.ref().type()).apply(upper);
       }

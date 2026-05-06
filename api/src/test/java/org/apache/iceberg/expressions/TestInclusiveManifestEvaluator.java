@@ -19,6 +19,8 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.cast;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -48,7 +50,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.Test;
 
 public class TestInclusiveManifestEvaluator {
@@ -100,6 +105,47 @@ public class TestInclusiveManifestEvaluator {
 
   private static final ByteBuffer STRING_MIN = toByteBuffer(Types.StringType.get(), "a");
   private static final ByteBuffer STRING_MAX = toByteBuffer(Types.StringType.get(), "z");
+  private static final ByteBuffer DATE_STRING_MIN =
+      toByteBuffer(Types.StringType.get(), "2026-04-01");
+  private static final ByteBuffer DATE_STRING_MAX =
+      toByteBuffer(Types.StringType.get(), "2026-04-30");
+
+  private static final Schema DATE_STRING_SCHEMA =
+      new Schema(required(1, "date_key", Types.StringType.get()));
+  private static final PartitionSpec DATE_STRING_SPEC =
+      PartitionSpec.builderFor(DATE_STRING_SCHEMA).withSpecId(0).identity("date_key").build();
+  private static final ManifestFile DATE_STRING_FILE =
+      new TestHelpers.TestManifestFile(
+          "manifest-list.avro",
+          1024,
+          0,
+          System.currentTimeMillis(),
+          5,
+          10,
+          0,
+          ImmutableList.of(
+              new TestHelpers.TestFieldSummary(false, DATE_STRING_MIN, DATE_STRING_MAX)),
+          null);
+
+  private static final Schema LONG_SCHEMA =
+      new Schema(required(1, "ts_micros", Types.LongType.get()));
+  private static final PartitionSpec LONG_SPEC =
+      PartitionSpec.builderFor(LONG_SCHEMA).withSpecId(0).identity("ts_micros").build();
+  private static final ManifestFile LONG_FILE =
+      new TestHelpers.TestManifestFile(
+          "manifest-list.avro",
+          1024,
+          0,
+          System.currentTimeMillis(),
+          5,
+          10,
+          0,
+          ImmutableList.of(
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  toByteBuffer(Types.LongType.get(), 1L),
+                  toByteBuffer(Types.LongType.get(), 1L))),
+          null);
 
   private static final ManifestFile NO_STATS =
       new TestHelpers.TestManifestFile(
@@ -150,6 +196,101 @@ public class TestInclusiveManifestEvaluator {
                   toByteBuffer(Types.FloatType.get(), 5.0F),
                   toByteBuffer(Types.FloatType.get(), 5.0F))),
           null);
+
+  @Test
+  public void testCastStringToDateManifestPruning() {
+    int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
+    int may1 = DateTimeUtil.isoDateToDays("2026-05-01");
+    int march31 = DateTimeUtil.isoDateToDays("2026-03-31");
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    equal(cast("date_key", Types.DateType.get()), april26), DATE_STRING_SPEC, true)
+                .eval(DATE_STRING_FILE))
+        .as("Should read: casted date is within partition string bounds")
+        .isTrue();
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    equal(cast("date_key", Types.DateType.get()), may1), DATE_STRING_SPEC, true)
+                .eval(DATE_STRING_FILE))
+        .as("Should skip: casted date is greater than partition string bounds")
+        .isFalse();
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    lessThan(cast("date_key", Types.DateType.get()), may1), DATE_STRING_SPEC, true)
+                .eval(DATE_STRING_FILE))
+        .as("Should read: lower bound could satisfy casted less-than")
+        .isTrue();
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    lessThan(cast("date_key", Types.DateType.get()), march31),
+                    DATE_STRING_SPEC,
+                    true)
+                .eval(DATE_STRING_FILE))
+        .as("Should skip: all casted dates are greater than less-than literal")
+        .isFalse();
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    greaterThan(cast("date_key", Types.DateType.get()), march31),
+                    DATE_STRING_SPEC,
+                    true)
+                .eval(DATE_STRING_FILE))
+        .as("Should read: upper bound could satisfy casted greater-than")
+        .isTrue();
+
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    greaterThan(cast("date_key", Types.DateType.get()), may1),
+                    DATE_STRING_SPEC,
+                    true)
+                .eval(DATE_STRING_FILE))
+        .as("Should skip: all casted dates are less than greater-than literal")
+        .isFalse();
+  }
+
+  @Test
+  public void testCastLongToTimestampNanoManifestPruningUsesMicrosInverse() {
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    equal(cast("ts_micros", Types.TimestampNanoType.withoutZone()), 1L),
+                    LONG_SPEC,
+                    true)
+                .eval(LONG_FILE))
+        .as("Should read: 1 microsecond casts to 1000 nanoseconds")
+        .isTrue();
+  }
+
+  @Test
+  public void testNonOrderPreservingTransformManifestPruning() {
+    int numBuckets = 16;
+    SerializableFunction<Integer, Integer> bucketFunc =
+        Transforms.<Integer>bucket(numBuckets).bind(Types.IntegerType.get());
+    int lowerBucket = bucketFunc.apply(INT_MIN_VALUE);
+    int upperBucket = bucketFunc.apply(INT_MAX_VALUE);
+    Integer matchingBucket = null;
+
+    for (int id = INT_MIN_VALUE; id <= INT_MAX_VALUE; id++) {
+      int candidateBucket = bucketFunc.apply(id);
+      if (candidateBucket < lowerBucket || candidateBucket > upperBucket) {
+        matchingBucket = candidateBucket;
+        break;
+      }
+    }
+
+    assertThat(matchingBucket)
+        .as("Should find a bucket value in the source bounds but outside transformed endpoints")
+        .isNotNull();
+    assertThat(
+            ManifestEvaluator.forRowFilter(
+                    equal(bucket("id", numBuckets), matchingBucket), SPEC, true)
+                .eval(FILE))
+        .as("Should read: bucket is not order-preserving, so transformed endpoints cannot prune")
+        .isTrue();
+  }
 
   @Test
   public void testAllNulls() {

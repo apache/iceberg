@@ -248,7 +248,7 @@ public class ResidualEvaluator implements Serializable {
         if (strictProjection != null) {
           Expression bound = strictProjection.bind(spec.partitionType(), caseSensitive);
           if (bound instanceof BoundPredicate) {
-            strictResult = super.predicate((BoundPredicate<?>) bound);
+            strictResult = evaluateBoundPredicate((BoundPredicate<?>) bound);
           } else {
             // if the result is not a predicate, then it must be a constant like alwaysTrue or
             // alwaysFalse
@@ -269,7 +269,7 @@ public class ResidualEvaluator implements Serializable {
           Expression boundInclusive = inclusiveProjection.bind(spec.partitionType(), caseSensitive);
           if (boundInclusive instanceof BoundPredicate) {
             // using predicate method specific to inclusive
-            inclusiveResult = super.predicate((BoundPredicate<?>) boundInclusive);
+            inclusiveResult = evaluateBoundPredicate((BoundPredicate<?>) boundInclusive);
           } else {
             // if the result is not a predicate, then it must be a constant like alwaysTrue or
             // alwaysFalse
@@ -284,6 +284,80 @@ public class ResidualEvaluator implements Serializable {
       }
 
       // neither strict not inclusive predicate was conclusive, returning the original pred
+      return pred;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> Expression evaluateBoundPredicate(BoundPredicate<T> pred) {
+      Bound<T> term = pred.term();
+
+      if (term instanceof BoundReference) {
+        return super.predicate(pred);
+      }
+
+      if (term instanceof BoundTransform) {
+        BoundTransform<?, T> transform = (BoundTransform<?, T>) term;
+
+        if (!transform.transform().preservesOrder(transform.ref().type())) {
+          return pred;
+        }
+
+        try {
+          T transformedValue = transform.eval(struct);
+
+          if (pred.isLiteralPredicate()) {
+            BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
+            Literal<T> lit = literalPred.literal();
+
+            if (transformedValue == null) {
+              return alwaysFalse();
+            }
+
+            Comparator<T> cmp = lit.comparator();
+
+            switch (pred.op()) {
+              case EQ:
+                return (cmp.compare(transformedValue, lit.value()) == 0)
+                    ? alwaysTrue()
+                    : alwaysFalse();
+              case NOT_EQ:
+                return (cmp.compare(transformedValue, lit.value()) != 0)
+                    ? alwaysTrue()
+                    : alwaysFalse();
+              case LT:
+                return (cmp.compare(transformedValue, lit.value()) < 0)
+                    ? alwaysTrue()
+                    : alwaysFalse();
+              case LT_EQ:
+                return (cmp.compare(transformedValue, lit.value()) <= 0)
+                    ? alwaysTrue()
+                    : alwaysFalse();
+              case GT:
+                return (cmp.compare(transformedValue, lit.value()) > 0)
+                    ? alwaysTrue()
+                    : alwaysFalse();
+              case GT_EQ:
+                return (cmp.compare(transformedValue, lit.value()) >= 0)
+                    ? alwaysTrue()
+                    : alwaysFalse();
+            }
+          } else if (pred.isSetPredicate()) {
+            BoundSetPredicate<T> setPred = pred.asSetPredicate();
+            if (transformedValue == null) {
+              return alwaysFalse();
+            }
+            boolean contains = setPred.literalSet().contains(transformedValue);
+            if (pred.op() == Expression.Operation.IN) {
+              return contains ? alwaysTrue() : alwaysFalse();
+            } else if (pred.op() == Expression.Operation.NOT_IN) {
+              return contains ? alwaysFalse() : alwaysTrue();
+            }
+          }
+        } catch (Exception e) {
+          // If evaluation fails, conservatively return the original predicate
+          return pred;
+        }
+      }
       return pred;
     }
 
