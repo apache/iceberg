@@ -543,6 +543,13 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       return false;
     }
 
+    List<Namespace> childNamespaces = listNamespaces(namespace);
+    if (childNamespaces != null && !childNamespaces.isEmpty()) {
+      throw new NamespaceNotEmptyException(
+          "Namespace %s is not empty. Contains %d child namespace(s).",
+          namespace, childNamespaces.size());
+    }
+
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
     if (tableIdentifiers != null && !tableIdentifiers.isEmpty()) {
       throw new NamespaceNotEmptyException(
