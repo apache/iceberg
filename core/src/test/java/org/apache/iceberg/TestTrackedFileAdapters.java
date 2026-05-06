@@ -66,7 +66,7 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot convert tracked file to DataFile: content type is %s, not DATA",
             FileContent.EQUALITY_DELETES);
@@ -99,10 +99,80 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
             FileContent.DATA);
+  }
+
+  @Test
+  void testAsPositionDeleteFileValidatesContentType() {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null,
+            FileContent.POSITION_DELETES,
+            "s3://bucket/pos-delete.parquet",
+            FileFormat.PARQUET,
+            50L,
+            512L);
+    file.set(6, 0);
+
+    DeleteFile deleteFile = TrackedFileAdapters.asPositionDeleteFile(file, UNPARTITIONED);
+    assertThat(deleteFile).isNotNull();
+    assertThat(deleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(deleteFile.location()).isEqualTo("s3://bucket/pos-delete.parquet");
+  }
+
+  @Test
+  void testAsPositionDeleteFileRejectsNonPositionDeletes() {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, 100L, 1024L);
+    file.set(6, 0);
+
+    assertThatThrownBy(() -> TrackedFileAdapters.asPositionDeleteFile(file, UNPARTITIONED))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert tracked file to DeleteFile: content type is %s, not POSITION_DELETES",
+            FileContent.DATA);
+  }
+
+  @Test
+  void testPositionDeleteFileAdapterDelegatesAllFields() {
+    TrackingStruct tracking = createTracking(5L);
+    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(1).build();
+
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.POSITION_DELETES,
+            "s3://bucket/pos-delete.parquet",
+            FileFormat.PARQUET,
+            50L,
+            512L);
+    file.set(6, 1);
+    file.set(8, 5);
+    file.set(11, ByteBuffer.wrap(new byte[] {4, 5}));
+    file.set(12, ImmutableList.of(200L));
+
+    DeleteFile deleteFile = TrackedFileAdapters.asPositionDeleteFile(file, specsById(spec));
+
+    assertThat(deleteFile.pos()).isEqualTo(5L);
+    assertThat(deleteFile.specId()).isEqualTo(1);
+    assertThat(deleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(deleteFile.location()).isEqualTo("s3://bucket/pos-delete.parquet");
+    assertThat(deleteFile.format()).isEqualTo(FileFormat.PARQUET);
+    assertThat(deleteFile.recordCount()).isEqualTo(50L);
+    assertThat(deleteFile.fileSizeInBytes()).isEqualTo(512L);
+    assertThat(deleteFile.sortOrderId()).isEqualTo(5);
+    assertThat(deleteFile.dataSequenceNumber()).isEqualTo(10L);
+    assertThat(deleteFile.fileSequenceNumber()).isEqualTo(11L);
+    assertThat(deleteFile.firstRowId()).isNull();
+    assertThat(deleteFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {4, 5}));
+    assertThat(deleteFile.splitOffsets()).containsExactly(200L);
+    assertThat(deleteFile.manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deleteFile.equalityFieldIds()).isNull();
+    assertThat(deleteFile.columnSizes()).isNull();
   }
 
   @Test
@@ -133,7 +203,7 @@ class TestTrackedFileAdapters {
     file.set(9, createDeletionVector());
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot extract DV from tracked file: content type is %s, not DATA",
             FileContent.EQUALITY_DELETES);
@@ -147,28 +217,13 @@ class TestTrackedFileAdapters {
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot extract DV from tracked file: no deletion vector");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create DV delete file: no deletion vector");
   }
 
   @Test
   void testDVDeleteFileAdapterDelegatesAllFields() {
-    Types.StructType trackingWithPos =
-        Types.StructType.of(
-            ImmutableList.<Types.NestedField>builder()
-                .addAll(Tracking.schema().fields())
-                .add(MetadataColumns.ROW_POSITION)
-                .build());
-    TrackingStruct tracking = new TrackingStruct(trackingWithPos);
-
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-    tracking.set(3, 11L);
-    tracking.set(5, 1000L);
-    tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.set(8, 7L);
-
+    TrackingStruct tracking = createTracking(7L);
     PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(2).build();
 
     TrackedFileStruct file =
@@ -252,21 +307,7 @@ class TestTrackedFileAdapters {
 
   @Test
   void testDataFileAdapterDelegatesAllFields() {
-    Types.StructType trackingWithPos =
-        Types.StructType.of(
-            ImmutableList.<Types.NestedField>builder()
-                .addAll(Tracking.schema().fields())
-                .add(MetadataColumns.ROW_POSITION)
-                .build());
-    TrackingStruct tracking = new TrackingStruct(trackingWithPos);
-
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-    tracking.set(3, 11L);
-    tracking.set(5, 1000L);
-    tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.set(8, 3L);
+    TrackingStruct tracking = createTracking(3L);
 
     TrackedFileStruct file =
         new TrackedFileStruct(
@@ -303,22 +344,7 @@ class TestTrackedFileAdapters {
 
   @Test
   void testEqualityDeleteFileAdapterDelegatesAllFields() {
-    Types.StructType trackingWithPos =
-        Types.StructType.of(
-            ImmutableList.<Types.NestedField>builder()
-                .addAll(Tracking.schema().fields())
-                .add(MetadataColumns.ROW_POSITION)
-                .build());
-    TrackingStruct tracking = new TrackingStruct(trackingWithPos);
-
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-    tracking.set(3, 11L);
-    tracking.set(5, 1000L);
-    tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.set(8, 5L);
-
+    TrackingStruct tracking = createTracking(5L);
     PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(1).build();
 
     TrackedFileStruct file =
@@ -625,13 +651,34 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.specId()).isEqualTo(0);
   }
 
+  private static final Types.StructType TRACKING_WITH_POS =
+      Types.StructType.of(
+          ImmutableList.<Types.NestedField>builder()
+              .addAll(Tracking.schema().fields())
+              .add(MetadataColumns.ROW_POSITION)
+              .build());
+
+  private static TrackingStruct createTracking(long manifestPos) {
+    // Uses the struct-type constructor because the builder creates with BASE_TYPE which does not
+    // include ROW_POSITION, so manifest position cannot be set on builder-created structs.
+    TrackingStruct tracking = new TrackingStruct(TRACKING_WITH_POS);
+    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(1, 42L);
+    tracking.set(2, 10L);
+    tracking.set(3, 11L);
+    tracking.set(5, 1000L);
+    tracking.setManifestLocation("s3://bucket/manifest.avro");
+    tracking.set(8, manifestPos);
+    return tracking;
+  }
+
   private static DeletionVectorStruct createDeletionVector() {
-    DeletionVectorStruct dv = new DeletionVectorStruct(DeletionVector.schema());
-    dv.set(0, "s3://bucket/puffin/dv-file.bin");
-    dv.set(1, 128L);
-    dv.set(2, 256L);
-    dv.set(3, 10L);
-    return dv;
+    return DeletionVectorStruct.builder()
+        .location("s3://bucket/puffin/dv-file.bin")
+        .offset(128L)
+        .sizeInBytes(256L)
+        .cardinality(10L)
+        .build();
   }
 
   private static java.util.Map.Entry<Integer, Long> entry(int key, long value) {

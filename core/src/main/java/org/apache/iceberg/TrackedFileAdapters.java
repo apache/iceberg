@@ -19,14 +19,11 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -43,7 +40,7 @@ class TrackedFileAdapters {
   private TrackedFileAdapters() {}
 
   static DataFile asDataFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
-    Preconditions.checkState(
+    Preconditions.checkArgument(
         file.contentType() == FileContent.DATA,
         "Cannot convert tracked file to DataFile: content type is %s, not DATA",
         file.contentType());
@@ -51,21 +48,27 @@ class TrackedFileAdapters {
   }
 
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
-    Preconditions.checkState(
+    Preconditions.checkArgument(
         file.contentType() == FileContent.DATA,
         "Cannot extract DV from tracked file: content type is %s, not DATA",
         file.contentType());
-    Preconditions.checkState(
-        file.deletionVector() != null, "Cannot extract DV from tracked file: no deletion vector");
     return new TrackedDVDeleteFile(file, resolveSpec(file, specsById));
   }
 
+  static DeleteFile asPositionDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.POSITION_DELETES,
+        "Cannot convert tracked file to DeleteFile: content type is %s, not POSITION_DELETES",
+        file.contentType());
+    return new TrackedPositionDeleteFile(file, resolveSpec(file, specsById));
+  }
+
   static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
-    Preconditions.checkState(
+    Preconditions.checkArgument(
         file.contentType() == FileContent.EQUALITY_DELETES,
         "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
         file.contentType());
-    return new TrackedDeleteFile(file, resolveSpec(file, specsById));
+    return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
   }
 
   private static PartitionSpec resolveSpec(
@@ -124,108 +127,31 @@ class TrackedFileAdapters {
     return partition;
   }
 
-  static Map<Integer, Long> valueCounts(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, Long> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.valueCount() != null) {
-        result.put(fs.fieldId(), fs.valueCount());
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, Long> nullValueCounts(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, Long> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.nullValueCount() != null) {
-        result.put(fs.fieldId(), fs.nullValueCount());
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, Long> nanValueCounts(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, Long> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.nanValueCount() != null) {
-        result.put(fs.fieldId(), fs.nanValueCount());
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, ByteBuffer> lowerBounds(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, ByteBuffer> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.lowerBound() != null && fs.type() != null) {
-        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.lowerBound()));
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, ByteBuffer> upperBounds(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, ByteBuffer> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.upperBound() != null && fs.type() != null) {
-        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.upperBound()));
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
   /**
-   * Shared base for adapters that delegate to a {@link TrackedFile} for content file fields.
-   *
-   * <p>Subclasses provide {@code content()}, {@code firstRowId()}, {@code equalityFieldIds()}, and
-   * the copy methods.
+   * Shared base for all tracked file adapters. Holds the common fields and implements the methods
+   * that delegate to {@link Tracking} and {@link PartitionSpec}.
    */
-  private abstract static class AbstractTrackedContentFile<F extends ContentFile<F>>
+  private abstract static class TrackedFileAdapter<F extends ContentFile<F>>
       implements ContentFile<F> {
     private final TrackedFile file;
     private final Tracking tracking;
     private final PartitionSpec spec;
 
-    private AbstractTrackedContentFile(TrackedFile file, PartitionSpec spec) {
+    private TrackedFileAdapter(TrackedFile file, PartitionSpec spec) {
       this.file = file;
       this.tracking = file.tracking();
       this.spec = spec;
     }
 
-    TrackedFile file() {
+    protected TrackedFile file() {
       return file;
     }
 
-    Tracking tracking() {
+    protected Tracking tracking() {
       return tracking;
     }
 
-    PartitionSpec spec() {
+    protected PartitionSpec spec() {
       return spec;
     }
 
@@ -235,44 +161,18 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public String manifestLocation() {
+      return tracking != null ? tracking.manifestLocation() : null;
+    }
+
+    @Override
     public int specId() {
-      return spec.specId();
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    public CharSequence path() {
-      return file.location();
-    }
-
-    @Override
-    public String location() {
-      return file.location();
-    }
-
-    @Override
-    public FileFormat format() {
-      return file.fileFormat();
+      return file.specId() != null ? file.specId() : spec.specId();
     }
 
     @Override
     public StructLike partition() {
       return extractPartition(file, spec);
-    }
-
-    @Override
-    public long recordCount() {
-      return file.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return file.fileSizeInBytes();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return file.sortOrderId();
     }
 
     @Override
@@ -284,20 +184,59 @@ class TrackedFileAdapters {
     public Long fileSequenceNumber() {
       return tracking != null ? tracking.fileSequenceNumber() : null;
     }
+  }
+
+  /**
+   * Shared base for adapters that delegate to a {@link TrackedFile} for content file fields.
+   *
+   * <p>Subclasses provide {@code content()}, {@code firstRowId()}, {@code equalityFieldIds()}, and
+   * the copy methods.
+   */
+  private abstract static class TrackedContentFile<F extends ContentFile<F>>
+      extends TrackedFileAdapter<F> {
+    private TrackedContentFile(TrackedFile file, PartitionSpec spec) {
+      super(file, spec);
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public CharSequence path() {
+      return file().location();
+    }
+
+    @Override
+    public String location() {
+      return file().location();
+    }
+
+    @Override
+    public FileFormat format() {
+      return file().fileFormat();
+    }
+
+    @Override
+    public long recordCount() {
+      return file().recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return file().fileSizeInBytes();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return file().sortOrderId();
+    }
 
     @Override
     public ByteBuffer keyMetadata() {
-      return file.keyMetadata();
+      return file().keyMetadata();
     }
 
     @Override
     public List<Long> splitOffsets() {
-      return file.splitOffsets();
-    }
-
-    @Override
-    public String manifestLocation() {
-      return tracking != null ? tracking.manifestLocation() : null;
+      return file().splitOffsets();
     }
 
     @Override
@@ -307,33 +246,32 @@ class TrackedFileAdapters {
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return TrackedFileAdapters.valueCounts(file.contentStats());
+      return MetricsUtil.valueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return TrackedFileAdapters.nullValueCounts(file.contentStats());
+      return MetricsUtil.nullValueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      return TrackedFileAdapters.nanValueCounts(file.contentStats());
+      return MetricsUtil.nanValueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return TrackedFileAdapters.lowerBounds(file.contentStats());
+      return MetricsUtil.lowerBounds(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return TrackedFileAdapters.upperBounds(file.contentStats());
+      return MetricsUtil.upperBounds(file().contentStats());
     }
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
-  private static class TrackedDataFile extends AbstractTrackedContentFile<DataFile>
-      implements DataFile {
+  private static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
     private TrackedDataFile(TrackedFile file, PartitionSpec spec) {
       super(file, spec);
     }
@@ -375,9 +313,9 @@ class TrackedFileAdapters {
   }
 
   /** Adapts a TrackedFile EQUALITY_DELETES entry to the {@link DeleteFile} interface. */
-  private static class TrackedDeleteFile extends AbstractTrackedContentFile<DeleteFile>
+  private static class TrackedEqualityDeleteFile extends TrackedContentFile<DeleteFile>
       implements DeleteFile {
-    private TrackedDeleteFile(TrackedFile file, PartitionSpec spec) {
+    private TrackedEqualityDeleteFile(TrackedFile file, PartitionSpec spec) {
       super(file, spec);
     }
 
@@ -398,7 +336,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDeleteFile(file().copy(), spec());
+      return new TrackedEqualityDeleteFile(file().copy(), spec());
     }
 
     @Override
@@ -408,12 +346,55 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return new TrackedDeleteFile(file().copyWithoutStats(), spec());
+      return new TrackedEqualityDeleteFile(file().copyWithoutStats(), spec());
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDeleteFile(file().copyWithStats(requestedColumnIds), spec());
+      return new TrackedEqualityDeleteFile(file().copyWithStats(requestedColumnIds), spec());
+    }
+  }
+
+  /** Adapts a TrackedFile POSITION_DELETES entry to the {@link DeleteFile} interface. */
+  private static class TrackedPositionDeleteFile extends TrackedContentFile<DeleteFile>
+      implements DeleteFile {
+    private TrackedPositionDeleteFile(TrackedFile file, PartitionSpec spec) {
+      super(file, spec);
+    }
+
+    @Override
+    public FileContent content() {
+      return FileContent.POSITION_DELETES;
+    }
+
+    @Override
+    public Long firstRowId() {
+      return null;
+    }
+
+    @Override
+    public List<Integer> equalityFieldIds() {
+      return null;
+    }
+
+    @Override
+    public DeleteFile copy() {
+      return new TrackedPositionDeleteFile(file().copy(), spec());
+    }
+
+    @Override
+    public DeleteFile copy(boolean withStats) {
+      return withStats ? copy() : copyWithoutStats();
+    }
+
+    @Override
+    public DeleteFile copyWithoutStats() {
+      return new TrackedPositionDeleteFile(file().copyWithoutStats(), spec());
+    }
+
+    @Override
+    public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
+      return new TrackedPositionDeleteFile(file().copyWithStats(requestedColumnIds), spec());
     }
   }
 
@@ -425,29 +406,15 @@ class TrackedFileAdapters {
    * DeleteFile#contentOffset()} / {@link DeleteFile#contentSizeInBytes()} point to the blob within
    * the Puffin file.
    */
-  private static class TrackedDVDeleteFile implements DeleteFile {
-    private final TrackedFile file;
+  private static class TrackedDVDeleteFile extends TrackedFileAdapter<DeleteFile>
+      implements DeleteFile {
     private final DeletionVector dv;
-    private final Tracking tracking;
-    private final PartitionSpec spec;
 
     private TrackedDVDeleteFile(TrackedFile file, PartitionSpec spec) {
+      super(file, spec);
       Preconditions.checkArgument(
           file.deletionVector() != null, "Cannot create DV delete file: no deletion vector");
-      this.file = file;
       this.dv = file.deletionVector();
-      this.tracking = file.tracking();
-      this.spec = spec;
-    }
-
-    @Override
-    public Long pos() {
-      return tracking != null ? tracking.manifestPos() : null;
-    }
-
-    @Override
-    public int specId() {
-      return spec.specId();
     }
 
     @Override
@@ -472,11 +439,6 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public StructLike partition() {
-      return extractPartition(file, spec);
-    }
-
-    @Override
     public long recordCount() {
       return dv.cardinality();
     }
@@ -490,21 +452,11 @@ class TrackedFileAdapters {
       return dv.sizeInBytes();
     }
 
-    // Position deletes are required to be sorted by file and position, not a table order, and
-    // should set sort order id to null
+    // From the spec: position deletes are required to be sorted by file and position, not a table
+    // order, and should set sort order id to null
     @Override
     public Integer sortOrderId() {
       return null;
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return tracking != null ? tracking.dataSequenceNumber() : null;
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return tracking != null ? tracking.fileSequenceNumber() : null;
     }
 
     @Override
@@ -529,7 +481,7 @@ class TrackedFileAdapters {
 
     @Override
     public String referencedDataFile() {
-      return file.location();
+      return file().location();
     }
 
     @Override
@@ -540,11 +492,6 @@ class TrackedFileAdapters {
     @Override
     public Long contentSizeInBytes() {
       return dv.sizeInBytes();
-    }
-
-    @Override
-    public String manifestLocation() {
-      return tracking != null ? tracking.manifestLocation() : null;
     }
 
     @Override
@@ -579,7 +526,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDVDeleteFile(file.copy(), spec);
+      return new TrackedDVDeleteFile(file().copyWithoutStats(), spec());
     }
 
     @Override
