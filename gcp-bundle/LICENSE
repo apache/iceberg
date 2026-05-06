@@ -1015,6 +1015,7 @@ This product bundles BoringSSL (statically linked into netty-tcnative-boringssl-
 
 Project URL: https://boringssl.googlesource.com/boringssl/
 License: Apache License, Version 2.0 (with portions under the Go License - BSD 3-Clause) - https://boringssl.googlesource.com/boringssl/+/HEAD/LICENSE
+
 |
 | Licenses for support code
 | -------------------------
@@ -2075,7 +2076,6 @@ License: CDDL 1.1
 |     work with Initial Developer and Contributors to distribute such
 |     responsibility on an equitable basis. Nothing herein is intended or
 |     shall be deemed to constitute any admission of liability.
-
 
 --------------------------------------------------------------------------------
 
