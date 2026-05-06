@@ -770,6 +770,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
+    return listNamespaces(context, namespace, false);
+  }
+
+  public List<Namespace> listNamespacesRecursively(SessionContext context, Namespace namespace) {
+    return listNamespaces(context, namespace, true);
+  }
+
+  private List<Namespace> listNamespaces(
+      SessionContext context, Namespace namespace, boolean recursive) {
     if (!endpoints.contains(Endpoint.V1_LIST_NAMESPACES)) {
       return ImmutableList.of();
     }
@@ -777,6 +786,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
       queryParams.put("parent", RESTUtil.namespaceToQueryParam(namespace, namespaceSeparator));
+    }
+
+    if (recursive) {
+      queryParams.put("recursive", "true");
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
