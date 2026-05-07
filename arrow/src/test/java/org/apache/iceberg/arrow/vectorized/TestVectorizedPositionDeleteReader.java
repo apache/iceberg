@@ -283,6 +283,43 @@ public class TestVectorizedPositionDeleteReader {
   }
 
   @Test
+  void readAllByDataFileHandlesEmptyFilePath() throws IOException {
+    File deleteFile = newDeleteFile("empty-path.parquet");
+    List<Long> emptyPathPositions = ImmutableList.of(0L, 1L, 2L, 5L);
+    List<Long> realPathPositions = ImmutableList.of(10L, 11L, 12L);
+    writeDeletesForTwoFiles(deleteFile, "", emptyPathPositions, FILE_A, realPathPositions);
+
+    CharSequenceMap<PositionDeleteIndex> indexes =
+        VectorizedPositionDeleteReader.readAllByDataFile(Files.localInput(deleteFile), null);
+
+    assertThat(indexes).as("one entry per data file path").hasSize(2);
+    assertThat(indexes.get(""))
+        .as("empty-path index must be populated")
+        .isNotNull()
+        .extracting(PositionDeleteIndex::cardinality)
+        .isEqualTo((long) emptyPathPositions.size());
+    assertAllPositionsDeleted(indexes.get(""), emptyPathPositions, "empty path");
+    assertAllPositionsDeleted(indexes.get(FILE_A), realPathPositions, "FILE_A after empty path");
+  }
+
+  @Test
+  void readFiltersByEmptyFilePath() throws IOException {
+    File deleteFile = newDeleteFile("empty-path-filtered.parquet");
+    List<Long> emptyPathPositions = ImmutableList.of(0L, 1L, 2L, 5L);
+    List<Long> realPathPositions = ImmutableList.of(10L, 11L, 12L);
+    writeDeletesForTwoFiles(deleteFile, "", emptyPathPositions, FILE_A, realPathPositions);
+
+    PositionDeleteIndex emptyIndex =
+        VectorizedPositionDeleteReader.read(Files.localInput(deleteFile), "", null);
+    assertAllPositionsDeleted(emptyIndex, emptyPathPositions, "empty-path filter");
+    assertNoPositionsDeleted(
+        emptyIndex, realPathPositions, "FILE_A positions in empty-path-filtered index");
+    assertThat(emptyIndex.cardinality())
+        .as("empty-path filter cardinality")
+        .isEqualTo(emptyPathPositions.size());
+  }
+
+  @Test
   void honorsExplicitBatchSize() throws IOException {
     File deleteFile = newDeleteFile("small-batches.parquet");
     List<Long> positions = Lists.newArrayList();
@@ -343,15 +380,25 @@ public class TestVectorizedPositionDeleteReader {
    */
   private static void writeDeletesForTwoFiles(
       File file, List<Long> aPositions, List<Long> bPositions) throws IOException {
+    writeDeletesForTwoFiles(file, FILE_A, aPositions, FILE_B, bPositions);
+  }
+
+  private static void writeDeletesForTwoFiles(
+      File file,
+      String firstPath,
+      List<Long> firstPositions,
+      String secondPath,
+      List<Long> secondPositions)
+      throws IOException {
     PositionDelete<Void> pd = PositionDelete.create();
     try (PositionDeleteWriter<Void> writer = openPositionDeleteWriter(file)) {
-      for (long p : aPositions) {
-        pd.set(FILE_A, p, null);
+      for (long p : firstPositions) {
+        pd.set(firstPath, p, null);
         writer.write(pd);
       }
 
-      for (long p : bPositions) {
-        pd.set(FILE_B, p, null);
+      for (long p : secondPositions) {
+        pd.set(secondPath, p, null);
         writer.write(pd);
       }
     }

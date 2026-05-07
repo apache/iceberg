@@ -267,8 +267,12 @@ public final class VectorizedPositionDeleteReader {
    * Coalescing append for the multi-data-file case: rows are grouped by {@code file_path} into
    * separate {@link PositionDeleteIndex} instances. Position delete files are required to be sorted
    * by {@code (file_path, pos)}, so paths arrive in contiguous runs; the active path's bytes are
-   * tracked and the run is finalized only on a path change. If a previously seen path reappears (an
+   * tracked and a run is finalized only on a path change. If a previously seen path reappears (an
    * unsorted file), the existing index is reused so positions are not lost.
+   *
+   * <p>To avoid a 50+-byte comparison per row in the common single-data-file case, the inner loop
+   * uses a length-plus-first-byte fast filter via {@link #endOfPathRun}: only when the cheap check
+   * suggests a transition do we materialize the new path bytes and verify with a full comparison.
    */
   @SuppressWarnings("CollectionUndefinedEquality")
   private static void appendGroupedByPath(
@@ -285,12 +289,13 @@ public final class VectorizedPositionDeleteReader {
         ArrowBuf pathBuf = pathVec.getDataBuffer();
         ArrowBuf posBuf = posVec.getDataBuffer();
         int rows = batch.numRows();
-        for (int i = 0; i < rows; i++) {
-          if (currentPath == null || !matches(pathVec, pathBuf, i, currentPath)) {
+        int cursor = 0;
+        while (cursor < rows) {
+          if (currentPath == null || !matches(pathVec, pathBuf, cursor, currentPath)) {
             if (coalescer != null) {
               coalescer.flush();
             }
-            currentPath = readPath(pathVec, pathBuf, i);
+            currentPath = readPath(pathVec, pathBuf, cursor);
             String pathKey = new String(currentPath, StandardCharsets.UTF_8);
             PositionDeleteIndex existing = indexes.get(pathKey);
             if (existing == null) {
@@ -299,7 +304,12 @@ public final class VectorizedPositionDeleteReader {
             }
             coalescer = new RangeCoalescer(existing);
           }
-          coalescer.accept(readLong(posBuf, i));
+
+          int runEnd = endOfPathRun(pathVec, pathBuf, cursor, rows, currentPath);
+          for (int i = cursor; i < runEnd; i++) {
+            coalescer.accept(readLong(posBuf, i));
+          }
+          cursor = runEnd;
         }
       }
     }
@@ -307,6 +317,60 @@ public final class VectorizedPositionDeleteReader {
     if (coalescer != null) {
       coalescer.flush();
     }
+  }
+
+  /**
+   * Finds the smallest row index {@code i} in {@code [start + 1, rows]} for which the {@code
+   * file_path} differs from {@code currentPath}, or returns {@code rows} if no such row exists. The
+   * caller must guarantee that {@code currentPath} matches row {@code start}.
+   *
+   * <p>For each row, the cheap filter checks (a) non-null, (b) the same value length, and (c) the
+   * same first byte. Rows that pass all three are presumed to share the path with row {@code start}
+   * (which holds for sorted position-delete files since two adjacent paths cannot share both length
+   * and leading byte without being equal in their span). The run length is verified by a full
+   * byte-for-byte comparison of the last row in the candidate run; if it disagrees, the method
+   * falls back to a full per-row comparison so unsorted files still produce a correct grouping.
+   * Empty paths skip the first-byte check.
+   */
+  private static int endOfPathRun(
+      VarCharVector pathVec, ArrowBuf dataBuf, int start, int rows, byte[] currentPath) {
+    int len = currentPath.length;
+    int cursor = start + 1;
+
+    if (len == 0) {
+      while (cursor < rows && !pathVec.isNull(cursor) && pathVec.getValueLength(cursor) == 0) {
+        cursor++;
+      }
+      return cursor;
+    }
+
+    byte first = currentPath[0];
+    while (cursor < rows) {
+      if (pathVec.isNull(cursor)) {
+        return cursor;
+      }
+      if (pathVec.getValueLength(cursor) != len) {
+        return cursor;
+      }
+      if (dataBuf.getByte(pathVec.getStartOffset(cursor)) != first) {
+        return cursor;
+      }
+      cursor++;
+    }
+
+    // Fast filter accepted every row. Confirm by verifying the last row's full path.
+    if (matches(pathVec, dataBuf, rows - 1, currentPath)) {
+      return rows;
+    }
+
+    // Same length and first byte but a divergent middle byte (rare, possible only for unsorted
+    // files). Re-scan with full byte comparisons to find the actual boundary.
+    for (int j = start + 1; j < rows; j++) {
+      if (!matches(pathVec, dataBuf, j, currentPath)) {
+        return j;
+      }
+    }
+    return rows;
   }
 
   /**
