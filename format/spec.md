@@ -690,7 +690,6 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
-
 ###### Bounds for Variant, Geometry, and Geography
 
 For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
@@ -719,12 +718,11 @@ When calculating upper and lower bounds for `geometry` and `geography`, null or 
 
 In Iceberg v4, column metrics for a data field are typed fields in a stats struct that corresponds to the field. These stats structs are nested within the `content_stats` struct in manifest files.
 
-A table field's stats struct uses a range of 200 IDs, starting at `10_000 + 200 * field-id`. Fields within the stats struct are each assigned IDs based on the start of the range and an offset for the field. For example, field 1 uses IDs in the range [10,200, 10,399], and its `lower_bound` field uses ID 10,201.
+A table field's stats struct uses a range of 200 IDs, starting at `10_000 + 200 * field-id`. Fields within the stats struct are each assigned IDs by adding an offset to the start of the range. For example, the stats struct for table field 1 uses IDs in the range `[10_200, 10_399]`, and its `lower_bound` field (offset 1) uses ID `10_201`.
 
-**Data columns (normal table field ids)**
-Mapping a table field ID from the **table ID space** to the **stats ID space** is done via:
+The stats struct ID for a data field is:
 
-`stats_struct_id = 10_000 + (200 * table_field_id)`
+`stats_struct_id = 10_000 + (200 * field_id)`
 
 The constant `10_000` is `stats_space_field_id_start_for_data_fields`. `200` represents the number of supports stats per column (`num_supported_stats_per_column = 200`).
 
@@ -732,7 +730,7 @@ Each field statistic listed under [Field stats types](#field-stats-types) has a 
 
 `stats_field_id = stats_struct_id + offset`
 
-**Metadata columns (reserved table field ids)**
+IDs in the range `10_000` (inclusive) to `200_000_000` (exclusive) are reserved for column stats structs in `content_stats`. Table fields with IDs outside that range are still valid, but their statistics cannot be stored in `content_stats`.
 
 [Reserved metadata fields](#reserved-field-ids) use a different starting base for their stats field ids in order to not overlap with data field stats ids. Mapping a reserved table field ID to the **stats ID space** is done via:
 
@@ -755,25 +753,26 @@ The name is informational and readers must resolve content stats by ID.
 
 Each stats struct holds statistics for one table column. It may contain the following metrics:
 
-| requirement | Offset | Name                    | Type                | included for            | Description                                                                                                                                                           |
-|-------------|--------|-------------------------|---------------------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| _optional_  | 1      | lower_bound             | type of table field | all types               | Lower bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography) |
-| _optional_  | 2      | upper_bound             | type of table field | all types               | Upper bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography) |
-| _optional_  | 3      | tight_bounds            | `boolean`           | truncated/inexact types | Whether the `lower_bound` / `upper_bound` are tight (`true`) or may be truncated or otherwise inexact (`false`). Defaults to `true`.                                  |
-| _optional_  | 4      | value_count             | `long`              | all types               | Number of values in the column (including null and NaN values)                                                                                                        |
-| _optional_  | 5      | null_value_count        | `long`              | optional columns only   | Number of null values in the column. Only included for optional columns                                                                                               |
-| _optional_  | 6      | nan_value_count         | `long`              | float/double types      | Number of NaN values in the column. Only included for float/double types. NaN rules follow note 2 under [Data File Fields](#data-file-fields)                         |
-| _optional_  | 7      | avg_value_size_in_bytes | `int`               | variable-length types   | Avg stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                      |
-| _optional_  | 8      | max_value_size_in_bytes | `int`               | variable-length types   | Max stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                      |
+| requirement | Offset | Name                    | Type                | included for            | Description                                                                                                                                                         |
+|-------------|--------|-------------------------|---------------------|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| _optional_  | 1      | lower_bound             | type of table field | all types               | Lower bound serialized as the column's type. Rules follow Note 1 below                                                                                              |
+| _optional_  | 2      | upper_bound             | type of table field | all types               | Upper bound serialized as the column's type. Rules follow Note 1 below                                                                                              |
+| _optional_  | 3      | tight_bounds            | `boolean`           | truncated/inexact types | Whether the `lower_bound` / `upper_bound` are tight (`true`) or may be truncated or otherwise inexact (`false`). Defaults to `true`. See details under Note 2 below |
+| _optional_  | 4      | value_count             | `long`              | all types               | Number of values in the column (including null and NaN values)                                                                                                      |
+| _optional_  | 5      | null_value_count        | `long`              | optional columns only   | Number of null values in the column. Only included for optional columns                                                                                             |
+| _optional_  | 6      | nan_value_count         | `long`              | float/double types      | Number of NaN values in the column. Only included for float/double types. NaN rules follow Note 2 under [Data File Fields](#data-file-fields)                       |
+| _optional_  | 7      | avg_value_size_in_bytes | `int`               | variable-length types   | Avg stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                    |
+| _optional_  | 8      | max_value_size_in_bytes | `int`               | variable-length types   | Max stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                    |
 
 Notes:
 
-Types such as `string` / `binary` often use `tight_bounds=false` when bounds are truncated. For types with inherently tight bounds when written (for example boolean, integer, floating-point, date, time, timestamp, decimal, uuid, geometry, geography), writers should use `true` when bounds are present. If a deletion vector or equality delete file can match rows in the data file, implementations must treat bounds as inexact for pruning (`tight_bounds` as `false`)
+1. The `lower_bound` and `upper_bound` types match the table field's type for primitive types. For `geometry` and `geography`, both bounds use a `struct<x: double, y: double, z: double, m: double>` whose values are taken from the bounding box of all values in the file. For `variant`, both bounds use a `binary` containing a serialized variant object that maps normalized JSON paths to per-path bounds. See [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography) for details on producing bounds for these types.
+2. Bounds for `boolean`, `int`, `long`, `float`, `double`, `date`, `time`, `timestamp`, `decimal`, `uuid`, `geometry`, and `geography` are inherently tight. Writers should not write `tight_bounds` for these types. Bounds for `string`, `binary`, and `variant` may be truncated, in which case writers must set `tight_bounds` to `false`. When pruning, readers must treat bounds as inexact if a deletion vector or equality delete file can match rows in the data file.
 
 ###### Stats projection
 
 To retrieve stats for a particular table field ID, one would always project by stats ID, where the stats ID for a given table field ID can be calculated by applying the reverse calculation.
-Below are examples for some table field ID -> stats struct id calculations.
+Below are examples for some table field ID -> stats struct ID calculations.
 
 | Table Field ID      | Stats ID of Stats struct  |
 |---------------------|---------------------------|
@@ -791,35 +790,28 @@ Below are examples for some table field ID -> stats struct id calculations.
 | 2_147_483_645       | 2_147_039_600             |
 | 2_147_483_646       | 2_147_039_800             |
 
-The below table shows the stats IDs of individual field statistics, which are calculated based on the offset that is described in the [Field stats types section](#field-stats-types)
+For a table column using field ID `1` and type `int`, the stats struct is assigned ID `10_200` and the below nested struct:
 
-| Table Field ID | Stats ID of Stats struct | Stats Type              | Stats ID of individual statistic |
-|----------------|--------------------------|-------------------------|----------------------------------|
-| 2              | 10_400                   | lower_bound             | 10_401                           |
-|                |                          | upper_bound             | 10_402                           |
-|                |                          | tight_bounds            | 10_403                           |
-|                |                          | value_count             | 10_404                           |
-|                |                          | null_value_count        | 10_405                           |
-|                |                          | nan_value_count         | 10_406                           |
-|                |                          | avg_value_size_in_bytes | 10_407                           |
-|                |                          | max_value_size_in_bytes | 10_408                           |
-| 5              | 11_000                   | lower_bound             | 11_001                           |
-|                |                          | upper_bound             | 11_002                           |
-|                |                          | tight_bounds            | 11_003                           |
-|                |                          | value_count             | 11_004                           |
-|                |                          | null_value_count        | 11_005                           |
-|                |                          | nan_value_count         | 11_006                           |
-|                |                          | avg_value_size_in_bytes | 11_007                           |
-|                |                          | max_value_size_in_bytes | 11_008                           |
+```text
+struct<
+  10_201: lower_bound int,
+  10_202: upper_bound int,
+  10_203: tight_bounds boolean,
+  10_204: value_count long,
+  10_205: null_value_count long,
+  10_206: nan_value_count long,
+  10_207: avg_value_size_in_bytes int,
+  10_208: max_value_size_in_bytes int
+>
+```
 
 ###### Manifest schema and `content_stats` typing
 
-The `content_stats` type is dynamically derived and embedded in the manifest for `data_file` at the field reserved for `content_stats` in v4.
-Using one `content_stats` schema for read and write is what allows **type promotion** on stats: if an `int` column `x` is promoted to `long`, the nested stats struct changes from `struct<..., lower_bound int, upper_bound int, ...>` to `struct<..., lower_bound long, upper_bound long, ...>`.
-Reading an older manifest applies normal Iceberg type promotion to those bound fields; writing after promotion then uses the promoted struct type, so round-trips stay consistent.
+The `content_stats` type is dynamically derived from the table schema and embedded in the manifest schema for `data_file` at the reserved `content_stats` field id in v4.
 
-###### Content stats aggregation
-TBD...
+When writing a new manifest, the `content_stats` type must be derived from the table's current schema, so the bound fields use the column's current type. If an `int` column `x` is later promoted to `long`, manifests written after the promotion must use `lower_bound long` and `upper_bound long` for `x`.
+
+When reading a manifest, readers may use the schema embedded in that manifest. Manifests written before a type promotion still use the original bound types and Iceberg's normal type-promotion rules apply when those values are projected as the current column type.
 
 #### Sequence Number Inheritance
 
