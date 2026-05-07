@@ -62,6 +62,7 @@ import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -697,14 +698,14 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   @TestTemplate
   public void testShredVariantsDefault() {
     Table table = validationCatalog.loadTable(tableIdent);
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
     assertThat(writeConf.shredVariants()).isFalse();
   }
 
   @TestTemplate
   public void testVariantInferenceBufferSizeDefault() {
     Table table = validationCatalog.loadTable(tableIdent);
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
     assertThat(writeConf.variantInferenceBufferSize())
         .isEqualTo(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT);
   }
@@ -715,7 +716,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
 
     table.updateProperties().set(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "500").commit();
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
     assertThat(writeConf.variantInferenceBufferSize()).isEqualTo(500);
   }
 
@@ -727,7 +728,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SHRED_VARIANTS, "true"),
         () -> {
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
           assertThat(writeConf.shredVariants()).isTrue();
         });
   }
@@ -754,7 +755,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         ImmutableMap.of(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "250"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
-          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
           assertThat(writeConf.variantInferenceBufferSize()).isEqualTo(250);
         });
   }
@@ -765,7 +766,7 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     table.updateProperties().set(TableProperties.PARQUET_SHRED_VARIANTS, "true").commit();
     table.updateProperties().set(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200").commit();
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
     Map<String, String> writeProperties = writeConf.writeProperties();
     assertThat(writeProperties).containsEntry(PARQUET_SHRED_VARIANTS, "true");
     assertThat(writeProperties).containsEntry(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200");
