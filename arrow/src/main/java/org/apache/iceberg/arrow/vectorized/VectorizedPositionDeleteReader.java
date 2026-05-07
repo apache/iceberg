@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
@@ -30,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -62,12 +64,16 @@ import org.apache.parquet.schema.MessageType;
  */
 public final class VectorizedPositionDeleteReader {
 
-  /** Default Arrow record-batch size for decoding position-delete files. */
+  /**
+   * Default Arrow record-batch size for decoding position-delete files. Larger than {@link
+   * VectorizedArrowReader#DEFAULT_BATCH_SIZE} because position-delete files project at most two
+   * narrow columns ({@code file_path} and {@code pos}), so a larger batch amortizes the per-batch
+   * decoding cost without materially increasing memory pressure.
+   */
   public static final int DEFAULT_BATCH_SIZE = 1 << 13;
 
   private static final Schema POS_ONLY_SCHEMA = new Schema(MetadataColumns.DELETE_FILE_POS);
-  private static final Schema FULL_SCHEMA =
-      new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
+  private static final Schema FULL_SCHEMA = DeleteSchemaUtil.pathPosSchema();
 
   private VectorizedPositionDeleteReader() {}
 
@@ -305,7 +311,7 @@ public final class VectorizedPositionDeleteReader {
             new VectorizedReaderBuilder(
                 projection,
                 fileSchema,
-                /* setArrowValidityVector= */ true,
+                NullCheckingForGet.NULL_CHECKING_ENABLED,
                 ImmutableMap.of(),
                 ArrowBatchReader::new));
   }
