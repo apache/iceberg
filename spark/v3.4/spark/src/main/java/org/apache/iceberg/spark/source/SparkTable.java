@@ -345,13 +345,16 @@ public class SparkTable
     if (branch != null) {
       return branch;
     }
+
     if (!SparkTableUtil.wapEnabled(table())) {
       return null;
     }
+
     String wapBranch = sparkSession().conf().get(SparkSQLProperties.WAP_BRANCH, null);
     if (wapBranch != null && table().refs().containsKey(wapBranch)) {
       return wapBranch;
     }
+
     return null;
   }
 
