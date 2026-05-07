@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
@@ -52,6 +53,7 @@ import org.apache.iceberg.exceptions.NoSuchPlanIdException;
 import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.NoSuchWarehouseException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
@@ -102,6 +104,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(NotFoundException.class, 404)
           .put(NoSuchViewException.class, 404)
           .put(NoSuchIcebergTableException.class, 404)
+          .put(NoSuchWarehouseException.class, 404)
           .put(UnsupportedOperationException.class, 406)
           .put(AlreadyExistsException.class, 409)
           .put(CommitFailedException.class, 409)
@@ -171,6 +174,9 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         return castResponse(responseType, handleOAuthRequest(body));
 
       case CONFIG:
+        if (vars.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
+          validateWarehouse(vars.get(CatalogProperties.WAREHOUSE_LOCATION));
+        }
         return castResponse(
             responseType,
             ConfigResponse.builder()
@@ -674,6 +680,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   protected void setPlanningBehavior(PlanningBehavior behavior) {
     this.planningBehavior = behavior;
+  }
+
+  /** Validates that the given warehouse exists. Subclasses may override. */
+  protected void validateWarehouse(String warehouse) {
+    // no-op: accept any warehouse by default
   }
 
   @Override
