@@ -773,19 +773,6 @@ Types such as `string` / `binary` often use `tight_bounds=false` when bounds are
 ###### Stats projection
 
 To retrieve stats for a particular table field ID, one would always project by stats ID, where the stats ID for a given table field ID can be calculated by applying the reverse calculation.
-For data columns the reverse calculation would be:
-
-`table_field_id = (stats_struct_id - 10_000) / 200`
-
-For [reserved field IDs](#reserved-field-ids), the reverse calculation would be:
-
-`table_field_id = stats_struct_id - 200 + (Integer.MAX_VALUE - stats_struct_id) + (stats_struct_id - 2_147_000_000) / 200`
-
-using `num_reserved_field_ids = 200`, `stats_space_field_id_start_for_metadata_fields = 2_147_000_000`, and `num_supported_stats_per_column = 200` (see [ID assignment for stats fields](#id-assignment-for-stats-fields)).
-
-The formula is defined as:
-`table_field_id = stats_struct_id - num_reserved_field_ids + (Integer.MAX_VALUE - stats_struct_id) + (stats_struct_id - stats_space_field_id_start_for_metadata_fields) / num_supported_stats_per_column`
-
 Below are examples for some table field ID -> stats struct id calculations.
 
 | Table Field ID      | Stats ID of Stats struct  |
@@ -827,11 +814,8 @@ The below table shows the stats IDs of individual field statistics, which are ca
 
 ###### Manifest schema and `content_stats` typing
 
-The `content_stats` type is dynamically derived from the table schema and produces one nested stats struct per table column, which is then combined into the root `content_stats` struct.
-That derived type is embedded in the manifest for `data_file` at the field reserved for `content_stats` in v4.
-Writers and readers must use this **same** manifest schema both when writing and when reading manifest files for the table.
-
-Using one schema for read and write is what allows **type promotion** on stats: if an `int` column `x` is promoted to `long`, the nested stats struct changes from `struct<..., lower_bound int, upper_bound int, ...>` to `struct<..., lower_bound long, upper_bound long, ...>`.
+The `content_stats` type is dynamically derived and embedded in the manifest for `data_file` at the field reserved for `content_stats` in v4.
+Using one `content_stats` schema for read and write is what allows **type promotion** on stats: if an `int` column `x` is promoted to `long`, the nested stats struct changes from `struct<..., lower_bound int, upper_bound int, ...>` to `struct<..., lower_bound long, upper_bound long, ...>`.
 Reading an older manifest applies normal Iceberg type promotion to those bound fields; writing after promotion then uses the promoted struct type, so round-trips stay consistent.
 
 ###### Content stats aggregation
