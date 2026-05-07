@@ -38,6 +38,7 @@ import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.parquet.schema.MessageType;
 
 /**
@@ -162,6 +163,63 @@ public final class VectorizedPositionDeleteReader {
   }
 
   /**
+   * Reads a position delete file and returns one {@link PositionDeleteIndex} per data file path
+   * referenced by the delete file. See {@link #readAllByDataFile(InputFile, DeleteFile, int)} for
+   * details; this overload uses {@link #DEFAULT_BATCH_SIZE}.
+   *
+   * @param file the delete file to read
+   * @param deleteFile the delete file metadata recorded with each returned index, may be {@code
+   *     null}
+   * @return a map of data file path to {@link PositionDeleteIndex}
+   */
+  public static CharSequenceMap<PositionDeleteIndex> readAllByDataFile(
+      InputFile file, DeleteFile deleteFile) {
+    return readAllByDataFile(file, deleteFile, DEFAULT_BATCH_SIZE);
+  }
+
+  /**
+   * Reads a position delete file and returns one {@link PositionDeleteIndex} per data file path
+   * referenced by the delete file.
+   *
+   * <p>Position delete files are required to be sorted by {@code (file_path, pos)} ascending, so
+   * rows for the same data file path arrive in contiguous runs. The reader exploits this by
+   * tracking the active path's bytes between rows and only finalizing the run on a path change, but
+   * it also handles unsorted files correctly by looking up an existing entry in the result map
+   * before creating a new one.
+   *
+   * <p>Each returned index is mutable and is not safe for concurrent mutation by multiple threads.
+   *
+   * @param file the delete file to read
+   * @param deleteFile the delete file metadata recorded with each returned index, may be {@code
+   *     null}
+   * @param batchSize the Arrow batch size to use when decoding the file
+   * @return a map of data file path to {@link PositionDeleteIndex}
+   */
+  public static CharSequenceMap<PositionDeleteIndex> readAllByDataFile(
+      InputFile file, DeleteFile deleteFile, int batchSize) {
+    Preconditions.checkArgument(file != null, "Invalid input file: null");
+    Preconditions.checkArgument(batchSize > 0, "Invalid batch size: %s", batchSize);
+
+    CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
+
+    try (CloseableIterable<ColumnarBatch> batches =
+        Parquet.read(file)
+            .project(FULL_SCHEMA)
+            .recordsPerBatch(batchSize)
+            .createBatchedReaderFunc(fileSchema -> buildBatchReader(FULL_SCHEMA, fileSchema))
+            .build()) {
+
+      try (CloseableIterator<ColumnarBatch> it = batches.iterator()) {
+        appendGroupedByPath(it, indexes, deleteFile);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read position delete file: " + file.location(), e);
+    }
+
+    return indexes;
+  }
+
+  /**
    * Coalescing append for the no-filter case: every row in every batch is added. Consecutive
    * positions are merged into a single range insert.
    */
@@ -203,6 +261,66 @@ public final class VectorizedPositionDeleteReader {
         }
       }
     }
+  }
+
+  /**
+   * Coalescing append for the multi-data-file case: rows are grouped by {@code file_path} into
+   * separate {@link PositionDeleteIndex} instances. Position delete files are required to be sorted
+   * by {@code (file_path, pos)}, so paths arrive in contiguous runs; the active path's bytes are
+   * tracked and the run is finalized only on a path change. If a previously seen path reappears (an
+   * unsorted file), the existing index is reused so positions are not lost.
+   */
+  @SuppressWarnings("CollectionUndefinedEquality")
+  private static void appendGroupedByPath(
+      CloseableIterator<ColumnarBatch> it,
+      CharSequenceMap<PositionDeleteIndex> indexes,
+      DeleteFile deleteFile) {
+    byte[] currentPath = null;
+    RangeCoalescer coalescer = null;
+
+    while (it.hasNext()) {
+      try (ColumnarBatch batch = it.next()) {
+        VarCharVector pathVec = (VarCharVector) pathColumn(batch).getArrowVector();
+        BigIntVector posVec = (BigIntVector) posColumn(batch).getArrowVector();
+        ArrowBuf pathBuf = pathVec.getDataBuffer();
+        ArrowBuf posBuf = posVec.getDataBuffer();
+        int rows = batch.numRows();
+        for (int i = 0; i < rows; i++) {
+          if (currentPath == null || !matches(pathVec, pathBuf, i, currentPath)) {
+            if (coalescer != null) {
+              coalescer.flush();
+            }
+            currentPath = readPath(pathVec, pathBuf, i);
+            String pathKey = new String(currentPath, StandardCharsets.UTF_8);
+            PositionDeleteIndex existing = indexes.get(pathKey);
+            if (existing == null) {
+              existing = PositionDeleteIndex.create(deleteFile);
+              indexes.put(pathKey, existing);
+            }
+            coalescer = new RangeCoalescer(existing);
+          }
+          coalescer.accept(readLong(posBuf, i));
+        }
+      }
+    }
+
+    if (coalescer != null) {
+      coalescer.flush();
+    }
+  }
+
+  /**
+   * Reads the {@code file_path} bytes for {@code row} into a freshly-allocated byte array. Used to
+   * track the active path between batches in {@link #appendGroupedByPath}.
+   */
+  private static byte[] readPath(VarCharVector pathVec, ArrowBuf dataBuf, int row) {
+    int length = pathVec.getValueLength(row);
+    byte[] bytes = new byte[length];
+    long offset = pathVec.getStartOffset(row);
+    for (int i = 0; i < length; i++) {
+      bytes[i] = dataBuf.getByte(offset + i);
+    }
+    return bytes;
   }
 
   /**

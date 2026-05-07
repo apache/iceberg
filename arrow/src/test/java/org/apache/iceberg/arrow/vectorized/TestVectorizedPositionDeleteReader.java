@@ -26,17 +26,22 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.PositionDeleteIndexReader;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.CharSequenceMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -194,6 +199,87 @@ public class TestVectorizedPositionDeleteReader {
             () -> VectorizedPositionDeleteReader.read(Files.localInput(invalid), FILE_A, null))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("not a Parquet file");
+  }
+
+  @Test
+  void arrowRegistersAsParquetPositionDeleteIndexReader() throws IOException {
+    // ArrowFormatModels.register() should be invoked by FormatModelRegistry's static initializer
+    // on classpath. The registered reader should round-trip a parquet delete file end-to-end.
+    Optional<PositionDeleteIndexReader> reader =
+        FormatModelRegistry.positionDeleteIndexReader(FileFormat.PARQUET);
+    assertThat(reader)
+        .as("iceberg-arrow on classpath should register a parquet position delete index reader")
+        .isPresent();
+
+    File deleteFile = newDeleteFile("registry-roundtrip.parquet");
+    writeDeletesForFile(deleteFile, FILE_A, ImmutableList.of(1L, 2L, 3L));
+
+    PositionDeleteIndex single = reader.get().read(Files.localInput(deleteFile), FILE_A, null);
+    assertThat(single.cardinality()).as("filtered cardinality").isEqualTo(3L);
+
+    CharSequenceMap<PositionDeleteIndex> grouped =
+        reader.get().readAll(Files.localInput(deleteFile), null);
+    assertThat(grouped).hasSize(1);
+    assertThat(grouped.get(FILE_A).cardinality()).as("grouped cardinality").isEqualTo(3L);
+  }
+
+  @Test
+  void readAllByDataFileSplitsRowsByPath() throws IOException {
+    File deleteFile = newDeleteFile("two-files-grouped.parquet");
+    List<Long> aPositions = Lists.newArrayList(1L, 2L, 3L, 5L, 7L, 100L, 101L, 102L, 103L);
+    List<Long> bPositions = Lists.newArrayList(0L, 4L, 6L, 50L, 200L);
+    writeDeletesForTwoFiles(deleteFile, aPositions, bPositions);
+
+    CharSequenceMap<PositionDeleteIndex> indexes =
+        VectorizedPositionDeleteReader.readAllByDataFile(Files.localInput(deleteFile), null);
+
+    assertThat(indexes).as("one entry per data file path").hasSize(2);
+    assertThat(indexes.get(FILE_A))
+        .as("FILE_A index must be populated")
+        .isNotNull()
+        .extracting(PositionDeleteIndex::cardinality)
+        .isEqualTo((long) aPositions.size());
+    assertThat(indexes.get(FILE_B))
+        .as("FILE_B index must be populated")
+        .isNotNull()
+        .extracting(PositionDeleteIndex::cardinality)
+        .isEqualTo((long) bPositions.size());
+    assertAllPositionsDeleted(indexes.get(FILE_A), aPositions, "FILE_A (grouped)");
+    assertAllPositionsDeleted(indexes.get(FILE_B), bPositions, "FILE_B (grouped)");
+  }
+
+  @Test
+  void readAllByDataFileCoalescesContiguousRunsAcrossBatches() throws IOException {
+    File deleteFile = newDeleteFile("dense-grouped.parquet");
+    int aCount = 50_000;
+    int bCount = 25_000;
+    List<Long> aPositions = Lists.newArrayListWithExpectedSize(aCount);
+    List<Long> bPositions = Lists.newArrayListWithExpectedSize(bCount);
+    for (long i = 0; i < aCount; i++) {
+      aPositions.add(i);
+    }
+    for (long i = 0; i < bCount; i++) {
+      bPositions.add(i);
+    }
+    writeDeletesForTwoFiles(deleteFile, aPositions, bPositions);
+
+    CharSequenceMap<PositionDeleteIndex> indexes =
+        VectorizedPositionDeleteReader.readAllByDataFile(Files.localInput(deleteFile), null);
+
+    assertThat(indexes).hasSize(2);
+    assertThat(indexes.get(FILE_A).cardinality()).as("FILE_A cardinality").isEqualTo(aCount);
+    assertThat(indexes.get(FILE_B).cardinality()).as("FILE_B cardinality").isEqualTo(bCount);
+    assertThat(indexes.get(FILE_A).isDeleted(0L)).isTrue();
+    assertThat(indexes.get(FILE_A).isDeleted(aCount - 1L)).isTrue();
+    assertThat(indexes.get(FILE_A).isDeleted((long) aCount)).isFalse();
+    assertThat(indexes.get(FILE_B).isDeleted(bCount - 1L)).isTrue();
+  }
+
+  @Test
+  void readAllByDataFileRejectsNullInputFile() {
+    assertThatThrownBy(() -> VectorizedPositionDeleteReader.readAllByDataFile(null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid input file");
   }
 
   @Test

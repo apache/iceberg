@@ -19,8 +19,14 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.NullCheckingForGet;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.PositionDeleteIndexReader;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.ParquetFormatModel;
+import org.apache.iceberg.util.CharSequenceMap;
 
 public class ArrowFormatModels {
   public static void register() {
@@ -33,6 +39,29 @@ public class ArrowFormatModels {
                     schema,
                     fileSchema,
                     NullCheckingForGet.NULL_CHECKING_ENABLED /* setArrowValidityVector */)));
+
+    FormatModelRegistry.registerPositionDeleteIndexReader(
+        FileFormat.PARQUET, ArrowPositionDeleteIndexReader.INSTANCE);
+  }
+
+  /**
+   * Adapts {@link VectorizedPositionDeleteReader} to the {@link PositionDeleteIndexReader} SPI so
+   * delete loaders consult the Arrow fast path through {@link FormatModelRegistry}.
+   */
+  private static final class ArrowPositionDeleteIndexReader implements PositionDeleteIndexReader {
+    private static final ArrowPositionDeleteIndexReader INSTANCE =
+        new ArrowPositionDeleteIndexReader();
+
+    @Override
+    public PositionDeleteIndex read(
+        InputFile file, CharSequence dataLocation, DeleteFile deleteFile) {
+      return VectorizedPositionDeleteReader.read(file, dataLocation, deleteFile);
+    }
+
+    @Override
+    public CharSequenceMap<PositionDeleteIndex> readAll(InputFile file, DeleteFile deleteFile) {
+      return VectorizedPositionDeleteReader.readAllByDataFile(file, deleteFile);
+    }
   }
 
   private ArrowFormatModels() {}
