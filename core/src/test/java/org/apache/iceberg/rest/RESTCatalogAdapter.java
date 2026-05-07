@@ -546,6 +546,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     return null;
   }
 
+  /** Validates that the given warehouse exists. Subclasses may override. */
+  protected void validateWarehouse(String warehouse) {
+    // no-op: accept any warehouse by default
+  }
+
   private static Map<String, String> defaultQueryParams() {
     return Map.of(
         RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
@@ -680,11 +685,6 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   protected void setPlanningBehavior(PlanningBehavior behavior) {
     this.planningBehavior = behavior;
-  }
-
-  /** Validates that the given warehouse exists. Subclasses may override. */
-  protected void validateWarehouse(String warehouse) {
-    // no-op: accept any warehouse by default
   }
 
   @Override
