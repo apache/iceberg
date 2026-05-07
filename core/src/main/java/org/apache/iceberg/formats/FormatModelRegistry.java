@@ -20,6 +20,7 @@ package org.apache.iceberg.formats;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -63,6 +64,11 @@ public final class FormatModelRegistry {
 
   // Format models indexed by file format and object model class
   private static final Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> MODELS =
+      Maps.newConcurrentMap();
+
+  // Position delete index readers indexed by file format. Unlike MODELS, the output type is
+  // fixed (PositionDeleteIndex), so the registry key only needs the FileFormat.
+  private static final Map<FileFormat, PositionDeleteIndexReader> POSITION_DELETE_INDEX_READERS =
       Maps.newConcurrentMap();
 
   static {
@@ -186,9 +192,55 @@ public final class FormatModelRegistry {
     return FileWriterBuilderImpl.forPositionDelete(model, outputFile);
   }
 
+  /**
+   * Registers a {@link PositionDeleteIndexReader} that decodes position-delete files of the given
+   * {@link FileFormat} directly into {@link org.apache.iceberg.deletes.PositionDeleteIndex}
+   * instances.
+   *
+   * <p>At most one reader may be registered per format; a second registration for an already
+   * registered format throws {@link IllegalArgumentException}. Delete loaders consult this registry
+   * before falling back to the per-row {@link ReadBuilder} pipeline, so registering an
+   * implementation enables a fast path for that format. When no reader is registered for a format,
+   * callers should use the generic record reader as a fallback.
+   *
+   * @param format the file format the reader targets
+   * @param reader the position delete index reader implementation
+   * @throws IllegalArgumentException if a reader is already registered for {@code format}
+   */
+  public static synchronized void registerPositionDeleteIndexReader(
+      FileFormat format, PositionDeleteIndexReader reader) {
+    Preconditions.checkArgument(format != null, "Invalid file format: null");
+    Preconditions.checkArgument(reader != null, "Invalid position delete index reader: null");
+    PositionDeleteIndexReader existing = POSITION_DELETE_INDEX_READERS.get(format);
+    Preconditions.checkArgument(
+        existing == null,
+        "Cannot register %s: %s is already registered as a position delete index reader for "
+            + "format=%s",
+        reader.getClass(),
+        existing == null ? null : existing.getClass(),
+        format);
+    POSITION_DELETE_INDEX_READERS.put(format, reader);
+  }
+
+  /**
+   * Returns the {@link PositionDeleteIndexReader} registered for {@code format}, or {@link
+   * Optional#empty()} if no reader is registered.
+   *
+   * @param format the file format whose reader to look up
+   * @return the registered reader, or empty if none has been registered for {@code format}
+   */
+  public static Optional<PositionDeleteIndexReader> positionDeleteIndexReader(FileFormat format) {
+    return Optional.ofNullable(POSITION_DELETE_INDEX_READERS.get(format));
+  }
+
   @VisibleForTesting
   static Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> models() {
     return MODELS;
+  }
+
+  @VisibleForTesting
+  static Map<FileFormat, PositionDeleteIndexReader> positionDeleteIndexReaders() {
+    return POSITION_DELETE_INDEX_READERS;
   }
 
   @SuppressWarnings("unchecked")
