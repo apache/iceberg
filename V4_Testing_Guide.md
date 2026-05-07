@@ -2,6 +2,8 @@
 
 ## Build the Iceberg Spark runtime jar
 
+### Spark 4.1
+
 ```bash
 git checkout v4-amt
 ./gradlew :iceberg-spark:iceberg-spark-runtime-4.1_2.13:shadowJar
@@ -12,7 +14,21 @@ The jar is at:
 spark/v4.1/spark-runtime/build/libs/iceberg-spark-runtime-4.1_2.13-1.11.0-SNAPSHOT.jar
 ```
 
-## Download Spark 4.1.1
+### Spark 3.5
+
+```bash
+git checkout v4-amt
+./gradlew -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-runtime-3.5_2.12:shadowJar
+```
+
+The jar is at:
+```
+spark/v3.5/spark-runtime/build/libs/iceberg-spark-runtime-3.5_2.12-1.11.0-SNAPSHOT.jar
+```
+
+## Download Spark
+
+### Spark 4.1.1
 
 ```bash
 curl -L -o spark-4.1.1-bin-hadoop3.tgz \
@@ -20,11 +36,31 @@ curl -L -o spark-4.1.1-bin-hadoop3.tgz \
 tar xzf spark-4.1.1-bin-hadoop3.tgz
 ```
 
+### Spark 3.5.8
+
+```bash
+curl -L -o spark-3.5.8-bin-hadoop3.tgz \
+  https://archive.apache.org/dist/spark/spark-3.5.8/spark-3.5.8-bin-hadoop3.tgz
+tar xzf spark-3.5.8-bin-hadoop3.tgz
+```
+
 ## Start spark-sql
+
+### Spark 4.1
 
 ```bash
 spark-4.1.1-bin-hadoop3/bin/spark-sql \
   --jars /path/to/iceberg-spark-runtime-4.1_2.13-1.11.0-SNAPSHOT.jar \
+  --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
+  --conf spark.sql.catalog.local.type=hadoop \
+  --conf spark.sql.catalog.local.warehouse=file:///tmp/iceberg-warehouse
+```
+
+### Spark 3.5
+
+```bash
+spark-3.5.8-bin-hadoop3/bin/spark-sql \
+  --jars /path/to/iceberg-spark-runtime-3.5_2.12-1.11.0-SNAPSHOT.jar \
   --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
   --conf spark.sql.catalog.local.type=hadoop \
   --conf spark.sql.catalog.local.warehouse=file:///tmp/iceberg-warehouse
@@ -53,6 +89,22 @@ python3 -m json.tool /tmp/iceberg-warehouse/default/test/metadata/v2.metadata.js
 # (replace the UUID with the actual filename)
 SELECT * FROM parquet.`file:///tmp/iceberg-warehouse/default/test/metadata/*-root-*.parquet`;
 SELECT * FROM parquet.`file:///tmp/iceberg-warehouse/default/test/metadata/*-m0.parquet`;
+```
+
+## Run automated V4 tests
+
+### Spark 4.1
+
+```bash
+./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:test \
+  --tests "org.apache.iceberg.spark.source.TestV4ReadEndToEnd"
+```
+
+### Spark 3.5
+
+```bash
+./gradlew -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-3.5_2.12:test \
+  --tests "org.apache.iceberg.spark.source.TestV4ReadEndToEnd"
 ```
 
 ## What's implemented
