@@ -33,6 +33,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-hive-metastore')
 
     compileOnly libs.flink120.avro
+    compileOnly libs.joda.time
     // dropwizard histogram metrics (optional in Flink)
     compileOnly libs.flink120.metrics.dropwizard
     compileOnly libs.flink120.streaming.java

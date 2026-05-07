@@ -75,6 +75,11 @@ public class DataGenerators {
         OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 0, ZoneOffset.UTC);
     private static final LocalDateTime JAVA_LOCAL_DATE_TIME_20220110 =
         LocalDateTime.of(2022, 1, 10, 0, 0, 0);
+    private static final OffsetDateTime JAVA_OFFSET_DATE_TIME_MAX_NANO =
+        OffsetDateTime.of(2262, 4, 11, 23, 47, 16, 854_775_807, ZoneOffset.UTC);
+    private static final LocalDateTime JAVA_LOCAL_DATE_TIME_MAX_NANO =
+        LocalDateTime.of(2262, 4, 11, 23, 47, 16, 854_775_807);
+    private static final long ICEBERG_MAX_NANOS_EPOCH = 9223372036854775807L;
     private static final BigDecimal BIG_DECIMAL_NEGATIVE = new BigDecimal("-1.50");
     private static final byte[] FIXED_BYTES = "012345689012345".getBytes(StandardCharsets.UTF_8);
 
@@ -96,7 +101,11 @@ public class DataGenerators {
             Types.NestedField.required(12, "uuid_field", Types.UUIDType.get()),
             Types.NestedField.required(13, "binary_field", Types.BinaryType.get()),
             Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(9, 2)),
-            Types.NestedField.required(15, "fixed_field", Types.FixedType.ofLength(16)));
+            Types.NestedField.required(15, "fixed_field", Types.FixedType.ofLength(16)),
+            Types.NestedField.required(
+                16, "ts_ns_with_zone_field", Types.TimestampNanoType.withZone()),
+            Types.NestedField.required(
+                17, "ts_ns_without_zone_field", Types.TimestampNanoType.withoutZone()));
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
@@ -171,6 +180,8 @@ public class DataGenerators {
       genericRecord.setField("time_field", JAVA_LOCAL_TIME_HOUR8);
       genericRecord.setField("ts_with_zone_field", JAVA_OFFSET_DATE_TIME_20220110);
       genericRecord.setField("ts_without_zone_field", JAVA_LOCAL_DATE_TIME_20220110);
+      genericRecord.setField("ts_ns_with_zone_field", JAVA_OFFSET_DATE_TIME_MAX_NANO);
+      genericRecord.setField("ts_ns_without_zone_field", JAVA_LOCAL_DATE_TIME_MAX_NANO);
 
       byte[] uuidBytes = new byte[16];
       for (int i = 0; i < 16; ++i) {
@@ -220,7 +231,11 @@ public class DataGenerators {
           uuidBytes,
           binaryBytes,
           DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2),
-          FIXED_BYTES);
+          FIXED_BYTES,
+          TimestampData.fromEpochMillis(
+              ICEBERG_MAX_NANOS_EPOCH / 1_000_000, (int) (ICEBERG_MAX_NANOS_EPOCH % 1_000_000)),
+          TimestampData.fromEpochMillis(
+              ICEBERG_MAX_NANOS_EPOCH / 1_000_000, (int) (ICEBERG_MAX_NANOS_EPOCH % 1_000_000)));
     }
 
     @Override
@@ -236,10 +251,12 @@ public class DataGenerators {
 
       genericRecord.put("date_field", DAYS_BTW_EPOC_AND_20220110);
       genericRecord.put("time_field", HOUR_8_IN_MILLI);
-      // Although Avro logical type for timestamp fields are in micro seconds,
-      // AvroToRowDataConverters only looks for long value in milliseconds.
-      genericRecord.put("ts_with_zone_field", JODA_DATETIME_20220110.getMillis());
-      genericRecord.put("ts_without_zone_field", JODA_DATETIME_20220110.getMillis());
+      // Now that AvroToRowDataConverters correctly supports microseconds,
+      // we must inject correct microsecond scale values into the Avro data.
+      genericRecord.put("ts_with_zone_field", JODA_DATETIME_20220110.getMillis() * 1000L);
+      genericRecord.put("ts_without_zone_field", JODA_DATETIME_20220110.getMillis() * 1000L);
+      genericRecord.put("ts_ns_with_zone_field", ICEBERG_MAX_NANOS_EPOCH);
+      genericRecord.put("ts_ns_without_zone_field", ICEBERG_MAX_NANOS_EPOCH);
 
       byte[] uuidBytes = new byte[16];
       for (int i = 0; i < 16; ++i) {
@@ -554,7 +571,11 @@ public class DataGenerators {
         new Schema(
             Types.NestedField.required(1, "row_id", Types.StringType.get()),
             Types.NestedField.required(
-                2, "array_of_int", Types.ListType.ofOptional(101, Types.IntegerType.get())));
+                2, "array_of_int", Types.ListType.ofOptional(101, Types.IntegerType.get())),
+            Types.NestedField.optional(
+                3,
+                "array_of_ts_ns",
+                Types.ListType.ofRequired(102, Types.TimestampNanoType.withoutZone())));
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
@@ -581,13 +602,33 @@ public class DataGenerators {
       GenericRecord genericRecord = GenericRecord.create(icebergSchema);
       genericRecord.setField("row_id", "row_id_value");
       genericRecord.setField("array_of_int", Arrays.asList(1, 2, 3));
+
+      LocalDateTime posNanos = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
+      LocalDateTime negNanos = LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
+      genericRecord.setField("array_of_ts_ns", Arrays.asList(posNanos, negNanos));
       return genericRecord;
     }
 
     @Override
     public GenericRowData generateFlinkRowData() {
       Integer[] arr = {1, 2, 3};
-      return GenericRowData.of(StringData.fromString("row_id_value"), new GenericArrayData(arr));
+
+      long posNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
+      long negNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      TimestampData[] tsArr = {
+        TimestampData.fromEpochMillis(
+            Math.floorDiv(posNanos, 1_000_000L), (int) Math.floorMod(posNanos, 1_000_000L)),
+        TimestampData.fromEpochMillis(
+            Math.floorDiv(negNanos, 1_000_000L), (int) Math.floorMod(negNanos, 1_000_000L))
+      };
+      return GenericRowData.of(
+          StringData.fromString("row_id_value"),
+          new GenericArrayData(arr),
+          new GenericArrayData(tsArr));
     }
 
     @Override
@@ -595,6 +636,14 @@ public class DataGenerators {
       org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
       genericRecord.put("row_id", "row_id_value");
       genericRecord.put("array_of_int", Arrays.asList(1, 2, 3));
+
+      long posNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
+      long negNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      genericRecord.put("array_of_ts_ns", Arrays.asList(posNanos, negNanos));
       return genericRecord;
     }
   }
@@ -808,7 +857,12 @@ public class DataGenerators {
                 2,
                 "map_of_primitives",
                 Types.MapType.ofRequired(
-                    101, 102, Types.StringType.get(), Types.IntegerType.get())));
+                    101, 102, Types.StringType.get(), Types.IntegerType.get())),
+            Types.NestedField.optional(
+                3,
+                "map_of_ts_ns",
+                Types.MapType.ofRequired(
+                    103, 104, Types.StringType.get(), Types.TimestampNanoType.withoutZone())));
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
@@ -835,15 +889,37 @@ public class DataGenerators {
       GenericRecord genericRecord = GenericRecord.create(icebergSchema);
       genericRecord.setField("row_id", "row_id_value");
       genericRecord.setField("map_of_primitives", ImmutableMap.of("Jane", 1, "Joe", 2));
+
+      LocalDateTime posNanos = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
+      LocalDateTime negNanos = LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
+      genericRecord.setField(
+          "map_of_ts_ns", ImmutableMap.of("positive", posNanos, "negative", negNanos));
       return genericRecord;
     }
 
     @Override
     public GenericRowData generateFlinkRowData() {
+      long posNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
+      long negNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+
       return GenericRowData.of(
           StringData.fromString("row_id_value"),
           new GenericMapData(
-              ImmutableMap.of(StringData.fromString("Jane"), 1, StringData.fromString("Joe"), 2)));
+              ImmutableMap.of(StringData.fromString("Jane"), 1, StringData.fromString("Joe"), 2)),
+          new GenericMapData(
+              ImmutableMap.of(
+                  StringData.fromString("positive"),
+                  TimestampData.fromEpochMillis(
+                      Math.floorDiv(posNanos, 1_000_000L),
+                      (int) Math.floorMod(posNanos, 1_000_000L)),
+                  StringData.fromString("negative"),
+                  TimestampData.fromEpochMillis(
+                      Math.floorDiv(negNanos, 1_000_000L),
+                      (int) Math.floorMod(negNanos, 1_000_000L)))));
     }
 
     @Override
@@ -851,6 +927,15 @@ public class DataGenerators {
       org.apache.avro.generic.GenericRecord genericRecord = new GenericData.Record(avroSchema);
       genericRecord.put("row_id", "row_id_value");
       genericRecord.put("map_of_primitives", ImmutableMap.of("Jane", 1, "Joe", 2));
+
+      long posNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
+      long negNanos =
+          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
+              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      genericRecord.put(
+          "map_of_ts_ns", ImmutableMap.of("positive", posNanos, "negative", negNanos));
       return genericRecord;
     }
   }
