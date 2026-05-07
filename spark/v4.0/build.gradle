@@ -49,14 +49,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     }
   }
 
-  configurations {
-    parquetTestArtifactsRuntime {
-      canBeConsumed = false
-      canBeResolved = true
-      transitive = false
-    }
-  }
-
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -117,8 +109,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     testImplementation libs.awaitility
     testImplementation(testFixtures(project(':iceberg-parquet')))
-
-    parquetTestArtifactsRuntime project(path: ':iceberg-parquet', configuration: 'testArtifacts')
   }
 
   test {
@@ -128,7 +118,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   tasks.withType(Test) {
     // Vectorized reads need more memory
     maxHeapSize '3160m'
-    classpath += configurations.parquetTestArtifactsRuntime
   }
 }
 

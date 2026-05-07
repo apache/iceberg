@@ -458,7 +458,7 @@ project(':iceberg-data') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-parquet', configuration: 'testArtifacts')
+    testImplementation(testFixtures(project(':iceberg-parquet')))
   }
 
   test {
@@ -939,6 +939,13 @@ project(':iceberg-parquet') {
     compileOnly libs.avro.avro
     compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testFixturesApi(libs.parquet.hadoop) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
