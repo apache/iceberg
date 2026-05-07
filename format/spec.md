@@ -675,7 +675,11 @@ The `data_file` struct consists of the following fields:
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
-The column metrics maps are used when filtering to select both data and delete files. For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
+The column metrics maps are used when filtering to select both data and delete files.
+In v3, implementations use maps such as `value_counts`, `lower_bounds`, and `upper_bounds`, keyed by column id, with bounds serialized as binary (see note 1 under [Data File Fields](#data-file-fields)).
+Iceberg v4 adds the optional `content_stats` struct, which tracks the same metrics using nested structs and typed bounds (see [Content Stats](#content-stats)).
+Metrics information held in v1-v3 and v4 are both equivalent. A `null` in a v4 `lower_bound` has the same meaning as if the `lower_bounds` map is missing or if an entry is missing from that map.
+For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
 
 Notes:
 
@@ -686,12 +690,6 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
-###### File-level column statistics
-
-Per-column metrics used for filtering and planning are stored at **file** granularity on the `data_file` struct.
-In v3, implementations use maps such as `value_counts`, `lower_bounds`, and `upper_bounds`, keyed by column id, with bounds serialized as binary (see note 1 under [Data File Fields](#data-file-fields)).
-Iceberg v4 adds the optional `content_stats` struct, which holds the same *logical* metrics (without `column_sizes` as that was deprecated) using nested structs and typed bounds (see [Content Stats](#content-stats)).
-Stats for primitive types and Geometry / Geography / Variant are supported. Stats for nested types (`struct`, `list`, `map`) are not supported.
 
 ###### Bounds for Variant, Geometry, and Geography
 
@@ -719,12 +717,9 @@ When calculating upper and lower bounds for `geometry` and `geography`, null or 
 
 ##### Content Stats
 
-In Iceberg v4 stats have been redesigned and are represented by using nested structs (`struct<struct<...>>`). The statistics for fields are tracked inside a nested struct of value counts and bounds (described in the next section). Each field-level statistics struct is a field of the `content_stats` struct, which holds all statistics for table fields.
+In Iceberg v4, column metrics for a data field are typed fields in a stats struct that corresponds to the field. These stats structs are nested within the `content_stats` struct in manifest files.
 
-###### ID assignment for stats fields
-
-ID assignment follows a deterministic mapping from the **table ID space** to the **stats ID space**, where a given field ID from the **table ID space** gets an ID assigned from the **stats ID space** for each field-level statistics struct.
-Each field-level statistic listed in the [field stats types section](#field-stats-types) has a fixed offset. Its stats field ID is the enclosing stats struct's ID plus that offset.
+A table field's stats struct uses a range of 200 IDs, starting at `10_000 + 200 * field-id`. Fields within the stats struct are each assigned IDs based on the start of the range and an offset for the field. For example, field 1 uses IDs in the range [10,200, 10,399], and its `lower_bound` field uses ID 10,201.
 
 **Data columns (normal table field ids)**
 Mapping a table field ID from the **table ID space** to the **stats ID space** is done via:
@@ -732,9 +727,6 @@ Mapping a table field ID from the **table ID space** to the **stats ID space** i
 `stats_struct_id = 10_000 + (200 * table_field_id)`
 
 The constant `10_000` is `stats_space_field_id_start_for_data_fields`. `200` represents the number of supports stats per column (`num_supported_stats_per_column = 200`).
-
-The formula is defined as:
-`stats_struct_id = stats_space_field_id_start_for_data_fields + (num_supported_stats_per_column * table_field_id)`
 
 Each field statistic listed under [Field stats types](#field-stats-types) has a fixed **offset** within that block. The field id for an individual field statistic is:
 
@@ -757,22 +749,26 @@ Valid data field ids support stats structs with ids from `10_000` through `200_0
 ###### Name assignment for `content_stats` fields
 
 Each nested stats struct is a **child field** of the root `content_stats` struct. Its **name** is the numerical string of the table column's field id (for example id `103` uses the name `"103"`).
-Its **field id** is deterministically calculated as defined in the previous section. The name is informational and readers must resolve content stats by ID.
+The name is informational and readers must resolve content stats by ID.
 
 ###### Field stats types
 
 Each stats struct holds statistics for one table column. It may contain the following metrics:
 
-| required/optional | Offset | Name                    | Type                | included for            | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-------------------|--------|-------------------------|---------------------|-------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| _optional_        | 1      | value_count             | `long`              | all types               | Number of values in the column (including null and NaN values)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| _optional_        | 2      | null_value_count        | `long`              | optional columns only   | Number of null values in the column. Only included for optional columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| _optional_        | 3      | nan_value_count         | `long`              | float/double types      | Number of NaN values in the column. Only included for float/double types. NaN rules follow note 2 under [Data File Fields](#data-file-fields)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| _optional_        | 4      | avg_value_size_in_bytes | `int`               | variable-length types   | Avg stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| _optional_        | 5      | max_value_size_in_bytes | `int`               | variable-length types   | Max stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| _optional_        | 6      | lower_bound             | type of table field | all types               | Lower bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography)                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| _optional_        | 7      | upper_bound             | type of table field | all types               | Upper bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography)                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| _optional_        | 8      | exact_bounds            | `boolean`           | truncated/inexact types | Whether the `lower_bound` / `upper_bound` are exact (`true`) or may be truncated or otherwise inexact (`false`). Defaults to `true`. Types such as `string` / `binary` often use `false` when bounds are truncated. For types with inherently exact bounds when written (for example boolean, integer, floating-point, date, time, timestamp, decimal, uuid, geometry, geography), writers should use `true` when bounds are present. If a deletion vector or equality delete file can match rows in the data file, implementations must treat bounds as inexact for pruning (`exact_bounds` as `false`) |
+| requirement | Offset | Name                    | Type                | included for            | Description                                                                                                                                                           |
+|-------------|--------|-------------------------|---------------------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| _optional_  | 1      | lower_bound             | type of table field | all types               | Lower bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography) |
+| _optional_  | 2      | upper_bound             | type of table field | all types               | Upper bound serialized as the column's type. Bounds follow rules defined in [Bounds for Variant, Geometry, and Geography](#bounds-for-variant-geometry-and-geography) |
+| _optional_  | 3      | tight_bounds            | `boolean`           | truncated/inexact types | Whether the `lower_bound` / `upper_bound` are tight (`true`) or may be truncated or otherwise inexact (`false`). Defaults to `true`.                                  |
+| _optional_  | 4      | value_count             | `long`              | all types               | Number of values in the column (including null and NaN values)                                                                                                        |
+| _optional_  | 5      | null_value_count        | `long`              | optional columns only   | Number of null values in the column. Only included for optional columns                                                                                               |
+| _optional_  | 6      | nan_value_count         | `long`              | float/double types      | Number of NaN values in the column. Only included for float/double types. NaN rules follow note 2 under [Data File Fields](#data-file-fields)                         |
+| _optional_  | 7      | avg_value_size_in_bytes | `int`               | variable-length types   | Avg stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                      |
+| _optional_  | 8      | max_value_size_in_bytes | `int`               | variable-length types   | Max stored (compressed, encoded) value size in bytes for variable-length types (`string` / `binary` / `variant`)                                                      |
+
+Notes:
+
+Types such as `string` / `binary` often use `tight_bounds=false` when bounds are truncated. For types with inherently tight bounds when written (for example boolean, integer, floating-point, date, time, timestamp, decimal, uuid, geometry, geography), writers should use `true` when bounds are present. If a deletion vector or equality delete file can match rows in the data file, implementations must treat bounds as inexact for pruning (`tight_bounds` as `false`)
 
 ###### Stats projection
 
@@ -794,7 +790,6 @@ Below are examples for some table field ID -> stats struct id calculations.
 
 | Table Field ID      | Stats ID of Stats struct  |
 |---------------------|---------------------------|
-| 0                   | 10_000                    |
 | 1                   | 10_200                    |
 | 2                   | 10_400                    |
 | 5                   | 11_000                    |
@@ -813,22 +808,22 @@ The below table shows the stats IDs of individual field statistics, which are ca
 
 | Table Field ID | Stats ID of Stats struct | Stats Type              | Stats ID of individual statistic |
 |----------------|--------------------------|-------------------------|----------------------------------|
-| 2              | 10_400                   | value_count             | 10_401                           |
-|                |                          | null_value_count        | 10_402                           |
-|                |                          | nan_value_count         | 10_403                           |
-|                |                          | avg_value_size_in_bytes | 10_404                           |
-|                |                          | max_value_size_in_bytes | 10_405                           |
-|                |                          | lower_bound             | 10_406                           |
-|                |                          | upper_bound             | 10_407                           |
-|                |                          | exact_bounds            | 10_408                           |
-| 5              | 11_000                   | value_count             | 11_001                           |
-|                |                          | null_value_count        | 11_002                           |
-|                |                          | nan_value_count         | 11_003                           |
-|                |                          | avg_value_size_in_bytes | 11_004                           |
-|                |                          | max_value_size_in_bytes | 11_005                           |
-|                |                          | lower_bound             | 11_006                           |
-|                |                          | upper_bound             | 11_007                           |
-|                |                          | exact_bounds            | 11_008                           |
+| 2              | 10_400                   | lower_bound             | 10_401                           |
+|                |                          | upper_bound             | 10_402                           |
+|                |                          | tight_bounds            | 10_403                           |
+|                |                          | value_count             | 10_404                           |
+|                |                          | null_value_count        | 10_405                           |
+|                |                          | nan_value_count         | 10_406                           |
+|                |                          | avg_value_size_in_bytes | 10_407                           |
+|                |                          | max_value_size_in_bytes | 10_408                           |
+| 5              | 11_000                   | lower_bound             | 11_001                           |
+|                |                          | upper_bound             | 11_002                           |
+|                |                          | tight_bounds            | 11_003                           |
+|                |                          | value_count             | 11_004                           |
+|                |                          | null_value_count        | 11_005                           |
+|                |                          | nan_value_count         | 11_006                           |
+|                |                          | avg_value_size_in_bytes | 11_007                           |
+|                |                          | max_value_size_in_bytes | 11_008                           |
 
 ###### Manifest schema and `content_stats` typing
 
