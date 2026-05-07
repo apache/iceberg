@@ -162,7 +162,6 @@ jackson214-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  
 jackson215-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson215" }
 jaxb-api = { module = "javax.xml.bind:jaxb-api", version.ref = "jaxb-api" }
 jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb-runtime" }
-joda-time = { module = "joda-time:joda-time", version.ref = "joda" }
 kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka" }
 kafka-connect-api = { module = "org.apache.kafka:connect-api", version.ref = "kafka" }
 kafka-connect-json = { module = "org.apache.kafka:connect-json", version.ref = "kafka" }
