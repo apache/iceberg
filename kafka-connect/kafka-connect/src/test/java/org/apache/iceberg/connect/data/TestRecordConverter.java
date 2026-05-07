@@ -579,6 +579,22 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testTimestampWithZoneAndFractionalSecondsConversion() {
+    // Timestamps with sub-second precision and a colon-separated UTC offset (e.g. +00:00)
+    // were previously mis-parsed because ensureTimestampFormat only checked for the timezone
+    // sign at the fixed index 19, which is only valid when there are no fractional seconds.
+    OffsetDateTime expected = OffsetDateTime.parse("2026-03-31T03:17:37.260514+00:00");
+    List<Object> inputs =
+        ImmutableList.of(
+            "2026-03-31T03:17:37.260514+00:00",
+            "2026-03-31T03:17:37.260514+0000",
+            "2026-03-31T03:17:37.260514Z",
+            "2026-03-31 03:17:37.260514+00:00",
+            "2026-03-31 03:17:37.260514+0000");
+    assertTimestampConvert(expected, inputs, TimestampType.withZone());
+  }
+
+  @Test
   public void testTimestampWithoutZoneConversion() {
     LocalDateTime expected = LocalDateTime.parse("2023-05-18T11:22:33");
     long expectedMillis = expected.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -594,6 +610,23 @@ public class TestRecordConverter {
             "2023-05-18T11:22:33-0800",
             "2023-05-18 11:22:33-0800");
     assertTimestampConvert(expected, additionalInput, TimestampType.withoutZone());
+  }
+
+  @Test
+  public void testTimestampWithoutZoneAndFractionalSecondsConversion() {
+    // Fractional seconds with a colon-separated offset: timezone must be stripped and
+    // the colon in +HH:MM must be normalized before OFFSET_TIMESTAMP_FORMAT can parse it.
+    LocalDateTime expected = LocalDateTime.parse("2026-03-31T03:17:37.260514");
+    List<Object> inputs =
+        ImmutableList.of(
+            "2026-03-31T03:17:37.260514",
+            "2026-03-31 03:17:37.260514",
+            "2026-03-31T03:17:37.260514+00:00",
+            "2026-03-31 03:17:37.260514+00:00",
+            "2026-03-31T03:17:37.260514+0000",
+            "2026-03-31 03:17:37.260514+0000",
+            "2026-03-31T03:17:37.260514Z");
+    assertTimestampConvert(expected, inputs, TimestampType.withoutZone());
   }
 
   private void assertTimestampConvert(Temporal expected, long expectedMillis, TimestampType type) {

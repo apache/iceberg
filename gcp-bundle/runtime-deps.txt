@@ -108,6 +108,5 @@ org.codehaus.woodstox:stax2-api:4.2.2
 org.conscrypt:conscrypt-openjdk-uber:2.5.2
 org.json:json:20250517
 org.jspecify:jspecify:1.0.0
-org.slf4j:slf4j-api:2.0.17
 org.threeten:threeten-extra:1.8.0
 org.threeten:threetenbp:1.7.0
