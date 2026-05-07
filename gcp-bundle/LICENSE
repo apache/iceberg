@@ -445,13 +445,6 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles GCS Analytics.
-
-Project URL: https://github.com/GoogleCloudPlatform/gcs-analytics-core
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles Google Cloud APIs.
 
 Project URL: https://github.com/googleapis/java-core
@@ -1661,13 +1654,6 @@ License: BSD 2-Clause
 | CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 | OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 | OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
---------------------------------------------------------------------------------
-
-This product bundles Woodstox.
-
-Project URL: https://github.com/FasterXML/woodstox
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
