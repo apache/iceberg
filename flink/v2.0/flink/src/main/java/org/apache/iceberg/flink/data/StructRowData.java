@@ -121,8 +121,8 @@ public class StructRowData implements RowData {
 
     if (integer instanceof Integer) {
       return (int) integer;
-    } else if (integer instanceof LocalDate) {
-      return (int) ((LocalDate) integer).toEpochDay();
+    } else if (integer instanceof LocalDate localDate) {
+      return (int) localDate.toEpochDay();
     } else if (integer instanceof LocalTime) {
       return (int) (((LocalTime) integer).toNanoOfDay() / 1000_000);
     } else {
@@ -278,10 +278,10 @@ public class StructRowData implements RowData {
         return value;
       case TIMESTAMP:
         long timeMillis;
-        if (value instanceof LocalDateTime) {
-          timeMillis = DateTimeUtil.microsFromTimestamp((LocalDateTime) value) / 1000L;
-        } else if (value instanceof OffsetDateTime) {
-          timeMillis = DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value) / 1000L;
+        if (value instanceof LocalDateTime localDateTime) {
+          timeMillis = DateTimeUtil.microsFromTimestamp(localDateTime) / 1000L;
+        } else if (value instanceof OffsetDateTime offsetDateTime) {
+          timeMillis = DateTimeUtil.microsFromTimestamptz(offsetDateTime) / 1000L;
         } else {
           timeMillis = Math.floorDiv((Long) value, 1000L);
         }
@@ -291,10 +291,10 @@ public class StructRowData implements RowData {
                 * 1000);
       case TIMESTAMP_NANO:
         long nanoLong;
-        if (value instanceof LocalDateTime) {
-          nanoLong = DateTimeUtil.nanosFromTimestamp((LocalDateTime) value);
-        } else if (value instanceof OffsetDateTime) {
-          nanoLong = DateTimeUtil.nanosFromTimestamptz((OffsetDateTime) value);
+        if (value instanceof LocalDateTime localDateTime) {
+          nanoLong = DateTimeUtil.nanosFromTimestamp(localDateTime);
+        } else if (value instanceof OffsetDateTime offsetDateTime) {
+          nanoLong = DateTimeUtil.nanosFromTimestamptz(offsetDateTime);
         } else {
           nanoLong = (Long) value;
         }
