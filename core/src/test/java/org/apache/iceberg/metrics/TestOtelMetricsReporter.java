@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.data.LongPointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import java.time.Duration;
@@ -39,14 +40,14 @@ public class TestOtelMetricsReporter {
 
   private InMemoryMetricReader metricReader;
   private SdkMeterProvider meterProvider;
-  private OpenTelemetrySdk openTelemetry;
   private OtelMetricsReporter reporter;
 
   @BeforeEach
   public void before() {
     metricReader = InMemoryMetricReader.create();
     meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build();
-    openTelemetry = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+    OpenTelemetrySdk openTelemetry =
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
     reporter = new OtelMetricsReporter(openTelemetry);
   }
 
@@ -204,9 +205,7 @@ public class TestOtelMetricsReporter {
   }
 
   private static void assertMetricExists(Collection<MetricData> metrics, String name) {
-    assertThat(metrics.stream().anyMatch(m -> m.getName().equals(name)))
-        .as("Expected metric '%s' to exist", name)
-        .isTrue();
+    assertThat(metrics).extracting(MetricData::getName).contains(name);
   }
 
   private static void assertSumValue(
@@ -218,7 +217,7 @@ public class TestOtelMetricsReporter {
             .orElseThrow(() -> new AssertionError("Metric not found: " + name));
 
     long actualSum =
-        metric.getLongSumData().getPoints().stream().mapToLong(p -> p.getValue()).sum();
+        metric.getLongSumData().getPoints().stream().mapToLong(LongPointData::getValue).sum();
     assertThat(actualSum)
         .as("Expected sum of '%s' to be %d", name, expectedValue)
         .isEqualTo(expectedValue);

@@ -421,7 +421,6 @@ project(':iceberg-core') {
     compileOnly libs.opentelemetry.api
     testImplementation libs.opentelemetry.sdk
     testImplementation libs.opentelemetry.sdk.testing
-    testImplementation libs.opentelemetry.exporter.otlp
 
     // Lock BouncyCastle versions to avoid version mismatches
     // when these dependencies are added transitively.

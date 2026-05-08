@@ -173,7 +173,6 @@ netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" 
 object-client-bundle = { module = "com.emc.ecs:object-client-bundle", version.ref = "object-client-bundle" }
 opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api", version.ref = "opentelemetry" }
 opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk", version.ref = "opentelemetry" }
-opentelemetry-exporter-otlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp", version.ref = "opentelemetry" }
 opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing", version.ref = "opentelemetry" }
 orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
 parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
