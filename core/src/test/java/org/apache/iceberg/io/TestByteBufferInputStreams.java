@@ -35,6 +35,14 @@ public abstract class TestByteBufferInputStreams {
 
   protected abstract void checkOriginalData();
 
+  private static void assertAtEOF(ByteBufferInputStream stream) throws IOException {
+    long pos = stream.getPos();
+    assertThat(stream.read()).as("read() at EOF").isEqualTo(-1);
+    assertThat(stream.read()).as("read() should keep returning -1 at EOF").isEqualTo(-1);
+    assertThat(stream.getPos()).as("Position should not advance past EOF").isEqualTo(pos);
+    assertThat(stream.available()).as("available() should be 0 at EOF").isEqualTo(0);
+  }
+
   @Test
   public void testRead0() throws Exception {
     byte[] bytes = new byte[0];
@@ -67,7 +75,7 @@ public abstract class TestByteBufferInputStreams {
 
     assertThat(stream.read(bytes)).as("Should return -1 at end of stream").isEqualTo(-1);
 
-    assertThat(stream.available()).as("Should have no more remaining content").isEqualTo(0);
+    assertAtEOF(stream);
 
     checkOriginalData();
   }
@@ -102,7 +110,7 @@ public abstract class TestByteBufferInputStreams {
 
       assertThat(stream.read(bytes)).as("Should return -1 at end of stream").isEqualTo(-1);
 
-      assertThat(stream.available()).as("Should have no more remaining content").isEqualTo(0);
+      assertAtEOF(stream);
     }
 
     checkOriginalData();
@@ -142,7 +150,7 @@ public abstract class TestByteBufferInputStreams {
 
       assertThat(stream.read(bytes)).as("Should return -1 at end of stream").isEqualTo(-1);
 
-      assertThat(stream.available()).as("Should have no more remaining content").isEqualTo(0);
+      assertAtEOF(stream);
     }
 
     checkOriginalData();
@@ -158,7 +166,7 @@ public abstract class TestByteBufferInputStreams {
       assertThat(stream.read()).isEqualTo(i);
     }
 
-    assertThatThrownBy(stream::read).isInstanceOf(EOFException.class).hasMessage(null);
+    assertAtEOF(stream);
 
     checkOriginalData();
   }
@@ -531,5 +539,12 @@ public abstract class TestByteBufferInputStreams {
     assertThatThrownBy(stream::reset)
         .isInstanceOf(IOException.class)
         .hasMessageStartingWith("No mark defined");
+  }
+
+  @Test
+  public void testEmptyStream() throws Exception {
+    assertAtEOF(ByteBufferInputStream.wrap(ByteBuffer.allocate(0)));
+    assertAtEOF(ByteBufferInputStream.wrap(ByteBuffer.allocate(0), ByteBuffer.allocate(0)));
+    assertAtEOF(ByteBufferInputStream.wrap(Collections.emptyList()));
   }
 }
