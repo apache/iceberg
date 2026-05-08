@@ -1286,7 +1286,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(((BaseTable) refsTable).operations().current())
         .extracting("snapshotLog")
         .asInstanceOf(InstanceOfAssertFactories.list(HistoryEntry.class))
-        .hasSize(5)
+        .hasSize(numSnapshots)
         .containsExactlyInAnyOrderElementsOf(
             ((BaseTable) table).operations().current().snapshotLog());
 
