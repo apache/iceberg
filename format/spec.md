@@ -244,9 +244,8 @@ The default CRS value `OGC:CRS84` means that the objects must be stored in longi
 
 Non-default CRS values are specified by any string that uniquely identifies a coordinate reference system associated with this type.
 To maximize interoperability, suggested formats for CRS include, but are not limited to:
-* `<authority>:<code>` - where `<authority>` represents some well known authorities, and `code` is the code used by the authority to identify the CRS. Examples are - `OGC:CRS84`, `OGC:CRS83`, `OGC:CRS27`, `EPSG:4326`, `EPSG:3857`, `IGNF:ATI`. See [https://spatialreference.org/](https://spatialreference.org/) for definitions of coordinate reference systems provided by some well known authorities.
+* `<context>:<identifier`: Identifies a CRS by name or other identifier in some well-documented context. Examples: `OGC:CRS84`, `EPSG:4326`, `IGNF:ATI` and `SRID:0`
 * `projjson:<property-name>` - where <property-name> refers to a table property where CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format is stored.
-* `srid:<identifier>` -  A reference using a [Spatial reference identifier (SRID)](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), where <identifier> is the numeric SRID value. For example: `SRID:0`.
 
 CRS value must not contain inlined PROJJSON definitions and implementations must not parse the contents of the CRS as PROJJSON. PROJJSON definition are very verbose, hence inlining them as part of schema would cause significant performance degradation. If intention is for PROJJSON definition to be part of the table metadata, then it must be stored in a table property and referenced from the CRS field using the `projjson:<table_property_name>` form described above.
 
