@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -323,8 +324,7 @@ public class TestRemoveSnapshots extends TestBase {
             Sets.newHashSet(
                 secondSnapshot.manifestListLocation(), // snapshot expired
                 secondSnapshotManifests.stream()
-                    .findFirst()
-                    .get()
+                    .collect(MoreCollectors.onlyElement())
                     .path(), // manifest is no longer referenced
                 FILE_B.location()) // added, but rolled back
             );

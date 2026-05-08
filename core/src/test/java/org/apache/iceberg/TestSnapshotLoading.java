@@ -31,6 +31,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -101,7 +102,9 @@ public class TestSnapshotLoading extends TestBase {
   @TestTemplate
   public void testUnloadedSnapshotLoadsOnce() {
     Snapshot unloadedSnapshot =
-        allSnapshots.stream().filter(s -> !s.equals(currentSnapshot)).findFirst().get();
+        allSnapshots.stream()
+            .filter(s -> !s.equals(currentSnapshot))
+            .collect(MoreCollectors.onlyElement());
 
     latestTableMetadata.snapshot(unloadedSnapshot.snapshotId());
     latestTableMetadata.snapshot(unloadedSnapshot.snapshotId());
@@ -168,7 +171,9 @@ public class TestSnapshotLoading extends TestBase {
   @TestTemplate
   public void testRemovedRefSnapshotFails() {
     Snapshot referencedSnapshot =
-        allSnapshots.stream().filter(Predicate.isEqual(currentSnapshot).negate()).findFirst().get();
+        allSnapshots.stream()
+            .filter(Predicate.isEqual(currentSnapshot).negate())
+            .collect(MoreCollectors.onlyElement());
 
     TableMetadata tableMetadata =
         TableMetadata.buildFrom(originalTableMetadata)

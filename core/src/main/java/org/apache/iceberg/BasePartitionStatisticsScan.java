@@ -22,6 +22,7 @@ import java.util.Optional;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.apache.iceberg.types.Types;
 
 public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
@@ -65,7 +66,7 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
     Optional<PartitionStatisticsFile> statsFile =
         table.partitionStatisticsFiles().stream()
             .filter(f -> f.snapshotId() == snapshotId)
-            .findFirst();
+            .collect(MoreCollectors.toOptional());
 
     if (statsFile.isEmpty()) {
       return CloseableIterable.empty();

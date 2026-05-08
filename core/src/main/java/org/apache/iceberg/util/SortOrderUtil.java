@@ -31,6 +31,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.apache.iceberg.transforms.SortOrderVisitor;
 
 public class SortOrderUtil {
@@ -59,7 +60,7 @@ public class SortOrderUtil {
   public static SortOrder findTableSortOrder(Table table, SortOrder userSuppliedSortOrder) {
     return table.sortOrders().values().stream()
         .filter(sortOrder -> sortOrder.sameOrder(userSuppliedSortOrder))
-        .findFirst()
+        .collect(MoreCollectors.toOptional())
         .orElseGet(SortOrder::unsorted);
   }
 

@@ -95,6 +95,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -2612,7 +2613,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Optional<MetadataUpdate> appendSnapshot =
                   body.updates().stream()
                       .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
-                      .findFirst();
+                      .collect(MoreCollectors.toOptional());
 
               assertThat(appendSnapshot).isPresent();
               MetadataUpdate.AddSnapshot addSnapshot =
@@ -2659,7 +2660,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Optional<MetadataUpdate> appendSnapshot =
                   body.updates().stream()
                       .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
-                      .findFirst();
+                      .collect(MoreCollectors.toOptional());
               assertThat(appendSnapshot).isPresent();
 
               MetadataUpdate.AddSnapshot addSnapshot =
@@ -2725,7 +2726,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       body.updates().stream()
                           .filter(MetadataUpdate.AddSnapshot.class::isInstance)
                           .map(MetadataUpdate.AddSnapshot.class::cast)
-                          .findFirst())
+                          .collect(MoreCollectors.toOptional()))
                   .hasValueSatisfying(
                       addSnapshot -> {
                         String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
@@ -2771,7 +2772,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Optional<MetadataUpdate> appendSnapshot =
                   request.updates().stream()
                       .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
-                      .findFirst();
+                      .collect(MoreCollectors.toOptional());
 
               assertThat(appendSnapshot).isPresent();
               MetadataUpdate.AddSnapshot addSnapshot =
@@ -2814,7 +2815,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               Optional<MetadataUpdate> appendSnapshot =
                   request.updates().stream()
                       .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
-                      .findFirst();
+                      .collect(MoreCollectors.toOptional());
               assertThat(appendSnapshot).isPresent();
 
               MetadataUpdate.AddSnapshot addSnapshot =
@@ -3077,11 +3078,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                     (MetadataUpdate.AddSnapshot)
                         req.updates().stream()
                             .filter(u -> u instanceof MetadataUpdate.AddSnapshot)
-                            .findFirst()
-                            .orElseThrow())
+                            .collect(MoreCollectors.onlyElement()))
             .map(add -> add.snapshot().snapshotId())
-            .findFirst()
-            .orElseThrow();
+            .collect(MoreCollectors.onlyElement());
 
     Table reloaded = catalog.loadTable(TABLE);
     assertThat(reloaded.currentSnapshot()).isNotNull();

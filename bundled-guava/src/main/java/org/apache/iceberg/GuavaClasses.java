@@ -39,6 +39,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
+import com.google.common.collect.MoreCollectors;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Ordering;
@@ -103,5 +104,6 @@ public class GuavaClasses {
     Stopwatch.class.getName();
     Ints.class.getName();
     UnsignedBytes.class.getName();
+    MoreCollectors.class.getName();
   }
 }

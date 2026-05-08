@@ -29,6 +29,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -221,7 +222,10 @@ public class PropertyUtil {
           .forEach(
               key -> {
                 String prefix =
-                    columnProperties.stream().filter(key::startsWith).findFirst().orElse(null);
+                    columnProperties.stream()
+                        .filter(key::startsWith)
+                        .collect(MoreCollectors.toOptional())
+                        .orElse(null);
 
                 if (prefix != null) {
                   String columnAlias = key.replaceFirst(prefix, "");

@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -49,8 +50,7 @@ public class TestWapWorkflow extends TestBase {
     Snapshot overwrite =
         Streams.stream(table.snapshots())
             .filter(snap -> DataOperations.OVERWRITE.equals(snap.operation()))
-            .findFirst()
-            .get();
+            .collect(MoreCollectors.onlyElement());
 
     // cherry-pick the overwrite; this works because it is a fast-forward commit
     table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit();
@@ -74,8 +74,7 @@ public class TestWapWorkflow extends TestBase {
     Snapshot overwrite =
         Streams.stream(table.snapshots())
             .filter(snap -> DataOperations.OVERWRITE.equals(snap.operation()))
-            .findFirst()
-            .get();
+            .collect(MoreCollectors.onlyElement());
 
     // try to cherry-pick, which should fail because the overwrite's parent is no longer current
     assertThatThrownBy(() -> table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit())

@@ -78,6 +78,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.MoreCollectors;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
@@ -599,7 +600,7 @@ public class CatalogHandlers {
         request.updates().stream()
             .filter(update -> update instanceof UpgradeFormatVersion)
             .map(update -> ((UpgradeFormatVersion) update).formatVersion())
-            .findFirst();
+            .collect(MoreCollectors.toOptional());
 
     TableMetadata.Builder builder =
         formatVersion.map(TableMetadata::buildFromEmpty).orElseGet(TableMetadata::buildFromEmpty);
