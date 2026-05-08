@@ -1226,10 +1226,14 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     Table table = catalog.loadTable(tableIdentifier);
     table.refresh();
 
-    assertThat(table.schema().columns()).hasSize(2);
+    // Row 1 drops `extra`; row 2 re-adds it. The re-add must take effect (new field id, not the
+    // historical id=3): TableMetadataCache must not match the input against the historical
+    // pre-drop schema, otherwise the re-add is silently skipped.
+    assertThat(table.schema().columns()).hasSize(3);
     assertThat(table.schema().findField("id")).isNotNull();
     assertThat(table.schema().findField("data")).isNotNull();
-    assertThat(table.schema().findField("extra")).isNull();
+    assertThat(table.schema().findField("extra")).isNotNull();
+    assertThat(table.schema().findField("extra").fieldId()).isNotEqualTo(3);
 
     List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
     assertThat(records).hasSize(2);
