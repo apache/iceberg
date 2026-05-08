@@ -46,10 +46,10 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
 
   @Override
   protected void validateWarehouse(String warehouse) {
+    // catalog.name is only present in the configuration when explicitly set via env var
+    // (e.g. CATALOG_CATALOG_NAME=mywarehouse). When not set, validation is skipped.
     String catalogName = catalogContext.configuration().get(RESTCatalogServer.CATALOG_NAME);
-    if (catalogName != null
-        && !RESTCatalogServer.CATALOG_NAME_DEFAULT.equals(catalogName)
-        && !catalogName.equals(warehouse)) {
+    if (catalogName != null && !catalogName.equals(warehouse)) {
       throw new NoSuchWarehouseException("Warehouse does not exist: %s", warehouse);
     }
   }
