@@ -455,6 +455,13 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles Google Gson (shaded by Nimbus JOSE+JWT).
+
+Project URL: https://github.com/google/gson
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Nimbus OAuth 2.0 SDK with OpenID Connect extensions.
 
 Project URL: https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions
