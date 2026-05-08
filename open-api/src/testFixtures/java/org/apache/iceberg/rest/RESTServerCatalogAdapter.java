@@ -21,7 +21,6 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.exceptions.NoSuchWarehouseException;
@@ -47,8 +46,8 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
 
   @Override
   protected void validateWarehouse(String warehouse) {
-    String configured = catalogContext.configuration().get(CatalogProperties.WAREHOUSE_LOCATION);
-    if (configured == null || !configured.equals(warehouse)) {
+    String configured = catalogContext.warehouseName();
+    if (configured != null && !configured.equals(warehouse)) {
       throw new NoSuchWarehouseException("Warehouse does not exist: %s", warehouse);
     }
   }
