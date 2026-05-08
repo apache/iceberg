@@ -977,7 +977,7 @@ Statistics files metadata within `statistics` table metadata field is a struct w
     | _required_ | _required_ | **`file-size-in-bytes`**        | `long`                | Size of the statistics file. |
     | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long`                | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
     | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded implementation-specific key metadata for encryption. |
-    | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` | A list of the blob metadata for statistics contained in the file with structure described below. |
+    | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
 Blob metadata is a struct with the following fields:
 
