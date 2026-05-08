@@ -62,12 +62,12 @@ class TestTrackedFileStruct {
     file.set(4, 50L);
     file.set(5, 512L);
     file.set(6, 1);
-    file.set(8, 5);
-    file.set(9, dv);
-    file.set(10, info);
-    file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
-    file.set(12, ImmutableList.of(100L, 200L));
-    file.set(13, ImmutableList.of(1, 2, 3));
+    file.set(9, 5);
+    file.set(10, dv);
+    file.set(11, info);
+    file.set(12, ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    file.set(13, ImmutableList.of(100L, 200L));
+    file.set(14, ImmutableList.of(1, 2, 3));
 
     assertThat(file.tracking()).isNotNull();
     assertThat(file.tracking().status()).isEqualTo(EntryStatus.ADDED);
@@ -84,6 +84,9 @@ class TestTrackedFileStruct {
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
+    // should return EMPTY_PARTITION_DATA
+    assertThat(file.partition()).isNotNull();
+    assertThat(file.partition().size()).isEqualTo(0);
   }
 
   @Test
@@ -103,6 +106,58 @@ class TestTrackedFileStruct {
 
     assertThat(file.tracking().manifestLocation()).isEqualTo("s3://bucket/metadata/manifest.avro");
     assertThat(file.tracking().manifestPos()).isEqualTo(7L);
+  }
+
+  @Test
+  void projectionWithoutPartition() {
+    // project only location (field ID 100) and file_size_in_bytes (field ID 104)
+    Types.StructType projection =
+        Types.StructType.of(TrackedFile.LOCATION, TrackedFile.FILE_SIZE_IN_BYTES);
+
+    TrackedFileStruct file = new TrackedFileStruct(projection);
+    assertThat(file.size()).isEqualTo(2);
+    // should return EMPTY_PARTITION_DATA
+    assertThat(file.partition()).isNotNull();
+    assertThat(file.partition().size()).isEqualTo(0);
+  }
+
+  @Test
+  void partitionAccess() {
+    Types.StructType partitionType =
+        Types.StructType.of(
+            Types.NestedField.optional(1000, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1001, "category", Types.StringType.get()));
+    PartitionData partition = new PartitionData(partitionType);
+    partition.set(0, 5);
+    partition.set(1, "books");
+
+    TrackedFileStruct file = new TrackedFileStruct();
+    file.set(7, partition);
+
+    assertThat(file.partition()).isSameAs(partition);
+    assertThat(file.partition().get(0, Integer.class)).isEqualTo(5);
+    assertThat(file.partition().get(1, String.class)).isEqualTo("books");
+  }
+
+  @Test
+  void partitionIsCopied() {
+    Types.StructType partitionType =
+        Types.StructType.of(
+            Types.NestedField.optional(1000, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1001, "category", Types.StringType.get()));
+    PartitionData partition = new PartitionData(partitionType);
+    partition.set(0, 5);
+    partition.set(1, "books");
+
+    TrackedFileStruct file = createFullTrackedFile();
+    file.set(7, partition);
+
+    TrackedFile copy = file.copy();
+
+    assertThat(copy.partition()).isNotNull().isNotSameAs(partition);
+    assertThat(copy.partition()).isEqualTo(partition);
+    assertThat(copy.partition().get(0, Integer.class)).isEqualTo(5);
+    assertThat(copy.partition().get(1, String.class)).isEqualTo("books");
   }
 
   @Test
@@ -167,7 +222,7 @@ class TestTrackedFileStruct {
   @Test
   void testStructLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
-    assertThat(file.size()).isEqualTo(14);
+    assertThat(file.size()).isEqualTo(15);
   }
 
   @Test
@@ -301,18 +356,18 @@ class TestTrackedFileStruct {
             FileContent.DATA,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
+            new PartitionData(Types.StructType.of()),
             100L,
             1024L);
     file.set(6, 0);
-    file.set(8, 1);
-    file.set(9, dv);
-    file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
-    file.set(12, ImmutableList.of(50L));
+    file.set(9, 1);
+    file.set(10, dv);
+    file.set(12, ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    file.set(13, ImmutableList.of(50L));
 
     return file;
   }
 
-  @SuppressWarnings("unchecked")
   static TrackedFileStruct createTrackedFileWithStats() {
     Types.StructType statsStruct =
         Types.StructType.of(
@@ -337,25 +392,23 @@ class TestTrackedFileStruct {
 
     List<FieldStats<?>> fieldStatsList =
         ImmutableList.of(
-            (FieldStats<?>)
-                BaseFieldStats.<Integer>builder()
-                    .fieldId(1)
-                    .type(Types.IntegerType.get())
-                    .valueCount(100L)
-                    .nullValueCount(5L)
-                    .lowerBound(1)
-                    .upperBound(1000)
-                    .build(),
-            (FieldStats<?>)
-                BaseFieldStats.<Float>builder()
-                    .fieldId(2)
-                    .type(Types.FloatType.get())
-                    .valueCount(200L)
-                    .nullValueCount(10L)
-                    .nanValueCount(3L)
-                    .lowerBound(1.0f)
-                    .upperBound(100.0f)
-                    .build());
+            BaseFieldStats.<Integer>builder()
+                .fieldId(1)
+                .type(Types.IntegerType.get())
+                .valueCount(100L)
+                .nullValueCount(5L)
+                .lowerBound(1)
+                .upperBound(1000)
+                .build(),
+            BaseFieldStats.<Float>builder()
+                .fieldId(2)
+                .type(Types.FloatType.get())
+                .valueCount(200L)
+                .nullValueCount(10L)
+                .nanValueCount(3L)
+                .lowerBound(1.0f)
+                .upperBound(100.0f)
+                .build());
 
     BaseContentStats stats =
         BaseContentStats.builder()
@@ -369,10 +422,11 @@ class TestTrackedFileStruct {
             FileContent.DATA,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
+            new PartitionData(Types.StructType.of()),
             100L,
             1024L);
     file.set(6, 0);
-    file.set(7, stats);
+    file.set(8, stats);
 
     return file;
   }
