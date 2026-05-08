@@ -65,16 +65,18 @@ teardown() {
   export NEXUS_PASSWORD="testpass"
   run stage_convenience_binaries
   [ "$status" -eq 0 ]
-  # Today's primary-Scala Spark matrix is 3.x only.
   [[ "$output" == *"-DsparkVersions=3.4,3.5"* ]] \
     || { echo "expected primary-Scala main matrix to use only Spark 3.x"; printf '%s\n' "$output"; return 1; }
-  # The literal "-DscalaVersion=2.12 ... -DsparkVersions=...,4.0..." combo must
-  # never appear; Iceberg's build hardcodes 2.13 internally for v4.x and the
-  # combination is brittle.
-  [[ "$output" != *"-DscalaVersion=2.12"*"4.0"* ]] \
-    || { echo "Spark 4.x must not be paired with primary Scala in the main matrix"; printf '%s\n' "$output"; return 1; }
-  [[ "$output" != *"-DscalaVersion=2.12"*"4.1"* ]] \
-    || { echo "Spark 4.x must not be paired with primary Scala in the main matrix"; printf '%s\n' "$output"; return 1; }
+  # Inspect only the gradle invocation lines carrying the primary Scala. A
+  # whole-output glob would falsely match Spark 4.x from the later 2.13 sweep.
+  local line
+  while IFS= read -r line; do
+    [[ "${line}" != *"-DscalaVersion=2.12"* ]] && continue
+    [[ "${line}" != *"sparkVersions="*"4.0"* ]] \
+      || { echo "Spark 4.0 must not appear in primary-Scala invocation: ${line}"; return 1; }
+    [[ "${line}" != *"sparkVersions="*"4.1"* ]] \
+      || { echo "Spark 4.1 must not appear in primary-Scala invocation: ${line}"; return 1; }
+  done <<< "$output"
   unset NEXUS_USERNAME NEXUS_PASSWORD
 }
 
