@@ -1,0 +1,93 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: Release - Cancel RC
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.10.0)'
+        required: true
+        type: string
+      rc_number:
+        description: 'RC number to cancel (e.g., 0)'
+        required: true
+        type: string
+      staging_repo_id:
+        description: 'Nexus staging repository ID to drop (e.g., orgapacheiceberg-1234)'
+        required: true
+        type: string
+      allow_description_mismatch:
+        description: 'Allow Nexus staging repo description to not match "Apache Iceberg <version> RC<num>" (use only after manual recovery)'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run mode (uncheck for actual cancellation)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iceberg-release
+  cancel-in-progress: false
+
+jobs:
+  cancel-rc:
+    if: github.repository_owner == 'apache'
+    name: Cancel Release Candidate
+    runs-on: ubuntu-24.04
+    environment: maven-publish
+    permissions:
+      contents: read
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Subversion and jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y subversion jq
+
+      - name: Cancel Release Candidate
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PW }}
+          SVN_USERNAME: ${{ secrets.ICEBERG_SVN_DEV_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.ICEBERG_SVN_DEV_PASSWORD }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_RC_NUMBER: ${{ inputs.rc_number }}
+          INPUT_STAGING_REPO_ID: ${{ inputs.staging_repo_id }}
+          INPUT_ALLOW_DESC_MISMATCH: ${{ inputs.allow_description_mismatch && '1' || '0' }}
+        run: |
+          args=("${INPUT_VERSION}" "${INPUT_RC_NUMBER}" "${INPUT_STAGING_REPO_ID}")
+          if [[ "${INPUT_ALLOW_DESC_MISMATCH}" == "1" ]]; then
+            args+=(--allow-description-mismatch)
+          fi
+          ./release/cancel-rc.sh "${args[@]}"
