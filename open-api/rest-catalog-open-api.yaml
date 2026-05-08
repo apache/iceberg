@@ -2272,21 +2272,11 @@ components:
         Reference to a catalog object (table, view, or namespace) as an
         ordered list of hierarchical levels.
         The object kind is determined by context (e.g. the endpoint or a
-        companion CatalogObjectType discriminator), not by the identifier
-        structure alone.
+        companion type discriminator), not by the identifier structure alone.
       type: array
       items:
         type: string
       example: [ "accounting", "tax", "paid" ]
-
-    CatalogObjectType:
-      type: string
-      description: |
-        The type of a catalog object.
-      enum:
-        - table
-        - view
-        - namespace
 
     PrimitiveType:
       type: string

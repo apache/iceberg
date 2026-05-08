@@ -108,19 +108,13 @@ class TableIdentifier(BaseModel):
 
 class CatalogObjectIdentifier(RootModel[list[str]]):
     """
-    Reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion CatalogObjectType discriminator), not by the identifier structure alone.
+    Reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.
     """
 
     root: list[str] = Field(
         ...,
-        description='Reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion CatalogObjectType discriminator), not by the identifier structure alone.',
+        description='Reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.',
         examples=[['accounting', 'tax', 'paid']],
-    )
-
-
-class CatalogObjectType(RootModel[Literal['table', 'view', 'namespace']]):
-    root: Literal['table', 'view', 'namespace'] = Field(
-        ..., description='The type of a catalog object.\n'
     )
 
 
