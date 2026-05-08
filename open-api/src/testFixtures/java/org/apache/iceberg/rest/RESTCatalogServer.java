@@ -86,11 +86,7 @@ public class RESTCatalogServer {
     catalogProperties.putIfAbsent(CatalogProperties.URI, "jdbc:sqlite::memory:");
     catalogProperties.putIfAbsent("jdbc.schema-version", "V1");
 
-    // The catalog.name property (CATALOG_CATALOG__NAME env var) sets the catalog name.
-    // When explicitly set, it is also used as the logical warehouse name for validation
-    // on the /v1/config endpoint.
-    // The warehouse property (CATALOG_WAREHOUSE env var) sets the physical storage path.
-    // If no physical path is set, a temp directory is used.
+    // Configure a default location if one is not specified
     String warehouseLocation = catalogProperties.get(CatalogProperties.WAREHOUSE_LOCATION);
 
     if (warehouseLocation == null) {
@@ -98,16 +94,12 @@ public class RESTCatalogServer {
       tmp.deleteOnExit();
       warehouseLocation = new File(tmp, "iceberg_data").getAbsolutePath();
       catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+
+      LOG.info("No warehouse location set. Defaulting to temp location: {}", warehouseLocation);
     }
 
     String catalogName =
         PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
-
-    if (CATALOG_NAME_DEFAULT.equals(catalogName)) {
-      LOG.info("Using default catalog name. Storage location: {}", warehouseLocation);
-    } else {
-      LOG.info("Catalog name: {}. Storage location: {}", catalogName, warehouseLocation);
-    }
 
     LOG.info("Creating {} catalog with properties: {}", catalogName, catalogProperties);
     return new CatalogContext(
