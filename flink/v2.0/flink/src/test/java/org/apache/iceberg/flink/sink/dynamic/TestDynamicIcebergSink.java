@@ -1236,6 +1236,56 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testWriteAfterColumnDeleteAndReaddDoesNotUseHistoricalFieldIds() throws Exception {
+    // Regression for TableMetadataCache historical-schema-shadow bug. After deleteColumn +
+    // addColumn the re-added column gets a new field id, but the historical pre-delete
+    // schema is still kept in table.schemas() with its original field id. Pre-fix, the cache
+    // returned the historical schema as a SAME match for an input with the original shape,
+    // causing writes to use the stale field id. Reads via the current schema then returned
+    // null for the re-added column even though data was written successfully.
+    Schema fullSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, "t1");
+    Table table = catalog.createTable(tableIdentifier, fullSchema);
+    table.updateSchema().deleteColumn("extra").commit();
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    table.refresh();
+
+    // Confirm the re-added column has a new field id (otherwise the bug wouldn't manifest).
+    assertThat(table.schema().findField("extra").fieldId()).isNotEqualTo(3);
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                fullSchema, "t1", SnapshotRef.MAIN_BRANCH, PartitionSpec.unpartitioned()));
+
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(rows, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(1);
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new Generator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .immediateTableUpdate(true)
+        .append();
+
+    env.execute("Test post-readd schema resolution");
+
+    table.refresh();
+
+    List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
+    assertThat(records).hasSize(1);
+    // Pre-fix this would be null because writes used the historical field id for extra.
+    Object expectedExtra = rows.get(0).rowProvided.getField("extra");
+    assertThat(records.get(0).getField("extra")).isEqualTo(expectedExtra);
+  }
+
+  @Test
   void testCaseInsensitiveSchemaMatching() throws Exception {
     Schema lowerCaseSchema =
         new Schema(
