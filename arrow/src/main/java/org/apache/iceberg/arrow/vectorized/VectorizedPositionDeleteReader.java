@@ -29,6 +29,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.deletes.PositionDeleteRangeConsumer;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -138,7 +139,7 @@ public final class VectorizedPositionDeleteReader {
 
     Schema projection = dataLocation == null ? POS_ONLY_SCHEMA : FULL_SCHEMA;
     PositionDeleteIndex index = PositionDeleteIndex.create(deleteFile);
-    RangeCoalescer coalescer = new RangeCoalescer(index);
+    PositionDeleteRangeConsumer coalescer = new PositionDeleteRangeConsumer(index);
 
     try (CloseableIterable<ColumnarBatch> batches =
         Parquet.read(file)
@@ -220,30 +221,42 @@ public final class VectorizedPositionDeleteReader {
   }
 
   /**
-   * Coalescing append for the no-filter case: every row in every batch is added. Consecutive
-   * positions are merged into a single range insert.
+   * Coalescing append for the no-filter case: every row in every batch is added. Each batch is
+   * copied into a scratch {@code long[]} once and forwarded to the accumulator in a single bulk
+   * call so the per-row work in steady state stays inside the accumulator's tight loop -- no
+   * method-call frame between {@code readLong} and the gap check.
    */
-  private static void appendAll(CloseableIterator<ColumnarBatch> it, RangeCoalescer coalescer) {
+  private static void appendAll(
+      CloseableIterator<ColumnarBatch> it, PositionDeleteRangeConsumer coalescer) {
+    long[] buffer = null;
     while (it.hasNext()) {
       try (ColumnarBatch batch = it.next()) {
         BigIntVector posVec = (BigIntVector) posColumn(batch).getArrowVector();
         ArrowBuf posBuf = posVec.getDataBuffer();
         int rows = batch.numRows();
-        for (int i = 0; i < rows; i++) {
-          coalescer.accept(readLong(posBuf, i));
+        if (buffer == null || buffer.length < rows) {
+          buffer = new long[rows];
         }
+        for (int i = 0; i < rows; i++) {
+          buffer[i] = readLong(posBuf, i);
+        }
+        coalescer.acceptAll(buffer, 0, rows);
       }
     }
   }
 
   /**
    * Coalescing append for the filtered case: only rows whose {@code file_path} equals {@code
-   * dataLocation} contribute. The run is broken whenever a non-matching row is seen so we never
+   * dataLocation} contribute. Matching positions are packed into a scratch buffer and bulk-fed to
+   * the accumulator; a non-matching row drains the buffer and flushes the accumulator so we never
    * coalesce across a gap caused by another data file.
    */
   private static void appendFiltered(
-      CloseableIterator<ColumnarBatch> it, CharSequence dataLocation, RangeCoalescer coalescer) {
+      CloseableIterator<ColumnarBatch> it,
+      CharSequence dataLocation,
+      PositionDeleteRangeConsumer coalescer) {
     byte[] target = dataLocation.toString().getBytes(StandardCharsets.UTF_8);
+    long[] buffer = null;
 
     while (it.hasNext()) {
       try (ColumnarBatch batch = it.next()) {
@@ -252,12 +265,23 @@ public final class VectorizedPositionDeleteReader {
         ArrowBuf pathBuf = pathVec.getDataBuffer();
         ArrowBuf posBuf = posVec.getDataBuffer();
         int rows = batch.numRows();
+        if (buffer == null || buffer.length < rows) {
+          buffer = new long[rows];
+        }
+        int filled = 0;
         for (int i = 0; i < rows; i++) {
           if (matches(pathVec, pathBuf, i, target)) {
-            coalescer.accept(readLong(posBuf, i));
+            buffer[filled++] = readLong(posBuf, i);
           } else {
-            coalescer.breakRun();
+            if (filled > 0) {
+              coalescer.acceptAll(buffer, 0, filled);
+              filled = 0;
+            }
+            coalescer.flush();
           }
+        }
+        if (filled > 0) {
+          coalescer.acceptAll(buffer, 0, filled);
         }
       }
     }
@@ -280,7 +304,8 @@ public final class VectorizedPositionDeleteReader {
       CharSequenceMap<PositionDeleteIndex> indexes,
       DeleteFile deleteFile) {
     byte[] currentPath = null;
-    RangeCoalescer coalescer = null;
+    PositionDeleteRangeConsumer coalescer = null;
+    long[] buffer = null;
 
     while (it.hasNext()) {
       try (ColumnarBatch batch = it.next()) {
@@ -289,6 +314,9 @@ public final class VectorizedPositionDeleteReader {
         ArrowBuf pathBuf = pathVec.getDataBuffer();
         ArrowBuf posBuf = posVec.getDataBuffer();
         int rows = batch.numRows();
+        if (buffer == null || buffer.length < rows) {
+          buffer = new long[rows];
+        }
         int cursor = 0;
         while (cursor < rows) {
           if (currentPath == null || !matches(pathVec, pathBuf, cursor, currentPath)) {
@@ -302,13 +330,15 @@ public final class VectorizedPositionDeleteReader {
               existing = PositionDeleteIndex.create(deleteFile);
               indexes.put(pathKey, existing);
             }
-            coalescer = new RangeCoalescer(existing);
+            coalescer = new PositionDeleteRangeConsumer(existing);
           }
 
           int runEnd = endOfPathRun(pathVec, pathBuf, cursor, rows, currentPath);
-          for (int i = cursor; i < runEnd; i++) {
-            coalescer.accept(readLong(posBuf, i));
+          int runLen = runEnd - cursor;
+          for (int i = 0; i < runLen; i++) {
+            buffer[i] = readLong(posBuf, cursor + i);
           }
+          coalescer.acceptAll(buffer, 0, runLen);
           cursor = runEnd;
         }
       }
@@ -385,57 +415,6 @@ public final class VectorizedPositionDeleteReader {
       bytes[i] = dataBuf.getByte(offset + i);
     }
     return bytes;
-  }
-
-  /**
-   * Tracks the active run of consecutive positions and emits range inserts to the underlying index.
-   * Single-threaded; intended for one decoding pass per delete file.
-   */
-  private static final class RangeCoalescer {
-    private final PositionDeleteIndex index;
-    private boolean hasRun;
-    private long runStart;
-    private long runEnd;
-
-    RangeCoalescer(PositionDeleteIndex index) {
-      this.index = index;
-    }
-
-    void accept(long pos) {
-      if (!hasRun) {
-        runStart = pos;
-        runEnd = pos;
-        hasRun = true;
-      } else if (pos == runEnd + 1) {
-        runEnd = pos;
-      } else {
-        emit();
-        runStart = pos;
-        runEnd = pos;
-      }
-    }
-
-    void breakRun() {
-      if (hasRun) {
-        emit();
-        hasRun = false;
-      }
-    }
-
-    void flush() {
-      if (hasRun) {
-        emit();
-        hasRun = false;
-      }
-    }
-
-    private void emit() {
-      if (runStart == runEnd) {
-        index.delete(runStart);
-      } else {
-        index.delete(runStart, runEnd + 1);
-      }
-    }
   }
 
   /**
