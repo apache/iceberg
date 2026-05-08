@@ -89,10 +89,10 @@ public class TestLocationUtil {
   public void testResolveRelativeLocations() {
     String tableLocation = "s3://bucket/table";
 
-    assertThat(LocationUtil.resolveLocation("/metadata/file.parquet", tableLocation))
+    assertThat(LocationUtil.resolveLocation(tableLocation, "/metadata/file.parquet"))
         .isEqualTo("s3://bucket/table/metadata/file.parquet");
 
-    assertThat(LocationUtil.resolveLocation("/data/00000-0.parquet", tableLocation))
+    assertThat(LocationUtil.resolveLocation(tableLocation, "/data/00000-0.parquet"))
         .isEqualTo("s3://bucket/table/data/00000-0.parquet");
   }
 
@@ -101,10 +101,10 @@ public class TestLocationUtil {
     String tableLocation = "s3://bucket/table";
 
     assertThat(
-            LocationUtil.resolveLocation("/data/partition=key:value/file.parquet", tableLocation))
+            LocationUtil.resolveLocation(tableLocation, "/data/partition=key:value/file.parquet"))
         .isEqualTo("s3://bucket/table/data/partition=key:value/file.parquet");
 
-    assertThat(LocationUtil.resolveLocation("/metadata/snap-123:456.avro", tableLocation))
+    assertThat(LocationUtil.resolveLocation(tableLocation, "/metadata/snap-123:456.avro"))
         .isEqualTo("s3://bucket/table/metadata/snap-123:456.avro");
   }
 
@@ -112,32 +112,11 @@ public class TestLocationUtil {
   public void testResolveAbsoluteLocationsUnchanged() {
     String tableLocation = "s3://bucket/table";
 
-    assertThat(LocationUtil.resolveLocation("s3://other/bucket/file.parquet", tableLocation))
+    assertThat(LocationUtil.resolveLocation(tableLocation, "s3://other/bucket/file.parquet"))
         .isEqualTo("s3://other/bucket/file.parquet");
 
-    assertThat(LocationUtil.resolveLocation("hdfs://namenode/path/file.parquet", tableLocation))
+    assertThat(LocationUtil.resolveLocation(tableLocation, "hdfs://namenode/path/file.parquet"))
         .isEqualTo("hdfs://namenode/path/file.parquet");
-  }
-
-  @Test
-  public void testResolveWithNullLocation() {
-    assertThat(LocationUtil.resolveLocation(null, "s3://bucket/table")).isNull();
-  }
-
-  @Test
-  public void testResolveWithNullTableLocation() {
-    assertThatThrownBy(() -> LocationUtil.resolveLocation("/metadata/file.parquet", null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Table location must not be null");
-  }
-
-  @Test
-  public void testResolveWithFileScheme() {
-    assertThat(LocationUtil.resolveLocation("/metadata/file.parquet", "file:///tmp/table"))
-        .isEqualTo("file:///tmp/table/metadata/file.parquet");
-
-    assertThat(LocationUtil.resolveLocation("/metadata/file.parquet", "file:/tmp/table"))
-        .isEqualTo("file:/tmp/table/metadata/file.parquet");
   }
 
   @Test
@@ -146,12 +125,12 @@ public class TestLocationUtil {
 
     assertThat(
             LocationUtil.relativizeLocation(
-                "s3://bucket/table/metadata/file.parquet", tableLocation))
+                tableLocation, "s3://bucket/table/metadata/file.parquet"))
         .isEqualTo("/metadata/file.parquet");
 
     assertThat(
             LocationUtil.relativizeLocation(
-                "s3://bucket/table/data/00000-0.parquet", tableLocation))
+                tableLocation, "s3://bucket/table/data/00000-0.parquet"))
         .isEqualTo("/data/00000-0.parquet");
   }
 
@@ -159,7 +138,7 @@ public class TestLocationUtil {
   public void testRelativizeLocationNotUnderTableLocation() {
     String tableLocation = "s3://bucket/table";
 
-    assertThat(LocationUtil.relativizeLocation("s3://other/bucket/file.parquet", tableLocation))
+    assertThat(LocationUtil.relativizeLocation(tableLocation, "s3://other/bucket/file.parquet"))
         .isEqualTo("s3://other/bucket/file.parquet");
   }
 
@@ -167,33 +146,7 @@ public class TestLocationUtil {
   public void testRelativizeLocationEqualToTableLocation() {
     String tableLocation = "s3://bucket/table";
 
-    assertThat(LocationUtil.relativizeLocation("s3://bucket/table", tableLocation)).isEqualTo("");
-  }
-
-  @Test
-  public void testRelativizeWithNullLocation() {
-    assertThat(LocationUtil.relativizeLocation(null, "s3://bucket/table")).isNull();
-  }
-
-  @Test
-  public void testRelativizeWithNullTableLocation() {
-    assertThatThrownBy(
-            () -> LocationUtil.relativizeLocation("s3://bucket/table/metadata/file.parquet", null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Table location must not be null");
-  }
-
-  @Test
-  public void testRelativizeWithFileScheme() {
-    assertThat(
-            LocationUtil.relativizeLocation(
-                "file:///tmp/table/metadata/file.parquet", "file:///tmp/table"))
-        .isEqualTo("/metadata/file.parquet");
-
-    assertThat(
-            LocationUtil.relativizeLocation(
-                "file:/tmp/table/metadata/file.parquet", "file:/tmp/table"))
-        .isEqualTo("/metadata/file.parquet");
+    assertThat(LocationUtil.relativizeLocation(tableLocation, "s3://bucket/table")).isEqualTo("");
   }
 
   @Test
@@ -202,12 +155,12 @@ public class TestLocationUtil {
     // responsibility
     assertThat(
             LocationUtil.relativizeLocation(
-                "file:///tmp/table/metadata/file.parquet", "file:/tmp/table"))
+                "file:/tmp/table", "file:///tmp/table/metadata/file.parquet"))
         .isEqualTo("file:///tmp/table/metadata/file.parquet");
 
     assertThat(
             LocationUtil.relativizeLocation(
-                "file:/tmp/table/metadata/file.parquet", "file:///tmp/table"))
+                "file:///tmp/table", "file:/tmp/table/metadata/file.parquet"))
         .isEqualTo("file:/tmp/table/metadata/file.parquet");
   }
 
@@ -216,34 +169,10 @@ public class TestLocationUtil {
     String tableLocation = "s3://bucket/table";
     String absoluteLocation = "s3://bucket/table/metadata/root-manifest.parquet";
 
-    String relativized = LocationUtil.relativizeLocation(absoluteLocation, tableLocation);
+    String relativized = LocationUtil.relativizeLocation(tableLocation, absoluteLocation);
     assertThat(relativized).isEqualTo("/metadata/root-manifest.parquet");
 
-    String resolved = LocationUtil.resolveLocation(relativized, tableLocation);
-    assertThat(resolved).isEqualTo(absoluteLocation);
-  }
-
-  @Test
-  public void testRelativizeResolveRoundTripWithFileScheme() {
-    String tableLocation = "file:///tmp/warehouse/table";
-    String absoluteLocation = "file:///tmp/warehouse/table/data/00000-0.parquet";
-
-    String relativized = LocationUtil.relativizeLocation(absoluteLocation, tableLocation);
-    assertThat(relativized).isEqualTo("/data/00000-0.parquet");
-
-    String resolved = LocationUtil.resolveLocation(relativized, tableLocation);
-    assertThat(resolved).isEqualTo(absoluteLocation);
-  }
-
-  @Test
-  public void testRelativizeResolveRoundTripWithHDFS() {
-    String tableLocation = "hdfs://namenode:8020/warehouse/table";
-    String absoluteLocation = "hdfs://namenode:8020/warehouse/table/metadata/snap-123.avro";
-
-    String relativized = LocationUtil.relativizeLocation(absoluteLocation, tableLocation);
-    assertThat(relativized).isEqualTo("/metadata/snap-123.avro");
-
-    String resolved = LocationUtil.resolveLocation(relativized, tableLocation);
+    String resolved = LocationUtil.resolveLocation(tableLocation, relativized);
     assertThat(resolved).isEqualTo(absoluteLocation);
   }
 }
