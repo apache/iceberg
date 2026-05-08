@@ -61,12 +61,10 @@ public class RESTCatalogServer {
   static class CatalogContext {
     private final Catalog catalog;
     private final Map<String, String> configuration;
-    private final String warehouseName;
 
-    CatalogContext(Catalog catalog, Map<String, String> configuration, String warehouseName) {
+    CatalogContext(Catalog catalog, Map<String, String> configuration) {
       this.catalog = catalog;
       this.configuration = configuration;
-      this.warehouseName = warehouseName;
     }
 
     public Catalog catalog() {
@@ -75,10 +73,6 @@ public class RESTCatalogServer {
 
     public Map<String, String> configuration() {
       return configuration;
-    }
-
-    public String warehouseName() {
-      return warehouseName;
     }
   }
 
@@ -92,34 +86,33 @@ public class RESTCatalogServer {
     catalogProperties.putIfAbsent(CatalogProperties.URI, "jdbc:sqlite::memory:");
     catalogProperties.putIfAbsent("jdbc.schema-version", "V1");
 
-    // The warehouse property serves as a logical warehouse name for the /v1/config endpoint.
-    // The warehouse-path property (CATALOG_WAREHOUSE__PATH env var) overrides the
-    // physical storage path. If not set, a temp directory is used.
-    String warehouseName = catalogProperties.remove(CatalogProperties.WAREHOUSE_LOCATION);
-    String warehouseLocation = catalogProperties.remove(CatalogProperties.WAREHOUSE_PATH);
+    // The catalog.name property (CATALOG_CATALOG__NAME env var) sets the catalog name.
+    // When explicitly set, it is also used as the logical warehouse name for validation
+    // on the /v1/config endpoint.
+    // The warehouse property (CATALOG_WAREHOUSE env var) sets the physical storage path.
+    // If no physical path is set, a temp directory is used.
+    String warehouseLocation = catalogProperties.get(CatalogProperties.WAREHOUSE_LOCATION);
 
     if (warehouseLocation == null) {
       File tmp = java.nio.file.Files.createTempDirectory("iceberg_warehouse").toFile();
       tmp.deleteOnExit();
       warehouseLocation = new File(tmp, "iceberg_data").getAbsolutePath();
-    }
-
-    catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
-
-    if (warehouseName == null) {
-      LOG.info("No warehouse name set. Defaulting to temp location: {}", warehouseLocation);
-    } else {
-      LOG.info("Warehouse name: {}. Storage location: {}", warehouseName, warehouseLocation);
+      catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     }
 
     String catalogName =
         PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
 
+    if (CATALOG_NAME_DEFAULT.equals(catalogName)) {
+      LOG.info("Using default catalog name. Storage location: {}", warehouseLocation);
+    } else {
+      LOG.info("Catalog name: {}. Storage location: {}", catalogName, warehouseLocation);
+    }
+
     LOG.info("Creating {} catalog with properties: {}", catalogName, catalogProperties);
     return new CatalogContext(
         CatalogUtil.buildIcebergCatalog(catalogName, catalogProperties, new Configuration()),
-        catalogProperties,
-        warehouseName);
+        catalogProperties);
   }
 
   public void start(boolean join) throws Exception {
