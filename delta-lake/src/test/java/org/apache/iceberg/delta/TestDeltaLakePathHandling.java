@@ -43,7 +43,13 @@ public class TestDeltaLakePathHandling {
         Arguments.of("a+b%20c.parquet", "s3://bucket/table/", "s3://bucket/table/a+b c.parquet"),
         Arguments.of("file:/tmp/other/a+b%20c.parquet", "/tmp/table", "/tmp/other/a+b c.parquet"),
         Arguments.of(
-            "s3://bucket/other/a+b%20c.parquet",
-            "/tmp/table", "s3://bucket/other/a+b%20c.parquet"));
+            "s3://bucket/other/a+b%20c.parquet", "/tmp/table", "s3://bucket/other/a+b%20c.parquet"),
+        Arguments.of(
+            "dir/a.parquet", "/tmp/table", "/tmp/table" + File.separator + "dir/a.parquet"),
+        Arguments.of("dir/a.parquet", "s3://bucket/table", "s3://bucket/table/dir/a.parquet"),
+        Arguments.of("file:///tmp/other/a.parquet", "/tmp/table", "/tmp/other/a.parquet"),
+        Arguments.of(
+            "a%23b%3Fc.parquet", "/tmp/table", "/tmp/table" + File.separator + "a#b?c.parquet"),
+        Arguments.of("p.parquet", "C:\\table", "C:\\table" + File.separator + "p.parquet"));
   }
 }

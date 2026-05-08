@@ -58,24 +58,21 @@ class DeltaLakeKernelTypeToType {
   }
 
   private Type convertType(DataType type) {
-    if (type instanceof StructType) {
-      List<StructField> fields = ((StructType) type).fields();
+    if (type instanceof StructType structType) {
+      List<StructField> fields = structType.fields();
       List<Type> fieldResults = Lists.newArrayListWithExpectedSize(fields.size());
 
       for (StructField field : fields) {
         fieldResults.add(convertType(field.getDataType()));
       }
 
-      return struct((StructType) type, fieldResults);
+      return struct(structType, fieldResults);
 
-    } else if (type instanceof MapType) {
-      return map(
-          (MapType) type,
-          convertType(((MapType) type).getKeyType()),
-          convertType(((MapType) type).getValueType()));
+    } else if (type instanceof MapType mapType) {
+      return map(mapType, convertType(mapType.getKeyType()), convertType(mapType.getValueType()));
 
-    } else if (type instanceof ArrayType) {
-      return array((ArrayType) type, convertType(((ArrayType) type).getElementType()));
+    } else if (type instanceof ArrayType arrayType) {
+      return array(arrayType, convertType(arrayType.getElementType()));
 
     } else {
       return atomic(type);
@@ -167,9 +164,8 @@ class DeltaLakeKernelTypeToType {
     } else if (atomic instanceof TimestampNTZType) {
       return Types.TimestampType.withoutZone();
 
-    } else if (atomic instanceof DecimalType) {
-      return Types.DecimalType.of(
-          ((DecimalType) atomic).getPrecision(), ((DecimalType) atomic).getScale());
+    } else if (atomic instanceof DecimalType decimalType) {
+      return Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale());
 
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();

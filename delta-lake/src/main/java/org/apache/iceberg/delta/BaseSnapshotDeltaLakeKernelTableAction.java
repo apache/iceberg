@@ -316,7 +316,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     List<DeleteFile> deleteFilesToAdd = Lists.newArrayList();
 
     while (changes.hasNext()) {
-      var container = changes.next();
+      Supplier<ColumnarBatch> container = changes.next();
       ColumnarBatch columnarBatch = container.get();
       try (CloseableIterator<Row> rows = columnarBatch.getRows()) {
         while (rows.hasNext()) {
@@ -593,7 +593,9 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     } else {
       String decodedPath = dataFileUri.getPath();
       String separator =
-          tableRoot.contains(":/") ? "/" : File.separator; // Cloud Storages path vs File System
+          tableRoot.contains(":/")
+              ? "/"
+              : File.separator; // Cloud Storages path vs File System (windows `\` and other)
       return tableRoot + (tableRoot.endsWith(separator) ? "" : separator) + decodedPath;
     }
   }
