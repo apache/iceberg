@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
@@ -174,8 +173,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         return castResponse(responseType, handleOAuthRequest(body));
 
       case CONFIG:
-        if (vars.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
-          validateWarehouse(vars.get(CatalogProperties.WAREHOUSE_LOCATION));
+        if (vars.containsKey(RESTCatalogProperties.WAREHOUSE_QUERY_PARAMETER)) {
+          validateWarehouse(vars.get(RESTCatalogProperties.WAREHOUSE_QUERY_PARAMETER));
         }
         return castResponse(
             responseType,
