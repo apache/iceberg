@@ -88,8 +88,8 @@ import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcWritingTestUtils;
 import org.apache.iceberg.orc.TestORCSchemaUtil;
+import org.apache.iceberg.parquet.ParquetFileTestUtils;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
-import org.apache.iceberg.parquet.TestParquetWritingUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -2120,7 +2120,7 @@ public abstract class BaseFormatModelTests<T> {
     OutputFile outputFile = encryptedFile.encryptingOutputFile();
 
     try (ParquetWriter<GenericData.Record> writer =
-        AvroParquetWriter.<GenericData.Record>builder(TestParquetWritingUtils.file(outputFile))
+        AvroParquetWriter.<GenericData.Record>builder(ParquetFileTestUtils.file(outputFile))
             .withDataModel(GenericData.get())
             .withSchema(avroSchemaWithoutIds)
             .withConf(new Configuration())
@@ -2136,7 +2136,7 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     try (ParquetFileReader reader =
-        ParquetFileReader.open(TestParquetWritingUtils.file(outputFile.toInputFile()))) {
+        ParquetFileReader.open(ParquetFileTestUtils.file(outputFile.toInputFile()))) {
       assertThat(ParquetSchemaUtil.hasIds(reader.getFooter().getFileMetaData().getSchema()))
           .isFalse();
     }

@@ -22,9 +22,9 @@ import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.OutputFile;
 
 /** Utilities for tests that need to write Parquet files. */
-public class TestParquetWritingUtils {
+public class ParquetFileTestUtils {
 
-  private TestParquetWritingUtils() {}
+  private ParquetFileTestUtils() {}
 
   public static OutputFile file(org.apache.iceberg.io.OutputFile file) {
     return ParquetIO.file(file);
