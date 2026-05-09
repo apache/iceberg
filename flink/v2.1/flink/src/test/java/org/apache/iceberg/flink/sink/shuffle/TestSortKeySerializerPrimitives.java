@@ -56,9 +56,7 @@ public class TestSortKeySerializerPrimitives extends TestSortKeySerializerBase {
         .sortBy(Expressions.day("ts_without_zone_field"), SortDirection.ASC, NullOrder.NULLS_FIRST)
         .asc("ts_ns_with_zone_field")
         .sortBy(
-            Expressions.hour("ts_ns_without_zone_field"),
-            SortDirection.ASC,
-            NullOrder.NULLS_FIRST)
+            Expressions.hour("ts_ns_without_zone_field"), SortDirection.ASC, NullOrder.NULLS_FIRST)
         // can not test HeapByteBuffer due to equality test inside SerializerTestBase
         // .sortBy(Expressions.truncate("binary_field", 2), SortDirection.ASC,
         // NullOrder.NULLS_FIRST)
