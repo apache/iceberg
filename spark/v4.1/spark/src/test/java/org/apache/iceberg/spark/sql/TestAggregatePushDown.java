@@ -922,6 +922,8 @@ public class TestAggregatePushDown extends CatalogTestBase {
 
     String select = "SELECT category, count(*) FROM %s GROUP BY category";
 
+    assertExplainContains(sql("EXPLAIN " + select, tableName), "localtablescan");
+
     List<Object[]> actual = sql(select, tableName);
     assertThat(actual).hasSize(3);
 
@@ -947,6 +949,8 @@ public class TestAggregatePushDown extends CatalogTestBase {
         tableName);
 
     String select = "SELECT region, count(*), max(price), min(price) FROM %s GROUP BY region";
+
+    assertExplainContains(sql("EXPLAIN " + select, tableName), "localtablescan");
 
     List<Object[]> actual = sql(select, tableName);
     assertThat(actual).hasSize(3);

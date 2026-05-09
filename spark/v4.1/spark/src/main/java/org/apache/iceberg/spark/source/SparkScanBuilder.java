@@ -230,6 +230,11 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     PartitionSpec currentSpec = table().spec();
     for (org.apache.spark.sql.connector.expressions.Expression groupByExpr :
         aggregation.groupByExpressions()) {
+      if (!(groupByExpr instanceof org.apache.spark.sql.connector.expressions.NamedReference)) {
+        LOG.info("Skipping grouped aggregate pushdown: unsupported group by expression");
+        return false;
+      }
+
       String colName =
           SparkUtil.toColumnName(
               (org.apache.spark.sql.connector.expressions.NamedReference) groupByExpr);
@@ -239,7 +244,6 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         return false;
       }
 
-      // verify the field is an identity partition in the current spec
       if (findIdentityPartitionPosition(currentSpec, sourceField.fieldId()) < 0) {
         LOG.info(
             "Skipping grouped aggregate pushdown: {} is not an identity partition field", colName);
@@ -354,32 +358,6 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     return -1;
   }
 
-  private boolean allGroupByAreIdentityPartitionFields(Aggregation aggregation) {
-    PartitionSpec spec = table().spec();
-    Schema tableSchema = table().schema();
-
-    for (org.apache.spark.sql.connector.expressions.Expression groupByExpr :
-        aggregation.groupByExpressions()) {
-      if (!(groupByExpr instanceof org.apache.spark.sql.connector.expressions.NamedReference)) {
-        return false;
-      }
-
-      String colName =
-          SparkUtil.toColumnName(
-              (org.apache.spark.sql.connector.expressions.NamedReference) groupByExpr);
-      Types.NestedField sourceField = tableSchema.findField(colName);
-      if (sourceField == null) {
-        return false;
-      }
-
-      if (findIdentityPartitionPosition(spec, sourceField.fieldId()) < 0) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   private static class ArrayStructLike implements StructLike {
     private final Object[] values;
 
@@ -411,14 +389,6 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
 
     if (!readConf().aggregatePushDownEnabled()) {
       return false;
-    }
-
-    if (aggregation.groupByExpressions().length > 0) {
-      if (!allGroupByAreIdentityPartitionFields(aggregation)) {
-        LOG.info(
-            "Skipping aggregate pushdown: group by columns must all be identity partition fields");
-        return false;
-      }
     }
 
     return true;
