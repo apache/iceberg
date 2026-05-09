@@ -46,6 +46,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.parquet.Parquet;
@@ -188,7 +189,9 @@ public class TestTableEncryption extends CatalogTestBase {
     firstReplace.newFastAppend().appendFile(file).commit();
     firstReplace.commitTransaction();
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = validationCatalog.loadTable(tableIdent);
     assertThat(currentDataFiles(afterSecondReplace)).hasSize(1);

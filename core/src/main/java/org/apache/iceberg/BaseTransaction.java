@@ -320,10 +320,13 @@ public class BaseTransaction implements Transaction {
                   }
                 }
 
-                // because this is a replace table, it will always completely replace the table
-                // metadata. even if it was just updated.
-                if (base != underlyingOps.current()) {
-                  this.base = underlyingOps.current(); // just refreshed
+                // Replace transactions must not silently overwrite concurrent commits. If the table
+                // metadata has changed since the transaction started, fail instead of rebasing and
+                // merging staged updates.
+                if (base != null && underlyingOps.current() != base) {
+                  throw new CommitFailedException(
+                      "Cannot commit replace transaction for %s: table was modified concurrently",
+                      tableName);
                 }
 
                 underlyingOps.commit(base, current);
@@ -341,9 +344,8 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } finally {
-      // replace table never needs to retry because the table state is completely replaced. because
-      // retries are not
-      // a concern, it is safe to delete all the deleted files from individual operations
+      // it is safe to delete all the deleted files from individual operations when the retry loop
+      // finishes
       deleteUncommittedFiles(deletedFiles);
     }
   }

@@ -38,6 +38,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -233,14 +234,15 @@ public class TestHiveCreateReplaceTable {
     table.updateProperties().set("another-prop", "another-value").commit();
 
     txn.updateProperties().set("prop", "value").commit();
-    txn.commitTransaction();
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
-    // the replace should still succeed
     table = catalog.loadTable(TABLE_IDENTIFIER);
     assertThat(table.properties())
-        .as("Table props should be updated")
-        .doesNotContainKey("another-prop")
-        .containsEntry("prop", "value");
+        .as("Concurrent table props should be preserved")
+        .containsEntry("another-prop", "another-value")
+        .doesNotContainKey("prop");
   }
 
   @Test
@@ -300,11 +302,11 @@ public class TestHiveCreateReplaceTable {
     // drop the table concurrently
     catalog.dropTable(TABLE_IDENTIFIER);
 
-    // expect the transaction to succeed anyway
-    txn.commitTransaction();
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
-    Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    assertThat(table.properties()).as("Table props should match").containsEntry("prop", "value");
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Dropped table should stay dropped").isFalse();
   }
 
   @Test
@@ -325,14 +327,19 @@ public class TestHiveCreateReplaceTable {
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA, SPEC);
     assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should be created").isTrue();
 
-    // expect the transaction to succeed anyway
-    txn.commitTransaction();
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: hive.hivedb.tbl");
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    assertThat(table.spec())
-        .as("Partition spec should match")
-        .isEqualTo(PartitionSpec.unpartitioned());
-    assertThat(table.properties()).as("Table props should match").containsEntry("prop", "value");
+    assertThat(table.spec().isPartitioned())
+        .as("Concurrent table should remain partitioned")
+        .isTrue();
+    assertThat(table.spec().fields()).as("Concurrent table spec should be preserved").hasSize(1);
+    assertThat(table.spec().fields().get(0).name())
+        .as("Concurrent table should remain partitioned by id")
+        .isEqualTo("id");
+    assertThat(table.properties()).as("Table props should not be replaced").doesNotContainKey("prop");
   }
 
   @Test

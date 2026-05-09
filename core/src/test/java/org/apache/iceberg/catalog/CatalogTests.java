@@ -2808,7 +2808,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
     assertThat(afterSecondReplace.schema().asStruct())
@@ -2819,7 +2821,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isTrue();
     assertThat(afterSecondReplace.sortOrder().isUnsorted()).as("Table should be unsorted").isTrue();
     assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    assertFiles(afterSecondReplace, FILE_B);
   }
 
   @Test
@@ -2851,14 +2853,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
     assertThat(afterSecondReplace.schema().asStruct())
-        .as("Table schema should match the original schema")
-        .isEqualTo(original.schema().asStruct());
+        .as("Table schema should match the concurrently committed replacement")
+        .isEqualTo(afterFirstReplace.schema().asStruct());
     assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    assertFiles(afterSecondReplace, FILE_B);
   }
 
   @Test
@@ -2890,14 +2894,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
     assertThat(afterSecondReplace.schema().asStruct())
-        .as("Table schema should match the new schema")
-        .isEqualTo(REPLACE_SCHEMA.asStruct());
+        .as("Table schema should match the concurrently committed replacement")
+        .isEqualTo(afterFirstReplace.schema().asStruct());
     assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    assertFiles(afterSecondReplace, FILE_B);
   }
 
   @Test
@@ -2932,12 +2938,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    // even though the new schema is identical, the assertion that the last assigned id has not
-    // changed will fail
+    // concurrent replace transactions must fail rather than overwriting changes from another
+    // transaction
     assertThatThrownBy(secondReplace::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageStartingWith(
-            "Commit failed: Requirement failed: last assigned field id changed");
+        .hasMessageContaining("replace transaction");
   }
 
   @Test
@@ -2970,14 +2975,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.spec().isUnpartitioned())
-        .as("Table should be unpartitioned")
-        .isTrue();
+    assertThat(afterSecondReplace.spec().fields())
+        .as("Table spec should match the concurrently committed replacement")
+        .isEqualTo(afterFirstReplace.spec().fields());
     assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    assertFiles(afterSecondReplace, FILE_B);
   }
 
   @Test
@@ -3010,14 +3017,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
     assertThat(afterSecondReplace.spec().fields())
-        .as("Table spec should match the new spec")
-        .isEqualTo(TABLE_SPEC.fields());
+        .as("Table spec should match the concurrently committed replacement")
+        .isEqualTo(afterFirstReplace.spec().fields());
     assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    assertFiles(afterSecondReplace, FILE_B);
   }
 
   @Test
@@ -3052,12 +3061,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    // even though the new spec is identical, the assertion that the last assigned id has not
-    // changed will fail
+    // concurrent replace transactions must fail rather than overwriting changes from another
+    // transaction
     assertThatThrownBy(secondReplace::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageStartingWith(
-            "Commit failed: Requirement failed: last assigned partition id changed");
+        .hasMessageContaining("replace transaction");
   }
 
   @Test
@@ -3090,12 +3098,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
-    assertThat(afterSecondReplace.sortOrder().isUnsorted()).as("Table should be unsorted").isTrue();
+    assertThat(afterSecondReplace.sortOrder())
+        .as("Table sort order should match the concurrently committed replacement")
+        .isEqualTo(afterFirstReplace.sortOrder());
     assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    assertFiles(afterSecondReplace, FILE_B);
   }
 
   @Test
@@ -3131,14 +3143,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    secondReplace.commitTransaction();
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
     assertThat(afterSecondReplace.sortOrder().fields())
-        .as("Table order should match the new order")
-        .isEqualTo(TABLE_WRITE_ORDER.fields());
+        .as("Table order should match the concurrently committed replacement")
+        .isEqualTo(afterFirstReplace.sortOrder().fields());
     assertUUIDsMatch(original, afterSecondReplace);
-    assertFiles(afterSecondReplace, FILE_C);
+    assertFiles(afterSecondReplace, FILE_B);
   }
 
   @ParameterizedTest
