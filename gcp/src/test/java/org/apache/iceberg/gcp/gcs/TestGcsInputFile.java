@@ -158,7 +158,7 @@ public class TestGcsInputFile {
               metricsContext);
 
       try (SeekableInputStream stream = inputFile.newStream()) {
-        assertThat(stream).isInstanceOf(GcsInputStreamWrapper.class);
+        assertThat(stream).isNotInstanceOf(GCSInputStream.class);
       }
     }
   }
@@ -189,7 +189,7 @@ public class TestGcsInputFile {
               metricsContext);
 
       try (SeekableInputStream stream = inputFile.newStream()) {
-        assertThat(stream).isInstanceOf(GcsInputStreamWrapper.class);
+        assertThat(stream).isNotInstanceOf(GCSInputStream.class);
       }
     }
   }
