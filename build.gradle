@@ -612,6 +612,7 @@ project(':iceberg-azure') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
+    testImplementation libs.awaitility
   }
 
   sourceSets {

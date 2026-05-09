@@ -25,10 +25,21 @@ import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.ListPathsOptions;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -36,8 +47,13 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.util.SerializableMap;
@@ -47,13 +63,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** FileIO implementation backed by Azure Data Lake Storage Gen2. */
-public class ADLSFileIO implements DelegateFileIO {
+public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   private static final Logger LOG = LoggerFactory.getLogger(ADLSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String ROOT_PREFIX = "abfs";
 
   private static final HttpClient HTTP = HttpClient.createDefault();
+  private static volatile ScheduledExecutorService executorService;
 
   private AzureProperties azureProperties;
   private MetricsContext metrics = MetricsContext.nullMetrics();
@@ -61,6 +79,10 @@ public class ADLSFileIO implements DelegateFileIO {
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
   private SerializableFunction<ADLSLocation, DataLakeFileSystemClient> clientSupplier;
   private transient volatile Map<String, DataLakeFileSystemClient> clientCache;
+  private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+  // use modifiable collection for Kryo serde
+  private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
+  private transient volatile ScheduledFuture<?> refreshFuture;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -134,6 +156,9 @@ public class ADLSFileIO implements DelegateFileIO {
       synchronized (this) {
         if (clientCache == null) {
           clientCache = Maps.newConcurrentMap();
+          if (refreshFuture == null || refreshFuture.isCancelled() || refreshFuture.isDone()) {
+            scheduleCredentialRefresh();
+          }
         }
       }
     }
@@ -259,11 +284,105 @@ public class ADLSFileIO implements DelegateFileIO {
   }
 
   @Override
-  public void close() {
-    if (vendedAdlsCredentialProvider != null) {
-      vendedAdlsCredentialProvider.close();
+  public void setCredentials(List<StorageCredential> credentials) {
+    Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    // stop any refresh that might be scheduled
+    if (refreshFuture != null) {
+      refreshFuture.cancel(true);
     }
 
-    DelegateFileIO.super.close();
+    // copy credentials into a modifiable collection for Kryo serde
+    this.storageCredentials = Lists.newArrayList(credentials);
+
+    // if the clients are already initialized, we need to allow them to be recreated
+    synchronized (this) {
+      if (clientCache != null) {
+        this.clientCache = null;
+      }
+    }
+  }
+
+  @Override
+  public List<StorageCredential> credentials() {
+    return ImmutableList.copyOf(storageCredentials);
+  }
+
+  private void scheduleCredentialRefresh() {
+    if (storageCredentials == null || storageCredentials.isEmpty()) {
+      return;
+    }
+
+    storageCredentials.stream()
+        .map(
+            cred ->
+                cred.config()
+                    .get(
+                        AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX
+                            + new ADLSLocation(cred.prefix()).storageAccount()))
+        .filter(Objects::nonNull)
+        .map(v -> Instant.ofEpochMilli(Long.parseLong(v)))
+        .min(Comparator.naturalOrder())
+        .ifPresent(
+            expiresAt -> {
+              Instant prefetchAt = expiresAt.minus(5, ChronoUnit.MINUTES);
+              long delay = Duration.between(Instant.now(), prefetchAt).toMillis();
+              this.refreshFuture =
+                  executorService()
+                      .schedule(this::refreshStorageCredentials, delay, TimeUnit.MILLISECONDS);
+            });
+  }
+
+  private void refreshStorageCredentials() {
+    if (isResourceClosed.get() || vendedAdlsCredentialProvider == null) {
+      return;
+    }
+
+    try {
+      List<StorageCredential> refreshed =
+          vendedAdlsCredentialProvider.fetchCredentials().credentials().stream()
+              .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
+              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .collect(Collectors.toList());
+
+      if (!refreshed.isEmpty() && !isResourceClosed.get()) {
+        this.storageCredentials = Lists.newArrayList(refreshed);
+        synchronized (this) {
+          this.clientCache = null;
+          scheduleCredentialRefresh();
+        }
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to refresh storage credentials", e);
+    }
+  }
+
+  private static ScheduledExecutorService executorService() {
+    if (executorService == null) {
+      synchronized (ADLSFileIO.class) {
+        if (executorService == null) {
+          executorService =
+              ThreadPools.newExitingScheduledPool(
+                  "iceberg-adlsfileio-tasks", 1, Duration.ofSeconds(10));
+        }
+      }
+    }
+
+    return executorService;
+  }
+
+  @Override
+  public void close() {
+    if (isResourceClosed.compareAndSet(false, true)) {
+      if (vendedAdlsCredentialProvider != null) {
+        vendedAdlsCredentialProvider.close();
+      }
+
+      if (refreshFuture != null) {
+        refreshFuture.cancel(true);
+        refreshFuture = null;
+      }
+
+      DelegateFileIO.super.close();
+    }
   }
 }
