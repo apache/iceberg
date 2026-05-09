@@ -72,7 +72,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','shred-variants'='true','variant-inference-buffer-size'='10')",
+        "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','variant-inference-buffer-size'='10')",
         TABLE_NAME, FileFormat.PARQUET.name());
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
   }

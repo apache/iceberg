@@ -130,7 +130,7 @@ public class SinkUtil {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
 
-        writeProperties.put(PARQUET_SHRED_VARIANTS, String.valueOf(conf.shredVariants()));
+        writeProperties.put(PARQUET_SHRED_VARIANTS, String.valueOf(conf.parquetShredVariants()));
         writeProperties.put(
             PARQUET_VARIANT_BUFFER_SIZE, String.valueOf(conf.variantInferenceBufferSize()));
 

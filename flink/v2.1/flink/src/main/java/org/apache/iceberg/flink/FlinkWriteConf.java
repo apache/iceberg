@@ -263,10 +263,10 @@ public class FlinkWriteConf {
         .parseOptional();
   }
 
-  public boolean shredVariants() {
+  public boolean parquetShredVariants() {
     return confParser
         .booleanConf()
-        .option(FlinkWriteOptions.SHRED_VARIANTS.key())
+        .option(FlinkWriteOptions.PARQUET_SHRED_VARIANTS.key())
         .tableProperty(TableProperties.PARQUET_SHRED_VARIANTS)
         .defaultValue(TableProperties.PARQUET_SHRED_VARIANTS_DEFAULT)
         .parse();
