@@ -77,5 +77,11 @@ public class NullabilityHolder {
 
   public void reset() {
     numNulls = 0;
+    // Also clear the isNull marker array so callers that reuse a
+    // NullabilityHolder across batches don't observe stale markers from
+    // a previous batch via isNullAt(). The other two arrays (`nulls`,
+    // `nonNulls`) are immutable arraycopy source buffers and don't need
+    // clearing. See #15808.
+    Arrays.fill(isNull, (byte) 0);
   }
 }
