@@ -306,52 +306,9 @@ public class ResidualEvaluator implements Serializable {
           T transformedValue = transform.eval(struct);
 
           if (pred.isLiteralPredicate()) {
-            BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
-            Literal<T> lit = literalPred.literal();
-
-            if (transformedValue == null) {
-              return alwaysFalse();
-            }
-
-            Comparator<T> cmp = lit.comparator();
-
-            switch (pred.op()) {
-              case EQ:
-                return (cmp.compare(transformedValue, lit.value()) == 0)
-                    ? alwaysTrue()
-                    : alwaysFalse();
-              case NOT_EQ:
-                return (cmp.compare(transformedValue, lit.value()) != 0)
-                    ? alwaysTrue()
-                    : alwaysFalse();
-              case LT:
-                return (cmp.compare(transformedValue, lit.value()) < 0)
-                    ? alwaysTrue()
-                    : alwaysFalse();
-              case LT_EQ:
-                return (cmp.compare(transformedValue, lit.value()) <= 0)
-                    ? alwaysTrue()
-                    : alwaysFalse();
-              case GT:
-                return (cmp.compare(transformedValue, lit.value()) > 0)
-                    ? alwaysTrue()
-                    : alwaysFalse();
-              case GT_EQ:
-                return (cmp.compare(transformedValue, lit.value()) >= 0)
-                    ? alwaysTrue()
-                    : alwaysFalse();
-            }
+            return evaluateLiteralPredicate(pred.asLiteralPredicate(), transformedValue);
           } else if (pred.isSetPredicate()) {
-            BoundSetPredicate<T> setPred = pred.asSetPredicate();
-            if (transformedValue == null) {
-              return alwaysFalse();
-            }
-            boolean contains = setPred.literalSet().contains(transformedValue);
-            if (pred.op() == Expression.Operation.IN) {
-              return contains ? alwaysTrue() : alwaysFalse();
-            } else if (pred.op() == Expression.Operation.NOT_IN) {
-              return contains ? alwaysFalse() : alwaysTrue();
-            }
+            return evaluateSetPredicate(pred.asSetPredicate(), transformedValue);
           }
         } catch (Exception e) {
           // If evaluation fails, conservatively return the original predicate
@@ -359,6 +316,51 @@ public class ResidualEvaluator implements Serializable {
         }
       }
       return pred;
+    }
+
+    private <T> Expression evaluateLiteralPredicate(
+        BoundLiteralPredicate<T> literalPred, T transformedValue) {
+      if (transformedValue == null) {
+        return alwaysFalse();
+      }
+
+      Literal<T> lit = literalPred.literal();
+      Comparator<T> cmp = lit.comparator();
+
+      switch (literalPred.op()) {
+        case EQ:
+          return (cmp.compare(transformedValue, lit.value()) == 0)
+              ? alwaysTrue()
+              : alwaysFalse();
+        case NOT_EQ:
+          return (cmp.compare(transformedValue, lit.value()) != 0)
+              ? alwaysTrue()
+              : alwaysFalse();
+        case LT:
+          return (cmp.compare(transformedValue, lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
+        case LT_EQ:
+          return (cmp.compare(transformedValue, lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
+        case GT:
+          return (cmp.compare(transformedValue, lit.value()) > 0) ? alwaysTrue() : alwaysFalse();
+        case GT_EQ:
+          return (cmp.compare(transformedValue, lit.value()) >= 0) ? alwaysTrue() : alwaysFalse();
+        default:
+          return alwaysFalse();
+      }
+    }
+
+    private <T> Expression evaluateSetPredicate(
+        BoundSetPredicate<T> setPred, T transformedValue) {
+      if (transformedValue == null) {
+        return alwaysFalse();
+      }
+      boolean contains = setPred.literalSet().contains(transformedValue);
+      if (setPred.op() == Expression.Operation.IN) {
+        return contains ? alwaysTrue() : alwaysFalse();
+      } else if (setPred.op() == Expression.Operation.NOT_IN) {
+        return contains ? alwaysFalse() : alwaysTrue();
+      }
+      return alwaysFalse();
     }
 
     @Override

@@ -218,8 +218,8 @@ class Cast<S, T> implements Transform<S, T> {
 
   /** Checks if an inverse cast from targetType back to sourceType is exact (no precision loss). */
   private boolean hasExactInverseCast(
-      BoundPredicate<S> predicate, Type sourceType, Type targetType) {
-    if (!isExactInverseCast(sourceType, targetType)) {
+      BoundPredicate<S> predicate, Type sourceType, Type target) {
+    if (!isExactInverseCast(sourceType, target)) {
       return false;
     }
 
@@ -227,10 +227,10 @@ class Cast<S, T> implements Transform<S, T> {
       return true;
     } else if (predicate.isLiteralPredicate()) {
       return hasExactInverseValue(
-          predicate.asLiteralPredicate().literal().value(), targetType, sourceType);
+          predicate.asLiteralPredicate().literal().value(), target, sourceType);
     } else if (predicate.isSetPredicate()) {
       for (S value : predicate.asSetPredicate().literalSet()) {
-        if (!hasExactInverseValue(value, targetType, sourceType)) {
+        if (!hasExactInverseValue(value, target, sourceType)) {
           return false;
         }
       }
@@ -250,30 +250,30 @@ class Cast<S, T> implements Transform<S, T> {
     return Objects.equals(value, roundTripValue);
   }
 
-  private boolean isExactInverseCast(Type sourceType, Type targetType) {
+  private boolean isExactInverseCast(Type sourceType, Type target) {
     Type.TypeID source = sourceType.typeId();
-    Type.TypeID target = targetType.typeId();
+    Type.TypeID targetId = target.typeId();
 
-    if (source == target) {
+    if (source == targetId) {
       return true;
     }
 
     switch (source) {
       case INTEGER:
-        return target == Type.TypeID.LONG || target == Type.TypeID.DATE;
+        return targetId == Type.TypeID.LONG || targetId == Type.TypeID.DATE;
       case LONG:
-        return target == Type.TypeID.DATE
-            || target == Type.TypeID.TIME
-            || target == Type.TypeID.TIMESTAMP
-            || target == Type.TypeID.TIMESTAMP_NANO;
+        return targetId == Type.TypeID.DATE
+            || targetId == Type.TypeID.TIME
+            || targetId == Type.TypeID.TIMESTAMP
+            || targetId == Type.TypeID.TIMESTAMP_NANO;
       case DATE:
         return false;
       case TIME:
-        return target == Type.TypeID.LONG;
+        return targetId == Type.TypeID.LONG;
       case TIMESTAMP:
-        return target == Type.TypeID.TIMESTAMP_NANO || target == Type.TypeID.LONG;
+        return targetId == Type.TypeID.TIMESTAMP_NANO || targetId == Type.TypeID.LONG;
       case TIMESTAMP_NANO:
-        return target == Type.TypeID.LONG;
+        return targetId == Type.TypeID.LONG;
       case STRING:
         return false;
       default:
@@ -330,7 +330,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
   }
 
-  private Object inverseCastFromString(CharSequence value, Type.TypeID target, Type targetType) {
+  private Object inverseCastFromString(CharSequence value, Type.TypeID target, Type toType) {
     String str = value.toString().trim();
     switch (target) {
       case BOOLEAN:
@@ -350,14 +350,14 @@ class Cast<S, T> implements Transform<S, T> {
       case TIME:
         return Long.valueOf(DateTimeUtil.isoTimeToMicros(str));
       case TIMESTAMP:
-        Types.TimestampType timestampType = (Types.TimestampType) targetType;
+        Types.TimestampType timestampType = (Types.TimestampType) toType;
         if (timestampType.shouldAdjustToUTC()) {
           return Long.valueOf(DateTimeUtil.isoTimestamptzToMicros(str));
         } else {
           return Long.valueOf(DateTimeUtil.isoTimestampToMicros(str));
         }
       case TIMESTAMP_NANO:
-        Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) targetType;
+        Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) toType;
         if (timestampNanoType.shouldAdjustToUTC()) {
           return Long.valueOf(DateTimeUtil.isoTimestamptzToNanos(str));
         } else {
@@ -760,7 +760,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private T castFromInteger(Integer value, Type.TypeID target, Type targetType) {
+    private T castFromInteger(Integer value, Type.TypeID target, Type toType) {
       switch (target) {
         case LONG:
           return (T) Long.valueOf(value.longValue());
@@ -771,7 +771,7 @@ class Cast<S, T> implements Transform<S, T> {
         case DATE:
           return (T) value;
         case DECIMAL:
-          Types.DecimalType decimalType = (Types.DecimalType) targetType;
+          Types.DecimalType decimalType = (Types.DecimalType) toType;
           return (T) BigDecimal.valueOf(value).setScale(decimalType.scale(), RoundingMode.HALF_UP);
         case STRING:
           return (T) String.valueOf(value);
@@ -781,7 +781,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private T castFromLong(Long value, Type.TypeID target, Type targetType) {
+    private T castFromLong(Long value, Type.TypeID target, Type toType) {
       switch (target) {
         case INTEGER:
           if (value > Integer.MAX_VALUE || value < Integer.MIN_VALUE) {
@@ -804,7 +804,7 @@ class Cast<S, T> implements Transform<S, T> {
           }
           return (T) Integer.valueOf(value.intValue());
         case DECIMAL:
-          Types.DecimalType decimalType = (Types.DecimalType) targetType;
+          Types.DecimalType decimalType = (Types.DecimalType) toType;
           return (T) BigDecimal.valueOf(value).setScale(decimalType.scale(), RoundingMode.HALF_UP);
         case STRING:
           return (T) String.valueOf(value);
@@ -814,12 +814,12 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private T castFromFloat(Float value, Type.TypeID target, Type targetType) {
+    private T castFromFloat(Float value, Type.TypeID target, Type toType) {
       switch (target) {
         case DOUBLE:
           return (T) Double.valueOf(value.doubleValue());
         case DECIMAL:
-          Types.DecimalType decimalType = (Types.DecimalType) targetType;
+          Types.DecimalType decimalType = (Types.DecimalType) toType;
           return (T) BigDecimal.valueOf(value).setScale(decimalType.scale(), RoundingMode.HALF_UP);
         case STRING:
           return (T) String.valueOf(value);
@@ -829,7 +829,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private T castFromDouble(Double value, Type.TypeID target, Type targetType) {
+    private T castFromDouble(Double value, Type.TypeID target, Type toType) {
       switch (target) {
         case FLOAT:
           if (value > Float.MAX_VALUE || value < -Float.MAX_VALUE) {
@@ -837,7 +837,7 @@ class Cast<S, T> implements Transform<S, T> {
           }
           return (T) Float.valueOf(value.floatValue());
         case DECIMAL:
-          Types.DecimalType decimalType = (Types.DecimalType) targetType;
+          Types.DecimalType decimalType = (Types.DecimalType) toType;
           return (T) BigDecimal.valueOf(value).setScale(decimalType.scale(), RoundingMode.HALF_UP);
         case STRING:
           return (T) String.valueOf(value);
@@ -847,7 +847,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private T castFromDecimal(BigDecimal value, Type.TypeID target, Type targetType) {
+    private T castFromDecimal(BigDecimal value, Type.TypeID target, Type toType) {
       switch (target) {
         case INTEGER:
           return (T) Integer.valueOf(value.intValue());
@@ -858,7 +858,7 @@ class Cast<S, T> implements Transform<S, T> {
         case DOUBLE:
           return (T) Double.valueOf(value.doubleValue());
         case DECIMAL:
-          Types.DecimalType decimalType = (Types.DecimalType) targetType;
+          Types.DecimalType decimalType = (Types.DecimalType) toType;
           return (T) value.setScale(decimalType.scale(), RoundingMode.HALF_UP);
         case STRING:
           return (T) value.toString();
@@ -896,7 +896,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings({"unchecked", "UnusedVariable"})
-    private T castFromTimestamp(Long value, Type.TypeID target, Type targetType) {
+    private T castFromTimestamp(Long value, Type.TypeID target, Type toType) {
       switch (target) {
         case DATE:
           return (T) Integer.valueOf(DateTimeUtil.microsToDays(value));
@@ -917,7 +917,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings({"unchecked", "UnusedVariable"})
-    private T castFromTimestampNano(Long value, Type.TypeID target, Type targetType) {
+    private T castFromTimestampNano(Long value, Type.TypeID target, Type toType) {
       switch (target) {
         case DATE:
           return (T) Integer.valueOf(DateTimeUtil.nanosToDays(value));
@@ -938,7 +938,7 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private T castFromString(CharSequence value, Type.TypeID target, Type targetType) {
+    private T castFromString(CharSequence value, Type.TypeID target, Type toType) {
       String str = value.toString().trim();
       switch (target) {
         case BOOLEAN:
@@ -958,14 +958,14 @@ class Cast<S, T> implements Transform<S, T> {
         case TIME:
           return (T) Long.valueOf(DateTimeUtil.isoTimeToMicros(str));
         case TIMESTAMP:
-          Types.TimestampType timestampType = (Types.TimestampType) targetType;
+          Types.TimestampType timestampType = (Types.TimestampType) toType;
           if (timestampType.shouldAdjustToUTC()) {
             return (T) Long.valueOf(DateTimeUtil.isoTimestamptzToMicros(str));
           } else {
             return (T) Long.valueOf(DateTimeUtil.isoTimestampToMicros(str));
           }
         case TIMESTAMP_NANO:
-          Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) targetType;
+          Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) toType;
           if (timestampNanoType.shouldAdjustToUTC()) {
             return (T) Long.valueOf(DateTimeUtil.isoTimestamptzToNanos(str));
           } else {
@@ -989,12 +989,12 @@ class Cast<S, T> implements Transform<S, T> {
     }
 
     @SuppressWarnings("unchecked")
-    private T castFromBinary(ByteBuffer value, Type.TypeID target, Type targetType) {
+    private T castFromBinary(ByteBuffer value, Type.TypeID target, Type toType) {
       switch (target) {
         case BINARY:
           return (T) value;
         case FIXED:
-          Types.FixedType fixedType = (Types.FixedType) targetType;
+          Types.FixedType fixedType = (Types.FixedType) toType;
           if (value.remaining() != fixedType.length()) {
             throw new IllegalArgumentException(
                 "Binary length "
