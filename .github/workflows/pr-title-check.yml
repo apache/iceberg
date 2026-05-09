@@ -20,21 +20,24 @@ on:
   pull_request:
     types: [opened, edited, reopened]
 
-permissions:
-  contents: read
-  pull-requests: read
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
 
 jobs:
   check-pr-title:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Check PR Title
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          if ! echo "$PR_TITLE" | grep -Eq '^[A-Za-z][A-Za-z0-9 ._+/&-]*: .+'; then
-            echo "Invalid PR title: '$PR_TITLE'"
-            echo "PR titles must follow 'Module: Description' (example: 'Core: Fix manifest reuse in scan planning')."
+          PATTERN='^[A-Za-z][A-Za-z0-9._+/&-]*: .+'
+          if ! echo "$PR_TITLE" | grep -Eq "$PATTERN"; then
+            echo "::error::PR title must follow 'Module: Description' format. Got: '$PR_TITLE'"
+            echo "Examples: 'Core: Fix ...', 'Spark: Add ...', 'API: Remove ...', 'Docs: Update ...'"
             exit 1
           fi
 
