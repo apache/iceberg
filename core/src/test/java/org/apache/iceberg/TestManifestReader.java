@@ -45,7 +45,13 @@ public class TestManifestReader extends TestBase {
               "fileSequenceNumber",
               "fromProjectionPos",
               "manifestLocation",
-              "partitionData.partitionType.fieldsById")
+              "partitionData.partitionType.fieldsById",
+              // Transient cache populated lazily on the first splitOffsets()
+              // call (see BaseFile#splitOffsetsList, #15622). Whether it's
+              // populated depends on whether toString() / splitOffsets() ran
+              // for that instance before the comparison, which is irrelevant
+              // to logical equality.
+              "splitOffsetsList")
           .build();
 
   @TestTemplate
