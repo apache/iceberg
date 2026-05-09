@@ -417,14 +417,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         }
       };
     } else {
-      // data file's first_row_id is null when the manifest's first_row_id is null
-      return entry -> {
-        if (entry.file() instanceof BaseFile) {
-          ((BaseFile<?>) entry.file()).setFirstRowId(null);
-        }
-
-        return entry;
-      };
+      // Preserve the source entry’s first row ID even if the manifest hasn’t assigned one since it
+      // may be EXISTING
+      return Function.identity();
     }
   }
 }
