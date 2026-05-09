@@ -30,3 +30,4 @@ sitemap.xml
 **/*_index.md
 **/.venv/**
 **/runtime-deps.txt
+.github/PULL_REQUEST_TEMPLATE.md
