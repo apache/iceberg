@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -112,7 +113,10 @@ class TestBaseFileSplitOffsets {
             .build();
 
     List<Long> offsets = file.splitOffsets();
-    org.assertj.core.api.Assertions.assertThatThrownBy(() -> offsets.set(0, 99L))
-        .isInstanceOf(UnsupportedOperationException.class);
+    // Collections.unmodifiableList throws UOE without a message; .hasMessage(null)
+    // is the established idiom in this codebase (see TestManifestReaderStats).
+    assertThatThrownBy(() -> offsets.set(0, 99L))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
   }
 }
