@@ -217,8 +217,7 @@ class Cast<S, T> implements Transform<S, T> {
   }
 
   /** Checks if an inverse cast from targetType back to sourceType is exact (no precision loss). */
-  private boolean hasExactInverseCast(
-      BoundPredicate<S> predicate, Type sourceType, Type target) {
+  private boolean hasExactInverseCast(BoundPredicate<S> predicate, Type sourceType, Type target) {
     if (!isExactInverseCast(sourceType, target)) {
       return false;
     }

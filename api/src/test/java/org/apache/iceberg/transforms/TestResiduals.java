@@ -393,8 +393,7 @@ public class TestResiduals {
     int april26 = DateTimeUtil.isoDateToDays("2026-04-26");
 
     ResidualEvaluator resEval =
-        ResidualEvaluator.of(
-            spec, lessThan(cast("date_key", Types.DateType.get()), april26), true);
+        ResidualEvaluator.of(spec, lessThan(cast("date_key", Types.DateType.get()), april26), true);
 
     // Test with a partition value that is before april26
     Expression residual = resEval.residualFor(Row.of("2026-04-25"));
@@ -417,8 +416,7 @@ public class TestResiduals {
 
   @Test
   public void testCastLongToTimestampNanoResidual() {
-    Schema schema =
-        new Schema(Types.NestedField.optional(50, "ts_micros", Types.LongType.get()));
+    Schema schema = new Schema(Types.NestedField.optional(50, "ts_micros", Types.LongType.get()));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts_micros").build();
 
@@ -489,8 +487,7 @@ public class TestResiduals {
 
   @Test
   public void testCastIntegerToLongResidual() {
-    Schema schema =
-        new Schema(Types.NestedField.optional(50, "int_val", Types.IntegerType.get()));
+    Schema schema = new Schema(Types.NestedField.optional(50, "int_val", Types.IntegerType.get()));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("int_val").build();
 

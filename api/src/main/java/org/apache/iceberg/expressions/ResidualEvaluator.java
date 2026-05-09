@@ -329,13 +329,9 @@ public class ResidualEvaluator implements Serializable {
 
       switch (literalPred.op()) {
         case EQ:
-          return (cmp.compare(transformedValue, lit.value()) == 0)
-              ? alwaysTrue()
-              : alwaysFalse();
+          return (cmp.compare(transformedValue, lit.value()) == 0) ? alwaysTrue() : alwaysFalse();
         case NOT_EQ:
-          return (cmp.compare(transformedValue, lit.value()) != 0)
-              ? alwaysTrue()
-              : alwaysFalse();
+          return (cmp.compare(transformedValue, lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
         case LT:
           return (cmp.compare(transformedValue, lit.value()) < 0) ? alwaysTrue() : alwaysFalse();
         case LT_EQ:
@@ -349,8 +345,7 @@ public class ResidualEvaluator implements Serializable {
       }
     }
 
-    private <T> Expression evaluateSetPredicate(
-        BoundSetPredicate<T> setPred, T transformedValue) {
+    private <T> Expression evaluateSetPredicate(BoundSetPredicate<T> setPred, T transformedValue) {
       if (transformedValue == null) {
         return alwaysFalse();
       }

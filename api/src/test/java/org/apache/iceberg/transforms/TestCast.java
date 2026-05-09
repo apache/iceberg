@@ -399,8 +399,7 @@ public class TestCast {
   @Test
   public void testTimestampToDate() {
     Transform<Long, Integer> cast = Transforms.cast(Types.DateType.get());
-    SerializableFunction<Long, Integer> func =
-        cast.bind(Types.TimestampType.withoutZone());
+    SerializableFunction<Long, Integer> func = cast.bind(Types.TimestampType.withoutZone());
 
     // Midnight timestamp should convert to date
     long midnightMicros = 17532L * 86400L * 1_000_000L; // 2018-01-01T00:00:00
@@ -415,8 +414,7 @@ public class TestCast {
   @Test
   public void testTimestampToTimestampNano() {
     Transform<Long, Long> cast = Transforms.cast(Types.TimestampNanoType.withoutZone());
-    SerializableFunction<Long, Long> func =
-        cast.bind(Types.TimestampType.withoutZone());
+    SerializableFunction<Long, Long> func = cast.bind(Types.TimestampType.withoutZone());
 
     long timestampMicros = 1514764800000000L;
     long expectedNanos = timestampMicros * 1000L;
@@ -426,8 +424,7 @@ public class TestCast {
   @Test
   public void testTimestampToLong() {
     Transform<Long, Long> cast = Transforms.cast(Types.LongType.get());
-    SerializableFunction<Long, Long> func =
-        cast.bind(Types.TimestampType.withoutZone());
+    SerializableFunction<Long, Long> func = cast.bind(Types.TimestampType.withoutZone());
 
     long timestampMicros = 1514764800000000L;
     assertThat(func.apply(timestampMicros)).isEqualTo(timestampMicros);
@@ -436,8 +433,7 @@ public class TestCast {
   @Test
   public void testTimestampToString() {
     Transform<Long, String> cast = Transforms.cast(Types.StringType.get());
-    SerializableFunction<Long, String> func =
-        cast.bind(Types.TimestampType.withoutZone());
+    SerializableFunction<Long, String> func = cast.bind(Types.TimestampType.withoutZone());
 
     long timestampMicros = DateTimeUtil.isoTimestampToMicros("2018-01-01T10:12:55.038194");
     assertThat(func.apply(timestampMicros)).isEqualTo("2018-01-01T10:12:55.038194");
@@ -446,8 +442,7 @@ public class TestCast {
   @Test
   public void testTimestampWithZoneToString() {
     Transform<Long, String> cast = Transforms.cast(Types.StringType.get());
-    SerializableFunction<Long, String> func =
-        cast.bind(Types.TimestampType.withZone());
+    SerializableFunction<Long, String> func = cast.bind(Types.TimestampType.withZone());
 
     long timestampMicros = DateTimeUtil.isoTimestamptzToMicros("2018-01-01T10:12:55.038194+00:00");
     assertThat(func.apply(timestampMicros)).isEqualTo("2018-01-01T10:12:55.038194+00:00");
@@ -458,8 +453,7 @@ public class TestCast {
   @Test
   public void testTimestampNanoToDate() {
     Transform<Long, Integer> cast = Transforms.cast(Types.DateType.get());
-    SerializableFunction<Long, Integer> func =
-        cast.bind(Types.TimestampNanoType.withoutZone());
+    SerializableFunction<Long, Integer> func = cast.bind(Types.TimestampNanoType.withoutZone());
 
     long midnightNanos = 17532L * 86400L * 1_000_000_000L;
     assertThat(func.apply(midnightNanos)).isEqualTo(17532);
@@ -468,8 +462,7 @@ public class TestCast {
   @Test
   public void testTimestampNanoToTimestamp() {
     Transform<Long, Long> cast = Transforms.cast(Types.TimestampType.withoutZone());
-    SerializableFunction<Long, Long> func =
-        cast.bind(Types.TimestampNanoType.withoutZone());
+    SerializableFunction<Long, Long> func = cast.bind(Types.TimestampNanoType.withoutZone());
 
     long timestampNanos = 1514764800000000000L;
     long expectedMicros = timestampNanos / 1000L;
@@ -479,8 +472,7 @@ public class TestCast {
   @Test
   public void testTimestampNanoToLong() {
     Transform<Long, Long> cast = Transforms.cast(Types.LongType.get());
-    SerializableFunction<Long, Long> func =
-        cast.bind(Types.TimestampNanoType.withoutZone());
+    SerializableFunction<Long, Long> func = cast.bind(Types.TimestampNanoType.withoutZone());
 
     long timestampNanos = 1514764800000000000L;
     assertThat(func.apply(timestampNanos)).isEqualTo(timestampNanos);
@@ -489,8 +481,7 @@ public class TestCast {
   @Test
   public void testTimestampNanoToString() {
     Transform<Long, String> cast = Transforms.cast(Types.StringType.get());
-    SerializableFunction<Long, String> func =
-        cast.bind(Types.TimestampNanoType.withoutZone());
+    SerializableFunction<Long, String> func = cast.bind(Types.TimestampNanoType.withoutZone());
 
     long timestampNanos = DateTimeUtil.isoTimestampToNanos("2018-01-01T10:12:55.038194123");
     assertThat(func.apply(timestampNanos)).isEqualTo("2018-01-01T10:12:55.038194123");
