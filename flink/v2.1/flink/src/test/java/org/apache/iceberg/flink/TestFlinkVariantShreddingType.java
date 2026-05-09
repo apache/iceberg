@@ -48,6 +48,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -75,6 +76,16 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
         "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','variant-inference-buffer-size'='10')",
         TABLE_NAME, FileFormat.PARQUET.name());
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
+  }
+
+  @Override
+  @AfterEach
+  public void clean() {
+    super.clean();
+    getTableEnv()
+        .getConfig()
+        .getConfiguration()
+        .setString("table.exec.resource.default-parallelism", "4");
   }
 
   @TestTemplate
@@ -580,10 +591,6 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     assertThat(rows.get(6).getField(1)).isEqualTo("Grace");
     assertThat(rows.get(6).getField(2)).isEqualTo(91);
 
-    getTableEnv()
-        .getConfig()
-        .getConfiguration()
-        .setString("table.exec.resource.default-parallelism", "4");
     sql("DROP TEMPORARY VIEW IF EXISTS tmp_source");
   }
 
