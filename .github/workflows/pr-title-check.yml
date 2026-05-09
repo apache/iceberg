@@ -32,7 +32,7 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          if ! echo $PR_TITLE | grep -Eq '^[A-Za-z][A-Za-z0-9 ._+/&-]*: .+'; then
+          if ! echo "$PR_TITLE" | grep -Eq '^[A-Za-z][A-Za-z0-9 ._+/&-]*: .+'; then
             echo "Invalid PR title: '$PR_TITLE'"
             echo "PR titles must follow 'Module: Description' (example: 'Core: Fix manifest reuse in scan planning')."
             exit 1
