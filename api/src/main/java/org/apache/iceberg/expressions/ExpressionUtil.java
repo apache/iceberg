@@ -36,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -268,6 +269,50 @@ public class ExpressionUtil {
     }
 
     throw new UnsupportedOperationException("Cannot unbind unsupported term: " + term);
+  }
+
+  public static Set<String> referencedColumns(Expression expr, boolean caseSensitive) {
+    return ExpressionVisitors.visit(
+        expr,
+        new ExpressionVisitors.ExpressionVisitor<Set<String>>() {
+          @Override
+          public Set<String> alwaysTrue() {
+            return Sets.newHashSet();
+          }
+
+          @Override
+          public Set<String> alwaysFalse() {
+            return Sets.newHashSet();
+          }
+
+          @Override
+          public Set<String> not(Set<String> result) {
+            return result;
+          }
+
+          @Override
+          public Set<String> and(Set<String> left, Set<String> right) {
+            return Sets.union(left, right);
+          }
+
+          @Override
+          public Set<String> or(Set<String> left, Set<String> right) {
+            return Sets.union(left, right);
+          }
+
+          @Override
+          public <T> Set<String> predicate(
+              org.apache.iceberg.expressions.UnboundPredicate<T> pred) {
+            return Sets.newHashSet(
+                caseSensitive ? pred.ref().name() : pred.ref().name().toLowerCase(Locale.ROOT));
+          }
+
+          @Override
+          public <T> Set<String> predicate(org.apache.iceberg.expressions.BoundPredicate<T> pred) {
+            return Sets.newHashSet(
+                caseSensitive ? pred.ref().name() : pred.ref().name().toLowerCase(Locale.ROOT));
+          }
+        });
   }
 
   private static class RetainPredicatesByFieldIdVisitor

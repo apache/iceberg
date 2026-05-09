@@ -21,10 +21,12 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -33,12 +35,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MicroBatches {
+  private static final Logger LOGGER = LoggerFactory.getLogger(MicroBatches.class);
+
   private MicroBatches() {}
 
   public static List<Pair<ManifestFile, Integer>> skippedManifestIndexesFromSnapshot(
@@ -74,20 +77,31 @@ public class MicroBatches {
       ManifestFile manifestFile,
       boolean scanAllFiles,
       List<Expression> pushedFilters) {
+    // find the correct spec from manifest
+    PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
+    Set<String> partitionNames =
+        spec.fields().stream()
+            .map(field -> caseSensitive ? field.name() : field.name().toLowerCase(Locale.ROOT))
+            .collect(java.util.stream.Collectors.toSet());
 
-    // 1. Get the field IDs used in the partition spec
     Expression partitionExpr = Expressions.alwaysTrue();
     Expression dataExpr = Expressions.alwaysTrue();
 
     for (Expression filter : pushedFilters) {
-      if (isPartitionOnly(
-          filter, specsById.values().iterator().next().partitionType(), caseSensitive)) {
+      // Extract all column names referenced in the filter
+      Set<String> referencedColumns = ExpressionUtil.referencedColumns(filter, caseSensitive);
+
+      // If all columns in the filter exist in the partition spec
+      if (!referencedColumns.isEmpty() && partitionNames.containsAll(referencedColumns)) {
         partitionExpr = Expressions.and(partitionExpr, filter);
       } else {
         dataExpr = Expressions.and(dataExpr, filter);
       }
     }
-
+    LOGGER.debug(
+        "pruning manifest group with partition filters={}, data filters={}",
+        partitionExpr,
+        dataExpr);
     ManifestGroup manifestGroup =
         new ManifestGroup(io, ImmutableList.of(manifestFile))
             .specsById(specsById)
@@ -106,20 +120,6 @@ public class MicroBatches {
     }
 
     return manifestGroup.planFiles();
-  }
-
-  // 2. The Helper Method using Iceberg's core Visitor
-  private static boolean isPartitionOnly(
-      Expression expr, Types.StructType partitionType, boolean caseSensitive) {
-    try {
-      // If this doesn't throw an error, it means the filter
-      // only uses columns present in the partition schema.
-      Binder.bind(partitionType, expr, caseSensitive);
-      return true;
-    } catch (org.apache.iceberg.exceptions.ValidationException e) {
-      // Filter references columns NOT in the partition spec
-      return false;
-    }
   }
 
   /**

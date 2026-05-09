@@ -58,7 +58,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
-  private static final Logger LOGGER = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
@@ -112,7 +111,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         new InitialOffsetStore(
             table, checkpointLocation, fromTimestamp, sparkContext.hadoopConfiguration());
     this.initialOffset = initialOffsetStore.initialOffset();
-    LOGGER.error("[jalpan] creating micro batch with filter {} ", filters);
   }
 
   @Override
@@ -134,7 +132,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
   @Override
   public InputPartition[] planInputPartitions(Offset start, Offset end) {
-    LOGGER.error("[jalpan] planning input partitions micro batch with filter {} ", filters);
     Preconditions.checkArgument(
         end instanceof StreamingOffset, "Invalid end offset: %s is not a StreamingOffset", end);
     Preconditions.checkArgument(
