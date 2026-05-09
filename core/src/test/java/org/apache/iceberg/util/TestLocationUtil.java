@@ -112,8 +112,8 @@ public class TestLocationUtil {
   public void testResolveAbsoluteLocationsUnchanged() {
     String tableLocation = "s3://bucket/table";
 
-    assertThat(LocationUtil.resolveLocation(tableLocation, "s3://other/bucket/file.parquet"))
-        .isEqualTo("s3://other/bucket/file.parquet");
+    assertThat(LocationUtil.resolveLocation(tableLocation, "s3://other-bucket/path/file.parquet"))
+        .isEqualTo("s3://other-bucket/path/file.parquet");
 
     assertThat(LocationUtil.resolveLocation(tableLocation, "hdfs://namenode/path/file.parquet"))
         .isEqualTo("hdfs://namenode/path/file.parquet");
@@ -138,8 +138,16 @@ public class TestLocationUtil {
   public void testRelativizeLocationNotUnderTableLocation() {
     String tableLocation = "s3://bucket/table";
 
-    assertThat(LocationUtil.relativizeLocation(tableLocation, "s3://other/bucket/file.parquet"))
-        .isEqualTo("s3://other/bucket/file.parquet");
+    // different bucket
+    assertThat(
+            LocationUtil.relativizeLocation(tableLocation, "s3://other-bucket/path/file.parquet"))
+        .isEqualTo("s3://other-bucket/path/file.parquet");
+
+    // same bucket, different path
+    assertThat(
+            LocationUtil.relativizeLocation(
+                tableLocation, "s3://bucket/other-table/data/file.parquet"))
+        .isEqualTo("s3://bucket/other-table/data/file.parquet");
   }
 
   @Test
