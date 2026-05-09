@@ -189,7 +189,9 @@ public class TestTableEncryption extends CatalogTestBase {
     firstReplace.newFastAppend().appendFile(file).commit();
     firstReplace.commitTransaction();
 
-    assertThatThrownBy(secondReplace::commitTransaction).isInstanceOf(CommitFailedException.class);
+    assertThatThrownBy(secondReplace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
 
     Table afterSecondReplace = validationCatalog.loadTable(tableIdent);
     assertThat(currentDataFiles(afterSecondReplace)).hasSize(1);
