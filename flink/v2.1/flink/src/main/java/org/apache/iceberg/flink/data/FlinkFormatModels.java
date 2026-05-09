@@ -36,7 +36,7 @@ public class FlinkFormatModels {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 FlinkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
             new FlinkVariantShreddingAnalyzer(),
-            (row, rowType) -> new RowDataSerializer(rowType).copy(row)));
+            rowType -> new RowDataSerializer(rowType)::copy));
 
     FormatModelRegistry.register(
         AvroFormatModel.create(

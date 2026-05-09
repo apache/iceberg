@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -51,7 +51,7 @@ public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
   private final boolean isBatchReader;
   private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
-  private final BiFunction<D, S, D> copyFunc;
+  private final Function<S, UnaryOperator<D>> copyFuncFactory;
 
   public static <D> ParquetFormatModel<PositionDelete<D>, Void, Object> forPositionDeletes() {
     return new ParquetFormatModel<>(
@@ -73,9 +73,9 @@ public class ParquetFormatModel<D, S, R>
       WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
       ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
-      BiFunction<D, S, D> copyFunc) {
+      Function<S, UnaryOperator<D>> copyFuncFactory) {
     return new ParquetFormatModel<>(
-        type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFunc);
+        type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFuncFactory);
   }
 
   public static <D, S> ParquetFormatModel<D, S, VectorizedReader<?>> create(
@@ -92,11 +92,11 @@ public class ParquetFormatModel<D, S, R>
       ReaderFunction<R, S, MessageType> readerFunction,
       boolean isBatchReader,
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
-      BiFunction<D, S, D> copyFunc) {
+      Function<S, UnaryOperator<D>> copyFuncFactory) {
     super(type, schemaType, writerFunction, readerFunction);
     this.isBatchReader = isBatchReader;
     this.variantAnalyzer = variantAnalyzer;
-    this.copyFunc = copyFunc;
+    this.copyFuncFactory = copyFuncFactory;
   }
 
   @Override
@@ -106,7 +106,8 @@ public class ParquetFormatModel<D, S, R>
 
   @Override
   public ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
-    return new WriteBuilderWrapper<>(outputFile, writerFunction(), variantAnalyzer, copyFunc);
+    return new WriteBuilderWrapper<>(
+        outputFile, writerFunction(), variantAnalyzer, copyFuncFactory);
   }
 
   @Override
@@ -118,7 +119,7 @@ public class ParquetFormatModel<D, S, R>
     private final Parquet.WriteBuilder internal;
     private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
     private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
-    private final BiFunction<D, S, D> copyFunc;
+    private final Function<S, UnaryOperator<D>> copyFuncFactory;
     private Schema schema;
     private S engineSchema;
     private FileContent content;
@@ -129,11 +130,11 @@ public class ParquetFormatModel<D, S, R>
         EncryptedOutputFile outputFile,
         WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
         VariantShreddingAnalyzer<D, S> variantAnalyzer,
-        BiFunction<D, S, D> copyFunc) {
+        Function<S, UnaryOperator<D>> copyFuncFactory) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
       this.variantAnalyzer = variantAnalyzer;
-      this.copyFunc = copyFunc;
+      this.copyFuncFactory = copyFuncFactory;
     }
 
     @Override
@@ -267,6 +268,9 @@ public class ParquetFormatModel<D, S, R>
      * top-level fields.
      */
     private FileAppender<D> buildShreddedAppender() {
+      UnaryOperator<D> copyFunc = copyFuncFactory.apply(engineSchema);
+      Preconditions.checkState(copyFunc != null, "copyFunc must not return null");
+
       return new BufferedFileAppender<>(
           bufferSize,
           bufferedRows -> {
@@ -283,7 +287,7 @@ public class ParquetFormatModel<D, S, R>
               throw new UncheckedIOException("Failed to create shredded variant writer", e);
             }
           },
-          datum -> copyFunc.apply(datum, engineSchema));
+          copyFunc);
     }
 
     private static boolean hasVariantColumns(Schema schema) {
