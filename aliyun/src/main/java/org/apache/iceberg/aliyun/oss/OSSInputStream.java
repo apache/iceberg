@@ -82,12 +82,23 @@ class OSSInputStream extends SeekableInputStream {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
+    int byteRead = stream.read();
+    if (byteRead == -1) {
+      // At EOF, the underlying stream returns -1. We must propagate that
+      // to the caller without advancing pos / next or counting a byte that
+      // wasn't actually read. Same pattern as the fix for GCS/S3/ADLS in
+      // #16055 — a sequential reader that loops until EOF would otherwise
+      // spin and the byte counter would drift past the file size. See
+      // #16062.
+      return -1;
+    }
+
     pos += 1;
     next += 1;
     readBytes.increment();
     readOperations.increment();
 
-    return stream.read();
+    return byteRead;
   }
 
   @Override
@@ -96,6 +107,13 @@ class OSSInputStream extends SeekableInputStream {
     positionStream();
 
     int bytesRead = stream.read(b, off, len);
+    if (bytesRead == -1) {
+      // Mirror the single-byte read above: don't advance pos / next or
+      // increment the metrics counters when EOF is reached. Without this
+      // guard, pos/next/readBytes would shift by -1 on every EOF call.
+      return -1;
+    }
+
     pos += bytesRead;
     next += bytesRead;
     readBytes.increment(bytesRead);

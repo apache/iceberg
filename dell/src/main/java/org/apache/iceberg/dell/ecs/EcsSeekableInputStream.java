@@ -79,16 +79,33 @@ class EcsSeekableInputStream extends SeekableInputStream {
   @Override
   public int read() throws IOException {
     checkAndUseNewPos();
+    int byteRead = internalStream.read();
+    if (byteRead == -1) {
+      // At EOF, the underlying stream returns -1. We must propagate that
+      // to the caller without advancing pos or counting a byte that was
+      // never read. Same pattern as the fix for GCS/S3/ADLS in #16055 —
+      // a sequential reader that loops until EOF would otherwise spin
+      // and the byte counter would drift past the file size. See #16062.
+      return -1;
+    }
+
     pos += 1;
     readBytes.increment();
     readOperations.increment();
-    return internalStream.read();
+    return byteRead;
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     checkAndUseNewPos();
     int delta = internalStream.read(b, off, len);
+    if (delta == -1) {
+      // Mirror the single-byte read above: don't advance pos or
+      // increment metrics when EOF is reached. Without this guard,
+      // pos/readBytes would shift by -1 on every EOF call.
+      return -1;
+    }
+
     pos += delta;
     readBytes.increment(delta);
     readOperations.increment();

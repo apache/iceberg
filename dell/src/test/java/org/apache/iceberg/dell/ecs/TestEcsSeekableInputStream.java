@@ -90,4 +90,61 @@ public class TestEcsSeekableInputStream {
           .isEqualTo("012");
     }
   }
+
+  @Test
+  public void testReadSingleByteAtEof() throws IOException {
+    // Regression test for #16062 — single-byte read() at EOF must return -1
+    // and must not advance pos. Without the fix, EcsSeekableInputStream
+    // forwarded the underlying -1 to the caller while still incrementing
+    // pos (and the readBytes / readOperations metrics) by 1.
+    String objectName = rule.randomObjectName();
+    byte[] data = "0123".getBytes(StandardCharsets.UTF_8);
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, data));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      // Drain the stream byte-by-byte so the next read sees EOF.
+      for (int i = 0; i < data.length; i++) {
+        assertThat(input.read()).isEqualTo(data[i] & 0xFF);
+      }
+      assertThat(input.getPos()).isEqualTo(data.length);
+
+      // First EOF read returns -1 and pos stays at the file size.
+      assertThat(input.read()).as("read() at EOF must return -1").isEqualTo(-1);
+      assertThat(input.getPos())
+          .as("pos must not advance past EOF on a -1 read")
+          .isEqualTo(data.length);
+
+      // Repeated EOF reads stay idempotent (no drift).
+      assertThat(input.read()).isEqualTo(-1);
+      assertThat(input.getPos()).isEqualTo(data.length);
+    }
+  }
+
+  @Test
+  public void testReadBufferAtEof() throws IOException {
+    // Companion to testReadSingleByteAtEof: read(byte[], off, len) at EOF
+    // must return -1 without advancing pos. Without the fix,
+    // EcsSeekableInputStream still added -1 to pos and to the metric
+    // counters on every EOF call.
+    String objectName = rule.randomObjectName();
+    byte[] data = "0123".getBytes(StandardCharsets.UTF_8);
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, data));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      byte[] buffer = new byte[data.length];
+      assertThat(input.read(buffer, 0, buffer.length)).isEqualTo(data.length);
+      assertThat(input.getPos()).isEqualTo(data.length);
+
+      assertThat(input.read(buffer, 0, buffer.length))
+          .as("read(byte[], off, len) at EOF must return -1")
+          .isEqualTo(-1);
+      assertThat(input.getPos())
+          .as("pos must not advance past EOF on a -1 read")
+          .isEqualTo(data.length);
+    }
+  }
 }

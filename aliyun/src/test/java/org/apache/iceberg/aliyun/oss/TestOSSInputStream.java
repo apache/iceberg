@@ -119,6 +119,59 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
     }
   }
 
+  @Test
+  public void testReadSingleByteAtEof() throws Exception {
+    // Regression test for #16062 — OSSInputStream#read() at EOF must
+    // return -1 and must not advance pos / next or count a byte that was
+    // never read. Without the fix, OSSInputStream forwarded the -1 to
+    // the caller while still incrementing pos and the readBytes /
+    // readOperations metrics.
+    OSSURI uri = new OSSURI(location("eof-single.dat"));
+    byte[] data = randomData(8);
+    writeOSSData(uri, data);
+
+    try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri)) {
+      // Drain to EOF byte-by-byte.
+      for (int i = 0; i < data.length; i++) {
+        assertThat(in.read()).isEqualTo(data[i] & 0xFF);
+      }
+      assertThat(in.getPos()).isEqualTo(data.length);
+
+      assertThat(in.read()).as("read() at EOF must return -1").isEqualTo(-1);
+      assertThat(in.getPos())
+          .as("pos must not advance past EOF on a -1 read")
+          .isEqualTo(data.length);
+
+      // Idempotent: a second EOF read also returns -1, pos unchanged.
+      assertThat(in.read()).isEqualTo(-1);
+      assertThat(in.getPos()).isEqualTo(data.length);
+    }
+  }
+
+  @Test
+  public void testReadBufferAtEof() throws Exception {
+    // Companion to testReadSingleByteAtEof: read(byte[], off, len) at EOF
+    // must return -1 without polluting pos. Without the fix,
+    // OSSInputStream added -1 to pos and to the metric counters on every
+    // EOF call.
+    OSSURI uri = new OSSURI(location("eof-buffer.dat"));
+    int dataSize = 8;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize + 1];
+    writeOSSData(uri, expected);
+
+    try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri)) {
+      int bytesRead = in.read(actual, 0, dataSize + 1);
+      assertThat(bytesRead).isEqualTo(dataSize);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
+
+      assertThat(in.read(actual, 0, 10))
+          .as("read(byte[], off, len) at EOF must return -1")
+          .isEqualTo(-1);
+      assertThat(in.getPos()).as("pos must not advance past EOF on a -1 read").isEqualTo(dataSize);
+    }
+  }
+
   private byte[] randomData(int size) {
     byte[] data = new byte[size];
     random.nextBytes(data);
