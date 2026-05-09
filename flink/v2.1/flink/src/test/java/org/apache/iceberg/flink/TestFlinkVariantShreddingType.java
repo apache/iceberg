@@ -73,7 +73,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','variant-inference-buffer-size'='10')",
+        "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','parquet-variant-inference-buffer-size'='10')",
         TABLE_NAME, FileFormat.PARQUET.name());
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
   }
@@ -325,7 +325,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testColumnIndexTruncateLength() throws IOException {
-    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
 
     int customTruncateLength = 10;
     sql(
@@ -480,7 +480,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testInfrequentFieldPruning() throws IOException {
-    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='11')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='11')", TABLE_NAME);
     StringBuilder valuesBuilder = new StringBuilder();
     for (int i = 1; i <= 11; i++) {
       if (i > 1) {
@@ -548,7 +548,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
         .getConfiguration()
         .setString("table.exec.resource.default-parallelism", "1");
 
-    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
 
     sql(
         "CREATE TEMPORARY VIEW tmp_source AS "
@@ -596,7 +596,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testCrossFileDifferentShreddedType() throws IOException {
-    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
 
     // File 1: "score" is always integer → shredded as INT8
     String batch1 =
@@ -637,7 +637,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     String variantNullAbleTableName = "test_all_null_variant_column";
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant) with ('write.format.default'='%s','format-version'='3','shred-variants'='true','variant-inference-buffer-size'='10')",
+        "CREATE TABLE %s (id int NOT NULL, address variant) with ('write.format.default'='%s','format-version'='3','shred-variants'='true','parquet-variant-inference-buffer-size'='10')",
         variantNullAbleTableName, FileFormat.PARQUET.name());
 
     sql(
@@ -659,7 +659,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testBufferSizeOne() throws IOException {
-    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='1')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='1')", TABLE_NAME);
 
     sql(
         "INSERT INTO %s VALUES "
@@ -693,7 +693,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testDecimalFallbackAfterBuffer() {
-    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
 
     // Buffer: scale=2, 3 integer digits -> DECIMAL(5,2)
     // Row 4: precision overflow -> fallback to value field

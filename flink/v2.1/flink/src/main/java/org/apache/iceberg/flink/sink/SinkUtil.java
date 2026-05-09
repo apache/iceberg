@@ -132,7 +132,7 @@ public class SinkUtil {
 
         writeProperties.put(PARQUET_SHRED_VARIANTS, String.valueOf(conf.parquetShredVariants()));
         writeProperties.put(
-            PARQUET_VARIANT_BUFFER_SIZE, String.valueOf(conf.variantInferenceBufferSize()));
+            PARQUET_VARIANT_BUFFER_SIZE, String.valueOf(conf.parquetVariantInferenceBufferSize()));
 
         break;
       case AVRO:

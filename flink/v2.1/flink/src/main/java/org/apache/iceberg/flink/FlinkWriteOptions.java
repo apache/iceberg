@@ -109,6 +109,6 @@ public class FlinkWriteOptions {
   public static final ConfigOption<Boolean> PARQUET_SHRED_VARIANTS =
       ConfigOptions.key("parquet-shred-variants").booleanType().defaultValue(false);
 
-  public static final ConfigOption<Integer> VARIANT_INFERENCE_BUFFER_SIZE =
-      ConfigOptions.key("variant-inference-buffer-size").intType().defaultValue(10);
+  public static final ConfigOption<Integer> PARQUET_VARIANT_INFERENCE_BUFFER_SIZE =
+      ConfigOptions.key("parquet-variant-inference-buffer-size").intType().defaultValue(100);
 }
