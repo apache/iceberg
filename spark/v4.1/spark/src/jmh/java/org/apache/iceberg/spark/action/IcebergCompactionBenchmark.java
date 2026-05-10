@@ -18,74 +18,44 @@
  */
 package org.apache.iceberg.spark.action;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.concat;
-import static org.apache.spark.sql.functions.lit;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.TestBase;
-import org.apache.iceberg.spark.actions.SparkActions;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.expressions.Transform;
-import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
-import org.openjdk.jmh.annotations.Warmup;
 
-/**
- * A benchmark that evaluates the performance of the rewrite data files action in Spark.
- *
- * <p>To run this benchmark for spark-4.1: <code>
- *   ./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:jmh
- *       -PjmhIncludeRegex=IcebergCompactionBenchmark.rewriteDataFiles
- *       -PjmhOutputPath=benchmark/compaction-benchmark-1000files-2000rows-v3.txt
- *       -PjmhJsonOutputPath=benchmark/compaction-benchmark-1000files-2000rows-v3.json
- * </code>
- */
 @Fork(1)
 @State(Scope.Benchmark)
-@Warmup(iterations = 3)
-@Measurement(iterations = 10)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
-public class IcebergCompactionBenchmark {
-
-  private static final String[] NAMESPACE = new String[] {"default"};
-  private static final String NAME = "compactbench";
-  private static final Identifier IDENT = Identifier.of(NAMESPACE, NAME);
-  private static final int NUM_FILES = 1000;
-  private static final long NUM_ROWS = 2000;
+public abstract class IcebergCompactionBenchmark {
 
   private final Configuration hadoopConf = initHadoopConf();
   private SparkSession spark;
+
+  protected abstract String tableName();
+
+  protected abstract void initTable();
+
+  protected abstract void appendData();
 
   @Setup
   public void setupBench() {
@@ -108,58 +78,13 @@ public class IcebergCompactionBenchmark {
     cleanupFiles();
   }
 
-  @Benchmark
-  @Threads(1)
-  public void rewriteDataFiles() {
-    SparkActions.get()
-        .rewriteDataFiles(table())
-        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
-        .execute();
-  }
-
   protected Configuration initHadoopConf() {
     return new Configuration();
   }
 
-  protected final void initTable() {
-    Schema schema =
-        new Schema(
-            required(1, "intCol", Types.IntegerType.get()),
-            required(2, "stringCol", Types.StringType.get()),
-            optional(3, "nullCol", Types.StringType.get()));
-
-    SparkSessionCatalog<?> catalog;
-    try {
-      catalog =
-          (SparkSessionCatalog<?>)
-              Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
-      catalog.dropTable(IDENT);
-      catalog.createTable(
-          IDENT, SparkSchemaUtil.convert(schema), new Transform[0], Collections.emptyMap());
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  private void appendData() {
-    Dataset<Row> df =
-        spark()
-            .range(0, NUM_FILES * NUM_ROWS)
-            .withColumn("intCol", col("id").cast("int"))
-            .withColumn("stringCol", concat(lit("foo_"), col("id")))
-            .withColumn("nullCol", lit(null).cast("string"))
-            .drop("id")
-            .repartition(NUM_FILES);
-    writeData(df);
-  }
-
-  private void writeData(Dataset<Row> df) {
-    df.write().format("iceberg").mode(SaveMode.Append).save(NAME);
-  }
-
   protected final Table table() {
     try {
-      return Spark3Util.loadIcebergTable(spark(), NAME);
+      return Spark3Util.loadIcebergTable(spark(), tableName());
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -181,7 +106,20 @@ public class IcebergCompactionBenchmark {
   }
 
   protected void cleanupFiles() throws IOException {
-    spark.sql("DROP TABLE IF EXISTS " + NAME);
+    spark.sql("DROP TABLE IF EXISTS " + tableName());
+  }
+
+  /**
+   * Returns extra properties added to the Spark catalog during session setup.
+   *
+   * <p>The default implementation returns {@code type=hadoop} for a local Hadoop catalog. Override
+   * to switch the catalog implementation or FileIO, e.g., with {@code catalog-impl}, {@code
+   * io-impl}, and {@code warehouse} for an S3-backed run.
+   *
+   * @return a map of catalog properties to apply
+   */
+  protected Map<String, String> extraCatalogProperties() {
+    return Map.of("type", "hadoop");
   }
 
   protected void setupSpark() {
@@ -189,10 +127,11 @@ public class IcebergCompactionBenchmark {
         SparkSession.builder()
             .config(
                 "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
-            .config("spark.sql.catalog.spark_catalog.type", "hadoop")
             .config("spark.sql.catalog.spark_catalog.warehouse", getCatalogWarehouse())
             .config(TestBase.DISABLE_UI)
             .master("local[*]");
+    extraCatalogProperties()
+        .forEach((key, value) -> builder.config("spark.sql.catalog.spark_catalog." + key, value));
     spark = builder.getOrCreate();
     Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
     hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
@@ -200,5 +139,9 @@ public class IcebergCompactionBenchmark {
 
   protected void tearDownSpark() {
     spark.stop();
+  }
+
+  protected void writeData(Dataset<Row> df) {
+    df.write().format("iceberg").mode(SaveMode.Append).save(tableName());
   }
 }
