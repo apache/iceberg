@@ -310,42 +310,29 @@ public abstract class DeleteFilter<T> {
       return requestedSchema;
     }
 
-    Set<Integer> requiredIds = Sets.newLinkedHashSet();
-    if (needRowPosCol && !posDeletes.isEmpty()) {
-      requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
-    }
+    Set<Integer> projectedIds = TypeUtil.getProjectedIds(requestedSchema);
 
+    // Collect equality delete field IDs that are not already in the requested schema.
+    // Metadata columns (ROW_POSITION, IS_DELETED) are excluded here and handled separately below.
+    Set<Integer> missingIds = Sets.newLinkedHashSet();
     for (DeleteFile eqDelete : eqDeletes) {
-      requiredIds.addAll(eqDelete.equalityFieldIds());
+      for (int id : eqDelete.equalityFieldIds()) {
+        if (!projectedIds.contains(id)) {
+          missingIds.add(id);
+        }
+      }
     }
-
-    Set<Integer> missingIds =
-        Sets.newLinkedHashSet(
-            Sets.difference(requiredIds, TypeUtil.getProjectedIds(requestedSchema)));
-
-    if (missingIds.isEmpty()) {
-      return requestedSchema;
-    }
-
-    // Exclude metadata columns from the resolver; they are appended separately at the end.
-    Set<Integer> regularMissingIds = Sets.newLinkedHashSet(missingIds);
-    regularMissingIds.remove(MetadataColumns.ROW_POSITION.fieldId());
-    regularMissingIds.remove(MetadataColumns.IS_DELETED.fieldId());
 
     Schema result = requestedSchema;
-    if (!regularMissingIds.isEmpty()) {
-      result = TypeUtil.join(result, missingSchemaResolver.apply(regularMissingIds));
+    if (!missingIds.isEmpty()) {
+      result = TypeUtil.join(result, missingSchemaResolver.apply(missingIds));
     }
 
-    if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())
-        || missingIds.contains(MetadataColumns.IS_DELETED.fieldId())) {
+    if (needRowPosCol
+        && !posDeletes.isEmpty()
+        && !projectedIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
       List<Types.NestedField> columns = Lists.newArrayList(result.columns());
-      if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
-        columns.add(MetadataColumns.ROW_POSITION);
-      }
-      if (missingIds.contains(MetadataColumns.IS_DELETED.fieldId())) {
-        columns.add(MetadataColumns.IS_DELETED);
-      }
+      columns.add(MetadataColumns.ROW_POSITION);
       return new Schema(columns);
     }
 
