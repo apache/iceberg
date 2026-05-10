@@ -638,15 +638,9 @@ public abstract class DeleteReadTests {
   public void testEqualityDeletesWithNestedFieldIdentifier() throws IOException {
     // Write records that populate the optional nested struct column (ids 200–209).
     writeOptionalTestDataFile();
-
-    // Use the nested leaf field structData.structInnerData as the equality-delete identifier.
-    // TableMetadata.newTableMetadata reassigns field IDs sequentially, so we look up the actual ID
-    // from the live table schema rather than relying on the hardcoded value in SCHEMA.
     Types.NestedField innerField = table.schema().findField("structData.structInnerData");
 
     // Build the delete schema preserving the struct hierarchy (structData{structInnerData}).
-    // This matches how real write engines encode equality deletes for nested identifier fields:
-    // the equality_field_id is the nested leaf, and the delete records carry the enclosing struct.
     Schema deleteRowSchema =
         TypeUtil.project(table.schema(), ImmutableSet.of(innerField.fieldId()));
     Types.StructType innerStructType = table.schema().findType("structData").asStructType();
@@ -660,9 +654,6 @@ public abstract class DeleteReadTests {
       dataDeletes.add(outer);
     }
 
-    // Write the delete file with the leaf field ID as equality_id. FileHelpers.writeDeleteFile
-    // normally derives equality_ids from the top-level columns; we use the overload that lets us
-    // pass them explicitly so the nested leaf ID (not the enclosing struct ID) is stored.
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
@@ -674,9 +665,7 @@ public abstract class DeleteReadTests {
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
-    // Read only the "id" column — this is the projection that triggers the bug. DeleteFilter must
-    // augment the read schema with the structData struct (containing structInnerData) to evaluate
-    // the equality delete, but must not add the leaf as a spurious top-level column.
+    // Read only the "id" column, and not the nested column used for equality delete.
     StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 200, 201, 202), "id");
     StructLikeSet actual = rowSet(tableName, table, "id");
 
