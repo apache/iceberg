@@ -90,7 +90,7 @@ io.grpc:grpc-core:1.80.0
 io.grpc:grpc-googleapis:1.80.0
 io.grpc:grpc-grpclb:1.80.0
 io.grpc:grpc-inprocess:1.80.0
-io.grpc:grpc-netty-shaded:1.80.0
+io.grpc:grpc-netty-shaded:1.81.0
 io.grpc:grpc-opentelemetry:1.80.0
 io.grpc:grpc-protobuf-lite:1.80.0
 io.grpc:grpc-protobuf:1.80.0
