@@ -62,6 +62,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -1086,6 +1087,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
         .hasSize(1);
 
+    // snapshot log is complete regardless REFS mode
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshotLog")
+        .asInstanceOf(InstanceOfAssertFactories.list(HistoryEntry.class))
+        .hasSize(2)
+        .containsExactlyInAnyOrderElementsOf(
+            ((BaseTable) table).operations().current().snapshotLog());
+
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
 
     // verify that the table was loaded with the refs argument
@@ -1180,6 +1189,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
         .hasSize(2);
 
+    // snapshot log is complete regardless REFS mode
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshotLog")
+        .asInstanceOf(InstanceOfAssertFactories.list(HistoryEntry.class))
+        .hasSize(1) // main branch has a single snapshot
+        .containsExactlyInAnyOrderElementsOf(
+            ((BaseTable) table).operations().current().snapshotLog());
+
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
 
     // verify that the table was loaded with the refs argument
@@ -1264,6 +1281,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .extracting("snapshots")
         .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
         .hasSize(1);
+
+    // snapshot log is complete regardless REFS mode
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshotLog")
+        .asInstanceOf(InstanceOfAssertFactories.list(HistoryEntry.class))
+        .hasSize(numSnapshots)
+        .containsExactlyInAnyOrderElementsOf(
+            ((BaseTable) table).operations().current().snapshotLog());
 
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
     assertThat(refsTable.snapshots()).hasSize(numSnapshots);
