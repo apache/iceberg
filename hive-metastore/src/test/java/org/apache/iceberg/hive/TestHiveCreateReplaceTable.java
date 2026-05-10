@@ -306,7 +306,9 @@ public class TestHiveCreateReplaceTable {
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("replace transaction");
 
-    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Dropped table should stay dropped").isFalse();
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER))
+        .as("Dropped table should stay dropped")
+        .isFalse();
   }
 
   @Test
@@ -339,7 +341,9 @@ public class TestHiveCreateReplaceTable {
     assertThat(table.spec().fields().get(0).name())
         .as("Concurrent table should remain partitioned by id")
         .isEqualTo("id");
-    assertThat(table.properties()).as("Table props should not be replaced").doesNotContainKey("prop");
+    assertThat(table.properties())
+        .as("Table props should not be replaced")
+        .doesNotContainKey("prop");
   }
 
   @Test
