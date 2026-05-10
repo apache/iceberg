@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ManifestFileUtil;
@@ -55,6 +56,22 @@ import org.slf4j.LoggerFactory;
 abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestFilterManager.class);
   private static final Joiner COMMA = Joiner.on(",");
+  // avoid projecting large fields when they are not used in manifestHasDeletedFiles
+  private static final List<Integer> MANIFEST_ENTRY_IGNORED_FIELDS =
+      ImmutableList.of(
+          DataFile.COLUMN_SIZES.fieldId(),
+          DataFile.VALUE_COUNTS.fieldId(),
+          DataFile.NULL_VALUE_COUNTS.fieldId(),
+          DataFile.NAN_VALUE_COUNTS.fieldId(),
+          DataFile.LOWER_BOUNDS.fieldId(),
+          DataFile.UPPER_BOUNDS.fieldId(),
+          DataFile.KEY_METADATA.fieldId(),
+          DataFile.SPLIT_OFFSETS.fieldId());
+  private static final List<String> MANIFEST_ENTRY_FIELDS_FOR_HAS_DELETED_FILES =
+      DataFile.getType(BaseFile.EMPTY_STRUCT_TYPE).fields().stream()
+          .filter(field -> !MANIFEST_ENTRY_IGNORED_FIELDS.contains(field.fieldId()))
+          .map(Types.NestedField::name)
+          .collect(ImmutableList.toImmutableList());
 
   protected static class DeleteException extends ValidationException {
     private final String partition;
@@ -378,20 +395,30 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
 
     try (ManifestReader<F> reader = newManifestReader(manifest)) {
+      // can skip reading large stats columns to reduce allocations
+      if (deleteExpression == Expressions.alwaysFalse()) {
+        reader.select(MANIFEST_ENTRY_FIELDS_FOR_HAS_DELETED_FILES);
+      }
       PartitionSpec spec = reader.spec();
       PartitionAndMetricsEvaluator evaluator =
           new PartitionAndMetricsEvaluator(tableSchema, spec, deleteExpression);
-      // this assumes that the manifest doesn't have files to remove and streams through the
-      // manifest without copying data. if a manifest does have a file to remove, this will break
-      // out of the loop and move on to filtering the manifest.
-      if (manifestHasDeletedFiles(evaluator, manifest, reader)) {
-        ManifestFile filtered = filterManifestWithDeletedFiles(evaluator, manifest, reader);
-        replacedManifestsCount.incrementAndGet();
-        return filtered;
-      } else {
+      // if the manifest doesn't have files to remove, stream through manifest without copying data
+      if (!manifestHasDeletedFiles(evaluator, manifest, reader)) {
         filteredManifests.put(manifest, manifest);
         return manifest;
       }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
+    }
+
+    // the manifest does have files to remove; reopen and rewrite the manifest
+    try (ManifestReader<F> reader = newManifestReader(manifest)) {
+      PartitionSpec spec = reader.spec();
+      PartitionAndMetricsEvaluator evaluator =
+          new PartitionAndMetricsEvaluator(tableSchema, spec, deleteExpression);
+      ManifestFile filtered = filterManifestWithDeletedFiles(evaluator, manifest, reader);
+      replacedManifestsCount.incrementAndGet();
+      return filtered;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }
@@ -456,6 +483,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     boolean isDelete = reader.isDeleteManifestReader();
 
     for (ManifestEntry<F> entry : reader.liveEntries()) {
+      // F can be partially projected, see: MANIFEST_ENTRY_FIELDS_FOR_HAS_DELETED_FILES
       F file = entry.file();
       boolean markedForDelete =
           deletePaths.contains(file.location())

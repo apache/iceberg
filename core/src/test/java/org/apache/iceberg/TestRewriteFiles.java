@@ -27,14 +27,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.internal.util.collections.Sets;
@@ -776,6 +781,226 @@ public class TestRewriteFiles extends TestBase {
             .validateFromSnapshot(snapshotAfterDeletes)
             .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
         branch);
+  }
+
+  @TestTemplate
+  public void testRewriteWithManyUntouchedDeleteManifests() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    int numManifests = 100;
+    int entriesPerManifest = 10;
+    int statsColumns = 100;
+
+    // disable manifest merging to produce large numbers of manifests synthetically
+    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
+
+    // metrics are the dominant source of allocations when reading manifest entries
+    ImmutableMap.Builder<Integer, Long> valueCounts = ImmutableMap.builder();
+    ImmutableMap.Builder<Integer, Long> nullCounts = ImmutableMap.builder();
+    ImmutableMap.Builder<Integer, ByteBuffer> lowerBounds = ImmutableMap.builder();
+    ImmutableMap.Builder<Integer, ByteBuffer> upperBounds = ImmutableMap.builder();
+    for (int col = 0; col < statsColumns; col++) {
+      int fieldId = 1000 + col;
+      valueCounts.put(fieldId, 1000L);
+      nullCounts.put(fieldId, 0L);
+      lowerBounds.put(fieldId, Conversions.toByteBuffer(Types.IntegerType.get(), 0));
+      upperBounds.put(fieldId, Conversions.toByteBuffer(Types.IntegerType.get(), 1000));
+    }
+    Metrics metrics =
+        new Metrics(
+            1L,
+            null,
+            valueCounts.build(),
+            nullCounts.build(),
+            null,
+            lowerBounds.build(),
+            upperBounds.build());
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+    List<DeleteFile> deleteFiles = Lists.newArrayList();
+    for (int m = 0; m < numManifests; m++) {
+      // batch entriesPerManifest pairs into a single commit so each manifest has multiple entries
+      RowDelta rowDelta = table.newRowDelta();
+      for (int e = 0; e < entriesPerManifest; e++) {
+        int idx = m * entriesPerManifest + e;
+        DataFile dataFile =
+            DataFiles.builder(SPEC)
+                .withPath("/path/to/data-many-" + idx + ".parquet")
+                .withFileSizeInBytes(10)
+                .withPartitionPath("data_bucket=0")
+                .withRecordCount(1)
+                .build();
+        DeleteFile deleteFile;
+        if (formatVersion >= 3) {
+          deleteFile =
+              FileMetadata.deleteFileBuilder(SPEC)
+                  .ofPositionDeletes()
+                  .withPath("/path/to/delete-many-" + idx + ".puffin")
+                  .withFileSizeInBytes(10)
+                  .withPartitionPath("data_bucket=0")
+                  .withRecordCount(1)
+                  .withReferencedDataFile(dataFile.location())
+                  .withContentOffset(4)
+                  .withContentSizeInBytes(6)
+                  .withMetrics(metrics)
+                  .build();
+        } else {
+          deleteFile =
+              FileMetadata.deleteFileBuilder(SPEC)
+                  .ofPositionDeletes()
+                  .withPath("/path/to/delete-many-" + idx + ".parquet")
+                  .withFileSizeInBytes(10)
+                  .withPartitionPath("data_bucket=0")
+                  .withRecordCount(1)
+                  .withMetrics(metrics)
+                  .build();
+        }
+        dataFiles.add(dataFile);
+        deleteFiles.add(deleteFile);
+        rowDelta.addRows(dataFile).addDeletes(deleteFile);
+      }
+      commit(table, rowDelta, branch);
+    }
+
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
+    List<ManifestFile> baseDeleteManifests = baseSnapshot.deleteManifests(table.io());
+    assertThat(baseDeleteManifests).hasSize(numManifests);
+
+    Set<String> baseDeleteManifestPaths =
+        baseDeleteManifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
+
+    DataFile replacementFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-many-replacement.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    // Compact only the first data+delete file pair, all other manifests should remain unchanged
+    // This simulates incremental compaction of a small portion of a large table
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(dataFiles.get(0)),
+                ImmutableSet.of(deleteFiles.get(0)),
+                ImmutableSet.of(replacementFile),
+                ImmutableSet.of()),
+        branch);
+
+    Snapshot resultSnapshot = latestSnapshot(table, branch);
+    List<ManifestFile> resultDeleteManifests = resultSnapshot.deleteManifests(table.io());
+
+    assertThat(resultDeleteManifests).hasSize(numManifests);
+
+    Set<String> resultDeleteManifestPaths =
+        resultDeleteManifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
+
+    long passedThrough =
+        resultDeleteManifestPaths.stream().filter(baseDeleteManifestPaths::contains).count();
+    long rewritten =
+        resultDeleteManifestPaths.stream()
+            .filter(p -> !baseDeleteManifestPaths.contains(p))
+            .count();
+
+    assertThat(passedThrough)
+        .as("exactly %d delete manifests should pass through unchanged", numManifests - 1)
+        .isEqualTo(numManifests - 1);
+    assertThat(rewritten).as("exactly one delete manifest should be rewritten").isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testRewriteFilesWithDeletionVectors() {
+    // DeleteFileSet equality uses: location, contentOffset, contentSizeInBytes.
+    // Ensure MANIFEST_ENTRY_FIELDS_FOR_HAS_DELETED_FILES contains these fields
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
+
+    DataFile dataFile1 =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-dv-1.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-dv-2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    // Two DVs packed into the same puffin file at different byte ranges
+    // location alone is not sufficient for identity, contentOffset and contentSizeInBytes are
+    // required
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/shared.puffin")
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withReferencedDataFile(dataFile1.location())
+            .withContentOffset(0)
+            .withContentSizeInBytes(40)
+            .build();
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/shared.puffin")
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withReferencedDataFile(dataFile2.location())
+            .withContentOffset(40)
+            .withContentSizeInBytes(60)
+            .build();
+
+    commit(table, table.newRowDelta().addRows(dataFile1).addDeletes(dv1), branch);
+    commit(table, table.newRowDelta().addRows(dataFile2).addDeletes(dv2), branch);
+
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
+    List<ManifestFile> baseDeleteManifests = baseSnapshot.deleteManifests(table.io());
+    assertThat(baseDeleteManifests).hasSize(2);
+    Set<String> baseDeleteManifestPaths =
+        baseDeleteManifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
+
+    DataFile replacement =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-dv-replacement.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(dataFile1),
+                ImmutableSet.of(dv1),
+                ImmutableSet.of(replacement),
+                ImmutableSet.of()),
+        branch);
+
+    List<ManifestFile> resultDeleteManifests =
+        latestSnapshot(table, branch).deleteManifests(table.io());
+    assertThat(resultDeleteManifests).hasSize(2);
+    Set<String> resultPaths =
+        resultDeleteManifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
+
+    long passedThrough = resultPaths.stream().filter(baseDeleteManifestPaths::contains).count();
+    long rewritten = resultPaths.stream().filter(p -> !baseDeleteManifestPaths.contains(p)).count();
+
+    assertThat(passedThrough).as("dv2 manifest should pass through unchanged").isEqualTo(1);
+    assertThat(rewritten).as("dv1 manifest should be rewritten").isEqualTo(1);
   }
 
   @TestTemplate
