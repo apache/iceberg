@@ -73,7 +73,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','parquet-variant-inference-buffer-size'='10')",
+        "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','variant-inference-buffer-size'='10')",
         TABLE_NAME, FileFormat.PARQUET.name());
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
   }
@@ -325,7 +325,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testColumnIndexTruncateLength() throws IOException {
-    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
 
     int customTruncateLength = 10;
     sql(
@@ -480,7 +480,9 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testInfrequentFieldPruning() throws IOException {
-    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='11')", TABLE_NAME);
+    // This test relies on the current VariantShreddingAnalyzer MIN_FIELD_FREQUENCY threshold of
+    // 0.10: rare_field appears in 1/11 rows (~0.09), so it should be pruned.
+    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='11')", TABLE_NAME);
     StringBuilder valuesBuilder = new StringBuilder();
     for (int i = 1; i <= 11; i++) {
       if (i > 1) {
@@ -548,7 +550,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
         .getConfiguration()
         .setString("table.exec.resource.default-parallelism", "1");
 
-    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
 
     sql(
         "CREATE TEMPORARY VIEW tmp_source AS "
@@ -596,7 +598,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testCrossFileDifferentShreddedType() throws IOException {
-    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
 
     // File 1: "score" is always integer → shredded as INT8
     String batch1 =
@@ -637,7 +639,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     String variantNullAbleTableName = "test_all_null_variant_column";
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant) with ('write.format.default'='%s','format-version'='3','shred-variants'='true','parquet-variant-inference-buffer-size'='10')",
+        "CREATE TABLE %s (id int NOT NULL, address variant) with ('write.format.default'='%s','format-version'='3','shred-variants'='true','variant-inference-buffer-size'='10')",
         variantNullAbleTableName, FileFormat.PARQUET.name());
 
     sql(
@@ -659,7 +661,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testBufferSizeOne() throws IOException {
-    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='1')", TABLE_NAME);
+    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='1')", TABLE_NAME);
 
     sql(
         "INSERT INTO %s VALUES "
@@ -692,21 +694,40 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDecimalFallbackAfterBuffer() {
-    sql("ALTER TABLE %s SET('parquet-variant-inference-buffer-size'='3')", TABLE_NAME);
+  public void testDecimalFallbackAfterBuffer() throws IOException {
+    getTableEnv()
+        .getConfig()
+        .getConfiguration()
+        .setString("table.exec.resource.default-parallelism", "1");
+
+    sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
 
     // Buffer: scale=2, 3 integer digits -> DECIMAL(5,2)
     // Row 4: precision overflow -> fallback to value field
     // Row 5: scale overflow -> fallback to value field
     // Row 6: fits typed column, scale widened from 1 to 2 via setScale
-    String values =
-        " (1, parse_json('{\"val\": 123.45}')),"
+    sql(
+        "CREATE TEMPORARY VIEW tmp_source AS "
+            + "SELECT * FROM (VALUES "
+            + " (1, parse_json('{\"val\": 123.45}')),"
             + " (2, parse_json('{\"val\": 678.90}')),"
             + " (3, parse_json('{\"val\": 999.99}')),"
             + "  (4, parse_json('{\"val\": 123456.78}')),"
             + "  (5, parse_json('{\"val\": 1.2345}')),"
-            + "  (6, parse_json('{\"val\": 12.3}'))";
-    sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
+            + "  (6, parse_json('{\"val\": 12.3}'))"
+            + ") AS t(id, address)");
+
+    sql("INSERT INTO %s SELECT id, address FROM tmp_source ORDER BY id", TABLE_NAME);
+
+    GroupType val =
+        field(
+            "val",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.decimalType(2, 5)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(val));
+    MessageType expectedSchema = parquetSchema(address);
+
+    verifyParquetSchema(icebergTable, expectedSchema);
 
     List<Row> rows =
         sql(
@@ -717,6 +738,8 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     assertThat(rows.get(3).getField(1)).isEqualTo(new BigDecimal("123456.7800"));
     assertThat(rows.get(4).getField(1)).isEqualTo(new BigDecimal("1.2345"));
     assertThat(rows.get(5).getField(1)).isEqualTo(new BigDecimal("12.3000"));
+
+    sql("DROP TEMPORARY VIEW IF EXISTS tmp_source");
   }
 
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {

@@ -29,6 +29,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 
+/**
+ * Analyzes Variant fields in Flink {@link RowData} and converts Flink's binary Variant
+ * representation to Iceberg {@link VariantValue} instances for Variant shredding.
+ */
 public class FlinkVariantShreddingAnalyzer extends VariantShreddingAnalyzer<RowData, RowType> {
 
   @Override
@@ -38,6 +42,8 @@ public class FlinkVariantShreddingAnalyzer extends VariantShreddingAnalyzer<RowD
 
     for (RowData row : bufferedRows) {
       if (!row.isNullAt(variantFieldIndex)) {
+        // Flink currently has only BinaryVariant as its Variant implementation, so this analyzer
+        // intentionally narrows RowData#getVariant's return value to BinaryVariant here.
         BinaryVariant flinkVariant = (BinaryVariant) row.getVariant(variantFieldIndex);
         if (flinkVariant != null) {
           VariantValue variantValue =

@@ -275,7 +275,7 @@ public class FlinkWriteConf {
   public int parquetVariantInferenceBufferSize() {
     return confParser
         .intConf()
-        .option(FlinkWriteOptions.PARQUET_VARIANT_INFERENCE_BUFFER_SIZE.key())
+        .option(FlinkWriteOptions.VARIANT_INFERENCE_BUFFER_SIZE.key())
         .tableProperty(TableProperties.PARQUET_VARIANT_BUFFER_SIZE)
         .defaultValue(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT)
         .parse();
