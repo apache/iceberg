@@ -41,8 +41,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -630,6 +632,63 @@ public abstract class DeleteReadTests {
             structDataDelete.copy("structData", structRecord2));
     StructLikeSet expected = rowSetWithoutIds(table, records, 200, 201, 202);
     testEqualityDeletes(equalityDeletes, expected);
+  }
+
+  @TestTemplate
+  public void testEqualityDeletesWithNestedFieldIdentifier() throws IOException {
+    // Write records that populate the optional nested struct column (ids 200–209).
+    writeOptionalTestDataFile();
+
+    // Use the nested leaf field structData.structInnerData as the equality-delete identifier.
+    // TableMetadata.newTableMetadata reassigns field IDs sequentially, so we look up the actual ID
+    // from the live table schema rather than relying on the hardcoded value in SCHEMA.
+    Types.NestedField innerField = table.schema().findField("structData.structInnerData");
+
+    // Build the delete schema preserving the struct hierarchy (structData{structInnerData}).
+    // This matches how real write engines encode equality deletes for nested identifier fields:
+    // the equality_field_id is the nested leaf, and the delete records carry the enclosing struct.
+    Schema deleteRowSchema =
+        TypeUtil.project(table.schema(), ImmutableSet.of(innerField.fieldId()));
+    Types.StructType innerStructType = table.schema().findType("structData").asStructType();
+
+    List<Record> dataDeletes = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      GenericRecord inner = GenericRecord.create(innerStructType);
+      inner.setField("structInnerData", "structInnerData_" + i);
+      GenericRecord outer = GenericRecord.create(deleteRowSchema);
+      outer.setField("structData", inner);
+      dataDeletes.add(outer);
+    }
+
+    // Write the delete file with the leaf field ID as equality_id. FileHelpers.writeDeleteFile
+    // normally derives equality_ids from the top-level columns; we use the overload that lets us
+    // pass them explicitly so the nested leaf ID (not the enclosing struct ID) is stored.
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            Row.of(0),
+            dataDeletes,
+            deleteRowSchema,
+            new int[] {innerField.fieldId()});
+
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    // Read only the "id" column — this is the projection that triggers the bug. DeleteFilter must
+    // augment the read schema with the structData struct (containing structInnerData) to evaluate
+    // the equality delete, but must not add the leaf as a spurious top-level column.
+    StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 200, 201, 202), "id");
+    StructLikeSet actual = rowSet(tableName, table, "id");
+
+    if (expectPruned()) {
+      assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    } else {
+      assertThat(selectColumns(actual, "id"))
+          .as("Table should contain expected rows")
+          .isEqualTo(expected);
+    }
+
+    checkDeleteCount(dataDeletes.size());
   }
 
   private void testEqualityDeletes(List<Record> equalityDeletes, StructLikeSet expected)
