@@ -23,6 +23,39 @@ For converting different catalog implementations into a rest one.
 Adapter for wrapping the existing catalog backends over REST.
 
 
+## Configuration
+
+All configuration is provided via environment variables.
+
+### Backend catalog properties
+
+Catalog properties can be set via `CATALOG_*` environment variables. The
+`CATALOG_` prefix is stripped; single underscores become dots (`.`); double
+underscores become dashes (`-`). Names are lowercased.
+
+| Env var | Catalog property |
+|---|---|
+| `CATALOG_CATALOG_NAME` | `catalog.name` |
+| `CATALOG_WAREHOUSE` | `warehouse` |
+| `CATALOG_URI` | `uri` |
+| `CATALOG_CATALOG__IMPL` | `catalog-impl` |
+| `CATALOG_IO__IMPL` | `io-impl` |
+| `CATALOG_JDBC_USER` | `jdbc.user` |
+
+If `catalog-impl` and `uri` are unset, the fixture defaults to an in-memory
+SQLite `JdbcCatalog`.
+
+### Catalog name
+
+By default, the fixture serves a catalog named `rest_backend`. To match a
+name expected by a specific engine (for example, a catalog created via Trino
+or PyIceberg), override the `catalog.name` property:
+
+```bash
+docker run -e CATALOG_CATALOG_NAME=mycatalog -p 8181:8181 apache/iceberg-rest-fixture
+```
+
+
 ## Build the Docker Image
 
 When making changes to the local files and test them out, you can build the image locally:
