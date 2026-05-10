@@ -41,4 +41,3 @@ io.projectreactor:reactor-core:3.7.14
 net.java.dev.jna:jna-platform:5.17.0
 net.java.dev.jna:jna:5.17.0
 org.reactivestreams:reactive-streams:1.0.4
-org.slf4j:slf4j-api:2.0.17

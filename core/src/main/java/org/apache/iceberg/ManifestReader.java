@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionSet;
 import org.slf4j.Logger;
@@ -67,6 +68,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "lower_bounds",
           "upper_bounds",
           "record_count");
+
+  private static final Schema STATUS_ONLY_PROJECTION =
+      TypeUtil.select(
+          ManifestEntry.getSchema(Types.StructType.of()),
+          ImmutableSet.of(ManifestEntry.STATUS.fieldId()));
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class),
@@ -157,9 +163,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     Map<String, String> metadata;
     try {
       try (CloseableIterable<ManifestEntry<T>> headerReader =
-          InternalData.read(FileFormat.AVRO, inputFile)
-              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .build()) {
+          InternalData.read(FileFormat.AVRO, inputFile).project(STATUS_ONLY_PROJECTION).build()) {
 
         if (headerReader instanceof AvroIterable) {
           metadata = ((AvroIterable<ManifestEntry<T>>) headerReader).getMetadata();

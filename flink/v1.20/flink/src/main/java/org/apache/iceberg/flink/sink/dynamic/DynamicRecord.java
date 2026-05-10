@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
@@ -38,6 +39,9 @@ public class DynamicRecord {
   private int writeParallelism;
   private boolean upsertMode;
   @Nullable private Set<String> equalityFields;
+
+  @Internal
+  DynamicRecord() {}
 
   /**
    * Constructs a new DynamicRecord with forward (no shuffle) writes.

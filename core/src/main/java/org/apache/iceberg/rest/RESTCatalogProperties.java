@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 
 public final class RESTCatalogProperties {
 
@@ -95,4 +96,16 @@ public final class RESTCatalogProperties {
                   .collect(Collectors.joining(", "))));
     }
   }
+
+  /**
+   * The base URI of the remote signer endpoint. Optional, defaults to {@link
+   * CatalogProperties#URI}.
+   */
+  public static final String SIGNER_URI = "signer.uri";
+
+  /**
+   * The endpoint path of the remote signer endpoint. If remote signing has been requested, this
+   * must be set.
+   */
+  public static final String SIGNER_ENDPOINT = "signer.endpoint";
 }
