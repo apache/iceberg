@@ -125,21 +125,21 @@
   - io.netty.buffer.AdaptivePoolingAllocator$SizeClassChunkController
   - io.netty.buffer.AdaptivePoolingAllocator$SizeClassedChunk
   - io.netty.buffer.ByteBufUtil
-  - io.netty.buffer.ByteBufUtil$2
-  - io.netty.buffer.ByteBufUtil$HexUtil
-  - io.netty.buffer.ByteBufUtil$ThreadLocalDirectByteBuf
-  - io.netty.buffer.ByteBufUtil$ThreadLocalDirectByteBuf$1
-  - io.netty.buffer.ByteBufUtil$ThreadLocalUnsafeDirectByteBuf
-  - io.netty.buffer.ByteBufUtil$ThreadLocalUnsafeDirectByteBuf$1
   - io.netty.buffer.CompositeByteBuf
   - io.netty.buffer.EmptyByteBuf
   - io.netty.buffer.PoolArena
+  - io.netty.buffer.PoolArena$DirectArena
   - io.netty.buffer.PoolThreadCache$FreeOnFinalize
   - io.netty.buffer.PooledByteBufAllocator
+  - io.netty.buffer.PooledByteBufAllocator$PoolThreadLocalCache
   - io.netty.buffer.ReadOnlyAbstractByteBuf
   - io.netty.buffer.SimpleLeakAwareByteBuf
   - io.netty.buffer.Unpooled
+  - io.netty.buffer.UnpooledByteBufAllocator$DecrementingCleanableDirectBuffer
+  - io.netty.buffer.UnpooledByteBufAllocator$InstrumentedUnpooledDirectByteBuf
+  - io.netty.buffer.UnpooledByteBufAllocator$InstrumentedUnpooledUnsafeDirectByteBuf
   - io.netty.buffer.UnpooledByteBufAllocator$InstrumentedUnpooledUnsafeNoCleanerDirectByteBuf
+  - io.netty.buffer.UnpooledByteBufAllocator$UnpooledByteBufAllocatorMetric
   - io.netty.buffer.UnpooledDirectByteBuf
   - io.netty.buffer.UnpooledHeapByteBuf
   - io.netty.buffer.UnpooledUnsafeDirectByteBuf
@@ -147,11 +147,19 @@
   - io.netty.buffer.UnsafeByteBufUtil
 [dev.vortex:vortex-jni (classifier=all), io.netty:netty-common]
   - io.netty.util.AbstractReferenceCounted
+  - io.netty.util.DefaultAttributeMap
   - io.netty.util.HashedWheelTimer
   - io.netty.util.HashedWheelTimer$HashedWheelBucket
   - io.netty.util.LeakPresenceDetector
   - io.netty.util.LeakPresenceDetector$LeakCreation
   - io.netty.util.LeakPresenceDetector$ResourceScope
+  - io.netty.util.Recycler
+  - io.netty.util.Recycler$BlockingMessageQueue
+  - io.netty.util.Recycler$DefaultHandle
+  - io.netty.util.Recycler$EnhancedHandle
+  - io.netty.util.Recycler$GuardedLocalPool
+  - io.netty.util.Recycler$LocalPool
+  - io.netty.util.Recycler$UnguardedLocalPool
   - io.netty.util.concurrent.AbstractScheduledEventExecutor
   - io.netty.util.concurrent.GlobalEventExecutor
   - io.netty.util.concurrent.GlobalEventExecutor$2
@@ -166,11 +174,23 @@
   - io.netty.util.concurrent.SingleThreadEventExecutor$4
   - io.netty.util.concurrent.SingleThreadEventExecutor$5
   - io.netty.util.concurrent.SingleThreadEventExecutor$DefaultThreadProperties
+  - io.netty.util.internal.Cleaner
   - io.netty.util.internal.CleanerJava24Linker
   - io.netty.util.internal.CleanerJava24Linker$CleanableDirectBufferImpl
   - io.netty.util.internal.CleanerJava25
   - io.netty.util.internal.CleanerJava25$CleanableDirectBufferImpl
+  - io.netty.util.internal.CleanerJava6
+  - io.netty.util.internal.CleanerJava6$2
+  - io.netty.util.internal.CleanerJava6$CleanableDirectBufferImpl
+  - io.netty.util.internal.CleanerJava9
+  - io.netty.util.internal.CleanerJava9$2
+  - io.netty.util.internal.CleanerJava9$CleanableDirectBufferImpl
+  - io.netty.util.internal.DirectCleaner
+  - io.netty.util.internal.DirectCleaner$CleanableDirectBufferImpl
+  - io.netty.util.internal.EmptyArrays
   - io.netty.util.internal.PlatformDependent
+  - io.netty.util.internal.PlatformDependent$1
+  - io.netty.util.internal.PlatformDependent$1$1
   - io.netty.util.internal.PlatformDependent$Mpsc
   - io.netty.util.internal.PlatformDependent$Mpsc$1
   - io.netty.util.internal.PlatformDependent0

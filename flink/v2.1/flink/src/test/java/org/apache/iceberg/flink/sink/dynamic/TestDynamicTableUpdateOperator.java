@@ -23,12 +23,14 @@ import static org.apache.iceberg.flink.TestFixtures.TABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -57,9 +59,6 @@ class TestDynamicTableUpdateOperator {
 
   @Test
   void testDynamicTableUpdateOperatorNewTable() throws Exception {
-    int cacheMaximumSize = 10;
-    int cacheRefreshMs = 1000;
-    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
@@ -67,12 +66,8 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            cacheMaximumSize,
-            cacheRefreshMs,
-            inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            CASE_SENSITIVE,
-            PRESERVE_COLUMNS);
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -93,21 +88,14 @@ class TestDynamicTableUpdateOperator {
 
   @Test
   void testDynamicTableUpdateOperatorSchemaChange() throws Exception {
-    int cacheMaximumSize = 10;
-    int cacheRefreshMs = 1000;
-    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            cacheMaximumSize,
-            cacheRefreshMs,
-            inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            CASE_SENSITIVE,
-            PRESERVE_COLUMNS);
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, SCHEMA1);
@@ -135,9 +123,6 @@ class TestDynamicTableUpdateOperator {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void testCaseInSensitivity(boolean caseSensitive) throws Exception {
-    int cacheMaximumSize = 10;
-    int cacheRefreshMs = 1000;
-    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
@@ -148,12 +133,8 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            cacheMaximumSize,
-            cacheRefreshMs,
-            inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            caseSensitive,
-            PRESERVE_COLUMNS);
+            flinkDynamicSinkConfiguration(caseSensitive, PRESERVE_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, initialSchema);
@@ -187,21 +168,14 @@ class TestDynamicTableUpdateOperator {
 
   @Test
   void testDynamicTableUpdateOperatorPreserveUnusedColumns() throws Exception {
-    int cacheMaximumSize = 10;
-    int cacheRefreshMs = 1000;
-    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            cacheMaximumSize,
-            cacheRefreshMs,
-            inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            CASE_SENSITIVE,
-            PRESERVE_COLUMNS);
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);
@@ -228,21 +202,14 @@ class TestDynamicTableUpdateOperator {
 
   @Test
   void testDynamicTableUpdateOperatorDropUnusedColumns() throws Exception {
-    int cacheMaximumSize = 10;
-    int cacheRefreshMs = 1000;
-    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            cacheMaximumSize,
-            cacheRefreshMs,
-            inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            CASE_INSENSITIVE,
-            DROP_COLUMNS);
+            flinkDynamicSinkConfiguration(CASE_INSENSITIVE, DROP_COLUMNS));
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);
@@ -264,5 +231,14 @@ class TestDynamicTableUpdateOperator {
     assertThat(tableSchema.findField("id")).isNotNull();
     assertThat(tableSchema.findField("data")).isNull();
     assertThat(input).isEqualTo(output);
+  }
+
+  private static FlinkDynamicSinkConf flinkDynamicSinkConfiguration(
+      boolean caseSensitive, boolean dropUnusedColumns) {
+    return new FlinkDynamicSinkConf(
+        ImmutableMap.of(
+            FlinkDynamicSinkOptions.CASE_SENSITIVE.key(), String.valueOf(caseSensitive),
+            FlinkDynamicSinkOptions.DROP_UNUSED_COLUMNS.key(), String.valueOf(dropUnusedColumns)),
+        new Configuration());
   }
 }

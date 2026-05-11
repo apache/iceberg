@@ -102,8 +102,8 @@ final class VortexMetrics {
   }
 
   private static int truncateLength(MetricsModes.MetricsMode mode) {
-    if (mode instanceof MetricsModes.Truncate) {
-      return ((MetricsModes.Truncate) mode).length();
+    if (mode instanceof MetricsModes.Truncate truncate) {
+      return truncate.length();
     }
     return Integer.MAX_VALUE;
   }
@@ -113,15 +113,11 @@ final class VortexMetrics {
     if (value == null) {
       return null;
     }
-    switch (type.typeId()) {
-      case STRING:
-        return (T) UnicodeUtil.truncateStringMin((String) value, length);
-      case BINARY:
-      case FIXED:
-        return (T) BinaryUtil.truncateBinaryMin((ByteBuffer) value, length);
-      default:
-        return value;
-    }
+    return switch (type.typeId()) {
+      case STRING -> (T) UnicodeUtil.truncateStringMin((String) value, length);
+      case BINARY, FIXED -> (T) BinaryUtil.truncateBinaryMin((ByteBuffer) value, length);
+      default -> value;
+    };
   }
 
   @SuppressWarnings("unchecked")
@@ -129,14 +125,10 @@ final class VortexMetrics {
     if (value == null) {
       return null;
     }
-    switch (type.typeId()) {
-      case STRING:
-        return (T) UnicodeUtil.truncateStringMax((String) value, length);
-      case BINARY:
-      case FIXED:
-        return (T) BinaryUtil.truncateBinaryMax((ByteBuffer) value, length);
-      default:
-        return value;
-    }
+    return switch (type.typeId()) {
+      case STRING -> (T) UnicodeUtil.truncateStringMax((String) value, length);
+      case BINARY, FIXED -> (T) BinaryUtil.truncateBinaryMax((ByteBuffer) value, length);
+      default -> value;
+    };
   }
 }

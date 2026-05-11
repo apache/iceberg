@@ -1425,6 +1425,62 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void testDeleteToWapBranchCanDeleteWhereScansWapBranch() throws NoSuchTableException {
+    assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    append(tableName, new Employee(1, "hr"));
+
+    spark.conf().set(SparkSQLProperties.WAP_BRANCH, "wap");
+    try {
+      append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+
+      sql("DELETE FROM %s WHERE id = 1", tableName);
+
+      assertThat(sql("SELECT id, dep FROM %s.branch_wap ORDER BY id", tableName))
+          .as("DELETE should remove the matching rows from the WAP branch")
+          .containsExactly(row(0, "hr"), row(2, "hr"));
+      assertThat(sql("SELECT id, dep FROM %s.branch_main", tableName))
+          .as("Main branch must not be modified by a WAP-targeted DELETE")
+          .containsExactly(row(1, "hr"));
+    } finally {
+      spark.conf().unset(SparkSQLProperties.WAP_BRANCH);
+    }
+  }
+
+  @TestTemplate
+  public void testMetadataDeleteToWapBranchCommitsToWapBranch() throws NoSuchTableException {
+    assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    append(tableName, new Employee(1, "hr"), new Employee(5, "eng"));
+
+    spark.conf().set(SparkSQLProperties.WAP_BRANCH, "wap");
+    try {
+      append(tableName, new Employee(0, "hr"), new Employee(2, "eng"));
+
+      sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+
+      assertThat(sql("SELECT id, dep FROM %s.branch_wap ORDER BY id", tableName))
+          .as("Metadata delete should remove the hr partition on the WAP branch")
+          .containsExactly(row(2, "eng"), row(5, "eng"));
+      assertThat(sql("SELECT id, dep FROM %s.branch_main ORDER BY id", tableName))
+          .as("Metadata delete must not commit to main when WAP is set")
+          .containsExactly(row(1, "hr"), row(5, "eng"));
+    } finally {
+      spark.conf().unset(SparkSQLProperties.WAP_BRANCH);
+    }
+  }
+
+  @TestTemplate
   public void testDeleteWithFilterOnNestedColumn() {
     createAndInitNestedColumnsTable();
 

@@ -45,7 +45,7 @@ To add a dependency on Iceberg in Gradle, add the following to `build.gradle`:
 
 ```
 dependencies {
-  compile 'org.apache.iceberg:iceberg-core:{{ icebergVersion }}'
+  implementation 'org.apache.iceberg:iceberg-core:{{ icebergVersion }}'
 }
 ```
 

@@ -22,6 +22,8 @@ import java.time.Duration;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
@@ -136,5 +138,40 @@ public class TestHttpClientConfigurations {
         .useIdleConnectionReaper(Mockito.anyBoolean());
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
         .proxyConfiguration(Mockito.any(ProxyConfiguration.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES,
+        HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES
+      })
+  public void testApacheProxyFlagTriggersProxyConfig(String propertyKey) {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(propertyKey, "false");
+    ApacheHttpClient.Builder spy = Mockito.spy(ApacheHttpClient.builder());
+
+    ApacheHttpClientConfigurations.create(properties).configureApacheHttpClientBuilder(spy);
+
+    Mockito.verify(spy).proxyConfiguration(Mockito.any(ProxyConfiguration.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES,
+        HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES
+      })
+  public void testUrlConnectionProxyFlagTriggersProxyConfig(String propertyKey) {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(propertyKey, "false");
+    UrlConnectionHttpClient.Builder spy = Mockito.spy(UrlConnectionHttpClient.builder());
+
+    UrlConnectionHttpClientConfigurations.create(properties)
+        .configureUrlConnectionHttpClientBuilder(spy);
+
+    Mockito.verify(spy)
+        .proxyConfiguration(
+            Mockito.any(software.amazon.awssdk.http.urlconnection.ProxyConfiguration.class));
   }
 }

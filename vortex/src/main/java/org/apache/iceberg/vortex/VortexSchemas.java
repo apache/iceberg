@@ -82,46 +82,40 @@ public final class VortexSchemas {
   }
 
   private static DType toVortexDType(Type type, boolean nullable) {
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return DType.newBool(nullable);
-      case INTEGER:
-        return DType.newInt(nullable);
-      case LONG:
-        return DType.newLong(nullable);
-      case FLOAT:
-        return DType.newFloat(nullable);
-      case DOUBLE:
-        return DType.newDouble(nullable);
-      case STRING:
-        return DType.newUtf8(nullable);
-      case BINARY:
-      case FIXED:
-        return DType.newBinary(nullable);
-      case DECIMAL:
+    return switch (type.typeId()) {
+      case BOOLEAN -> DType.newBool(nullable);
+      case INTEGER -> DType.newInt(nullable);
+      case LONG -> DType.newLong(nullable);
+      case FLOAT -> DType.newFloat(nullable);
+      case DOUBLE -> DType.newDouble(nullable);
+      case STRING -> DType.newUtf8(nullable);
+      case BINARY, FIXED -> DType.newBinary(nullable);
+      case DECIMAL -> {
         Types.DecimalType decimal = (Types.DecimalType) type;
-        return DType.newDecimal(decimal.precision(), decimal.scale(), nullable);
-      case DATE:
-        return DType.newDate(DType.TimeUnit.DAYS, nullable);
-      case TIME:
-        return DType.newTime(DType.TimeUnit.MICROSECONDS, nullable);
-      case TIMESTAMP:
+        yield DType.newDecimal(decimal.precision(), decimal.scale(), nullable);
+      }
+      case DATE -> DType.newDate(DType.TimeUnit.DAYS, nullable);
+      case TIME -> DType.newTime(DType.TimeUnit.MICROSECONDS, nullable);
+      case TIMESTAMP -> {
         Types.TimestampType ts = (Types.TimestampType) type;
-        return DType.newTimestamp(
+        yield DType.newTimestamp(
             DType.TimeUnit.MICROSECONDS,
             ts.shouldAdjustToUTC() ? Optional.of("UTC") : Optional.empty(),
             nullable);
-      case TIMESTAMP_NANO:
+      }
+      case TIMESTAMP_NANO -> {
         Types.TimestampNanoType tsNano = (Types.TimestampNanoType) type;
-        return DType.newTimestamp(
+        yield DType.newTimestamp(
             DType.TimeUnit.NANOSECONDS,
             tsNano.shouldAdjustToUTC() ? Optional.of("UTC") : Optional.empty(),
             nullable);
-      case LIST:
+      }
+      case LIST -> {
         Types.ListType listType = (Types.ListType) type;
         DType elementDType = toVortexDType(listType.elementType(), listType.isElementOptional());
-        return DType.newList(elementDType, nullable);
-      case STRUCT:
+        yield DType.newList(elementDType, nullable);
+      }
+      case STRUCT -> {
         Types.StructType structType = (Types.StructType) type;
         List<Types.NestedField> fields = structType.fields();
         String[] fieldNames = new String[fields.size()];
@@ -131,11 +125,12 @@ public final class VortexSchemas {
           fieldTypes[i] = toVortexDType(fields.get(i).type(), fields.get(i).isOptional());
         }
 
-        return DType.newStruct(fieldNames, fieldTypes, nullable);
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported Iceberg type for Vortex write: " + type);
-    }
+        yield DType.newStruct(fieldNames, fieldTypes, nullable);
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported Iceberg type for Vortex write: " + type);
+    };
   }
 
   /** Convert an Iceberg Schema to an Arrow Schema for writing via Arrow IPC. */
@@ -149,57 +144,55 @@ public final class VortexSchemas {
   }
 
   private static Field toArrowField(String name, Type type, boolean nullable) {
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return new Field(name, new FieldType(nullable, ArrowType.Bool.INSTANCE, null), null);
-      case INTEGER:
-        return new Field(
-            name, new FieldType(nullable, new ArrowType.Int(Integer.SIZE, true), null), null);
-      case LONG:
-        return new Field(
-            name, new FieldType(nullable, new ArrowType.Int(Long.SIZE, true), null), null);
-      case FLOAT:
-        return new Field(
-            name,
-            new FieldType(
-                nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE), null),
-            null);
-      case DOUBLE:
-        return new Field(
-            name,
-            new FieldType(
-                nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE), null),
-            null);
-      case STRING:
-        return new Field(name, new FieldType(nullable, ArrowType.Utf8.INSTANCE, null), null);
-      case BINARY:
-        return new Field(name, new FieldType(nullable, ArrowType.Binary.INSTANCE, null), null);
-      case FIXED:
+    return switch (type.typeId()) {
+      case BOOLEAN -> new Field(name, new FieldType(nullable, ArrowType.Bool.INSTANCE, null), null);
+      case INTEGER ->
+          new Field(
+              name, new FieldType(nullable, new ArrowType.Int(Integer.SIZE, true), null), null);
+      case LONG ->
+          new Field(name, new FieldType(nullable, new ArrowType.Int(Long.SIZE, true), null), null);
+      case FLOAT ->
+          new Field(
+              name,
+              new FieldType(
+                  nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE), null),
+              null);
+      case DOUBLE ->
+          new Field(
+              name,
+              new FieldType(
+                  nullable, new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE), null),
+              null);
+      case STRING -> new Field(name, new FieldType(nullable, ArrowType.Utf8.INSTANCE, null), null);
+      case BINARY ->
+          new Field(name, new FieldType(nullable, ArrowType.Binary.INSTANCE, null), null);
+      case FIXED -> {
         Types.FixedType fixedType = (Types.FixedType) type;
-        return new Field(
+        yield new Field(
             name,
             new FieldType(nullable, new ArrowType.FixedSizeBinary(fixedType.length()), null),
             null);
-      case DECIMAL:
+      }
+      case DECIMAL -> {
         Types.DecimalType decimalType = (Types.DecimalType) type;
-        return new Field(
+        yield new Field(
             name,
             new FieldType(
                 nullable,
                 new ArrowType.Decimal(decimalType.precision(), decimalType.scale(), 128),
                 null),
             null);
-      case DATE:
-        return new Field(
-            name, new FieldType(nullable, new ArrowType.Date(DateUnit.DAY), null), null);
-      case TIME:
-        return new Field(
-            name,
-            new FieldType(nullable, new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE), null),
-            null);
-      case TIMESTAMP:
+      }
+      case DATE ->
+          new Field(name, new FieldType(nullable, new ArrowType.Date(DateUnit.DAY), null), null);
+      case TIME ->
+          new Field(
+              name,
+              new FieldType(nullable, new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE), null),
+              null);
+      case TIMESTAMP -> {
         Types.TimestampType tsType = (Types.TimestampType) type;
-        return new Field(
+        yield new Field(
             name,
             new FieldType(
                 nullable,
@@ -207,9 +200,10 @@ public final class VortexSchemas {
                     TimeUnit.MICROSECOND, tsType.shouldAdjustToUTC() ? "UTC" : null),
                 null),
             null);
-      case TIMESTAMP_NANO:
+      }
+      case TIMESTAMP_NANO -> {
         Types.TimestampNanoType tsNanoType = (Types.TimestampNanoType) type;
-        return new Field(
+        yield new Field(
             name,
             new FieldType(
                 nullable,
@@ -217,27 +211,30 @@ public final class VortexSchemas {
                     TimeUnit.NANOSECOND, tsNanoType.shouldAdjustToUTC() ? "UTC" : null),
                 null),
             null);
-      case LIST:
+      }
+      case LIST -> {
         Types.ListType listType = (Types.ListType) type;
         Field elementField =
             toArrowField("element", listType.elementType(), listType.isElementOptional());
-        return new Field(
+        yield new Field(
             name,
             new FieldType(nullable, ArrowType.List.INSTANCE, null),
             ImmutableList.of(elementField));
-      case STRUCT:
+      }
+      case STRUCT -> {
         Types.StructType structType = (Types.StructType) type;
         ImmutableList.Builder<Field> children = ImmutableList.builder();
         for (Types.NestedField field : structType.fields()) {
           children.add(toArrowField(field.name(), field.type(), field.isOptional()));
         }
 
-        return new Field(
+        yield new Field(
             name, new FieldType(nullable, ArrowType.Struct.INSTANCE, null), children.build());
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported Iceberg type for Arrow conversion: " + type);
-    }
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported Iceberg type for Arrow conversion: " + type);
+    };
   }
 
   private static Type toIcebergType(DType dataType) {

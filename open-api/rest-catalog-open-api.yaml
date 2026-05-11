@@ -162,6 +162,15 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Warehouse provided in the `warehouse` query parameter is not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchWarehouseExample:
+                  $ref: '#/components/examples/NoSuchWarehouseError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -598,7 +607,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -918,7 +927,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -974,9 +983,9 @@ paths:
         - in: query
           name: snapshots
           description:
-            The snapshots to return in the body of the metadata. Setting the value to `all` would
-            return the full set of snapshots currently valid for the table. Setting the value to
-            `refs` would load all snapshots referenced by branches or tags.
+            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+            the value to `all` would return the full set of snapshots currently valid for the table.
+            Setting the value to `refs` would load all snapshots referenced by branches or tags.
 
             Default if no param is provided is `all`.
           required: false
@@ -1247,6 +1256,40 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/sign:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Remotely signs requests to object storage
+      operationId: signRequest
+      requestBody:
+        description: The request to be signed
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoteSignRequest'
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/RemoteSignResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1550,7 +1593,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The view already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -1963,12 +2006,8 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
-        Specific properties and handling for `vended-credentials` is documented
-        in the `LoadTableResult` schema section of this spec document.
-
-
-        The protocol and specification for `remote-signing` is documented in
-        the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
+        Specific properties and handling for `vended-credentials` and `remote-signing`
+        are documented in the `LoadTableResult` schema section of this spec document.
 
       required: false
       schema:
@@ -3479,13 +3518,19 @@ components:
          - `s3.access-key-id`: id for credentials that provide access to the data in S3
          - `s3.secret-access-key`: secret for credentials that provide access to data in S3
          - `s3.session-token`: if present, this value should be used for as the session token
-         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
          - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
 
         ## Storage Credentials
 
         Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
         Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+        ## Remote Signing
+
+        If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
+         - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
       type: object
       required:
         - metadata
@@ -4696,6 +4741,59 @@ components:
           allOf:
             - $ref: '#/components/schemas/Expression'
 
+    MultiValuedMap:
+      description: A map of string keys where each key can map to multiple string values.
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+
+    RemoteSignRequest:
+      description: The request to be signed remotely.
+      type: object
+      required:
+        - region
+        - uri
+        - method
+        - headers
+      properties:
+        region:
+          type: string
+        uri:
+          type: string
+        method:
+          type: string
+          enum: ["PUT", "GET", "HEAD", "POST", "DELETE", "PATCH", "OPTIONS"]
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        body:
+          type: string
+          description: Optional body of the request to send to the signing API. This should only be populated
+            for requests where the body of the message contains content which must be validated before a request is
+            signed, such as the S3 DeleteObjects call.
+        provider:
+          type: string
+          description: The storage provider for which the request is to be signed. The provider should correspond to
+            the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility,
+            if this is not specified, the provider is assumed to be `s3`.
+
+    RemoteSignResult:
+      description: The result of a remote request signing operation.
+      type: object
+      required:
+        - uri
+        - headers
+      properties:
+        uri:
+          type: string
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+
   #############################
   # Reusable Response Objects #
   #############################
@@ -4977,6 +5075,15 @@ components:
           schema:
             $ref: '#/components/schemas/LoadCredentialsResponse'
 
+    RemoteSignResponse:
+      description: The response containing signed & unsigned headers. The server will also send
+        a Cache-Control header, indicating whether the response can be cached (Cache-Control = ["private"])
+        or not (Cache-Control = ["no-cache"]).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RemoteSignResult'
+
   #######################################
   # Common examples of different values #
   #######################################
@@ -5070,6 +5177,16 @@ components:
         }
       }
 
+    NoSuchWarehouseError:
+      summary: The requested warehouse does not exist
+      value: {
+        "error": {
+          "message": "The given warehouse does not exist",
+          "type": "NoSuchWarehouseException",
+          "code": 404
+        }
+      }
+
     NoSuchNamespaceError:
       summary: The requested namespace does not exist
       value: {
@@ -5108,7 +5225,7 @@ components:
       summary: The requested table identifier already exists
       value: {
         "error": {
-          "message": "The given table already exists",
+          "message": "The requested table identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }
@@ -5118,7 +5235,7 @@ components:
       summary: The requested view identifier already exists
       value: {
         "error": {
-          "message": "The given view already exists",
+          "message": "The requested view identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }

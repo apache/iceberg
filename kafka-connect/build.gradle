@@ -82,7 +82,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.5.0'
         force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
         force 'commons-beanutils:commons-beanutils:1.11.0'
-        force 'io.grpc:grpc-netty-shaded:1.80.0'
+        force 'io.grpc:grpc-netty-shaded:1.81.0'
       }
     }
   }
@@ -255,6 +255,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   check.dependsOn integrationTest
 
   assemble.dependsOn distZip, hiveDistZip
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {

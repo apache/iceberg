@@ -24,9 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
@@ -78,5 +80,19 @@ public class TestSparkSchemaUtil {
             .isFalse();
       }
     }
+  }
+
+  @Test
+  public void testUnknownTypeToSpark() {
+    Schema schema = new Schema(optional(1, "col", Types.UnknownType.get()));
+    StructType sparkType = SparkSchemaUtil.convert(schema);
+    assertThat(sparkType.fields()[0].dataType()).isEqualTo(DataTypes.NullType);
+  }
+
+  @Test
+  public void testNullTypeToIceberg() {
+    StructType sparkType = new StructType().add("col", DataTypes.NullType, true);
+    Type icebergType = SparkSchemaUtil.convert(sparkType).findField("col").type();
+    assertThat(icebergType).isEqualTo(Types.UnknownType.get());
   }
 }

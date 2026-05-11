@@ -119,12 +119,10 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
 
   @Override
   public <T> Expression predicate(BoundPredicate<T> pred) {
-    if (!(pred.term() instanceof BoundReference)) {
+    if (!(pred.term() instanceof BoundReference<T> term)) {
       throw new UnsupportedOperationException(
           "Cannot convert non-reference to Parquet filter: " + pred.term());
     }
-
-    BoundReference<T> term = (BoundReference<T>) pred.term();
 
     if (pred.isLiteralPredicate()) {
       org.apache.iceberg.expressions.Literal<T> icebergLit = pred.asLiteralPredicate().literal();
@@ -167,54 +165,59 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
 
   Literal<?> toVortexLiteral(org.apache.iceberg.expressions.Literal<?> literal, Type termType) {
     switch (termType.typeId()) {
-      case BOOLEAN:
+      case BOOLEAN -> {
         return Literal.bool((Boolean) literal.value());
-      case INTEGER:
+      }
+      case INTEGER -> {
         return Literal.int32((Integer) literal.value());
-      case LONG:
+      }
+      case LONG -> {
         return Literal.int64((Long) literal.value());
-      case FLOAT:
+      }
+      case FLOAT -> {
         return Literal.float32((Float) literal.value());
-      case DOUBLE:
+      }
+      case DOUBLE -> {
         return Literal.float64((Double) literal.value());
-      case DECIMAL:
-        Types.DecimalType decimalType = (Types.DecimalType) (termType);
+      }
+      case DECIMAL -> {
+        Types.DecimalType decimalType = (Types.DecimalType) termType;
         return Literal.decimal(
             (BigDecimal) literal.value(), decimalType.precision(), decimalType.scale());
-      case STRING:
-        {
-          CharSequence charSequence = (CharSequence) literal.value();
-          if (Objects.isNull(charSequence)) {
-            return Literal.string(null);
-          } else {
-            return Literal.string(charSequence.toString());
-          }
+      }
+      case STRING -> {
+        CharSequence charSequence = (CharSequence) literal.value();
+        if (Objects.isNull(charSequence)) {
+          return Literal.string(null);
+        } else {
+          return Literal.string(charSequence.toString());
         }
-      case BINARY:
-        {
-          ByteBuffer byteBuffer = (ByteBuffer) literal.value();
-          if (Objects.isNull(byteBuffer)) {
-            return Literal.bytes(null);
-          } else {
-            byte[] bytes = new byte[byteBuffer.remaining()];
-            byteBuffer.get(bytes);
-            return Literal.bytes(bytes);
-          }
+      }
+      case BINARY -> {
+        ByteBuffer byteBuffer = (ByteBuffer) literal.value();
+        if (Objects.isNull(byteBuffer)) {
+          return Literal.bytes(null);
+        } else {
+          byte[] bytes = new byte[byteBuffer.remaining()];
+          byteBuffer.get(bytes);
+          return Literal.bytes(bytes);
         }
-      case UUID:
-        {
-          UUID uuid = (UUID) literal.value();
-          if (Objects.isNull(uuid)) {
-            return Literal.string(null);
-          } else {
-            return Literal.string(uuid.toString());
-          }
+      }
+      case UUID -> {
+        UUID uuid = (UUID) literal.value();
+        if (Objects.isNull(uuid)) {
+          return Literal.string(null);
+        } else {
+          return Literal.string(uuid.toString());
         }
-      case TIME:
+      }
+      case TIME -> {
         return Literal.timeMicros((Long) literal.value());
-      case DATE:
+      }
+      case DATE -> {
         return Literal.dateDays((Integer) literal.value());
-      case TIMESTAMP:
+      }
+      case TIMESTAMP -> {
         Types.TimestampType timestampType = (Types.TimestampType) termType;
         if (timestampType.shouldAdjustToUTC()) {
           throw new UnsupportedOperationException(
@@ -225,8 +228,8 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
           // precision.
           return Literal.timestampMicros((Long) literal.value(), Optional.empty());
         }
-      default:
-        throw new UnsupportedOperationException("Unsupported Literal type: " + termType);
+      }
+      default -> throw new UnsupportedOperationException("Unsupported Literal type: " + termType);
     }
   }
 
@@ -240,40 +243,31 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
       return right;
     }
 
-    switch (op) {
-      case TRUE:
-        return ALWAYS_TRUE;
-      case FALSE:
-        return ALWAYS_FALSE;
-      case LT:
-        return Binary.lt(left, right);
-      case LT_EQ:
-        return Binary.ltEq(left, right);
-      case GT:
-        return Binary.gt(left, right);
-      case GT_EQ:
-        return Binary.gtEq(left, right);
-      case EQ:
-        return Binary.eq(left, right);
-      case NOT_EQ:
-        return Binary.notEq(left, right);
-      case AND:
-        return Binary.and(left, right);
-      case OR:
-        return Binary.or(left, right);
-      default:
-        return UnconvertibleExpr.INSTANCE;
-    }
+    return switch (op) {
+      case TRUE -> ALWAYS_TRUE;
+      case FALSE -> ALWAYS_FALSE;
+      case LT -> Binary.lt(left, right);
+      case LT_EQ -> Binary.ltEq(left, right);
+      case GT -> Binary.gt(left, right);
+      case GT_EQ -> Binary.gtEq(left, right);
+      case EQ -> Binary.eq(left, right);
+      case NOT_EQ -> Binary.notEq(left, right);
+      case AND -> Binary.and(left, right);
+      case OR -> Binary.or(left, right);
+      default -> UnconvertibleExpr.INSTANCE;
+    };
   }
 
   Expression fromUnaryPredicate(
       org.apache.iceberg.expressions.Expression.Operation op, Expression child) {
     switch (op) {
-      case TRUE:
+      case TRUE -> {
         return ALWAYS_TRUE;
-      case FALSE:
+      }
+      case FALSE -> {
         return ALWAYS_FALSE;
-      case NOT:
+      }
+      case NOT -> {
         if (child == ALWAYS_TRUE) {
           return ALWAYS_FALSE;
         } else if (child == ALWAYS_FALSE) {
@@ -281,8 +275,10 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
         } else {
           return Not.of(child);
         }
-      default:
+      }
+      default -> {
         return ALWAYS_TRUE;
+      }
     }
   }
 
@@ -296,50 +292,44 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
             .map(value -> (Expression) Binary.eq(term, toVortexValue(value, termType)))
             .toArray(Expression[]::new);
 
-    switch (op) {
-      case IN:
-        return Binary.or(eqExprs[0], java.util.Arrays.copyOfRange(eqExprs, 1, eqExprs.length));
-      case NOT_IN:
-        return Not.of(
-            Binary.or(eqExprs[0], java.util.Arrays.copyOfRange(eqExprs, 1, eqExprs.length)));
-      default:
-        return UnconvertibleExpr.INSTANCE;
-    }
+    return switch (op) {
+      case IN -> Binary.or(eqExprs[0], java.util.Arrays.copyOfRange(eqExprs, 1, eqExprs.length));
+      case NOT_IN ->
+          Not.of(Binary.or(eqExprs[0], java.util.Arrays.copyOfRange(eqExprs, 1, eqExprs.length)));
+      default -> UnconvertibleExpr.INSTANCE;
+    };
   }
 
   @SuppressWarnings("unchecked")
   private <T> Literal<?> toVortexValue(T value, Type termType) {
-    switch (termType.typeId()) {
-      case BOOLEAN:
-        return Literal.bool((Boolean) value);
-      case INTEGER:
-        return Literal.int32((Integer) value);
-      case LONG:
-        return Literal.int64((Long) value);
-      case FLOAT:
-        return Literal.float32((Float) value);
-      case DOUBLE:
-        return Literal.float64((Double) value);
-      case DECIMAL:
+    return switch (termType.typeId()) {
+      case BOOLEAN -> Literal.bool((Boolean) value);
+      case INTEGER -> Literal.int32((Integer) value);
+      case LONG -> Literal.int64((Long) value);
+      case FLOAT -> Literal.float32((Float) value);
+      case DOUBLE -> Literal.float64((Double) value);
+      case DECIMAL -> {
         Types.DecimalType decimalType = (Types.DecimalType) termType;
-        return Literal.decimal((BigDecimal) value, decimalType.precision(), decimalType.scale());
-      case STRING:
+        yield Literal.decimal((BigDecimal) value, decimalType.precision(), decimalType.scale());
+      }
+      case STRING -> {
         CharSequence charSequence = (CharSequence) value;
-        return Literal.string(charSequence.toString());
-      case DATE:
-        return Literal.dateDays((Integer) value);
-      case TIME:
-        return Literal.timeMicros((Long) value);
-      case TIMESTAMP:
+        yield Literal.string(charSequence.toString());
+      }
+      case DATE -> Literal.dateDays((Integer) value);
+      case TIME -> Literal.timeMicros((Long) value);
+      case TIMESTAMP -> {
         Types.TimestampType timestampType = (Types.TimestampType) termType;
         if (timestampType.shouldAdjustToUTC()) {
           throw new UnsupportedOperationException(
               "Handling of timestamps with timezones not yet supported");
         }
-        return Literal.timestampMicros((Long) value, Optional.empty());
-      default:
-        throw new UnsupportedOperationException("Unsupported type for set predicate: " + termType);
-    }
+        yield Literal.timestampMicros((Long) value, Optional.empty());
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported type for set predicate: " + termType);
+    };
   }
 
   enum UnconvertibleExpr implements Expression {
