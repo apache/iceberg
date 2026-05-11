@@ -211,6 +211,10 @@ public abstract class DeleteReadTests {
     return false;
   }
 
+  protected boolean supportsStructFields() {
+    return true;
+  }
+
   /**
    * This will only be called after calling rowSet(String, Table, String...), and only if
    * countDeletes() is true.
@@ -636,6 +640,9 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeletesWithNestedFieldIdentifier() throws IOException {
+    assumeThat(supportsStructFields())
+        .as("Skipping: this format/mode does not support struct fields")
+        .isTrue();
     // Write records that populate the optional nested struct column (ids 200–209).
     writeOptionalTestDataFile();
     Types.NestedField innerField = table.schema().findField("structData.structInnerData");

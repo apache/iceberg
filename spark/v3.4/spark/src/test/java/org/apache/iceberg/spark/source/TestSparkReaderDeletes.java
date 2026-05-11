@@ -206,6 +206,11 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   @Override
+  protected boolean supportsStructFields() {
+    return !vectorized;
+  }
+
+  @Override
   protected long deleteCount() {
     return Long.parseLong(lastExecutedMetricValue(spark, NumDeletes.DISPLAY_STRING));
   }
