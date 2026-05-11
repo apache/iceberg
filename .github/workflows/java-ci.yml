@@ -37,6 +37,7 @@ on:
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/jmh-benchmarks-ci.yml'
     - '.github/workflows/kafka-connect-ci.yml'
+    - '.github/workflows/kafka-connect-cve-scan.yml'
     - '.github/workflows/labeler.yml'
     - '.github/workflows/license-check.yml'
     - '.github/workflows/open-api.yml'

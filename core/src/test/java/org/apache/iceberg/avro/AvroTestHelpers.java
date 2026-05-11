@@ -177,4 +177,12 @@ public class AvroTestHelpers {
       return reader.getMetaString("avro.codec");
     }
   }
+
+  public static boolean hasIds(Schema schema) {
+    return AvroSchemaUtil.hasIds(schema);
+  }
+
+  public static Schema removeIds(org.apache.iceberg.Schema schema) {
+    return RemoveIds.removeIds(schema);
+  }
 }
