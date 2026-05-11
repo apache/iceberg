@@ -40,6 +40,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
           Tracking.REPLACED_POSITIONS,
+          Tracking.LATEST_COLUMN_FILE_SNAPSHOT_ID,
           MetadataColumns.ROW_POSITION);
 
   private EntryStatus status = null;
@@ -212,7 +213,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         return deletedPositions();
       case 7:
         return replacedPositions();
-      case 8:
+      case 9:
         return manifestPos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -246,7 +247,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       case 7:
         this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
-      case 8:
+      case 9:
         this.manifestPos = (long) value;
         break;
       default:

@@ -65,7 +65,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.MANIFEST_INFO,
           TrackedFile.KEY_METADATA,
           TrackedFile.SPLIT_OFFSETS,
-          TrackedFile.EQUALITY_IDS);
+          TrackedFile.EQUALITY_IDS,
+          TrackedFile.COLUMN_FILES);
 
   private FileContent contentType = null;
   private String location = null;

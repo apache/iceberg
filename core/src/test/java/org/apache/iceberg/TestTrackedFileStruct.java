@@ -218,7 +218,7 @@ class TestTrackedFileStruct {
   @Test
   void testStructLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
-    assertThat(file.size()).isEqualTo(15);
+    assertThat(file.size()).isEqualTo(16);
   }
 
   @Test
