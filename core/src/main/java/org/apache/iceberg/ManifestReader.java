@@ -435,7 +435,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       // EXISTING entries)
       return Function.identity();
     } else {
-      // committed pre-v3 manifest with a null manifest-level firstRowId
+      // committed pre-v3 manifest with a null manifest-level firstRowId, defensively assign null
+      // first row IDs
       return entry -> {
         if (entry.file() instanceof BaseFile) {
           ((BaseFile<?>) entry.file()).setFirstRowId(null);

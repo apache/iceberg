@@ -196,7 +196,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     boolean threw = true;
     try {
       for (ManifestFile manifest : bin) {
-        boolean committed = snapshotId() != manifest.snapshotId();
+        boolean committed = manifest.snapshotId() != null && snapshotId() != manifest.snapshotId();
         try (ManifestReader<F> reader = newManifestReader(manifest, committed)) {
           for (ManifestEntry<F> entry : reader.entries()) {
             if (entry.status() == Status.DELETED) {
