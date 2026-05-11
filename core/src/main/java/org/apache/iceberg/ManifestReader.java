@@ -441,6 +441,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         if (entry.file() instanceof BaseFile) {
           ((BaseFile<?>) entry.file()).setFirstRowId(null);
         }
+
         return entry;
       };
     }
