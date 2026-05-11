@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -76,7 +75,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjection_singleVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
     Dataset<Row> df = spark.table(TABLE).select("id", "v1").orderBy("id");
     assertThat(df.schema().fieldNames()).containsExactly("id", "v1");
@@ -106,7 +104,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjectionNoVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
     Dataset<Row> df = spark.table(TABLE).select("id");
     assertThat(df.schema().fieldNames()).containsExactly("id");
@@ -117,7 +114,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testFilterOnVariantColumnOnWholeValue(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
     sql("INSERT INTO %s SELECT 3, NULL, NULL", TABLE);
 
@@ -147,7 +143,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantNullValueProjection(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
 
     // insert a row with NULL variant values
@@ -165,7 +160,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testNestedStructVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
 
     String structTable = CATALOG + ".default.var_struct";
     sql("DROP TABLE IF EXISTS %s", structTable);
@@ -200,7 +194,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testNestedArrayVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
 
     String arrayTable = CATALOG + ".default.var_array";
     sql("DROP TABLE IF EXISTS %s", arrayTable);
@@ -249,7 +242,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testNestedMapVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
 
     String mapTable = CATALOG + ".default.var_map";
     sql("DROP TABLE IF EXISTS %s", mapTable);
@@ -305,8 +297,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testMergeIntoWithVariant(boolean vectorized) {
-    // Variant columns are not vectorized yet, but MERGE INTO should not crash regardless of the
-    // vectorization setting. The reader falls back to non-vectorized for variant columns.
     String mergeTable = CATALOG + ".default.var_merge";
     sql("DROP TABLE IF EXISTS %s", mergeTable);
     sql(
