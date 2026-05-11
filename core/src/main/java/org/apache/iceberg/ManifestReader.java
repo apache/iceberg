@@ -92,7 +92,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final Long firstRowId;
-  private final boolean committed;
+  private final boolean isCommitted;
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
@@ -135,7 +135,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       Map<Integer, PartitionSpec> specsById,
       InheritableMetadata inheritableMetadata,
       Long firstRowId,
-      boolean committed,
+      boolean isCommitted,
       FileType content) {
     Preconditions.checkArgument(
         firstRowId == null || content == FileType.DATA_FILES,
@@ -143,7 +143,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.firstRowId = firstRowId;
-    this.committed = committed;
+    this.isCommitted = isCommitted;
     this.content = content;
 
     if (specsById != null) {
@@ -321,7 +321,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     CloseableIterable<ManifestEntry<F>> withMetadata =
         CloseableIterable.transform(reader, inheritableMetadata::apply);
-    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId, committed));
+    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId, isCommitted));
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
@@ -411,7 +411,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <F extends ContentFile<F>> Function<ManifestEntry<F>, ManifestEntry<F>> idAssigner(
-      Long firstRowId, boolean committed) {
+      Long firstRowId, boolean isCommitted) {
     if (firstRowId != null) {
       return new Function<>() {
         private long nextRowId = firstRowId;
@@ -429,14 +429,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           return entry;
         }
       };
-    } else if (!committed) {
-      // Preserve the entry with its firstRowId
-      // as this is an uncommitted manifest which may have already assigned row IDs (e.g. for
-      // EXISTING entries)
+    } else if (!isCommitted) {
+      // uncommitted manifest: EXISTING entries carry explicit per-file firstRowId values written
+      // by ManifestFilterManager; ManifestListWriter hasn't run yet so manifest-level is null
       return Function.identity();
     } else {
-      // committed pre-v3 manifest with a null manifest-level firstRowId, defensively assign null
-      // first row IDs
+      // committed manifest with null manifest-level firstRowId (pre-v3 upgrade path):
+      // entries must not carry a per-file firstRowId
       return entry -> {
         if (entry.file() instanceof BaseFile) {
           ((BaseFile<?>) entry.file()).setFirstRowId(null);
