@@ -73,7 +73,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private long recordCount = -1L;
   private long fileSizeInBytes = -1L;
   private Integer specId = null;
-  private PartitionData partitionData = null;
+  private PartitionData partitionData = EMPTY_PARTITION_DATA;
 
   // optional fields
   private Tracking tracking = null;
@@ -90,16 +90,14 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     super(BASE_TYPE, projection);
     // partition type may be null if the field was not projected
     Type partType = projection.fieldType("partition");
-    this.partitionData =
-        null != partType
-            ? new PartitionData(partType.asNestedType().asStructType())
-            : EMPTY_PARTITION_DATA;
+    if (partType != null) {
+      this.partitionData = new PartitionData(partType.asNestedType().asStructType());
+    }
   }
 
   /** No-projection constructor for direct construction. */
   TrackedFileStruct() {
     super(BASE_TYPE.fields().size());
-    this.partitionData = EMPTY_PARTITION_DATA;
   }
 
   /** Constructor that accepts required fields. */
@@ -116,9 +114,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.contentType = contentType;
     this.location = location;
     this.fileFormat = fileFormat;
-    this.partitionData = null != partition ? partition : EMPTY_PARTITION_DATA;
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
+    if (partition != null) {
+      this.partitionData = partition;
+    }
   }
 
   /** Copy constructor. */

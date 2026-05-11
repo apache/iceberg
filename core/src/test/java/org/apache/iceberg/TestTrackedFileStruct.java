@@ -30,6 +30,11 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 class TestTrackedFileStruct {
+  private static final Types.StructType PARTITION_TYPE =
+      Types.StructType.of(
+          Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
+          Types.NestedField.optional(1001, "category", Types.StringType.get()));
+
   @Test
   void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
@@ -123,13 +128,7 @@ class TestTrackedFileStruct {
 
   @Test
   void partitionAccess() {
-    Types.StructType partitionType =
-        Types.StructType.of(
-            Types.NestedField.optional(1000, "id", Types.IntegerType.get()),
-            Types.NestedField.optional(1001, "category", Types.StringType.get()));
-    PartitionData partition = new PartitionData(partitionType);
-    partition.set(0, 5);
-    partition.set(1, "books");
+    PartitionData partition = newPartition(5, "books");
 
     TrackedFileStruct file = new TrackedFileStruct();
     file.set(7, partition);
@@ -141,14 +140,7 @@ class TestTrackedFileStruct {
 
   @Test
   void partitionIsCopied() {
-    Types.StructType partitionType =
-        Types.StructType.of(
-            Types.NestedField.optional(1000, "id", Types.IntegerType.get()),
-            Types.NestedField.optional(1001, "category", Types.StringType.get()));
-    PartitionData partition = new PartitionData(partitionType);
-    partition.set(0, 5);
-    partition.set(1, "books");
-
+    PartitionData partition = newPartition(5, "books");
     TrackedFileStruct file = createFullTrackedFile();
     file.set(7, partition);
 
@@ -182,6 +174,7 @@ class TestTrackedFileStruct {
     assertThat(copy.equalityIds()).isNull();
     assertThat(copy.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
     assertThat(copy.tracking().manifestPos()).isEqualTo(3L);
+    assertThat(copy.partition()).isEqualTo(newPartition(7, "music"));
   }
 
   @Test
@@ -308,6 +301,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
     assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.partition()).isEqualTo(newPartition(7, "music"));
   }
 
   @Test
@@ -330,6 +324,7 @@ class TestTrackedFileStruct {
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
     assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.partition()).isEqualTo(newPartition(7, "music"));
   }
 
   static TrackedFileStruct createFullTrackedFile() {
@@ -356,7 +351,7 @@ class TestTrackedFileStruct {
             FileContent.DATA,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
-            new PartitionData(Types.StructType.of()),
+            newPartition(7, "music"),
             100L,
             1024L);
     file.set(6, 0);
@@ -366,6 +361,13 @@ class TestTrackedFileStruct {
     file.set(13, ImmutableList.of(50L));
 
     return file;
+  }
+
+  private static PartitionData newPartition(int idBucket, String category) {
+    PartitionData partition = new PartitionData(PARTITION_TYPE);
+    partition.set(0, idBucket);
+    partition.set(1, category);
+    return partition;
   }
 
   static TrackedFileStruct createTrackedFileWithStats() {
