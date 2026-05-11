@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
@@ -84,6 +86,12 @@ public class TestTrackedFileBuilder {
   private static final ImmutableList<Long> SPLIT_OFFSETS = ImmutableList.of(0L, 4096L, 8192L);
   private static final ByteBuffer DELETED_POSITIONS = ByteBuffer.wrap(new byte[] {10, 11, 12});
   private static final ByteBuffer REPLACED_POSITIONS = ByteBuffer.wrap(new byte[] {20, 21, 22});
+  private static final ColumnFile COLUMN_FILE =
+      ColumnFileStruct.builder()
+          .fieldIds(ImmutableList.of(1, 2))
+          .location("s3://bucket/data/col1.parquet")
+          .fileSizeInBytes(100L)
+          .build();
 
   private static Stream<Arguments> missingRequiredFieldCases() {
     return Stream.of(
@@ -284,6 +292,75 @@ public class TestTrackedFileBuilder {
                 + contentType);
   }
 
+  private static Stream<Arguments> nonDataOrDataManifestBuilders() {
+    return Stream.of(
+        Arguments.of(TrackedFileBuilder.equalityDelete(10L), FileContent.EQUALITY_DELETES),
+        Arguments.of(TrackedFileBuilder.deleteManifest(10L), FileContent.DELETE_MANIFEST),
+        Arguments.of(
+            TrackedFileBuilder.from(sourceEqualityDelete(12L), 20L), FileContent.EQUALITY_DELETES),
+        Arguments.of(
+            TrackedFileBuilder.from(sourceDeleteManifest(12L), 20L), FileContent.DELETE_MANIFEST));
+  }
+
+  @ParameterizedTest
+  @MethodSource("nonDataOrDataManifestBuilders")
+  public void invalidColumnFilesForContentType(
+      TrackedFileBuilder builder, FileContent contentType) {
+    assertThatThrownBy(() -> builder.columnFiles(ImmutableList.of(COLUMN_FILE)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add column files for file with content: " + contentType);
+  }
+
+  @Test
+  public void invalidEmptyColumnFiles() {
+    assertThatThrownBy(() -> TrackedFileBuilder.data(50L).columnFiles(ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid column files: empty");
+  }
+
+  @Test
+  public void invalidColumnFilesWithNullEntry() {
+    assertThatThrownBy(
+            () -> TrackedFileBuilder.data(50L).columnFiles(Arrays.asList(COLUMN_FILE, null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid column file: null");
+  }
+
+  @Test
+  public void invalidColumnFilesWithDuplicateLocation() {
+    ColumnFile columnFileWithSameLocation =
+        ColumnFileStruct.builder()
+            .fieldIds(ImmutableList.of(3))
+            .location("s3://bucket/data/col1.parquet")
+            .fileSizeInBytes(200L)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                TrackedFileBuilder.data(50L)
+                    .columnFiles(ImmutableList.of(COLUMN_FILE, columnFileWithSameLocation)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid column files: duplicate column file, location: s3://bucket/data/col1.parquet");
+  }
+
+  @Test
+  public void invalidColumnFilesWithOverlappingFieldIds() {
+    ColumnFile columnFileWithOverlappingFieldIds =
+        ColumnFileStruct.builder()
+            .fieldIds(ImmutableList.of(2, 3))
+            .location("s3://bucket/data/col2.parquet")
+            .fileSizeInBytes(200L)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                TrackedFileBuilder.data(50L)
+                    .columnFiles(ImmutableList.of(COLUMN_FILE, columnFileWithOverlappingFieldIds)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid column files: overlapping field IDs across column files");
+  }
+
   @Test
   public void invalidNullInputs() {
     assertThatThrownBy(() -> TrackedFileBuilder.data(30L).location(null))
@@ -321,6 +398,10 @@ public class TestTrackedFileBuilder {
     assertThatThrownBy(() -> TrackedFileBuilder.equalityDelete(30L).equalityIds(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid equality IDs: null");
+
+    assertThatThrownBy(() -> TrackedFileBuilder.data(30L).columnFiles(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid column files: null");
 
     assertThatThrownBy(() -> TrackedFileBuilder.from(null, 20L))
         .isInstanceOf(IllegalArgumentException.class)
@@ -406,6 +487,7 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.keyMetadata()).isNull();
     assertThat(trackedFile.splitOffsets()).isNull();
     assertThat(trackedFile.equalityIds()).isNull();
+    assertThat(trackedFile.columnFiles()).isNull();
   }
 
   @Test
@@ -424,6 +506,7 @@ public class TestTrackedFileBuilder {
             .deletionVector(DELETION_VECTOR)
             .keyMetadata(KEY_METADATA)
             .splitOffsets(SPLIT_OFFSETS)
+            .columnFiles(ImmutableList.of(COLUMN_FILE))
             .build();
 
     assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
@@ -439,10 +522,13 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.deletionVector()).isSameAs(DELETION_VECTOR);
     assertThat(trackedFile.keyMetadata()).isEqualTo(KEY_METADATA);
     assertThat(trackedFile.splitOffsets()).isEqualTo(SPLIT_OFFSETS);
+    assertThat(trackedFile.columnFiles()).hasSize(1);
+    verifyColumnFile(COLUMN_FILE, trackedFile.columnFiles().get(0));
 
     assertThat(trackedFile.tracking().status()).isEqualTo(EntryStatus.ADDED);
     assertThat(trackedFile.tracking().snapshotId()).isEqualTo(50L);
     assertThat(trackedFile.tracking().dvSnapshotId()).isEqualTo(50L);
+    assertThat(trackedFile.tracking().latestColumnFileSnapshotId()).isEqualTo(50L);
 
     // Unsupported fields for data files
     assertThat(trackedFile.manifestInfo()).isNull();
@@ -481,6 +567,7 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.manifestInfo()).isNull();
     assertThat(trackedFile.keyMetadata()).isNull();
     assertThat(trackedFile.splitOffsets()).isNull();
+    assertThat(trackedFile.columnFiles()).isNull();
   }
 
   @Test
@@ -521,6 +608,7 @@ public class TestTrackedFileBuilder {
     // Unsupported fields for equality delete files
     assertThat(trackedFile.deletionVector()).isNull();
     assertThat(trackedFile.manifestInfo()).isNull();
+    assertThat(trackedFile.columnFiles()).isNull();
   }
 
   private static Stream<Arguments> manifestBuilders() {
@@ -563,6 +651,7 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.keyMetadata()).isNull();
     assertThat(trackedFile.splitOffsets()).isNull();
     assertThat(trackedFile.equalityIds()).isNull();
+    assertThat(trackedFile.columnFiles()).isNull();
   }
 
   @ParameterizedTest
@@ -602,6 +691,7 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.deletionVector()).isNull();
     assertThat(trackedFile.splitOffsets()).isNull();
     assertThat(trackedFile.equalityIds()).isNull();
+    assertThat(trackedFile.columnFiles()).isNull();
   }
 
   private static Stream<Arguments> manifestSources() {
@@ -721,6 +811,59 @@ public class TestTrackedFileBuilder {
         .hasMessage("The same deletion vector already added");
   }
 
+  @Test
+  public void updateColumnFilesWhenBuildingDataFileFromSource() {
+    TrackedFile source = entryWithInheritedSeqNums(sourceData(10L), 45L);
+
+    ColumnFile columnFile =
+        ColumnFileStruct.builder()
+            .fieldIds(ImmutableList.of(4, 5))
+            .location("s3://bucket/data/new_col_file.parquet")
+            .fileSizeInBytes(1234L)
+            .build();
+    List<ColumnFile> columnFiles = ImmutableList.of(COLUMN_FILE, columnFile);
+
+    TrackedFile trackedFile = TrackedFileBuilder.from(source, 20L).columnFiles(columnFiles).build();
+
+    assertThat(trackedFile.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE, trackedFile.columnFiles().get(0));
+    verifyColumnFile(columnFile, trackedFile.columnFiles().get(1));
+    assertThat(trackedFile.tracking().status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(trackedFile.tracking().snapshotId()).isEqualTo(10L);
+    // data sequence number is bumped
+    assertThat(trackedFile.tracking().dataSequenceNumber()).isNull();
+    assertThat(trackedFile.tracking().fileSequenceNumber()).isEqualTo(45L);
+    assertThat(trackedFile.tracking().latestColumnFileSnapshotId()).isEqualTo(20L);
+  }
+
+  @Test
+  public void addingSameColumnFilesFails() {
+    TrackedFile source = entryWithInheritedSeqNums(sourceData(10L), 45L);
+
+    ColumnFile columnFile =
+        ColumnFileStruct.builder()
+            .fieldIds(ImmutableList.of(4, 5))
+            .location("s3://bucket/data/new_col_file.parquet")
+            .fileSizeInBytes(1234L)
+            .build();
+    List<ColumnFile> columnFiles = ImmutableList.of(COLUMN_FILE, columnFile);
+    List<ColumnFile> columnFilesCopy = ImmutableList.of(COLUMN_FILE.copy(), columnFile.copy());
+    List<ColumnFile> columnFilesReordered = ImmutableList.of(columnFile, COLUMN_FILE);
+
+    TrackedFile trackedFile = TrackedFileBuilder.from(source, 20L).columnFiles(columnFiles).build();
+
+    assertThatThrownBy(() -> TrackedFileBuilder.from(trackedFile, 30L).columnFiles(columnFiles))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The same column files already added");
+    assertThatThrownBy(() -> TrackedFileBuilder.from(trackedFile, 30L).columnFiles(columnFilesCopy))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The same column files already added");
+    assertThatThrownBy(
+            () -> TrackedFileBuilder.from(trackedFile, 30L).columnFiles(columnFilesReordered))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The same column files already added");
+  }
+
   private static Stream<Arguments> nonManifestSources() {
     return Stream.of(
         Arguments.of(sourceData(10L), FileContent.DATA),
@@ -782,6 +925,7 @@ public class TestTrackedFileBuilder {
         .deletionVector(DELETION_VECTOR)
         .keyMetadata(KEY_METADATA)
         .splitOffsets(SPLIT_OFFSETS)
+        .columnFiles(ImmutableList.of(COLUMN_FILE))
         .build();
   }
 
@@ -806,6 +950,7 @@ public class TestTrackedFileBuilder {
         .fileSizeInBytes(556L)
         .partition(PARTITION_DATA)
         .manifestInfo(MANIFEST_INFO)
+        .columnFiles(ImmutableList.of(COLUMN_FILE))
         .build();
   }
 
@@ -824,7 +969,15 @@ public class TestTrackedFileBuilder {
   private static TrackedFile entryWithInheritedSeqNums(TrackedFile entry, long sequenceNumber) {
     Tracking manifestTrackingToInheritFrom =
         new TrackingStruct(
-            EntryStatus.EXISTING, 123L, sequenceNumber, sequenceNumber, null, null, null, null);
+            EntryStatus.EXISTING,
+            123L,
+            sequenceNumber,
+            sequenceNumber,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     ((TrackingStruct) entry.tracking()).inheritFrom(manifestTrackingToInheritFrom);
     return entry;
@@ -849,6 +1002,7 @@ public class TestTrackedFileBuilder {
     assertThat(entry.splitOffsets()).isEqualTo(source.splitOffsets());
     assertThat(entry.manifestInfo()).isSameAs(source.manifestInfo());
     assertThat(entry.equalityIds()).isEqualTo(source.equalityIds());
+    assertThat(entry.columnFiles()).isEqualTo(source.columnFiles());
 
     assertThat(entry.tracking().dataSequenceNumber())
         .isEqualTo(source.tracking().dataSequenceNumber());
@@ -859,5 +1013,13 @@ public class TestTrackedFileBuilder {
     assertThat(entry.tracking().deletedPositions()).isEqualTo(source.tracking().deletedPositions());
     assertThat(entry.tracking().replacedPositions())
         .isEqualTo(source.tracking().replacedPositions());
+    assertThat(entry.tracking().latestColumnFileSnapshotId())
+        .isEqualTo(source.tracking().latestColumnFileSnapshotId());
+  }
+
+  private static void verifyColumnFile(ColumnFile expected, ColumnFile actual) {
+    assertThat(actual.fieldIds()).containsExactlyElementsOf(expected.fieldIds());
+    assertThat(actual.location()).isEqualTo(expected.location());
+    assertThat(actual.fileSizeInBytes()).isEqualTo(expected.fileSizeInBytes());
   }
 }

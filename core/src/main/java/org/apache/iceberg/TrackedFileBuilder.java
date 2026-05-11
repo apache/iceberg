@@ -19,8 +19,12 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 class TrackedFileBuilder {
   private final long snapshotId;
@@ -43,12 +47,14 @@ class TrackedFileBuilder {
   private ByteBuffer keyMetadata = null;
   private List<Long> splitOffsets = null;
   private List<Integer> equalityIds = null;
+  private List<ColumnFile> columnFiles = null;
 
   // tracking-related fields
   private Tracking sourceTracking = null;
   private boolean dvUpdated = false;
   private ByteBuffer deletedPositions = null;
   private ByteBuffer replacedPositions = null;
+  private boolean columnFilesUpdated = false;
 
   /**
    * Creates a builder for a newly added data file entry.
@@ -142,7 +148,8 @@ class TrackedFileBuilder {
         source.manifestInfo(),
         source.keyMetadata(),
         source.splitOffsets(),
-        source.equalityIds());
+        source.equalityIds(),
+        source.columnFiles());
   }
 
   private TrackedFileBuilder(FileContent contentType, long snapshotId) {
@@ -168,6 +175,7 @@ class TrackedFileBuilder {
     this.splitOffsets = source.splitOffsets();
     this.equalityIds = source.equalityIds();
     this.sourceTracking = source.tracking();
+    this.columnFiles = source.columnFiles();
   }
 
   TrackedFileBuilder formatVersion(int newFormatVersion) {
@@ -304,6 +312,54 @@ class TrackedFileBuilder {
     return this;
   }
 
+  TrackedFileBuilder columnFiles(List<ColumnFile> newColumnFiles) {
+    Preconditions.checkArgument(newColumnFiles != null, "Invalid column files: null");
+    Preconditions.checkArgument(!newColumnFiles.isEmpty(), "Invalid column files: empty");
+    Preconditions.checkArgument(
+        contentType == FileContent.DATA || contentType == FileContent.DATA_MANIFEST,
+        "Cannot add column files for file with content: %s",
+        contentType);
+    validateColumnFiles(newColumnFiles);
+    Preconditions.checkArgument(
+        !addingSameColumnFiles(newColumnFiles), "The same column files already added");
+
+    this.columnFiles = newColumnFiles;
+    this.columnFilesUpdated = true;
+    return this;
+  }
+
+  private boolean addingSameColumnFiles(List<ColumnFile> newColumnFiles) {
+    if (columnFiles == null || columnFiles.size() != newColumnFiles.size()) {
+      return false;
+    }
+
+    Set<String> existingLocations =
+        columnFiles.stream().map(ColumnFile::location).collect(Collectors.toSet());
+    return newColumnFiles.stream().map(ColumnFile::location).allMatch(existingLocations::contains);
+  }
+
+  private void validateColumnFiles(List<ColumnFile> newColumnFiles) {
+    Set<String> locations = Sets.newHashSet();
+    Set<Integer> allFieldIds = Sets.newHashSet();
+    for (ColumnFile columnFile : newColumnFiles) {
+      Preconditions.checkArgument(columnFile != null, "Invalid column file: null");
+
+      String columnFileLocation = columnFile.location();
+      List<Integer> fieldIds = columnFile.fieldIds();
+
+      Preconditions.checkArgument(
+          !locations.contains(columnFileLocation),
+          "Invalid column files: duplicate column file, location: %s",
+          columnFileLocation);
+      Preconditions.checkArgument(
+          Collections.disjoint(allFieldIds, fieldIds),
+          "Invalid column files: overlapping field IDs across column files");
+
+      allFieldIds.addAll(fieldIds);
+      locations.add(columnFileLocation);
+    }
+  }
+
   private static boolean isLeafManifest(FileContent contentType) {
     return contentType == FileContent.DATA_MANIFEST || contentType == FileContent.DELETE_MANIFEST;
   }
@@ -340,6 +396,10 @@ class TrackedFileBuilder {
       trackingBuilder.replacedPositions(replacedPositions);
     }
 
+    if (columnFilesUpdated) {
+      trackingBuilder.columnFilesUpdated();
+    }
+
     return new TrackedFileStruct(
         trackingBuilder.build(),
         contentType,
@@ -356,6 +416,7 @@ class TrackedFileBuilder {
         manifestInfo,
         keyMetadata,
         splitOffsets,
-        equalityIds);
+        equalityIds,
+        columnFiles);
   }
 }
