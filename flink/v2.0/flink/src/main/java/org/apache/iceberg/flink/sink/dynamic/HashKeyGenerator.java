@@ -88,7 +88,7 @@ class HashKeyGenerator {
             dynamicRecord.schema(),
             dynamicRecord.spec(),
             dynamicRecord.equalityFields(),
-            MoreObjects.firstNonNull(dynamicRecord.distributionMode(), DistributionMode.NONE),
+            dynamicRecord.distributionMode(),
             Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism));
     KeySelector<RowData, Integer> keySelector =
         keySelectorCache.computeIfAbsent(
@@ -98,8 +98,7 @@ class HashKeyGenerator {
                     tableIdent,
                     MoreObjects.firstNonNull(tableSchema, dynamicRecord.schema()),
                     MoreObjects.firstNonNull(tableSpec, dynamicRecord.spec()),
-                    MoreObjects.firstNonNull(
-                        dynamicRecord.distributionMode(), DistributionMode.NONE),
+                    dynamicRecord.distributionMode(),
                     MoreObjects.firstNonNull(
                         dynamicRecord.equalityFields(), Collections.emptySet()),
                     Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));

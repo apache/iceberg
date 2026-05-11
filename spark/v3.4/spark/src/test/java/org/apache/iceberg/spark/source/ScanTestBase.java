@@ -37,6 +37,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -62,6 +63,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
         SparkSession.builder()
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .master("local[2]")
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
     ScanTestBase.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
@@ -93,14 +95,11 @@ public abstract class ScanTestBase extends AvroDataTestBase {
 
     HadoopTables tables = new HadoopTables(CONF);
     // If V3 spec features are used, set the format version to 3
-    Map<String, String> tableProperties =
-        writeSchema.columns().stream()
-                .anyMatch(f -> f.initialDefaultLiteral() != null || f.writeDefaultLiteral() != null)
-            ? ImmutableMap.of(TableProperties.FORMAT_VERSION, "3")
-            : ImmutableMap.of();
+    Map<String, String> tableProperties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
     Table table =
         tables.create(
             writeSchema, PartitionSpec.unpartitioned(), tableProperties, location.toString());
+    configureTable(table);
 
     // Important: use the table's schema for the rest of the test
     // When tables are created, the column ids are reassigned.

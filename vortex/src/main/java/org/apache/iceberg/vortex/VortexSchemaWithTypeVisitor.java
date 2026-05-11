@@ -40,19 +40,17 @@ public abstract class VortexSchemaWithTypeVisitor<T> {
   }
 
   public static <T> T visit(Type iType, DType schema, VortexSchemaWithTypeVisitor<T> visitor) {
-    switch (schema.getVariant()) {
-      case STRUCT:
-        return visitStruct(iType != null ? iType.asStructType() : null, schema, visitor);
-
-      case LIST:
+    return switch (schema.getVariant()) {
+      case STRUCT -> visitStruct(iType != null ? iType.asStructType() : null, schema, visitor);
+      case LIST -> {
         Types.ListType list = iType != null ? iType.asListType() : null;
-        return visitor.list(
+        yield visitor.list(
             list,
             schema,
             visit(list != null ? list.elementType() : null, schema.getElementType(), visitor));
-      default:
-        return visitor.primitive(iType != null ? iType.asPrimitiveType() : null, schema);
-    }
+      }
+      default -> visitor.primitive(iType != null ? iType.asPrimitiveType() : null, schema);
+    };
   }
 
   private static <T> T visitStruct(

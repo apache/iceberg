@@ -200,7 +200,7 @@ public class VortexFormatModel<D, S, R>
 
       return switch (content) {
         case DATA, EQUALITY_DELETES -> buildAppender(schema);
-        case POSITION_DELETES ->
+        case POSITION_DELETES, DATA_MANIFEST, DELETE_MANIFEST ->
             throw new UnsupportedOperationException(
                 "Position deletes are not yet supported for Vortex format");
       };

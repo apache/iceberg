@@ -75,9 +75,12 @@ public class SinkWriter {
         record.timestamp() == null
             ? null
             : OffsetDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneOffset.UTC);
+    // use the original topic and partition to track offsets, as SMTs may have changed
+    // record.topic() and record.kafkaPartition() (e.g. RegexRouter). The framework's
+    // context.assignment() and consumer offset management use the original values.
     sourceOffsets.put(
-        new TopicPartition(record.topic(), record.kafkaPartition()),
-        new Offset(record.kafkaOffset() + 1, timestamp));
+        new TopicPartition(record.originalTopic(), record.originalKafkaPartition()),
+        new Offset(record.originalKafkaOffset() + 1, timestamp));
 
     if (config.dynamicTablesEnabled()) {
       routeRecordDynamically(record);

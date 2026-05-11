@@ -852,11 +852,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl2.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db.ns1 is not empty. Contains 1 table(s).");
+        .hasMessage("Namespace db.ns1 is not empty. Contains 1 child namespace(s).");
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl4.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db is not empty. Contains 1 table(s).");
+        .hasMessage("Namespace db is not empty. Contains 2 child namespace(s).");
   }
 
   @Test

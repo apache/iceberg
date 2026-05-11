@@ -31,10 +31,8 @@ public class FileRange {
   public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length)
       throws EOFException {
     Preconditions.checkNotNull(byteBuffer, "byteBuffer can't be null");
-    Preconditions.checkArgument(
-        length() >= 0, "Invalid length: %s in range (must be >= 0)", length);
-    Preconditions.checkArgument(
-        offset() >= 0, "Invalid offset: %s in range (must be >= 0)", offset);
+    Preconditions.checkArgument(length >= 0, "Invalid length: %s in range (must be >= 0)", length);
+    Preconditions.checkArgument(offset >= 0, "Invalid offset: %s in range (must be >= 0)", offset);
 
     this.byteBuffer = byteBuffer;
     this.offset = offset;

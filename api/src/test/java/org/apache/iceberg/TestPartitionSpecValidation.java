@@ -243,6 +243,22 @@ public class TestPartitionSpecValidation {
   }
 
   @Test
+  public void testStalePartitionSourceIdWithReusedColumnName() {
+    int newFieldId = 2;
+    int droppedFieldId = 1;
+    Schema schema =
+        new Schema(NestedField.required(newFieldId, "category", Types.StringType.get()));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema)
+            .withSpecId(0)
+            .add(droppedFieldId, 1000, "category", Transforms.alwaysNull())
+            .build();
+    assertThat(spec.fields()).hasSize(1);
+    assertThat(spec.fields().get(0).sourceId()).isEqualTo(droppedFieldId);
+    assertThat(spec.fields().get(0).name()).isEqualTo("category");
+  }
+
+  @Test
   public void testMissingSourceColumn() {
     assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
