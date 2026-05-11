@@ -1252,6 +1252,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
       return MergingSnapshotProducer.this.newManifestReader(manifest);
     }
+
+    @Override
+    protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest, boolean committed) {
+      return ManifestFiles.read(manifest, ops().io(), ops().current().specsById(), committed);
+    }
   }
 
   private class DeleteFileFilterManager extends ManifestFilterManager<DeleteFile> {

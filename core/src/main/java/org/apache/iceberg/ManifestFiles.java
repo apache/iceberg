@@ -151,6 +151,11 @@ public class ManifestFiles {
    */
   public static ManifestReader<DataFile> read(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return read(manifest, io, specsById, true);
+  }
+
+  static ManifestReader<DataFile> read(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById, boolean committed) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s",
@@ -163,6 +168,7 @@ public class ManifestFiles {
         specsById,
         inheritableMetadata,
         manifest.firstRowId(),
+        committed,
         FileType.DATA_FILES);
   }
 

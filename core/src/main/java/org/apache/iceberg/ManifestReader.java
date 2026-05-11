@@ -92,6 +92,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final Long firstRowId;
+  private final boolean committed;
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
@@ -125,12 +126,24 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       InheritableMetadata inheritableMetadata,
       Long firstRowId,
       FileType content) {
+    this(file, specId, specsById, inheritableMetadata, firstRowId, true, content);
+  }
+
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      Long firstRowId,
+      boolean committed,
+      FileType content) {
     Preconditions.checkArgument(
         firstRowId == null || content == FileType.DATA_FILES,
         "First row ID is not valid for delete manifests");
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.firstRowId = firstRowId;
+    this.committed = committed;
     this.content = content;
 
     if (specsById != null) {
@@ -308,7 +321,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     CloseableIterable<ManifestEntry<F>> withMetadata =
         CloseableIterable.transform(reader, inheritableMetadata::apply);
-    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId));
+    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId, committed));
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
@@ -398,7 +411,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <F extends ContentFile<F>> Function<ManifestEntry<F>, ManifestEntry<F>> idAssigner(
-      Long firstRowId) {
+      Long firstRowId, boolean committed) {
     if (firstRowId != null) {
       return new Function<>() {
         private long nextRowId = firstRowId;
@@ -416,10 +429,19 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           return entry;
         }
       };
-    } else {
-      // Preserve the source entry’s first row ID even if the manifest hasn’t assigned one since it
-      // may be EXISTING
+    } else if (!committed) {
+      // Preserve the entry with its firstRowId
+      // as this is an uncommitted manifest which may have already assigned row IDs (e.g. for
+      // EXISTING entries)
       return Function.identity();
+    } else {
+      // committed pre-v3 manifest with a null manifest-level firstRowId
+      return entry -> {
+        if (entry.file() instanceof BaseFile) {
+          ((BaseFile<?>) entry.file()).setFirstRowId(null);
+        }
+        return entry;
+      };
     }
   }
 }
