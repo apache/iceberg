@@ -119,7 +119,8 @@ class TestUdfTypeUtil {
         .hasMessageContaining("Cannot parse type string to primitive: foo");
 
     assertThatThrownBy(() -> UdfTypes.PrimitiveType.of("struct<x:int>"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse type string to primitive: struct<x:int>");
   }
 
   @Test
