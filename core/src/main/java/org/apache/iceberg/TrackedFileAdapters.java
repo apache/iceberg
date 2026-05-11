@@ -22,9 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Type;
 
 /**
  * Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs.
@@ -42,7 +40,7 @@ class TrackedFileAdapters {
   static DataFile asDataFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.DATA,
-        "Cannot convert tracked file to DataFile: content type is %s, not DATA",
+        "Invalid content type for DataFile: %s",
         file.contentType());
     return new TrackedDataFile(file, resolveSpec(file, specsById));
   }
@@ -50,7 +48,7 @@ class TrackedFileAdapters {
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.DATA,
-        "Cannot extract DV from tracked file: content type is %s, not DATA",
+        "Invalid content type for DV delete file: %s",
         file.contentType());
     return new TrackedDVDeleteFile(file, resolveSpec(file, specsById));
   }
@@ -58,7 +56,7 @@ class TrackedFileAdapters {
   static DeleteFile asPositionDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.POSITION_DELETES,
-        "Cannot convert tracked file to DeleteFile: content type is %s, not POSITION_DELETES",
+        "Invalid content type for position delete file: %s",
         file.contentType());
     return new TrackedPositionDeleteFile(file, resolveSpec(file, specsById));
   }
@@ -66,7 +64,7 @@ class TrackedFileAdapters {
   static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.EQUALITY_DELETES,
-        "Cannot convert tracked file to DeleteFile: content type is %s, not EQUALITY_DELETES",
+        "Invalid content type for equality delete file: %s",
         file.contentType());
     return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
   }
@@ -81,50 +79,14 @@ class TrackedFileAdapters {
       return spec;
     }
 
-    return PartitionSpec.unpartitioned();
-  }
-
-  // TODO: TrackedFile will likely get an explicit partition tuple field (using a union partition
-  //  schema), replacing this transform-based derivation. Once that lands, this method should be
-  //  removed and the adapter should read the tuple directly.
-  //
-  // This derives partition values by applying the partition transform to the lower bound of the
-  // source column stats. This is correct because each data file belongs to exactly one partition,
-  // so lower == upper for partition source columns. For non-identity transforms (bucket, truncate),
-  // the transform of the lower bound produces the correct partition value under this invariant.
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  static StructLike extractPartition(TrackedFile file, PartitionSpec spec) {
-    if (spec.isUnpartitioned()) {
-      return BaseFile.EMPTY_PARTITION_DATA;
-    }
-
-    ContentStats stats = file.contentStats();
-    if (stats == null) {
-      return new PartitionData(spec.partitionType());
-    }
-
-    PartitionData partition = new PartitionData(spec.partitionType());
-
-    for (int i = 0; i < spec.fields().size(); i += 1) {
-      PartitionField field = spec.fields().get(i);
-
-      if (field.transform().isVoid()) {
-        partition.set(i, null);
-        continue;
+    for (PartitionSpec spec : specsById.values()) {
+      if (spec.isUnpartitioned()) {
+        return spec;
       }
-
-      FieldStats<?> fieldStats = stats.statsFor(field.sourceId());
-      if (fieldStats == null || fieldStats.lowerBound() == null) {
-        partition.set(i, null);
-        continue;
-      }
-
-      Type sourceType = spec.schema().findType(field.sourceId());
-      Function boundTransform = field.transform().bind(sourceType);
-      partition.set(i, boundTransform.apply(fieldStats.lowerBound()));
     }
 
-    return partition;
+    throw new IllegalArgumentException(
+        "Cannot find unpartitioned spec in specs: " + specsById.keySet());
   }
 
   /**
@@ -170,9 +132,10 @@ class TrackedFileAdapters {
       return file.specId() != null ? file.specId() : spec.specId();
     }
 
+    // TODO: return a real partition tuple (https://github.com/apache/iceberg/issues/16222)
     @Override
     public StructLike partition() {
-      return extractPartition(file, spec);
+      return null;
     }
 
     @Override
@@ -186,12 +149,7 @@ class TrackedFileAdapters {
     }
   }
 
-  /**
-   * Shared base for adapters that delegate to a {@link TrackedFile} for content file fields.
-   *
-   * <p>Subclasses provide {@code content()}, {@code firstRowId()}, {@code equalityFieldIds()}, and
-   * the copy methods.
-   */
+  /** Shared base for adapters that delegate to a {@link TrackedFile} for content file fields. */
   private abstract static class TrackedContentFile<F extends ContentFile<F>>
       extends TrackedFileAdapter<F> {
     private TrackedContentFile(TrackedFile file, PartitionSpec spec) {
