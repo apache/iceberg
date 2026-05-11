@@ -168,6 +168,53 @@ class TestTrackedFileAdapters {
   }
 
   @Test
+  void testPositionDeleteFileAdapterDelegatesDVFields() {
+    TrackingStruct tracking = createTracking(5L);
+    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(1).build();
+
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.POSITION_DELETES,
+            "s3://bucket/dv.puffin",
+            FileFormat.PUFFIN,
+            10L,
+            256L);
+    file.set(6, 1);
+    file.set(9, createDeletionVector());
+
+    DeleteFile deleteFile = TrackedFileAdapters.asPositionDeleteFile(file, specsById(spec));
+
+    assertThat(deleteFile.format()).isEqualTo(FileFormat.PUFFIN);
+    assertThat(deleteFile.referencedDataFile()).isEqualTo("s3://bucket/dv.puffin");
+    assertThat(deleteFile.contentOffset()).isEqualTo(128L);
+    assertThat(deleteFile.contentSizeInBytes()).isEqualTo(256L);
+  }
+
+  @Test
+  void testPositionDeleteFileAdapterWithoutDVReturnsNullDVFields() {
+    TrackingStruct tracking = createTracking(5L);
+    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(1).build();
+
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            tracking,
+            FileContent.POSITION_DELETES,
+            "s3://bucket/pos-delete.parquet",
+            FileFormat.PARQUET,
+            50L,
+            512L);
+    file.set(6, 1);
+
+    DeleteFile deleteFile = TrackedFileAdapters.asPositionDeleteFile(file, specsById(spec));
+
+    assertThat(deleteFile.format()).isEqualTo(FileFormat.PARQUET);
+    assertThat(deleteFile.referencedDataFile()).isNull();
+    assertThat(deleteFile.contentOffset()).isNull();
+    assertThat(deleteFile.contentSizeInBytes()).isNull();
+  }
+
+  @Test
   void testEqualityDeleteFileAdapterDelegatesAllFields() {
     TrackingStruct tracking = createTracking(5L);
     PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(1).build();
