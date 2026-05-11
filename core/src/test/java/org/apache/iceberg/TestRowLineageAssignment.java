@@ -784,7 +784,7 @@ public class TestRowLineageAssignment {
   @Test
   public void testRewritePreservesExistingFileFirstRowIds() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
-    // FILE_A→0, FILE_B→125; nextRowId=225
+    // FILE_A->0, FILE_B->125; nextRowId=225
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
     table.newRewrite().deleteFile(FILE_A).addFile(FILE_C).commit();
     // merged manifest live files: [FILE_C (added), FILE_B (existing)]
