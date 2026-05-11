@@ -142,7 +142,8 @@ class TrackedFileBuilder {
         source.manifestInfo(),
         source.keyMetadata(),
         source.splitOffsets(),
-        source.equalityIds());
+        source.equalityIds(),
+        null);
   }
 
   private TrackedFileBuilder(FileContent contentType, long snapshotId) {
@@ -356,6 +357,7 @@ class TrackedFileBuilder {
         manifestInfo,
         keyMetadata,
         splitOffsets,
-        equalityIds);
+        equalityIds,
+        null);
   }
 }
