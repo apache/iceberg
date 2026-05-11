@@ -50,6 +50,8 @@ class TestTrackingStruct {
       TRACKING_FIELDS.indexOf(Tracking.DELETED_POSITIONS);
   private static final int REPLACED_POSITIONS_ORDINAL =
       TRACKING_FIELDS.indexOf(Tracking.REPLACED_POSITIONS);
+  private static final int LATEST_COLUMN_FILE_SNAPSHOT_ID_ORDINAL =
+      TRACKING_FIELDS.indexOf(Tracking.LATEST_COLUMN_FILE_SNAPSHOT_ID);
 
   @Test
   void testFieldAccess() {
@@ -61,6 +63,7 @@ class TestTrackingStruct {
     tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, 11L);
     tracking.set(DV_SNAPSHOT_ID_ORDINAL, 43L);
     tracking.set(FIRST_ROW_ID_ORDINAL, 1000L);
+    tracking.set(LATEST_COLUMN_FILE_SNAPSHOT_ID_ORDINAL, 15L);
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
@@ -70,10 +73,11 @@ class TestTrackingStruct {
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isNull();
     assertThat(tracking.replacedPositions()).isNull();
+    assertThat(tracking.latestColumnFileSnapshotId()).isEqualTo(15L);
   }
 
   @Test
-  void testCopy() {
+  void testCopyManifest() {
     Tracking tracking =
         TrackingBuilder.from(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
@@ -90,10 +94,31 @@ class TestTrackingStruct {
     assertThat(copy.firstRowId()).isEqualTo(tracking.firstRowId());
     assertThat(copy.deletedPositions()).isEqualTo(tracking.deletedPositions());
     assertThat(copy.replacedPositions()).isEqualTo(tracking.replacedPositions());
+    assertThat(copy.latestColumnFileSnapshotId()).isNull();
 
     // verify deep copy of ByteBuffer backing arrays
     assertThat(copy.deletedPositions().array()).isNotSameAs(tracking.deletedPositions().array());
     assertThat(copy.replacedPositions().array()).isNotSameAs(tracking.replacedPositions().array());
+  }
+
+  @Test
+  void testCopyDataFile() {
+    Tracking tracking =
+        TrackingBuilder.from(sourceTracking(), 1L).dvUpdated().columnFilesUpdated().build();
+
+    Tracking copy = tracking.copy();
+
+    assertThat(copy.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(copy.snapshotId()).isEqualTo(tracking.snapshotId());
+    assertThat(copy.dataSequenceNumber()).isEqualTo(tracking.dataSequenceNumber());
+    assertThat(copy.fileSequenceNumber()).isEqualTo(tracking.fileSequenceNumber());
+    assertThat(copy.dvSnapshotId()).isEqualTo(tracking.dvSnapshotId());
+    assertThat(copy.firstRowId()).isEqualTo(tracking.firstRowId());
+    assertThat(copy.deletedPositions()).isEqualTo(tracking.deletedPositions());
+    assertThat(copy.replacedPositions()).isEqualTo(tracking.replacedPositions());
+    assertThat(copy.latestColumnFileSnapshotId()).isEqualTo(tracking.latestColumnFileSnapshotId());
+    assertThat(copy.deletedPositions()).isNull();
+    assertThat(copy.replacedPositions()).isNull();
   }
 
   @ParameterizedTest
@@ -142,7 +167,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testDoNotInheritSequenceNumberForModifiedEntries() {
+  void testDoNotInheritSequenceNumberForModifiedIfAlreadySet() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(STATUS_ORDINAL, EntryStatus.MODIFIED.id());
     tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, 5L);
@@ -153,6 +178,24 @@ class TestTrackingStruct {
     // sequence numbers are not inherited for MODIFIED entries
     assertThat(tracking.dataSequenceNumber()).isEqualTo(5L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(6L);
+  }
+
+  @Test
+  void testInheritDataSequenceNumberAfterColumnFilesChange() {
+    TrackingStruct source = new TrackingStruct(Tracking.schema());
+    source.set(STATUS_ORDINAL, EntryStatus.MODIFIED.id());
+    source.set(DATA_SEQUENCE_NUMBER_ORDINAL, 5L);
+    source.set(FILE_SEQUENCE_NUMBER_ORDINAL, 6L);
+
+    Tracking tracking = TrackingBuilder.from(source, 10L).columnFilesUpdated().build();
+
+    assertThat(tracking.dataSequenceNumber()).isNull();
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(6);
+
+    ((TrackingStruct) tracking).inheritFrom(createManifestTracking(100L, 60L));
+
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(60L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(6);
   }
 
   @Test
@@ -222,13 +265,14 @@ class TestTrackingStruct {
 
   @Test
   void testAddedWithSameCommitDvStaysAdded() {
-    Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
+    Tracking tracking = TrackingBuilder.added(42L).dvUpdated().columnFilesUpdated().build();
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
     assertThat(tracking.dvSnapshotId()).isEqualTo(42L);
     assertThat(tracking.deletedPositions()).isNull();
     assertThat(tracking.replacedPositions()).isNull();
+    assertThat(tracking.latestColumnFileSnapshotId()).isEqualTo(42L);
     // sequence numbers and firstRowId remain null; populated by inheritance
     assertThat(tracking.dataSequenceNumber()).isNull();
     assertThat(tracking.fileSequenceNumber()).isNull();
@@ -247,6 +291,8 @@ class TestTrackingStruct {
     assertThat(existing.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
     assertThat(existing.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
     assertThat(existing.firstRowId()).isEqualTo(source.firstRowId());
+    assertThat(existing.latestColumnFileSnapshotId())
+        .isEqualTo(source.latestColumnFileSnapshotId());
   }
 
   @Test
@@ -261,6 +307,7 @@ class TestTrackingStruct {
     assertThat(deleted.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
     assertThat(deleted.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
     assertThat(deleted.firstRowId()).isEqualTo(source.firstRowId());
+    assertThat(deleted.latestColumnFileSnapshotId()).isEqualTo(source.latestColumnFileSnapshotId());
   }
 
   @Test
@@ -275,6 +322,8 @@ class TestTrackingStruct {
     assertThat(replaced.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
     assertThat(replaced.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
     assertThat(replaced.firstRowId()).isEqualTo(source.firstRowId());
+    assertThat(replaced.latestColumnFileSnapshotId())
+        .isEqualTo(source.latestColumnFileSnapshotId());
   }
 
   @Test
@@ -309,6 +358,12 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testExistingBuilderAllowsColumnFileMutation() {
+    Tracking existing = TrackingBuilder.from(sourceTracking(), 900L).columnFilesUpdated().build();
+    assertThat(existing.latestColumnFileSnapshotId()).isEqualTo(900L);
+  }
+
+  @Test
   void testManifestDVMutatorsRejectedOnAdded() {
     assertThatThrownBy(
             () -> TrackingBuilder.added(42L).deletedPositions(ByteBuffer.wrap(new byte[] {1})))
@@ -340,6 +395,48 @@ class TestTrackingStruct {
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
+  }
+
+  @Test
+  void testColumnFilesUpdatedRejectedWhenManifestPositionsSet() {
+    assertThatThrownBy(
+            () ->
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                    .deletedPositions(ByteBuffer.wrap(new byte[] {1}))
+                    .columnFilesUpdated())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot mark column files updated on a manifest entry (deleted/replaced positions are set)");
+
+    assertThatThrownBy(
+            () ->
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                    .replacedPositions(ByteBuffer.wrap(new byte[] {1}))
+                    .columnFilesUpdated())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot mark column files updated on a manifest entry (deleted/replaced positions are set)");
+  }
+
+  @Test
+  void testSettingManifestPositionsRejectedWhenColumnFilesUpdated() {
+    assertThatThrownBy(
+            () ->
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                    .columnFilesUpdated()
+                    .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot set deleted positions on a data file entry (latest column file snapshot ID is set)");
+
+    assertThatThrownBy(
+            () ->
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                    .columnFilesUpdated()
+                    .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot set replaced positions on a data file entry (latest column file snapshot ID is set)");
   }
 
   @Test
@@ -480,6 +577,7 @@ class TestTrackingStruct {
     tracking.set(FIRST_ROW_ID_ORDINAL, 1000L);
     tracking.set(DELETED_POSITIONS_ORDINAL, ByteBuffer.wrap(new byte[] {1, 2}));
     tracking.set(REPLACED_POSITIONS_ORDINAL, ByteBuffer.wrap(new byte[] {3, 4}));
+    tracking.set(LATEST_COLUMN_FILE_SNAPSHOT_ID_ORDINAL, 49L);
 
     // unknown ordinals from a newer format version are silently ignored
     tracking.internalSet(99, "value from a newer format");
@@ -493,6 +591,7 @@ class TestTrackingStruct {
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
+    assertThat(tracking.latestColumnFileSnapshotId()).isEqualTo(49L);
   }
 
   @Test
@@ -570,6 +669,33 @@ class TestTrackingStruct {
     assertThat(deserialized.dvSnapshotId()).isEqualTo(1L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
+  }
+
+  @Test
+  void testAddedWithColumnFileSnapshotIdJavaSerializationRoundTrip()
+      throws IOException, ClassNotFoundException {
+    Tracking tracking = TrackingBuilder.added(42L).columnFilesUpdated().build();
+
+    Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
+
+    assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(deserialized.snapshotId()).isEqualTo(42L);
+    assertThat(deserialized.deletedPositions()).isNull();
+    assertThat(deserialized.replacedPositions()).isNull();
+    assertThat(deserialized.latestColumnFileSnapshotId()).isEqualTo(42L);
+  }
+
+  @Test
+  void testAddedWithColumnFileSnapshotIdKryoSerializationRoundTrip() throws IOException {
+    Tracking tracking = TrackingBuilder.added(42L).columnFilesUpdated().build();
+
+    Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
+
+    assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(deserialized.snapshotId()).isEqualTo(42L);
+    assertThat(deserialized.deletedPositions()).isNull();
+    assertThat(deserialized.replacedPositions()).isNull();
+    assertThat(deserialized.latestColumnFileSnapshotId()).isEqualTo(42L);
   }
 
   private static TrackingStruct sourceTracking() {
