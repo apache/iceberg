@@ -95,11 +95,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
 
     HadoopTables tables = new HadoopTables(CONF);
     // If V3 spec features are used, set the format version to 3
-    Map<String, String> tableProperties =
-        writeSchema.columns().stream()
-                .anyMatch(f -> f.initialDefaultLiteral() != null || f.writeDefaultLiteral() != null)
-            ? ImmutableMap.of(TableProperties.FORMAT_VERSION, "3")
-            : ImmutableMap.of();
+    Map<String, String> tableProperties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
     Table table =
         tables.create(
             writeSchema, PartitionSpec.unpartitioned(), tableProperties, location.toString());

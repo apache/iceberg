@@ -983,9 +983,9 @@ paths:
         - in: query
           name: snapshots
           description:
-            The snapshots to return in the body of the metadata. Setting the value to `all` would
-            return the full set of snapshots currently valid for the table. Setting the value to
-            `refs` would load all snapshots referenced by branches or tags.
+            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+            the value to `all` would return the full set of snapshots currently valid for the table.
+            Setting the value to `refs` would load all snapshots referenced by branches or tags.
 
             Default if no param is provided is `all`.
           required: false

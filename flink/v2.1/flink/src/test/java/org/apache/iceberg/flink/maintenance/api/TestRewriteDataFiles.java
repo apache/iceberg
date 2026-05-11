@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -44,8 +45,14 @@ import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTe
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 
 class TestRewriteDataFiles extends MaintenanceTaskTestBase {
+
+  private static final FileFormat[] FILE_FORMATS =
+      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+
   @Test
   void testRewriteUnpartitioned() throws Exception {
     Table table = createTable();
@@ -83,13 +90,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(4, "d")));
   }
 
-  @Test
-  void testRewriteUnpartitionedPreserveLineage() throws Exception {
-    Table table = createTable(3);
-    insert(table, 1, "a");
-    insert(table, 2, "b");
-    insert(table, 3, "c");
-    insert(table, 4, "d");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewriteUnpartitionedPreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createTable(3, fileFormat);
+    insert(table, 1, "a", fileFormat);
+    insert(table, 2, "b", fileFormat);
+    insert(table, 3, "c", fileFormat);
+    insert(table, 4, "d", fileFormat);
 
     assertFileNum(table, 4, 0);
 
@@ -123,15 +131,17 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
-  void testRewriteTheSameFilePreserveLineage() throws Exception {
-    Table table = createTable(3);
-    insert(table, 1, "a");
-    insert(table, 2, "b");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewriteTheSameFilePreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createTable(3, fileFormat);
+    insert(table, 1, "a", fileFormat);
+    insert(table, 2, "b", fileFormat);
     // Create a file with two lines of data to verify that the rowid is read correctly.
     insert(
         table,
-        ImmutableList.of(SimpleDataUtil.createRecord(3, "c"), SimpleDataUtil.createRecord(4, "d")));
+        ImmutableList.of(SimpleDataUtil.createRecord(3, "c"), SimpleDataUtil.createRecord(4, "d")),
+        fileFormat);
 
     assertFileNum(table, 3, 0);
 
@@ -167,13 +177,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
-  void testRewritePartitionedPreserveLineage() throws Exception {
-    Table table = createPartitionedTable(3);
-    insertPartitioned(table, 1, "p1");
-    insertPartitioned(table, 2, "p1");
-    insertPartitioned(table, 3, "p2");
-    insertPartitioned(table, 4, "p2");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewritePartitionedPreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createPartitionedTable(3, fileFormat);
+    insertPartitioned(table, 1, "p1", fileFormat);
+    insertPartitioned(table, 2, "p1", fileFormat);
+    insertPartitioned(table, 3, "p2", fileFormat);
+    insertPartitioned(table, 4, "p2", fileFormat);
 
     assertFileNum(table, 4, 0);
 
