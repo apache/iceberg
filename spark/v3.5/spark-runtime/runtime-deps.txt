@@ -7,8 +7,8 @@ com.google.errorprone:error_prone_annotations:2.10.0
 com.google.flatbuffers:flatbuffers-java:23.5.26
 dev.failsafe:failsafe:3.3.2
 io.airlift:aircompressor:2.0.3
-io.netty:netty-buffer:4.2.12.Final
-io.netty:netty-common:4.2.12.Final
+io.netty:netty-buffer:4.2.13.Final
+io.netty:netty-common:4.2.13.Final
 org.apache.arrow:arrow-format:15.0.2
 org.apache.arrow:arrow-memory-core:15.0.2
 org.apache.arrow:arrow-memory-netty:15.0.2
