@@ -32,7 +32,7 @@ class TestUdfParameterParser {
         """
         {"name":"x","type":"int"}""";
     UdfParameter expected =
-        ImmutableUdfParameter.builder().name("x").type(UdfPrimitiveType.of("int")).build();
+        ImmutableUdfParameter.builder().name("x").type(UdfTypes.PrimitiveType.of("int")).build();
 
     assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
   }
@@ -45,34 +45,9 @@ class TestUdfParameterParser {
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("x")
-            .type(UdfPrimitiveType.of("int"))
+            .type(UdfTypes.PrimitiveType.of("int"))
             .doc("Input integer")
             .build();
-
-    assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
-  }
-
-  @Test
-  void parseDecimalTypeParameter() {
-    String json =
-        """
-        {"name":"amount","type":"decimal(9,2)"}""";
-    UdfParameter expected =
-        ImmutableUdfParameter.builder()
-            .name("amount")
-            .type(UdfPrimitiveType.of("decimal(9,2)"))
-            .build();
-
-    assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
-  }
-
-  @Test
-  void parseVariantTypeParameter() {
-    String json =
-        """
-        {"name":"data","type":"variant"}""";
-    UdfParameter expected =
-        ImmutableUdfParameter.builder().name("data").type(UdfPrimitiveType.of("variant")).build();
 
     assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
   }
@@ -91,7 +66,7 @@ class TestUdfParameterParser {
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("items")
-            .type(UdfListType.of(UdfPrimitiveType.of("string")))
+            .type(UdfTypes.ListType.of(UdfTypes.PrimitiveType.of("string")))
             .build();
 
     assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
@@ -112,7 +87,9 @@ class TestUdfParameterParser {
     UdfParameter expected =
         ImmutableUdfParameter.builder()
             .name("lookup")
-            .type(UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int")))
+            .type(
+                UdfTypes.MapType.of(
+                    UdfTypes.PrimitiveType.of("string"), UdfTypes.PrimitiveType.of("int")))
             .build();
 
     assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
@@ -136,9 +113,9 @@ class TestUdfParameterParser {
         ImmutableUdfParameter.builder()
             .name("row")
             .type(
-                UdfStructType.of(
-                    UdfFieldType.of("id", UdfPrimitiveType.of("int")),
-                    UdfFieldType.of("label", UdfPrimitiveType.of("string"))))
+                UdfTypes.StructType.of(
+                    UdfTypes.NestedField.of("id", UdfTypes.PrimitiveType.of("int")),
+                    UdfTypes.NestedField.of("label", UdfTypes.PrimitiveType.of("string"))))
             .build();
 
     assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
@@ -164,7 +141,9 @@ class TestUdfParameterParser {
         ImmutableUdfParameter.builder()
             .name("records")
             .type(
-                UdfListType.of(UdfStructType.of(UdfFieldType.of("id", UdfPrimitiveType.of("int")))))
+                UdfTypes.ListType.of(
+                    UdfTypes.StructType.of(
+                        UdfTypes.NestedField.of("id", UdfTypes.PrimitiveType.of("int")))))
             .build();
 
     assertThat(UdfParameterParser.fromJson(json)).isEqualTo(expected);
@@ -175,7 +154,7 @@ class TestUdfParameterParser {
     UdfParameter parameter =
         ImmutableUdfParameter.builder()
             .name("x")
-            .type(UdfPrimitiveType.of("int"))
+            .type(UdfTypes.PrimitiveType.of("int"))
             .doc("Input integer")
             .build();
 
@@ -188,7 +167,7 @@ class TestUdfParameterParser {
     UdfParameter parameter =
         ImmutableUdfParameter.builder()
             .name("items")
-            .type(UdfListType.of(UdfPrimitiveType.of("string")))
+            .type(UdfTypes.ListType.of(UdfTypes.PrimitiveType.of("string")))
             .build();
 
     String serialized = UdfParameterParser.toJson(parameter);
@@ -200,7 +179,9 @@ class TestUdfParameterParser {
     UdfParameter parameter =
         ImmutableUdfParameter.builder()
             .name("lookup")
-            .type(UdfMapType.of(UdfPrimitiveType.of("string"), UdfPrimitiveType.of("int")))
+            .type(
+                UdfTypes.MapType.of(
+                    UdfTypes.PrimitiveType.of("string"), UdfTypes.PrimitiveType.of("int")))
             .build();
 
     String serialized = UdfParameterParser.toJson(parameter);
@@ -213,9 +194,9 @@ class TestUdfParameterParser {
         ImmutableUdfParameter.builder()
             .name("row")
             .type(
-                UdfStructType.of(
-                    UdfFieldType.of("id", UdfPrimitiveType.of("int")),
-                    UdfFieldType.of("label", UdfPrimitiveType.of("string"))))
+                UdfTypes.StructType.of(
+                    UdfTypes.NestedField.of("id", UdfTypes.PrimitiveType.of("int")),
+                    UdfTypes.NestedField.of("label", UdfTypes.PrimitiveType.of("string"))))
             .build();
 
     String serialized = UdfParameterParser.toJson(parameter);

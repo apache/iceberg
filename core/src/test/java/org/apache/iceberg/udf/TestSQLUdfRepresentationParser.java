@@ -78,13 +78,7 @@ class TestSQLUdfRepresentationParser {
         ImmutableSQLUdfRepresentation.builder().sql("x + 1.0").dialect("trino").build();
 
     String serialized = UdfRepresentationParser.toJson(representation);
-    UdfRepresentation deserialized = UdfRepresentationParser.fromJson(serialized);
-
-    assertThat(deserialized).isInstanceOf(SQLUdfRepresentation.class);
-    SQLUdfRepresentation sqlRepr = (SQLUdfRepresentation) deserialized;
-    assertThat(sqlRepr.sql()).isEqualTo("x + 1.0");
-    assertThat(sqlRepr.dialect()).isEqualTo("trino");
-    assertThat(sqlRepr.type()).isEqualTo("sql");
+    assertThat(UdfRepresentationParser.fromJson(serialized)).isEqualTo(representation);
   }
 
   @Test

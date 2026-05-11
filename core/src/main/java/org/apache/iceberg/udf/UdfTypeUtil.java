@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.JsonUtil;
@@ -49,12 +50,14 @@ class UdfTypeUtil {
     Preconditions.checkArgument(node != null, "Cannot read type from null node");
 
     if (node.isTextual()) {
-      return UdfPrimitiveType.of(node.asText());
+      return UdfTypes.PrimitiveType.of(node.asText());
     } else if (node.isObject()) {
-      String typeName = JsonUtil.getString(TYPE, node);
+      String typeName = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ROOT);
       return switch (typeName) {
-        case LIST -> UdfListType.of(readType(node.get(ELEMENT)));
-        case MAP -> UdfMapType.of(readType(node.get(KEY)), readType(node.get(VALUE)));
+        case LIST -> UdfTypes.ListType.of(readType(JsonUtil.get(ELEMENT, node)));
+        case MAP ->
+            UdfTypes.MapType.of(
+                readType(JsonUtil.get(KEY, node)), readType(JsonUtil.get(VALUE, node)));
         case STRUCT -> readStruct(node);
         default ->
             throw new IllegalArgumentException(
@@ -67,22 +70,21 @@ class UdfTypeUtil {
     }
   }
 
-  private static UdfStructType readStruct(JsonNode node) {
-    JsonNode fieldsNode = node.get(FIELDS);
+  private static UdfTypes.StructType readStruct(JsonNode node) {
+    JsonNode fieldsNode = JsonUtil.get(FIELDS, node);
     Preconditions.checkArgument(
-        fieldsNode != null && fieldsNode.isArray(),
-        "Cannot parse struct type from non-array fields: %s",
-        fieldsNode);
+        fieldsNode.isArray(), "Cannot parse struct type from non-array fields: %s", fieldsNode);
 
-    ImmutableList.Builder<UdfFieldType> fields = ImmutableList.builder();
+    ImmutableList.Builder<UdfTypes.NestedField> fields = ImmutableList.builder();
     for (JsonNode fieldNode : fieldsNode) {
       Preconditions.checkArgument(
           fieldNode.isObject(), "Cannot parse struct field from non-object: %s", fieldNode);
       fields.add(
-          UdfFieldType.of(JsonUtil.getString(NAME, fieldNode), readType(fieldNode.get(TYPE))));
+          UdfTypes.NestedField.of(
+              JsonUtil.getString(NAME, fieldNode), readType(JsonUtil.get(TYPE, fieldNode))));
     }
 
-    return UdfStructType.of(fields.build());
+    return UdfTypes.StructType.of(fields.build());
   }
 
   /** Writes a UDF type to a JSON generator under the given field name. */
@@ -95,7 +97,7 @@ class UdfTypeUtil {
 
   private static void writeTypeValue(UdfType type, JsonGenerator generator) throws IOException {
     switch (type.typeId()) {
-      case PRIMITIVE -> generator.writeString(type.asPrimitive().typeString());
+      case PRIMITIVE -> generator.writeString(type.asPrimitiveType().typeString());
       case LIST -> {
         generator.writeStartObject();
         generator.writeStringField(TYPE, LIST);
@@ -103,7 +105,7 @@ class UdfTypeUtil {
         generator.writeEndObject();
       }
       case MAP -> {
-        UdfMapType mapType = type.asMapType();
+        UdfTypes.MapType mapType = type.asMapType();
         generator.writeStartObject();
         generator.writeStringField(TYPE, MAP);
         writeType(KEY, mapType.keyType(), generator);
@@ -111,11 +113,11 @@ class UdfTypeUtil {
         generator.writeEndObject();
       }
       case STRUCT -> {
-        List<UdfFieldType> fields = type.asStructType().fields();
+        List<UdfTypes.NestedField> fields = type.asStructType().fields();
         generator.writeStartObject();
         generator.writeStringField(TYPE, STRUCT);
         generator.writeArrayFieldStart(FIELDS);
-        for (UdfFieldType field : fields) {
+        for (UdfTypes.NestedField field : fields) {
           generator.writeStartObject();
           generator.writeStringField(NAME, field.name());
           writeType(TYPE, field.type(), generator);

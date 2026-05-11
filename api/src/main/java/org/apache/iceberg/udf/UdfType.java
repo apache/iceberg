@@ -20,50 +20,51 @@ package org.apache.iceberg.udf;
 
 /**
  * Represents a UDF data type as defined in the UDF spec. UDF types are based on Iceberg types but
- * intentionally omit field IDs and element nullability. Implementations include {@link
- * UdfPrimitiveType} for primitive and semi-structured types, and the nested types {@link
- * UdfListType}, {@link UdfMapType}, and {@link UdfStructType}.
+ * intentionally omit field IDs and element nullability. Concrete implementations live as static
+ * nested classes on {@link UdfTypes}: {@link UdfTypes.PrimitiveType} for primitive and
+ * semi-structured types, and the nested types {@link UdfTypes.ListType}, {@link UdfTypes.MapType},
+ * and {@link UdfTypes.StructType}.
  */
 public interface UdfType {
 
-  enum TypeId {
+  enum TypeID {
     PRIMITIVE,
     LIST,
     MAP,
     STRUCT
   }
 
-  TypeId typeId();
+  TypeID typeId();
 
-  default boolean isPrimitive() {
-    return typeId() == TypeId.PRIMITIVE;
+  default boolean isPrimitiveType() {
+    return typeId() == TypeID.PRIMITIVE;
   }
 
   default boolean isListType() {
-    return typeId() == TypeId.LIST;
+    return typeId() == TypeID.LIST;
   }
 
   default boolean isMapType() {
-    return typeId() == TypeId.MAP;
+    return typeId() == TypeID.MAP;
   }
 
   default boolean isStructType() {
-    return typeId() == TypeId.STRUCT;
+    return typeId() == TypeID.STRUCT;
   }
 
-  default UdfPrimitiveType asPrimitive() {
+  default UdfTypes.PrimitiveType asPrimitiveType() {
     throw new IllegalArgumentException("Not a primitive type: " + this);
   }
 
-  default UdfListType asListType() {
+  default UdfTypes.ListType asListType() {
     throw new IllegalArgumentException("Not a list type: " + this);
   }
 
-  default UdfMapType asMapType() {
+  default UdfTypes.MapType asMapType() {
     throw new IllegalArgumentException("Not a map type: " + this);
   }
 
-  default UdfStructType asStructType() {
+  default UdfTypes.StructType asStructType() {
     throw new IllegalArgumentException("Not a struct type: " + this);
   }
 }
