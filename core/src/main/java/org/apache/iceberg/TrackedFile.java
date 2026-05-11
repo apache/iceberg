@@ -165,11 +165,8 @@ interface TrackedFile {
   /** Returns the set of field IDs used for equality comparison in equality delete files. */
   List<Integer> equalityIds();
 
-  // TODO: when implementing the column file interfaces, we can drop the default implementation.
   /** Returns the column files for this file. */
-  default List<ColumnFile> columnFiles() {
-    return null;
-  }
+  List<ColumnFile> columnFiles();
 
   /** Copies this tracked file. */
   TrackedFile copy();

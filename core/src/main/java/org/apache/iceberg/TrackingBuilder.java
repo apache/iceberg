@@ -33,6 +33,7 @@ class TrackingBuilder {
   private Long dvSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
+  private Long latestColumnFileSnapshotId;
 
   /**
    * Creates a builder for a newly added file.
@@ -83,6 +84,7 @@ class TrackingBuilder {
     this.dvSnapshotId = null;
     this.deletedPositions = null;
     this.replacedPositions = null;
+    this.latestColumnFileSnapshotId = null;
   }
 
   private TrackingBuilder(Tracking source, long newSnapshotId) {
@@ -97,6 +99,7 @@ class TrackingBuilder {
     this.dvSnapshotId = source.dvSnapshotId();
     this.deletedPositions = null;
     this.replacedPositions = null;
+    this.latestColumnFileSnapshotId = source.latestColumnFileSnapshotId();
   }
 
   /** Indicates that the DV has been updated for the new Tracking. */
@@ -106,6 +109,11 @@ class TrackingBuilder {
         deletedPositions == null && replacedPositions == null,
         "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
     this.dvSnapshotId = newSnapshotId;
+    return this;
+  }
+
+  TrackingBuilder columnFileUpdated() {
+    this.latestColumnFileSnapshotId = newSnapshotId;
     return this;
   }
 
@@ -140,7 +148,8 @@ class TrackingBuilder {
         dvSnapshotId,
         firstRowId,
         deletedPositions,
-        replacedPositions);
+        replacedPositions,
+        latestColumnFileSnapshotId);
   }
 
   private static Tracking terminal(EntryStatus to, Tracking source, long newSnapshotId) {
@@ -154,7 +163,8 @@ class TrackingBuilder {
         source.dvSnapshotId(),
         source.firstRowId(),
         null,
-        null);
+        null,
+        source.latestColumnFileSnapshotId());
   }
 
   private static void validateSource(Tracking source) {

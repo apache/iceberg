@@ -51,6 +51,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   private Long firstRowId = null;
   private byte[] deletedPositions = null;
   private byte[] replacedPositions = null;
+  private Long latestColumnFileSnapshotId = null;
 
   // set by manifest readers, not written to manifests
   private String manifestLocation = null;
@@ -81,6 +82,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         toCopy.replacedPositions != null
             ? Arrays.copyOf(toCopy.replacedPositions, toCopy.replacedPositions.length)
             : null;
+    this.latestColumnFileSnapshotId = toCopy.latestColumnFileSnapshotId;
     this.manifestLocation = toCopy.manifestLocation;
     this.manifestPos = toCopy.manifestPos;
   }
@@ -93,7 +95,8 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       Long dvSnapshotId,
       Long firstRowId,
       byte[] deletedPositions,
-      byte[] replacedPositions) {
+      byte[] replacedPositions,
+      Long latestColumnFileSnapshotId) {
     super(BASE_TYPE.fields().size());
     this.status = status;
     this.snapshotId = snapshotId;
@@ -103,6 +106,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.firstRowId = firstRowId;
     this.deletedPositions = deletedPositions;
     this.replacedPositions = replacedPositions;
+    this.latestColumnFileSnapshotId = latestColumnFileSnapshotId;
   }
 
   void inheritFrom(Tracking manifestTracking) {
@@ -176,6 +180,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   }
 
   @Override
+  public Long latestColumnFileSnapshotId() {
+    return latestColumnFileSnapshotId;
+  }
+
+  @Override
   public String manifestLocation() {
     return manifestLocation;
   }
@@ -213,6 +222,8 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         return deletedPositions();
       case 7:
         return replacedPositions();
+      case 8:
+        return latestColumnFileSnapshotId;
       case 9:
         return manifestPos;
       default:
@@ -247,6 +258,9 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       case 7:
         this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
+      case 8:
+        this.latestColumnFileSnapshotId = (Long) value;
+        break;
       case 9:
         this.manifestPos = (long) value;
         break;
@@ -266,6 +280,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         .add("first_row_id", firstRowId)
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
+        .add("latest_column_file_snapshot_id", latestColumnFileSnapshotId)
         .toString();
   }
 }

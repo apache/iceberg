@@ -34,6 +34,18 @@ class TestTrackedFileStruct {
       Types.StructType.of(
           Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
           Types.NestedField.optional(1001, "category", Types.StringType.get()));
+  private static final ColumnFile COLUMN_FILE_1 =
+      ColumnFileStruct.builder()
+          .fieldIds(ImmutableList.of(1, 2))
+          .location("s3://bucket/data/col-1.parquet")
+          .fileSizeInBytes(256L)
+          .build();
+  private static final ColumnFile COLUMN_FILE_2 =
+      ColumnFileStruct.builder()
+          .fieldIds(ImmutableList.of(3))
+          .location("s3://bucket/data/col-2.parquet")
+          .fileSizeInBytes(128L)
+          .build();
 
   // Ordinal of MetadataColumns.ROW_POSITION within TrackingStruct's BASE_TYPE,
   // which appends ROW_POSITION after the Tracking schema fields.
@@ -76,6 +88,7 @@ class TestTrackedFileStruct {
     file.set(12, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(13, ImmutableList.of(100L, 200L));
     file.set(14, ImmutableList.of(1, 2, 3));
+    file.set(15, ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2));
 
     assertThat(file.tracking()).isNotNull();
     assertThat(file.tracking().status()).isEqualTo(EntryStatus.ADDED);
@@ -92,6 +105,10 @@ class TestTrackedFileStruct {
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
+    assertThat(file.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, file.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, file.columnFiles().get(1));
+
     // should return EMPTY_PARTITION_DATA
     assertThat(file.partition()).isNotNull();
     assertThat(file.partition().size()).isEqualTo(0);
@@ -177,7 +194,11 @@ class TestTrackedFileStruct {
     assertThat(copy.equalityIds()).isNull();
     assertThat(copy.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
     assertThat(copy.tracking().manifestPos()).isEqualTo(3L);
+    assertThat(copy.tracking().latestColumnFileSnapshotId()).isEqualTo(42L);
     assertThat(copy.partition()).isEqualTo(newPartition(7, "music"));
+    assertThat(copy.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, copy.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, copy.columnFiles().get(1));
   }
 
   @Test
@@ -211,8 +232,12 @@ class TestTrackedFileStruct {
 
     TrackedFile copy = file.copy();
 
-    // keyMetadata should be a deep copy
     assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
+    assertThat(copy.columnFiles()).isNotSameAs(file.columnFiles());
+    assertThat(copy.columnFiles()).hasSize(file.columnFiles().size());
+    for (int i = 0; i < file.columnFiles().size(); ++i) {
+      assertThat(copy.columnFiles().get(i)).isNotSameAs(file.columnFiles().get(i));
+    }
   }
 
   @Test
@@ -233,6 +258,13 @@ class TestTrackedFileStruct {
 
     file.set(4, 999L);
     assertThat(file.get(4, Long.class)).isEqualTo(999L);
+
+    file.set(15, ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2));
+    @SuppressWarnings("unchecked")
+    List<ColumnFile> roundTrippedColumnFiles = file.get(15, List.class);
+    assertThat(roundTrippedColumnFiles).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, roundTrippedColumnFiles.get(0));
+    verifyColumnFile(COLUMN_FILE_2, roundTrippedColumnFiles.get(1));
   }
 
   @Test
@@ -276,6 +308,12 @@ class TestTrackedFileStruct {
   }
 
   @Test
+  void testColumnFilesNullWhenNotSet() {
+    TrackedFileStruct file = new TrackedFileStruct();
+    assertThat(file.columnFiles()).isNull();
+  }
+
+  @Test
   void testAllFileContentTypesSupported() {
     for (FileContent content : FileContent.values()) {
       TrackedFileStruct file = new TrackedFileStruct();
@@ -304,7 +342,11 @@ class TestTrackedFileStruct {
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
     assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.tracking().latestColumnFileSnapshotId()).isEqualTo(42L);
     assertThat(deserialized.partition()).isEqualTo(newPartition(7, "music"));
+    assertThat(deserialized.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, deserialized.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, deserialized.columnFiles().get(1));
   }
 
   @Test
@@ -327,11 +369,16 @@ class TestTrackedFileStruct {
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
     assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.tracking().latestColumnFileSnapshotId()).isEqualTo(42L);
     assertThat(deserialized.partition()).isEqualTo(newPartition(7, "music"));
+    assertThat(deserialized.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, deserialized.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, deserialized.columnFiles().get(1));
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking = (TrackingStruct) TrackingBuilder.added(42L).build();
+    TrackingStruct tracking =
+        (TrackingStruct) TrackingBuilder.added(42L).columnFileUpdated().build();
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(MANIFEST_POS_ORDINAL, 3L);
 
@@ -357,6 +404,7 @@ class TestTrackedFileStruct {
     file.set(10, dv);
     file.set(12, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(13, ImmutableList.of(50L));
+    file.set(15, ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2));
 
     return file;
   }
@@ -429,5 +477,11 @@ class TestTrackedFileStruct {
     file.set(8, stats);
 
     return file;
+  }
+
+  private static void verifyColumnFile(ColumnFile expected, ColumnFile actual) {
+    assertThat(actual.fieldIds()).containsExactlyElementsOf(expected.fieldIds());
+    assertThat(actual.location()).isEqualTo(expected.location());
+    assertThat(actual.fileSizeInBytes()).isEqualTo(expected.fileSizeInBytes());
   }
 }

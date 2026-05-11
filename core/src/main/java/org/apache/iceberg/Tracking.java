@@ -114,14 +114,11 @@ interface Tracking {
   /** Returns the bitmap of positions replaced in this snapshot. */
   ByteBuffer replacedPositions();
 
-  // TODO: when implementing the column file interfaces, we can drop the default implementation.
   /**
    * Returns the snapshot ID where the latest column file was added; null if there are no column
    * files.
    */
-  default Long latestColumnFileSnapshotId() {
-    return null;
-  }
+  Long latestColumnFileSnapshotId();
 
   /** Returns the manifest location this entry was read from, or null. */
   String manifestLocation();
