@@ -430,12 +430,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         }
       };
     } else if (!isCommitted) {
-      // uncommitted manifest: EXISTING entries carry explicit per-file firstRowId values written
-      // by ManifestFilterManager; ManifestListWriter hasn't run yet so manifest-level is null
+      // Preserve firstRowId for entries in uncommitted manifests, including EXISTING entries that
+      // may be merged later
       return Function.identity();
     } else {
-      // committed manifest with null manifest-level firstRowId (pre-v3 upgrade path):
-      // entries must not carry a per-file firstRowId
+      // committed manifest with null manifest-level firstRowId (pre-v3 upgrade path)
+      // defensively set the first row ID for every entry to be null
       return entry -> {
         if (entry.file() instanceof BaseFile) {
           ((BaseFile<?>) entry.file()).setFirstRowId(null);
