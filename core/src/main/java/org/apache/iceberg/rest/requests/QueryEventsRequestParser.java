@@ -55,59 +55,8 @@ public class QueryEventsRequestParser {
     Preconditions.checkArgument(null != request, "Invalid query events request: null");
 
     gen.writeStartObject();
-
-    if (request.continuationToken() != null) {
-      gen.writeStringField(CONTINUATION_TOKEN, request.continuationToken());
-    }
-
-    if (request.pageSize() != null) {
-      gen.writeNumberField(PAGE_SIZE, request.pageSize());
-    }
-
-    if (request.afterTimestampMs() != null) {
-      gen.writeNumberField(AFTER_TIMESTAMP_MS, request.afterTimestampMs());
-    }
-
-    if (request.operationTypes() != null) {
-      JsonUtil.writeStringArray(OPERATION_TYPES, request.operationTypes(), gen);
-    }
-
-    if (request.catalogObjectsByName() != null) {
-      gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_NAME);
-      for (List<String> name : request.catalogObjectsByName()) {
-        gen.writeStartArray();
-        for (String part : name) {
-          gen.writeString(part);
-        }
-        gen.writeEndArray();
-      }
-      gen.writeEndArray();
-    }
-
-    if (request.catalogObjectsById() != null) {
-      gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_ID);
-      for (QueryEventsRequest.CatalogObjectUuid obj : request.catalogObjectsById()) {
-        gen.writeStartObject();
-        gen.writeStringField(UUID_FIELD, obj.uuid());
-        gen.writeStringField(TYPE_FIELD, obj.type());
-        gen.writeEndObject();
-      }
-      gen.writeEndArray();
-    }
-
-    if (request.objectTypes() != null) {
-      JsonUtil.writeStringArray(OBJECT_TYPES, request.objectTypes(), gen);
-    }
-
-    if (request.customFilters() != null) {
-      gen.writeObjectFieldStart(CUSTOM_FILTERS);
-      for (Map.Entry<String, Object> entry : request.customFilters().entrySet()) {
-        gen.writeFieldName(entry.getKey());
-        gen.writeObject(entry.getValue());
-      }
-      gen.writeEndObject();
-    }
-
+    writeScalarFields(request, gen);
+    writeFilterFields(request, gen);
     gen.writeEndObject();
   }
 
@@ -121,7 +70,86 @@ public class QueryEventsRequestParser {
         json.isObject(), "Cannot parse query events request from non-object: %s", json);
 
     ImmutableQueryEventsRequest.Builder builder = ImmutableQueryEventsRequest.builder();
+    parseScalarFields(json, builder);
+    parseFilterFields(json, builder);
+    return builder.build();
+  }
 
+  private static void writeScalarFields(QueryEventsRequest request, JsonGenerator gen)
+      throws IOException {
+    if (request.continuationToken() != null) {
+      gen.writeStringField(CONTINUATION_TOKEN, request.continuationToken());
+    }
+
+    if (request.pageSize() != null) {
+      gen.writeNumberField(PAGE_SIZE, request.pageSize());
+    }
+
+    if (request.afterTimestampMs() != null) {
+      gen.writeNumberField(AFTER_TIMESTAMP_MS, request.afterTimestampMs());
+    }
+  }
+
+  private static void writeFilterFields(QueryEventsRequest request, JsonGenerator gen)
+      throws IOException {
+    if (request.operationTypes() != null) {
+      JsonUtil.writeStringArray(OPERATION_TYPES, request.operationTypes(), gen);
+    }
+
+    if (request.catalogObjectsByName() != null) {
+      catalogObjectsByNameToJson(request.catalogObjectsByName(), gen);
+    }
+
+    if (request.catalogObjectsById() != null) {
+      catalogObjectsByIdToJson(request.catalogObjectsById(), gen);
+    }
+
+    if (request.objectTypes() != null) {
+      JsonUtil.writeStringArray(OBJECT_TYPES, request.objectTypes(), gen);
+    }
+
+    if (request.customFilters() != null) {
+      customFiltersToJson(request.customFilters(), gen);
+    }
+  }
+
+  private static void catalogObjectsByNameToJson(List<List<String>> names, JsonGenerator gen)
+      throws IOException {
+    gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_NAME);
+    for (List<String> name : names) {
+      gen.writeStartArray();
+      for (String part : name) {
+        gen.writeString(part);
+      }
+      gen.writeEndArray();
+    }
+    gen.writeEndArray();
+  }
+
+  private static void catalogObjectsByIdToJson(
+      List<QueryEventsRequest.CatalogObjectUuid> objects, JsonGenerator gen) throws IOException {
+    gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_ID);
+    for (QueryEventsRequest.CatalogObjectUuid obj : objects) {
+      gen.writeStartObject();
+      gen.writeStringField(UUID_FIELD, obj.uuid());
+      gen.writeStringField(TYPE_FIELD, obj.type());
+      gen.writeEndObject();
+    }
+    gen.writeEndArray();
+  }
+
+  private static void customFiltersToJson(Map<String, Object> filters, JsonGenerator gen)
+      throws IOException {
+    gen.writeObjectFieldStart(CUSTOM_FILTERS);
+    for (Map.Entry<String, Object> entry : filters.entrySet()) {
+      gen.writeFieldName(entry.getKey());
+      gen.writeObject(entry.getValue());
+    }
+    gen.writeEndObject();
+  }
+
+  private static void parseScalarFields(
+      JsonNode json, ImmutableQueryEventsRequest.Builder builder) {
     if (json.has(CONTINUATION_TOKEN)) {
       builder.continuationToken(JsonUtil.getString(CONTINUATION_TOKEN, json));
     }
@@ -133,29 +161,20 @@ public class QueryEventsRequestParser {
     if (json.has(AFTER_TIMESTAMP_MS)) {
       builder.afterTimestampMs(JsonUtil.getLong(AFTER_TIMESTAMP_MS, json));
     }
+  }
 
+  private static void parseFilterFields(
+      JsonNode json, ImmutableQueryEventsRequest.Builder builder) {
     if (json.has(OPERATION_TYPES)) {
       builder.operationTypes(ImmutableList.copyOf(JsonUtil.getStringList(OPERATION_TYPES, json)));
     }
 
     if (json.has(CATALOG_OBJECTS_BY_NAME)) {
-      ImmutableList.Builder<List<String>> names = ImmutableList.builder();
-      for (JsonNode nameNode : json.get(CATALOG_OBJECTS_BY_NAME)) {
-        names.add(ImmutableList.copyOf(JsonUtil.getStringArray(nameNode)));
-      }
-      builder.catalogObjectsByName(names.build());
+      builder.catalogObjectsByName(catalogObjectsByNameFromJson(json));
     }
 
     if (json.has(CATALOG_OBJECTS_BY_ID)) {
-      ImmutableList.Builder<QueryEventsRequest.CatalogObjectUuid> objects = ImmutableList.builder();
-      for (JsonNode objNode : json.get(CATALOG_OBJECTS_BY_ID)) {
-        objects.add(
-            ImmutableCatalogObjectUuid.builder()
-                .uuid(JsonUtil.getString(UUID_FIELD, objNode))
-                .type(JsonUtil.getString(TYPE_FIELD, objNode))
-                .build());
-      }
-      builder.catalogObjectsById(objects.build());
+      builder.catalogObjectsById(catalogObjectsByIdFromJson(json));
     }
 
     if (json.has(OBJECT_TYPES)) {
@@ -163,25 +182,48 @@ public class QueryEventsRequestParser {
     }
 
     if (json.has(CUSTOM_FILTERS)) {
-      ImmutableMap.Builder<String, Object> filters = ImmutableMap.builder();
-      json.get(CUSTOM_FILTERS)
-          .properties()
-          .forEach(
-              entry -> {
-                JsonNode value = entry.getValue();
-                if (value.isTextual()) {
-                  filters.put(entry.getKey(), value.asText());
-                } else if (value.isNumber()) {
-                  filters.put(entry.getKey(), value.numberValue());
-                } else if (value.isBoolean()) {
-                  filters.put(entry.getKey(), value.asBoolean());
-                } else {
-                  filters.put(entry.getKey(), value.toString());
-                }
-              });
-      builder.customFilters(filters.build());
+      builder.customFilters(customFiltersFromJson(json));
     }
+  }
 
-    return builder.build();
+  private static List<List<String>> catalogObjectsByNameFromJson(JsonNode json) {
+    ImmutableList.Builder<List<String>> names = ImmutableList.builder();
+    for (JsonNode nameNode : json.get(CATALOG_OBJECTS_BY_NAME)) {
+      names.add(ImmutableList.copyOf(JsonUtil.getStringArray(nameNode)));
+    }
+    return names.build();
+  }
+
+  private static List<QueryEventsRequest.CatalogObjectUuid> catalogObjectsByIdFromJson(
+      JsonNode json) {
+    ImmutableList.Builder<QueryEventsRequest.CatalogObjectUuid> objects = ImmutableList.builder();
+    for (JsonNode objNode : json.get(CATALOG_OBJECTS_BY_ID)) {
+      objects.add(
+          ImmutableCatalogObjectUuid.builder()
+              .uuid(JsonUtil.getString(UUID_FIELD, objNode))
+              .type(JsonUtil.getString(TYPE_FIELD, objNode))
+              .build());
+    }
+    return objects.build();
+  }
+
+  private static Map<String, Object> customFiltersFromJson(JsonNode json) {
+    ImmutableMap.Builder<String, Object> filters = ImmutableMap.builder();
+    json.get(CUSTOM_FILTERS)
+        .properties()
+        .forEach(
+            entry -> {
+              JsonNode value = entry.getValue();
+              if (value.isTextual()) {
+                filters.put(entry.getKey(), value.asText());
+              } else if (value.isNumber()) {
+                filters.put(entry.getKey(), value.numberValue());
+              } else if (value.isBoolean()) {
+                filters.put(entry.getKey(), value.asBoolean());
+              } else {
+                filters.put(entry.getKey(), value.toString());
+              }
+            });
+    return filters.build();
   }
 }

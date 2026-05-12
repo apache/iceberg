@@ -315,6 +315,7 @@ public class TestEventParser {
   @Test
   public void testNullJsonThrows() {
     assertThatThrownBy(() -> EventParser.fromJson((String) null))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("argument \"content\" is null");
   }
 }
