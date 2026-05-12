@@ -191,6 +191,8 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.distribution-mode                    | See [Spark Writes](spark-writes.md#writing-distribution-modes) | Controls distribution strategy during writes                                                                                    |
 | spark.wap.id                                           | null                                                           | [Write-Audit-Publish](branching.md#audit-branch) snapshot staging ID                                                            |
 | spark.wap.branch                                       | null                                                           | WAP branch name for snapshot commit                                                                                             |
+| spark.sql.iceberg.shred-variants                       | Table default                                                  | When true, variant columns are written with shredded Parquet encoding for improved query performance                             |
+| spark.sql.iceberg.variant-inference-buffer-size        | Table default                                                  | Number of rows to buffer for schema inference when variant shredding is enabled                                                  |
 | spark.sql.iceberg.compression-codec                    | Table default                                                  | Write compression codec (e.g., `zstd`, `snappy`)                                                                                |
 | spark.sql.iceberg.compression-level                    | Table default                                                  | Compression level for Parquet/Avro                                                                                              |
 | spark.sql.iceberg.compression-strategy                 | Table default                                                  | Compression strategy for ORC                                                                                                    |
@@ -262,6 +264,8 @@ df.writeTo("catalog.db.table")
 | compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
 | distribution-mode | See [Spark Writes](spark-writes.md#writing-distribution-modes) for defaults | Override this table's distribution mode for this write |
 | delete-granularity | file | Override this table's delete granularity for this write |
+| shred-variants | false | Overrides this table's write.parquet.shred-variants for this write |
+| variant-inference-buffer-size | 100 | Overrides this table's write.parquet.variant-inference-buffer-size for this write |
 
 CommitMetadata provides an interface to add custom metadata to a snapshot summary during a SQL execution, which can be beneficial for purposes such as auditing or change tracking. If properties start with `snapshot-property.`, then that prefix will be removed from each property. Here is an example:
 

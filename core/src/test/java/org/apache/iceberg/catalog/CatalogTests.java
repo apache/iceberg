@@ -432,6 +432,44 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testDropNamespaceWithNestedNamespace() {
+    assumeThat(supportsNestedNamespaces())
+        .as("Only valid when the catalog supports nested namespaces")
+        .isTrue();
+
+    C catalog = catalog();
+
+    Namespace parent = Namespace.of("parent");
+    Namespace nested = Namespace.of("parent", "child");
+
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should not exist").isFalse();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should not exist").isFalse();
+
+    catalog.createNamespace(parent);
+    catalog.createNamespace(nested);
+
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should exist").isTrue();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should exist").isTrue();
+
+    assertThatThrownBy(() -> catalog.dropNamespace(parent))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty");
+
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should still exist").isTrue();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should still exist").isTrue();
+
+    assertThat(catalog.dropNamespace(nested))
+        .as("Dropping an existing nested namespace should return true")
+        .isTrue();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should not exist").isFalse();
+
+    assertThat(catalog.dropNamespace(parent))
+        .as("Dropping an existing namespace should return true")
+        .isTrue();
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should not exist").isFalse();
+  }
+
+  @Test
   public void testListNamespaces() {
     C catalog = catalog();
     // the catalog may automatically create a default namespace
