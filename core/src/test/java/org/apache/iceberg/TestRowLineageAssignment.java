@@ -781,6 +781,33 @@ public class TestRowLineageAssignment {
         FILE_C.recordCount() + FILE_B.recordCount());
   }
 
+  @Test
+  public void testRewritePreservesExistingFileFirstRowIds() {
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // FILE_A gets firstRowId=0, FILE_B gets firstRowId=FILE_A.recordCount()=125; assert before
+    // rewrite
+    ManifestFile preRewriteManifest =
+        Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io()));
+    checkDataFileAssignment(table, preRewriteManifest, 0L, FILE_A.recordCount());
+
+    // set low to trigger an internal manifest merge during the rewrite
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+    // FILE_A and FILE_C must be removed and added in the same operation. Removing FILE_A creates
+    // an uncommitted manifest containing FILE_B as an existing entry. Adding FILE_C triggers the
+    // internal manifest merge to read that uncommitted manifest before its firstRowId is assigned.
+    table.newRewrite().deleteFile(FILE_A).addFile(FILE_C).commit();
+
+    // merged manifest live files: [FILE_C (added), FILE_B (existing)]
+    ManifestFile manifest =
+        Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io()));
+    checkDataFileAssignment(
+        table,
+        manifest,
+        FILE_A.recordCount() + FILE_B.recordCount(), // FILE_C gets 225
+        FILE_A.recordCount()); // FILE_B must retain its original firstRowId (125)
+  }
+
   private static ManifestContent content(int ordinal) {
     return ManifestContent.values()[ordinal];
   }
