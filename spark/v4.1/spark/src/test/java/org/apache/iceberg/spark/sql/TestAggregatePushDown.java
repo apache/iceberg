@@ -1080,8 +1080,12 @@ public class TestAggregatePushDown extends CatalogTestBase {
 
     actual.sort(
         (a, b) -> {
-          if (a[0] == null) return -1;
-          if (b[0] == null) return 1;
+          if (a[0] == null) {
+            return -1;
+          }
+          if (b[0] == null) {
+            return 1;
+          }
           return ((String) a[0]).compareTo((String) b[0]);
         });
 
