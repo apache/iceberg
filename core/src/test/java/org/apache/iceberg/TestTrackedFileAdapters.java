@@ -162,7 +162,13 @@ class TestTrackedFileAdapters {
   void testPositionDeleteFileAdapterRejectsNonPositionDeletes() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, null, 100L, 1024L);
+            null,
+            FileContent.DATA,
+            "s3://bucket/data.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L);
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asPositionDeleteFile(file, UNPARTITIONED))
@@ -225,7 +231,13 @@ class TestTrackedFileAdapters {
   void testEqualityDeleteFileAdapterRejectsNonEqualityDeletes() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, null, 100L, 1024L);
+            null,
+            FileContent.DATA,
+            "s3://bucket/data.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L);
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED))
@@ -296,7 +308,13 @@ class TestTrackedFileAdapters {
   void testDVDeleteFileAdapterRejectsNullDV() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, null, 100L, 1024L);
+            null,
+            FileContent.DATA,
+            "s3://bucket/data.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L);
     file.set(6, 0);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
@@ -308,7 +326,13 @@ class TestTrackedFileAdapters {
   void testNullContentStatsReturnsNullStats() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, null, 100L, 1024L);
+            null,
+            FileContent.DATA,
+            "s3://bucket/data.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L);
     file.set(6, 0);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
@@ -324,7 +348,13 @@ class TestTrackedFileAdapters {
   void testNullSpecIdResolvesToUnpartitionedSpec() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, null, 100L, 1024L);
+            null,
+            FileContent.DATA,
+            "s3://bucket/data.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L);
 
     PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(5).build();
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
@@ -338,7 +368,13 @@ class TestTrackedFileAdapters {
 
     TrackedFileStruct file =
         new TrackedFileStruct(
-            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, null, 100L, 1024L);
+            null,
+            FileContent.DATA,
+            "s3://bucket/data.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, specsById(partitioned)))
         .isInstanceOf(IllegalArgumentException.class)
@@ -349,7 +385,13 @@ class TestTrackedFileAdapters {
   void testUnknownSpecIdThrows() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            null, FileContent.DATA, "s3://bucket/data.parquet", FileFormat.PARQUET, null, 100L, 1024L);
+            null,
+            FileContent.DATA,
+            "s3://bucket/data.parquet",
+            FileFormat.PARQUET,
+            null,
+            100L,
+            1024L);
     file.set(6, 99);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
