@@ -735,7 +735,7 @@ In Iceberg v4, statistics are stored in typed fields grouped in a struct that co
 
 Field-level structs in `content_stats` are based on the corresponding table field's type, requirement, and ID (`field-id`).
 
-Field stats structs are assigned a range of 200 IDs, starting at `10_000 + 200 * field-id`. The first ID in the range (`base-id`) is the ID of the struct field in `content_stats`. Fields within the stats struct are assigned IDs from the range by adding an offset to the `base-id`. For example, the stats struct for table field 2 uses IDs in the range `[10_400, 10_599]`, the field within `content_stats` has uses the `base-id`, ID `10_400`, and its `lower_bound` field (offset 1) uses ID `10_401`.
+Field stats structs are assigned a range of 200 IDs, starting at `10_000 + 200 * field-id`. The first ID in the range (`base-id`) is the ID of the struct field in `content_stats`. Fields within the stats struct are assigned IDs from the range by adding an offset to the `base-id`. For example, the stats struct for table field 2 uses IDs in the range `[10_400, 10_599]`, the field within `content_stats` uses the `base-id`, ID `10_400`, and its `lower_bound` field (offset 1) uses ID `10_401`.
 
 Content stats must be resovled by ID; field names used for stats structs are informational. The recommended name for each field is the full name of the field in the table schema.
 
