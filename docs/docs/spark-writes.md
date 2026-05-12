@@ -218,7 +218,7 @@ For more complex row-level updates based on incoming data, see the section on `M
 
 ## Writing to Branches
 
-The branch must exist before performing write. Operations do **not** create the branch if it does not exist.
+The target branch may be created during the write operation if it does not exist.
 A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
 
 !!! info
@@ -229,7 +229,16 @@ A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl
 Branch writes can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
 
 Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
-Note WAP branch and branch identifier cannot both be specified.
+
+The target branch is resolved with the following precedence (Spark 4.1+):
+
+- The identifier and option branches can't conflict. If both are set, they must match.
+- Identifier and option branches take priority over the session WAP branch.
+- If neither the option nor the identifier branch is set and WAP is enabled for the table,
+  the WAP branch from the session SQL config is used.
+
+!!! note
+    WAP ID and WAP branch cannot be set at the same time.
 
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
