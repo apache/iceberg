@@ -210,7 +210,7 @@ subprojects {
         }
         eachDependency { details ->
           if (details.requested.group == 'io.netty' && details.requested.version?.startsWith('4.1.')) {
-            details.useVersion(libs.versions.netty.legacy.get())
+            details.useVersion(libs.versions.netty.buffer.get())
             details.because("Fix Netty 4.1.x CVEs (CVE-2026-42577, CVE-2026-42579, CVE-2026-42583, CVE-2026-42584, CVE-2026-42587)")
           }
         }
