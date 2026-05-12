@@ -1,0 +1,10 @@
+# CVE ignore list for spark-runtime-3.4_2.12.
+#
+# Each entry: CVE ID, optional expiry (`exp:YYYY-MM-DD`), and rationale.
+# Format reference: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/#trivyignore
+
+# CVE-2025-52999 — jackson-core 2.14.2 StackoverflowError on deeply-nested input.
+# Pinned by Spark 3.4 runtime compatibility (Spark 3.4 ships jackson 2.14).
+# Spark 3.4 support is being removed from Iceberg in the near term; track the
+# removal and drop this file when the spark-runtime-3.4 module goes away.
+CVE-2025-52999
