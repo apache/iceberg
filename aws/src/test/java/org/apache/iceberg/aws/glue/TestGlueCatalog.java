@@ -31,6 +31,7 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -44,6 +45,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseResponse;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
@@ -425,10 +427,40 @@ public class TestGlueCatalog {
 
   @Test
   public void testCreateNamespace() {
+    Mockito.doThrow(EntityNotFoundException.builder().build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
     Mockito.doReturn(CreateDatabaseResponse.builder().build())
         .when(glue)
         .createDatabase(Mockito.any(CreateDatabaseRequest.class));
     glueCatalog.createNamespace(Namespace.of("db"));
+  }
+
+  @Test
+  public void testCreateNamespaceAlreadyExists() {
+    Mockito.doReturn(GetDatabaseResponse.builder().build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    // next exception should not be thrown
+    Mockito.doThrow(AccessDeniedException.builder().build())
+        .when(glue)
+        .createDatabase(Mockito.any(CreateDatabaseRequest.class));
+    glueCatalog.createNamespace(Namespace.of("db"));
+  }
+
+  @Test
+  public void testCreateNamespaceAlreadyExistsAndCannotCreate() {
+    Mockito.doThrow(EntityNotFoundException.builder().build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    // next exception should be thrown
+    Mockito.doThrow(AccessDeniedException.builder().build())
+        .when(glue)
+        .createDatabase(Mockito.any(CreateDatabaseRequest.class));
+    assertThatThrownBy(() -> glueCatalog.createNamespace(Namespace.of("db")))
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("Cannot create namespace 'db' due to missing Glue permissions")
+        .hasCauseInstanceOf(AccessDeniedException.class);
   }
 
   @Test

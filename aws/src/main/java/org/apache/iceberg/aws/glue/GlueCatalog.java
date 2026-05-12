@@ -41,6 +41,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -61,6 +62,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.Database;
@@ -466,17 +468,32 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     try {
-      glue.createDatabase(
-          CreateDatabaseRequest.builder()
+      // first test if it already exists
+      glue.getDatabase(
+          GetDatabaseRequest.builder()
               .catalogId(awsProperties.glueCatalogId())
-              .databaseInput(
-                  IcebergToGlueConverter.toDatabaseInput(
-                      namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
+              .name(
+                  IcebergToGlueConverter.toDatabaseName(
+                      namespace, awsProperties.glueCatalogSkipNameValidation()))
               .build());
-      LOG.info("Created namespace: {}", namespace);
-    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
-      throw new AlreadyExistsException(
-          "Cannot create namespace %s because it already exists in Glue", namespace);
+    } catch (EntityNotFoundException notFoundE) {
+      LOG.info("Namespace '{}' does not exist, creating it", namespace, notFoundE);
+      try {
+        glue.createDatabase(
+            CreateDatabaseRequest.builder()
+                .catalogId(awsProperties.glueCatalogId())
+                .databaseInput(
+                    IcebergToGlueConverter.toDatabaseInput(
+                        namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
+                .build());
+        LOG.info("Created namespace: {}", namespace);
+      } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
+        throw new AlreadyExistsException(
+            "Cannot create namespace %s because it already exists in Glue", namespace);
+      } catch (AccessDeniedException e) {
+        throw new ForbiddenException(
+            e, "Cannot create namespace '%s' due to missing Glue permissions", namespace);
+      }
     }
   }
 
