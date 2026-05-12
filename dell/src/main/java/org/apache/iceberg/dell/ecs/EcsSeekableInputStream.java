@@ -20,8 +20,10 @@ package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
+import com.emc.object.s3.S3Exception;
 import java.io.IOException;
 import java.io.InputStream;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
@@ -110,7 +112,15 @@ class EcsSeekableInputStream extends SeekableInputStream {
     }
 
     pos = newPos;
-    internalStream = client.readObjectStream(uri.bucket(), uri.name(), Range.fromOffset(pos));
+    try {
+      internalStream = client.readObjectStream(uri.bucket(), uri.name(), Range.fromOffset(pos));
+    } catch (S3Exception e) {
+      if (e.getHttpCode() == 404) {
+        throw new NotFoundException(e, "Location does not exist: %s", uri);
+      }
+
+      throw e;
+    }
     newPos = -1;
   }
 
