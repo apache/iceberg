@@ -32,6 +32,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 /** A Catalog API for table create, drop, and load operations. */
 public interface Catalog {
 
+  String SYSTEM_DATABASE_NAME = "sys";
+
   /**
    * Return the name for this catalog.
    *
