@@ -160,6 +160,7 @@ public class TestGcsInputFile {
       try (SeekableInputStream stream = inputFile.newStream()) {
         assertThat(stream).isNotInstanceOf(GCSInputStream.class);
       }
+      mocked.verify(() -> GoogleCloudStorageInputStream.create(gcsFileSystem, gcsFileInfo));
     }
   }
 
@@ -191,6 +192,7 @@ public class TestGcsInputFile {
       try (SeekableInputStream stream = inputFile.newStream()) {
         assertThat(stream).isNotInstanceOf(GCSInputStream.class);
       }
+      mocked.verify(() -> GoogleCloudStorageInputStream.create(gcsFileSystem, itemId));
     }
   }
 
