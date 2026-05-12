@@ -34,7 +34,7 @@ interface TrackedFile {
           134,
           "content_type",
           Types.IntegerType.get(),
-          "Type of content: 0=DATA, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
+          "Type of content: 0=DATA, 1=POSITION_DELETES, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
   Types.NestedField LOCATION =
       Types.NestedField.required(100, "location", Types.StringType.get(), "Location of the file");
   Types.NestedField FILE_FORMAT =
