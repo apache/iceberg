@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -394,6 +395,7 @@ public class RewriteTablePathUtil {
       PositionDeleteReaderWriter posDeleteReaderWriter)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
+    Map<String, Long> rewrittenSizesBySourcePath = Maps.newHashMap();
     try (ManifestWriter<DeleteFile> writer =
             ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
         ManifestReader<DeleteFile> reader =
@@ -411,7 +413,8 @@ public class RewriteTablePathUtil {
                       stagingLocation,
                       writer,
                       io,
-                      posDeleteReaderWriter))
+                      posDeleteReaderWriter,
+                      rewrittenSizesBySourcePath))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
@@ -453,7 +456,8 @@ public class RewriteTablePathUtil {
       String stagingLocation,
       ManifestWriter<DeleteFile> writer,
       FileIO io,
-      PositionDeleteReaderWriter posDeleteReaderWriter) {
+      PositionDeleteReaderWriter posDeleteReaderWriter,
+      Map<String, Long> rewrittenSizesBySourcePath) {
 
     DeleteFile file = entry.file();
     RewriteResult<DeleteFile> result = new RewriteResult<>();
@@ -461,19 +465,23 @@ public class RewriteTablePathUtil {
     switch (file.content()) {
       case POSITION_DELETES:
         // Rewrite inline so the manifest records the actual file size, which changes because
-        // embedded data file paths are rewritten. The staging path is deterministic, so
-        // duplicates across manifests simply overwrite with identical content.
-        String stagingPath = stagingPath(file.location(), sourcePrefix, stagingLocation);
-        OutputFile outputFile = io.newOutputFile(stagingPath);
-        long actualSize;
-        try {
-          actualSize =
-              rewritePositionDeleteFile(
-                  file, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
-        } catch (IOException e) {
-          throw new UncheckedIOException(
-              "Failed to rewrite position delete file " + file.location(), e);
-        }
+        // embedded data file paths are rewritten. The same source path may be referenced by
+        // multiple entries (here or in another task processing a different manifest); rewriting
+        // is deterministic, so cache the size and recover from cross-task collisions on read.
+        String sourcePath = file.location();
+        String stagingPath = stagingPath(sourcePath, sourcePrefix, stagingLocation);
+        long actualSize =
+            rewrittenSizesBySourcePath.computeIfAbsent(
+                sourcePath,
+                ignored ->
+                    rewriteOrReuseStagedPositionDeleteFile(
+                        file,
+                        stagingPath,
+                        io,
+                        spec,
+                        sourcePrefix,
+                        targetPrefix,
+                        posDeleteReaderWriter));
         DeleteFile posDeleteFile =
             newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix, actualSize);
         appendEntryWithFile(entry, writer, posDeleteFile);
@@ -499,6 +507,31 @@ public class RewriteTablePathUtil {
 
       default:
         throw new UnsupportedOperationException("Unsupported delete file type: " + file.content());
+    }
+  }
+
+  private static long rewriteOrReuseStagedPositionDeleteFile(
+      DeleteFile file,
+      String stagingPath,
+      FileIO io,
+      PartitionSpec spec,
+      String sourcePrefix,
+      String targetPrefix,
+      PositionDeleteReaderWriter posDeleteReaderWriter) {
+    OutputFile outputFile = io.newOutputFile(stagingPath);
+    try {
+      return rewritePositionDeleteFile(
+          file, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
+    } catch (IOException e) {
+      throw new UncheckedIOException(
+          "Failed to rewrite position delete file " + file.location(), e);
+    } catch (UncheckedIOException e) {
+      // Another task in this Spark job already staged this file. Rewriting is deterministic, so
+      // its content (and therefore length) match what this task would have produced.
+      if (e.getCause() instanceof FileAlreadyExistsException) {
+        return io.newInputFile(stagingPath).getLength();
+      }
+      throw e;
     }
   }
 
