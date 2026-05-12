@@ -29,6 +29,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
@@ -146,7 +147,7 @@ class SparkBatch implements Batch {
 
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
-  // - only primitives, variant, or metadata columns are projected
+  // - only primitives, unshredded variant, or metadata columns are projected
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
@@ -169,9 +170,12 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType()
-        || field.type().isVariantType()
-        || MetadataColumns.isMetadataColumn(field.fieldId());
+    if (field.type().isVariantType()) {
+      String shredEnabled = table.properties().get(TableProperties.PARQUET_SHRED_VARIANTS);
+      return !"true".equalsIgnoreCase(shredEnabled);
+    }
+
+    return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
   }
 
   // conditions for using ORC batch reads:
