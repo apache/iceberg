@@ -737,7 +737,7 @@ Field-level structs in `content_stats` are based on the corresponding table fiel
 
 Field stats structs are assigned a range of 200 IDs, starting at `10_000 + 200 * field-id`. The first ID in the range (`base-id`) is the ID of the struct field in `content_stats`. Fields within the stats struct are assigned IDs from the range by adding an offset to the `base-id`. For example, the stats struct for table field 2 uses IDs in the range `[10_400, 10_599]`, the field within `content_stats` uses the `base-id`, ID `10_400`, and its `lower_bound` field (offset 1) uses ID `10_401`.
 
-Content stats must be resovled by ID; field names used for stats structs are informational. The recommended name for each field is the full name of the field in the table schema.
+Content stats must be resolved by ID; field names used for stats structs are informational. The recommended name for each field is the full name of the field in the table schema.
 
 IDs in the range `10_000` (inclusive) to `200_000_000` (exclusive) are reserved for column stats structs in `content_stats`. Stats for table fields with IDs outside that range cannot be stored in `content_stats`.
 
@@ -777,7 +777,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 
 If any field is missing from the struct, readers must assume that it is unknown.
 
-Lower and upper bounds for `geometry` and `geography` columns are XYZM points that define a bounding box, stored in `geo_lower` and `geo_upper` structs (see [Bounds for Geometry and Geography](#bounds-for-geometry-and-geography). IDs used by geo structs are assigned using offsets in the table field's stats ID range.
+Lower and upper bounds for `geometry` and `geography` columns are XYZM points that define a bounding box, stored in `geo_lower` and `geo_upper` structs (see [Bounds for Geometry and Geography](#bounds-for-geometry-and-geography)). IDs used by geo structs are assigned using offsets in the table field's stats ID range.
 
 The `geo_lower` struct is defined as:
 
@@ -792,7 +792,7 @@ The `geo_upper` struct is defined as:
 
 | Requirement | Offset | Name | Type     | Description |
 |-------------|--------|------|----------|-------------|
-| _required_  | 14     | `x`  | `double` | Bounding box eastermost/xmax; [-180..180] |
+| _required_  | 14     | `x`  | `double` | Bounding box easternmost/xmax; [-180..180] |
 | _required_  | 15     | `y`  | `double` | Bounding box northernmost/ymax; [-90..90] |
 | _optional_  | 16     | `z`  | `double` | Bounding box zmax |
 | _optional_  | 17     | `m`  | `double` | Bounding box mmax |
