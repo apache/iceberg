@@ -91,17 +91,15 @@ class TrackedFileAdapters {
 
   /**
    * Shared base for all tracked file adapters. Holds the common fields and implements the methods
-   * that delegate to {@link Tracking} and {@link PartitionSpec}.
+   * that delegate to {@link TrackedFile} and {@link PartitionSpec}.
    */
   private abstract static class TrackedFileAdapter<F extends ContentFile<F>>
       implements ContentFile<F> {
     private final TrackedFile file;
-    private final Tracking tracking;
     private final PartitionSpec spec;
 
     private TrackedFileAdapter(TrackedFile file, PartitionSpec spec) {
       this.file = file;
-      this.tracking = file.tracking();
       this.spec = spec;
     }
 
@@ -109,21 +107,23 @@ class TrackedFileAdapters {
       return file;
     }
 
-    protected Tracking tracking() {
-      return tracking;
-    }
-
     protected PartitionSpec spec() {
       return spec;
     }
 
+    private Tracking tracking() {
+      return file.tracking();
+    }
+
     @Override
     public Long pos() {
+      Tracking tracking = tracking();
       return tracking != null ? tracking.manifestPos() : null;
     }
 
     @Override
     public String manifestLocation() {
+      Tracking tracking = tracking();
       return tracking != null ? tracking.manifestLocation() : null;
     }
 
@@ -140,11 +140,13 @@ class TrackedFileAdapters {
 
     @Override
     public Long dataSequenceNumber() {
+      Tracking tracking = tracking();
       return tracking != null ? tracking.dataSequenceNumber() : null;
     }
 
     @Override
     public Long fileSequenceNumber() {
+      Tracking tracking = tracking();
       return tracking != null ? tracking.fileSequenceNumber() : null;
     }
   }
@@ -245,11 +247,6 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public List<Integer> equalityFieldIds() {
-      return null;
-    }
-
-    @Override
     public DataFile copy() {
       return new TrackedDataFile(file().copy(), spec());
     }
@@ -280,11 +277,6 @@ class TrackedFileAdapters {
     @Override
     public FileContent content() {
       return FileContent.EQUALITY_DELETES;
-    }
-
-    @Override
-    public Long firstRowId() {
-      return null;
     }
 
     @Override
@@ -323,11 +315,6 @@ class TrackedFileAdapters {
     @Override
     public FileContent content() {
       return FileContent.POSITION_DELETES;
-    }
-
-    @Override
-    public Long firstRowId() {
-      return null;
     }
 
     @Override
@@ -418,17 +405,7 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Long firstRowId() {
-      return null;
-    }
-
-    @Override
     public ByteBuffer keyMetadata() {
-      return null;
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
       return null;
     }
 

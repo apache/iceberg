@@ -361,7 +361,7 @@ class TestTrackedFileAdapters {
             .fileSequenceNumber(11L)
             .firstRowId(1000L)
             .build();
-    // the builder doesn't support reader-side fields (manifestLocation, manifestPos)
+    // manifestLocation and manifestPos are set by manifest readers, not written to manifests
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(8, manifestPos);
     return tracking;
