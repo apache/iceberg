@@ -75,6 +75,11 @@ class SerializableFileIOWithSize
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return fileIO.newInputFile(path, length);
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return fileIO.newOutputFile(path);
   }

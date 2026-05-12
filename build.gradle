@@ -206,6 +206,13 @@ subprojects {
         dependencySubstitution {
           substitute module("org.lz4:lz4-java") using module(libs.lz4Java.get().toString()) because("Enforce lz4-java that contains CVE-2025-12183 and CVE-2025-66566 fixes")
           substitute module("io.airlift:aircompressor") using module(libs.aircompressor.get().toString()) because("Enforce aircompressor that contains CVE-2025-67721 fix")
+          substitute module("org.bouncycastle:bcprov-jdk18on") using module(libs.bouncycastle.bcprov.get().toString()) because("Enforce BouncyCastle that contains CVE-2026-5598 fix")
+        }
+        eachDependency { details ->
+          if (details.requested.group == 'io.netty' && details.requested.version?.startsWith('4.1.')) {
+            details.useVersion(libs.versions.netty.buffer.get())
+            details.because("Fix Netty 4.1.x CVEs (CVE-2026-42577, CVE-2026-42579, CVE-2026-42583, CVE-2026-42584, CVE-2026-42587)")
+          }
         }
       }
     }

@@ -77,8 +77,8 @@ io.grpc:grpc-services:1.80.0
 io.grpc:grpc-stub:1.80.0
 io.grpc:grpc-util:1.80.0
 io.grpc:grpc-xds:1.80.0
-io.netty:netty-buffer:4.1.110.Final
-io.netty:netty-common:4.1.110.Final
+io.netty:netty-buffer:4.2.13.Final
+io.netty:netty-common:4.2.13.Final
 io.opencensus:opencensus-api:0.31.1
 io.opencensus:opencensus-contrib-http-util:0.31.1
 io.opentelemetry.contrib:opentelemetry-gcp-resources:1.37.0-alpha

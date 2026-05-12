@@ -41,6 +41,7 @@ on:
     - '.github/workflows/labeler.yml'
     - '.github/workflows/license-check.yml'
     - '.github/workflows/open-api.yml'
+    - '.github/workflows/pr-title-check.yml'
     - '.github/workflows/publish-snapshot.yml'
     - '.github/workflows/recurring-jmh-benchmarks.yml'
     - '.github/workflows/site-ci.yml'
