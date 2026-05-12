@@ -29,8 +29,8 @@ import org.immutables.value.Value;
 public interface QueryEventsResponse extends RESTResponse {
 
   /**
-   * Opaque continuation token to fetch the next page of events. Clients should pass this
-   * unmodified in subsequent requests.
+   * Opaque continuation token to fetch the next page of events. Clients should pass this unmodified
+   * in subsequent requests.
    */
   String nextPageToken();
 

@@ -116,8 +116,7 @@ public class QueryEventsRequestParser {
   }
 
   public static QueryEventsRequest fromJson(JsonNode json) {
-    Preconditions.checkArgument(
-        null != json, "Cannot parse query events request from null object");
+    Preconditions.checkArgument(null != json, "Cannot parse query events request from null object");
     Preconditions.checkArgument(
         json.isObject(), "Cannot parse query events request from non-object: %s", json);
 
@@ -136,8 +135,7 @@ public class QueryEventsRequestParser {
     }
 
     if (json.has(OPERATION_TYPES)) {
-      builder.operationTypes(
-          ImmutableList.copyOf(JsonUtil.getStringList(OPERATION_TYPES, json)));
+      builder.operationTypes(ImmutableList.copyOf(JsonUtil.getStringList(OPERATION_TYPES, json)));
     }
 
     if (json.has(CATALOG_OBJECTS_BY_NAME)) {

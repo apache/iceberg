@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.events;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -235,8 +234,7 @@ public class TestEventParser {
     Event parsed = EventParser.fromJson(json);
 
     assertThat(parsed.operation().operationType()).isEqualTo("update-namespace-properties");
-    UpdateNamespacePropertiesOperation op =
-        (UpdateNamespacePropertiesOperation) parsed.operation();
+    UpdateNamespacePropertiesOperation op = (UpdateNamespacePropertiesOperation) parsed.operation();
     assertThat(op.namespace()).isEqualTo(Namespace.of("production"));
     assertThat(op.updated()).containsExactly("owner", "team");
     assertThat(op.removed()).containsExactly("deprecated");

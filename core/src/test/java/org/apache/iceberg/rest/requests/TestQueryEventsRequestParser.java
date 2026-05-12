@@ -20,7 +20,6 @@ package org.apache.iceberg.rest.requests;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -69,8 +68,7 @@ public class TestQueryEventsRequestParser {
             .operationTypes(ImmutableList.of("create-table", "drop-table"))
             .catalogObjectsByName(
                 ImmutableList.of(
-                    ImmutableList.of("accounting", "tax"),
-                    ImmutableList.of("marketing")))
+                    ImmutableList.of("accounting", "tax"), ImmutableList.of("marketing")))
             .catalogObjectsById(
                 ImmutableList.of(
                     ImmutableCatalogObjectUuid.builder()
