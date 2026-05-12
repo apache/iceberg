@@ -28,8 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * A reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical
  * levels.
  *
- * <p>The object kind is determined by context (e.g. the endpoint or a companion {@link
- * CatalogObjectType} discriminator), not by the identifier structure alone.
+ * <p>The object kind is determined by context (e.g. the endpoint or a companion type
+ * discriminator), not by the identifier structure alone.
  */
 public class CatalogObjectIdentifier {
   private static final Joiner DOT = Joiner.on('.');
