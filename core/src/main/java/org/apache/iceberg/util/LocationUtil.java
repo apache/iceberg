@@ -88,9 +88,9 @@ public class LocationUtil {
   }
 
   /**
-   * Resolves a relative location against a table location. If the location has a URI scheme, it is
-   * returned as-is. Otherwise, the location is appended to the table location without any
-   * additional separator.
+   * Resolves a location against a table location. If the location has a URI scheme, it is returned
+   * as-is. Otherwise, the location is appended to the table location without any additional
+   * separator.
    */
   public static String resolveLocation(String tableLocation, String location) {
     if (hasScheme(location)) {

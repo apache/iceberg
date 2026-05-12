@@ -173,12 +173,50 @@ public class TestLocationUtil {
   }
 
   @Test
+  public void testResolveAbsoluteLocationWithNonAlphanumericScheme() {
+    String tableLocation = "s3://bucket/table";
+
+    assertThat(LocationUtil.resolveLocation(tableLocation, "git+ssh://host/repo"))
+        .isEqualTo("git+ssh://host/repo");
+  }
+
+  @Test
+  public void testResolveEmptyLocationReturnsTableLocation() {
+    String tableLocation = "s3://bucket/table";
+    assertThat(LocationUtil.resolveLocation(tableLocation, "")).isEqualTo(tableLocation);
+  }
+
+  @Test
   public void testRelativizeResolveRoundTrip() {
     String tableLocation = "s3://bucket/table";
     String absoluteLocation = "s3://bucket/table/metadata/root-manifest.parquet";
 
     String relativized = LocationUtil.relativizeLocation(tableLocation, absoluteLocation);
     assertThat(relativized).isEqualTo("/metadata/root-manifest.parquet");
+
+    String resolved = LocationUtil.resolveLocation(tableLocation, relativized);
+    assertThat(resolved).isEqualTo(absoluteLocation);
+  }
+
+  @Test
+  public void testRelativizeResolveRoundTripWithFileScheme() {
+    String tableLocation = "file:///tmp/warehouse/table";
+    String absoluteLocation = "file:///tmp/warehouse/table/metadata/root-manifest.parquet";
+
+    String relativized = LocationUtil.relativizeLocation(tableLocation, absoluteLocation);
+    assertThat(relativized).isEqualTo("/metadata/root-manifest.parquet");
+
+    String resolved = LocationUtil.resolveLocation(tableLocation, relativized);
+    assertThat(resolved).isEqualTo(absoluteLocation);
+  }
+
+  @Test
+  public void testRelativizeResolveRoundTripWithHDFS() {
+    String tableLocation = "hdfs://namenode/warehouse/table";
+    String absoluteLocation = "hdfs://namenode/warehouse/table/data/00000-0.parquet";
+
+    String relativized = LocationUtil.relativizeLocation(tableLocation, absoluteLocation);
+    assertThat(relativized).isEqualTo("/data/00000-0.parquet");
 
     String resolved = LocationUtil.resolveLocation(tableLocation, relativized);
     assertThat(resolved).isEqualTo(absoluteLocation);
