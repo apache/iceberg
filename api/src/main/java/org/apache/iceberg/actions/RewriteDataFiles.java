@@ -63,18 +63,27 @@ public interface RewriteDataFiles
    * The entire rewrite operation is broken down into pieces based on partitioning and within
    * partitions based on size into groups. These sub-units of the rewrite are referred to as file
    * groups. The largest amount of data that should be compacted in a single group is controlled by
-   * {@link #MAX_FILE_GROUP_SIZE_BYTES}. This helps with breaking down the rewriting of very large
-   * partitions which may not be rewritable otherwise due to the resource constraints of the
-   * cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those
-   * partitions need to be worked on in small subsections to avoid exhaustion of resources.
+   * {@code SizeBasedFileRewritePlanner#MAX_FILE_GROUP_SIZE_BYTES}. This helps with breaking down
+   * the rewriting of very large partitions which may not be rewritable otherwise due to the
+   * resource constraints of the cluster. For example a sort based rewrite may not scale to terabyte
+   * sized partitions, those partitions need to be worked on in small subsections to avoid
+   * exhaustion of resources.
    *
    * <p>When grouping files, the underlying rewrite strategy will use this value as to limit the
    * files which will be included in a single file group. A group will be processed by a single
    * framework "action". For example, in Spark this means that each group would be rewritten in its
    * own Spark action. A group will never contain files for multiple output partitions.
+   *
+   * @deprecated since 1.11.0, will be removed in 2.0.0; use {@code
+   *     SizeBasedFileRewritePlanner#MAX_FILE_GROUP_SIZE_BYTES} instead.
    */
-  String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
+  @Deprecated String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 2.0.0; use {@code
+   *     SizeBasedFileRewritePlanner#MAX_FILE_GROUP_SIZE_BYTES_DEFAULT} instead.
+   */
+  @Deprecated
   long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 1024L * 1024L * 1024L * 100L; // 100 Gigabytes
 
   /**
