@@ -751,6 +751,8 @@ A snapshot consists of the following fields:
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
 
+In format version 4 and above, a snapshot's `timestamp-ms` must be strictly greater than the `timestamp-ms` of its parent snapshot on the same branch. The requirement applies only to snapshots committed while the table is at format version 4 or higher; root snapshots, and snapshots that existed before a table was upgraded to v4, are not constrained.
+
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
 * `append` -- Only data files were added and no files were removed.
@@ -1646,6 +1648,14 @@ The binary single-value serialization can be used to store the lower and upper b
 | **`geography`**    | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
 
 ## Appendix E: Format version changes
+
+### Version 4
+
+Snapshot timestamp changes:
+
+* A snapshot's `timestamp-ms` must be strictly greater than the `timestamp-ms` of its parent snapshot on the same branch.
+* The requirement applies only to snapshots committed while the table is at format version 4 or higher; snapshots that existed before a table was upgraded to v4 are not constrained.
+* Root snapshots (snapshots with no parent) are not constrained by this requirement.
 
 ### Version 3
 
