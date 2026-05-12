@@ -180,12 +180,6 @@ class ParquetIO {
       delegate.readVectored(delegateRange, allocate::allocate);
     }
 
-    /**
-     * convert parquet file ranges to iceberg file range.
-     *
-     * @param ranges input parquet file range.
-     * @return iceberg file range list.
-     */
     private static List<FileRange> convertRanges(List<ParquetFileRange> ranges) {
       return ranges.stream()
           .map(
