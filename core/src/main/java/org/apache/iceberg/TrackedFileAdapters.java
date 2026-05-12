@@ -336,24 +336,6 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public String referencedDataFile() {
-      DeletionVector dv = file().deletionVector();
-      return dv != null ? file().location() : null;
-    }
-
-    @Override
-    public Long contentOffset() {
-      DeletionVector dv = file().deletionVector();
-      return dv != null ? dv.offset() : null;
-    }
-
-    @Override
-    public Long contentSizeInBytes() {
-      DeletionVector dv = file().deletionVector();
-      return dv != null ? dv.sizeInBytes() : null;
-    }
-
-    @Override
     public DeleteFile copy() {
       return new TrackedPositionDeleteFile(file().copy(), spec());
     }
