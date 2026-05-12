@@ -219,6 +219,42 @@ public class TestManifestReader extends TestBase {
   }
 
   @TestTemplate
+  public void testReadCommitedManifestNullifiesEntryRowId() throws IOException {
+    long firstRowId = 42L;
+    DataFile fileWithRowId =
+        DataFiles.builder(SPEC).copy(FILE_A).withFirstRowId(firstRowId).build();
+    // the manifest has no manifest-level first_row_id (the v3+ entry still carries one)
+    ManifestFile manifest =
+        writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, fileWithRowId));
+    assertThat(manifest.firstRowId()).isNull();
+
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.specs())) {
+      assertThat(Iterables.getOnlyElement(reader).firstRowId()).isNull();
+    }
+  }
+
+  @TestTemplate
+  public void testReadUncommittedManifestPreservesEntryRowId() throws IOException {
+    assumeThat(formatVersion)
+        .as("first_row_id is only written in v3+ manifests")
+        .isGreaterThanOrEqualTo(3);
+
+    long firstRowId = 42L;
+    DataFile fileWithRowId =
+        DataFiles.builder(SPEC).copy(FILE_A).withFirstRowId(firstRowId).build();
+    // the manifest has no manifest-level first_row_id, but the entry has one
+    ManifestFile manifest =
+        writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, fileWithRowId));
+    assertThat(manifest.firstRowId()).isNull();
+    assertThat(fileWithRowId.firstRowId()).isEqualTo(firstRowId);
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO, table.specs(), false /* isCommitted */)) {
+      assertThat(Iterables.getOnlyElement(reader).firstRowId()).isEqualTo(firstRowId);
+    }
+  }
+
+  @TestTemplate
   public void testDataFileSplitOffsetsNullWhenInvalid() throws IOException {
     DataFile invalidOffset =
         DataFiles.builder(SPEC)
