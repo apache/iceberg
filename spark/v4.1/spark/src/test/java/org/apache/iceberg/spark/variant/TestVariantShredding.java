@@ -111,6 +111,10 @@ public class TestVariantShredding extends CatalogTestBase {
     super.before();
     validationCatalog.createTable(
         tableIdent, SCHEMA, null, Map.of(TableProperties.FORMAT_VERSION, "3"));
+    // Disable vectorized reads for shredded variant (not yet supported)
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='false')",
+        tableName);
   }
 
   @AfterEach
