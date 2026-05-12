@@ -111,7 +111,7 @@ class TrackedFileAdapters {
       return spec;
     }
 
-    private Tracking tracking() {
+    protected Tracking tracking() {
       return file.tracking();
     }
 
