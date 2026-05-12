@@ -37,9 +37,11 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.FileRewritePlan;
+import org.apache.iceberg.actions.FileRewritePlanner;
 import org.apache.iceberg.actions.FileRewriteRunner;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles.Result.Builder;
+import org.apache.iceberg.actions.KWayMergeRewriteFilePlanner;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
@@ -98,7 +100,8 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
   private String branch = SnapshotRef.MAIN_BRANCH;
-  private BinPackRewriteFilePlanner planner = null;
+  private FileRewritePlanner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> planner =
+      null;
   private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> runner = null;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
@@ -143,6 +146,13 @@ public class RewriteDataFilesSparkAction
   public RewriteDataFilesSparkAction zOrder(String... columnNames) {
     ensureRunnerNotSet();
     this.runner = new SparkZOrderFileRewriteRunner(spark(), table, Arrays.asList(columnNames));
+    return this;
+  }
+
+  @Override
+  public RewriteDataFilesSparkAction kWayMerge() {
+    ensureRunnerNotSet();
+    this.runner = new SparkKWayMergeFileRewriteRunner(spark(), table);
     return this;
   }
 
@@ -205,10 +215,16 @@ public class RewriteDataFilesSparkAction
   }
 
   private void init(long startingSnapshotId) {
-    this.planner =
-        runner instanceof SparkShufflingFileRewriteRunner
-            ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)
-            : new BinPackRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
+    if (runner instanceof SparkKWayMergeFileRewriteRunner) {
+      this.planner =
+          new KWayMergeRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
+    } else if (runner instanceof SparkShufflingFileRewriteRunner) {
+      this.planner =
+          new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive);
+    } else {
+      this.planner =
+          new BinPackRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
+    }
 
     // Default to BinPack if no strategy selected
     if (this.runner == null) {
