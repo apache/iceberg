@@ -223,16 +223,15 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
                 colName);
             return false;
           }
-        } else if (mode instanceof MetricsModes.Truncate) {
-          // lower_bounds and upper_bounds may be truncated, so disable push down
-          if (aggregate.type().typeId() == Type.TypeID.STRING) {
-            if (aggregate.op() == Expression.Operation.MAX
-                || aggregate.op() == Expression.Operation.MIN) {
-              LOG.info(
-                  "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
-                  colName);
-              return false;
-            }
+        } else if (aggregate.type().typeId() == Type.TypeID.STRING) {
+          // lower_bounds and upper_bounds may have been truncated before, so disable push down
+          // regardless of the current mode
+          if (aggregate.op() == Expression.Operation.MAX
+              || aggregate.op() == Expression.Operation.MIN) {
+            LOG.info(
+                "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
+                colName);
+            return false;
           }
         }
       }
