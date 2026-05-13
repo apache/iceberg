@@ -116,16 +116,26 @@ public class TestPrefixedStorage {
   }
 
   @Test
+  public void gcsFileSystemDisabledByDefault() {
+    Map<String, String> properties = ImmutableMap.of(GCPProperties.GCS_PROJECT_ID, "myProject");
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+
+    assertThat(storage.gcsFileSystem()).isNull();
+  }
+
+  @Test
   public void gcsFileSystem() {
     Map<String, String> properties =
-        ImmutableMap.of(
-            GCPProperties.GCS_PROJECT_ID, "myProject",
-            GCPProperties.GCS_USER_PROJECT, "userProject",
-            GCPProperties.GCS_CLIENT_LIB_TOKEN, "gccl",
-            GCPProperties.GCS_SERVICE_HOST, "example.com",
-            GCPProperties.GCS_DECRYPTION_KEY, "decryptionKey",
-            GCPProperties.GCS_ENCRYPTION_KEY, "encryptionKey",
-            GCPProperties.GCS_CHANNEL_READ_CHUNK_SIZE, "1024");
+        ImmutableMap.<String, String>builder()
+            .put(GCPProperties.GCS_ANALYTICS_CORE_ENABLED, "true")
+            .put(GCPProperties.GCS_PROJECT_ID, "myProject")
+            .put(GCPProperties.GCS_USER_PROJECT, "userProject")
+            .put(GCPProperties.GCS_CLIENT_LIB_TOKEN, "gccl")
+            .put(GCPProperties.GCS_SERVICE_HOST, "example.com")
+            .put(GCPProperties.GCS_DECRYPTION_KEY, "decryptionKey")
+            .put(GCPProperties.GCS_ENCRYPTION_KEY, "encryptionKey")
+            .put(GCPProperties.GCS_CHANNEL_READ_CHUNK_SIZE, "1024")
+            .build();
     PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
     GcsFileSystemOptions expectedOptions =
         GcsFileSystemOptions.builder()
@@ -144,7 +154,7 @@ public class TestPrefixedStorage {
                     .build())
             .build();
 
-    GcsFileSystem fileSystem = storage.gcsFileSystem();
+    GcsFileSystem fileSystem = (GcsFileSystem) storage.gcsFileSystem();
 
     assertThat(fileSystem).isNotNull();
     assertThat(fileSystem.getGcsClient()).isNotNull();

@@ -118,4 +118,12 @@ public class SparkSQLProperties {
   // Session-level time-travel property; a timestamp in milliseconds.
   // The snapshot used will be the snapshot current at this time.
   public static final String AS_OF_TIMESTAMP = "spark.sql.iceberg.read.as-of-timestamp";
+  
+  // Controls whether to shred variant columns during write operations
+  public static final String SHRED_VARIANTS = "spark.sql.iceberg.shred-variants";
+
+  // Controls the buffer size for variant schema inference during writes
+  // This determines how many rows are buffered before inferring shredded schema
+  public static final String VARIANT_INFERENCE_BUFFER_SIZE =
+      "spark.sql.iceberg.variant-inference-buffer-size";
 }

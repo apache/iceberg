@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
@@ -127,6 +128,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -2605,6 +2607,23 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(readConf.cacheDeleteFilesOnExecutors())
         .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
         .isFalse();
+  }
+
+  @TestTemplate
+  public void testZOrderUDFWithTimestampNTZType() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+    Dataset<Row> result =
+        spark
+            .sql("SELECT timestamp_ntz '2025-01-01 12:00:00' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.TimestampNTZType));
+
+    assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
+    byte[] zorderBytes = row.getAs("zorder_result");
+    assertThat(zorderBytes).isNotNull().isNotEmpty();
   }
 
   private double percentFilesRequired(Table table, String col, String value) {

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
@@ -32,6 +33,13 @@ import org.apache.iceberg.util.ByteBuffers;
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
   private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
+  private static final PartitionData EMPTY_PARTITION_DATA =
+      new PartitionData(EMPTY_STRUCT_TYPE) {
+        @Override
+        public PartitionData copy() {
+          return this; // this does not change
+        }
+      };
 
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
@@ -42,6 +50,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.RECORD_COUNT,
           TrackedFile.FILE_SIZE_IN_BYTES,
           TrackedFile.SPEC_ID,
+          Types.NestedField.required(
+              TrackedFile.PARTITION_ID,
+              TrackedFile.PARTITION_NAME,
+              EMPTY_STRUCT_TYPE,
+              TrackedFile.PARTITION_DOC),
           Types.NestedField.optional(
               TrackedFile.CONTENT_STATS_ID,
               TrackedFile.CONTENT_STATS_NAME,
@@ -60,6 +73,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private long recordCount = -1L;
   private long fileSizeInBytes = -1L;
   private Integer specId = null;
+  private PartitionData partitionData = EMPTY_PARTITION_DATA;
 
   // optional fields
   private Tracking tracking = null;
@@ -74,6 +88,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
     super(BASE_TYPE, projection);
+    // partition type may be null if the field was not projected
+    Type partType = projection.fieldType("partition");
+    if (partType != null) {
+      this.partitionData = new PartitionData(partType.asNestedType().asStructType());
+    }
   }
 
   /** No-projection constructor for direct construction. */
@@ -87,6 +106,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       FileContent contentType,
       String location,
       FileFormat fileFormat,
+      PartitionData partition,
       long recordCount,
       long fileSizeInBytes) {
     super(BASE_TYPE.fields().size());
@@ -96,6 +116,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.fileFormat = fileFormat;
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
+    if (partition != null) {
+      this.partitionData = partition;
+    }
   }
 
   /** Copy constructor. */
@@ -107,9 +130,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-
+    this.partitionData = toCopy.partitionData.copy();
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
-
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
 
@@ -168,6 +190,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   @Override
   public Integer specId() {
     return specId;
+  }
+
+  @Override
+  public StructLike partition() {
+    return partitionData;
   }
 
   @Override
@@ -237,18 +264,20 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 6:
         return specId;
       case 7:
-        return contentStats;
+        return partitionData;
       case 8:
-        return sortOrderId;
+        return contentStats;
       case 9:
-        return deletionVector;
+        return sortOrderId;
       case 10:
-        return manifestInfo;
+        return deletionVector;
       case 11:
-        return keyMetadata();
+        return manifestInfo;
       case 12:
-        return splitOffsets();
+        return keyMetadata();
       case 13:
+        return splitOffsets();
+      case 14:
         return equalityIds();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -281,24 +310,27 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         this.specId = (Integer) value;
         break;
       case 7:
-        this.contentStats = (ContentStats) value;
+        this.partitionData = (PartitionData) value;
         break;
       case 8:
-        this.sortOrderId = (Integer) value;
+        this.contentStats = (ContentStats) value;
         break;
       case 9:
-        this.deletionVector = (DeletionVector) value;
+        this.sortOrderId = (Integer) value;
         break;
       case 10:
-        this.manifestInfo = (ManifestInfo) value;
+        this.deletionVector = (DeletionVector) value;
         break;
       case 11:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.manifestInfo = (ManifestInfo) value;
         break;
       case 12:
-        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
       case 13:
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        break;
+      case 14:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         break;
       default:
@@ -315,6 +347,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
         .add("spec_id", specId())
+        .add("partition", partitionData)
         .add("tracking", tracking)
         .add("content_stats", contentStats)
         .add("sort_order_id", sortOrderId)

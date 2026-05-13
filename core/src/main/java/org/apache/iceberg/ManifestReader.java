@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionSet;
 import org.slf4j.Logger;
@@ -68,6 +69,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "upper_bounds",
           "record_count");
 
+  private static final Schema STATUS_ONLY_PROJECTION =
+      TypeUtil.select(
+          ManifestEntry.getSchema(Types.StructType.of()),
+          ImmutableSet.of(ManifestEntry.STATUS.fieldId()));
+
   protected enum FileType {
     DATA_FILES(GenericDataFile.class),
     DELETE_FILES(GenericDeleteFile.class);
@@ -86,6 +92,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
   private final Long firstRowId;
+  private final boolean isCommitted;
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
@@ -119,12 +126,24 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       InheritableMetadata inheritableMetadata,
       Long firstRowId,
       FileType content) {
+    this(file, specId, specsById, inheritableMetadata, firstRowId, true, content);
+  }
+
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      Long firstRowId,
+      boolean isCommitted,
+      FileType content) {
     Preconditions.checkArgument(
         firstRowId == null || content == FileType.DATA_FILES,
         "First row ID is not valid for delete manifests");
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.firstRowId = firstRowId;
+    this.isCommitted = isCommitted;
     this.content = content;
 
     if (specsById != null) {
@@ -157,9 +176,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     Map<String, String> metadata;
     try {
       try (CloseableIterable<ManifestEntry<T>> headerReader =
-          InternalData.read(FileFormat.AVRO, inputFile)
-              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .build()) {
+          InternalData.read(FileFormat.AVRO, inputFile).project(STATUS_ONLY_PROJECTION).build()) {
 
         if (headerReader instanceof AvroIterable) {
           metadata = ((AvroIterable<ManifestEntry<T>>) headerReader).getMetadata();
@@ -304,7 +321,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     CloseableIterable<ManifestEntry<F>> withMetadata =
         CloseableIterable.transform(reader, inheritableMetadata::apply);
-    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId));
+    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId, isCommitted));
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
@@ -394,7 +411,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <F extends ContentFile<F>> Function<ManifestEntry<F>, ManifestEntry<F>> idAssigner(
-      Long firstRowId) {
+      Long firstRowId, boolean isCommitted) {
     if (firstRowId != null) {
       return new Function<>() {
         private long nextRowId = firstRowId;
@@ -412,8 +429,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           return entry;
         }
       };
+    } else if (!isCommitted) {
+      // Preserve firstRowId for entries in uncommitted manifests, including EXISTING entries that
+      // may be merged later
+      return Function.identity();
     } else {
-      // data file's first_row_id is null when the manifest's first_row_id is null
+      // committed manifest with null manifest-level firstRowId (pre-v3 upgrade path)
+      // defensively set the first row ID for every entry to be null
       return entry -> {
         if (entry.file() instanceof BaseFile) {
           ((BaseFile<?>) entry.file()).setFirstRowId(null);

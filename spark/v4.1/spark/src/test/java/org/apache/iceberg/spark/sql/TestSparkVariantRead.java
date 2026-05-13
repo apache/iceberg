@@ -302,6 +302,55 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", mapTable);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testMergeIntoWithVariant(boolean vectorized) {
+    // Variant columns are not vectorized yet, but MERGE INTO should not crash regardless of the
+    // vectorization setting. The reader falls back to non-vectorized for variant columns.
+    String mergeTable = CATALOG + ".default.var_merge";
+    sql("DROP TABLE IF EXISTS %s", mergeTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, data VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        mergeTable);
+    setVectorization(mergeTable, vectorized);
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+            + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+        mergeTable);
+
+    sql(
+        "MERGE INTO %s AS target "
+            + "USING (SELECT 1 AS id, parse_json('{\"name\":\"alice\",\"age\":31}') AS data) AS source "
+            + "ON target.id = source.id "
+            + "WHEN MATCHED THEN UPDATE SET target.data = source.data "
+            + "WHEN NOT MATCHED THEN INSERT *",
+        mergeTable);
+
+    List<Row> rows = spark.table(mergeTable).select("id", "data").orderBy("id").collectAsList();
+
+    assertThat(rows).hasSize(2);
+    assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("name").getString()).describedAs("v1.name").isEqualTo("alice");
+    assertThat(v1.getFieldByKey("age").getLong()).describedAs("v1.age").isEqualTo(31L);
+
+    assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
+    Variant v2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    assertThat(v2.getFieldByKey("name").getString()).describedAs("v2.name").isEqualTo("bob");
+    assertThat(v2.getFieldByKey("age").getLong()).describedAs("v2.age").isEqualTo(25L);
+
+    sql("DROP TABLE IF EXISTS %s", mergeTable);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
