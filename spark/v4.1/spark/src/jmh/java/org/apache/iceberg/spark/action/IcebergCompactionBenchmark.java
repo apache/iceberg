@@ -45,7 +45,7 @@ import org.openjdk.jmh.annotations.Timeout;
 @Fork(1)
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.SingleShotTime)
-@Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
+@Timeout(time = 1, timeUnit = TimeUnit.HOURS)
 public abstract class IcebergCompactionBenchmark {
 
   private final Configuration hadoopConf = initHadoopConf();
