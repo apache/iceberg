@@ -122,6 +122,10 @@ public abstract class IcebergCompactionBenchmark {
     return Map.of("type", "hadoop");
   }
 
+  protected String sparkMaster() {
+    return "local[*]";
+  }
+
   protected void setupSpark() {
     SparkSession.Builder builder =
         SparkSession.builder()
@@ -129,12 +133,11 @@ public abstract class IcebergCompactionBenchmark {
                 "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
             .config("spark.sql.catalog.spark_catalog.warehouse", getCatalogWarehouse())
             .config(TestBase.DISABLE_UI)
-            .master("local[*]");
+            .master(sparkMaster());
     extraCatalogProperties()
         .forEach((key, value) -> builder.config("spark.sql.catalog.spark_catalog." + key, value));
+    hadoopConf.forEach(entry -> builder.config("spark.hadoop." + entry.getKey(), entry.getValue()));
     spark = builder.getOrCreate();
-    Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
-    hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
   }
 
   protected void tearDownSpark() {
