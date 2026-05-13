@@ -739,7 +739,7 @@ Field stats structs are assigned a range of 200 IDs, starting at `10_000 + 200 *
 
 Content stats must be resolved by ID; field names used for stats structs are informational. The recommended name for each field is the full name of the field in the table schema.
 
-IDs in the range `10_000` (inclusive) to `200_000_000` (exclusive) are reserved for column stats structs in `content_stats`. Stats for table fields with IDs outside that range cannot be stored in `content_stats`.
+IDs in the range `10_000` (inclusive) to `200_000_000` (exclusive) are reserved for column stats structs in `content_stats`. Stats for table fields with stats IDs outside that range cannot be stored in `content_stats`.
 
 [Reserved metadata fields](#reserved-field-ids) must use the stats ID ranges from the following table. Stats for metadata fields not in the table are not tracked.
 
