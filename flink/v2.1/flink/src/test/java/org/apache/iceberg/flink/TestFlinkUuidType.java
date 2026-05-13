@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -172,12 +171,9 @@ public class TestFlinkUuidType extends CatalogTestBase {
     assertThat(records.get(0).getField("uuid")).isEqualTo(EXPECTED_UUID);
   }
 
-  /**
-   * SQL INSERT into a UUID column fails. Flink has no UUID type, so BINARY(16) maps to Iceberg
-   * fixed[16], which is not compatible with uuid at the schema check.
-   */
+  /** Writes UUID via SQL INSERT, reads via Generic reader. */
   @TestTemplate
-  public void testSqlInsertUuidFails() {
+  public void testSqlInsertUuid() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
@@ -186,9 +182,10 @@ public class TestFlinkUuidType extends CatalogTestBase {
             ImmutableMap.of("write.format.default", fileFormat.name()));
 
     String uuidHex = EXPECTED_UUID.toString().replace("-", "");
+    sql("INSERT INTO %s VALUES (1, CAST(X'%s' AS BINARY(16)))", TABLE_NAME, uuidHex);
 
-    assertThatThrownBy(
-            () -> sql("INSERT INTO %s VALUES (1, CAST(X'%s' AS BINARY(16)))", TABLE_NAME, uuidHex))
-        .hasMessageContaining("fixed[16] cannot be promoted to uuid");
+    List<Record> records = SimpleDataUtil.tableRecords(icebergTable);
+    assertThat(records).hasSize(1);
+    assertThat(records.get(0).getField("uuid")).isEqualTo(EXPECTED_UUID);
   }
 }
