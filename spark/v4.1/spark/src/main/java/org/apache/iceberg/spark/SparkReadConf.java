@@ -291,12 +291,12 @@ public class SparkReadConf {
     return Math.max(defaultParallelism, numShufflePartitions);
   }
 
-  public Integer splitParallelism() {
+  public int splitParallelism() {
     Integer parallelism =
         confParser.intConf().sessionConf(SparkSQLProperties.READ_SPLIT_PARALLELISM).parseOptional();
     Preconditions.checkArgument(
         parallelism == null || parallelism > 0, "Split parallelism must be > 0: %s", parallelism);
-    return parallelism;
+    return parallelism != null ? parallelism : parallelism();
   }
 
   public boolean distributedPlanningEnabled() {

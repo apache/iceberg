@@ -44,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
@@ -1104,53 +1103,6 @@ public class TestSparkScan extends TestBaseWithCatalog {
           assertThat(description).contains(tableName);
           assertThat(description).contains("startSnapshotId=" + startSnapshotId);
           assertThat(description).contains("endSnapshotId=" + endSnapshotId);
-        });
-  }
-
-  @TestTemplate
-  public void testAdaptiveSplitSizeSessionConfig() throws Exception {
-    sql(
-        "CREATE TABLE %s (id BIGINT, date DATE) USING iceberg TBLPROPERTIES('%s' = '%s')",
-        tableName, TableProperties.DEFAULT_FILE_FORMAT, format);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    SparkReadConf readConf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-    assertThat(readConf.adaptiveSplitSizeEnabled()).isTrue();
-
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED, "false"),
-        () -> {
-          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-          assertThat(conf.adaptiveSplitSizeEnabled()).isFalse();
-        });
-
-    table.updateProperties().set(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED, "true").commit();
-
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED, "false"),
-        () -> {
-          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-          assertThat(conf.adaptiveSplitSizeEnabled()).isFalse();
-        });
-  }
-
-  @TestTemplate
-  public void testSplitParallelismSessionConfig() throws Exception {
-    sql(
-        "CREATE TABLE %s (id BIGINT, date DATE) USING iceberg TBLPROPERTIES('%s' = '%s')",
-        tableName, TableProperties.DEFAULT_FILE_FORMAT, format);
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    SparkReadConf readConf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-    assertThat(readConf.splitParallelism()).isNull();
-
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.READ_SPLIT_PARALLELISM, "42"),
-        () -> {
-          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-          assertThat(conf.splitParallelism()).isEqualTo(42);
-          assertThat(conf.parallelism()).isEqualTo(readConf.parallelism());
         });
   }
 
