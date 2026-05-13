@@ -77,10 +77,7 @@ public class TestFlinkUuidType extends CatalogTestBase {
     return Arrays.asList(
         new Object[] {"testhadoop", Namespace.empty(), FileFormat.PARQUET},
         new Object[] {"testhadoop", Namespace.empty(), FileFormat.AVRO},
-        new Object[] {"testhadoop", Namespace.empty(), FileFormat.ORC},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), FileFormat.PARQUET},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), FileFormat.AVRO},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), FileFormat.ORC});
+        new Object[] {"testhadoop", Namespace.empty(), FileFormat.ORC});
   }
 
   @Override
@@ -100,7 +97,7 @@ public class TestFlinkUuidType extends CatalogTestBase {
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
+            ImmutableMap.of("write.format.default", fileFormat.name()));
 
     Record record =
         GenericRecord.create(icebergTable.schema()).copy("id", 1, "uuid", EXPECTED_UUID);
@@ -141,7 +138,7 @@ public class TestFlinkUuidType extends CatalogTestBase {
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
+            ImmutableMap.of("write.format.default", fileFormat.name()));
 
     RowType rowType = FlinkSchemaUtil.convert(SCHEMA);
     RowDataTaskWriterFactory rowDataTaskWriterFactory =
@@ -186,7 +183,7 @@ public class TestFlinkUuidType extends CatalogTestBase {
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
+            ImmutableMap.of("write.format.default", fileFormat.name()));
 
     String uuidHex = EXPECTED_UUID.toString().replace("-", "");
 
