@@ -201,7 +201,7 @@ Path resolution is the process of producing an absolute path from a relative pat
 * If the path contains a URI scheme, it is absolute and is used without modification.
 * If the path does not contain a URI scheme, the resolved path is the table location followed by the relative path.
 
-Paths used as prefixes must not end in a path separator. The relative portion is appended to the prefix without introduction of any additional separator characters. 
+Paths used as prefixes must not end in a path separator. The relative portion is appended to the prefix without introduction of any additional separator characters.
 
 Any path from a manifest produced prior to v4 is a fully-qualified path and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
 
@@ -213,8 +213,6 @@ Examples of path resolution:
 | Absolute Path   | v4             | s3://bucket/db/table | hdfs:/wh/db/table/data/00000-0.parquet    | hdfs://wh/db/table/data/00000-0.parquet   | Absolute path is used               |
 | Fully-qualified | v3 and earlier | s3://bucket/db/table | s3://bucket/db/table/data/00000-0.parquet | s3://bucket/db/table/data/00000-0.parquet | Fully-qualified path is used        |
 | Missing scheme  | v3 and earlier | /wh/db/table         | /wh/db/table/data/00000-0.parquet         | hdfs:/wh/db/table/data/00000-0.parquet    | Scheme is prepended for consistency |
-
-
 
 #### Path Relativization
 
@@ -985,7 +983,6 @@ The atomic operation used to commit metadata depends on how tables are tracked a
 
 Table metadata consists of the following fields:
 
-
 === "v1 - v3"
     | v1         | v2         | v3         | Field                       | Description |
     | ---------- | ---------- |------------|-----------------------------| ------------|
@@ -1042,7 +1039,6 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
-
 
 For serialization details, see Appendix C.
 
