@@ -57,6 +57,14 @@ Version 3 of the Iceberg spec extends data types and existing metadata structure
 
 The full set of changes are listed in [Appendix E](#version-3).
 
+### Version 4: Metadata Structure and Representation
+
+Version 4 of the Iceberg spec restructures metadata for improved performance and new capabilities:
+
+* Support for [relative locations](#file-locations-in-metadata) in metadata fields
+
+The full set of changes are listed in [Appendix E](#version-4).
+
 ## Goals
 
 * **Serializable isolation** -- Reads will be isolated from concurrent writes and always use a committed snapshot of a table’s data. Writes will support removing and adding files in a single operation and are never partially visible. Readers will not acquire locks.
@@ -123,9 +131,16 @@ Tables do not require random-access writes. Once written, data and metadata file
 
 Tables do not require rename, except for tables that use atomic rename to implement the commit operation for new metadata files.
 
+### File Locations in Metadata
+
+All location fields in format versions 3 and prior contain fully-qualified paths.
+
+Version 4 of the Iceberg spec adds support for relative locations in metadata, enabling tables to be relocated without rewriting metadata files. Relative locations are allowed in all metadata tracked location fields and are resolved against the table's base location. The table's location may be fixed in table metadata or inferred, but is intended to be managed and supplied by a catalog.
+Requirements for relativization and resolution are in [Relative Paths](#path-resolution)
+
 ## Specification
 
-#### Terms
+### Terms
 
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
@@ -134,8 +149,10 @@ Tables do not require rename, except for tables that use atomic rename to implem
 * **Manifest** -- A file that lists data or delete files; a subset of a snapshot.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
+* **Absolute path** -- A path string that includes a [URI](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) scheme and can be used directly.
+* **Relative path** -- A path string without a URI scheme that must be [resolved](#path-resolution) against the table location.
 
-#### Writer requirements
+### Writer requirements
 
 Some tables in this spec have columns that specify requirements for tables by version. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
 
@@ -167,6 +184,48 @@ Readers may be more strict for metadata JSON files because the JSON files are no
 All columns must be written to data files even if they introduce redundancy with metadata stored in manifest files (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
 
 Writers are not allowed to commit files with a partition spec that contains a field with an unknown transform.
+
+### Paths in Metadata
+
+Path strings stored in Iceberg metadata location fields are classified as one of two types:
+
+* **Absolute path** -- A path string that includes a [URI scheme](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) (e.g., `s3:`, `gs:`, `hdfs:`, `file:`). Absolute paths are used as-is without modification.
+* **Relative path** -- A path string that does not include a URI scheme. Relative paths must be resolved against the table's base location before use.
+
+Prior to v4, all path fields must contain fully-qualified paths. Starting with v4, path fields may contain either absolute or relative paths. Directory navigation symbols (`.` and `..`) and other file system conventions are not supported in relative paths.
+
+#### Path Resolution
+
+Path resolution is the process of producing an absolute path from a relative path by combining it with the table's base location:
+
+* If the path contains a URI scheme, it is absolute and is used without modification.
+* If the path does not contain a URI scheme, the resolved path is the table location followed by the relative path.
+
+Paths used as prefixes must not end in a path separator. The relative portion is appended to the prefix without introduction of any additional separator characters. 
+
+Any path from a manifest produced prior to v4 is a fully-qualified path and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
+
+Examples of path resolution:
+
+|                 | Format Version | Table Location       | File Path                                 | Resolved Path                             | Description                         |
+|-----------------|----------------|----------------------|-------------------------------------------|-------------------------------------------|-------------------------------------|
+| Relative Path   | v4             | s3://bucket/db/table | /data/00000-0.parquet                     | s3://bucket/db/table/data/00000-0.parquet | Path parts are joined               |
+| Absolute Path   | v4             | s3://bucket/db/table | hdfs:/wh/db/table/data/00000-0.parquet    | hdfs://wh/db/table/data/00000-0.parquet   | Absolute path is used               |
+| Fully-qualified | v3 and earlier | s3://bucket/db/table | s3://bucket/db/table/data/00000-0.parquet | s3://bucket/db/table/data/00000-0.parquet | Fully-qualified path is used        |
+| Missing scheme  | v3 and earlier | /wh/db/table         | /wh/db/table/data/00000-0.parquet         | hdfs:/wh/db/table/data/00000-0.parquet    | Scheme is prepended for consistency |
+
+
+
+#### Path Relativization
+
+Path relativization is the process of converting an absolute path to a relative path by removing the table location prefix. This is used when persisting paths to metadata files.
+
+* If an absolute path starts with the table location, the table location prefix should be removed and the remaining relative portion stored.
+* If an absolute path does not start with the table location, it is stored as an absolute path.
+
+#### Table Location Specification
+
+When the `location` field is present in table metadata, it is used directly as the table's base location. When the `location` field is not present (v4 and later), the table location must be provided.  How the table location is persisted or determined when not specified in metadata is not a table-level concern; catalogs should and provide a table's location
 
 ### Schemas and Data Types
 
@@ -926,6 +985,7 @@ The atomic operation used to commit metadata depends on how tables are tracked a
 
 Table metadata consists of the following fields:
 
+
 === "v1 - v3"
     | v1         | v2         | v3         | Field                       | Description |
     | ---------- | ---------- |------------|-----------------------------| ------------|
@@ -954,6 +1014,35 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+=== "v4"
+    | v4         | Field                       | Description |
+    |------------|-----------------------------|-------------|
+    | _required_ | **`format-version`**        | An integer version number for the format. Implementations must throw an exception if a table's version is higher than the supported version. |
+    | _required_ | **`table-uuid`**            | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
+    | _optional_ | **`location`**              | The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. Must be an absolute path when present. See [Table Locations](#table-location-specification). |  
+    | _required_ | **`last-sequence-number`**  | The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
+    | _required_ | **`last-updated-ms`**       | Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
+    | _required_ | **`last-column-id`**        | An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
+    |            | **`schema`**                | The table’s current schema. (**Deprecated**: use `schemas` and `current-schema-id` instead) |
+    | _required_ | **`schemas`**               | A list of schemas, stored as objects with `schema-id`. |
+    | _required_ | **`current-schema-id`**     | ID of the table's current schema. |
+    |            | **`partition-spec`**        | The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id` instead) |
+    | _required_ | **`partition-specs`**       | A list of partition specs, stored as full partition spec objects. |
+    | _required_ | **`default-spec-id`**       | ID of the "current" spec that writers should use by default. |
+    | _required_ | **`last-partition-id`**     | An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
+    | _optional_ | **`properties`**            | A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
+    | _optional_ | **`current-snapshot-id`**   | `long` ID of the current table snapshot; must be the same as the current ID of the `main` branch in `refs`. |
+    | _optional_ | **`snapshots`**             | A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
+    | _optional_ | **`snapshot-log`**          | A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
+    | _optional_ | **`metadata-log`**          | A list (optional) of timestamp and metadata file location pairs that encodes changes to the previous metadata files for the table. Each time a new metadata file is created, a new entry of the previous metadata file location should be added to the list. Tables can be configured to remove oldest metadata log entries and keep a fixed-size log of the most recent entries after a commit. |
+    | _required_ | **`sort-orders`**           | A list of sort orders, stored as full sort order objects. |
+    | _required_ | **`default-sort-order-id`** | Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
+    | _optional_ | **`refs`**                  | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
+    | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics). |
+    | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
+    | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
+    | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+
 
 For serialization details, see Appendix C.
 
@@ -1647,6 +1736,30 @@ The binary single-value serialization can be used to store the lower and upper b
 
 ## Appendix E: Format version changes
 
+### Version 4
+
+Relative path support is added in v4.
+
+Reading v3 metadata for v4:
+
+* All location fields are fully-qualified paths and interpreted as absolute paths for v4
+* Any location field without a uri scheme prefix must prepend a scheme component consistent with v4 absolute paths
+
+Writing v4 metadata:
+
+* Table metadata JSON:
+    * `location` is now optional and must be absolute when present
+    * When not present, the table location must be managed externally and provided when loading the metadata
+* Location fields in all metadata structures may contain relative paths
+* Writers should produce relative paths by default for files that reside under the table location
+* Absolute paths must be used for files that do not share a common prefix with the table location
+
+Reading v4 metadata:
+
+* Readers must check whether location fields contain a URI scheme to determine if a path is absolute or relative
+* Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
+* When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
+
 ### Version 3
 
 Default values are added to struct fields in v3.
@@ -1776,6 +1889,24 @@ Note that these requirements apply when writing data to a v2 table. Tables that 
 ## Appendix F: Implementation Notes
 
 This section covers topics not required by the specification but recommendations for systems implementing the Iceberg specification to help maintain a uniform experience.
+
+### Path Construction
+
+Path construction is the process by which new file locations are created for output files referenced by metadata. While the specific construction logic is not strictly required by the spec, the following guidance is provided for reference implementations to encourage consistency.
+
+The table properties `write.metadata.path` and `write.data.path` control where metadata and data files are written relative to the table location. When not specified, these default to the values `metadata` and `data` respectively.
+
+For all metadata files:
+
+* If `write.metadata.path` is an absolute path, it is used directly as the base for new metadata files.
+* If `write.metadata.path` is a relative path, the metadata base is the table location followed by the `write.metadata.path` value.
+
+For data files:
+
+* If `write.data.path` is an absolute path, it is used directly as the base for new data files.
+* If `write.data.path` is a relative path, the base is the table location followed by the `write.data.path` value.
+
+When persisting paths into metadata, writers should relativize paths against the table location (see [Path Relativization](#path-relativization)). If a file's absolute path shares a common prefix with the table location, the relative portion should be stored. Otherwise, the absolute path should be stored.
 
 ### Point in Time Reads (Time Travel)
 
