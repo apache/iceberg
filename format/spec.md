@@ -827,6 +827,32 @@ For example, stats for a table with a required int, `id`, and an optional string
 }
 ```
 
+For `geometry` and `geography` fields, `lower_bound` and `upper_bound` are nested `geo_lower` and `geo_upper` structs whose fields are assigned IDs using offsets in the table field's stats ID range. `tight_bounds`, `nan_value_count`, and `avg_value_size_in_bytes` are not used for geo types.
+
+For example, stats for a table with an optional `geometry` field, `location` with field-id `4`, are stored as:
+
+```
+146: optional struct content_stats {
+  // stats struct for table field 4: optional geometry location
+  10_800: optional struct location (default null) {
+    10_801: optional struct lower_bound (default null) { // geo_lower
+      10_810: required double x;
+      10_811: required double y;
+      10_812: optional double z;
+      10_813: optional double m;
+    }
+    10_802: optional struct upper_bound (default null) { // geo_upper
+      10_814: required double x;
+      10_815: required double y;
+      10_816: optional double z;
+      10_817: optional double m;
+    }
+    10_804: optional long value_count;
+    10_805: optional long null_value_count;
+  }
+}
+```
+
 Implementations may produce stats structs for fields that are not in the table schema, if a field ID from the table's column ID space is assigned for the data values (by allocating an ID using `last-column-id`). Implementations are not required to write a stats struct for every table field.
 
 Fields with stats tracked in `content_stats` change based on updates like schema evolution or metrics configuration. Writers adapt to table changes by writing new manifest files with the implementation's current `content_stats` type. When existing file metadata is written to new manifests, writers must discard old stats, set unknown stats structs to null, and promote lower and upper bounds types to conform to the manifest schema.
