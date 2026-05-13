@@ -684,7 +684,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                         + "strategy => 'temp')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("unsupported strategy: temp. Only binpack or sort is supported");
+        .hasMessage("unsupported strategy: temp. Only binpack, sort, or k-way-merge is supported");
 
     // Test for sort_order with binpack strategy
     assertThatThrownBy(
