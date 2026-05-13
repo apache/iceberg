@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.avro.Schema.Parser;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
@@ -57,54 +58,37 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
       RowType rowType, Map<String, String> writeProperties) {
     super(rowType, writeProperties);
 
-    String catalogDatabaseColumn = FlinkCreateTableOptions.CATALOG_DATABASE.key();
-    Preconditions.checkArgument(
-        rowType.getFieldIndex(catalogDatabaseColumn) != -1
-            || writeProperties().containsKey(catalogDatabaseColumn),
-        "Invalid %s:null. Either %s column should be passed in Row or set in table options",
-        catalogDatabaseColumn,
-        catalogDatabaseColumn);
+    validateColumnWithFallback(rowType, FlinkCreateTableOptions.CATALOG_DATABASE);
+    validateColumnWithFallback(rowType, FlinkCreateTableOptions.CATALOG_TABLE);
 
-    String catalogTableColumn = FlinkCreateTableOptions.CATALOG_TABLE.key();
-    Preconditions.checkArgument(
-        rowType.getFieldIndex(catalogTableColumn) != -1
-            || writeProperties().containsKey(catalogTableColumn),
-        "Invalid %s:null. Either %s column should be passed in Row or set in table options",
-        catalogTableColumn,
-        catalogTableColumn);
-
-    validateRequiredFieldAndType(DATA_COLUMN, new VariantType(false));
-    validateRequiredFieldAndType(AVRO_SCHEMA_COLUMN, new VarCharType(false, Integer.MAX_VALUE));
-    validateRequiredFieldAndType(AVRO_SCHEMA_ID_COLUMN, new VarCharType(false, Integer.MAX_VALUE));
+    validateRequiredColumnAndType(DATA_COLUMN, new VariantType(false));
+    validateRequiredColumnAndType(AVRO_SCHEMA_COLUMN, new VarCharType(false, Integer.MAX_VALUE));
+    validateRequiredColumnAndType(AVRO_SCHEMA_ID_COLUMN, new VarCharType(false, Integer.MAX_VALUE));
   }
 
   @Override
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
 
-    String value = writeProperties().get(FlinkWriteOptions.CACHE_MAX_SIZE.key());
-    this.maxCacheSize =
-        value != null ? Integer.parseInt(value) : FlinkWriteOptions.CACHE_MAX_SIZE.defaultValue();
+    // TODO: check configuration
+    FlinkDynamicSinkConf flinkDynamicSinkConf = new FlinkDynamicSinkConf(writeProperties(), new Configuration());
+    this.maxCacheSize = flinkDynamicSinkConf.cacheMaxSize();
     this.tableCache = new LRUCache<>(maxCacheSize);
   }
 
   @Override
   public void generate(RowData inputRecord, Collector<DynamicRecord> out) throws Exception {
-    String catalogDb =
-        columnValueAsString(
-            inputRecord, FlinkCreateTableOptions.CATALOG_DATABASE, writeProperties());
-    String catalogTable =
-        columnValueAsString(inputRecord, FlinkCreateTableOptions.CATALOG_TABLE, writeProperties());
+    String catalogDb = columnValueWithFallback(inputRecord, FlinkCreateTableOptions.CATALOG_DATABASE);
+    String catalogTable = columnValueWithFallback(inputRecord, FlinkCreateTableOptions.CATALOG_TABLE);
 
-    // All write options overrides will be inferred in DynamicIcebergSink
     String branch = columnValueAsString(inputRecord, FlinkWriteOptions.BRANCH);
-    String distributionModeStr =
-        columnValueAsString(inputRecord, FlinkWriteOptions.DISTRIBUTION_MODE);
+
+    String distributionModeStr = columnValueWithFallback(inputRecord, FlinkWriteOptions.DISTRIBUTION_MODE);
     DistributionMode distributionMode =
         distributionModeStr != null ? DistributionMode.fromName(distributionModeStr) : null;
 
     Integer pos = fieldNameToPosition().get(FlinkWriteOptions.WRITE_PARALLELISM.key());
-    int writeParallelism = pos != null ? inputRecord.getInt(pos) : -1;
+    int writeParallelism = pos != null ? inputRecord.getInt(pos) : 0;
 
     Variant variantData = inputRecord.getVariant(fieldNameToPosition().get(DATA_COLUMN));
     String avroSchema = columnValueAsString(inputRecord, AVRO_SCHEMA_COLUMN);
@@ -118,7 +102,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     SchemaCacheItem schemaCacheItem = cacheItem.schema(avroSchemaId, avroSchema);
 
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
-    String partitionCols = columnValueAsString(inputRecord, PARTITION_COLUMNS, null);
+    String partitionCols = columnValueAsString(inputRecord, PARTITION_COLUMNS);
     if (partitionCols != null) {
       partitionSpec = cacheItem.partitionSpec(partitionCols, schemaCacheItem.tableSchema());
     }
@@ -132,11 +116,6 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
             partitionSpec,
             distributionMode,
             writeParallelism));
-  }
-
-  private String columnValueAsString(
-      RowData rowData, ConfigOption<String> config, Map<String, String> writeProperties) {
-    return columnValueAsString(rowData, config.key(), writeProperties.get(config.key()));
   }
 
   private String columnValueAsString(RowData rowData, ConfigOption<String> config) {
@@ -155,6 +134,21 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     }
 
     return defaultValue;
+  }
+
+  private String columnValueWithFallback(
+          RowData rowData, ConfigOption<String> config) {
+    return columnValueAsString(rowData, config.key(), writeProperties().get(config.key()));
+  }
+
+  private void validateColumnWithFallback(RowType rowType, ConfigOption<String> column) {
+    String columnName = column.key();
+    Preconditions.checkArgument(
+            rowType.getFieldIndex(columnName) != -1
+                    || writeProperties().containsKey(columnName),
+            "Invalid %s: null. Either %s column should be passed in Row or set in table options",
+            columnName,
+            columnName);
   }
 
   @VisibleForTesting

@@ -105,11 +105,4 @@ public class FlinkWriteOptions {
   //  specify the uidSuffix to be used for the underlying IcebergSink
   public static final ConfigOption<String> UID_SUFFIX =
       ConfigOptions.key("uid-suffix").stringType().defaultValue("");
-
-  public static final ConfigOption<Integer> CACHE_MAX_SIZE =
-      ConfigOptions.key("cache-max-size")
-          .intType()
-          .defaultValue(100)
-          .withDescription(
-              "Maximum size of the caches used in Dynamic Sink for table data and serializers.");
 }

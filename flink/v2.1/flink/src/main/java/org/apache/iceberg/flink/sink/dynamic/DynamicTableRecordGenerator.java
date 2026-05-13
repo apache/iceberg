@@ -54,7 +54,7 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
     return fieldNameToPosition;
   }
 
-  protected void validateRequiredFieldAndType(String columnName, LogicalType expectedType) {
+  protected void validateRequiredColumnAndType(String columnName, LogicalType expectedType) {
     int fieldIndex = rowType.getFieldIndex(columnName);
     Preconditions.checkArgument(
         fieldIndex != -1,
@@ -66,7 +66,7 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
     LogicalType actualType = rowType.getTypeAt(fieldIndex);
     Preconditions.checkArgument(
         actualType.is(expectedType.getTypeRoot()),
-        "Invalid column type for %s:%s. Expected column type: %s",
+        "Invalid column type for %s: %s. Expected column type: %s",
         columnName,
         actualType,
         expectedType);
