@@ -93,7 +93,7 @@ public abstract class DeleteFilter<T> {
     this(filePath, deletes, null, fieldLookup, expectedSchema, counter, needRowPosCol);
   }
 
-  private DeleteFilter(
+  protected DeleteFilter(
       String filePath,
       List<DeleteFile> deletes,
       Schema tableSchema,
@@ -128,7 +128,15 @@ public abstract class DeleteFilter<T> {
     this.requiredSchema =
         fileProjection(
             tableSchema != null
-                ? ids -> TypeUtil.project(tableSchema, ids)
+                ? ids -> {
+                  Schema projected = TypeUtil.project(tableSchema, ids);
+                  Set<Integer> notProjected =
+                      Sets.difference(ids, TypeUtil.getProjectedIds(projected));
+                  if (notProjected.isEmpty()) {
+                    return projected;
+                  }
+                  return TypeUtil.join(projected, schemaFromLookup(notProjected, fieldLookup));
+                }
                 : ids -> schemaFromLookup(ids, fieldLookup),
             expectedSchema,
             posDeletes,
