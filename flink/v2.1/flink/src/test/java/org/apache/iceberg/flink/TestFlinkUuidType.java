@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
@@ -56,7 +57,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestFlinkUuidType extends CatalogTestBase {
+class TestFlinkUuidType extends CatalogTestBase {
   private static final String TABLE_NAME = "test_table";
   private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024;
   private static final UUID EXPECTED_UUID = UUID.fromString("0f8fad5b-d9cb-469f-a165-70867728950e");
@@ -90,13 +91,13 @@ public class TestFlinkUuidType extends CatalogTestBase {
 
   /** Writes UUID via Generic writer, reads via Flink. */
   @TestTemplate
-  public void testUuidWrittenByGenericWriter() throws Exception {
+  void uuidWrittenByGenericWriter() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("write.format.default", fileFormat.name()));
+            ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat.name()));
 
     Record record =
         GenericRecord.create(icebergTable.schema()).copy("id", 1, "uuid", EXPECTED_UUID);
@@ -131,13 +132,13 @@ public class TestFlinkUuidType extends CatalogTestBase {
 
   /** Writes UUID via Flink TaskWriter, reads via Generic reader. */
   @TestTemplate
-  public void testWriteUuidViaFlinkWriter() throws Exception {
+  void writeUuidViaFlinkWriter() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("write.format.default", fileFormat.name()));
+            ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat.name()));
 
     RowType rowType = FlinkSchemaUtil.convert(SCHEMA);
     RowDataTaskWriterFactory rowDataTaskWriterFactory =
@@ -173,13 +174,13 @@ public class TestFlinkUuidType extends CatalogTestBase {
 
   /** Writes UUID via SQL INSERT, reads via Generic reader. */
   @TestTemplate
-  public void testSqlInsertUuid() throws Exception {
+  void sqlInsertUuid() throws Exception {
     icebergTable =
         validationCatalog.createTable(
             TableIdentifier.of(icebergNamespace, TABLE_NAME),
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of("write.format.default", fileFormat.name()));
+            ImmutableMap.of(DEFAULT_FILE_FORMAT, fileFormat.name()));
 
     String uuidHex = EXPECTED_UUID.toString().replace("-", "");
     sql("INSERT INTO %s VALUES (1, CAST(X'%s' AS BINARY(16)))", TABLE_NAME, uuidHex);
