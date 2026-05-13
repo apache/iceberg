@@ -335,13 +335,13 @@ public class TestAggregatePushDown extends CatalogTestBase {
   public void testAggregateNotPushDownForStringType() {
     sql("CREATE TABLE %s (id LONG, data STRING) USING iceberg", tableName);
     sql(
-        "INSERT INTO TABLE %s VALUES (1, '1111'), (1, '2222'), (2, '3333'), (2, '4444'), (3, '5555'), (3, '6666') ",
-        tableName);
-    sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)");
+        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(5)");
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, '111111'), (1, '2222'), (2, '3333'), (2, '4444'), (3, '5555'), (3, '666666') ",
+        tableName);
 
-    String select1 = "SELECT MAX(id), MAX(data) FROM %s";
+    String select1 = "SELECT MAX(id), MAX(data), MIN(data) FROM %s";
 
     List<Object[]> explain1 = sql("EXPLAIN " + select1, tableName);
     String explainString1 = explain1.get(0)[0].toString().toLowerCase(Locale.ROOT);
@@ -356,7 +356,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
 
     List<Object[]> actual1 = sql(select1, tableName);
     List<Object[]> expected1 = Lists.newArrayList();
-    expected1.add(new Object[] {3L, "6666"});
+    expected1.add(new Object[] {3L, "666666", "111111"});
     assertEquals("expected and actual should equal", expected1, actual1);
 
     String select2 = "SELECT COUNT(data) FROM %s";
@@ -379,7 +379,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "full");
-    String select3 = "SELECT count(data), max(data) FROM %s";
+    String select3 = "SELECT count(data), max(data), min(data) FROM %s";
     List<Object[]> explain3 = sql("EXPLAIN " + select3, tableName);
     String explainString3 = explain3.get(0)[0].toString().toLowerCase(Locale.ROOT);
     if (explainString3.contains("count(data)") && explainString3.contains("max(data)")) {
@@ -387,12 +387,12 @@ public class TestAggregatePushDown extends CatalogTestBase {
     }
 
     assertThat(explainContainsPushDownAggregates)
-        .as("explain should contain the pushed down aggregates")
-        .isTrue();
+        .as("explain should not contain the pushed down aggregates")
+        .isFalse();
 
     List<Object[]> actual3 = sql(select3, tableName);
     List<Object[]> expected3 = Lists.newArrayList();
-    expected3.add(new Object[] {6L, "6666"});
+    expected3.add(new Object[] {6L, "666666", "111111"});
     assertEquals("expected and actual should equal", expected3, actual3);
   }
 
