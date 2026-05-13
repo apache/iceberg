@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.table.catalog.AbstractCatalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
@@ -111,7 +112,10 @@ public class FlinkCatalog extends AbstractCatalog {
       long cacheExpirationIntervalMs) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
-    this.catalogProps = catalogProps;
+    this.catalogProps =
+        catalogProps.entrySet().stream()
+            .filter(e -> !GlobalConfiguration.isSensitive(e.getKey()))
+            .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
 
