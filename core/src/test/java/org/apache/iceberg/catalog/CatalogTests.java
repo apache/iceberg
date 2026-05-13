@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.setMaxStackTraceElementsDisplayed;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
@@ -3233,11 +3234,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(CustomMetricsReporter.SCAN_COUNTER.get()).isEqualTo(1);
     // reset counter in case subclasses run this test multiple times
     CustomMetricsReporter.SCAN_COUNTER.set(0);
+
+    CustomMetricsReporter.CLOSE_COUNTER.set(0);
+    ((Closeable) catalogWithCustomReporter).close();
+    assertThat(CustomMetricsReporter.CLOSE_COUNTER.get())
+        .as("Catalog.close() must propagate to the configured MetricsReporter")
+        .isEqualTo(1);
   }
 
   public static class CustomMetricsReporter implements MetricsReporter {
     static final AtomicInteger SCAN_COUNTER = new AtomicInteger(0);
     static final AtomicInteger COMMIT_COUNTER = new AtomicInteger(0);
+    static final AtomicInteger CLOSE_COUNTER = new AtomicInteger(0);
 
     @Override
     public void report(MetricsReport report) {
@@ -3246,6 +3254,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       } else if (report instanceof CommitReport) {
         COMMIT_COUNTER.incrementAndGet();
       }
+    }
+
+    @Override
+    public void close() {
+      CLOSE_COUNTER.incrementAndGet();
     }
   }
 

@@ -260,6 +260,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+    this.closeables.addCloseable(reporter);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(
