@@ -797,6 +797,28 @@ The `geo_upper` struct is defined as:
 | _optional_  | 16     | `z`  | `double` | Bounding box zmax |
 | _optional_  | 17     | `m`  | `double` | Bounding box mmax |
 
+For example, stats for an optional `geometry` field named `location` with field-id `4` are stored as:
+
+```
+10_800: optional struct location (default null) {
+  10_801: optional struct lower_bound (default null) { // geo_lower
+    10_810: required double x;
+    10_811: required double y;
+    10_812: optional double z;
+    10_813: optional double m;
+  }
+  10_802: optional struct upper_bound (default null) { // geo_upper
+    10_814: required double x;
+    10_815: required double y;
+    10_816: optional double z;
+    10_817: optional double m;
+  }
+  10_804: optional long value_count;
+  10_805: optional long null_value_count;
+  // tight_bounds / nan_value_count / avg_value_size_in_bytes are not stored for geo types
+}
+```
+
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
 
 ###### Content Stats in Manifests
@@ -823,32 +845,6 @@ For example, stats for a table with a required int, `id`, and an optional string
     10_604: optional long value_count;
     10_605: optional long null_value_count;
     10_607: optional int avg_value_size_in_bytes;
-  }
-}
-```
-
-For `geometry` and `geography` fields, `lower_bound` and `upper_bound` are nested `geo_lower` and `geo_upper` structs whose fields are assigned IDs using offsets in the table field's stats ID range. `tight_bounds`, `nan_value_count`, and `avg_value_size_in_bytes` are not used for geo types.
-
-For example, stats for a table with an optional `geometry` field, `location` with field-id `4`, are stored as:
-
-```
-146: optional struct content_stats {
-  // stats struct for table field 4: optional geometry location
-  10_800: optional struct location (default null) {
-    10_801: optional struct lower_bound (default null) { // geo_lower
-      10_810: required double x;
-      10_811: required double y;
-      10_812: optional double z;
-      10_813: optional double m;
-    }
-    10_802: optional struct upper_bound (default null) { // geo_upper
-      10_814: required double x;
-      10_815: required double y;
-      10_816: optional double z;
-      10_817: optional double m;
-    }
-    10_804: optional long value_count;
-    10_805: optional long null_value_count;
   }
 }
 ```
