@@ -203,21 +203,25 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
 
     String catalog2 = catalogName + "2";
     sql("CREATE CATALOG %s WITH %s", catalog2, toWithClause(config));
-    sql("CREATE DATABASE %s", catalog2 + ".testdb");
-    sql("CREATE TABLE %s LIKE tl", catalog2 + ".testdb.tl2");
+    try {
+      sql("CREATE DATABASE %s.testdb", catalog2);
+      sql("CREATE TABLE %s.testdb.tl2 LIKE tl", catalog2);
 
-    CatalogTable catalogTable = catalogTable(catalog2, "testdb", "tl2");
-    assertThat(catalogTable.getUnresolvedSchema())
-        .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .build());
-
-    dropCatalog(catalog2, true);
+      CatalogTable catalogTable = catalogTable(catalog2, "testdb", "tl2");
+      assertThat(catalogTable.getUnresolvedSchema())
+          .isEqualTo(
+              org.apache.flink.table.api.Schema.newBuilder()
+                  .column("id", DataTypes.BIGINT())
+                  .build());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.testdb.tl2", catalog2);
+      sql("DROP DATABASE IF EXISTS %s.testdb", catalog2);
+      dropCatalog(catalog2, true);
+    }
   }
 
   @TestTemplate
-  public void testCreateTableLikeCopiesTableProperties() throws TableNotExistException {
+  public void testCreateTableLikeCopiesTableProperties() {
     sql("CREATE TABLE tl(id BIGINT) WITH ('k1'='v1', 'k2'='v2')");
     sql("CREATE TABLE tl2 LIKE tl");
 
@@ -227,23 +231,26 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableLikeInDiffIcebergCatalogCopiesTableProperties()
-      throws TableNotExistException {
+  public void testCreateTableLikeInDiffIcebergCatalogCopiesTableProperties() {
     sql("CREATE TABLE tl(id BIGINT) WITH ('k1'='v1', 'k2'='v2')");
 
     String catalog2 = catalogName + "2";
     sql("CREATE CATALOG %s WITH %s", catalog2, toWithClause(config));
-    sql("CREATE DATABASE %s", catalog2 + ".testdb");
-    sql("CREATE TABLE %s LIKE tl", catalog2 + ".testdb.tl2");
+    try {
+      sql("CREATE DATABASE %s.testdb", catalog2);
+      sql("CREATE TABLE %s.testdb.tl2 LIKE tl", catalog2);
 
-    Table source = table("tl");
-    Table copy =
-        validationCatalog.loadTable(
-            TableIdentifier.of(
-                ArrayUtils.concat(baseNamespace.levels(), new String[] {"testdb", "tl2"})));
-    assertThat(copy.properties()).isEqualTo(source.properties());
-
-    dropCatalog(catalog2, true);
+      Table source = table("tl");
+      Table copy =
+          validationCatalog.loadTable(
+              TableIdentifier.of(
+                  ArrayUtils.concat(baseNamespace.levels(), new String[] {"testdb", "tl2"})));
+      assertThat(copy.properties()).isEqualTo(source.properties());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.testdb.tl2", catalog2);
+      sql("DROP DATABASE IF EXISTS %s.testdb", catalog2);
+      dropCatalog(catalog2, true);
+    }
   }
 
   @TestTemplate
@@ -343,27 +350,30 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     sql("CREATE TABLE tl(id BIGINT)");
 
     sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
+    try {
+      CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
+      assertThat(catalogTable.getUnresolvedSchema())
+          .isEqualTo(
+              org.apache.flink.table.api.Schema.newBuilder()
+                  .column("id", DataTypes.BIGINT())
+                  .build());
 
-    CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
-    assertThat(catalogTable.getUnresolvedSchema())
-        .isEqualTo(
-            org.apache.flink.table.api.Schema.newBuilder()
-                .column("id", DataTypes.BIGINT())
-                .build());
+      // `type` option is filtered out by Flink
+      // https://github.com/apache/flink/blob/edc3d68736de73665440f4313ddcfd9142d8d42b/flink-table/flink-table-common/src/main/java/org/apache/flink/table/factories/FactoryUtil.java#L378
+      Map<String, String> filteredOptions = Maps.newHashMap(config);
+      filteredOptions.remove(CommonCatalogOptions.CATALOG_TYPE.key());
 
-    // `type` option is filtered out by Flink
-    // https://github.com/apache/flink/blob/edc3d68736de73665440f4313ddcfd9142d8d42b/flink-table/flink-table-common/src/main/java/org/apache/flink/table/factories/FactoryUtil.java#L378
-    Map<String, String> filteredOptions = Maps.newHashMap(config);
-    filteredOptions.remove(CommonCatalogOptions.CATALOG_TYPE.key());
-
-    String srcCatalogProps =
-        FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", filteredOptions);
-    Map<String, String> options = catalogTable.getOptions();
-    assertThat(options)
-        .containsEntry(
-            FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
-            FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
-        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+      String srcCatalogProps =
+          FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", filteredOptions);
+      Map<String, String> options = catalogTable.getOptions();
+      assertThat(options)
+          .containsEntry(
+              FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
+              FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
+          .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    } finally {
+      sql("DROP TABLE IF EXISTS `default_catalog`.`default_database`.tl2");
+    }
   }
 
   @TestTemplate
