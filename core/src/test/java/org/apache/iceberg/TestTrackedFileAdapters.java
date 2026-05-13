@@ -56,10 +56,10 @@ class TestTrackedFileAdapters {
             100L,
             1024L);
     file.set(6, 0);
-    file.set(7, stats);
-    file.set(8, 3);
-    file.set(11, ByteBuffer.wrap(new byte[] {1, 2, 3}));
-    file.set(12, ImmutableList.of(50L, 100L));
+    file.set(8, stats);
+    file.set(9, 3);
+    file.set(12, ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    file.set(13, ImmutableList.of(50L, 100L));
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
@@ -124,10 +124,10 @@ class TestTrackedFileAdapters {
             50L,
             512L);
     file.set(6, 1);
-    file.set(7, stats);
-    file.set(8, 5);
-    file.set(11, ByteBuffer.wrap(new byte[] {4, 5}));
-    file.set(12, ImmutableList.of(200L));
+    file.set(8, stats);
+    file.set(9, 5);
+    file.set(12, ByteBuffer.wrap(new byte[] {4, 5}));
+    file.set(13, ImmutableList.of(200L));
 
     DeleteFile deleteFile = TrackedFileAdapters.asPositionDeleteFile(file, specsById(spec));
 
@@ -192,11 +192,11 @@ class TestTrackedFileAdapters {
             50L,
             512L);
     file.set(6, 1);
-    file.set(7, stats);
-    file.set(8, 5);
-    file.set(11, ByteBuffer.wrap(new byte[] {4, 5}));
-    file.set(12, ImmutableList.of(200L));
-    file.set(13, ImmutableList.of(1, 2, 3));
+    file.set(8, stats);
+    file.set(9, 5);
+    file.set(12, ByteBuffer.wrap(new byte[] {4, 5}));
+    file.set(13, ImmutableList.of(200L));
+    file.set(14, ImmutableList.of(1, 2, 3));
 
     DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, specsById(spec));
 
@@ -297,7 +297,7 @@ class TestTrackedFileAdapters {
             50L,
             512L);
     file.set(6, 0);
-    file.set(9, createDeletionVector());
+    file.set(10, createDeletionVector());
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
@@ -425,7 +425,7 @@ class TestTrackedFileAdapters {
             100L,
             1024L);
     file.set(6, specId);
-    file.set(9, createDeletionVector());
+    file.set(10, createDeletionVector());
     return file;
   }
 
