@@ -50,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -296,7 +297,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
     if (base.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS) {
-      return applyV4(manifestFiles, sequenceNumber, parentSnapshotId);
+      return applyV4(manifestFiles, sequenceNumber, parentSnapshotId, parentSnapshot);
     } else {
       return applyV3(manifestFiles, sequenceNumber, parentSnapshotId);
     }
@@ -347,9 +348,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private Snapshot applyV4(
-      ManifestFile[] manifestFiles, long sequenceNumber, Long parentSnapshotId) {
+      ManifestFile[] manifestFiles,
+      long sequenceNumber,
+      Long parentSnapshotId,
+      Snapshot parentSnapshot) {
+    // Read data/delete file entries from the parent snapshot's root manifest (flat root).
+    // These entries must be carried forward into the new root manifest.
+    List<TrackedFile> parentDataEntries = readParentDataEntries(parentSnapshot);
+
     OutputFile rootManifest = rootManifestPath();
-    writeRootManifest(rootManifest, manifestFiles, snapshotId(), sequenceNumber, base.location());
+    writeRootManifest(
+        rootManifest,
+        manifestFiles,
+        parentDataEntries,
+        snapshotId(),
+        sequenceNumber,
+        base.location());
     manifestLists.add(rootManifest.location());
 
     // compute nextRowId by summing added rows across all data manifests
@@ -407,6 +421,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private void writeRootManifest(
       OutputFile output,
       ManifestFile[] manifests,
+      List<TrackedFile> dataEntries,
       long commitSnapshotId,
       long commitSequenceNumber,
       String tableLocation) {
@@ -424,9 +439,49 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             V4Metadata.manifestFileToTrackedFile(
                 manifest, commitSnapshotId, commitSequenceNumber, tableLocation));
       }
+
+      // Carry forward data/delete file entries from the parent's flat root manifest,
+      // re-projecting to the root manifest write schema.
+      for (TrackedFile entry : dataEntries) {
+        writer.add(V4Metadata.dataEntryForRootManifest(entry));
+      }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write root manifest file");
     }
+  }
+
+  /**
+   * Reads data and delete file entries (not manifest references) from the parent snapshot's root
+   * manifest. Returns an empty list if the parent has no root manifest or contains only manifest
+   * references.
+   */
+  private List<TrackedFile> readParentDataEntries(Snapshot parentSnapshot) {
+    List<TrackedFile> dataEntries = Lists.newArrayList();
+    if (parentSnapshot == null || parentSnapshot.manifestListLocation() == null) {
+      return dataEntries;
+    }
+
+    FileFormat format = FileFormat.fromFileName(parentSnapshot.manifestListLocation());
+    if (format != FileFormat.PARQUET) {
+      return dataEntries;
+    }
+
+    V4ManifestReader reader =
+        new V4ManifestReader(
+            ops().io().newInputFile(parentSnapshot.manifestListLocation()),
+            ImmutableMap.of());
+    try (CloseableIterable<TrackedFile> entries = reader.liveEntries()) {
+      for (TrackedFile tf : entries) {
+        if (tf.contentType() != FileContent.DATA_MANIFEST
+            && tf.contentType() != FileContent.DELETE_MANIFEST) {
+          dataEntries.add(tf.copy());
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to read parent root manifest");
+    }
+
+    return dataEntries;
   }
 
   private void runValidations(Snapshot parentSnapshot) {

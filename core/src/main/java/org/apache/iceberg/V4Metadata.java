@@ -311,6 +311,47 @@ class V4Metadata {
     return tf;
   }
 
+  /**
+   * Re-projects a data/delete file {@link TrackedFile} entry for writing into a root manifest.
+   *
+   * <p>Entries read from a flat root manifest may carry content_stats with a schema that differs
+   * from the root write schema. This method creates a clean {@link TrackedFileStruct} using the
+   * root manifest projection, copying only the standard fields.
+   */
+  static TrackedFileStruct dataEntryForRootManifest(TrackedFile tf) {
+    // ROOT_MANIFEST_WRITE_TYPE uses entrySchema which excludes content_stats.
+    // Positions match entrySchema field order:
+    //   0=tracking, 1=content_type, 2=location, 3=file_format, 4=record_count,
+    //   5=file_size_in_bytes, 6=spec_id, 7=sort_order_id, 8=deletion_vector,
+    //   9=manifest_info, 10=key_metadata, 11=split_offsets, 12=equality_ids
+    TrackedFileStruct out = new TrackedFileStruct(ROOT_MANIFEST_WRITE_TYPE);
+    out.set(0, tf.tracking());
+    out.set(1, tf.contentType().id());
+    out.set(2, tf.location());
+    out.set(3, tf.fileFormat().toString());
+    out.set(4, tf.recordCount());
+    out.set(5, tf.fileSizeInBytes());
+    if (tf.specId() != null) {
+      out.set(6, tf.specId());
+    }
+    if (tf.sortOrderId() != null) {
+      out.set(7, tf.sortOrderId());
+    }
+    if (tf.deletionVector() != null) {
+      out.set(8, tf.deletionVector());
+    }
+    if (tf.keyMetadata() != null) {
+      out.set(10, tf.keyMetadata());
+    }
+    if (tf.splitOffsets() != null) {
+      out.set(11, tf.splitOffsets());
+    }
+    if (tf.equalityIds() != null) {
+      out.set(12, tf.equalityIds());
+    }
+    return out;
+  }
+
   /** Converts a {@link TrackedFile} read from a root manifest back to a {@link ManifestFile}. */
   static ManifestFile trackedFileToManifestFile(TrackedFile tf, String tableLocation) {
     ManifestInfo info = tf.manifestInfo();
