@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PR
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -116,6 +117,38 @@ public class TestParquet {
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       assertThat(reader.getRowGroups()).hasSize(2);
+    }
+  }
+
+  @Test
+  public void testRowGroupRowLimitConfigurable() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+
+    int recordCount = 25;
+    int rowGroupRowLimit = 10;
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= recordCount; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("intCol", i);
+      records.add(record);
+    }
+
+    File file = createTempFile(temp);
+    write(
+        file,
+        schema,
+        ImmutableMap.of(PARQUET_ROW_GROUP_ROW_LIMIT, Integer.toString(rowGroupRowLimit)),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      List<BlockMetaData> blocks = reader.getFooter().getBlocks();
+      assertThat(blocks).hasSize(3);
+      for (BlockMetaData block : blocks) {
+        assertThat(block.getRowCount()).isLessThanOrEqualTo(rowGroupRowLimit);
+      }
     }
   }
 
