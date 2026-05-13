@@ -33,6 +33,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
+/**
+ * Configuration properties for the {@code iceberg-gcp} module.
+ *
+ * <p>Property namespaces:
+ *
+ * <ul>
+ *   <li>{@code gcs.*} — Google Cloud Storage (FileIO, KMS, OAuth/impersonation for GCS).
+ *   <li>{@code gcp.*} — Cross-service GCP features that are not specific to GCS (e.g. Cloud
+ *       Monitoring metric reporting).
+ * </ul>
+ */
 public class GCPProperties implements Serializable {
   // Service Options
   public static final String GCS_PROJECT_ID = "gcs.project-id";
@@ -74,6 +85,63 @@ public class GCPProperties implements Serializable {
   public static final String GCS_ANALYTICS_CORE_ENABLED = "gcs.analytics-core.enabled";
 
   /**
+   * Google Cloud project that owns the time series written by the Cloud Monitoring metrics
+   * reporter. Falls back to {@link #GCS_PROJECT_ID} when not set.
+   */
+  public static final String GCP_MONITORING_PROJECT_ID = "gcp.monitoring.project-id";
+
+  /**
+   * Metric type prefix for series written by the Cloud Monitoring metrics reporter. Defaults to
+   * {@link #GCP_MONITORING_METRIC_PREFIX_DEFAULT}.
+   */
+  public static final String GCP_MONITORING_METRIC_PREFIX = "gcp.monitoring.metric-prefix";
+
+  /** Default metric prefix for Google Cloud Monitoring metrics. */
+  public static final String GCP_MONITORING_METRIC_PREFIX_DEFAULT = "custom.googleapis.com/iceberg";
+
+  /**
+   * Optional override for the Cloud Monitoring API endpoint (host:port). Intended for emulators,
+   * private endpoints and VPC-SC perimeters. When unset the default Google-managed endpoint is
+   * used.
+   */
+  public static final String GCP_MONITORING_ENDPOINT = "gcp.monitoring.endpoint";
+
+  /**
+   * Optional billing/quota project used for Cloud Monitoring API calls. When unset the project
+   * associated with the active credentials is billed.
+   */
+  public static final String GCP_MONITORING_QUOTA_PROJECT_ID = "gcp.monitoring.quota-project-id";
+
+  /**
+   * Optional {@code MonitoredResource} type used when writing time series (e.g. {@code
+   * k8s_container}, {@code gce_instance}). Defaults to {@code global} when unset.
+   */
+  public static final String GCP_MONITORING_RESOURCE_TYPE = "gcp.monitoring.resource-type";
+
+  /** Default {@code MonitoredResource} type used by the Cloud Monitoring metrics reporter. */
+  public static final String GCP_MONITORING_RESOURCE_TYPE_DEFAULT = "global";
+
+  /**
+   * Opt-in: when {@code true}, the Cloud Monitoring reporter additionally emits per-column
+   * predicate and projection time series ({@code <prefix>/predicate_columns} and {@code
+   * <prefix>/projection_columns}). These series enable workload-driven analyses such as
+   * clustering-key recommendation, at the cost of higher time-series cardinality.
+   */
+  public static final String GCP_MONITORING_PREDICATE_TRACKING_ENABLED =
+      "gcp.monitoring.predicate-tracking-enabled";
+
+  /**
+   * Per-scan cap on the number of columns reported via the predicate and projection metric types.
+   * When the union of predicate columns and projected columns for a scan exceeds this cap,
+   * predicate and projection emission for that scan is skipped to bound time-series cardinality.
+   * The base scan/commit metrics are unaffected.
+   */
+  public static final String GCP_MONITORING_COLUMN_CAP = "gcp.monitoring.column-cap";
+
+  /** Default per-scan column cap for predicate and projection emission. */
+  public static final int GCP_MONITORING_COLUMN_CAP_DEFAULT = 32;
+
+  /**
    * Max possible batch size for deletion. Currently, a max of 100 keys is advised, so we default to
    * a number below that. https://cloud.google.com/storage/docs/batch
    */
@@ -98,6 +166,14 @@ public class GCPProperties implements Serializable {
   private String gcsOauth2RefreshCredentialsEndpoint;
   private boolean gcsOauth2RefreshCredentialsEnabled;
   private boolean gcsAnalyticsCoreEnabled;
+
+  private String gcpMonitoringProjectId;
+  private String gcpMonitoringMetricPrefix;
+  private String gcpMonitoringEndpoint;
+  private String gcpMonitoringQuotaProjectId;
+  private String gcpMonitoringResourceType;
+  private boolean gcpMonitoringPredicateTrackingEnabled;
+  private int gcpMonitoringColumnCap = GCP_MONITORING_COLUMN_CAP_DEFAULT;
 
   private String gcsImpersonateServiceAccount;
   private int gcsImpersonateLifetimeSeconds;
@@ -197,6 +273,20 @@ public class GCPProperties implements Serializable {
 
     gcsAnalyticsCoreEnabled =
         PropertyUtil.propertyAsBoolean(properties, GCS_ANALYTICS_CORE_ENABLED, false);
+
+    gcpMonitoringProjectId = properties.getOrDefault(GCP_MONITORING_PROJECT_ID, projectId);
+    gcpMonitoringMetricPrefix =
+        properties.getOrDefault(GCP_MONITORING_METRIC_PREFIX, GCP_MONITORING_METRIC_PREFIX_DEFAULT);
+    gcpMonitoringEndpoint = properties.get(GCP_MONITORING_ENDPOINT);
+    gcpMonitoringQuotaProjectId = properties.get(GCP_MONITORING_QUOTA_PROJECT_ID);
+    gcpMonitoringResourceType =
+        properties.getOrDefault(GCP_MONITORING_RESOURCE_TYPE, GCP_MONITORING_RESOURCE_TYPE_DEFAULT);
+    gcpMonitoringPredicateTrackingEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, GCP_MONITORING_PREDICATE_TRACKING_ENABLED, false);
+    gcpMonitoringColumnCap =
+        PropertyUtil.propertyAsInt(
+            properties, GCP_MONITORING_COLUMN_CAP, GCP_MONITORING_COLUMN_CAP_DEFAULT);
   }
 
   public Optional<Integer> channelReadChunkSize() {
@@ -277,5 +367,33 @@ public class GCPProperties implements Serializable {
 
   public boolean isGcsAnalyticsCoreEnabled() {
     return gcsAnalyticsCoreEnabled;
+  }
+
+  public Optional<String> gcpMonitoringProjectId() {
+    return Optional.ofNullable(gcpMonitoringProjectId);
+  }
+
+  public String gcpMonitoringMetricPrefix() {
+    return gcpMonitoringMetricPrefix;
+  }
+
+  public Optional<String> gcpMonitoringEndpoint() {
+    return Optional.ofNullable(gcpMonitoringEndpoint);
+  }
+
+  public Optional<String> gcpMonitoringQuotaProjectId() {
+    return Optional.ofNullable(gcpMonitoringQuotaProjectId);
+  }
+
+  public String gcpMonitoringResourceType() {
+    return gcpMonitoringResourceType;
+  }
+
+  public boolean gcpMonitoringPredicateTrackingEnabled() {
+    return gcpMonitoringPredicateTrackingEnabled;
+  }
+
+  public int gcpMonitoringColumnCap() {
+    return gcpMonitoringColumnCap;
   }
 }

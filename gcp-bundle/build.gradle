@@ -35,6 +35,7 @@ project(":iceberg-gcp-bundle") {
     implementation "com.google.cloud:google-cloud-bigquery"
     implementation "com.google.cloud:google-cloud-core"
     implementation "com.google.cloud:google-cloud-kms"
+    implementation "com.google.cloud:google-cloud-monitoring"
     implementation libs.gcs.analytics.core
   }
 

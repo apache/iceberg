@@ -120,6 +120,75 @@ This is the default when using the [`RESTCatalog`](https://github.com/apache/ice
 
 Sending metrics via REST can be controlled with the `rest-metrics-reporting-enabled` (defaults to `true`) property.
 
+### `CloudMonitoringMetricsReporter` (GCP)
+
+A `MetricsReporter` implementation that exports `ScanReport` and `CommitReport` as
+[Cloud Monitoring](https://cloud.google.com/monitoring) time series, shipped in the `iceberg-gcp`
+module. Reports are sent asynchronously on a daemon executor; failures are logged and never
+propagate to the caller.
+
+Each report emits one operation series (`scan_operations` or `commit_operations`) plus one series
+per non-null counter/timer in the corresponding `ScanMetricsResult` / `CommitMetricsResult`. All
+series share a fixed, low-cardinality label set:
+
+- `table` — fully qualified table name
+- `catalog` — catalog impl class name (empty when unknown)
+- `metric_name` — stable name of the underlying metric (independent of upstream Java method names)
+- `operation` — commit operation, on commit metrics only
+
+Query predicates, projected column names and field IDs are **not** attached as labels. Each unique
+label combination is a billable Cloud Monitoring time series; the label set is intentionally
+minimal to bound cardinality and cost.
+
+Wire the reporter via the [catalog property](catalog-properties.md) `metrics-reporter-impl`:
+
+```properties
+metrics-reporter-impl=org.apache.iceberg.gcp.metrics.CloudMonitoringMetricsReporter
+gcp.monitoring.project-id=my-gcp-project
+# Optional:
+# gcp.monitoring.metric-prefix=custom.googleapis.com/iceberg
+# gcp.monitoring.endpoint=monitoring.googleapis.com:443
+# gcp.monitoring.quota-project-id=my-billing-project
+# gcp.monitoring.resource-type=global
+```
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `gcp.monitoring.project-id` | falls back to `gcs.project-id` | GCP project that owns the time series |
+| `gcp.monitoring.metric-prefix` | `custom.googleapis.com/iceberg` | Prefix for metric types (`<prefix>/scan_metrics`, `<prefix>/commit_metrics`) |
+| `gcp.monitoring.endpoint` | — | Cloud Monitoring API endpoint override (emulator, private endpoint, VPC-SC) |
+| `gcp.monitoring.quota-project-id` | — | Billing/quota project for the Cloud Monitoring API calls |
+| `gcp.monitoring.resource-type` | `global` | `MonitoredResource` type used for emitted series |
+| `gcp.monitoring.predicate-tracking-enabled` | `false` | Opt-in: also emit per-column predicate and projection time series (see *Predicate tracking* below) |
+| `gcp.monitoring.column-cap` | `32` | Per-scan cap on the union of predicate + projection columns; predicate/projection emission is skipped above this cap |
+
+Property namespaces in `iceberg-gcp`: `gcs.*` covers Google Cloud Storage (FileIO, KMS, OAuth);
+`gcp.*` covers cross-service GCP features such as Cloud Monitoring.
+
+> **Reporter lifecycle.** The reporter owns a `MetricServiceClient` that should be released via
+> `close()`. Catalogs extending `BaseMetastoreCatalog` (Hive, JDBC, Glue, Nessie, ...) call
+> `close()` automatically. **`RESTCatalog` does not** close the reporter today — its `close()` only
+> drains an internal closeables group that the reporter is not registered with. Applications using
+> `RESTCatalog` should close the reporter explicitly (or accept that the gRPC client lives until
+> JVM exit; the channel uses daemon threads, so the JVM still shuts down cleanly).
+
+#### Predicate tracking (opt-in)
+
+Setting `gcp.monitoring.predicate-tracking-enabled=true` adds two metric types:
+
+- `<prefix>/predicate_columns` — labels `{table, catalog, column, op_class}`. One point with value `1`
+  per `(column, op_class)` pair seen in `ScanReport.filter()`. `op_class` buckets Iceberg's
+  `Expression.Operation` into clustering-relevant groups: `point` (`EQ`, `IN`), `range`
+  (`LT`/`LT_EQ`/`GT`/`GT_EQ`), `null` (`IS_NULL`/`NOT_NULL`/`IS_NAN`/`NOT_NAN`), and `other`
+  (everything else, including negations and `STARTS_WITH`).
+- `<prefix>/projection_columns` — labels `{table, catalog, column}`. One point with value `1` per
+  projected column name from `ScanReport.projectedFieldNames()`.
+
+Cardinality budget: the predicate metric type has at most `tables × columns × 4` active series; the
+projection metric type has `tables × columns`. For deployments with many wide tables this can
+exceed the default per-metric-type cap (~6,000 active series); request a quota increase from Google
+or rely on `gcp.monitoring.column-cap` to drop emission for unusually wide scans.
+
 ## Implementing a custom Metrics Reporter
 
 Implementing the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) API gives full flexibility in dealing with incoming [`MetricsReport`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReport.java) instances. For example, it would be possible to send results to a Prometheus endpoint or any other observability framework/system.
