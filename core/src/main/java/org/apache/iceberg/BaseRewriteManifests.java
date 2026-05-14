@@ -203,10 +203,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
     ManifestFile[] copiedManifests = new ManifestFile[pendingAddedManifests.size()];
     Tasks.range(copiedManifests.length)
-            .executeWith(workerPool())
-            .stopOnFailure()
-            .throwFailureWhenFinished()
-            .run(index -> copiedManifests[index] = copyManifest(pendingAddedManifests.get(index)));
+        .executeWith(workerPool())
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .run(index -> copiedManifests[index] = copyManifest(pendingAddedManifests.get(index)));
     Collections.addAll(rewrittenAddedManifests, copiedManifests);
   }
 
