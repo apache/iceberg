@@ -61,6 +61,18 @@ public class SystemConfigs {
           1,
           Integer::parseUnsignedInt);
 
+  /**
+   * Sets the size of the thread pool used for asynchronous scan planning in the REST catalog
+   * reference implementation. This controls the parallelism of server-side scan planning operations
+   * in {@link org.apache.iceberg.rest.CatalogHandlers}.
+   */
+  public static final ConfigEntry<Integer> REST_ASYNC_PLANNING_THREADS =
+      new ConfigEntry<>(
+          "iceberg.rest.async-planning-threads",
+          "ICEBERG_REST_ASYNC_PLANNING_THREADS",
+          Math.max(2, Runtime.getRuntime().availableProcessors()),
+          Integer::parseUnsignedInt);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(

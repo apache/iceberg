@@ -39,7 +39,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -57,6 +56,7 @@ import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -103,6 +103,7 @@ import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
@@ -116,7 +117,17 @@ public class CatalogHandlers {
   private static final String INITIAL_PAGE_TOKEN = "";
   private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
       InMemoryPlanningState.getInstance();
-  private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
+
+  /**
+   * Thread pool size for asynchronous scan planning operations. Controlled by the system property
+   * {@code iceberg.rest.async-planning-threads} or environment variable {@code
+   * ICEBERG_REST_ASYNC_PLANNING_THREADS}. Defaults to the number of available processors.
+   */
+  public static final int ASYNC_PLANNING_THREADS =
+      SystemConfigs.REST_ASYNC_PLANNING_THREADS.value();
+
+  private static final ExecutorService ASYNC_PLANNING_POOL =
+      ThreadPools.newExitingWorkerPool("iceberg-rest-async-plan", ASYNC_PLANNING_THREADS);
 
   // Advanced idempotency store with TTL and in-flight coalescing.
   //
