@@ -294,6 +294,12 @@ public class FlinkParquetReaders {
           LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
         return Optional.of(new ParquetValueReaders.ByteArrayReader(desc));
       }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+        return Optional.of(new ParquetValueReaders.ByteArrayReader(desc));
+      }
     }
 
     @Override
