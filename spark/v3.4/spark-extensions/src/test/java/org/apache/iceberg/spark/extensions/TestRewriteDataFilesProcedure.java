@@ -216,6 +216,45 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteDataFilesWithStaleSortOrder() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+
+    // the sort order is set after the data is written, so all 10 files have a stale sort order id
+    sql("ALTER TABLE %s WRITE ORDERED BY c1", tableName);
+
+    // min-input-files = 12 would normally skip these 10 files; rewrite-stale-sort-order selects
+    // them anyway because their sort order id no longer matches the table's sort order
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
+                + "options => map('min-input-files','12','rewrite-stale-sort-order','true'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+
+    // a second run is a no-op: every file now matches the table's current sort order
+    List<Object[]> secondOutput =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
+                + "options => map('min-input-files','12','rewrite-stale-sort-order','true'))",
+            catalogName, tableIdent);
+
+    assertEquals(
+        "Second run should not rewrite any data files",
+        ImmutableList.of(row(0, 0, 0L, 0, 0)),
+        secondOutput);
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesWithSortStrategyAndMultipleShufflePartitionsPerFile() {
     createTable();
     insertData(10 /* file count */);

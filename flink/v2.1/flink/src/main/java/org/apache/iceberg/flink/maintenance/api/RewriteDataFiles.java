@@ -210,6 +210,20 @@ public class RewriteDataFiles {
     }
 
     /**
+     * Configures whether to also rewrite data files whose sort order id does not match the table's
+     * current default sort order. See {@link
+     * org.apache.iceberg.actions.RewriteDataFiles#REWRITE_STALE_SORT_ORDER} for more details.
+     *
+     * @param rewriteStaleSortOrder enables rewriting files with a stale sort order
+     */
+    public Builder rewriteStaleSortOrder(boolean rewriteStaleSortOrder) {
+      this.rewriteOptions.put(
+          org.apache.iceberg.actions.RewriteDataFiles.REWRITE_STALE_SORT_ORDER,
+          String.valueOf(rewriteStaleSortOrder));
+      return this;
+    }
+
+    /**
      * A user provided filter for determining which files will be considered by the rewrite
      * strategy.
      *

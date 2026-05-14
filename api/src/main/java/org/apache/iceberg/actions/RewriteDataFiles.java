@@ -149,13 +149,7 @@ public interface RewriteDataFiles
 
   /**
    * If true, the rewrite also selects data files whose sort order id does not match the table's
-   * current default sort order id, even when they are already optimally sized. This enables
-   * incremental sort compaction: a sort-based rewrite reorganizes only the files that are not
-   * already sorted by the current sort order, instead of re-sorting every selected file.
-   *
-   * <p>This option has no effect on tables without a sort order, and is intended to be used with
-   * the {@link #sort()} strategy so that rewritten files are marked with the table's current sort
-   * order id.
+   * current default sort order id, even when they are already optimally sized.
    *
    * <p>Defaults to false.
    */

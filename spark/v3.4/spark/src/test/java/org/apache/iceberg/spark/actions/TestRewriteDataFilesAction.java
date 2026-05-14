@@ -1548,6 +1548,51 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testSortIncrementalWithStaleSortOrder() throws IOException {
+    Table table = createTable(20);
+    shouldHaveFiles(table, 20);
+    // the sort order is set after the files were written, so all 20 files have a stale sort order
+    table.replaceSortOrder().asc("c2").commit();
+    table.refresh();
+
+    List<Object[]> originalData = currentData();
+
+    // the size thresholds make every file "optimally sized", so files are selected purely because
+    // their sort order id no longer matches the table's current sort order
+    RewriteDataFiles.Result firstResult =
+        basicRewrite(table)
+            .sort()
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(RewriteDataFiles.REWRITE_STALE_SORT_ORDER, "true")
+            .execute();
+
+    assertThat(firstResult.rewrittenDataFilesCount())
+        .as("All files with a stale sort order should be rewritten")
+        .isEqualTo(20);
+
+    table.refresh();
+    assertEquals("Rewrite must not change data", originalData, currentData());
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
+
+    // a second run is a no-op: every file now matches the table's current sort order
+    RewriteDataFiles.Result secondResult =
+        basicRewrite(table)
+            .sort()
+            .option(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(RewriteDataFiles.REWRITE_STALE_SORT_ORDER, "true")
+            .execute();
+
+    assertThat(secondResult.rewriteResults())
+        .as("Incremental sort compaction should converge to a no-op")
+        .isEmpty();
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+  }
+
+  @TestTemplate
   public void testSortAfterPartitionChange() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
