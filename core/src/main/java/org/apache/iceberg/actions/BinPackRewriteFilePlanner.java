@@ -28,6 +28,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -101,6 +102,8 @@ public class BinPackRewriteFilePlanner
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
   private Integer maxFilesToRewrite;
+  private boolean rewriteStaleSortOrder;
+  private int currentSortOrderId;
 
   public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
@@ -139,6 +142,7 @@ public class BinPackRewriteFilePlanner
         .add(DELETE_RATIO_THRESHOLD)
         .add(RewriteDataFiles.REWRITE_JOB_ORDER)
         .add(MAX_FILES_TO_REWRITE)
+        .add(RewriteDataFiles.REWRITE_STALE_SORT_ORDER)
         .build();
   }
 
@@ -154,6 +158,12 @@ public class BinPackRewriteFilePlanner
                 RewriteDataFiles.REWRITE_JOB_ORDER,
                 RewriteDataFiles.REWRITE_JOB_ORDER_DEFAULT));
     this.maxFilesToRewrite = maxFilesToRewrite(options);
+    this.rewriteStaleSortOrder =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            RewriteDataFiles.REWRITE_STALE_SORT_ORDER,
+            RewriteDataFiles.REWRITE_STALE_SORT_ORDER_DEFAULT);
+    this.currentSortOrderId = table().sortOrder().orderId();
   }
 
   private int deleteFileThreshold(Map<String, String> options) {
@@ -190,7 +200,10 @@ public class BinPackRewriteFilePlanner
     return Iterables.filter(
         tasks,
         task ->
-            outsideDesiredFileSizeRange(task) || tooManyDeletes(task) || tooHighDeleteRatio(task));
+            outsideDesiredFileSizeRange(task)
+                || tooManyDeletes(task)
+                || tooHighDeleteRatio(task)
+                || hasStaleSortOrder(task));
   }
 
   @Override
@@ -202,7 +215,8 @@ public class BinPackRewriteFilePlanner
                 || enoughContent(group)
                 || tooMuchContent(group)
                 || group.stream().anyMatch(this::tooManyDeletes)
-                || group.stream().anyMatch(this::tooHighDeleteRatio));
+                || group.stream().anyMatch(this::tooHighDeleteRatio)
+                || group.stream().anyMatch(this::hasStaleSortOrder));
   }
 
   @Override
@@ -268,6 +282,19 @@ public class BinPackRewriteFilePlanner
 
   private boolean tooManyDeletes(FileScanTask task) {
     return task.deletes() != null && task.deletes().size() >= deleteFileThreshold;
+  }
+
+  private boolean hasStaleSortOrder(FileScanTask task) {
+    if (!rewriteStaleSortOrder || currentSortOrderId == SortOrder.unsorted().orderId()) {
+      return false;
+    }
+
+    if (task.file().specId() != table().spec().specId()) {
+      return false;
+    }
+
+    Integer sortOrderId = task.file().sortOrderId();
+    return sortOrderId == null || sortOrderId != currentSortOrderId;
   }
 
   private boolean tooHighDeleteRatio(FileScanTask task) {

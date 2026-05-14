@@ -415,6 +415,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
 | `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
 | `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
+| `rewrite-stale-sort-order` | false | When true, also rewrite data files whose sort order id does not match the table's current default sort order, even if they are already optimally sized. This enables incremental sort compaction, where a `sort` rewrite only reorganizes files that are not already sorted by the current sort order. It has no effect on tables without a sort order, and is intended for use with the `sort` strategy so that rewritten files are marked with the table's current sort order id. It is not supported with a `zorder` sort order. |
 
 !!! info
     Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global
@@ -473,6 +474,13 @@ CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map
 Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"');
+```
+
+Incrementally sort the data files in table `db.sample`: rewrite only the files that are not already sorted
+by the table's current sort order, leaving already-sorted files untouched. This is useful for maintaining
+sort order on a table over time, or after changing the table's sort order with `ALTER TABLE ... WRITE ORDERED BY`.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', options => map('rewrite-stale-sort-order', 'true'));
 ```
 
 ### `rewrite_manifests`

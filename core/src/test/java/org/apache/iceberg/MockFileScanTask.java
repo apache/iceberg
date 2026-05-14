@@ -56,9 +56,14 @@ public class MockFileScanTask extends BaseFileScanTask {
   }
 
   public static MockFileScanTask mockTask(long length, int sortOrderId) {
+    return mockTask(length, (Integer) sortOrderId, 0);
+  }
+
+  public static MockFileScanTask mockTask(long length, Integer sortOrderId, int specId) {
     DataFile mockFile = Mockito.mock(DataFile.class);
     Mockito.when(mockFile.fileSizeInBytes()).thenReturn(length);
     Mockito.when(mockFile.sortOrderId()).thenReturn(sortOrderId);
+    Mockito.when(mockFile.specId()).thenReturn(specId);
     return new MockFileScanTask(mockFile);
   }
 

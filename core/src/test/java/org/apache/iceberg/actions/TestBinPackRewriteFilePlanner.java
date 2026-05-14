@@ -292,7 +292,8 @@ class TestBinPackRewriteFilePlanner {
                 BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD,
                 BinPackRewriteFilePlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER,
-                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE));
+                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE,
+                RewriteDataFiles.REWRITE_STALE_SORT_ORDER));
   }
 
   @Test
@@ -579,6 +580,143 @@ class TestBinPackRewriteFilePlanner {
             .map(List::size)
             .reduce(0, Integer::sum);
     assertThat(fileScanTasks).isLessThanOrEqualTo(numFiles).isLessThanOrEqualTo(500);
+  }
+
+  @Test
+  void testRewriteStaleSortOrderSelectsStaleFiles() {
+    int currentSortOrderId = setTableSortOrder();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(rewriteStaleSortOrderOptions());
+
+    // both files are optimally sized, so only the stale sort order id makes one a rewrite target
+    FileScanTask sorted = MockFileScanTask.mockTask(450L, currentSortOrderId);
+    FileScanTask stale = MockFileScanTask.mockTask(450L, currentSortOrderId - 1);
+
+    Iterable<List<FileScanTask>> groups = planner.planFileGroups(ImmutableList.of(sorted, stale));
+    assertThat(groups).as("Only the file with a stale sort order must be rewritten").hasSize(1);
+    assertThat(Iterables.getOnlyElement(groups)).containsExactly(stale);
+  }
+
+  @Test
+  void testRewriteStaleSortOrderSkipsSortedFiles() {
+    int currentSortOrderId = setTableSortOrder();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(rewriteStaleSortOrderOptions());
+
+    FileScanTask sorted1 = MockFileScanTask.mockTask(450L, currentSortOrderId);
+    FileScanTask sorted2 = MockFileScanTask.mockTask(450L, currentSortOrderId);
+
+    assertThat(planner.planFileGroups(ImmutableList.of(sorted1, sorted2)))
+        .as("Optimally sized files already sorted by the current sort order must be skipped")
+        .isEmpty();
+  }
+
+  @Test
+  void testRewriteStaleSortOrderSelectsFilesWithNullSortOrderId() {
+    setTableSortOrder();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(rewriteStaleSortOrderOptions());
+
+    FileScanTask nullSortOrderId = MockFileScanTask.mockTask(450L, null, table.spec().specId());
+
+    Iterable<List<FileScanTask>> groups = planner.planFileGroups(ImmutableList.of(nullSortOrderId));
+    assertThat(groups)
+        .as("A file with no sort order id must be treated as having a stale sort order")
+        .hasSize(1);
+    assertThat(Iterables.getOnlyElement(groups)).containsExactly(nullSortOrderId);
+  }
+
+  @Test
+  void testRewriteStaleSortOrderIsNoOpForUnsortedTable() {
+    // table has no sort order set (orderId 0)
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(rewriteStaleSortOrderOptions());
+
+    FileScanTask file1 = MockFileScanTask.mockTask(450L, 0);
+    FileScanTask file2 = MockFileScanTask.mockTask(450L, 0);
+
+    assertThat(planner.planFileGroups(ImmutableList.of(file1, file2)))
+        .as("rewrite-stale-sort-order must be a no-op when the table has no sort order")
+        .isEmpty();
+  }
+
+  @Test
+  void testRewriteStaleSortOrderIgnoresFilesFromOtherSpec() {
+    int currentSortOrderId = setTableSortOrder();
+    int otherSpecId = table.spec().specId() + 1;
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(rewriteStaleSortOrderOptions());
+
+    // stale sort order id, but written under a non-current partition spec
+    FileScanTask otherSpec = MockFileScanTask.mockTask(450L, currentSortOrderId - 1, otherSpecId);
+
+    assertThat(planner.planFileGroups(ImmutableList.of(otherSpec)))
+        .as(
+            "Files from a non-current partition spec must not be selected by rewrite-stale-sort-order")
+        .isEmpty();
+  }
+
+  @Test
+  void testRewriteStaleSortOrderDisabledByDefault() {
+    int currentSortOrderId = setTableSortOrder();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "250",
+            BinPackRewriteFilePlanner.TARGET_FILE_SIZE_BYTES, "500",
+            BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, "750"));
+
+    FileScanTask stale = MockFileScanTask.mockTask(450L, currentSortOrderId - 1);
+
+    assertThat(planner.planFileGroups(ImmutableList.of(stale)))
+        .as("Stale files must not be rewritten unless rewrite-stale-sort-order is enabled")
+        .isEmpty();
+  }
+
+  @Test
+  void testRewriteStaleSortOrderWithRewriteAll() {
+    int currentSortOrderId = setTableSortOrder();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(
+        ImmutableMap.<String, String>builder()
+            .put(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "250")
+            .put(BinPackRewriteFilePlanner.TARGET_FILE_SIZE_BYTES, "500")
+            .put(BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, "750")
+            .put(RewriteDataFiles.REWRITE_STALE_SORT_ORDER, "true")
+            .put(BinPackRewriteFilePlanner.REWRITE_ALL, "true")
+            .build());
+
+    // both files are already sorted by the current order, but rewrite-all forces them to be
+    // rewritten
+    FileScanTask sorted1 = MockFileScanTask.mockTask(450L, currentSortOrderId);
+    FileScanTask sorted2 = MockFileScanTask.mockTask(450L, currentSortOrderId);
+
+    Iterable<List<FileScanTask>> groups =
+        planner.planFileGroups(ImmutableList.of(sorted1, sorted2));
+    assertThat(groups).hasSize(1);
+    assertThat(Iterables.getOnlyElement(groups))
+        .as("rewrite-all must take precedence over rewrite-stale-sort-order")
+        .containsExactlyInAnyOrder(sorted1, sorted2);
+  }
+
+  private int setTableSortOrder() {
+    table.replaceSortOrder().asc("data").commit();
+    table.refresh();
+    return table.sortOrder().orderId();
+  }
+
+  private static Map<String, String> rewriteStaleSortOrderOptions() {
+    return ImmutableMap.of(
+        BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "250",
+        BinPackRewriteFilePlanner.TARGET_FILE_SIZE_BYTES, "500",
+        BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, "750",
+        RewriteDataFiles.REWRITE_STALE_SORT_ORDER, "true");
   }
 
   private void addFiles() {
