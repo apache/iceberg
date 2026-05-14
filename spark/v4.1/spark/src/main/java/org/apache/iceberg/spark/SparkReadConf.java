@@ -292,14 +292,14 @@ public class SparkReadConf {
   }
 
   public int splitParallelism() {
-    Integer parallelism =
+    int parallelism =
         confParser
             .intConf()
             .sessionConf(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM)
-            .parseOptional();
-    Preconditions.checkArgument(
-        parallelism == null || parallelism > 0, "Split parallelism must be > 0: %s", parallelism);
-    return parallelism != null ? parallelism : parallelism();
+            .defaultValue(parallelism())
+            .parse();
+    Preconditions.checkArgument(parallelism > 0, "Split parallelism must be > 0: %s", parallelism);
+    return parallelism;
   }
 
   public boolean distributedPlanningEnabled() {
