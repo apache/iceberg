@@ -58,15 +58,38 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   private SerializedMetadata(ByteBuffer metadata, int header) {
     this.isSorted = (header & SORTED_STRINGS) == SORTED_STRINGS;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
+    int remaining = metadata.remaining();
+    Preconditions.checkArgument(
+        HEADER_SIZE + offsetSize <= remaining,
+        "Variant metadata truncated: cannot read dictionary size (offsetSize=%s remaining=%s)",
+        offsetSize,
+        remaining);
     int dictSize = VariantUtil.readLittleEndianUnsigned(metadata, HEADER_SIZE, offsetSize);
-    this.dict = new String[dictSize];
+    Preconditions.checkArgument(
+        dictSize >= 0, "Invalid variant metadata dictionary size: %s", dictSize);
     this.offsetListOffset = HEADER_SIZE + offsetSize;
-    this.dataOffset = offsetListOffset + ((1 + dictSize) * offsetSize);
-    int endOffset =
-        dataOffset
+    // Use long arithmetic so a malformed dictSize/offsetSize cannot overflow into a small int.
+    long offsetTableBytes = (1L + dictSize) * offsetSize;
+    long computedDataOffset = (long) offsetListOffset + offsetTableBytes;
+    Preconditions.checkArgument(
+        computedDataOffset <= remaining,
+        "Variant metadata offset table extends past buffer: dictSize=%s offsetSize=%s remaining=%s",
+        dictSize,
+        offsetSize,
+        remaining);
+    long computedEnd =
+        computedDataOffset
             + VariantUtil.readLittleEndianUnsigned(
                 metadata, offsetListOffset + (offsetSize * dictSize), offsetSize);
-    if (endOffset < metadata.limit()) {
+    Preconditions.checkArgument(
+        computedEnd <= remaining,
+        "Variant metadata data section extends past buffer: end=%s remaining=%s",
+        computedEnd,
+        remaining);
+    this.dict = new String[dictSize];
+    this.dataOffset = (int) computedDataOffset;
+    int endOffset = (int) computedEnd;
+    if (endOffset < remaining) {
       this.metadata = VariantUtil.slice(metadata, 0, endOffset);
     } else {
       this.metadata = metadata;

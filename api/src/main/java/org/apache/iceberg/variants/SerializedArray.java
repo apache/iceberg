@@ -55,9 +55,25 @@ class SerializedArray implements VariantArray, SerializedValue {
     this.value = value;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
+    int remaining = value.remaining();
+    Preconditions.checkArgument(
+        HEADER_SIZE + numElementsSize <= remaining,
+        "Variant array truncated: cannot read element count (numElementsSize=%s remaining=%s)",
+        numElementsSize,
+        remaining);
     int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    Preconditions.checkArgument(
+        numElements >= 0, "Invalid variant array element count: %s", numElements);
     this.offsetListOffset = HEADER_SIZE + numElementsSize;
-    this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
+    long offsetTableBytes = (1L + numElements) * offsetSize;
+    long computedDataOffset = (long) offsetListOffset + offsetTableBytes;
+    Preconditions.checkArgument(
+        computedDataOffset <= remaining,
+        "Variant array offset table extends past buffer: numElements=%s offsetSize=%s remaining=%s",
+        numElements,
+        offsetSize,
+        remaining);
+    this.dataOffset = (int) computedDataOffset;
     this.array = new VariantValue[numElements];
   }
 

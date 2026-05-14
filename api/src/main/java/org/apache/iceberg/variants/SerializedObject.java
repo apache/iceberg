@@ -67,13 +67,32 @@ class SerializedObject implements VariantObject, SerializedValue {
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     this.fieldIdSize = 1 + ((header & FIELD_ID_SIZE_MASK) >> FIELD_ID_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
+    int remaining = value.remaining();
+    Preconditions.checkArgument(
+        HEADER_SIZE + numElementsSize <= remaining,
+        "Variant object truncated: cannot read element count (numElementsSize=%s remaining=%s)",
+        numElementsSize,
+        remaining);
     int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    Preconditions.checkArgument(
+        numElements >= 0, "Invalid variant object element count: %s", numElements);
     this.fieldIdListOffset = HEADER_SIZE + numElementsSize;
+    long fieldIdBytes = (long) numElements * fieldIdSize;
+    long offsetTableBytes = (1L + numElements) * offsetSize;
+    long computedOffsetListOffset = (long) fieldIdListOffset + fieldIdBytes;
+    long computedDataOffset = computedOffsetListOffset + offsetTableBytes;
+    Preconditions.checkArgument(
+        computedDataOffset <= remaining,
+        "Variant object tables extend past buffer: numElements=%s fieldIdSize=%s offsetSize=%s remaining=%s",
+        numElements,
+        fieldIdSize,
+        offsetSize,
+        remaining);
     this.fieldIds = new Integer[numElements];
-    this.offsetListOffset = fieldIdListOffset + (numElements * fieldIdSize);
+    this.offsetListOffset = (int) computedOffsetListOffset;
     this.offsets = new int[numElements];
     this.lengths = new int[numElements];
-    this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
+    this.dataOffset = (int) computedDataOffset;
     this.values = new VariantValue[numElements];
 
     if (numElements > 0) {
