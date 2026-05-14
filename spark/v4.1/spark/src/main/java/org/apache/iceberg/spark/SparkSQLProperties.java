@@ -116,7 +116,8 @@ public class SparkSQLProperties {
 
   // Overrides the parallelism used for adaptive split sizing. When unset, the parallelism
   // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).
-  public static final String READ_SPLIT_PARALLELISM = "spark.sql.iceberg.read.split-parallelism";
+  public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =
+      "spark.sql.iceberg.read.adaptive-split-size.parallelism";
 
   // Controls whether to enable async micro batch planning for session
   public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =

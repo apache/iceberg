@@ -46,32 +46,21 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testAdaptiveSplitSizeSessionConf() {
-    Table table = validationCatalog.loadTable(tableIdent);
-    withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED, "false"),
-        () -> {
-          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-          assertThat(conf.adaptiveSplitSizeEnabled()).isFalse();
-        });
-  }
-
-  @TestTemplate
   public void testSplitParallelismDefault() {
     Table table = validationCatalog.loadTable(tableIdent);
-    withSQLConf(
-        ImmutableMap.of(SQLConf.SHUFFLE_PARTITIONS().key(), "999"),
-        () -> {
-          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
-          assertThat(conf.splitParallelism()).isEqualTo(999);
-        });
+    SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+    assertThat(conf.splitParallelism()).isEqualTo(conf.parallelism());
   }
 
   @TestTemplate
   public void testSplitParallelismSessionConf() {
     Table table = validationCatalog.loadTable(tableIdent);
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.READ_SPLIT_PARALLELISM, "42"),
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(),
+            "999",
+            SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM,
+            "42"),
         () -> {
           SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
           assertThat(conf.splitParallelism()).isEqualTo(42);
@@ -82,7 +71,7 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
   public void testSplitParallelismRejectsZero() {
     Table table = validationCatalog.loadTable(tableIdent);
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.READ_SPLIT_PARALLELISM, "0"),
+        ImmutableMap.of(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM, "0"),
         () -> {
           SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
           assertThatIllegalArgumentException()
@@ -95,7 +84,7 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
   public void testSplitParallelismRejectsNegative() {
     Table table = validationCatalog.loadTable(tableIdent);
     withSQLConf(
-        ImmutableMap.of(SparkSQLProperties.READ_SPLIT_PARALLELISM, "-5"),
+        ImmutableMap.of(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM, "-5"),
         () -> {
           SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
           assertThatIllegalArgumentException()
