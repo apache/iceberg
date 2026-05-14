@@ -118,6 +118,15 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
   @Override
   public void filter(Predicate[] predicates) {
+    Preconditions.checkState(
+        Objects.equals(snapshotId(), currentSnapshotId()),
+        "Runtime file filtering is not possible: the table has been concurrently modified. "
+            + "Row-level operation scan snapshot ID: %s, current table snapshot ID: %s. "
+            + "If an external process modifies the table, enable table caching in the catalog. "
+            + "If multiple threads modify the table, use independent Spark sessions in each thread.",
+        snapshotId(),
+        currentSnapshotId());
+
     for (Predicate predicate : predicates) {
       // Spark can only pass IN predicates at the moment
       if (isFilePathInPredicate(predicate)) {
