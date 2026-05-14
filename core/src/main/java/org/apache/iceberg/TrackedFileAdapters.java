@@ -53,14 +53,6 @@ class TrackedFileAdapters {
     return new TrackedDVDeleteFile(file, resolveSpec(file, specsById));
   }
 
-  static DeleteFile asPositionDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
-    Preconditions.checkArgument(
-        file.contentType() == FileContent.POSITION_DELETES,
-        "Invalid content type for position delete file: %s",
-        file.contentType());
-    return new TrackedPositionDeleteFile(file, resolveSpec(file, specsById));
-  }
-
   static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.EQUALITY_DELETES,
@@ -302,44 +294,6 @@ class TrackedFileAdapters {
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
       return new TrackedEqualityDeleteFile(file().copyWithStats(requestedColumnIds), spec());
-    }
-  }
-
-  /** Adapts a TrackedFile POSITION_DELETES entry to the {@link DeleteFile} interface. */
-  private static class TrackedPositionDeleteFile extends TrackedContentFile<DeleteFile>
-      implements DeleteFile {
-    private TrackedPositionDeleteFile(TrackedFile file, PartitionSpec spec) {
-      super(file, spec);
-    }
-
-    @Override
-    public FileContent content() {
-      return FileContent.POSITION_DELETES;
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return null;
-    }
-
-    @Override
-    public DeleteFile copy() {
-      return new TrackedPositionDeleteFile(file().copy(), spec());
-    }
-
-    @Override
-    public DeleteFile copy(boolean withStats) {
-      return withStats ? copy() : copyWithoutStats();
-    }
-
-    @Override
-    public DeleteFile copyWithoutStats() {
-      return new TrackedPositionDeleteFile(file().copyWithoutStats(), spec());
-    }
-
-    @Override
-    public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedPositionDeleteFile(file().copyWithStats(requestedColumnIds), spec());
     }
   }
 
