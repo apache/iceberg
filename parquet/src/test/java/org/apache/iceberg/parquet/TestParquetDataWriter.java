@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -66,6 +67,8 @@ import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestParquetDataWriter {
   private static final Schema SCHEMA =
@@ -540,5 +543,51 @@ public class TestParquetDataWriter {
       InternalTestHelpers.assertEquals(
           variantSchema.asStruct(), variantRecords.get(i), writtenRecords.get(i));
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"gzip", "snappy", "zstd", "uncompressed"})
+  public void testRowGroupSizeEnforcedWhenCompressionEnabled(String codec) throws IOException {
+    // 50 MB uncompressed data with 8 MB target; verifies row group splits when
+    // uncompressed size tracking is enabled
+    OutputFile file = Files.localOutput(createTempFile(temp));
+
+    long targetRowGroupSize = 8 * 1024 * 1024;
+
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .schema(SCHEMA)
+            .createWriterFunc(GenericParquetWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .set("write.parquet.row-group-size-bytes", String.valueOf(targetRowGroupSize))
+            .set("write.parquet.page-size-bytes", "1048576")
+            .set("write.parquet.compression-codec", codec)
+            .set("write.parquet.row-group-size-check-uncompressed", "true")
+            .build();
+
+    try (dataWriter) {
+      Random rng = new Random(42);
+      for (int i = 0; i < 100; i++) {
+        GenericRecord record = GenericRecord.create(SCHEMA);
+        record.setField("id", (long) i);
+        StringBuilder sb = new StringBuilder(512 * 1024);
+        sb.append("{\"id\":").append(i).append(",\"values\":[");
+        while (sb.length() < 512 * 1024) {
+          sb.append(rng.nextInt(100000)).append(',');
+        }
+        sb.setCharAt(sb.length() - 1, ']');
+        sb.append('}');
+        record.setField("data", sb.toString());
+        dataWriter.write(record);
+      }
+    }
+
+    DataFile dataFile = dataWriter.toDataFile();
+
+    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(100);
+    assertThat(dataFile.splitOffsets().size())
+        .as("Row group count should reflect enforcement of the 8 MB target")
+        .isGreaterThanOrEqualTo(4);
   }
 }
