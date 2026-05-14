@@ -691,7 +691,7 @@ Notes:
 
 Field statistics (or, interchangeably, metrics) are used when filtering to select data and delete files.
 
-In v3 and earlier, metrics are stored in maps keyed by column id: `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds` and `upper_bounds`.
+In v3 and earlier, metrics are stored in maps keyed by field id: `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds` and `upper_bounds`.
 
 In v4, metrics are stored as typed values in the `content_stats` struct, documented in the [Content Stats](#content-stats) section.
 
