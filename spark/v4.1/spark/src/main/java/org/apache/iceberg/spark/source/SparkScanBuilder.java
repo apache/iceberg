@@ -223,7 +223,8 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
                 colName);
             return false;
           }
-        } else if (aggregate.type().typeId() == Type.TypeID.STRING) {
+        } else if (aggregate.type().typeId() == Type.TypeID.STRING
+            || aggregate.type().typeId() == Type.TypeID.BINARY) {
           // lower_bounds and upper_bounds may have been truncated before, so disable push down
           // regardless of the current mode
           if (aggregate.op() == Expression.Operation.MAX
