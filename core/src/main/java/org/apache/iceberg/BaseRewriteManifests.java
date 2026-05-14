@@ -207,7 +207,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
             .stopOnFailure()
             .throwFailureWhenFinished()
             .run(index -> copiedManifests[index] = copyManifest(pendingAddedManifests.get(index)));
-    rewrittenAddedManifests.addAll(Arrays.asList(copiedManifests));
+    Collections.addAll(rewrittenAddedManifests, copiedManifests);
   }
 
   @Override
