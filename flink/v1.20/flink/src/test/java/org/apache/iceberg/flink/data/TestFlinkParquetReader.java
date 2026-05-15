@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.parquet.schema.Types.primitive;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -218,40 +217,6 @@ public class TestFlinkParquetReader extends DataTestBase {
       RowData rowData = rows.next();
       assertThat(rowData.getArray(0).getBinary(0)).isEqualTo(expectedByte);
       assertThat(rowData.getBinary(1)).isEqualTo(expectedByte);
-      assertThat(rows).isExhausted();
-    }
-  }
-
-  @Test
-  public void testDecimalRoundtripWithFlinkWriter() throws IOException {
-    Schema schema =
-        new Schema(
-            required(1, "dec_9_2", Types.DecimalType.of(9, 2)),
-            required(2, "dec_15_3", Types.DecimalType.of(15, 3)),
-            required(3, "dec_38_10", Types.DecimalType.of(38, 10)));
-
-    List<Record> data = Lists.newArrayList(RandomGenericData.generate(schema, NUM_RECORDS, 19981L));
-
-    OutputFile output = new InMemoryOutputFile();
-    LogicalType logicalType = FlinkSchemaUtil.convert(schema);
-    try (FileAppender<RowData> writer =
-        Parquet.write(output)
-            .schema(schema)
-            .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
-            .build()) {
-      writer.addAll(RandomRowData.convert(schema, data));
-    }
-
-    try (CloseableIterable<RowData> reader =
-        Parquet.read(output.toInputFile())
-            .project(schema)
-            .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema))
-            .build()) {
-      Iterator<RowData> rows = reader.iterator();
-      for (Record expected : data) {
-        assertThat(rows).hasNext();
-        TestHelpers.assertRowData(schema.asStruct(), logicalType, expected, rows.next());
-      }
       assertThat(rows).isExhausted();
     }
   }

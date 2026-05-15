@@ -29,7 +29,8 @@ import org.apache.iceberg.types.Types;
  */
 class DataGenerators {
 
-  static final DataGenerator[] ALL = new DataGenerator[] {new StructOfPrimitive()};
+  static final DataGenerator[] ALL =
+      new DataGenerator[] {new StructOfPrimitive(), new StructWithDecimals()};
 
   private DataGenerators() {}
 
@@ -43,6 +44,20 @@ class DataGenerators {
                 Types.StructType.of(
                     required(101, "id", Types.IntegerType.get()),
                     required(102, "name", Types.StringType.get()))));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+  }
+
+  static class StructWithDecimals implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            required(1, "row_id", Types.StringType.get()),
+            required(2, "dec_9_2", Types.DecimalType.of(9, 2)),
+            required(3, "dec_15_3", Types.DecimalType.of(15, 3)),
+            required(4, "dec_38_10", Types.DecimalType.of(38, 10)));
 
     @Override
     public Schema schema() {
