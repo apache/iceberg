@@ -23,13 +23,12 @@ import org.slf4j.LoggerFactory;
 
 class CoordinatorThread extends Thread {
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorThread.class);
-  private static final String THREAD_NAME = "iceberg-coord";
 
   private final Coordinator coordinator;
   private volatile boolean terminated;
 
-  CoordinatorThread(Coordinator coordinator) {
-    super(THREAD_NAME);
+  CoordinatorThread(Coordinator coordinator, String connectorName) {
+    super("iceberg-coord-" + connectorName);
     this.coordinator = coordinator;
   }
 

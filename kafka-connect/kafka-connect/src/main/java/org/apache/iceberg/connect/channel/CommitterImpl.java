@@ -207,7 +207,7 @@ public class CommitterImpl implements Committer {
           config.taskId());
       Coordinator coordinator =
           new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
-      coordinatorThread = new CoordinatorThread(coordinator);
+      coordinatorThread = new CoordinatorThread(coordinator, config.connectorName());
       coordinatorThread.start();
     }
   }

@@ -31,7 +31,9 @@ public class TestCoordinatorThread {
   @Test
   public void testRun() {
     Coordinator coordinator = mock(Coordinator.class);
-    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator, "test-connector");
+
+    assertThat(coordinatorThread.getName()).isEqualTo("iceberg-coord-test-connector");
 
     coordinatorThread.start();
 
