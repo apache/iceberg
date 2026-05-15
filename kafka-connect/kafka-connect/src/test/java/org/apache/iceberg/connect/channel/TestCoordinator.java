@@ -330,8 +330,7 @@ public class TestCoordinator extends ChannelTestBase {
 
     // The snapshot offset baseline must be reset to the current (new-cluster) offsets,
     // not the stale old-cluster value of 100.
-    assertThat(table.currentSnapshot().summary())
-        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}");
+    assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}");
 
     assertThat(producer.history()).hasSize(3);
     assertCommitTable(1, commitId, ts);
