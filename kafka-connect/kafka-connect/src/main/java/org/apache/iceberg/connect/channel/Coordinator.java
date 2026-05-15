@@ -229,8 +229,37 @@ class Coordinator extends Channel {
     // records for other partitions.  Merge the updated topic partitions with the last committed
     // offsets.
     Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch);
+
+    // Detect if the control topic was reset (e.g., after Kafka cluster recreation).
+    // If the current coordinator's observed control topic offsets are lower than the
+    // previously committed offsets stored in the snapshot, the control topic has likely
+    // been reset and the stored offsets are stale.  In this case, skip deduplication
+    // to avoid silently dropping all data files and blocking metadata commits.
+    boolean controlTopicReset =
+        !committedOffsets.isEmpty()
+            && committedOffsets.entrySet().stream()
+                .anyMatch(
+                    e -> {
+                      Long current = controlTopicOffsets.get(e.getKey());
+                      return current != null && current < e.getValue();
+                    });
+
+    if (controlTopicReset) {
+      LOG.warn(
+          "Coordinator {}: detected possible Kafka cluster recreation for table {}. "
+              + "Control topic offsets {} are lower than previously committed offsets {}. "
+              + "Skipping offset deduplication and resetting stored offset baseline.",
+          taskId,
+          tableIdentifier,
+          controlTopicOffsets,
+          committedOffsets);
+    }
+
+    // When a reset is detected, base the stored offsets only on the current control topic
+    // offsets so subsequent commits use the correct (new-cluster) baseline.
+    Map<Integer, Long> baseOffsets = controlTopicReset ? Map.of() : committedOffsets;
     Map<Integer, Long> mergedOffsets =
-        Stream.of(committedOffsets, controlTopicOffsets)
+        Stream.of(baseOffsets, controlTopicOffsets)
             .flatMap(map -> map.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::max));
     String offsetsJson = offsetsToJson(mergedOffsets);
@@ -239,6 +268,9 @@ class Coordinator extends Channel {
         envelopeList.stream()
             .filter(
                 envelope -> {
+                  if (controlTopicReset) {
+                    return true;
+                  }
                   Long minOffset = committedOffsets.get(envelope.partition());
                   return minOffset == null || envelope.offset() >= minOffset;
                 })
