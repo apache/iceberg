@@ -2269,8 +2269,8 @@ components:
 
     CatalogObjectIdentifier:
       description:
-        Reference to a catalog object (table, view, or namespace) as an
-        ordered list of hierarchical levels.
+        Reference to a catalog object (for example, table, view, or namespace) as
+        an ordered list of hierarchical levels.
         The object kind is determined by context (e.g. the endpoint or a
         companion type discriminator), not by the identifier structure alone.
       type: array
