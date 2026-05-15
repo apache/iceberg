@@ -73,7 +73,17 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant NOT NULL) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','variant-inference-buffer-size'='10')",
+        """
+            CREATE TABLE %s (
+              id int NOT NULL,
+              address variant NOT NULL
+            ) WITH (
+              'write.format.default'='%s',
+              'format-version'='3',
+              'shred-variants'='true',
+              'variant-inference-buffer-size'='10'
+            )
+            """,
         TABLE_NAME, FileFormat.PARQUET.name());
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
   }
@@ -91,9 +101,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testExcludingNullValue() throws IOException {
     String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30, \"dummy\": null}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+        """
+            (1, parse_json('{"name": "Alice", "age": 30, "dummy": null}')),
+            (2, parse_json('{"name": "Bob", "age": 25}')),
+            (3, parse_json('{"name": "Charlie", "age": 35}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType name =
@@ -114,9 +126,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testConsistentType() throws IOException {
     String values =
-        "(1, parse_json('{\"age\": \"25\"}')),"
-            + " (2, parse_json('{\"age\": 30}')),"
-            + " (3, parse_json('{\"age\": \"35\"}'))";
+        """
+            (1, parse_json('{"age": "25"}')),
+            (2, parse_json('{"age": 30}')),
+            (3, parse_json('{"age": "35"}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType age =
@@ -131,7 +145,12 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
   @TestTemplate
   public void testPrimitiveType() throws IOException {
-    String values = "(1, parse_json('123')), (2, parse_json('\"abc\"')), (3, parse_json('12'))";
+    String values =
+        """
+            (1, parse_json('123')),
+            (2, parse_json('"abc"')),
+            (3, parse_json('12'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType address =
@@ -150,7 +169,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testPrimitiveDecimalType() throws IOException {
     String values =
-        "(1, parse_json('123.56')), (2, parse_json('\"abc\"')), (3, parse_json('12.56'))";
+        """
+            (1, parse_json('123.56')),
+            (2, parse_json('"abc"')),
+            (3, parse_json('12.56'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType address =
@@ -168,9 +191,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testBooleanType() throws IOException {
     String values =
-        "(1, parse_json('{\"active\": true}')),"
-            + " (2, parse_json('{\"active\": false}')),"
-            + " (3, parse_json('{\"active\": true}'))";
+        """
+            (1, parse_json('{"active": true}')),
+            (2, parse_json('{"active": false}')),
+            (3, parse_json('{"active": true}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType active = field("active", shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BOOLEAN));
@@ -182,9 +207,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testDecimalTypeWithInconsistentScales() throws IOException {
     String values =
-        "(1, parse_json('{\"price\": 123.456789}')),"
-            + " (2, parse_json('{\"price\": 678.90}')),"
-            + " (3, parse_json('{\"price\": 999.99}'))";
+        """
+            (1, parse_json('{"price": 123.456789}')),
+            (2, parse_json('{"price": 678.90}')),
+            (3, parse_json('{"price": 999.99}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType price =
@@ -200,9 +227,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testDecimalTypeWithConsistentScales() throws IOException {
     String values =
-        "(1, parse_json('{\"price\": 123.45}')),"
-            + " (2, parse_json('{\"price\": 678.90}')),"
-            + " (3, parse_json('{\"price\": 999.99}'))";
+        """
+            (1, parse_json('{"price": 123.45}')),
+            (2, parse_json('{"price": 678.90}')),
+            (3, parse_json('{"price": 999.99}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType price =
@@ -218,9 +247,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testArrayType() throws IOException {
     String values =
-        "(1, parse_json('[\"java\", \"scala\", \"python\"]')),"
-            + " (2, parse_json('[\"rust\", \"go\"]')),"
-            + " (3, parse_json('[\"javascript\"]'))";
+        """
+            (1, parse_json('["java", "scala", "python"]')),
+            (2, parse_json('["rust", "go"]')),
+            (3, parse_json('["javascript"]'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType arr =
@@ -238,9 +269,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   public void testNestedArrayType() throws IOException {
 
     String values =
-        "(1, parse_json('{\"tags\": [\"java\", \"scala\", \"python\"]}')),"
-            + " (2, parse_json('{\"tags\": [\"rust\", \"go\"]}')),"
-            + " (3, parse_json('{\"tags\": [\"javascript\"]}'))";
+        """
+            (1, parse_json('{"tags": ["java", "scala", "python"]}')),
+            (2, parse_json('{"tags": ["rust", "go"]}')),
+            (3, parse_json('{"tags": ["javascript"]}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType tags =
@@ -261,9 +294,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   public void testNestedObjectType() throws IOException {
 
     String values =
-        "(1, parse_json('{\"location\": {\"city\": \"Seattle\", \"zip\": 98101}, \"tags\": [\"java\", \"scala\", \"python\"]}')),"
-            + " (2, parse_json('{\"location\": {\"city\": \"Portland\", \"zip\": 97201}}')),"
-            + " (3, parse_json('{\"location\": {\"city\": \"NYC\", \"zip\": 10001}}'))";
+        """
+            (1, parse_json('{"location": {"city": "Seattle", "zip": 98101}, "tags": ["java", "scala", "python"]}')),
+            (2, parse_json('{"location": {"city": "Portland", "zip": 97201}}')),
+            (3, parse_json('{"location": {"city": "NYC", "zip": 10001}}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType city =
@@ -297,13 +332,15 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   public void testLazyInitializationWithBufferedRows() throws IOException {
 
     String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}')),"
-            + " (4, parse_json('{\"name\": \"David\", \"age\": 28}')),"
-            + " (5, parse_json('{\"name\": \"Eve\", \"age\": 32}')),"
-            + " (6, parse_json('{\"name\": \"Frank\", \"age\": 40}')),"
-            + " (7, parse_json('{\"name\": \"Grace\", \"age\": 27}'))";
+        """
+            (1, parse_json('{"name": "Alice", "age": 30}')),
+            (2, parse_json('{"name": "Bob", "age": 25}')),
+            (3, parse_json('{"name": "Charlie", "age": 35}')),
+            (4, parse_json('{"name": "David", "age": 28}')),
+            (5, parse_json('{"name": "Eve", "age": 32}')),
+            (6, parse_json('{"name": "Frank", "age": 40}')),
+            (7, parse_json('{"name": "Grace", "age": 27}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType name =
@@ -341,7 +378,13 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
       String longValue = "A".repeat(20);
       valuesBuilder.append(
           String.format(
-              "(%d, parse_json('{\"description\": \"%s\", \"id\": %d}'))", i, longValue, i));
+              """
+                      (%d, parse_json('{"description": "%s", "id": %d}'))
+                      """
+                  .trim(),
+              i,
+              longValue,
+              i));
     }
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, valuesBuilder.toString());
 
@@ -368,10 +411,12 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     // Mix of INT8, INT16, INT32, INT64 - should promote to INT64
     String values =
-        "(1, parse_json('{\"value\": 10}')),"
-            + " (2, parse_json('{\"value\": 1000}')),"
-            + " (3, parse_json('{\"value\": 100000}')),"
-            + " (4, parse_json('{\"value\": 10000000000}'))";
+        """
+            (1, parse_json('{"value": 10}')),
+            (2, parse_json('{"value": 1000}')),
+            (3, parse_json('{"value": 100000}')),
+            (4, parse_json('{"value": 10000000000}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType value =
@@ -390,9 +435,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     // Test that they get promoted to the most capable decimal type observed
     String values =
-        "(1, parse_json('{\"value\": 1.5}')),"
-            + " (2, parse_json('{\"value\": 123.456789}')),"
-            + " (3, parse_json('{\"value\": 123456789123456.789}'))";
+        """
+            (1, parse_json('{"value": 1.5}')),
+            (2, parse_json('{"value": 123.456789}')),
+            (3, parse_json('{"value": 123456789123456.789}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType value =
@@ -411,9 +458,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   @TestTemplate
   public void testDataRoundTripWithShredding() throws IOException {
     String values =
-        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+        """
+            (1, parse_json('{"name": "Alice", "age": 30}')),
+            (2, parse_json('{"name": "Bob", "age": 25}')),
+            (3, parse_json('{"name": "Charlie", "age": 35}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType name =
@@ -434,9 +483,13 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     // Verify that we can read the data back correctly
     List<Row> rows =
         sql(
-            "SELECT id, JSON_VALUE(address, '$.name'),"
-                + " JSON_VALUE(address, '$.age' RETURNING int)"
-                + " FROM %s ORDER BY id",
+            """
+                    SELECT id,
+                           JSON_VALUE(address, '$.name'),
+                           JSON_VALUE(address, '$.age' RETURNING int)
+                    FROM %s
+                    ORDER BY id
+                    """,
             TABLE_NAME);
     assertThat(rows).hasSize(3);
     assertThat(rows.get(0).getField(0)).isEqualTo(1);
@@ -454,7 +507,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   public void testVariantWithNullValues() throws IOException {
 
     String values =
-        "(1, parse_json('null'))," + " (2, parse_json('null'))," + " (3, parse_json('null'))";
+        """
+            (1, parse_json('null')),
+            (2, parse_json('null')),
+            (3, parse_json('null'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, values);
 
     GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
@@ -467,8 +524,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   public void testArrayOfNullElementsWithShredding() throws IOException {
 
     sql(
-        "INSERT INTO %s VALUES (1, parse_json('[null, null, null]')), "
-            + "(2, parse_json('[null]'))",
+        """
+            INSERT INTO %s VALUES
+              (1, parse_json('[null, null, null]')),
+              (2, parse_json('[null]'))
+            """,
         TABLE_NAME);
 
     // Array elements are all null, element type is null, falls back to unshredded
@@ -493,9 +553,21 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
         // Only the first row has rare_field
         valuesBuilder.append(
             String.format(
-                "(%d, parse_json('{\"name\": \"User%d\", \"rare_field\": \"rare\"}'))", i, i));
+                """
+                        (%d, parse_json('{"name": "User%d", "rare_field": "rare"}'))
+                        """
+                    .trim(),
+                i,
+                i));
       } else {
-        valuesBuilder.append(String.format("(%d, parse_json('{\"name\": \"User%d\"}'))", i, i));
+        valuesBuilder.append(
+            String.format(
+                """
+                        (%d, parse_json('{"name": "User%d"}'))
+                        """
+                    .trim(),
+                i,
+                i));
       }
     }
 
@@ -523,9 +595,23 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
       }
 
       if (i <= 5) {
-        valuesBuilder.append(String.format("(%d, parse_json('{\"val\": %d}'))", i, i));
+        valuesBuilder.append(
+            String.format(
+                """
+                        (%d, parse_json('{"val": %d}'))
+                        """
+                    .trim(),
+                i,
+                i));
       } else {
-        valuesBuilder.append(String.format("(%d, parse_json('{\"val\": \"text%d\"}'))", i, i));
+        valuesBuilder.append(
+            String.format(
+                """
+                        (%d, parse_json('{"val": "text%d"}'))
+                        """
+                    .trim(),
+                i,
+                i));
       }
     }
 
@@ -553,16 +639,18 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     sql("ALTER TABLE %s SET('variant-inference-buffer-size'='3')", TABLE_NAME);
 
     sql(
-        "CREATE TEMPORARY VIEW tmp_source AS "
-            + "SELECT * FROM (VALUES "
-            + "(1, parse_json('{\"name\": \"Alice\"}')), "
-            + "(2, parse_json('{\"name\": \"Bob\"}')), "
-            + "(3, parse_json('{\"name\": \"Charlie\"}')), "
-            + "(4, parse_json('{\"name\": \"David\", \"score\": 95}')), "
-            + "(5, parse_json('{\"name\": \"Eve\", \"score\": 88}')), "
-            + "(6, parse_json('{\"name\": \"Frank\", \"score\": 72}')), "
-            + "(7, parse_json('{\"name\": \"Grace\", \"score\": 91}'))"
-            + ") AS t(id, address)");
+        """
+            CREATE TEMPORARY VIEW tmp_source AS
+            SELECT * FROM (VALUES
+              (1, parse_json('{"name": "Alice"}')),
+              (2, parse_json('{"name": "Bob"}')),
+              (3, parse_json('{"name": "Charlie"}')),
+              (4, parse_json('{"name": "David", "score": 95}')),
+              (5, parse_json('{"name": "Eve", "score": 88}')),
+              (6, parse_json('{"name": "Frank", "score": 72}')),
+              (7, parse_json('{"name": "Grace", "score": 91}'))
+            ) AS t(id, address)
+            """);
 
     sql("INSERT INTO %s SELECT id, address FROM tmp_source ORDER BY id", TABLE_NAME);
 
@@ -581,9 +669,13 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     // Verify all data round-trips despite "score" not being shredded
     List<Row> rows =
         sql(
-            "SELECT id, JSON_VALUE(address, '$.name'),"
-                + " JSON_VALUE(address, '$.score' returning int)"
-                + " FROM %s ORDER BY id",
+            """
+                    SELECT id,
+                           JSON_VALUE(address, '$.name'),
+                           JSON_VALUE(address, '$.score' RETURNING int)
+                    FROM %s
+                    ORDER BY id
+                    """,
             TABLE_NAME);
     assertThat(rows).hasSize(7);
     assertThat(rows.get(0).getField(1)).isEqualTo("Alice");
@@ -602,9 +694,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     // File 1: "score" is always integer → shredded as INT8
     String batch1 =
-        "(1, parse_json('{\"score\": 95}')),"
-            + " (2, parse_json('{\"score\": 88}')),"
-            + " (3, parse_json('{\"score\": 72}'))";
+        """
+            (1, parse_json('{"score": 95}')),
+            (2, parse_json('{"score": 88}')),
+            (3, parse_json('{"score": 72}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, batch1);
 
     // Verify file 1 schema: score shredded as INT8
@@ -619,14 +713,23 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     // File 2: "score" is always string → shredded as STRING
     String batch2 =
-        "(4, parse_json('{\"score\": \"high\"}')),"
-            + " (5, parse_json('{\"score\": \"medium\"}')),"
-            + " (6, parse_json('{\"score\": \"low\"}'))";
+        """
+            (4, parse_json('{"score": "high"}')),
+            (5, parse_json('{"score": "medium"}')),
+            (6, parse_json('{"score": "low"}'))
+            """;
     sql("INSERT INTO %s VALUES %s", TABLE_NAME, batch2);
 
     // Query across both files, reader must handle different shredded types
     List<Row> rows =
-        sql("SELECT id, json_value(address, '$.score') FROM %s ORDER BY id", TABLE_NAME);
+        sql(
+            """
+                    SELECT id,
+                           json_value(address, '$.score')
+                    FROM %s
+                    ORDER BY id
+                    """,
+            TABLE_NAME);
     assertThat(rows).hasSize(6);
     assertThat(rows.get(0).getField(1)).isEqualTo("95");
     assertThat(rows.get(1).getField(1)).isEqualTo("88");
@@ -639,11 +742,26 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     String variantNullAbleTableName = "test_all_null_variant_column";
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','variant-inference-buffer-size'='10')",
+        """
+            CREATE TABLE %s (
+              id int NOT NULL,
+              address variant
+            ) WITH (
+              'write.format.default'='%s',
+              'format-version'='3',
+              'shred-variants'='true',
+              'variant-inference-buffer-size'='10'
+            )
+            """,
         variantNullAbleTableName, FileFormat.PARQUET.name());
 
     sql(
-        "INSERT INTO %s VALUES (1, CAST(null AS VARIANT)), (2, CAST(null AS VARIANT)), (3, CAST(null AS VARIANT))",
+        """
+            INSERT INTO %s VALUES
+              (1, CAST(null AS VARIANT)),
+              (2, CAST(null AS VARIANT)),
+              (3, CAST(null AS VARIANT))
+            """,
         variantNullAbleTableName);
 
     // All variant values are SQL NULL, so no shredding should occur
@@ -664,10 +782,12 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     sql("ALTER TABLE %s SET('variant-inference-buffer-size'='1')", TABLE_NAME);
 
     sql(
-        "INSERT INTO %s VALUES "
-            + "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
-            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
-            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))",
+        """
+            INSERT INTO %s VALUES
+              (1, parse_json('{"name": "Alice", "age": 30}')),
+              (2, parse_json('{"name": "Bob", "age": 25}')),
+              (3, parse_json('{"name": "Charlie", "age": 35}'))
+            """,
         TABLE_NAME);
 
     // Schema inferred from first row only, should still shred name and age
@@ -687,7 +807,14 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     verifyParquetSchema(icebergTable, expectedSchema);
 
     List<Row> rows =
-        sql("SELECT id, json_value(address, '$.name') FROM %s ORDER BY id", TABLE_NAME);
+        sql(
+            """
+                    SELECT id,
+                           json_value(address, '$.name')
+                    FROM %s
+                    ORDER BY id
+                    """,
+            TABLE_NAME);
     assertThat(rows).hasSize(3);
     assertThat(rows.get(0).getField(1)).isEqualTo("Alice");
     assertThat(rows.get(2).getField(1)).isEqualTo("Charlie");
@@ -707,15 +834,17 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
     // Row 5: scale overflow -> fallback to value field
     // Row 6: fits typed column, scale widened from 1 to 2 via setScale
     sql(
-        "CREATE TEMPORARY VIEW tmp_source AS "
-            + "SELECT * FROM (VALUES "
-            + " (1, parse_json('{\"val\": 123.45}')),"
-            + " (2, parse_json('{\"val\": 678.90}')),"
-            + " (3, parse_json('{\"val\": 999.99}')),"
-            + "  (4, parse_json('{\"val\": 123456.78}')),"
-            + "  (5, parse_json('{\"val\": 1.2345}')),"
-            + "  (6, parse_json('{\"val\": 12.3}'))"
-            + ") AS t(id, address)");
+        """
+            CREATE TEMPORARY VIEW tmp_source AS
+            SELECT * FROM (VALUES
+              (1, parse_json('{"val": 123.45}')),
+              (2, parse_json('{"val": 678.90}')),
+              (3, parse_json('{"val": 999.99}')),
+              (4, parse_json('{"val": 123456.78}')),
+              (5, parse_json('{"val": 1.2345}')),
+              (6, parse_json('{"val": 12.3}'))
+            ) AS t(id, address)
+            """);
 
     sql("INSERT INTO %s SELECT id, address FROM tmp_source ORDER BY id", TABLE_NAME);
 
@@ -731,7 +860,12 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     List<Row> rows =
         sql(
-            "SELECT id, CAST(json_value(address, '$.val') AS DECIMAL(10, 4)) FROM %s ORDER BY id",
+            """
+                    SELECT id,
+                           CAST(json_value(address, '$.val') AS DECIMAL(10, 4))
+                    FROM %s
+                    ORDER BY id
+                    """,
             TABLE_NAME);
     assertThat(rows).hasSize(6);
     assertThat(rows.get(0).getField(1)).isEqualTo(new BigDecimal("123.4500"));

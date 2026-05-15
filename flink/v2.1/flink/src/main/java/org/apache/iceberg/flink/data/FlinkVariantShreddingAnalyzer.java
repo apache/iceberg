@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.variant.BinaryVariant;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.parquet.VariantShreddingAnalyzer;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -42,17 +43,21 @@ public class FlinkVariantShreddingAnalyzer extends VariantShreddingAnalyzer<RowD
 
     for (RowData row : bufferedRows) {
       if (!row.isNullAt(variantFieldIndex)) {
-        // Flink currently has only BinaryVariant as its Variant implementation, so this analyzer
-        // intentionally narrows RowData#getVariant's return value to BinaryVariant here.
-        BinaryVariant flinkVariant = (BinaryVariant) row.getVariant(variantFieldIndex);
+        Variant flinkVariant = row.getVariant(variantFieldIndex);
         if (flinkVariant != null) {
-          VariantValue variantValue =
-              VariantValue.from(
-                  VariantMetadata.from(
-                      ByteBuffer.wrap(flinkVariant.getMetadata()).order(ByteOrder.LITTLE_ENDIAN)),
-                  ByteBuffer.wrap(flinkVariant.getValue()).order(ByteOrder.LITTLE_ENDIAN));
+          if (flinkVariant instanceof BinaryVariant binaryVariant) {
+            VariantValue variantValue =
+                VariantValue.from(
+                    VariantMetadata.from(
+                        ByteBuffer.wrap(binaryVariant.getMetadata())
+                            .order(ByteOrder.LITTLE_ENDIAN)),
+                    ByteBuffer.wrap(binaryVariant.getValue()).order(ByteOrder.LITTLE_ENDIAN));
 
-          values.add(variantValue);
+            values.add(variantValue);
+          } else {
+            throw new UnsupportedOperationException(
+                "Not a supported type: " + flinkVariant.getClass());
+          }
         }
       }
     }
