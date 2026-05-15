@@ -62,10 +62,6 @@ public class FlinkVariantShreddingAnalyzer extends VariantShreddingAnalyzer<RowD
 
   @Override
   protected int resolveColumnIndex(RowType flinkSchema, String columnName) {
-    try {
-      return flinkSchema.getFieldIndex(columnName);
-    } catch (IllegalArgumentException e) {
-      return -1;
-    }
+    return flinkSchema.getFieldIndex(columnName);
   }
 }

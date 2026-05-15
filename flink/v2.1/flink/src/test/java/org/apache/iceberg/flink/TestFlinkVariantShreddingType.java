@@ -639,7 +639,7 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
 
     String variantNullAbleTableName = "test_all_null_variant_column";
     sql(
-        "CREATE TABLE %s (id int NOT NULL, address variant) with ('write.format.default'='%s','format-version'='3','shred-variants'='true','variant-inference-buffer-size'='10')",
+        "CREATE TABLE %s (id int NOT NULL, address variant) with ('write.format.default'='%s','format-version'='3','parquet-shred-variants'='true','variant-inference-buffer-size'='10')",
         variantNullAbleTableName, FileFormat.PARQUET.name());
 
     sql(
