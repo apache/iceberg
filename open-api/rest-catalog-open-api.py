@@ -64,6 +64,7 @@ class CatalogConfig(BaseModel):
                 'POST /v1/{prefix}/namespaces',
                 'GET /v1/{prefix}/namespaces/{namespace}/tables/{table}',
                 'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
+                'POST /v1/{prefix}/resolve',
             ]
         ],
     )
@@ -72,6 +73,13 @@ class CatalogConfig(BaseModel):
         alias='idempotency-key-lifetime',
         description='Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H). Interpreted as the maximum time from the first submission using a key to the last retry during which a client may reuse that key. Servers SHOULD accept retries for at least this duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any subsequent attempt. Presence of this field indicates the server supports Idempotency-Key semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.',
         examples=['PT30M'],
+    )
+    resolve_max_items: int | None = Field(
+        None,
+        alias='resolve-max-items',
+        description="The maximum total number of items the server will accept in a single `POST /v1/{prefix}/resolve` request (summed across all typed arrays, e.g. `relations` and any future `functions`). If a request exceeds this limit, the server MUST reject it with `400`. Clients SHOULD read this value and chunk their requests so that each call stays at or below the limit. This limit is distinct from the server's internal cost/payload budget, which is surfaced per response via `unprocessed`. If this field is absent, clients SHOULD assume a conservative default (e.g., 100) and handle `400` responses by reducing batch size.",
+        examples=[500],
+        ge=1,
     )
 
 
@@ -104,6 +112,24 @@ class PageToken(RootModel[str | None]):
 class TableIdentifier(BaseModel):
     namespace: Namespace
     name: str
+
+
+class CatalogObjectIdentifier(RootModel[list[str]]):
+    """
+    Reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion CatalogObjectType discriminator), not by the identifier structure alone.
+    """
+
+    root: list[str] = Field(
+        ...,
+        description='Reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion CatalogObjectType discriminator), not by the identifier structure alone.',
+        examples=[['accounting', 'tax', 'paid']],
+    )
+
+
+class CatalogObjectType(RootModel[Literal['table', 'view', 'namespace']]):
+    root: Literal['table', 'view', 'namespace'] = Field(
+        ..., description='The type of a catalog object.\n'
+    )
 
 
 class PrimitiveType(RootModel[str]):
@@ -605,6 +631,86 @@ class RegisterTableRequest(BaseModel):
     overwrite: bool | None = Field(
         False,
         description='Whether to overwrite table metadata if the table already exists',
+    )
+
+
+class ResolveRelationItem(BaseModel):
+    """
+    A single relation to resolve as part of a `resolve` request. The identifier is a
+    `CatalogObjectIdentifier` (flat list of hierarchical levels). Optional parameters
+    (`etag`, `snapshots`) apply only when the resolved relation is a table; servers
+    MUST ignore them when the relation is a view.
+
+    """
+
+    identifier: CatalogObjectIdentifier
+    etag: str | None = Field(
+        None,
+        description='If provided and the resolved relation is a table, the server compares the value against the current table metadata version. When it matches, the server returns a `not-modified` result for this item. Servers MUST ignore this field when the relation is a view.',
+    )
+    snapshots: Literal['all', 'refs'] | None = Field(
+        None,
+        description='Controls which snapshots to return when the resolved relation is a table. Same semantics as the `snapshots` query parameter on the single table load endpoint. Servers MUST ignore this field when the resolved relation is a view.',
+    )
+
+
+class UnprocessedItem(BaseModel):
+    """
+    Items the server chose not to process in the current response, grouped by typed
+    request array. Mirrors the typed-array shape of the request: currently only
+    `relations` is defined; future typed arrays (e.g. `functions`) will surface here
+    as sibling fields. Each entry is echoed from the corresponding request array
+    (e.g. `unprocessed.relations` holds `ResolveRelationItem` entries) so clients can
+    retry by re-submitting exactly those items.
+
+    """
+
+    relations: list[ResolveRelationItem] | None = Field(
+        None,
+        description='Relations (tables and views) the server chose not to process, echoed from the\nrequest so clients can retry.\n',
+    )
+
+
+class ResolveRelationNotModified(BaseModel):
+    """
+    `ResolveRelationResult` variant indicating the relation is a table whose
+    metadata matches the caller's ETag. No payload is returned; the current `etag`
+    is echoed back.
+
+    """
+
+    identifier: CatalogObjectIdentifier
+    status: Literal['not-modified']
+    etag: str = Field(..., description='Current ETag for the table metadata version.')
+
+
+class ResolveRelationNotFound(BaseModel):
+    """
+    `ResolveRelationResult` variant indicating no table or view exists for the
+    identifier. The item MAY include a structured `error` for parity with single-object
+    load errors.
+
+    """
+
+    identifier: CatalogObjectIdentifier
+    status: Literal['not-found']
+    error: ErrorModel | None = Field(
+        None, description='Optional structured error details for the missing relation.'
+    )
+
+
+class ResolveForbiddenResponse(ErrorModel):
+    """
+    Error response returned when the resolve request is forbidden due to lack of permissions
+    on one or more requested items. Extends the standard error model with a list of the
+    identifiers that were not accessible.
+
+    """
+
+    forbidden_identifiers: list[CatalogObjectIdentifier] = Field(
+        ...,
+        alias='forbidden-identifiers',
+        description='List of identifiers for which the authenticated user does not have permission.',
     )
 
 
@@ -1123,6 +1229,24 @@ class FailedPlanningResult(IcebergErrorResponse):
     )
 
 
+class ResolveRequest(BaseModel):
+    """
+    Request payload for `POST /v1/{prefix}/resolve`.
+
+    The body carries one or more typed arrays of items to resolve. Each typed array
+    identifies the object type by field name. Currently only `relations` (tables and
+    views) is defined. Future versions may add sibling arrays such as `functions`.
+    At least one typed array MUST be non-empty.
+
+    """
+
+    relations: list[ResolveRelationItem] | None = Field(
+        None,
+        description='Relations (tables and views) to resolve. Each item carries an identifier and\noptional per-item hints (`etag`, `snapshots`) that apply when the resolved\nrelation is a table.\n',
+        min_length=1,
+    )
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -1598,6 +1722,76 @@ class LoadViewResult(BaseModel):
     config: dict[str, str] | None = None
 
 
+class LoadTableRelationResult(BaseModel):
+    """
+    Table branch of `LoadRelationResult`.
+    The `table` field contains the same payload as `LoadTableResult`.
+
+    """
+
+    object_type: Literal['table'] = Field(
+        ..., alias='object-type', description='The type of a catalog object.\n'
+    )
+    table: LoadTableResult
+
+
+class LoadViewRelationResult(BaseModel):
+    """
+    View branch of `LoadRelationResult`.
+    The `view` field contains the same payload as `LoadViewResult`.
+
+    """
+
+    object_type: Literal['view'] = Field(
+        ..., alias='object-type', description='The type of a catalog object.\n'
+    )
+    view: LoadViewResult
+
+
+class ResolveResponse(BaseModel):
+    """
+    Response payload for `POST /v1/{prefix}/resolve`.
+
+    Each typed array in the request produces a corresponding response array of per-item
+    results. For `relations`, each result is a `ResolveRelationResult` whose `status`
+    discriminates between `loaded`, `not-modified`, and `not-found` outcomes.
+
+    The optional `unprocessed` object lists items the server chose not to process due
+    to internal cost or payload budgets (not due to request rejection; see
+    `resolve-max-items` in `CatalogConfig`). It is grouped by typed request array so
+    the shape generalizes uniformly as new typed arrays are added to the request.
+
+    """
+
+    relations: list[ResolveRelationResult] | None = Field(
+        None, description="One entry per item in the request's `relations` array.\n"
+    )
+    unprocessed: UnprocessedItem | None = Field(
+        None,
+        description='Items the server chose not to process due to internal cost or payload budgets\nafter accepting the request. Grouped by typed request array so the response\nmirrors the request shape; currently only `relations` is defined, and future\ntyped arrays (e.g. `functions`) will surface as sibling fields. Clients SHOULD\nretry unprocessed items in a subsequent request.\n',
+    )
+
+
+class ResolveRelationLoaded(BaseModel):
+    """
+    `ResolveRelationResult` variant indicating the relation exists and its
+    metadata is returned. When the relation is a table, `etag` MAY be included with
+    the current table metadata version.
+
+    """
+
+    identifier: CatalogObjectIdentifier
+    status: Literal['loaded']
+    result: LoadRelationResult = Field(
+        ...,
+        description='The loaded relation metadata. Uses the `object-type` discriminator to distinguish between table and view payloads.',
+    )
+    etag: str | None = Field(
+        None,
+        description='Current ETag for the table metadata version. Only set when the resolved relation is a table. Never set for views.',
+    )
+
+
 class ScanReport(BaseModel):
     table_name: str = Field(..., alias='table-name')
     snapshot_id: int = Field(..., alias='snapshot-id')
@@ -1802,6 +1996,28 @@ class FetchScanTasksResult(ScanTasks):
     """
 
 
+class LoadRelationResult(RootModel[LoadTableRelationResult | LoadViewRelationResult]):
+    root: LoadTableRelationResult | LoadViewRelationResult = Field(
+        ...,
+        description='Result of loading a catalog relation. The `object-type` field discriminates between table and view payloads.\n\nEach branch nests the type-specific result under a named key (`table` or `view`) so that\nfuture composite types such as materialized views can carry multiple payloads without\nfield-name collisions (e.g. `view` + `storage-table`).\n',
+        discriminator='object_type',
+    )
+
+
+class ResolveRelationResult(
+    RootModel[
+        ResolveRelationLoaded | ResolveRelationNotModified | ResolveRelationNotFound
+    ]
+):
+    root: (
+        ResolveRelationLoaded | ResolveRelationNotModified | ResolveRelationNotFound
+    ) = Field(
+        ...,
+        description='Per-item result for a relation in a resolve response. The `status` field\ndiscriminates between three outcomes for a single identifier:\n\n* `loaded` - the relation exists and metadata is returned in `result`\n* `not-modified` - the relation is a table and the provided ETag matches\n  (tables only)\n* `not-found` - no table or view exists for the identifier\n',
+        discriminator='status',
+    )
+
+
 class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -1860,6 +2076,8 @@ CommitTableRequest.model_rebuild()
 CommitViewRequest.model_rebuild()
 CreateTableRequest.model_rebuild()
 CreateViewRequest.model_rebuild()
+ResolveResponse.model_rebuild()
+ResolveRelationLoaded.model_rebuild()
 ScanReport.model_rebuild()
 PlanTableScanRequest.model_rebuild()
 FileScanTask.model_rebuild()

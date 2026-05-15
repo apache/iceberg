@@ -132,6 +132,8 @@ paths:
           - POST /v1/{prefix}/tables/rename
 
           - POST /v1/{prefix}/transactions/commit
+
+          - POST /v1/{prefix}/resolve
         "
       responses:
         200:
@@ -148,12 +150,14 @@ paths:
                   "clients": "4"
                 },
                 "idempotency-key-lifetime": "PT30M",
+                "resolve-max-items": 500,
                 "endpoints": [
                   "GET /v1/{prefix}/namespaces/{namespace}",
                   "GET /v1/{prefix}/namespaces",
                   "POST /v1/{prefix}/namespaces",
                   "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-                  "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+                  "GET /v1/{prefix}/namespaces/{namespace}/views/{view}",
+                  "POST /v1/{prefix}/resolve"
                 ]
               }
         400:
@@ -1940,6 +1944,90 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Resolve catalog objects to their current state
+      operationId: resolve
+      description:
+        "
+        Resolve one or more catalog objects to their current state in a single request.
+        The request body carries one or more typed arrays of items to resolve. Each typed
+        array specifies the object type by field name. Currently only `relations` is
+        defined (tables and views). The schema is designed to be extended with additional
+        typed arrays in the future (e.g. `functions`).
+
+
+        For each item in the `relations` array, the server resolves the identifier as a
+        table or view and returns one of three per-item outcomes (discriminated by the
+        `status` field on each entry in the response's `relations` array):
+
+        - `loaded` - The relation exists and its metadata is returned in `result` as a
+          `LoadRelationResult` (with `object-type` and the type-specific payload). For tables,
+          the current `etag` MAY also be included.
+
+        - `not-modified` - The relation is a table and the provided ETag matches the current
+          metadata version. No payload is returned; the current `etag` is echoed back.
+
+        - `not-found` - No table or view exists for the identifier. The item MAY include an
+          `error` with structured details.
+
+
+        Servers SHOULD advertise a maximum item count per request via the `resolve-max-items`
+        field in `CatalogConfig`. If a request exceeds that maximum (summed across all
+        typed arrays), the server MUST reject the whole request with `400`, and the error
+        response SHOULD include the applicable limit so clients can chunk and retry.
+
+
+        For requests within the advertised maximum, the server MAY still choose not to process
+        some items in order to cap total computation or response payload size. In that case it
+        returns `200` with the processed items in their respective typed arrays (e.g. `relations`)
+        and the remaining items under `unprocessed`, which is grouped by the same typed arrays
+        (e.g. `unprocessed.relations`). Each unprocessed entry is echoed from the corresponding
+        request array (same shape as the request item) so clients can retry by re-submitting
+        exactly those items. The two mechanisms are distinct: `resolve-max-items` governs whether
+        the request is accepted at all, while `unprocessed` reports partial progress within an
+        accepted request.
+
+
+        Authorization failures for any requested item SHOULD fail the entire request with `403`.
+        "
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveRequest'
+      responses:
+        200:
+          description: Resolve results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolveResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          description:
+            Forbidden - The authenticated user does not have permission for one or more of the
+            requested items. The response body includes the list of forbidden identifiers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolveForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
 components:
   #######################################################
   # Common Parameter Definitions Used In Several Routes #
@@ -2167,7 +2255,8 @@ components:
             "GET /v1/{prefix}/namespaces",
             "POST /v1/{prefix}/namespaces",
             "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}",
+            "POST /v1/{prefix}/resolve"
           ]
         idempotency-key-lifetime:
           type: string
@@ -2181,6 +2270,19 @@ components:
             subsequent attempt. Presence of this field indicates the server supports Idempotency-Key
             semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.
           example: PT30M
+        resolve-max-items:
+          type: integer
+          minimum: 1
+          description:
+            The maximum total number of items the server will accept in a single
+            `POST /v1/{prefix}/resolve` request (summed across all typed arrays, e.g. `relations`
+            and any future `functions`). If a request exceeds this limit, the server MUST reject it
+            with `400`. Clients SHOULD read this value and chunk their requests so that each call
+            stays at or below the limit. This limit is distinct from the server's internal
+            cost/payload budget, which is surfaced per response via `unprocessed`. If this field is
+            absent, clients SHOULD assume a conservative default (e.g., 100) and handle `400`
+            responses by reducing batch size.
+          example: 500
 
     CreateNamespaceRequest:
       type: object
@@ -2266,6 +2368,27 @@ components:
         name:
           type: string
           nullable: false
+
+    CatalogObjectIdentifier:
+      description:
+        Reference to a catalog object (table, view, or namespace) as an
+        ordered list of hierarchical levels.
+        The object kind is determined by context (e.g. the endpoint or a
+        companion CatalogObjectType discriminator), not by the identifier
+        structure alone.
+      type: array
+      items:
+        type: string
+      example: [ "accounting", "tax", "paid" ]
+
+    CatalogObjectType:
+      type: string
+      description: |
+        The type of a catalog object.
+      enum:
+        - table
+        - view
+        - namespace
 
     PrimitiveType:
       type: string
@@ -3831,6 +3954,251 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    LoadTableRelationResult:
+      description: |
+        Table branch of `LoadRelationResult`.
+        The `table` field contains the same payload as `LoadTableResult`.
+      type: object
+      required:
+        - object-type
+        - table
+      properties:
+        object-type:
+          $ref: '#/components/schemas/CatalogObjectType'
+          const: table
+        table:
+          $ref: '#/components/schemas/LoadTableResult'
+
+    LoadViewRelationResult:
+      description: |
+        View branch of `LoadRelationResult`.
+        The `view` field contains the same payload as `LoadViewResult`.
+      type: object
+      required:
+        - object-type
+        - view
+      properties:
+        object-type:
+          $ref: '#/components/schemas/CatalogObjectType'
+          const: view
+        view:
+          $ref: '#/components/schemas/LoadViewResult'
+
+    LoadRelationResult:
+      description: |
+        Result of loading a catalog relation. The `object-type` field discriminates between table and view payloads.
+
+        Each branch nests the type-specific result under a named key (`table` or `view`) so that
+        future composite types such as materialized views can carry multiple payloads without
+        field-name collisions (e.g. `view` + `storage-table`).
+      oneOf:
+        - $ref: '#/components/schemas/LoadTableRelationResult'
+        - $ref: '#/components/schemas/LoadViewRelationResult'
+      discriminator:
+        propertyName: object-type
+        mapping:
+          table: '#/components/schemas/LoadTableRelationResult'
+          view: '#/components/schemas/LoadViewRelationResult'
+
+    ResolveRequest:
+      description: |
+        Request payload for `POST /v1/{prefix}/resolve`.
+
+        The body carries one or more typed arrays of items to resolve. Each typed array
+        identifies the object type by field name. Currently only `relations` (tables and
+        views) is defined. Future versions may add sibling arrays such as `functions`.
+        At least one typed array MUST be non-empty.
+      type: object
+      properties:
+        relations:
+          type: array
+          minItems: 1
+          description: |
+            Relations (tables and views) to resolve. Each item carries an identifier and
+            optional per-item hints (`etag`, `snapshots`) that apply when the resolved
+            relation is a table.
+          items:
+            $ref: '#/components/schemas/ResolveRelationItem'
+
+    ResolveRelationItem:
+      description: |
+        A single relation to resolve as part of a `resolve` request. The identifier is a
+        `CatalogObjectIdentifier` (flat list of hierarchical levels). Optional parameters
+        (`etag`, `snapshots`) apply only when the resolved relation is a table; servers
+        MUST ignore them when the relation is a view.
+      type: object
+      required:
+        - identifier
+      properties:
+        identifier:
+          $ref: '#/components/schemas/CatalogObjectIdentifier'
+        etag:
+          type: string
+          description:
+            If provided and the resolved relation is a table, the server compares the value
+            against the current table metadata version. When it matches, the server returns
+            a `not-modified` result for this item. Servers MUST ignore this field when the
+            relation is a view.
+        snapshots:
+          type: string
+          enum: [ all, refs ]
+          description:
+            Controls which snapshots to return when the resolved relation is a table. Same
+            semantics as the `snapshots` query parameter on the single table load endpoint.
+            Servers MUST ignore this field when the resolved relation is a view.
+
+    ResolveResponse:
+      description: |
+        Response payload for `POST /v1/{prefix}/resolve`.
+
+        Each typed array in the request produces a corresponding response array of per-item
+        results. For `relations`, each result is a `ResolveRelationResult` whose `status`
+        discriminates between `loaded`, `not-modified`, and `not-found` outcomes.
+
+        The optional `unprocessed` object lists items the server chose not to process due
+        to internal cost or payload budgets (not due to request rejection; see
+        `resolve-max-items` in `CatalogConfig`). It is grouped by typed request array so
+        the shape generalizes uniformly as new typed arrays are added to the request.
+      type: object
+      properties:
+        relations:
+          type: array
+          description: |
+            One entry per item in the request's `relations` array.
+          items:
+            $ref: '#/components/schemas/ResolveRelationResult'
+        unprocessed:
+          $ref: '#/components/schemas/UnprocessedItem'
+          description: |
+            Items the server chose not to process due to internal cost or payload budgets
+            after accepting the request. Grouped by typed request array so the response
+            mirrors the request shape; currently only `relations` is defined, and future
+            typed arrays (e.g. `functions`) will surface as sibling fields. Clients SHOULD
+            retry unprocessed items in a subsequent request.
+
+    UnprocessedItem:
+      description: |
+        Items the server chose not to process in the current response, grouped by typed
+        request array. Mirrors the typed-array shape of the request: currently only
+        `relations` is defined; future typed arrays (e.g. `functions`) will surface here
+        as sibling fields. Each entry is echoed from the corresponding request array
+        (e.g. `unprocessed.relations` holds `ResolveRelationItem` entries) so clients can
+        retry by re-submitting exactly those items.
+      type: object
+      properties:
+        relations:
+          type: array
+          description: |
+            Relations (tables and views) the server chose not to process, echoed from the
+            request so clients can retry.
+          items:
+            $ref: '#/components/schemas/ResolveRelationItem'
+
+    ResolveRelationLoaded:
+      description: |
+        `ResolveRelationResult` variant indicating the relation exists and its
+        metadata is returned. When the relation is a table, `etag` MAY be included with
+        the current table metadata version.
+      type: object
+      required:
+        - identifier
+        - status
+        - result
+      properties:
+        identifier:
+          $ref: '#/components/schemas/CatalogObjectIdentifier'
+        status:
+          type: string
+          const: loaded
+        result:
+          $ref: '#/components/schemas/LoadRelationResult'
+          description:
+            The loaded relation metadata. Uses the `object-type` discriminator to
+            distinguish between table and view payloads.
+        etag:
+          type: string
+          description:
+            Current ETag for the table metadata version. Only set when the resolved
+            relation is a table. Never set for views.
+
+    ResolveRelationNotModified:
+      description: |
+        `ResolveRelationResult` variant indicating the relation is a table whose
+        metadata matches the caller's ETag. No payload is returned; the current `etag`
+        is echoed back.
+      type: object
+      required:
+        - identifier
+        - status
+        - etag
+      properties:
+        identifier:
+          $ref: '#/components/schemas/CatalogObjectIdentifier'
+        status:
+          type: string
+          const: not-modified
+        etag:
+          type: string
+          description:
+            Current ETag for the table metadata version.
+
+    ResolveRelationNotFound:
+      description: |
+        `ResolveRelationResult` variant indicating no table or view exists for the
+        identifier. The item MAY include a structured `error` for parity with single-object
+        load errors.
+      type: object
+      required:
+        - identifier
+        - status
+      properties:
+        identifier:
+          $ref: '#/components/schemas/CatalogObjectIdentifier'
+        status:
+          type: string
+          const: not-found
+        error:
+          $ref: '#/components/schemas/ErrorModel'
+          description:
+            Optional structured error details for the missing relation.
+
+    ResolveRelationResult:
+      description: |
+        Per-item result for a relation in a resolve response. The `status` field
+        discriminates between three outcomes for a single identifier:
+
+        * `loaded` - the relation exists and metadata is returned in `result`
+        * `not-modified` - the relation is a table and the provided ETag matches
+          (tables only)
+        * `not-found` - no table or view exists for the identifier
+      oneOf:
+        - $ref: '#/components/schemas/ResolveRelationLoaded'
+        - $ref: '#/components/schemas/ResolveRelationNotModified'
+        - $ref: '#/components/schemas/ResolveRelationNotFound'
+      discriminator:
+        propertyName: status
+        mapping:
+          loaded: '#/components/schemas/ResolveRelationLoaded'
+          not-modified: '#/components/schemas/ResolveRelationNotModified'
+          not-found: '#/components/schemas/ResolveRelationNotFound'
+
+    ResolveForbiddenResponse:
+      description: |
+        Error response returned when the resolve request is forbidden due to lack of permissions
+        on one or more requested items. Extends the standard error model with a list of the
+        identifiers that were not accessible.
+      allOf:
+        - $ref: '#/components/schemas/ErrorModel'
+        - type: object
+          required:
+            - forbidden-identifiers
+          properties:
+            forbidden-identifiers:
+              type: array
+              description: List of identifiers for which the authenticated user does not have permission.
+              items:
+                $ref: '#/components/schemas/CatalogObjectIdentifier'
 
     RegisterViewRequest:
       type: object
