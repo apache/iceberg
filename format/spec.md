@@ -676,7 +676,7 @@ The `data_file` struct consists of the following fields:
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
-The v4 `content_stats` struct stores field-level metrics. Unlike the metrics maps, the type of `content_stats` is based on table metadata, like schema. Similar to the `partition` struct, the same type is used for all files tracked in a manifest.
+The v4 `content_stats` container struct stores field-level metrics. Unlike the metrics maps, the type of `content_stats` is based on table metadata, like schema. Similar to the `partition` struct, the same type is used for all files tracked in a manifest.
 
 Notes:
 
@@ -815,7 +815,7 @@ For example, stats for an optional `geometry` field named `location` with field-
   }
   10_804: optional long value_count;
   10_805: optional long null_value_count;
-  // tight_bounds / nan_value_count / avg_value_size_in_bytes are not stored for geo types
+  // tight_bounds, nan_value_count, avg_value_size_in_bytes are omitted for geo types
 }
 ```
 
@@ -823,7 +823,7 @@ For `variant`, both bounds are unshredded `variant` that store variant field bou
 
 ###### Content Stats in Manifests
 
-Manifest files are written using a specific `content_stats` struct type, determined by the writer and incorporated into the manifest schema. All field-level structs are optional fields in the `content_stats` struct.
+Manifest files are written using a specific `content_stats` container struct type, determined by the writer and incorporated into the manifest schema. All field-level structs are optional fields in the `content_stats` struct.
 
 For example, stats for a table with a required int, `id`, and an optional string, `data`, are stored as:
 
@@ -851,7 +851,7 @@ For example, stats for a table with a required int, `id`, and an optional string
 
 Implementations may produce stats structs for fields that are not in the table schema, if a field ID from the table's column ID space is assigned for the data values (by allocating an ID using `last-column-id`). Implementations are not required to write a stats struct for every table field.
 
-Fields with stats tracked in `content_stats` change based on updates like schema evolution or metrics configuration. Writers adapt to table changes by writing new manifest files with the implementation's current `content_stats` type. When existing file metadata is written to new manifests, writers must discard old stats, set unknown stats structs to null, and promote lower and upper bounds types to conform to the manifest schema.
+Fields with stats tracked in `content_stats` change based on updates like schema evolution or metrics configuration. Writers adapt to table changes by writing new manifest files with the implementation's current `content_stats` type. When existing file metadata is written to new manifests, writers must update `content_stats` by discarding old stats (for removed fields), set unknown stats structs to null (for added fields), and promote lower and upper bounds types (for type promotion) to conform to the manifest schema.
 
 A simple (and recommended) way for writers to adapt existing metadata for table changes is to read manifests with the implementation's current `content_stats` type and apply schema evolution rules, such as reading `int` as `long` for promoted fields.
 
