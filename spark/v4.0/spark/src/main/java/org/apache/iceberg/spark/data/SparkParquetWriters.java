@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
@@ -455,7 +456,8 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, UTF8String string) {
-      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(string.getBytes(), BUFFER.get());
+      UUID uuid = UUID.fromString(string.toString());
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(uuid, BUFFER.get());
       column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
     }
   }
