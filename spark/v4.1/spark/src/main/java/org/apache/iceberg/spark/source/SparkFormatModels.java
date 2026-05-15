@@ -53,7 +53,7 @@ public class SparkFormatModels {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
             new SparkVariantShreddingAnalyzer(),
-            structType -> InternalRow::copy));
+            unused -> InternalRow::copy));
 
     FormatModelRegistry.register(
         ParquetFormatModel.create(
