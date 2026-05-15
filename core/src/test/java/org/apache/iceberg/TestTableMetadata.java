@@ -40,6 +40,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -55,6 +56,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.BaseEncryptedKey;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
@@ -2067,5 +2070,120 @@ public class TestTableMetadata {
     assertThatThrownBy(() -> TableMetadata.buildFrom(withS1).addSnapshot(staleSnapshot))
         .isInstanceOf(RetryableValidationException.class)
         .hasMessageContaining("Cannot add a snapshot, first-row-id is behind table next-row-id");
+  }
+
+  @Test
+  public void testRemoveSnapshotsRemovesAssociatedEncryptionKey() {
+    EncryptedKey keptKey =
+        new BaseEncryptedKey("kept-key", ByteBuffer.wrap(new byte[] {1}), null, null);
+    EncryptedKey removedKey =
+        new BaseEncryptedKey("removed-key", ByteBuffer.wrap(new byte[] {2}), null, null);
+
+    Snapshot retained =
+        new BaseSnapshot(
+            1,
+            1L,
+            null,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s1.avro",
+            null,
+            null,
+            "kept-key");
+    Snapshot toRemove =
+        new BaseSnapshot(
+            2,
+            2L,
+            null,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s2.avro",
+            null,
+            null,
+            "removed-key");
+
+    TableMetadata withTwoSnapshots =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA, PartitionSpec.unpartitioned(), "location", ImmutableMap.of()))
+            .addEncryptionKey(keptKey)
+            .addEncryptionKey(removedKey)
+            .addSnapshot(retained)
+            .addSnapshot(toRemove)
+            .setBranchSnapshot(retained.snapshotId(), SnapshotRef.MAIN_BRANCH)
+            .build();
+
+    TableMetadata afterRemoval =
+        TableMetadata.buildFrom(withTwoSnapshots)
+            .removeSnapshots(ImmutableList.of(toRemove))
+            .build();
+
+    assertThat(afterRemoval.encryptionKeys())
+        .as("removeSnapshots keeps encryption keys not associated with removed snapshot")
+        .extracting(EncryptedKey::keyId)
+        .containsExactly("kept-key");
+    assertThat(afterRemoval.changes())
+        .as("removeSnapshots removes encryption keys associated with removed snapshots")
+        .filteredOn(MetadataUpdate.RemoveEncryptionKey.class::isInstance)
+        .extracting(c -> ((MetadataUpdate.RemoveEncryptionKey) c).keyId())
+        .containsExactly("removed-key");
+  }
+
+  @Test
+  public void testRemoveSnapshotsWithNullKeyIdKeepsEncryptionKeys() {
+    EncryptedKey unrelatedKey =
+        new BaseEncryptedKey("unrelated", ByteBuffer.wrap(new byte[] {3}), null, null);
+
+    Snapshot retained =
+        new BaseSnapshot(
+            1,
+            1L,
+            null,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s1.avro",
+            null,
+            null,
+            null);
+    Snapshot toRemove =
+        new BaseSnapshot(
+            2,
+            2L,
+            null,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s2.avro",
+            null,
+            null,
+            null);
+
+    TableMetadata base =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA, PartitionSpec.unpartitioned(), "location", ImmutableMap.of()))
+            .addEncryptionKey(unrelatedKey)
+            .addSnapshot(retained)
+            .addSnapshot(toRemove)
+            .setBranchSnapshot(retained.snapshotId(), SnapshotRef.MAIN_BRANCH)
+            .build();
+
+    TableMetadata afterRemoval =
+        TableMetadata.buildFrom(base).removeSnapshots(ImmutableList.of(toRemove)).build();
+
+    assertThat(afterRemoval.encryptionKeys())
+        .as("encryption keys are not removed when a snapshot with no encryption key is removed")
+        .extracting(EncryptedKey::keyId)
+        .containsExactly("unrelated");
+    assertThat(afterRemoval.changes())
+        .as("No RemoveEncryptionKey change should be emitted when removed snapshot has null keyId")
+        .noneMatch(MetadataUpdate.RemoveEncryptionKey.class::isInstance);
   }
 }
