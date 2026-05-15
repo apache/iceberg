@@ -104,7 +104,6 @@ jobs:
         with:
           # Writes cache on main; read-only otherwise.
           cache-read-only: ${{ !(github.ref == 'refs/heads/main' && matrix.jvm == 17 && matrix.spark == '4.1' && matrix.scala == '2.13') }}
-          gradle-home-cache-cleanup: true
           gradle-home-cache-excludes: |
             caches/build-cache-1
             caches/keyrings
