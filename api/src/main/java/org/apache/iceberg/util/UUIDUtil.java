@@ -178,9 +178,10 @@ public class UUIDUtil {
   }
 
   private static void formatHex(byte[] out, int offset, long value, int digits) {
+    long bits = value;
     for (int i = digits - 1; i >= 0; i -= 1) {
-      out[offset + i] = HEX_DIGITS[(int) (value & 0xF)];
-      value >>>= 4;
+      out[offset + i] = HEX_DIGITS[(int) (bits & 0xF)];
+      bits >>>= 4;
     }
   }
 

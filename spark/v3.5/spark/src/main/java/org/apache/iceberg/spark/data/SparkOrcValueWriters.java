@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.orc.OrcValueWriter;
@@ -87,7 +88,7 @@ class SparkOrcValueWriters {
       // ((BytesColumnVector) output).setRef(..) just stores a reference to the passed byte[], so
       // can't use a ThreadLocal ByteBuffer here like in other places because subsequent writes
       // would then overwrite previous values
-      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(data.getBytes(), null);
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(UUID.fromString(data.toString()));
       ((BytesColumnVector) output).setRef(rowId, buffer.array(), 0, buffer.array().length);
     }
   }
