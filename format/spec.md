@@ -192,33 +192,33 @@ Path strings stored in Iceberg metadata location fields are classified as one of
 * **Absolute path** -- A path string that includes a [URI scheme](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) (e.g., `s3:`, `gs:`, `hdfs:`, `file:`). Absolute paths are used as-is without modification.
 * **Relative path** -- A path string that does not include a URI scheme. Relative paths must be resolved against the table's base location before use.
 
-Prior to v4, all path fields must contain fully-qualified paths. Starting with v4, path fields may contain either absolute or relative paths. Directory navigation symbols (`.` and `..`) and other file system conventions are not supported in relative paths.
+Prior to v4, all path fields must contain fully-qualified paths. Starting with v4, path fields may contain either absolute or relative paths. [Relative resolution within a URI](https://datatracker.ietf.org/doc/html/rfc3986#section-5.2) (e.g. `.` and `..`) and other file system navigation conventions are not supported in relative paths.
 
 #### Path Resolution
 
 Path resolution is the process of producing an absolute path from a relative path by combining it with the table's base location:
 
 * If the path contains a URI scheme, it is absolute and is used without modification.
-* If the path does not contain a URI scheme, the resolved path is the table location followed by the relative path.
+* If the path does not contain a URI scheme, the resolved path is the table location followed by the relative path joined by the URI separator character `/`.
 
-Paths used as prefixes must not end in a path separator. The relative portion is appended to the prefix without introduction of any additional separator characters.
+Paths used as prefixes should not end in a path separator. The relative portion is joined to the prefix without consideration of any additional separator characters.
 
 Any path from a manifest produced prior to v4 is a fully-qualified path and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
 
 Examples of path resolution:
 
-|                 | Format Version | Table Location       | File Path                                 | Resolved Path                             | Description                         |
-|-----------------|----------------|----------------------|-------------------------------------------|-------------------------------------------|-------------------------------------|
-| Relative Path   | v4             | s3://bucket/db/table | /data/00000-0.parquet                     | s3://bucket/db/table/data/00000-0.parquet | Path parts are joined               |
-| Absolute Path   | v4             | s3://bucket/db/table | hdfs:/wh/db/table/data/00000-0.parquet    | hdfs://wh/db/table/data/00000-0.parquet   | Absolute path is used               |
-| Fully-qualified | v3 and earlier | s3://bucket/db/table | s3://bucket/db/table/data/00000-0.parquet | s3://bucket/db/table/data/00000-0.parquet | Fully-qualified path is used        |
-| Missing scheme  | v3 and earlier | /wh/db/table         | /wh/db/table/data/00000-0.parquet         | hdfs:/wh/db/table/data/00000-0.parquet    | Scheme is prepended for consistency |
+|                 | Format Version | Table Location       | File Path                                | Resolved Path                             | Description |
+|-----------------|----------------|----------------------|------------------------------------------|-------------------------------------------|-------------|
+| Relative Path   | v4             | s3://bucket/db/table | data/00000-0.parquet                     | s3://bucket/db/table/data/00000-0.parquet | Path parts are joined on `/` |
+| Absolute Path   | v4             | s3://bucket/db/table | hdfs:/wh/db/table/data/00000-0.parquet   | hdfs://wh/db/table/data/00000-0.parquet   | Absolute path is used |
+| Fully-qualified | v3 and earlier | s3://bucket/db/table | s3://bucket/db/table/data/00000-0.parquet | s3://bucket/db/table/data/00000-0.parquet | Fully-qualified path is used |
+| Missing scheme  | v3 and earlier | /wh/db/table         | /wh/db/table/data/00000-0.parquet        | hdfs:/wh/db/table/data/00000-0.parquet    | Scheme is prepended for consistency |
 
 #### Path Relativization
 
 Path relativization is the process of converting an absolute path to a relative path by removing the table location prefix. This is used when persisting paths to metadata files.
 
-* If an absolute path starts with the table location, the table location prefix should be removed and the remaining relative portion stored.
+* If an absolute path starts with the table location, the table location prefix should be removed along with the separator character and the remaining relative portion stored.
 * If an absolute path does not start with the table location, it is stored as an absolute path.
 
 #### Table Location Specification
@@ -1895,12 +1895,12 @@ The table properties `write.metadata.path` and `write.data.path` control where m
 For all metadata files:
 
 * If `write.metadata.path` is an absolute path, it is used directly as the base for new metadata files.
-* If `write.metadata.path` is a relative path, the metadata base is the table location followed by the `write.metadata.path` value.
+* If `write.metadata.path` is a relative path, the metadata base is the table location joined to the `write.metadata.path` value with a URI separator `/`.
 
 For data files:
 
 * If `write.data.path` is an absolute path, it is used directly as the base for new data files.
-* If `write.data.path` is a relative path, the base is the table location followed by the `write.data.path` value.
+* If `write.data.path` is a relative path, the base is the table location joined to the `write.data.path` value with a URI separator `/`.
 
 When persisting paths into metadata, writers should relativize paths against the table location (see [Path Relativization](#path-relativization)). If a file's absolute path shares a common prefix with the table location, the relative portion should be stored. Otherwise, the absolute path should be stored.
 
