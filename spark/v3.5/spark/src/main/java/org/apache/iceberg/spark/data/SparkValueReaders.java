@@ -141,7 +141,8 @@ public class SparkValueReaders {
 
       decoder.readFixed(buffer.array(), 0, 16);
 
-      return UTF8String.fromString(UUIDUtil.convert(buffer).toString());
+      // a fresh array is required because UTF8String.fromBytes wraps it without copying
+      return UTF8String.fromBytes(UUIDUtil.convertToStringBytes(buffer, null));
     }
   }
 

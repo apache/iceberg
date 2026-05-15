@@ -193,7 +193,8 @@ public class SparkOrcValueReaders {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
       ByteBuffer buffer =
           ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
-      return UTF8String.fromString(UUIDUtil.convert(buffer).toString());
+      // a fresh array is required because UTF8String.fromBytes wraps it without copying
+      return UTF8String.fromBytes(UUIDUtil.convertToStringBytes(buffer, null));
     }
   }
 
