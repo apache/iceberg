@@ -110,5 +110,5 @@ public class FlinkWriteOptions {
       ConfigOptions.key("shred-variants").booleanType().defaultValue(false);
 
   public static final ConfigOption<Integer> VARIANT_INFERENCE_BUFFER_SIZE =
-      ConfigOptions.key("variant-inference-buffer-size").intType().defaultValue(100);
+      ConfigOptions.key("variant-inference-buffer-size").intType().noDefaultValue();
 }
