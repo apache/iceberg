@@ -135,8 +135,7 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 All location fields in format versions 3 and prior contain fully-qualified paths.
 
-Version 4 of the Iceberg spec adds support for relative locations in metadata, enabling tables to be relocated without rewriting metadata files. Relative locations are allowed in all metadata tracked location fields and are resolved against the table's base location. The table's location may be fixed in table metadata or inferred, but is intended to be managed and supplied by a catalog.
-Requirements for relativization and resolution are in [Relative Paths](#path-resolution)
+Version 4 of the Iceberg spec adds support for relative locations in metadata, enabling tables to be relocated without rewriting metadata files. Relative locations are allowed in all metadata tracked location fields and are resolved against the table's base location. The table's location may be fixed in table metadata or inferred, but is intended to be managed and supplied by a catalog. Requirements for relativization and resolution are in [Relative Paths](#path-resolution)
 
 ## Specification
 
@@ -189,8 +188,8 @@ Writers are not allowed to commit files with a partition spec that contains a fi
 
 Path strings stored in Iceberg metadata location fields are classified as one of two types:
 
-* **Absolute path** -- A path string that includes a [URI scheme](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) (e.g., `s3:`, `gs:`, `hdfs:`, `file:`). Absolute paths are used as-is without modification.
-* **Relative path** -- A path string that does not include a URI scheme. Relative paths must be resolved against the table's base location before use.
+* **Absolute path** -- A path string that starts with a [URI scheme](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) (e.g., `s3:`, `gs:`, `hdfs:`, `file:`). Absolute paths are used as-is without modification.
+* **Relative path** -- A path string that does not start with a URI scheme. Relative paths must be resolved against the table's base location before use.
 
 Prior to v4, all path fields must contain fully-qualified paths. Starting with v4, path fields may contain either absolute or relative paths. [Relative resolution within a URI](https://datatracker.ietf.org/doc/html/rfc3986#section-5.2) (e.g. `.` and `..`) and other file system navigation conventions are not supported in relative paths.
 
@@ -201,29 +200,31 @@ Path resolution is the process of producing an absolute path from a relative pat
 * If the path contains a URI scheme, it is absolute and is used without modification.
 * If the path does not contain a URI scheme, the resolved path is the table location followed by the relative path joined by the URI separator character `/`.
 
-Paths used as prefixes should not end in a path separator. The relative portion is joined to the prefix without consideration of any additional separator characters.
+The relative portion is joined to the prefix (table location) without consideration of any additional separator characters. The recommended convention for table location is to not end in a path separator because the join process would add a second separator character. (See example below).
 
 Any path from a manifest produced prior to v4 is a fully-qualified path and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
 
 Examples of path resolution:
 
-|                 | Format Version | Table Location       | File Path                                | Resolved Path                             | Description |
-|-----------------|----------------|----------------------|------------------------------------------|-------------------------------------------|-------------|
-| Relative Path   | v4             | s3://bucket/db/table | data/00000-0.parquet                     | s3://bucket/db/table/data/00000-0.parquet | Path parts are joined on `/` |
-| Absolute Path   | v4             | s3://bucket/db/table | hdfs:/wh/db/table/data/00000-0.parquet   | hdfs://wh/db/table/data/00000-0.parquet   | Absolute path is used |
-| Fully-qualified | v3 and earlier | s3://bucket/db/table | s3://bucket/db/table/data/00000-0.parquet | s3://bucket/db/table/data/00000-0.parquet | Fully-qualified path is used |
-| Missing scheme  | v3 and earlier | /wh/db/table         | /wh/db/table/data/00000-0.parquet        | hdfs:/wh/db/table/data/00000-0.parquet    | Scheme is prepended for consistency |
+|                     | Format Version | Table Location        | File Path                                 | Resolved Path                              | Description                         |
+|---------------------|----------------|-----------------------|-------------------------------------------|--------------------------------------------|-------------------------------------|
+| Relative Path       | v4             | s3://bucket/db/table  | data/00000-0.parquet                      | s3://bucket/db/table/data/00000-0.parquet  | Path parts are joined on `/`        |
+| Absolute Path       | v4             | s3://bucket/db/table  | hdfs:/wh/db/table/data/00000-0.parquet    | hdfs://wh/db/table/data/00000-0.parquet    | Absolute path is used               |
+| Duplicate separator | v4             | s3://bucket/db/table/ | data/00000-0.parquet                      | s3://bucket/db/table//data/00000-0.parquet | Join results in duplicate `//`      |
+| Duplicate separator | v4             | s3://bucket/db/table  | /data/00000-0.parquet                     | s3://bucket/db/table//data/00000-0.parquet | Join results in duplicate `//`      |
+| Fully-qualified     | v3 and earlier | s3://bucket/db/table  | s3://bucket/db/table/data/00000-0.parquet | s3://bucket/db/table/data/00000-0.parquet  | Fully-qualified path is used        |
+| Missing scheme      | v3 and earlier | /wh/db/table          | /wh/db/table/data/00000-0.parquet         | hdfs:/wh/db/table/data/00000-0.parquet     | Scheme is prepended for consistency |
 
 #### Path Relativization
 
 Path relativization is the process of converting an absolute path to a relative path by removing the table location prefix. This is used when persisting paths to metadata files.
 
-* If an absolute path starts with the table location, the table location prefix should be removed along with the separator character and the remaining relative portion stored.
-* If an absolute path does not start with the table location, it is stored as an absolute path.
+* If an absolute path starts with the table location immediately followed by a separator character, the relative path is the remainder of the string after the separator character.
+* If an absolute path does not start with the table location immediately followed by the separator character, it is stored as an absolute path.
 
 #### Table Location Specification
 
-When the `location` field is present in table metadata, it is used directly as the table's base location. When the `location` field is not present (v4 and later), the table location must be provided.  How the table location is persisted or determined when not specified in metadata is not a table-level concern; catalogs should and provide a table's location
+When the `location` field is present in table metadata, it is used directly as the table's base location. When the `location` field is not present (v4 and later), the table location must be provided.  How the table location is persisted or determined when not specified in metadata is not a table-level concern; catalogs should provide a table's location
 
 ### Schemas and Data Types
 
@@ -1890,7 +1891,7 @@ This section covers topics not required by the specification but recommendations
 
 Path construction is the process by which new file locations are created for output files referenced by metadata. While the specific construction logic is not strictly required by the spec, the following guidance is provided for reference implementations to encourage consistency.
 
-The table properties `write.metadata.path` and `write.data.path` control where metadata and data files are written relative to the table location. When not specified, these default to the values `metadata` and `data` respectively.
+The table properties `write.metadata.path` and `write.data.path` control where metadata and data files are written. When not specified, these default to the values `metadata` and `data` respectively.
 
 For all metadata files:
 
