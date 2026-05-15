@@ -19,9 +19,11 @@
 package org.apache.iceberg.puffin;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.iceberg.puffin.PuffinCompressionCodec.LZ4;
 import static org.apache.iceberg.puffin.PuffinCompressionCodec.NONE;
 import static org.apache.iceberg.puffin.PuffinCompressionCodec.ZSTD;
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE;
+import static org.apache.iceberg.puffin.PuffinFormatTestUtil.SAMPLE_METRIC_DATA_COMPRESSED_LZ4_FOOTER_SIZE;
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE;
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.readTestResource;
 import static org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap.toImmutableMap;
@@ -98,6 +100,11 @@ public class TestPuffinReader {
     testReadMetricData("v1/sample-metric-data-compressed-zstd.bin", ZSTD);
   }
 
+  @Test
+  public void testReadMetricDataCompressedLz4() throws Exception {
+    testReadMetricData("v1/sample-metric-data-compressed-lz4.bin", LZ4);
+  }
+
   private void testReadMetricData(String resourceName, PuffinCompressionCodec expectedCodec)
       throws Exception {
     InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource(resourceName));
@@ -149,6 +156,20 @@ public class TestPuffinReader {
     try (PuffinReader reader =
         Puffin.read(inputFile)
             .withFooterSize(SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE)
+            .build()) {
+      assertThat(reader.fileMetadata().properties())
+          .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
+    }
+  }
+
+  @Test
+  public void testValidateLz4FooterSizeValue() throws Exception {
+    // Ensure the definition of SAMPLE_METRIC_DATA_COMPRESSED_LZ4_FOOTER_SIZE remains accurate
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile(readTestResource("v1/sample-metric-data-compressed-lz4.bin"));
+    try (PuffinReader reader =
+        Puffin.read(inputFile)
+            .withFooterSize(SAMPLE_METRIC_DATA_COMPRESSED_LZ4_FOOTER_SIZE)
             .build()) {
       assertThat(reader.fileMetadata().properties())
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));

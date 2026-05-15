@@ -19,8 +19,10 @@
 package org.apache.iceberg.puffin;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.iceberg.puffin.PuffinCompressionCodec.LZ4;
 import static org.apache.iceberg.puffin.PuffinCompressionCodec.NONE;
 import static org.apache.iceberg.puffin.PuffinCompressionCodec.ZSTD;
+import static org.apache.iceberg.puffin.PuffinFormatTestUtil.EMPTY_PUFFIN_COMPRESSED_FOOTER_SIZE;
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE;
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.readTestResource;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,19 +48,21 @@ public class TestPuffinWriter {
   @TempDir private Path temp;
 
   @Test
-  public void testEmptyFooterCompressed() {
+  public void testEmptyFooterCompressed() throws Exception {
     InMemoryOutputFile outputFile = new InMemoryOutputFile();
 
     PuffinWriter writer = Puffin.write(outputFile).compressFooter().build();
     assertThatThrownBy(writer::footerSize)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Footer not written yet");
-    assertThatThrownBy(writer::finish)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported codec: LZ4");
-    assertThatThrownBy(writer::close)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported codec: LZ4");
+    writer.finish();
+    assertThat(writer.footerSize()).isEqualTo(EMPTY_PUFFIN_COMPRESSED_FOOTER_SIZE);
+    writer.close();
+    assertThat(outputFile.toByteArray())
+        .isEqualTo(readTestResource("v1/empty-puffin-compressed-footer.bin"));
+    // footerSize is still accessible after close()
+    assertThat(writer.footerSize()).isEqualTo(EMPTY_PUFFIN_COMPRESSED_FOOTER_SIZE);
+    assertThat(writer.writtenBlobsMetadata()).isEmpty();
   }
 
   @Test
@@ -96,6 +100,11 @@ public class TestPuffinWriter {
   @Test
   public void testWriteMetricDataCompressedZstd() throws Exception {
     testWriteMetric(ZSTD, "v1/sample-metric-data-compressed-zstd.bin");
+  }
+
+  @Test
+  public void testWriteMetricDataCompressedLz4() throws Exception {
+    testWriteMetric(LZ4, "v1/sample-metric-data-compressed-lz4.bin");
   }
 
   @ParameterizedTest

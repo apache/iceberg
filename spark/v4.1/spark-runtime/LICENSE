@@ -411,6 +411,14 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles lz4-java.
+
+Copyright: 2020 Adrien Grand and the lz4-java contributors.
+Project URL: https://github.com/lz4/lz4-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product includes code from Cloudera Kite.
 
 Copyright: 2013-2017 Cloudera Inc.

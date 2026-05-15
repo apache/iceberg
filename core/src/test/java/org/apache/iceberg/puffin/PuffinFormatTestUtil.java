@@ -26,8 +26,14 @@ public final class PuffinFormatTestUtil {
   // footer size for v1/empty-puffin-uncompressed.bin
   public static final long EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE = 28;
 
+  // footer size for v1/empty-puffin-compressed-footer.bin
+  public static final long EMPTY_PUFFIN_COMPRESSED_FOOTER_SIZE = 51;
+
   // footer size for v1/sample-metric-data-compressed-zstd.bin
   public static final long SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE = 314;
+
+  // footer size for v1/sample-metric-data-compressed-lz4.bin
+  public static final long SAMPLE_METRIC_DATA_COMPRESSED_LZ4_FOOTER_SIZE = 312;
 
   static byte[] readTestResource(String resourceName) throws Exception {
     return Resources.toByteArray(Resources.getResource(PuffinFormatTestUtil.class, resourceName));

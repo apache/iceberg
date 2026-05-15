@@ -21,15 +21,23 @@ package org.apache.iceberg.puffin;
 import io.airlift.compress.Compressor;
 import io.airlift.compress.zstd.ZstdCompressor;
 import io.airlift.compress.zstd.ZstdDecompressor;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import net.jpountz.lz4.LZ4FrameInputStream;
+import net.jpountz.lz4.LZ4FrameOutputStream;
+import net.jpountz.lz4.LZ4FrameOutputStream.BLOCKSIZE;
+import net.jpountz.lz4.LZ4FrameOutputStream.FLG;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
 
@@ -108,9 +116,7 @@ final class PuffinFormat {
       case NONE:
         return input.duplicate();
       case LZ4:
-        // TODO requires LZ4 frame compressor, e.g.
-        // https://github.com/airlift/aircompressor/pull/142
-        break;
+        return compressLz4(input);
       case ZSTD:
         return compress(new ZstdCompressor(), input);
     }
@@ -130,15 +136,40 @@ final class PuffinFormat {
         return input.duplicate();
 
       case LZ4:
-        // TODO requires LZ4 frame decompressor, e.g.
-        // https://github.com/airlift/aircompressor/pull/142
-        break;
+        return decompressLz4(input);
 
       case ZSTD:
         return decompressZstd(input);
     }
 
     throw new UnsupportedOperationException("Unsupported codec: " + codec);
+  }
+
+  private static ByteBuffer compressLz4(ByteBuffer input) {
+    byte[] inputBytes = ByteBuffers.toByteArray(input);
+    ByteArrayOutputStream output = new ByteArrayOutputStream(inputBytes.length);
+    try (LZ4FrameOutputStream lz4Out =
+        new LZ4FrameOutputStream(
+            output,
+            BLOCKSIZE.SIZE_4MB,
+            inputBytes.length,
+            FLG.Bits.BLOCK_INDEPENDENCE,
+            FLG.Bits.CONTENT_SIZE)) {
+      lz4Out.write(inputBytes);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return ByteBuffer.wrap(output.toByteArray());
+  }
+
+  private static ByteBuffer decompressLz4(ByteBuffer input) {
+    byte[] inputBytes = ByteBuffers.toByteArray(input);
+    try (LZ4FrameInputStream lz4In =
+        new LZ4FrameInputStream(new ByteArrayInputStream(inputBytes))) {
+      return ByteBuffer.wrap(ByteStreams.toByteArray(lz4In));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private static ByteBuffer decompressZstd(ByteBuffer input) {

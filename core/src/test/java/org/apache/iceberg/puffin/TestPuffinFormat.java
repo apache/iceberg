@@ -28,7 +28,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class TestPuffinFormat {
   @Test
@@ -72,6 +75,28 @@ public class TestPuffinFormat {
         "Invalid expected value");
     // actual test
     assertThat(readIntegerLittleEndian(input, offset)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @EnumSource(PuffinCompressionCodec.class)
+  public void testCompressDecompressRoundtrip(PuffinCompressionCodec codec) {
+    // mix of repeated runs (compressible) and varying bytes, including a NUL
+    byte[] original = new byte[2048];
+    for (int i = 0; i < original.length; i++) {
+      original[i] = (byte) ((i / 16) % 7 == 0 ? 0 : (i * 31 + (i / 13)));
+    }
+
+    ByteBuffer compressed = PuffinFormat.compress(codec, ByteBuffer.wrap(original));
+    ByteBuffer decompressed = PuffinFormat.decompress(codec, compressed.duplicate());
+    assertThat(ByteBuffers.toByteArray(decompressed)).isEqualTo(original);
+  }
+
+  @ParameterizedTest
+  @EnumSource(PuffinCompressionCodec.class)
+  public void testCompressDecompressEmpty(PuffinCompressionCodec codec) {
+    ByteBuffer compressed = PuffinFormat.compress(codec, ByteBuffer.wrap(new byte[0]));
+    ByteBuffer decompressed = PuffinFormat.decompress(codec, compressed.duplicate());
+    assertThat(ByteBuffers.toByteArray(decompressed)).isEmpty();
   }
 
   private byte[] bytes(int... unsignedBytes) {
