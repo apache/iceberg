@@ -103,8 +103,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
           # Read-only: java-ci's build-checks (17) is the global canonical writer.
-          # Its `-DallModules build` resolves the union dependency closure, so the
-          # content-addressed dependencies cache covers Spark modules too.
           cache-read-only: true
       - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:

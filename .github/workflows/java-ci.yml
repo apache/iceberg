@@ -87,9 +87,7 @@ jobs:
         java-version: ${{ matrix.jvm }}
     - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
       with:
-        # Read-only: build-checks (17) is the canonical writer for the
-        # shared java-ci gradle-home config-hash; this job restores from
-        # it via setup-gradle's restore-keys prefix walk.
+        # Read-only: java-ci's build-checks (17) is the global canonical writer.
         cache-read-only: true
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew check -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc
@@ -136,9 +134,7 @@ jobs:
         java-version: ${{ matrix.jvm }}
     - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
       with:
-        # Read-only: build-checks (17) is the canonical writer for the
-        # shared java-ci gradle-home config-hash; this job restores from
-        # it via setup-gradle's restore-keys prefix walk.
+        # Read-only: java-ci's build-checks (17) is the global canonical writer.
         cache-read-only: true
     - run: ./gradlew -Pquick=true javadoc
 
@@ -154,8 +150,6 @@ jobs:
         java-version: 17
     - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
       with:
-        # Read-only: build-checks (17) is the canonical writer for java-ci.
-        # Its `-DallModules build` resolves the runtime-dep superset this job
-        # needs, so the content-addressed dependencies cache covers us.
+        # Read-only: java-ci's build-checks (17) is the global canonical writer.
         cache-read-only: true
     - run: ./gradlew checkAllRuntimeDeps -q -DallModules=true
