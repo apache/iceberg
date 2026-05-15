@@ -65,7 +65,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private ColumnWriteStore writeStore;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
-  private long rowGroupUncompressedSize = 0;
+  private long uncompressedBufferedSize = 0;
   private boolean closed;
   private ParquetFileWriter writer;
   private int rowGroupOrdinal;
@@ -139,19 +139,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   @Override
   public void add(T value) {
     recordCount += 1;
-    if (trackUncompressedSize) {
-      writeTracked(value);
-    } else {
-      model.write(0, value);
-    }
-    writeStore.endRecord();
-    checkSize();
-  }
-
-  private void writeTracked(T value) {
     long sizeBefore = writeStore.getBufferedSize();
     model.write(0, value);
-    rowGroupUncompressedSize += writeStore.getBufferedSize() - sizeBefore;
+    uncompressedBufferedSize += writeStore.getBufferedSize() - sizeBefore;
+    writeStore.endRecord();
+    checkSize();
   }
 
   @Override
@@ -204,30 +196,21 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   private void checkSize() {
-    if (trackUncompressedSize) {
-      if (rowGroupUncompressedSize >= targetRowGroupSize) {
-        flushRowGroup(false);
-      } else if (recordCount >= nextCheckRecordCount) {
-        evaluateRowGroupSize(rowGroupUncompressedSize, false);
-      }
-    } else if (recordCount >= nextCheckRecordCount) {
-      evaluateRowGroupSize(writeStore.getBufferedSize(), true);
-    }
-  }
+    if (recordCount >= nextCheckRecordCount) {
+      long bufferedSize = uncompressedBufferedSize;
+      double avgRecordSize = ((double) bufferedSize) / recordCount;
 
-  private void evaluateRowGroupSize(long currentSize, boolean useMinRecordCountFloor) {
-    double avgRecordSize = ((double) currentSize) / recordCount;
-    if (currentSize > (targetRowGroupSize - 2 * avgRecordSize)) {
-      flushRowGroup(false);
-    } else {
-      long remainingSpace = targetRowGroupSize - currentSize;
-      long remainingRecords = (long) (remainingSpace / avgRecordSize);
-      long interval = remainingRecords / 2;
-      if (useMinRecordCountFloor) {
-        interval = Math.max(interval, props.getMinRowCountForPageSizeCheck());
+      if (bufferedSize > (targetRowGroupSize - 2 * avgRecordSize)) {
+        flushRowGroup(false);
+      } else {
+        long remainingSpace = targetRowGroupSize - bufferedSize;
+        long remainingRecords = (long) (remainingSpace / avgRecordSize);
+        this.nextCheckRecordCount =
+            recordCount
+                + Math.min(
+                    Math.max(remainingRecords / 2, props.getMinRowCountForPageSizeCheck()),
+                    props.getMaxRowCountForPageSizeCheck());
       }
-      this.nextCheckRecordCount =
-          recordCount + Math.min(interval, props.getMaxRowCountForPageSizeCheck());
     }
   }
 
@@ -257,7 +240,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
             Math.max(recordCount / 2, props.getMinRowCountForPageSizeCheck()),
             props.getMaxRowCountForPageSizeCheck());
     this.recordCount = 0;
-    this.rowGroupUncompressedSize = 0;
+    this.uncompressedBufferedSize = 0;
 
     this.pageStore =
         new ColumnChunkPageWriteStore(

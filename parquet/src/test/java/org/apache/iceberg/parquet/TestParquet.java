@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
@@ -345,6 +346,50 @@ public class TestParquet {
     assertThatThrownBy(() -> ParquetAvroWriter.buildWriter(schema))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Avro writer does not support variant types");
+  }
+
+  @Test
+  public void testRowGroupSizeEnforcedWithCompression() throws IOException {
+    // Regression test for #16325: with compression enabled, row group size check used compressed
+    // bytes, causing row groups to grow unbounded.
+    Schema schema = new Schema(optional(1, "stringCol", Types.StringType.get()));
+
+    File file = createTempFile(temp);
+
+    // Write data that is highly compressible but unique enough to avoid dictionary encoding
+    // from collapsing it. Each record has a unique prefix + repeated padding.
+    int rowGroupSize = 64 * 1024; // 64 KB
+    int pageSize = 4 * 1024; // 4 KB page size to force frequent page flushes
+    int numRecords = 500;
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(numRecords);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 0; i < numRecords; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      // Unique prefix ensures no dictionary, repeated suffix ensures high compression
+      record.put("stringCol", String.format("%010d", i) + Strings.repeat("a", 1014));
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(rowGroupSize))
+            .put(PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, "1")
+            .put(PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT, "100")
+            .put(PARQUET_COMPRESSION, "gzip")
+            .put("write.parquet.page-size-bytes", Integer.toString(pageSize))
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      List<BlockMetaData> rowGroups = reader.getRowGroups();
+      // With 500 KB of uncompressed data and a 64 KB row group target,
+      // we must get multiple row groups
+      assertThat(rowGroups).hasSizeGreaterThan(1);
+    }
   }
 
   private Pair<File, Long> generateFile(
