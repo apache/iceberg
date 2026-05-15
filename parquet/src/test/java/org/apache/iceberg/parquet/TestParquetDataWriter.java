@@ -548,13 +548,33 @@ public class TestParquetDataWriter {
   @ParameterizedTest
   @ValueSource(strings = {"gzip", "snappy", "zstd", "uncompressed"})
   public void testRowGroupSizeEnforcedWhenCompressionEnabled(String codec) throws IOException {
-    // 50 MB uncompressed data with 8 MB target; verifies row group splits when
-    // uncompressed size tracking is enabled
+    // With uncompressed tracking, row groups split at the configured target
+    DataFile dataFile = writeCompressibleRecords(codec, true);
+
+    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(100);
+    assertThat(dataFile.splitOffsets().size())
+        .as("Row group count should reflect enforcement of the 8 MB target")
+        .isGreaterThanOrEqualTo(4);
+  }
+
+  @Test
+  public void testDefaultPathUsesCompressedSize() throws IOException {
+    // Without uncompressed tracking, compressed bytes never hit the target
+    DataFile dataFile = writeCompressibleRecords("gzip", false);
+
+    assertThat(dataFile.splitOffsets().size())
+        .as("Default path should use compressed size (single row group due to compression)")
+        .isEqualTo(1);
+  }
+
+  // Writes 100 records of 512 KB compressible JSON (~50 MB uncompressed) with an 8 MB target.
+  private DataFile writeCompressibleRecords(String codec, boolean trackUncompressed)
+      throws IOException {
     OutputFile file = Files.localOutput(createTempFile(temp));
 
     long targetRowGroupSize = 8 * 1024 * 1024;
 
-    DataWriter<Record> dataWriter =
+    Parquet.DataWriteBuilder builder =
         Parquet.writeData(file)
             .schema(SCHEMA)
             .createWriterFunc(GenericParquetWriter::create)
@@ -562,9 +582,13 @@ public class TestParquetDataWriter {
             .withSpec(PartitionSpec.unpartitioned())
             .set("write.parquet.row-group-size-bytes", String.valueOf(targetRowGroupSize))
             .set("write.parquet.page-size-bytes", "1048576")
-            .set("write.parquet.compression-codec", codec)
-            .set("write.parquet.row-group-size-check-uncompressed", "true")
-            .build();
+            .set("write.parquet.compression-codec", codec);
+
+    if (trackUncompressed) {
+      builder.set("write.parquet.row-group-size-check-uncompressed", "true");
+    }
+
+    DataWriter<Record> dataWriter = builder.build();
 
     try (dataWriter) {
       Random rng = new Random(42);
@@ -583,11 +607,6 @@ public class TestParquetDataWriter {
       }
     }
 
-    DataFile dataFile = dataWriter.toDataFile();
-
-    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(100);
-    assertThat(dataFile.splitOffsets().size())
-        .as("Row group count should reflect enforcement of the 8 MB target")
-        .isGreaterThanOrEqualTo(4);
+    return dataWriter.toDataFile();
   }
 }

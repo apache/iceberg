@@ -207,7 +207,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     if (trackUncompressedSize) {
       checkSizeUncompressed();
     } else {
-      checkSizeDefault();
+      checkSizeCompressed();
     }
   }
 
@@ -227,7 +227,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     }
   }
 
-  private void checkSizeDefault() {
+  private void checkSizeCompressed() {
     if (recordCount >= nextCheckRecordCount) {
       long bufferedSize = writeStore.getBufferedSize();
       double avgRecordSize = ((double) bufferedSize) / recordCount;
