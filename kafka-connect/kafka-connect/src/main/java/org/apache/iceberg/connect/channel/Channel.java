@@ -102,7 +102,7 @@ abstract class Channel {
         // NOTE: we shouldn't call get() on the future in a transactional context,
         // see docs for org.apache.kafka.clients.producer.KafkaProducer
         recordList.forEach(producer::send);
-        if (!offsetsToCommit.isEmpty()) {
+        if (!sourceOffsets.isEmpty()) {
           producer.sendOffsetsToTransaction(
               offsetsToCommit, KafkaUtils.consumerGroupMetadata(context));
         }
