@@ -39,6 +39,7 @@ public abstract class TestByteBufferInputStreams {
     long pos = stream.getPos();
     assertThat(stream.read()).as("read() at EOF").isEqualTo(-1);
     assertThat(stream.read()).as("read() should keep returning -1 at EOF").isEqualTo(-1);
+    assertThat(stream.read(new byte[1])).as("read(byte[]) at EOF").isEqualTo(-1);
     assertThat(stream.getPos()).as("Position should not advance past EOF").isEqualTo(pos);
     assertThat(stream.available()).as("available() should be 0 at EOF").isEqualTo(0);
   }
@@ -546,5 +547,15 @@ public abstract class TestByteBufferInputStreams {
     assertAtEOF(ByteBufferInputStream.wrap(ByteBuffer.allocate(0)));
     assertAtEOF(ByteBufferInputStream.wrap(ByteBuffer.allocate(0), ByteBuffer.allocate(0)));
     assertAtEOF(ByteBufferInputStream.wrap(Collections.emptyList()));
+  }
+
+  @Test
+  public void testDrainedMultiBufferStream() throws Exception {
+    ByteBufferInputStream stream =
+        ByteBufferInputStream.wrap(
+            ByteBuffer.wrap(new byte[] {1, 2, 3}), ByteBuffer.wrap(new byte[] {4, 5}));
+    byte[] buf = new byte[5];
+    assertThat(stream.read(buf)).as("Should read all bytes").isEqualTo(5);
+    assertAtEOF(stream);
   }
 }
