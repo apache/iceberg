@@ -76,7 +76,9 @@ jobs:
   spark-tests:
     runs-on: ubuntu-24.04
     strategy:
-      max-parallel: 15
+      # 20 is the Apache infra policy ceiling (infra.apache.org/github-actions-policy.html).
+      # Keep matrix <= 20 jobs; exceeding it queues a second wave and slows CI.
+      max-parallel: 20
       matrix:
         jvm: [17, 21]
         spark: ['3.4', '3.5', '4.0', '4.1']
