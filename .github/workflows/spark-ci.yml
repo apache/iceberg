@@ -83,9 +83,9 @@ jobs:
         jvm: [17, 21]
         spark: ['3.4', '3.5', '4.0', '4.1']
         scala: ['2.12', '2.13']
-        # Split iceberg-spark and iceberg-spark-extensions/-runtime into
-        # separate jobs so they run concurrently rather than serially.
-        module: ['spark', 'spark-extensions-and-runtime']
+        # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
+        # so they run as concurrent jobs rather than serially in one job.
+        tests: [core, extensions]
         exclude:
           # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
           # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
@@ -113,19 +113,15 @@ jobs:
         with:
           tool-cache: false
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - name: Run iceberg-spark tests
-        if: matrix.module == 'spark'
+      - name: Run tests
         run: |
+          if [[ "${{ matrix.tests }}" == "core" ]]; then
+            projects=":iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          else
+            projects=":iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          fi
           ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DflinkVersions= -DkafkaVersions= \
-            :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check \
-            -Pquick=true -x javadoc -DtestParallelism=auto
-      - name: Run iceberg-spark-extensions and iceberg-spark-runtime tests
-        if: matrix.module == 'spark-extensions-and-runtime'
-        run: |
-          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DflinkVersions= -DkafkaVersions= \
-            :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check \
-            :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check \
-            -Pquick=true -x javadoc -DtestParallelism=auto
+            $projects -Pquick=true -x javadoc -DtestParallelism=auto
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
