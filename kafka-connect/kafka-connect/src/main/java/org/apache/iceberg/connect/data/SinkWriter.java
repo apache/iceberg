@@ -49,6 +49,8 @@ public class SinkWriter {
 
   public void close() {
     writers.values().forEach(RecordWriter::close);
+    writers.clear();
+    sourceOffsets.clear();
   }
 
   public SinkWriterResult completeWrite() {

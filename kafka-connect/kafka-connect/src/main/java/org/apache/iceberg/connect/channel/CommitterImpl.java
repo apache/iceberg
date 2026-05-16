@@ -30,6 +30,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -181,7 +182,11 @@ public class CommitterImpl implements Committer {
       stopCoordinator();
     }
 
-    // Reset offsets to last committed to avoid data loss.
+    // Reset offsets to last committed to avoid data loss. This is required for incremental
+    // cooperative rebalance (ICR), where Connect can invoke close() on a partition without a
+    // following open() — meaning rewind() in onPartitionsAssigned never runs for it. Seeking the
+    // main consumer here guarantees that any records we read past the broker-committed offset
+    // (and never managed to commit transactionally) are re-fetched on the next poll.
     LOG.info("Seeking to last committed offsets for worker {}.", taskId);
     KafkaUtils.seekToLastCommittedOffsets(context);
   }
@@ -201,7 +206,16 @@ public class CommitterImpl implements Committer {
           String.format("Coordinator unexpectedly terminated on committer %s", taskId));
     }
     if (worker != null) {
-      worker.process();
+      try {
+        worker.process();
+      } catch (RetriableException retriableException) {
+        LOG.info(
+            "Committer {} got retriable exception while processing control events. This can happen during re-balance.",
+            taskId,
+            retriableException.getCause());
+        stopWorker();
+        throw retriableException;
+      }
     }
   }
 

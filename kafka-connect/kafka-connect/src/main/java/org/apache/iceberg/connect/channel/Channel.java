@@ -22,7 +22,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.Offset;
 import org.apache.iceberg.connect.events.AvroUtil;
@@ -31,12 +30,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InvalidProducerEpochException;
+import org.apache.kafka.common.errors.ProducerFencedException;
+import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,28 +93,72 @@ abstract class Channel {
                   // key by producer ID to keep event order
                   return new ProducerRecord<>(controlTopic, producerId, data);
                 })
-            .collect(Collectors.toList());
+            .toList();
 
     synchronized (producer) {
-      producer.beginTransaction();
+      boolean transactionStarted = false;
       try {
+        producer.beginTransaction();
+        transactionStarted = true;
         // NOTE: we shouldn't call get() on the future in a transactional context,
         // see docs for org.apache.kafka.clients.producer.KafkaProducer
         recordList.forEach(producer::send);
-        if (!sourceOffsets.isEmpty()) {
+        if (!offsetsToCommit.isEmpty()) {
           producer.sendOffsetsToTransaction(
               offsetsToCommit, KafkaUtils.consumerGroupMetadata(context));
         }
         producer.commitTransaction();
       } catch (Exception e) {
-        try {
-          producer.abortTransaction();
-        } catch (Exception ex) {
-          LOG.warn("Error aborting producer transaction", ex);
+        safeAbortTransaction(transactionStarted);
+        if (isRecoverableRebalanceError(e)) {
+          // A consumer-group re-balance happened between this transaction's preparation and the
+          // broker-side offset commit (CommitFailedException), or the producer epoch was bumped
+          // (InvalidProducerEpochException). The transaction was aborted, so source offsets did
+          // not advance — when Connect re-delivers the same batch (after the re-balance settles
+          // and the affected partitions are reassigned) processing resumes from the last
+          // committed offsets with no data loss.
+          LOG.warn(
+              "Transactional offset commit failed due to consumer group re-balance; "
+                  + "aborted transaction and signalling Connect to retry",
+              e);
+          throw new RetriableException(
+              "Transactional offset commit failed due to consumer group re-balance", e);
         }
         throw e;
       }
     }
+  }
+
+  private void safeAbortTransaction(boolean transactionStarted) {
+    if (!transactionStarted) {
+      return;
+    }
+    try {
+      producer.abortTransaction();
+    } catch (Exception ex) {
+      LOG.warn("Error aborting producer transaction", ex);
+    }
+  }
+
+  /**
+   * Returns true when the throwable (or any cause in its chain) indicates a transient
+   * consumer-group re-balance or producer-epoch bump that can be safely retried after aborting the
+   * transaction. {@link ProducerFencedException} is explicitly excluded — it requires producer
+   * recreation and must not be retried.
+   */
+  private static boolean isRecoverableRebalanceError(Throwable throwable) {
+    Throwable cause = throwable;
+    while (cause != null) {
+      if (cause instanceof ProducerFencedException) {
+        return false;
+      }
+      if (cause instanceof CommitFailedException
+          || cause instanceof InvalidProducerEpochException) {
+        return true;
+      }
+      cause = cause.getCause();
+    }
+    return false;
   }
 
   protected abstract boolean receive(Envelope envelope);
