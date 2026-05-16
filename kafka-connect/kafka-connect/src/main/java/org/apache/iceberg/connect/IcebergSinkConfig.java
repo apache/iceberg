@@ -28,6 +28,7 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -104,6 +105,22 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private static final String COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS =
       "iceberg.coordinator-executor-keep-alive-timeout-ms";
+
+  private static final String TRANSACTIONAL_COMMIT_RETRIABLE_EXCEPTIONS_PROP =
+      "iceberg.kafka.transactional-commit-retriable-exceptions";
+
+  /**
+   * Default set of producer-side exceptions that are translated to {@link
+   * org.apache.kafka.connect.errors.RetriableException} when raised from {@code Channel.send()}'s
+   * transactional commit. {@code ProducerFencedException} is included because the connector closes
+   * and re-creates the worker (and its producer) on a retriable commit failure, which re-runs
+   * {@code initTransactions()} and obtains a fresh producer epoch.
+   */
+  private static final List<String> DEFAULT_TRANSACTIONAL_COMMIT_RETRIABLE_EXCEPTIONS =
+      ImmutableList.of(
+          "org.apache.kafka.clients.consumer.CommitFailedException",
+          "org.apache.kafka.common.errors.InvalidProducerEpochException",
+          "org.apache.kafka.common.errors.ProducerFencedException");
 
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
@@ -235,6 +252,18 @@ public class IcebergSinkConfig extends AbstractConfig {
         120000L,
         Importance.LOW,
         "config to control coordinator executor keep alive time");
+    configDef.define(
+        TRANSACTIONAL_COMMIT_RETRIABLE_EXCEPTIONS_PROP,
+        ConfigDef.Type.LIST,
+        DEFAULT_TRANSACTIONAL_COMMIT_RETRIABLE_EXCEPTIONS,
+        Importance.LOW,
+        "Comma-separated list of fully qualified Throwable class names raised by the producer's "
+            + "transactional commit (commitTransaction / sendOffsetsToTransaction) that should be "
+            + "translated to RetriableException so Connect re-delivers the batch after the "
+            + "consumer-group re-balance settles. Defaults cover CommitFailedException, "
+            + "InvalidProducerEpochException, and ProducerFencedException — the latter is "
+            + "recoverable here because the worker is closed and re-created on retry, "
+            + "re-running initTransactions() to obtain a fresh producer epoch.");
     return configDef;
   }
 
@@ -246,6 +275,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> writeProps;
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
+  private volatile List<Class<? extends Throwable>> transactionalCommitRetriableExceptions;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
     super(CONFIG_DEF, originalProps);
@@ -426,6 +456,59 @@ public class IcebergSinkConfig extends AbstractConfig {
     }
 
     return "";
+  }
+
+  /**
+   * Returns the resolved {@link Throwable} classes whose occurrence (anywhere in the cause chain)
+   * during {@code Channel.send()}'s transactional commit should be translated to {@link
+   * org.apache.kafka.connect.errors.RetriableException}. Names that fail to resolve to a {@code
+   * Throwable} subclass are logged at WARN and skipped — never thrown — so a misconfiguration
+   * cannot stop the connector from starting.
+   */
+  public List<Class<? extends Throwable>> transactionalCommitRetriableExceptionClasses() {
+    List<Class<? extends Throwable>> resolved = transactionalCommitRetriableExceptions;
+    if (resolved != null) {
+      return resolved;
+    }
+    synchronized (this) {
+      if (transactionalCommitRetriableExceptions == null) {
+        transactionalCommitRetriableExceptions =
+            resolveExceptionClasses(getList(TRANSACTIONAL_COMMIT_RETRIABLE_EXCEPTIONS_PROP));
+      }
+      return transactionalCommitRetriableExceptions;
+    }
+  }
+
+  private static List<Class<? extends Throwable>> resolveExceptionClasses(List<String> names) {
+    if (names == null || names.isEmpty()) {
+      return ImmutableList.of();
+    }
+    ImmutableList.Builder<Class<? extends Throwable>> builder = ImmutableList.builder();
+    for (String name : names) {
+      String trimmed = name == null ? "" : name.trim();
+      if (trimmed.isEmpty()) {
+        continue;
+      }
+      Class<?> klass = DynClasses.builder().impl(trimmed).orNull().build();
+      if (klass == null) {
+        LOG.warn(
+            "Ignoring entry '{}' in {}: class not found on classpath",
+            trimmed,
+            TRANSACTIONAL_COMMIT_RETRIABLE_EXCEPTIONS_PROP);
+        continue;
+      }
+      if (Throwable.class.isAssignableFrom(klass)) {
+        @SuppressWarnings("unchecked")
+        Class<? extends Throwable> throwableClass = (Class<? extends Throwable>) klass;
+        builder.add(throwableClass);
+      } else {
+        LOG.warn(
+            "Ignoring entry '{}' in {}: class is not a Throwable subtype",
+            trimmed,
+            TRANSACTIONAL_COMMIT_RETRIABLE_EXCEPTIONS_PROP);
+      }
+    }
+    return builder.build();
   }
 
   public String hadoopConfDir() {

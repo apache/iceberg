@@ -30,6 +30,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.Offset;
@@ -61,17 +62,24 @@ import org.mockito.MockedStatic;
  * reproduce.
  *
  * <p>Behavior contract: when {@code commitTransaction} or {@code sendOffsetsToTransaction} fails
- * because the consumer group re-balanced ({@link CommitFailedException}) or the producer epoch was
- * bumped ({@link InvalidProducerEpochException}), {@code send()} aborts the transaction and throws
- * {@link RetriableException} so the Connect framework pauses the consumer and re-delivers the same
- * batch — after which the re-balance settles, partitions are reassigned, and processing resumes
- * from the last committed offsets. {@link ProducerFencedException} and other failures remain fatal.
+ * with one of the configured retriable exception classes (default: {@link CommitFailedException},
+ * {@link InvalidProducerEpochException}, {@link ProducerFencedException}), {@code send()} aborts
+ * the transaction and throws {@link RetriableException} so the Connect framework pauses the
+ * consumer, lets the worker close + recreate (re-running {@code initTransactions()} for a fresh
+ * producer epoch), and re-delivers the same batch. Exceptions outside the configured list remain
+ * fatal.
  */
 public class TestChannelRetry {
 
   private static final String CONTROL_TOPIC = "ctl-topic";
   private static final String CONNECT_GROUP = "cg-connect";
   private static final String CONSUMER_GROUP = "worker-cg";
+
+  private static final List<Class<? extends Throwable>> DEFAULT_RETRIABLE_EXCEPTIONS =
+      ImmutableList.of(
+          CommitFailedException.class,
+          InvalidProducerEpochException.class,
+          ProducerFencedException.class);
 
   private Producer<String, byte[]> producer;
   private Consumer<String, byte[]> consumer;
@@ -98,6 +106,8 @@ public class TestChannelRetry {
     when(config.connectGroupId()).thenReturn(CONNECT_GROUP);
     when(config.transactionalPrefix()).thenReturn("");
     when(config.transactionalSuffix()).thenReturn("");
+    when(config.transactionalCommitRetriableExceptionClasses())
+        .thenReturn(DEFAULT_RETRIABLE_EXCEPTIONS);
 
     context = mock(SinkTaskContext.class);
 
@@ -217,11 +227,33 @@ public class TestChannelRetry {
   }
 
   // ------------------------------------------------------------
-  // Fatal exceptions — surfaced as-is, NOT retriable
+  // ProducerFencedException is recoverable by default
   // ------------------------------------------------------------
 
   @Test
-  public void producerFencedExceptionIsFatalAndNotRetriable() {
+  public void producerFencedExceptionIsRetriableByDefault() {
+    // Default config includes ProducerFencedException among retriable exceptions: when the
+    // worker is closed and re-created on retry, initTransactions() obtains a fresh epoch.
+    ProducerFencedException fenced = new ProducerFencedException("fenced by newer producer");
+    doThrow(fenced).when(producer).commitTransaction();
+
+    StubChannel channel = newChannel();
+
+    assertThatThrownBy(() -> channel.sendForTest(startCommitEvent(), offsetsForSrc(1L)))
+        .isInstanceOf(RetriableException.class)
+        .hasMessageContaining("consumer group re-balance")
+        .hasCause(fenced);
+
+    verify(producer, times(1)).abortTransaction();
+  }
+
+  @Test
+  public void producerFencedIsFatalWhenExcludedFromConfiguredList() {
+    // User-supplied list omits ProducerFencedException → exception surfaces as-is.
+    when(config.transactionalCommitRetriableExceptionClasses())
+        .thenReturn(
+            ImmutableList.of(CommitFailedException.class, InvalidProducerEpochException.class));
+
     ProducerFencedException fenced = new ProducerFencedException("fenced by newer producer");
     doThrow(fenced).when(producer).commitTransaction();
 
@@ -235,16 +267,35 @@ public class TestChannelRetry {
   }
 
   @Test
-  public void producerFencedWrappingARebalanceCauseIsStillFatal() {
-    ProducerFencedException fenced = new ProducerFencedException("fenced");
-    fenced.initCause(new CommitFailedException("rebalanced"));
-    doThrow(fenced).when(producer).commitTransaction();
+  public void emptyConfiguredListMakesEverythingFatal() {
+    when(config.transactionalCommitRetriableExceptionClasses()).thenReturn(ImmutableList.of());
+
+    CommitFailedException rebalance = new CommitFailedException("rebalanced");
+    doThrow(rebalance).when(producer).commitTransaction();
 
     StubChannel channel = newChannel();
 
     assertThatThrownBy(() -> channel.sendForTest(startCommitEvent(), offsetsForSrc(1L)))
-        .isSameAs(fenced)
-        .hasMessageContaining("fenced");
+        .isSameAs(rebalance)
+        .hasMessageContaining("rebalanced");
+  }
+
+  @Test
+  public void customSubclassListMatchesViaIsInstance() {
+    // Configuring KafkaException as retriable should match all of its subclasses
+    // (e.g. CommitFailedException) via Class.isInstance.
+    when(config.transactionalCommitRetriableExceptionClasses())
+        .thenReturn(ImmutableList.of(KafkaException.class));
+
+    CommitFailedException rebalance = new CommitFailedException("rebalanced");
+    doThrow(rebalance).when(producer).commitTransaction();
+
+    StubChannel channel = newChannel();
+
+    assertThatThrownBy(() -> channel.sendForTest(startCommitEvent(), offsetsForSrc(1L)))
+        .isInstanceOf(RetriableException.class)
+        .hasMessageContaining("consumer group re-balance")
+        .hasCause(rebalance);
   }
 
   @Test
