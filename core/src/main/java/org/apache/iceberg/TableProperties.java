@@ -180,6 +180,16 @@ public class TableProperties {
       "write.parquet.bloom-filter-max-bytes";
   public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;
 
+  // Enables parquet-mr's adaptive bloom filter sizing (PARQUET-2326). When true,
+  // the writer evaluates ~5 candidate bloom filters and picks the smallest that
+  // satisfies actual NDV at FPP, instead of always allocating
+  // `bloom-filter-max-bytes`. Significantly reduces file size for low-row-count
+  // writes (e.g., streaming microbatches) that would otherwise pad the parquet
+  // file with an empty `bloom-filter-max-bytes` buffer.
+  public static final String PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED =
+      "write.parquet.bloom-filter-adaptive-enabled";
+  public static final boolean PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT = false;
+
   public static final String PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX =
       "write.parquet.bloom-filter-fpp.column.";
   public static final double PARQUET_BLOOM_FILTER_COLUMN_FPP_DEFAULT = 0.01;
