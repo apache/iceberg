@@ -19,7 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -250,23 +250,12 @@ public class TestFileSystemWalker {
 
   @Test
   public void testListDirRecursivelyWithFileIOBucketRootBaseDir() {
-    List<FileInfo> entries =
-        ImmutableList.of(
-            new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
-            new FileInfo("s3://bucket/data/b.parquet", 1L, 0L),
-            new FileInfo("s3://bucket/top.parquet", 1L, 0L));
-    SupportsPrefixOperations mockIO = new StaticPrefixFileIO(entries);
-
-    List<String> foundFiles = Lists.newArrayList();
-    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".parquet");
-
-    assertThatCode(
-            () ->
-                FileSystemWalker.listDirRecursivelyWithFileIO(
-                    mockIO, "s3://bucket/", null, fileFilter, foundFiles::add))
-        .doesNotThrowAnyException();
-
-    assertThat(foundFiles)
+    assertThat(
+            listWithMockFileIO(
+                "s3://bucket/",
+                new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/data/b.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/top.parquet", 1L, 0L)))
         .containsExactlyInAnyOrder(
             "s3://bucket/data/a.parquet", "s3://bucket/data/b.parquet", "s3://bucket/top.parquet");
   }
@@ -277,23 +266,13 @@ public class TestFileSystemWalker {
    */
   @Test
   public void testListDirRecursivelyWithFileIOBucketRootFiltersHiddenDir() {
-    List<FileInfo> entries =
-        ImmutableList.of(
-            new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
-            new FileInfo("s3://bucket/_temporary/attempt_x/b.parquet", 1L, 0L),
-            new FileInfo("s3://bucket/.staging/c.parquet", 1L, 0L));
-    SupportsPrefixOperations mockIO = new StaticPrefixFileIO(entries);
-
-    List<String> foundFiles = Lists.newArrayList();
-    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".parquet");
-
-    assertThatCode(
-            () ->
-                FileSystemWalker.listDirRecursivelyWithFileIO(
-                    mockIO, "s3://bucket/", null, fileFilter, foundFiles::add))
-        .doesNotThrowAnyException();
-
-    assertThat(foundFiles).containsExactly("s3://bucket/data/a.parquet");
+    assertThat(
+            listWithMockFileIO(
+                "s3://bucket/",
+                new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/_temporary/attempt_x/b.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/.staging/c.parquet", 1L, 0L)))
+        .containsExactly("s3://bucket/data/a.parquet");
   }
 
   /**
@@ -302,22 +281,32 @@ public class TestFileSystemWalker {
    */
   @Test
   public void testListDirRecursivelyWithFileIOBucketRootNoTrailingSlash() {
-    List<FileInfo> entries =
-        ImmutableList.of(
-            new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
-            new FileInfo("s3://bucket/_hidden/b.parquet", 1L, 0L));
-    SupportsPrefixOperations mockIO = new StaticPrefixFileIO(entries);
+    assertThat(
+            listWithMockFileIO(
+                "s3://bucket",
+                new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/_hidden/b.parquet", 1L, 0L)))
+        .containsExactly("s3://bucket/data/a.parquet");
+  }
 
-    List<String> foundFiles = Lists.newArrayList();
-    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".parquet");
-
-    assertThatCode(
+  @Test
+  public void testListDirRecursivelyWithFileIONullFileLocation() {
+    assertThatThrownBy(
             () ->
-                FileSystemWalker.listDirRecursivelyWithFileIO(
-                    mockIO, "s3://bucket", null, fileFilter, foundFiles::add))
-        .doesNotThrowAnyException();
+                listWithMockFileIO(
+                    "s3://bucket/",
+                    new FileInfo(null, 1L, 0L),
+                    new FileInfo("s3://bucket/data/a.parquet", 1L, 0L)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Can not create a Path from a null string");
+  }
 
-    assertThat(foundFiles).containsExactly("s3://bucket/data/a.parquet");
+  private static List<String> listWithMockFileIO(String baseDir, FileInfo... entries) {
+    SupportsPrefixOperations mockIO = new StaticPrefixFileIO(ImmutableList.copyOf(entries));
+    List<String> foundFiles = Lists.newArrayList();
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        mockIO, baseDir, null, fileInfo -> true, foundFiles::add);
+    return foundFiles;
   }
 
   private static class StaticPrefixFileIO implements SupportsPrefixOperations {
