@@ -19,13 +19,15 @@
 package org.apache.iceberg.data;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.VariantShreddingAnalyzer;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantValue;
-import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.schema.Type;
 
 /**
  * Variant shredding analyzer for generic {@link Record} types.
@@ -38,7 +40,31 @@ import org.apache.iceberg.variants.Variants;
  * <p>Shredding extracts frequently-occurring fields from variant data into typed Parquet columns
  * for improved query performance while maintaining the full variant data in the raw value field.
  */
-class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Schema> {
+class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Void> {
+
+  /**
+   * For generic {@link Record} rows, top-level field order matches {@link Schema#columns()}.
+   * {@link #resolveColumnIndex} is unused ({@code Void} engine schema); using it always produced
+   * {@code -1}, so variant columns were never analyzed and Parquet shredding never activated for
+   * Kafka Connect and other Record-based writers.
+   */
+  @Override
+  public Map<Integer, Type> analyzeVariantColumns(
+      List<Record> bufferedRows, Schema icebergSchema, Void engineSchema) {
+    Map<Integer, Type> shreddedTypes = Maps.newHashMap();
+    List<NestedField> cols = icebergSchema.columns();
+    for (int rowIndex = 0; rowIndex < cols.size(); rowIndex++) {
+      NestedField col = cols.get(rowIndex);
+      if (col.type().isVariantType()) {
+        Type typed = analyzeAndCreateSchema(bufferedRows, rowIndex);
+        if (typed != null) {
+          shreddedTypes.put(col.fieldId(), typed);
+        }
+      }
+    }
+
+    return shreddedTypes;
+  }
 
   @Override
   protected List<VariantValue> extractVariantValues(
@@ -48,16 +74,16 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
       Object fieldValue = record.get(variantFieldIndex);
       if (fieldValue instanceof Variant) {
         Variant variant = (Variant) fieldValue;
-        VariantValue value = Variants.value(variant.metadata(), variant.value());
-        values.add(value);
+        values.add(variant.value());
       }
     }
     return values;
   }
 
   @Override
-  protected int resolveColumnIndex(Schema engineSchema, String columnName) {
-    NestedField field = engineSchema.findField(columnName);
-    return field != null ? engineSchema.columns().indexOf(field) : -1;
+  protected int resolveColumnIndex(Void engineSchema, String columnName) {
+    // For Record types, schema resolution happens at the Iceberg level, not engine level
+    // Column indices are managed by the Record structure itself
+    return -1;
   }
 }

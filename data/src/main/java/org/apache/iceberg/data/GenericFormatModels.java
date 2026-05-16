@@ -50,7 +50,7 @@ public class GenericFormatModels {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
             new RecordVariantShreddingAnalyzer(),
-            GenericRecord::copy));
+            Record::copy));
 
     FormatModelRegistry.register(ParquetFormatModel.forPositionDeletes());
 
