@@ -104,6 +104,28 @@ public class SparkSQLProperties {
   public static final String REPORT_COLUMN_STATS = "spark.sql.iceberg.report-column-stats";
   public static final boolean REPORT_COLUMN_STATS_DEFAULT = true;
 
+  // Controls whether to enable async micro batch planning for session
+  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
+      "spark.sql.iceberg.async-micro-batch-planning-enabled";
+  public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
+
   // Prefix for custom snapshot properties
   public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
+
+  // Controls whether adaptive split sizing is enabled
+  public static final String READ_ADAPTIVE_SPLIT_SIZE_ENABLED =
+      "spark.sql.iceberg.read.adaptive-split-size.enabled";
+
+  // Overrides the parallelism used for adaptive split sizing. When unset, the parallelism
+  // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).
+  public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =
+      "spark.sql.iceberg.read.adaptive-split-size.parallelism";
+
+  // Controls whether to shred variant columns during write operations
+  public static final String SHRED_VARIANTS = "spark.sql.iceberg.shred-variants";
+
+  // Controls the buffer size for variant schema inference during writes
+  // This determines how many rows are buffered before inferring shredded schema
+  public static final String VARIANT_INFERENCE_BUFFER_SIZE =
+      "spark.sql.iceberg.variant-inference-buffer-size";
 }

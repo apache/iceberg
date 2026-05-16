@@ -1286,6 +1286,124 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
+  public void planningFailsWithServerError(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    ErrorResponse serverError =
+        ErrorResponse.builder()
+            .withMessage("table too large to plan")
+            .withType("IllegalStateException")
+            .responseCode(500)
+            .build();
+
+    TestPlanningBehavior behavior = planMode.apply(TestPlanningBehavior.builder()).build();
+    CatalogWithAdapter catalogWithAdapter =
+        catalogThatFailsPlanning(serverError, behavior, "test-planning-failed");
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "planning_failed_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Remote scan planning failed")
+        .hasMessageContaining(serverError.type())
+        .hasMessageContaining("code=" + serverError.code())
+        .hasMessageContaining(serverError.message());
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  public void planningFailsWithoutServerErrorIsStillSurfaced(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    // Spec requires an error payload with a FAILED status; if a server violates that,
+    // the client must still surface a meaningful failure rather than throw on top of it.
+    TestPlanningBehavior behavior = planMode.apply(TestPlanningBehavior.builder()).build();
+    CatalogWithAdapter catalogWithAdapter =
+        catalogThatFailsPlanning(null, behavior, "test-planning-failed-no-error");
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "planning_failed_no_error_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Remote scan planning failed")
+        .hasMessageContaining("unknown")
+        .hasMessageContaining("code=0");
+  }
+
+  private CatalogWithAdapter catalogThatFailsPlanning(
+      ErrorResponse serverError, TestPlanningBehavior behavior, String catalogName) {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
+                }
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      withPlanningMode(
+                          (LoadTableResponse) response,
+                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+                }
+                // Leave SUBMITTED untouched so async mode polls and hits the fetch below.
+                if (response instanceof PlanTableScanResponse planResp
+                    && planResp.planStatus() == PlanStatus.COMPLETED) {
+                  return castResponse(
+                      responseType,
+                      PlanTableScanResponse.builder()
+                          .withPlanStatus(PlanStatus.FAILED)
+                          .withErrorResponse(serverError)
+                          .withSpecsById(planResp.specsById())
+                          .build());
+                }
+                if (response instanceof FetchPlanningResultResponse) {
+                  return castResponse(
+                      responseType,
+                      FetchPlanningResultResponse.builder()
+                          .withPlanStatus(PlanStatus.FAILED)
+                          .withErrorResponse(serverError)
+                          .build());
+                }
+                return response;
+              }
+            });
+
+    adapter.setPlanningBehavior(behavior);
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        catalogName,
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+    return new CatalogWithAdapter(catalog, adapter);
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
   void fileIOForRemotePlanningIsPropagated(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     RESTCatalogAdapter adapter =

@@ -34,9 +34,12 @@ public class TestTrackedFile {
   private static final Types.StructType CONTENT_STATS_TYPE =
       StatsUtil.contentStatsFor(TABLE_SCHEMA).type().asStructType();
 
+  private static final Types.StructType PARTITION_TYPE =
+      PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build().partitionType();
+
   @Test
   public void schemaWithContentStatsFieldOrder() {
-    Types.StructType type = TrackedFile.schemaWithContentStats(CONTENT_STATS_TYPE);
+    Types.StructType type = TrackedFile.schemaWithContentStats(PARTITION_TYPE, CONTENT_STATS_TYPE);
     List<Types.NestedField> fields = type.fields();
 
     assertThat(fields)
@@ -49,6 +52,7 @@ public class TestTrackedFile {
             "record_count",
             "file_size_in_bytes",
             "spec_id",
+            "partition",
             "content_stats",
             "sort_order_id",
             "deletion_vector",
@@ -60,20 +64,22 @@ public class TestTrackedFile {
 
   @Test
   public void schemaWithContentStatsFieldIds() {
-    Types.StructType type = TrackedFile.schemaWithContentStats(CONTENT_STATS_TYPE);
+    Types.StructType type = TrackedFile.schemaWithContentStats(PARTITION_TYPE, CONTENT_STATS_TYPE);
     List<Types.NestedField> fields = type.fields();
 
     assertThat(fields)
         .extracting(Types.NestedField::fieldId)
-        .containsExactly(147, 134, 100, 101, 103, 104, 141, 146, 140, 148, 150, 131, 132, 135);
+        .containsExactly(147, 134, 100, 101, 103, 104, 141, 102, 146, 140, 148, 150, 131, 132, 135);
   }
 
   @Test
   public void schemaWithContentStatsUsesProvidedType() {
-    Types.StructType type = TrackedFile.schemaWithContentStats(CONTENT_STATS_TYPE);
+    Types.StructType type = TrackedFile.schemaWithContentStats(PARTITION_TYPE, CONTENT_STATS_TYPE);
     Types.NestedField contentStatsField = type.field(TrackedFile.CONTENT_STATS_ID);
+    Types.NestedField partitionField = type.field(TrackedFile.PARTITION_ID);
 
     assertThat(contentStatsField.type().asStructType()).isEqualTo(CONTENT_STATS_TYPE);
+    assertThat(partitionField.type().asStructType()).isEqualTo(PARTITION_TYPE);
   }
 
   @Test
@@ -88,8 +94,8 @@ public class TestTrackedFile {
     Types.StructType smallStats = StatsUtil.contentStatsFor(smallSchema).type().asStructType();
     Types.StructType largeStats = StatsUtil.contentStatsFor(largeSchema).type().asStructType();
 
-    Types.StructType smallType = TrackedFile.schemaWithContentStats(smallStats);
-    Types.StructType largeType = TrackedFile.schemaWithContentStats(largeStats);
+    Types.StructType smallType = TrackedFile.schemaWithContentStats(PARTITION_TYPE, smallStats);
+    Types.StructType largeType = TrackedFile.schemaWithContentStats(PARTITION_TYPE, largeStats);
 
     Types.StructType smallResult =
         smallType.field(TrackedFile.CONTENT_STATS_ID).type().asStructType();
@@ -98,5 +104,15 @@ public class TestTrackedFile {
 
     assertThat(smallResult.fields()).hasSize(1);
     assertThat(largeResult.fields()).hasSize(3);
+  }
+
+  @Test
+  public void schemaWithContentStatsPartitionIsRequired() {
+    Types.StructType type = TrackedFile.schemaWithContentStats(PARTITION_TYPE, CONTENT_STATS_TYPE);
+    Types.NestedField partitionField = type.field(TrackedFile.PARTITION_ID);
+
+    assertThat(partitionField.isRequired()).isTrue();
+    assertThat(partitionField.name()).isEqualTo(TrackedFile.PARTITION_NAME);
+    assertThat(partitionField.doc()).isEqualTo(TrackedFile.PARTITION_DOC);
   }
 }

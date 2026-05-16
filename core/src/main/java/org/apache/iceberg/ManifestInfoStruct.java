@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -71,6 +72,32 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.minSequenceNumber = toCopy.minSequenceNumber;
     this.dv = toCopy.dv != null ? Arrays.copyOf(toCopy.dv, toCopy.dv.length) : null;
     this.dvCardinality = toCopy.dvCardinality;
+  }
+
+  private ManifestInfoStruct(
+      int addedFilesCount,
+      int existingFilesCount,
+      int deletedFilesCount,
+      int replacedFilesCount,
+      long addedRowsCount,
+      long existingRowsCount,
+      long deletedRowsCount,
+      long replacedRowsCount,
+      long minSequenceNumber,
+      byte[] dv,
+      Long dvCardinality) {
+    super(BASE_TYPE, BASE_TYPE);
+    this.addedFilesCount = addedFilesCount;
+    this.existingFilesCount = existingFilesCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.replacedFilesCount = replacedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedRowsCount = deletedRowsCount;
+    this.replacedRowsCount = replacedRowsCount;
+    this.minSequenceNumber = minSequenceNumber;
+    this.dv = dv;
+    this.dvCardinality = dvCardinality;
   }
 
   @Override
@@ -208,6 +235,10 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     }
   }
 
+  static Builder builder() {
+    return new Builder();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -223,5 +254,131 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         .add("dv", dv == null ? "null" : "(binary)")
         .add("dv_cardinality", dvCardinality == null ? "null" : dvCardinality)
         .toString();
+  }
+
+  static class Builder {
+    private int addedFilesCount = -1;
+    private int existingFilesCount = -1;
+    private int deletedFilesCount = -1;
+    private int replacedFilesCount = -1;
+    private long addedRowsCount = -1L;
+    private long existingRowsCount = -1L;
+    private long deletedRowsCount = -1L;
+    private long replacedRowsCount = -1L;
+    private long minSequenceNumber = -1L;
+    private byte[] dv = null;
+    private Long dvCardinality = null;
+
+    Builder addedFilesCount(int count) {
+      this.addedFilesCount = count;
+      return this;
+    }
+
+    Builder existingFilesCount(int count) {
+      this.existingFilesCount = count;
+      return this;
+    }
+
+    Builder deletedFilesCount(int count) {
+      this.deletedFilesCount = count;
+      return this;
+    }
+
+    Builder replacedFilesCount(int count) {
+      this.replacedFilesCount = count;
+      return this;
+    }
+
+    Builder addedRowsCount(long count) {
+      this.addedRowsCount = count;
+      return this;
+    }
+
+    Builder existingRowsCount(long count) {
+      this.existingRowsCount = count;
+      return this;
+    }
+
+    Builder deletedRowsCount(long count) {
+      this.deletedRowsCount = count;
+      return this;
+    }
+
+    Builder replacedRowsCount(long count) {
+      this.replacedRowsCount = count;
+      return this;
+    }
+
+    Builder minSequenceNumber(long sequenceNumber) {
+      this.minSequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    Builder dv(ByteBuffer buffer) {
+      this.dv = buffer != null ? ByteBuffers.toByteArray(buffer) : null;
+      return this;
+    }
+
+    Builder dv(byte[] buffer) {
+      this.dv = buffer;
+      return this;
+    }
+
+    Builder dvCardinality(Long cardinality) {
+      this.dvCardinality = cardinality;
+      return this;
+    }
+
+    ManifestInfoStruct build() {
+      Preconditions.checkArgument(
+          addedFilesCount >= 0, "Invalid added files count: %s (must be >= 0)", addedFilesCount);
+      Preconditions.checkArgument(
+          existingFilesCount >= 0,
+          "Invalid existing files count: %s (must be >= 0)",
+          existingFilesCount);
+      Preconditions.checkArgument(
+          deletedFilesCount >= 0,
+          "Invalid deleted files count: %s (must be >= 0)",
+          deletedFilesCount);
+      Preconditions.checkArgument(
+          replacedFilesCount >= 0,
+          "Invalid replaced files count: %s (must be >= 0)",
+          replacedFilesCount);
+      Preconditions.checkArgument(
+          addedRowsCount >= 0, "Invalid added rows count: %s (must be >= 0)", addedRowsCount);
+      Preconditions.checkArgument(
+          existingRowsCount >= 0,
+          "Invalid existing rows count: %s (must be >= 0)",
+          existingRowsCount);
+      Preconditions.checkArgument(
+          deletedRowsCount >= 0, "Invalid deleted rows count: %s (must be >= 0)", deletedRowsCount);
+      Preconditions.checkArgument(
+          replacedRowsCount >= 0,
+          "Invalid replaced rows count: %s (must be >= 0)",
+          replacedRowsCount);
+      Preconditions.checkArgument(
+          minSequenceNumber >= 0,
+          "Invalid min sequence number: %s (must be >= 0)",
+          minSequenceNumber);
+      Preconditions.checkArgument(
+          (dv == null) == (dvCardinality == null),
+          "Invalid DV and cardinality: must both be null or non-null");
+      Preconditions.checkArgument(
+          dvCardinality == null || dvCardinality > 0,
+          "Invalid DV cardinality: %s (must be positive)",
+          dvCardinality);
+      return new ManifestInfoStruct(
+          addedFilesCount,
+          existingFilesCount,
+          deletedFilesCount,
+          replacedFilesCount,
+          addedRowsCount,
+          existingRowsCount,
+          deletedRowsCount,
+          replacedRowsCount,
+          minSequenceNumber,
+          dv,
+          dvCardinality);
+    }
   }
 }
