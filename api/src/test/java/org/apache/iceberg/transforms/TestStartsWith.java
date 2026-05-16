@@ -19,7 +19,9 @@
 package org.apache.iceberg.transforms;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.False;
@@ -73,6 +76,44 @@ public class TestStartsWith {
     assertThat(evaluator.eval(TestHelpers.Row.of("abcdg")))
         .as("startsWith(abcde, truncate(abcdg,2))  => true")
         .isTrue();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testTruncateEqualityRewrite() {
+    // len(value) == width: truncate(col, 4) == "abab" is rewritten to col startsWith "abab"
+    BoundPredicate<String> prefix =
+        (BoundPredicate<String>)
+            Binder.bind(SCHEMA.asStruct(), equal(truncate(COLUMN, 4), "abab"), false);
+    assertThat(prefix.op()).isEqualTo(Expression.Operation.STARTS_WITH);
+    assertThat(prefix.term()).isInstanceOf(BoundReference.class);
+
+    Evaluator prefixEval = new Evaluator(SCHEMA.asStruct(), equal(truncate(COLUMN, 4), "abab"));
+    assertThat(prefixEval.eval(TestHelpers.Row.of("ababXYZ")))
+        .as("truncate(ababXYZ,4) == abab")
+        .isTrue();
+    assertThat(prefixEval.eval(TestHelpers.Row.of("abab"))).as("truncate(abab,4) == abab").isTrue();
+    assertThat(prefixEval.eval(TestHelpers.Row.of("abXX")))
+        .as("truncate(abXX,4) != abab")
+        .isFalse();
+
+    // len(value) < width: truncate(col, 6) == "abc" is rewritten to col == "abc" (exact),
+    // which must NOT match longer strings the way startsWith would
+    BoundPredicate<String> exact =
+        (BoundPredicate<String>)
+            Binder.bind(SCHEMA.asStruct(), equal(truncate(COLUMN, 6), "abc"), false);
+    assertThat(exact.op()).isEqualTo(Expression.Operation.EQ);
+    assertThat(exact.term()).isInstanceOf(BoundReference.class);
+
+    Evaluator exactEval = new Evaluator(SCHEMA.asStruct(), equal(truncate(COLUMN, 6), "abc"));
+    assertThat(exactEval.eval(TestHelpers.Row.of("abc"))).as("truncate(abc,6) == abc").isTrue();
+    assertThat(exactEval.eval(TestHelpers.Row.of("abcd")))
+        .as("truncate(abcd,6) != abc (exact, not prefix)")
+        .isFalse();
+
+    // len(value) > width: truncate(col, 2) == "abcde" can never match
+    Expression none = Binder.bind(SCHEMA.asStruct(), equal(truncate(COLUMN, 2), "abcde"), false);
+    assertThat(none).isInstanceOf(False.class);
   }
 
   private void assertProjectionInclusive(
