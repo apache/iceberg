@@ -80,7 +80,6 @@ plugins:
       exclude:
         - 'docs/latest/*'
         - 'docs/1*/*'
-      exclude_unreferenced: true
 
 markdown_extensions:
   - pymdownx.highlight:
