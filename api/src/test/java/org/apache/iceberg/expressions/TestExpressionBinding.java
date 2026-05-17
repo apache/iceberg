@@ -231,6 +231,44 @@ public class TestExpressionBinding {
   }
 
   @Test
+  public void testTruncateStringEqualBinding() {
+    Expression bound = Binder.bind(STRUCT, equal(truncate("data", 3), "abc"));
+    TestHelpers.assertAllReferencesBound("TruncateEquals", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.STARTS_WITH);
+    assertThat(pred.term()).isInstanceOf(BoundReference.class);
+    assertThat(pred.term().ref().fieldId()).isEqualTo(3);
+    assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo("abc");
+  }
+
+  @Test
+  public void testTruncateStringEqualBindingWithUnicode() {
+    Expression bound = Binder.bind(STRUCT, equal(truncate("data", 2), "a😀"));
+    TestHelpers.assertAllReferencesBound("TruncateEquals", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.STARTS_WITH);
+    assertThat(pred.term()).isInstanceOf(BoundReference.class);
+    assertThat(pred.term().ref().fieldId()).isEqualTo(3);
+    assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo("a😀");
+  }
+
+  @Test
+  public void testTruncateStringEqualBindingWithShortLiteral() {
+    Expression bound = Binder.bind(STRUCT, equal(truncate("data", 3), "ab"));
+    TestHelpers.assertAllReferencesBound("TruncateEquals", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.EQ);
+    assertThat(pred.term()).isInstanceOf(BoundTransform.class);
+  }
+
+  @Test
+  public void testTruncateStringEqualBindingWithLongLiteral() {
+    assertThat(Binder.bind(STRUCT, equal(truncate("data", 3), "abcd")))
+        .as("A truncate result cannot be longer than the truncate width")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
   public void testIsNullWithUnknown() {
     Expression bound = Binder.bind(STRUCT, isNull("always_null"));
     TestHelpers.assertAllReferencesBound("IsNull", bound);
