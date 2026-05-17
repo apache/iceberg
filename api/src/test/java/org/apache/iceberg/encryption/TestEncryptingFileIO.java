@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
+import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.DelegateFileIO;
@@ -113,6 +114,41 @@ public class TestEncryptingFileIO {
     List<String> pathsToDelete = List.of("path1", "path2");
     fileIO.deleteFiles(pathsToDelete);
     verify(delegate).deleteFiles(pathsToDelete);
+  }
+
+  @Test
+  public void closeClosesUnderlyingFileIO() {
+    EncryptionManager em = mock(EncryptionManager.class);
+
+    FileIO fileIONoMixins = mock(FileIO.class);
+    EncryptingFileIO.combine(fileIONoMixins, em).close();
+    verify(fileIONoMixins).close();
+
+    SupportsPrefixOperations prefixIO = mock(SupportsPrefixOperations.class);
+    EncryptingFileIO prefixEncryptingIO = EncryptingFileIO.combine(prefixIO, em);
+    assertThat(prefixEncryptingIO)
+        .isInstanceOf(EncryptingFileIO.WithSupportsPrefixOperations.class);
+    prefixEncryptingIO.close();
+    verify(prefixIO).close();
+
+    DelegateFileIO delegate = mock(DelegateFileIO.class);
+    EncryptingFileIO delegateEncryptingIO = EncryptingFileIO.combine(delegate, em);
+    assertThat(delegateEncryptingIO).isInstanceOf(EncryptingFileIO.WithDelegateFileIO.class);
+    delegateEncryptingIO.close();
+    verify(delegate).close();
+  }
+
+  @Test
+  public void closeClosesEncryptionManagerWhenCloseable() throws Exception {
+    EncryptionManager em =
+        mock(EncryptionManager.class, withSettings().extraInterfaces(Closeable.class));
+    DelegateFileIO delegate = mock(DelegateFileIO.class);
+
+    EncryptingFileIO fileIO = EncryptingFileIO.combine(delegate, em);
+    fileIO.close();
+
+    verify(delegate).close();
+    verify((Closeable) em).close();
   }
 
   @Test
