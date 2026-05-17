@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
@@ -127,5 +128,15 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
 
   private void writeOSSData(OSSURI uri, byte[] data) {
     ossClient().get().putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
+  }
+
+  @Test
+  public void testReadMissingObjectThrowsNotFoundException() {
+    OSSURI uri = new OSSURI(location("nonexistent.dat"));
+
+    SeekableInputStream in = new OSSInputStream(ossClient().get(), uri);
+    assertThatThrownBy(in::read)
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Location does not exist");
   }
 }

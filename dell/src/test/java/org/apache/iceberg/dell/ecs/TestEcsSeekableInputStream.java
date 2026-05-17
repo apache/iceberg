@@ -19,11 +19,13 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -89,5 +91,17 @@ public class TestEcsSeekableInputStream {
           .as("The first 3 bytes should be 012")
           .isEqualTo("012");
     }
+  }
+
+  @Test
+  public void testReadMissingObjectThrowsNotFoundException() {
+    String objectName = rule.randomObjectName();
+
+    EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics());
+    assertThatThrownBy(input::read)
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Location does not exist");
   }
 }
