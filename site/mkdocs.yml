@@ -77,9 +77,9 @@ plugins:
         'docs/nightly/daft.md': 'integrations/daft.md'
         'docs/nightly/risingwave.md': 'integrations/risingwave.md'
   - exclude-search:
-      # Index only docs/nightly/* to avoid duplicate hits across versions.
+      # Index only docs/latest/* to avoid duplicate hits across versions.
       exclude:
-        - 'docs/latest*'  # excludes latest and its children
+        - 'docs/nightly*'  # excludes nightly and its children
         - 'docs/[0-9]*'    # excludes docs/<x.y.z> and their children
 
 markdown_extensions:
@@ -126,8 +126,12 @@ extra:
       link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-3tkrk9gpf-1eFZ8ozS2In0~zM_BeZiRQ'
       title: slack
 
+# docs/xxx/docs/xxx.md excludes original md files which are copied to build's output by default
 exclude_docs: |
   !.asf.yaml
+  docs/latest/docs/**
+  docs/nightly/docs/**
+  docs/[0-9]*/docs/**
 
 extra_css:
   - assets/stylesheets/extra.css
