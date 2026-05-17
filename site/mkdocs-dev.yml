@@ -29,8 +29,8 @@ nav:
     - Hive: hive-quickstart.md
   - Docs:
     - Java:
-      - Nightly: '!include docs/docs/nightly/mkdocs.yml'
-      - Latest (1.10.1): '!include docs/docs/latest/mkdocs.yml'
+      - Nightly: '!include versioned-docs/nightly/mkdocs.yml'
+      - Latest (1.10.1): '!include versioned-docs/latest/mkdocs.yml'
     - Other Implementations:
       - Python: https://py.iceberg.apache.org/
       - Rust: https://rust.iceberg.apache.org/

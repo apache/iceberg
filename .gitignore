@@ -25,7 +25,7 @@ lib/
 # web site build
 docs/site/
 site/site/
-site/docs/docs/
+site/versioned-docs/
 site/docs/.asf.yaml
 site/docs/javadoc/
 site/.venv/
