@@ -80,6 +80,9 @@ public class HTTPClient extends BaseHTTPClient {
   @VisibleForTesting
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
+  @VisibleForTesting
+  static final String CLIENT_CAPABILITIES_HEADER = "X-Iceberg-Client-Capabilities";
+
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
   static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
   static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
@@ -548,6 +551,7 @@ public class HTTPClient extends BaseHTTPClient {
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
+      withHeader(CLIENT_CAPABILITIES_HEADER, ClientCapability.HEADER_VALUE);
 
       String proxyHostname =
           PropertyUtil.propertyAsString(properties, HTTPClient.REST_PROXY_HOSTNAME, null);

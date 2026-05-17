@@ -76,6 +76,7 @@ paths:
           schema:
             type: string
           description: Warehouse location or identifier to request from the service
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         "
         All REST clients should first call this route to get catalog configuration
@@ -280,6 +281,7 @@ paths:
           schema:
             type: string
           example: "accounting%1Ftax"
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         200:
           $ref: '#/components/responses/ListNamespacesResponse'
@@ -311,6 +313,7 @@ paths:
       summary: Create a namespace
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Create a namespace, with an optional set of properties.
         The server might also add properties, such as `last_modified_time` etc.
@@ -358,6 +361,8 @@ paths:
         - Catalog API
       summary: Load the metadata properties for a namespace
       operationId: loadNamespaceMetadata
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       description: Return all stored metadata properties for a given namespace
       responses:
         200:
@@ -389,6 +394,8 @@ paths:
         - Catalog API
       summary: Check if a namespace exists
       operationId: namespaceExists
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Check if a namespace exists. The response does not contain a body.
       responses:
@@ -423,6 +430,7 @@ paths:
       operationId: dropNamespace
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         204:
           description: Success, no content
@@ -469,6 +477,7 @@ paths:
       operationId: updateProperties
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Set and/or remove properties on a namespace.
         The request body specifies a list of properties to remove and a map
@@ -536,6 +545,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -582,6 +592,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/data-access'
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       requestBody:
         required: true
         content:
@@ -674,6 +685,7 @@ paths:
       operationId: planTableScan
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       requestBody:
         content:
           application/json:
@@ -724,6 +736,8 @@ paths:
         - Catalog API
       summary: Fetches the result of scan planning for a plan-id
       operationId: fetchPlanningResult
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       description: >
         Fetches the result of scan planning for a plan-id.
 
@@ -784,6 +798,7 @@ paths:
       operationId: cancelPlanning
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description: >
         Cancels scan planning for a plan-id.
 
@@ -847,6 +862,7 @@ paths:
       operationId: fetchScanTasks
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description: Fetches result tasks for a plan task.
       requestBody:
         content:
@@ -898,6 +914,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/data-access'
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Register a table using given metadata file location.
 
@@ -993,6 +1010,7 @@ paths:
             type: string
             enum: [ all, refs ]
         - $ref: '#/components/parameters/referenced-by'
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
@@ -1030,6 +1048,7 @@ paths:
       operationId: updateTable
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Commit updates to a table.
 
@@ -1158,6 +1177,7 @@ paths:
           schema:
             type: boolean
             default: false
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         204:
           description: Success, no content
@@ -1189,6 +1209,8 @@ paths:
         - Catalog API
       summary: Check if a table exists
       operationId: tableExists
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Check if a table exists within a given namespace. The response does not contain a body.
       responses:
@@ -1236,6 +1258,7 @@ paths:
             type: string
           description: The plan ID that has been used for server-side scan planning
         - $ref: '#/components/parameters/referenced-by'
+        - $ref: '#/components/parameters/client-capabilities'
       description: Load vended credentials for a table from the catalog.
       responses:
         200:
@@ -1274,6 +1297,8 @@ paths:
         - Catalog API
       summary: Remotely signs requests to object storage
       operationId: signRequest
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       requestBody:
         description: The request to be signed
         content:
@@ -1307,6 +1332,7 @@ paths:
       summary: Rename a table from its current name to a new name
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Rename a table from one identifier to another. It's valid to move a table
         across namespaces, but the server implementation is not required to support it.
@@ -1372,6 +1398,8 @@ paths:
         - Catalog API
       summary: Send a metrics report to this endpoint to be processed by the backend
       operationId: reportMetrics
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       requestBody:
         description: The request containing the metrics report to be sent
         content:
@@ -1416,6 +1444,7 @@ paths:
       operationId: commitTransaction
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       requestBody:
         description:
           Commit updates to multiple tables in an atomic operation
@@ -1536,6 +1565,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1568,6 +1598,8 @@ paths:
       description:
         Create a view in the given namespace.
       operationId: createView
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       requestBody:
         required: true
         content:
@@ -1636,6 +1668,7 @@ paths:
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       parameters:
         - $ref: '#/components/parameters/referenced-by'
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         200:
           $ref: '#/components/responses/LoadViewResponse'
@@ -1669,6 +1702,7 @@ paths:
       operationId: replaceView
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Commit updates to a view.
       requestBody:
@@ -1772,6 +1806,7 @@ paths:
       description: Remove a view from the catalog
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       responses:
         204:
           description: Success, no content
@@ -1803,6 +1838,8 @@ paths:
         - Catalog API
       summary: Check if a view exists
       operationId: viewExists
+      parameters:
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Check if a view exists within a given namespace. This request does not return a response body.
       responses:
@@ -1835,6 +1872,7 @@ paths:
       operationId: renameView
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       requestBody:
         description: Current view identifier to rename and new view identifier to rename to
         content:
@@ -1896,6 +1934,7 @@ paths:
       summary: Register a view in the catalog
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/client-capabilities'
       description:
         Register a view in the given namespace using given metadata file location.
 
@@ -2018,6 +2057,50 @@ components:
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
+
+    client-capabilities:
+      name: X-Iceberg-Client-Capabilities
+      in: header
+      description: >
+        This header is a forward-compatibility hint, not a security mechanism.
+        Clients can trivially spoof its value; servers MUST NOT base trust or
+        authorization decisions on it.
+
+
+        Optional signal from the client declaring the set of capabilities that
+        the client SDK supports, as a comma-separated list. This header is
+        sent on every request. The server may use this information to tailor
+        its responses.
+
+
+        Defined capability values:
+
+        - `vended-credentials`: The client supports receiving and using
+          storage credentials vended by the catalog server.
+
+        - `remote-signing`: The client supports delegating request signing
+          to a remote signing service provided by the catalog server.
+
+        - `scan-planning`: The client supports server-side scan planning.
+
+
+        Clients should include all capabilities they support. Servers must
+        treat this header as optional and must not fail if it is absent.
+
+
+        Client SDKs that support this header should set it statically and
+        include it on every request. Clients that do not yet support this
+        header statically can configure it via client side headers.
+      required: false
+      schema:
+        type: string
+        enum:
+          - vended-credentials
+          - remote-signing
+          - scan-planning
+      style: simple
+      explode: false
+      example: "vended-credentials,remote-signing,scan-planning"
 
     page-token:
       name: pageToken

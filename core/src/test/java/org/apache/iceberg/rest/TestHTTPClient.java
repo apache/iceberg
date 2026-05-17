@@ -170,6 +170,27 @@ public class TestHTTPClient {
   }
 
   @Test
+  public void testCapabilityHeaderOverridesUserConfig() throws IOException {
+    String userBogusValue = "user-supplied-bogus";
+    try (RESTClient clientWithUserCapabilities =
+        HTTPClient.builder(ImmutableMap.of())
+            .uri(URI)
+            .withHeader(HTTPClient.CLIENT_CAPABILITIES_HEADER, userBogusValue)
+            .withAuthSession(AuthSession.EMPTY)
+            .build()) {
+      String path = "v1/test-capability-override";
+      HttpRequest mockRequest =
+          request("/" + path)
+              .withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT))
+              .withHeader(HTTPClient.CLIENT_CAPABILITIES_HEADER, ClientCapability.HEADER_VALUE);
+      HttpResponse mockResponse = response().withStatusCode(200);
+      mockServer.when(mockRequest).respond(mockResponse);
+      clientWithUserCapabilities.head(path, ImmutableMap.of(), (onError) -> {});
+      mockServer.verify(mockRequest, VerificationTimes.exactly(1));
+    }
+  }
+
+  @Test
   public void testProxyServer() throws IOException {
     int proxyPort = 1070;
     try (ClientAndServer proxyServer = startClientAndServer(proxyPort);
@@ -672,6 +693,7 @@ public class TestHTTPClient {
             .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
             .withHeader(HTTPClient.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
             .withHeader(HTTPClient.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort)
+            .withHeader(HTTPClient.CLIENT_CAPABILITIES_HEADER, ClientCapability.HEADER_VALUE)
             .withHeader(USER_AGENT, TEST_USER_AGENT);
 
     if (method.usesRequestBody()) {
