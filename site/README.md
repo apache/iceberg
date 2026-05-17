@@ -40,18 +40,20 @@ The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`.
 
 ```
 .
-├── versioned-docs (versioned)
-│   ├── docs
-│   │   ├── assets
-│   │   ├── api.md
-│   │   ├── ...
-│   │   └── table-migration.md
-│   └── mkdocs.yml
+├── versioned-docs (versioned, per version)
+│   ├── <version>
+│   │   ├── docs
+│   │   │   ├── assets
+│   │   │   ├── api.md
+│   │   │   ├── ...
+│   │   │   └── table-migration.md
+│   │   └── mkdocs.yml
+│   └── ...
 └── site (non-versioned)
     ├── docs
-    │   ├── about.md
-    │   ├── ...
-    │   └── view-spec.md
+    │   ├── about.md
+    │   ├── ...
+    │   └── view-spec.md
     ├── ...
     ├── Makefile
     ├── mkdocs.yml
@@ -89,20 +91,21 @@ This step will generate the staged source code which blends into the original so
 
 ```
 ./site/
-└── docs
-    ├── docs
-    │   ├── nightly (symlink to /docs/)
-    │   ├── latest (symlink to /site/docs/1.4.0/)
-    │   ├── 1.4.0 
-    │   ├── 1.3.1
-    │   └── ...
-    ├── javadoc
-    │   ├── nightly (currently points to latest)
-    │   ├── latest
-    │   ├── 1.4.0
-    │   ├── 1.3.1
-    │   └── ...
-    └─.asf.yaml
+├── versioned-docs
+│   ├── nightly (symlink to /docs/)
+│   ├── latest (symlink to versioned-docs/<latest-version>)
+│   ├── 1.4.0
+│   ├── 1.3.1
+│   └── ...
+├── docs
+│   ├── javadoc
+│   │   ├── nightly (currently points to latest)
+│   │   ├── latest
+│   │   ├── 1.4.0
+│   │   ├── 1.3.1
+│   │   └── ...
+│   └─.asf.yaml
+└── mkdocs.yml
 ```
 
 #### Linting
@@ -196,21 +199,21 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 
 ```
 ./site/
+├── versioned-docs
+│   ├── nightly
+│   │   ├── docs
+│   │   └── mkdocs.yml
+│   ├── latest
+│   │   ├── docs
+│   │   └── mkdocs.yml
+│   └── 1.4.0
+│       ├── docs
+│       └── mkdocs.yml
 ├── docs
-│   ├── docs
-│   │   ├── nightly
-│   │   │   ├── docs
-│   │   │   └── mkdocs.yml
-│   │   ├── latest
-│   │   │   ├── docs
-│   │   │   └── mkdocs.yml
-│   │   └── 1.4.0
-│   │       ├── docs
-│   │       └── mkdocs.yml
-│   └─ javadoc
-│      ├── nightly
-│      ├── latest
-│      └── 1.4.0
+│   └─ javadoc
+│      ├── nightly
+│      ├── latest
+│      └── 1.4.0
 └── mkdocs.yml
 ```
 
