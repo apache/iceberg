@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,6 +34,7 @@ import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -57,13 +59,16 @@ import org.apache.iceberg.spark.SparkAggregates;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
 import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
@@ -205,11 +210,32 @@ public class SparkScanBuilder
 
   @Override
   public boolean pushAggregation(Aggregation aggregation) {
-    if (!canPushDownAggregation(aggregation)) {
+    if (!canPushDownAggregation()) {
       return false;
     }
 
-    AggregateEvaluator aggregateEvaluator;
+    List<BoundAggregate<?, ?>> boundAggregates = bindAggregates(aggregation);
+    if (boundAggregates == null) {
+      return false;
+    }
+
+    if (!metricsModeSupportsAggregatePushDown(boundAggregates)) {
+      return false;
+    }
+
+    List<Types.NestedField> groupByFields = resolveGroupByFields(aggregation);
+    if (groupByFields == null) {
+      return false;
+    }
+
+    if (groupByFields.isEmpty()) {
+      return pushUngroupedAggregation(boundAggregates);
+    } else {
+      return pushGroupedAggregation(boundAggregates, groupByFields);
+    }
+  }
+
+  private List<BoundAggregate<?, ?>> bindAggregates(Aggregation aggregation) {
     List<BoundAggregate<?, ?>> expressions =
         Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
 
@@ -223,19 +249,19 @@ public class SparkScanBuilder
           LOG.info(
               "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg expression",
               aggregateFunc);
-          return false;
+          return null;
         }
       } catch (IllegalArgumentException e) {
         LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
-        return false;
+        return null;
       }
     }
 
-    aggregateEvaluator = AggregateEvaluator.create(expressions);
+    return expressions;
+  }
 
-    if (!metricsModeSupportsAggregatePushDown(aggregateEvaluator.aggregates())) {
-      return false;
-    }
+  private boolean pushUngroupedAggregation(List<BoundAggregate<?, ?>> boundAggregates) {
+    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(boundAggregates);
 
     org.apache.iceberg.Scan scan =
         buildIcebergBatchScan(true /* include Column Stats */, schemaWithMetadataColumns());
@@ -261,33 +287,181 @@ public class SparkScanBuilder
     StructType pushedAggregateSchema =
         SparkSchemaUtil.convert(new Schema(aggregateEvaluator.resultType().fields()));
     InternalRow[] pushedAggregateRows = new InternalRow[1];
-    StructLike structLike = aggregateEvaluator.result();
     pushedAggregateRows[0] =
-        new StructInternalRow(aggregateEvaluator.resultType()).setStruct(structLike);
+        new StructInternalRow(aggregateEvaluator.resultType())
+            .setStruct(aggregateEvaluator.result());
     localScan =
         new SparkLocalScan(table, pushedAggregateSchema, pushedAggregateRows, filterExpressions);
 
     return true;
   }
 
-  private boolean canPushDownAggregation(Aggregation aggregation) {
+  /**
+   * Pushes down aggregates that are grouped by identity partition columns. Because every row in a
+   * data file shares the same value for an identity partition column, a file's metadata stats
+   * belong entirely to a single group, so per-group min/max/count can be computed from manifests
+   * without scanning data. Pushdown is skipped (false) if any group-by column is not an identity
+   * partition column in the spec of every scanned data file (e.g. partition spec evolution or a
+   * non-identity transform).
+   */
+  private boolean pushGroupedAggregation(
+      List<BoundAggregate<?, ?>> boundAggregates, List<Types.NestedField> groupByFields) {
+    Types.StructType groupKeyType = groupKeyType(groupByFields);
+    StructLikeMap<AggregateEvaluator> evaluatorsByGroup = StructLikeMap.create(groupKeyType);
+
+    org.apache.iceberg.Scan scan =
+        buildIcebergBatchScan(true /* include Column Stats */, schemaWithMetadataColumns());
+
+    try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
+      for (FileScanTask task : fileScanTasks) {
+        if (!task.deletes().isEmpty()) {
+          LOG.info("Skipping aggregate pushdown: detected row level deletes");
+          return false;
+        }
+
+        StructLike groupKey = buildGroupKey(task, groupByFields);
+        if (groupKey == null) {
+          LOG.info(
+              "Skipping aggregate pushdown: group by column is not an identity partition "
+                  + "in the spec of all data files");
+          return false;
+        }
+
+        evaluatorsByGroup
+            .computeIfAbsent(groupKey, () -> AggregateEvaluator.create(boundAggregates))
+            .update(task.file());
+      }
+    } catch (IOException e) {
+      LOG.info("Skipping aggregate pushdown: ", e);
+      return false;
+    }
+
+    for (AggregateEvaluator evaluator : evaluatorsByGroup.values()) {
+      if (!evaluator.allAggregatorsValid()) {
+        return false;
+      }
+    }
+
+    // Spark's SupportsPushDownAggregates contract expects the scan to output the group-by
+    // columns first (in the given order) followed by the aggregate expressions (in the given
+    // order). Fresh sequential field ids keep the combined schema self-consistent.
+    Types.StructType aggregateResultType = AggregateEvaluator.create(boundAggregates).resultType();
+    List<Types.NestedField> resultFields =
+        Lists.newArrayListWithExpectedSize(
+            groupByFields.size() + aggregateResultType.fields().size());
+    int fieldId = 0;
+    for (Types.NestedField groupByField : groupByFields) {
+      resultFields.add(
+          Types.NestedField.optional(fieldId++, groupByField.name(), groupByField.type()));
+    }
+    for (Types.NestedField aggregateField : aggregateResultType.fields()) {
+      resultFields.add(
+          Types.NestedField.optional(fieldId++, aggregateField.name(), aggregateField.type()));
+    }
+    Types.StructType resultType = Types.StructType.of(resultFields);
+    StructType pushedAggregateSchema = SparkSchemaUtil.convert(new Schema(resultFields));
+
+    List<InternalRow> pushedAggregateRows =
+        Lists.newArrayListWithExpectedSize(evaluatorsByGroup.size());
+    for (Map.Entry<StructLike, AggregateEvaluator> entry : evaluatorsByGroup.entrySet()) {
+      StructLike joined =
+          new JoinedStruct(entry.getKey(), groupByFields.size(), entry.getValue().result());
+      pushedAggregateRows.add(new StructInternalRow(resultType).setStruct(joined));
+    }
+
+    localScan =
+        new SparkLocalScan(
+            table,
+            pushedAggregateSchema,
+            pushedAggregateRows.toArray(new InternalRow[0]),
+            filterExpressions);
+
+    return true;
+  }
+
+  /**
+   * Resolves the Spark group-by expressions to table-schema fields. Returns an empty list when
+   * there is no group by, or {@code null} when any group-by expression is not a plain column
+   * reference (e.g. a transform expression) or does not resolve to a known column, signaling that
+   * aggregate pushdown must be skipped.
+   */
+  private List<Types.NestedField> resolveGroupByFields(Aggregation aggregation) {
+    org.apache.spark.sql.connector.expressions.Expression[] groupByExpressions =
+        aggregation.groupByExpressions();
+    List<Types.NestedField> groupByFields =
+        Lists.newArrayListWithExpectedSize(groupByExpressions.length);
+
+    for (org.apache.spark.sql.connector.expressions.Expression expr : groupByExpressions) {
+      if (!(expr instanceof NamedReference)) {
+        LOG.info("Skipping aggregate pushdown: group by expression {} is not a column", expr);
+        return null;
+      }
+
+      String columnName = SparkUtil.toColumnName((NamedReference) expr);
+      Types.NestedField field =
+          caseSensitive
+              ? schema.findField(columnName)
+              : schema.caseInsensitiveFindField(columnName);
+      if (field == null) {
+        LOG.info("Skipping aggregate pushdown: group by column {} was not found", columnName);
+        return null;
+      }
+
+      groupByFields.add(field);
+    }
+
+    return groupByFields;
+  }
+
+  private Types.StructType groupKeyType(List<Types.NestedField> groupByFields) {
+    List<Types.NestedField> keyFields = Lists.newArrayListWithExpectedSize(groupByFields.size());
+    int fieldId = 0;
+    for (Types.NestedField groupByField : groupByFields) {
+      keyFields.add(
+          Types.NestedField.optional(fieldId++, groupByField.name(), groupByField.type()));
+    }
+    return Types.StructType.of(keyFields);
+  }
+
+  /**
+   * Builds the group key for a file from its partition tuple. Returns {@code null} if any group-by
+   * column is not an identity partition field in this file's spec, which forces pushdown to be
+   * skipped (correctness over coverage under partition spec evolution).
+   */
+  private StructLike buildGroupKey(FileScanTask task, List<Types.NestedField> groupByFields) {
+    PartitionSpec spec = task.spec();
+    StructLike partition = task.partition();
+    List<PartitionField> partitionFields = spec.fields();
+
+    Object[] keyValues = new Object[groupByFields.size()];
+    for (int i = 0; i < groupByFields.size(); i++) {
+      int sourceId = groupByFields.get(i).fieldId();
+
+      int partitionPos = -1;
+      for (int pos = 0; pos < partitionFields.size(); pos++) {
+        PartitionField partitionField = partitionFields.get(pos);
+        if (partitionField.sourceId() == sourceId && partitionField.transform().isIdentity()) {
+          partitionPos = pos;
+          break;
+        }
+      }
+
+      if (partitionPos < 0) {
+        return null;
+      }
+
+      keyValues[i] = partition.get(partitionPos, Object.class);
+    }
+
+    return new ArrayStructLike(keyValues);
+  }
+
+  private boolean canPushDownAggregation() {
     if (!(table instanceof BaseTable)) {
       return false;
     }
 
-    if (!readConf.aggregatePushDownEnabled()) {
-      return false;
-    }
-
-    // If group by expression is the same as the partition, the statistics information can still
-    // be used to calculate min/max/count, will enable aggregate push down in next phase.
-    // TODO: enable aggregate push down for partition col group by expression
-    if (aggregation.groupByExpressions().length > 0) {
-      LOG.info("Skipping aggregate pushdown: group by aggregation push down is not supported");
-      return false;
-    }
-
-    return true;
+    return readConf.aggregatePushDownEnabled();
   }
 
   private boolean metricsModeSupportsAggregatePushDown(List<BoundAggregate<?, ?>> aggregates) {
@@ -771,5 +945,61 @@ public class SparkScanBuilder
   public boolean pushLimit(int pushedLimit) {
     this.limit = pushedLimit;
     return true;
+  }
+
+  /** Array-backed struct used as a group key; values are stored in raw internal form. */
+  private static class ArrayStructLike implements StructLike {
+    private final Object[] values;
+
+    private ArrayStructLike(Object[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public int size() {
+      return values.length;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(values[pos]);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      values[pos] = value;
+    }
+  }
+
+  /** Read-only concatenation of a group-key struct and its aggregate-result struct. */
+  private static class JoinedStruct implements StructLike {
+    private final StructLike left;
+    private final int leftSize;
+    private final StructLike right;
+
+    private JoinedStruct(StructLike left, int leftSize, StructLike right) {
+      this.left = left;
+      this.leftSize = leftSize;
+      this.right = right;
+    }
+
+    @Override
+    public int size() {
+      return leftSize + right.size();
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos < leftSize) {
+        return left.get(pos, javaClass);
+      } else {
+        return right.get(pos - leftSize, javaClass);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("JoinedStruct is read-only");
+    }
   }
 }

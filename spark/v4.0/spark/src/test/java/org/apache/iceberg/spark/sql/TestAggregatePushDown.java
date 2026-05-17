@@ -28,15 +28,18 @@ import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -974,5 +977,395 @@ public class TestAggregatePushDown extends CatalogTestBase {
     expected2.add(new Object[] {-7777, 9999, 6L});
     assertEquals(
         "min/max/count push down", expected2, rowsToJava(unboundedPushdownDs.collectAsList()));
+  }
+
+  private void assertGroupByPushedDown(String select) {
+    String explainString =
+        sql("EXPLAIN " + select, tableName).get(0)[0].toString().toLowerCase(Locale.ROOT);
+    assertThat(explainString)
+        .as("group by aggregate should be pushed down to a local scan")
+        .contains("localtablescan");
+  }
+
+  private void assertGroupByNotPushedDown(String select) {
+    String explainString =
+        sql("EXPLAIN " + select, tableName).get(0)[0].toString().toLowerCase(Locale.ROOT);
+    assertThat(explainString)
+        .as("group by aggregate should not be pushed down")
+        .doesNotContain("localtablescan");
+  }
+
+  /**
+   * Correctness oracle: the metadata pushed-down result must equal the result produced by a real
+   * data scan with aggregate pushdown disabled. Catches silent wrong-aggregate regressions that a
+   * hand-written expected list could share with a buggy implementation.
+   */
+  private void assertGroupByResultsMatchWithoutPushDown(String select) {
+    List<Object[]> pushedDown = sql(select, tableName);
+    List<Object[]> withoutPushDown = Lists.newArrayList();
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED, "false"),
+        () -> {
+          withoutPushDown.addAll(sql(select, tableName));
+        });
+    assertEquals(
+        "pushed-down group by result must match the scan-based result",
+        withoutPushDown,
+        pushedDown);
+  }
+
+  @TestTemplate
+  public void testGroupByPushDownSingleIdentityPartition() {
+    sql(
+        "CREATE TABLE %s (id LONG, dep STRING, salary INT) USING iceberg PARTITIONED BY (id)",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, 'd1', 100), (1, 'd1', 200), "
+            + "(2, 'd2', 300), (2, 'd2', 400), (2, 'd2', 50), "
+            + "(3, 'd3', 600)",
+        tableName);
+    String select =
+        "SELECT id, count(*), max(salary), min(salary), count(salary) FROM %s "
+            + "GROUP BY id ORDER BY id";
+
+    assertGroupByPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1L, 2L, 200, 100, 2L});
+    expected.add(new Object[] {2L, 3L, 400, 50, 3L});
+    expected.add(new Object[] {3L, 1L, 600, 600, 1L});
+    assertEquals("group by identity partition push down", expected, sql(select, tableName));
+    assertGroupByResultsMatchWithoutPushDown(select);
+  }
+
+  @TestTemplate
+  public void testGroupByPushDownMultipleIdentityPartitions() {
+    sql(
+        "CREATE TABLE %s (id LONG, dep STRING, salary INT) USING iceberg PARTITIONED BY (id, dep)",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, 'a', 100), (1, 'a', 200), "
+            + "(1, 'b', 300), "
+            + "(2, 'a', 400)",
+        tableName);
+    String select =
+        "SELECT id, dep, count(*), max(salary) FROM %s GROUP BY id, dep ORDER BY id, dep";
+
+    assertGroupByPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1L, "a", 2L, 200});
+    expected.add(new Object[] {1L, "b", 1L, 300});
+    expected.add(new Object[] {2L, "a", 1L, 400});
+    assertEquals(
+        "group by multiple identity partitions push down", expected, sql(select, tableName));
+    assertGroupByResultsMatchWithoutPushDown(select);
+  }
+
+  @TestTemplate
+  public void testGroupByNonPartitionColumnNotPushedDown() {
+    sql(
+        "CREATE TABLE %s (id LONG, dep STRING, salary INT) USING iceberg PARTITIONED BY (id)",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', 100), (2, 'a', 200), (3, 'b', 300)", tableName);
+    String select = "SELECT dep, count(*), max(salary) FROM %s GROUP BY dep ORDER BY dep";
+
+    assertGroupByNotPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {"a", 2L, 200});
+    expected.add(new Object[] {"b", 1L, 300});
+    assertEquals("group by non-partition column falls back", expected, sql(select, tableName));
+  }
+
+  @TestTemplate
+  public void testGroupByNonIdentityPartitionNotPushedDown() {
+    sql(
+        "CREATE TABLE %s (id LONG, data STRING) USING iceberg PARTITIONED BY (bucket(8, id))",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'aa'), (2, 'bb'), (3, 'cc')", tableName);
+    String bucketSelect = "SELECT id, count(*) FROM %s GROUP BY id ORDER BY id";
+
+    assertGroupByNotPushedDown(bucketSelect);
+
+    List<Object[]> expectedBucket = Lists.newArrayList();
+    expectedBucket.add(new Object[] {1L, 1L});
+    expectedBucket.add(new Object[] {2L, 1L});
+    expectedBucket.add(new Object[] {3L, 1L});
+    assertEquals(
+        "group by on bucketed source falls back", expectedBucket, sql(bucketSelect, tableName));
+
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql(
+        "CREATE TABLE %s (id LONG, data STRING) USING iceberg PARTITIONED BY (truncate(2, data))",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'apple'), (2, 'apricot'), (3, 'banana')", tableName);
+    String truncateSelect = "SELECT data, count(*) FROM %s GROUP BY data ORDER BY data";
+
+    assertGroupByNotPushedDown(truncateSelect);
+
+    List<Object[]> expectedTruncate = Lists.newArrayList();
+    expectedTruncate.add(new Object[] {"apple", 1L});
+    expectedTruncate.add(new Object[] {"apricot", 1L});
+    expectedTruncate.add(new Object[] {"banana", 1L});
+    assertEquals(
+        "group by on truncated source falls back",
+        expectedTruncate,
+        sql(truncateSelect, tableName));
+  }
+
+  @TestTemplate
+  public void testGroupByPartitionEvolutionNotPushedDown() {
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (2, 200)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateSpec().addField("id").commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 300), (3, 400)", tableName);
+    String select = "SELECT id, count(*), max(salary) FROM %s GROUP BY id ORDER BY id";
+
+    assertGroupByNotPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1L, 2L, 300});
+    expected.add(new Object[] {2L, 1L, 200});
+    expected.add(new Object[] {3L, 1L, 400});
+    assertEquals("group by under partition evolution falls back", expected, sql(select, tableName));
+
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id)", tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (2, 200)", tableName);
+    sql("INSERT INTO %s VALUES (1, 300), (3, 400)", tableName);
+    String stableSelect = "SELECT id, count(*), max(salary) FROM %s GROUP BY id ORDER BY id";
+
+    assertGroupByPushedDown(stableSelect);
+
+    List<Object[]> stableExpected = Lists.newArrayList();
+    stableExpected.add(new Object[] {1L, 2L, 300});
+    stableExpected.add(new Object[] {2L, 1L, 200});
+    stableExpected.add(new Object[] {3L, 1L, 400});
+    assertEquals("stable identity spec pushes down", stableExpected, sql(stableSelect, tableName));
+  }
+
+  @TestTemplate
+  public void testGroupByNullPartitionValueFormsOwnGroup() {
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id)", tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (1, 200), (null, 300), (null, 400), (2, 500)", tableName);
+    String select = "SELECT id, count(*), max(salary) FROM %s GROUP BY id ORDER BY id NULLS FIRST";
+
+    assertGroupByPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {null, 2L, 400});
+    expected.add(new Object[] {1L, 2L, 200});
+    expected.add(new Object[] {2L, 1L, 500});
+    assertEquals("null partition forms its own group", expected, sql(select, tableName));
+  }
+
+  @TestTemplate
+  public void testGroupByWithDeletesNotPushedDown() {
+    sql(
+        "CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id) "
+            + "TBLPROPERTIES ('format-version'='2', 'write.delete.mode'='merge-on-read')",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (1, 200), (2, 300), (2, 400)", tableName);
+    sql("DELETE FROM %s WHERE salary = 200", tableName);
+    String select = "SELECT id, count(*), max(salary) FROM %s GROUP BY id ORDER BY id";
+
+    assertGroupByNotPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1L, 1L, 100});
+    expected.add(new Object[] {2L, 2L, 400});
+    assertEquals("group by with row-level deletes falls back", expected, sql(select, tableName));
+  }
+
+  @TestTemplate
+  public void testGroupByWithPartitionFilter() {
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id)", tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (2, 200), (2, 250), (3, 300), (4, 400)", tableName);
+    String select = "SELECT id, count(*), max(salary) FROM %s WHERE id > 1 GROUP BY id ORDER BY id";
+
+    assertGroupByPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {2L, 2L, 250});
+    expected.add(new Object[] {3L, 1L, 300});
+    expected.add(new Object[] {4L, 1L, 400});
+    assertEquals("group by with partition filter pushes down", expected, sql(select, tableName));
+    assertGroupByResultsMatchWithoutPushDown(select);
+  }
+
+  @TestTemplate
+  public void testGroupByEmptyTable() {
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id)", tableName);
+    String groupSelect = "SELECT id, count(*) FROM %s GROUP BY id";
+
+    assertThat(sql(groupSelect, tableName)).as("group by on empty table returns no rows").isEmpty();
+
+    List<Object[]> ungrouped = sql("SELECT count(*) FROM %s", tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {0L});
+    assertEquals("ungrouped count on empty table still returns one row", expected, ungrouped);
+  }
+
+  @TestTemplate
+  public void testGroupByWithDataFilterNotPushedDown() {
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id)", tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (1, 200), (2, 50), (2, 400), (3, 300)", tableName);
+    // salary is not a partition column, so the filter cannot be fully pushed and Spark must keep a
+    // Filter node above the scan; the aggregate must therefore not be pushed down.
+    String select =
+        "SELECT id, count(*), max(salary) FROM %s WHERE salary > 150 GROUP BY id ORDER BY id";
+
+    assertGroupByNotPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1L, 1L, 200});
+    expected.add(new Object[] {2L, 1L, 400});
+    expected.add(new Object[] {3L, 1L, 300});
+    assertEquals(
+        "group by with non-partition data filter falls back", expected, sql(select, tableName));
+  }
+
+  @TestTemplate
+  public void testGroupByMultiSpecStaysIdentityPushedDown() {
+    sql(
+        "CREATE TABLE %s (id LONG, data STRING, salary INT) USING iceberg PARTITIONED BY (id)",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', 100), (2, 'b', 200)", tableName);
+
+    // Evolve the spec by adding a non-identity field. The group-by column id stays an identity
+    // partition field but shifts position only in the newer spec, exercising the per-file spec
+    // resolution and cross-spec StructLikeMap keying in pushGroupedAggregation.
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateSpec().addField(Expressions.bucket("data", 8)).commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'c', 300), (3, 'd', 400)", tableName);
+    String select = "SELECT id, count(*), max(salary) FROM %s GROUP BY id ORDER BY id";
+
+    assertGroupByPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1L, 2L, 300});
+    expected.add(new Object[] {2L, 1L, 200});
+    expected.add(new Object[] {3L, 1L, 400});
+    assertEquals(
+        "identity column stable across specs pushes down", expected, sql(select, tableName));
+    assertGroupByResultsMatchWithoutPushDown(select);
+  }
+
+  @TestTemplate
+  public void testGroupByWithNaNNotPushedDown() {
+    sql("CREATE TABLE %s (id INT, data FLOAT) USING iceberg PARTITIONED BY (id)", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, 1.0), (1, 2.0), (2, float('nan')), (2, 3.0), (3, 4.0)",
+        tableName);
+    // A NaN bound makes max(data) metrics-invalid for the id=2 group; the implementation rejects
+    // the whole grouped pushdown when any group is invalid.
+    String select = "SELECT id, count(*), max(data) FROM %s GROUP BY id ORDER BY id";
+
+    assertGroupByNotPushedDown(select);
+
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1, 2L, 2.0F});
+    expected.add(new Object[] {2, 2L, Float.NaN});
+    expected.add(new Object[] {3, 1L, 4.0F});
+    assertEquals("group by with NaN max falls back", expected, sql(select, tableName));
+  }
+
+  @TestTemplate
+  public void testGroupByPushDownForTimeTravel() {
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id)", tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (1, 200), (2, 300)", tableName);
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    List<Object[]> expectedAtSnapshot =
+        sql("SELECT id, count(*), max(salary) FROM %s GROUP BY id ORDER BY id", tableName);
+
+    sql("INSERT INTO %s VALUES (2, 400), (3, 500)", tableName);
+
+    String explainString =
+        sql(
+                "EXPLAIN SELECT id, count(*), max(salary) FROM %s VERSION AS OF %s "
+                    + "GROUP BY id ORDER BY id",
+                tableName, snapshotId)
+            .get(0)[0]
+            .toString()
+            .toLowerCase(Locale.ROOT);
+    assertThat(explainString)
+        .as("time-travel group by aggregate should be pushed down to a local scan")
+        .contains("localtablescan");
+
+    List<Object[]> actualAtSnapshot =
+        sql(
+            "SELECT id, count(*), max(salary) FROM %s VERSION AS OF %s GROUP BY id ORDER BY id",
+            tableName, snapshotId);
+    assertEquals("time-travel group by push down", expectedAtSnapshot, actualAtSnapshot);
+
+    List<Object[]> withoutPushDown = Lists.newArrayList();
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED, "false"),
+        () ->
+            withoutPushDown.addAll(
+                sql(
+                    "SELECT id, count(*), max(salary) FROM %s VERSION AS OF %s "
+                        + "GROUP BY id ORDER BY id",
+                    tableName, snapshotId)));
+    assertEquals("time-travel pushdown matches scan", withoutPushDown, actualAtSnapshot);
+  }
+
+  @TestTemplate
+  public void testGroupByPushDownForIncrementalScan() {
+    sql("CREATE TABLE %s (id LONG, salary INT) USING iceberg PARTITIONED BY (id)", tableName);
+    sql("INSERT INTO %s VALUES (1, 100), (2, 200)", tableName);
+    long snapshotId1 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (1, 300), (3, 400)", tableName);
+    sql("INSERT INTO %s VALUES (1, 500), (4, 600)", tableName);
+    long snapshotId3 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+
+    Dataset<Row> pushdownDs =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+            .load(tableName)
+            .groupBy("id")
+            .agg(functions.count("salary"), functions.max("salary"))
+            .orderBy("id");
+    String explain = pushdownDs.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain)
+        .as("incremental group by aggregate should be pushed down to a local scan")
+        .contains("LocalTableScan");
+
+    List<Object[]> pushedDown = rowsToJava(pushdownDs.collectAsList());
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {1L, 2L, 500});
+    expected.add(new Object[] {3L, 1L, 400});
+    expected.add(new Object[] {4L, 1L, 600});
+    assertEquals("incremental group by push down", expected, pushedDown);
+
+    List<Object[]> withoutPushDown = Lists.newArrayList();
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED, "false"),
+        () -> {
+          Dataset<Row> scanDs =
+              spark
+                  .read()
+                  .format("iceberg")
+                  .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+                  .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+                  .load(tableName)
+                  .groupBy("id")
+                  .agg(functions.count("salary"), functions.max("salary"))
+                  .orderBy("id");
+          withoutPushDown.addAll(rowsToJava(scanDs.collectAsList()));
+        });
+    assertEquals("incremental pushdown matches scan", withoutPushDown, pushedDown);
   }
 }
