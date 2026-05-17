@@ -41,6 +41,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
@@ -195,7 +196,7 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testInsertAndDelete() {
+  public void testInsertAndDeleteCOW() {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0), (6, 'f', float('NaN'))", tableName);
 
     List<Object[]> expected =
@@ -230,7 +231,10 @@ public class TestTableEncryption extends CatalogTestBase {
   @TestTemplate
   public void testInsertAndDeleteMOR() {
     sql("ALTER TABLE %s SET TBLPROPERTIES ('write.delete.mode'='merge-on-read')", tableName);
-    testInsertAndDelete();
+    testInsertAndDeleteCOW();
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "2");
   }
 
   @TestTemplate

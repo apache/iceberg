@@ -191,8 +191,8 @@ class DVUtil {
       String dvOutputLocation,
       Map<String, Pair<PartitionSpec, StructLike>> partitions) {
     EncryptedOutputFile dvEncryptedOutputFile;
-    if (fileIO instanceof EncryptingFileIO) {
-      dvEncryptedOutputFile = ((EncryptingFileIO) fileIO).newEncryptingOutputFile(dvOutputLocation);
+    if (fileIO instanceof EncryptingFileIO encryptingFileIO) {
+      dvEncryptedOutputFile = encryptingFileIO.newEncryptingOutputFile(dvOutputLocation);
     } else {
       dvEncryptedOutputFile =
           EncryptionUtil.plainAsEncryptedOutput(fileIO.newOutputFile(dvOutputLocation));
