@@ -275,10 +275,22 @@ class TestTrackedFileStruct {
   @Test
   void testAllFileContentTypesSupported() {
     for (FileContent content : FileContent.values()) {
+      if (content == FileContent.POSITION_DELETES) {
+        continue;
+      }
       TrackedFileStruct file = new TrackedFileStruct();
       file.set(1, content.id());
       assertThat(file.contentType()).isEqualTo(content);
     }
+  }
+
+  @Test
+  void testPositionDeletesRejected() {
+    TrackedFileStruct file = new TrackedFileStruct();
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> file.set(1, FileContent.POSITION_DELETES.id()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("POSITION_DELETES is not supported");
   }
 
   @Test

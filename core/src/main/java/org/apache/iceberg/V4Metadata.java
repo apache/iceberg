@@ -296,10 +296,7 @@ class V4Metadata {
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
         DataFile.SORT_ORDER_ID,
-        DataFile.FIRST_ROW_ID,
-        DataFile.REFERENCED_DATA_FILE,
-        DataFile.CONTENT_OFFSET,
-        DataFile.CONTENT_SIZE);
+        DataFile.FIRST_ROW_ID);
   }
 
   static class ManifestEntryWrapper<F extends ContentFile<F>>
@@ -488,24 +485,6 @@ class V4Metadata {
         case 16:
           if (wrapped.content() == FileContent.DATA) {
             return wrapped.firstRowId();
-          } else {
-            return null;
-          }
-        case 17:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).referencedDataFile();
-          } else {
-            return null;
-          }
-        case 18:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).contentOffset();
-          } else {
-            return null;
-          }
-        case 19:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).contentSizeInBytes();
           } else {
             return null;
           }

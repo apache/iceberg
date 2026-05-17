@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -292,6 +293,9 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         break;
       case 1:
         this.contentType = FileContent.fromId((Integer) value);
+        Preconditions.checkArgument(
+            contentType != FileContent.POSITION_DELETES,
+            "POSITION_DELETES is not supported in tracked file manifests (v4)");
         break;
       case 2:
         // always coerce to String for Serializable
