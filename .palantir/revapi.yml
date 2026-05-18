@@ -410,6 +410,9 @@ acceptedBreaks:
       old: "class org.apache.iceberg.encryption.EncryptingFileIO"
       new: "class org.apache.iceberg.encryption.EncryptingFileIO"
       justification: "New method for Manifest List reading"
+    - code: "java.method.addedToInterface"
+      new: "method void org.apache.iceberg.Transaction::abortTransaction()"
+      justification: "new API method with a default implementation"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.defaultSerializationChanged"
       old: "class org.apache.iceberg.avro.SupportsIndexProjection"
