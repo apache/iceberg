@@ -108,11 +108,10 @@ nav:
 
 exclude_docs: |
   !.asf.yaml
-  docs/*
-  docs/nightly/docs/**
-  docs/latest/docs/**
+  docs/
+  javadoc/
   !docs/nightly/
-  !docs/latest/
-  javadoc/*
   !javadoc/nightly/
+  !docs/latest/
   !javadoc/latest/
+

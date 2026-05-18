@@ -126,12 +126,8 @@ extra:
       link: 'https://join.slack.com/t/apache-iceberg/shared_invite/zt-3tkrk9gpf-1eFZ8ozS2In0~zM_BeZiRQ'
       title: slack
 
-# docs/xxx/docs/xxx.md excludes original md files which are copied to build's output by default
 exclude_docs: |
   !.asf.yaml
-  docs/latest/docs/**
-  docs/nightly/docs/**
-  docs/[0-9]*/docs/**
 
 extra_css:
   - assets/stylesheets/extra.css
