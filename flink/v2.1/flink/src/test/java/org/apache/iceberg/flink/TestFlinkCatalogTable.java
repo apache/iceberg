@@ -244,6 +244,26 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testCreateTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment' WITH ('param'='some value')");
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("comment", "table comment");
+    properties.put("param", "some value");
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+
+    // update parameter
+    sql("ALTER TABLE tl SET('param'='new value')");
+    properties.put("param", "new value");
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+
+    // alter table comment
+    sql("ALTER TABLE tl SET('comment' = 'new comment')");
+    properties.put("comment", "new comment");
+    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+  }
+
+  @TestTemplate
   public void testCreateTableLocation() {
     assumeThat(isHadoopCatalog)
         .as("HadoopCatalog does not support creating table with location")
