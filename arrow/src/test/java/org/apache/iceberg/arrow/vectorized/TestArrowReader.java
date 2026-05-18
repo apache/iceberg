@@ -488,29 +488,23 @@ public class TestArrowReader {
 
     // Read with the vectorized reader — the underlying vector is IntVector (physical type),
     // but the accessor correctly widens to long when getLong() is called.
-    int totalRows = 0;
-    int rowIndex = 0;
     try (VectorizedTableScanIterable vectorizedReader =
         new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
       for (ColumnarBatch batch : vectorizedReader) {
-        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        FieldVector vector = root.getVector("col");
+        assertThat(batch.numRows()).isEqualTo(values.size());
+
+        FieldVector vector = batch.column(0).getArrowVector();
         assertThat(vector)
             .as("Vector should be IntVector matching the physical Parquet type")
             .isInstanceOf(IntVector.class);
-        IntVector intVector = (IntVector) vector;
-        for (int i = 0; i < root.getRowCount(); i++) {
-          assertThat(intVector.get(i))
-              .as("Row %d value should be read correctly", rowIndex)
-              .isEqualTo(values.get(rowIndex));
-          rowIndex++;
+
+        for (int i = 0; i < batch.numRows(); i++) {
+          assertThat(batch.column(0).getLong(i))
+              .as("Accessor should widen int to long for row %d", i)
+              .isEqualTo((long) values.get(i));
         }
-        totalRows += root.getRowCount();
-        root.close();
       }
     }
-
-    assertThat(totalRows).isEqualTo(values.size());
   }
 
   /**
@@ -528,7 +522,8 @@ public class TestArrowReader {
 
     // Write via Iceberg's writer which produces bare INT32 (no logical type annotation)
     List<GenericRecord> records = Lists.newArrayList();
-    for (int val : new int[] {1, 2, 3, Integer.MAX_VALUE}) {
+    int[] values = new int[] {1, 2, 3, Integer.MAX_VALUE};
+    for (int val : values) {
       GenericRecord rec = GenericRecord.create(schema);
       rec.setField("col", val);
       records.add(rec);
@@ -561,30 +556,123 @@ public class TestArrowReader {
 
     // Read with the vectorized reader — the underlying vector is IntVector (physical type),
     // but the accessor correctly widens to long when getLong() is called.
-    int totalRows = 0;
-    int rowIndex = 0;
-    int[] expectedValues = new int[] {1, 2, 3, Integer.MAX_VALUE};
     try (VectorizedTableScanIterable vectorizedReader =
         new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
       for (ColumnarBatch batch : vectorizedReader) {
-        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        FieldVector vector = root.getVector("col");
+        assertThat(batch.numRows()).isEqualTo(values.length);
+
+        FieldVector vector = batch.column(0).getArrowVector();
         assertThat(vector)
             .as("Vector should be IntVector matching the physical Parquet type")
             .isInstanceOf(IntVector.class);
-        IntVector intVector = (IntVector) vector;
-        for (int i = 0; i < root.getRowCount(); i++) {
-          assertThat(intVector.get(i))
-              .as("Row %d value should be read correctly", rowIndex)
-              .isEqualTo(expectedValues[rowIndex]);
-          rowIndex++;
+
+        for (int i = 0; i < batch.numRows(); i++) {
+          assertThat(batch.column(0).getLong(i))
+              .as("Accessor should widen int to long for row %d", i)
+              .isEqualTo((long) values[i]);
         }
-        totalRows += root.getRowCount();
-        root.close();
+      }
+    }
+  }
+
+  /**
+   * Tests that int-to-long promotion works correctly when values larger than Integer.MAX_VALUE are
+   * written after the promotion and reuseContainers is true. This verifies that reading a mix of
+   * pre-promotion (int-range) and post-promotion (long-range) files works correctly.
+   */
+  @Test
+  public void testIntToLongPromotionWithLargeValuesAndReuseContainers() throws Exception {
+    tables = new HadoopTables();
+    Schema schema = new Schema(Types.NestedField.required(1, "col", Types.IntegerType.get()));
+    Table table = tables.create(schema, tempDir.toURI() + "/int-promotion-large-values");
+
+    // Write a Parquet file with INT(32, signed) logical type (pre-promotion data)
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
+                .as(LogicalTypeAnnotation.intType(32, true))
+                .id(1)
+                .named("col"));
+
+    File prePromotionFile = new File(tempDir, "pre-promotion.parquet");
+    List<Integer> intValues = ImmutableList.of(1, 2, Integer.MAX_VALUE);
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(prePromotionFile.toURI()))
+            .withType(parquetSchema)
+            .build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      for (int val : intValues) {
+        Group group = factory.newGroup();
+        group.add("col", val);
+        writer.write(group);
       }
     }
 
-    assertThat(totalRows).isEqualTo(records.size());
+    DataFile prePromotionDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(prePromotionFile.getAbsolutePath())
+            .withFileSizeInBytes(prePromotionFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(intValues.size())
+            .build();
+    table.newAppend().appendFile(prePromotionDataFile).commit();
+
+    // Promote the column type from int to long
+    table.updateSchema().updateColumn("col", Types.LongType.get()).commit();
+    table = tables.load(tempDir.toURI() + "/int-promotion-large-values");
+
+    // Write a second file with long values > Integer.MAX_VALUE (post-promotion data)
+    List<GenericRecord> longRecords = Lists.newArrayList();
+    long[] longValues = new long[] {(long) Integer.MAX_VALUE + 1L, Long.MAX_VALUE};
+    for (long val : longValues) {
+      GenericRecord rec = GenericRecord.create(table.schema());
+      rec.setField("col", val);
+      longRecords.add(rec);
+    }
+
+    File postPromotionFile = new File(tempDir, "post-promotion.parquet");
+    FileAppender<GenericRecord> appender =
+        Parquet.write(Files.localOutput(postPromotionFile))
+            .schema(table.schema())
+            .createWriterFunc(GenericParquetWriter::create)
+            .build();
+    try {
+      appender.addAll(longRecords);
+    } finally {
+      appender.close();
+    }
+
+    DataFile postPromotionDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(postPromotionFile.getAbsolutePath())
+            .withFileSizeInBytes(postPromotionFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(longRecords.size())
+            .build();
+    table.newAppend().appendFile(postPromotionDataFile).commit();
+    table = tables.load(tempDir.toURI() + "/int-promotion-large-values");
+
+    // Read with reuseContainers=true and validate all values
+    List<Long> allExpectedValues = Lists.newArrayList();
+    for (int v : intValues) {
+      allExpectedValues.add((long) v);
+    }
+    for (long v : longValues) {
+      allExpectedValues.add(v);
+    }
+
+    List<Long> actualValues = Lists.newArrayList();
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, true)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        for (int i = 0; i < batch.numRows(); i++) {
+          actualValues.add(batch.column(0).getLong(i));
+        }
+      }
+    }
+
+    assertThat(actualValues).containsExactlyInAnyOrderElementsOf(allExpectedValues);
   }
 
   private static Stream<Arguments> rejectedUnsignedIntegerCases() {
@@ -1149,11 +1237,6 @@ public class TestArrowReader {
       overwrite.addFile(writeParquetFile(table, records));
     }
     overwrite.commit();
-
-    // Perform a type promotion
-    // TODO: The read Arrow vector should of type BigInt (promoted type) but it is Int (old type).
-    Table tableLatest = tables.load(tableLocation);
-    tableLatest.updateSchema().updateColumn("int_promotion", Types.LongType.get()).commit();
   }
 
   private static org.apache.arrow.vector.types.pojo.Schema createExpectedArrowSchema(
