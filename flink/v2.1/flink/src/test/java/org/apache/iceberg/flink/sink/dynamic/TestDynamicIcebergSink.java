@@ -345,30 +345,31 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.fromData(Collections.emptyList(), TypeInformation.of(new TypeHint<>() {}));
 
-    // This test is a little awkward because slot sharing group is translated to internal
-    // representation after the job graph is built, losing object reference equality. Therefore, we
-    // can only test the effect of applying an SSG: in other word, we test that the resource
-    // requirements are applied to the job graph.
+    // Slot sharing group resource specs are registered on the env by name and referenced from
+    // operators via the String overload of .slotSharingGroup(...). We verify the effect by reading
+    // back the resource profile from the resulting job graph vertices.
+    String shuffleSinkSsgName = "shuffle-sink-ssg";
     MemorySize shuffleSinkMemorySize = new MemorySize(123);
-    SlotSharingGroup shuffleSinkSSG =
-        SlotSharingGroup.newBuilder("shuffle-sink-ssg")
+    env.registerSlotSharingGroup(
+        SlotSharingGroup.newBuilder(shuffleSinkSsgName)
             .setCpuCores(123)
             .setTaskHeapMemory(shuffleSinkMemorySize)
-            .build();
+            .build());
 
+    String generatorSsgName = "generator-ssg";
     MemorySize generatorMemorySize = new MemorySize(456);
-    SlotSharingGroup generatorSSG =
-        SlotSharingGroup.newBuilder("generator-ssg")
+    env.registerSlotSharingGroup(
+        SlotSharingGroup.newBuilder(generatorSsgName)
             .setCpuCores(456)
             .setTaskHeapMemory(generatorMemorySize)
-            .build();
+            .build());
 
     DynamicIcebergSink.forInput(dataStream)
         .generator(new ForwardGenerator())
         .catalogLoader(CATALOG_EXTENSION.catalogLoader())
         .immediateTableUpdate(false)
-        .shuffleSinkSlotSharingGroup(shuffleSinkSSG)
-        .generatorSlotSharingGroup(generatorSSG)
+        .shuffleSinkSlotSharingGroup(shuffleSinkSsgName)
+        .generatorSlotSharingGroup(generatorSsgName)
         .append();
 
     List<JobVertex> vertices =
