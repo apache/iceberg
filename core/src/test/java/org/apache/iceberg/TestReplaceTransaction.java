@@ -427,6 +427,46 @@ public class TestReplaceTransaction extends TestBase {
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
   }
 
+  @TestTemplate
+  public void testAbortTransactionAfterUnknownStateKeepsCommittedFiles() throws IOException {
+    // engines abort a staged table from the catch block that wraps the commit, so an abort can
+    // follow a commit whose outcome is unknown. The committed snapshot still references the files,
+    // so they must survive the abort.
+    TestTables.TestTableOperations ops =
+        TestTables.opsWithCommitSucceedButStateUnknown(tableDir, "test_abort_unknown");
+    Transaction txn =
+        TestTables.beginReplace(
+            tableDir,
+            "test_abort_unknown",
+            SCHEMA,
+            unpartitioned(),
+            SortOrder.unsorted(),
+            ImmutableMap.of(),
+            ops);
+
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("datacenter on fire");
+
+    TableMetadata meta = TestTables.readMetadata("test_abort_unknown");
+    assertThat(meta).isNotNull();
+    assertThat(meta.snapshots()).hasSize(1);
+    assertThat(listManifestFiles(tableDir)).hasSize(1);
+
+    txn.abortTransaction();
+
+    assertThat(listManifestFiles(tableDir))
+        .as("abort must not delete manifests referenced by a committed snapshot")
+        .hasSize(1);
+    assertThat(countAllMetadataFiles(tableDir))
+        .as("abort must not delete the committed manifest list")
+        .isEqualTo(2);
+    assertThat(TestTables.readMetadata("test_abort_unknown")).isNotNull();
+    validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
+  }
+
   private static Schema assignFreshIds(Schema schema) {
     AtomicInteger lastColumnId = new AtomicInteger(0);
     return TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
