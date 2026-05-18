@@ -417,6 +417,11 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  @Override
+  public void abortTransaction() {
+    cleanUp();
+  }
+
   protected void cleanUp() {
     // the commit failed and no files were committed. clean up each update.
     cleanAllUpdates();
