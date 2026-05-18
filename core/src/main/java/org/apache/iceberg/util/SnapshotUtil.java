@@ -190,7 +190,7 @@ public class SnapshotUtil {
   }
 
   /**
-   * Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
+   * Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId] from newest to oldest
    *
    * <p>This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
    */
