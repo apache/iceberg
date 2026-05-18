@@ -1951,9 +1951,7 @@ public abstract class BaseFormatModelTests<T> {
               ? DateTimeUtil.microsFromTimestamptz(odt)
               : value;
         } else {
-          return value instanceof LocalDateTime ldt
-              ? DateTimeUtil.microsFromTimestamp(ldt)
-              : value;
+          return value instanceof LocalDateTime ldt ? DateTimeUtil.microsFromTimestamp(ldt) : value;
         }
       case STRING:
         return null; // Skip string comparison in metrics tests
