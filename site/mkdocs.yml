@@ -77,9 +77,9 @@ plugins:
         'docs/nightly/daft.md': 'integrations/daft.md'
         'docs/nightly/risingwave.md': 'integrations/risingwave.md'
   - exclude-search:
-      # Index only docs/nightly/* to avoid duplicate hits across versions.
+      # Index only docs/latest/* to avoid duplicate hits across versions.
       exclude:
-        - 'docs/latest*'  # excludes latest and its children
+        - 'docs/nightly*'  # excludes nightly and its children
         - 'docs/[0-9]*'    # excludes docs/<x.y.z> and their children
 
 markdown_extensions:
