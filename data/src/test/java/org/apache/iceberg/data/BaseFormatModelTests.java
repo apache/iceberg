@@ -1394,7 +1394,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionAddColumn(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1435,7 +1435,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionProjection(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1457,7 +1457,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
 
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1521,7 +1521,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionReorderColumns(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1550,7 +1550,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionRenameColumn(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1588,7 +1588,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionRequiredToOptional(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1615,7 +1615,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionEmptyProjection(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema writeSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1638,7 +1638,7 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadFileWithoutFieldIdsUsingNameMapping(FileFormat fileFormat) throws IOException {
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema icebergSchema = dataGenerator.schema();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
