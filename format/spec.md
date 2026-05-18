@@ -202,7 +202,7 @@ Path resolution is the process of producing an absolute path from a relative pat
 
 The relative portion is joined to the prefix (table location) without consideration of any additional separator characters. The recommended convention for table location is to not end in a path separator because the join process would add a second separator character. (See example below).
 
-Any path from a manifest produced prior to v4 is a fully-qualified path and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
+Paths in manifests produced prior to v4 are fully-qualified and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
 
 Examples of path resolution:
 
@@ -1903,7 +1903,7 @@ For data files:
 * If `write.data.path` is an absolute path, it is used directly as the base for new data files.
 * If `write.data.path` is a relative path, the base is the table location joined to the `write.data.path` value with a URI separator `/`.
 
-When persisting paths into metadata, writers should relativize paths against the table location (see [Path Relativization](#path-relativization)). If a file's absolute path shares a common prefix with the table location, the relative portion should be stored. Otherwise, the absolute path should be stored.
+When persisting paths into metadata, writers should relativize paths against the table location when allowed by the table version (see [Path Relativization](#path-relativization)). If a file's absolute path shares a common prefix with the table location followed by a URI separator `/`, the relative portion should be stored. Otherwise, the absolute path should be stored.
 
 ### Point in Time Reads (Time Travel)
 
