@@ -22,6 +22,17 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -145,5 +156,284 @@ public class TestSnapshotChanges {
 
     // Both calls should return the same reference (cached)
     assertThat(firstCallResult).isSameAs(secondCallResult);
+  }
+
+  @Test
+  public void testAddedDataFilesIterable() {
+    DataFile added = dataFile("/path/to/added.parquet");
+    table.newFastAppend().appendFile(added).commit();
+
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(table).snapshot(table.currentSnapshot()).build();
+
+    List<DataFile> files = drain(changes.addedDataFilesIterable());
+    assertThat(files).hasSize(1);
+    assertThat(files.get(0).location()).isEqualTo(added.location());
+  }
+
+  @Test
+  public void testRemovedDataFilesIterable() {
+    DataFile fileToRemove = dataFile("/path/to/remove.parquet");
+    DataFile fileToKeep = dataFile("/path/to/keep.parquet");
+    table.newAppend().appendFile(fileToRemove).appendFile(fileToKeep).commit();
+    table.newDelete().deleteFile(fileToRemove).commit();
+
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(table).snapshot(table.currentSnapshot()).build();
+
+    List<DataFile> removed = drain(changes.removedDataFilesIterable());
+    assertThat(removed).hasSize(1);
+    assertThat(removed.get(0).location()).isEqualTo(fileToRemove.location());
+  }
+
+  @Test
+  public void testAddedDeleteFilesIterable() {
+    table.newAppend().appendFile(dataFile("/path/to/data.parquet")).commit();
+    DeleteFile positionDelete = positionDeleteFile("/path/to/pos-deletes.parquet");
+    table.newRowDelta().addDeletes(positionDelete).commit();
+
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(table).snapshot(table.currentSnapshot()).build();
+
+    List<DeleteFile> added = drain(changes.addedDeleteFilesIterable());
+    assertThat(added).hasSize(1);
+    assertThat(added.get(0).location()).isEqualTo(positionDelete.location());
+  }
+
+  @Test
+  public void testRemovedDeleteFilesIterable() {
+    table.newAppend().appendFile(dataFile("/path/to/data.parquet")).commit();
+    DeleteFile delete = positionDeleteFile("/path/to/pos-deletes.parquet");
+    table.newRowDelta().addDeletes(delete).commit();
+    table.newRowDelta().removeDeletes(delete).commit();
+
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(table).snapshot(table.currentSnapshot()).build();
+
+    List<DeleteFile> removed = drain(changes.removedDeleteFilesIterable());
+    assertThat(removed).hasSize(1);
+    assertThat(removed.get(0).location()).isEqualTo(delete.location());
+  }
+
+  @Test
+  public void testStreamingResultsEqualCachedResults() {
+    DataFile fileA = dataFile("/path/to/a.parquet");
+    DataFile fileB = dataFile("/path/to/b.parquet");
+    table.newAppend().appendFile(fileA).appendFile(fileB).commit();
+    Snapshot appendSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(fileA).commit();
+    Snapshot deleteSnapshot = table.currentSnapshot();
+
+    SnapshotChanges appendChanges =
+        SnapshotChanges.builderFor(table).snapshot(appendSnapshot).build();
+    assertThat(locations(drain(appendChanges.addedDataFilesIterable())))
+        .containsExactlyInAnyOrderElementsOf(locations(appendChanges.addedDataFiles()));
+
+    SnapshotChanges deleteChanges =
+        SnapshotChanges.builderFor(table).snapshot(deleteSnapshot).build();
+    assertThat(locations(drain(deleteChanges.removedDataFilesIterable())))
+        .containsExactlyInAnyOrderElementsOf(locations(deleteChanges.removedDataFiles()));
+
+    DeleteFile delete = positionDeleteFile("/path/to/pos-deletes.parquet");
+    table.newRowDelta().addDeletes(delete).commit();
+    SnapshotChanges addDeleteChanges =
+        SnapshotChanges.builderFor(table).snapshot(table.currentSnapshot()).build();
+    assertThat(locations(drain(addDeleteChanges.addedDeleteFilesIterable())))
+        .containsExactlyInAnyOrderElementsOf(locations(addDeleteChanges.addedDeleteFiles()));
+  }
+
+  @Test
+  public void testStreamingDoesNotCache() {
+    table.newFastAppend().appendFile(dataFile("/path/to/a.parquet")).commit();
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(table).snapshot(table.currentSnapshot()).build();
+
+    CloseableIterable<DataFile> first = changes.addedDataFilesIterable();
+    CloseableIterable<DataFile> second = changes.addedDataFilesIterable();
+
+    // each call builds a fresh, independent pipeline (unlike the cached accessors)
+    assertThat(first).isNotSameAs(second);
+    assertThat(drain(first)).hasSize(1);
+    assertThat(drain(second)).hasSize(1);
+
+    // the cached accessor must still return the same cached reference across calls
+    assertThat(changes.addedDataFiles()).isSameAs(changes.addedDataFiles());
+  }
+
+  @Test
+  public void testAddedDataFilesRetainStatsRemovedFilesDropStats() {
+    DataFile fileWithStats = FileGenerationUtil.generateDataFile(table, TestHelpers.Row.of());
+    assertThat(fileWithStats.columnSizes()).isNotEmpty();
+
+    table.newAppend().appendFile(fileWithStats).commit();
+    Snapshot appendSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(fileWithStats).commit();
+    Snapshot deleteSnapshot = table.currentSnapshot();
+
+    SnapshotChanges added = SnapshotChanges.builderFor(table).snapshot(appendSnapshot).build();
+    List<DataFile> addedFiles = drain(added.addedDataFilesIterable());
+    assertThat(addedFiles).hasSize(1);
+    assertThat(addedFiles.get(0).columnSizes()).isNotEmpty();
+
+    SnapshotChanges removed = SnapshotChanges.builderFor(table).snapshot(deleteSnapshot).build();
+    List<DataFile> removedFiles = drain(removed.removedDataFilesIterable());
+    assertThat(removedFiles).hasSize(1);
+    assertThat(removedFiles.get(0).columnSizes()).isNullOrEmpty();
+  }
+
+  @Test
+  public void testExistingEntriesExcluded() {
+    DataFile fileA = dataFile("/path/to/a.parquet");
+    DataFile fileB = dataFile("/path/to/b.parquet");
+    table.newAppend().appendFile(fileA).appendFile(fileB).commit();
+    table.newDelete().deleteFile(fileA).commit();
+
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(table).snapshot(table.currentSnapshot()).build();
+
+    // fileA is DELETED in this snapshot; fileB is carried forward as EXISTING and excluded
+    assertThat(locations(drain(changes.removedDataFilesIterable())))
+        .containsExactly(fileA.location());
+    assertThat(drain(changes.addedDataFilesIterable())).isEmpty();
+  }
+
+  @Test
+  public void testOnlyTargetSnapshotChangesReturned() {
+    DataFile fileA = dataFile("/path/to/a.parquet");
+    table.newFastAppend().appendFile(fileA).commit();
+    Snapshot first = table.currentSnapshot();
+
+    DataFile fileB = dataFile("/path/to/b.parquet");
+    table.newFastAppend().appendFile(fileB).commit();
+    Snapshot second = table.currentSnapshot();
+
+    SnapshotChanges firstChanges = SnapshotChanges.builderFor(table).snapshot(first).build();
+    assertThat(locations(drain(firstChanges.addedDataFilesIterable())))
+        .containsExactly(fileA.location());
+
+    // the second snapshot must not surface fileA, whose manifest belongs to the first snapshot
+    SnapshotChanges secondChanges = SnapshotChanges.builderFor(table).snapshot(second).build();
+    assertThat(locations(drain(secondChanges.addedDataFilesIterable())))
+        .containsExactly(fileB.location());
+  }
+
+  @Test
+  public void testParallelStreamingMatchesSerial() {
+    List<DataFile> deleted = commitFilesInSeparateManifestsThenDeleteAll(3);
+    Snapshot snapshot = table.currentSnapshot();
+
+    // a single append would put every file in one manifest, leaving the parallel path with one
+    // task; this snapshot owns three manifests so they are really read concurrently
+    assertThat(snapshot.dataManifests(table.io())).hasSize(3);
+
+    ExecutorService executor = Executors.newFixedThreadPool(3);
+    try {
+      SnapshotChanges serial = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+      SnapshotChanges parallel =
+          SnapshotChanges.builderFor(table).snapshot(snapshot).executeWith(executor).build();
+
+      assertThat(locations(drain(parallel.removedDataFilesIterable())))
+          .containsExactlyInAnyOrderElementsOf(locations(drain(serial.removedDataFilesIterable())))
+          .containsExactlyInAnyOrderElementsOf(locations(deleted));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  public void testCachedAccessorsShareOneManifestPass() {
+    commitFilesInSeparateManifestsThenDeleteAll(3);
+
+    Snapshot snapshot = table.currentSnapshot();
+    assertThat(snapshot.dataManifests(table.io())).hasSize(3);
+    CountingFileIO countingIO = new CountingFileIO(table.io());
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(snapshot, countingIO, table.specs()).build();
+
+    assertThat(changes.removedDataFiles()).hasSize(3);
+    int readsAfterFirstAccessor = countingIO.inputFiles();
+    assertThat(readsAfterFirstAccessor).isGreaterThan(0);
+
+    // the added-file cache was filled by the same pass, so no manifest is opened a second time
+    assertThat(changes.addedDataFiles()).isEmpty();
+    assertThat(countingIO.inputFiles()).isEqualTo(readsAfterFirstAccessor);
+  }
+
+  // commits one file per snapshot so each lands in its own manifest, then deletes them all, which
+  // rewrites every manifest into the delete snapshot
+  private List<DataFile> commitFilesInSeparateManifestsThenDeleteAll(int fileCount) {
+    List<DataFile> files = Lists.newArrayList();
+    for (int i = 0; i < fileCount; i++) {
+      DataFile file = dataFile("/path/to/file-" + i + ".parquet");
+      files.add(file);
+      table.newFastAppend().appendFile(file).commit();
+    }
+
+    DeleteFiles delete = table.newDelete();
+    files.forEach(delete::deleteFile);
+    delete.commit();
+    return files;
+  }
+
+  private DataFile dataFile(String path) {
+    return DataFiles.builder(SPEC)
+        .withPath(path)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+  }
+
+  private DeleteFile positionDeleteFile(String path) {
+    return FileMetadata.deleteFileBuilder(SPEC)
+        .ofPositionDeletes()
+        .withPath(path)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+  }
+
+  private <T> List<T> drain(CloseableIterable<T> iterable) {
+    try (CloseableIterable<T> closeable = iterable) {
+      return Lists.newArrayList(closeable);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close iterable", e);
+    }
+  }
+
+  private static List<String> locations(Iterable<? extends ContentFile<?>> files) {
+    List<String> paths = Lists.newArrayList();
+    for (ContentFile<?> file : files) {
+      paths.add(file.location());
+    }
+    return paths;
+  }
+
+  private static class CountingFileIO implements FileIO {
+    private final FileIO wrapped;
+    private final AtomicInteger inputFiles = new AtomicInteger();
+
+    private CountingFileIO(FileIO wrapped) {
+      this.wrapped = wrapped;
+    }
+
+    private int inputFiles() {
+      return inputFiles.get();
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      inputFiles.incrementAndGet();
+      return wrapped.newInputFile(path);
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return wrapped.newOutputFile(path);
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      wrapped.deleteFile(path);
+    }
   }
 }
