@@ -36,6 +36,6 @@ public class StagedSparkTable extends SparkTable implements StagedTable {
 
   @Override
   public void abortStagedChanges() {
-    // TODO: clean up
+    transaction.abortTransaction();
   }
 }
