@@ -114,4 +114,3 @@ exclude_docs: |
   !javadoc/nightly/
   !docs/latest/
   !javadoc/latest/
-
