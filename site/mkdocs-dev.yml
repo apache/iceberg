@@ -29,6 +29,7 @@ nav:
     - Hive: hive-quickstart.md
   - Docs:
     - Java:
+      # First entry determines the default landing page for the Docs tab.
       - Latest (1.10.1): '!include docs/docs/latest/mkdocs.yml'
       - Nightly: '!include docs/docs/nightly/mkdocs.yml'
     - Other Implementations:
