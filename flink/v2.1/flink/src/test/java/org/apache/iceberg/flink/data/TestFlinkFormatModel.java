@@ -39,11 +39,6 @@ public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
   }
 
   @Override
-  protected boolean supportsUUID() {
-    return false;
-  }
-
-  @Override
   protected boolean supportsTimestampNano() {
     return false;
   }

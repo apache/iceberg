@@ -119,15 +119,25 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
-  protected abstract boolean supportsTime();
+  protected boolean supportsTime() {
+    return true;
+  }
 
-  protected abstract boolean supportsUUID();
+  protected boolean supportsUUID() {
+    return true;
+  }
 
-  protected abstract boolean supportsTimestampNano();
+  protected boolean supportsTimestampNano() {
+    return true;
+  }
 
-  protected abstract boolean supportsVariant();
+  protected boolean supportsVariant() {
+    return true;
+  }
 
-  protected abstract boolean supportsUnknown();
+  protected boolean supportsUnknown() {
+    return true;
+  }
 
   private void assumeTypeSupport(Schema schema) {
     assumeThat(supportsTime() || TypeUtil.find(schema, t -> t.typeId() == Type.TypeID.TIME) == null)
@@ -1932,14 +1942,18 @@ public abstract class BaseFormatModelTests<T> {
 
     switch (type.typeId()) {
       case DATE:
-        return DateTimeUtil.daysFromDate((LocalDate) value);
+        return value instanceof LocalDate ld ? DateTimeUtil.daysFromDate(ld) : value;
       case TIME:
-        return DateTimeUtil.microsFromTime((LocalTime) value);
+        return value instanceof LocalTime lt ? DateTimeUtil.microsFromTime(lt) : value;
       case TIMESTAMP:
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value);
+          return value instanceof OffsetDateTime odt
+              ? DateTimeUtil.microsFromTimestamptz(odt)
+              : value;
         } else {
-          return DateTimeUtil.microsFromTimestamp((LocalDateTime) value);
+          return value instanceof LocalDateTime ldt
+              ? DateTimeUtil.microsFromTimestamp(ldt)
+              : value;
         }
       case STRING:
         return null; // Skip string comparison in metrics tests
