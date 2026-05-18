@@ -39,6 +39,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.encryption.BaseEncryptedKey;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -1786,6 +1788,33 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
     assertThat(table.schemas().values()).containsExactly(table.schema());
+  }
+
+  @TestTemplate
+  public void testRemoveEncryptionKeys() {
+    table.newAppend().appendFile(FILE_A).commit();
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    EncryptedKey kek =
+        new BaseEncryptedKey("kek", ByteBuffer.wrap(new byte[] {1}), "remote-kms-key", null);
+    EncryptedKey wrapped =
+        new BaseEncryptedKey("wrapped", ByteBuffer.wrap(new byte[] {2}), "kek", null);
+    TableMetadata base = table.ops().current();
+    table
+        .ops()
+        .commit(
+            base,
+            TableMetadata.buildFrom(base).addEncryptionKey(kek).addEncryptionKey(wrapped).build());
+
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .commit();
+
+    assertThat(table.ops().current().encryptionKeys())
+        .as("Orphaned encryption keys are removed. The kek is kept as it encrypts the other keys.")
+        .extracting(EncryptedKey::keyId)
+        .containsExactly("kek");
   }
 
   @TestTemplate

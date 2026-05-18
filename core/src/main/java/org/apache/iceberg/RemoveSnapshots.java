@@ -38,10 +38,13 @@ import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -241,6 +244,12 @@ class RemoveSnapshots implements ExpireSnapshots {
       reachableSpecs.add(base.defaultSpecId());
       Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
       reachableSchemas.add(base.currentSchemaId());
+      Set<String> reachableKeyIds =
+          Sets.newConcurrentHashSet(
+              base.encryptionKeys().stream()
+                  .map(EncryptedKey::encryptedById)
+                  .filter(Objects::nonNull)
+                  .collect(Collectors.toSet()));
 
       Tasks.foreach(idsToRetain)
           .executeWith(planExecutorService())
@@ -251,6 +260,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                     .map(ManifestFile::partitionSpecId)
                     .forEach(reachableSpecs::add);
                 reachableSchemas.add(snapshot.schemaId());
+                Optional.ofNullable(snapshot.keyId()).ifPresent(reachableKeyIds::add);
               });
 
       Set<Integer> specsToRemove =
@@ -266,6 +276,13 @@ class RemoveSnapshots implements ExpireSnapshots {
               .filter(schemaId -> !reachableSchemas.contains(schemaId))
               .collect(Collectors.toSet());
       updatedMetaBuilder.removeSchemas(schemasToRemove);
+
+      Set<String> encryptionKeysToRemove =
+          base.encryptionKeys().stream()
+              .map(EncryptedKey::keyId)
+              .filter(keyId -> !reachableKeyIds.contains(keyId))
+              .collect(Collectors.toSet());
+      encryptionKeysToRemove.forEach(updatedMetaBuilder::removeEncryptionKey);
     }
 
     return updatedMetaBuilder.build();
