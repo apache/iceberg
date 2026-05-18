@@ -297,6 +297,10 @@ public class TestColumnarBatchUtil {
     when(intVector.getInt(3)).thenReturn(43);
     when(intVector.getInt(4)).thenReturn(44);
 
+    for (int i = 0; i < 200; i++) {
+      when(intVector.getLong(i)).thenReturn((long) i);
+    }
+
     return new ColumnVector[] {intVector};
   }
 }

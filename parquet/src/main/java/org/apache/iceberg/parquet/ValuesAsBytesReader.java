@@ -102,11 +102,15 @@ public class ValuesAsBytesReader extends ValuesReader {
     return value;
   }
 
-  private byte getByte() {
+  public byte getByte() {
     try {
       return (byte) valuesInputStream.read();
     } catch (IOException e) {
       throw new ParquetDecodingException("Failed to read a byte", e);
     }
+  }
+
+  public ByteBufferInputStream getValuesInputStream() {
+    return valuesInputStream;
   }
 }

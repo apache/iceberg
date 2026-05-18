@@ -36,6 +36,8 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.internal.filter2.columnindex.ColumnIndexFilter;
+import org.apache.parquet.internal.filter2.columnindex.ColumnIndexStore;
 import org.apache.parquet.schema.MessageType;
 
 /**
@@ -112,10 +114,13 @@ class ReadConf<T> {
                       typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
-        computedTotalValues += rowGroup.getRowCount();
+        if (batchedReaderFunc != null && options.useRecordFilter()) {
+          computedTotalValues += getFilteredRecordCount(rowGroup, reader.getColumnIndexStore(i));
+        } else {
+          computedTotalValues += rowGroup.getRowCount();
+        }
       }
     }
-
     this.totalValues = computedTotalValues;
     if (readerFunc != null) {
       this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
@@ -219,5 +224,16 @@ class ReadConf<T> {
       }
     }
     return listBuilder.build();
+  }
+
+  private long getFilteredRecordCount(BlockMetaData blockMetaData, ColumnIndexStore ciStore) {
+    return ColumnIndexFilter.calculateRowRanges(
+            options.getRecordFilter(),
+            ciStore,
+            blockMetaData.getColumns().stream()
+                .map(ColumnChunkMetaData::getPath)
+                .collect(Collectors.toSet()),
+            blockMetaData.getRowCount())
+        .rowCount();
   }
 }

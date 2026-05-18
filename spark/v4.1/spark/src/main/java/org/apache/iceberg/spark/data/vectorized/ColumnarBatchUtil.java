@@ -50,14 +50,14 @@ public class ColumnarBatchUtil {
    *
    * @param columnVectors the array of column vectors for the batch
    * @param deletes the delete filter containing delete information
-   * @param rowStartPosInBatch the starting position of the row in the batch
+   * @param rowPositionColumnIndex the index of the row position column in the column vectors.
    * @param batchSize the size of the batch
    * @return the mapping array and the number of live rows, or {@code null} if nothing is deleted
    */
   public static Pair<int[], Integer> buildRowIdMapping(
       ColumnVector[] columnVectors,
       DeleteFilter<InternalRow> deletes,
-      long rowStartPosInBatch,
+      int rowPositionColumnIndex,
       int batchSize) {
     if (deletes == null) {
       return null;
@@ -70,7 +70,10 @@ public class ColumnarBatchUtil {
     int liveRowId = 0;
 
     for (int rowId = 0; rowId < batchSize; rowId++) {
-      long pos = rowStartPosInBatch + rowId;
+      long pos =
+          rowPositionColumnIndex == -1
+              ? rowId - 1
+              : columnVectors[rowPositionColumnIndex].getLong(rowId);
       row.rowId = rowId;
       if (isDeleted(pos, row, deletedPositions, eqDeleteFilter)) {
         deletes.incrementDeleteCount();
@@ -102,15 +105,14 @@ public class ColumnarBatchUtil {
    *
    * @param columnVectors the array of column vectors for the batch.
    * @param deletes the delete filter containing information about which rows should be deleted.
-   * @param rowStartPosInBatch the starting position of the row in the batch, used to calculate the
-   *     absolute position of the rows in the context of the entire dataset.
+   * @param rowPositionColumnIndex the index of the row position column in the column vectors.
    * @param batchSize the number of rows in the current batch.
    * @return an array of boolean values to indicate if a row is deleted or not
    */
   public static boolean[] buildIsDeleted(
       ColumnVector[] columnVectors,
       DeleteFilter<InternalRow> deletes,
-      long rowStartPosInBatch,
+      int rowPositionColumnIndex,
       int batchSize) {
     boolean[] isDeleted = new boolean[batchSize];
 
@@ -123,7 +125,10 @@ public class ColumnarBatchUtil {
     ColumnarBatchRow row = new ColumnarBatchRow(columnVectors);
 
     for (int rowId = 0; rowId < batchSize; rowId++) {
-      long pos = rowStartPosInBatch + rowId;
+      long pos =
+          rowPositionColumnIndex == -1
+              ? rowId - 1
+              : columnVectors[rowPositionColumnIndex].getLong(rowId);
       row.rowId = rowId;
       if (isDeleted(pos, row, deletedPositions, eqDeleteFilter)) {
         deletes.incrementDeleteCount();

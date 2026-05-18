@@ -217,7 +217,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
 
   @Override
   public void skip() {
-    throw new UnsupportedOperationException();
+    this.readInteger();
   }
 
   @Override
@@ -239,5 +239,25 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
         return this.packedValuesBuffer[packedValuesBufferIdx++];
     }
     throw new RuntimeException("Unrecognized mode: " + mode);
+  }
+
+  /** Skip `n` values from the current reader. */
+  public void skipValues(int total) {
+    int left = total;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int num = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          break;
+        case PACKED:
+          packedValuesBufferIdx += num;
+          break;
+      }
+      currentCount -= num;
+      left -= num;
+    }
   }
 }
