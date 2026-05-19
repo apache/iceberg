@@ -171,14 +171,14 @@ class StatsUtil {
 
     @Override
     public Types.NestedField field(Types.NestedField field, Types.NestedField fieldResult) {
-      if (field.type().isNestedType() || field.type().isVariantType()) {
+      if (field.type().isNestedType()) {
         return null;
       }
 
       int fieldId = StatsUtil.statsFieldIdForField(field.fieldId());
       if (fieldId >= 0) {
         Types.StructType structType = FieldStatistic.fieldStatsFor(field, fieldId);
-        return optional(fieldId, Integer.toString(field.fieldId()), structType);
+        return optional(fieldId, field.name(), structType);
       } else {
         skippedFieldIds.add(field.fieldId());
       }

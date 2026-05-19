@@ -49,7 +49,8 @@ interface FieldStats<T> extends StructLike {
   Long nanValueCount();
 
   /**
-   * The avg value size (uncompressed) in bytes for variable-length types (string, binary, variant)
+   * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
+   * variant)
    */
   Integer avgValueSizeInBytes();
 }

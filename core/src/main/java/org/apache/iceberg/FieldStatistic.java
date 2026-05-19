@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -33,6 +34,17 @@ enum FieldStatistic {
   NULL_VALUE_COUNT(5, "null_value_count"),
   NAN_VALUE_COUNT(6, "nan_value_count"),
   AVG_VALUE_SIZE_IN_BYTES(7, "avg_value_size_in_bytes");
+
+  // Offsets used within geo_lower struct (relative to the parent stats struct base ID).
+  private static final int GEO_LOWER_X_OFFSET = 10;
+  private static final int GEO_LOWER_Y_OFFSET = 11;
+  private static final int GEO_LOWER_Z_OFFSET = 12;
+  private static final int GEO_LOWER_M_OFFSET = 13;
+  // Offsets used within geo_upper struct (relative to the parent stats struct base ID).
+  private static final int GEO_UPPER_X_OFFSET = 14;
+  private static final int GEO_UPPER_Y_OFFSET = 15;
+  private static final int GEO_UPPER_Z_OFFSET = 16;
+  private static final int GEO_UPPER_M_OFFSET = 17;
 
   private final int offset;
   private final String fieldName;
@@ -88,27 +100,41 @@ enum FieldStatistic {
     };
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Types.StructType fieldStatsFor(Types.NestedField field, int baseFieldId) {
     List<Types.NestedField> fields = Lists.newArrayListWithCapacity(7);
     Type type = field.type();
-    Type.TypeID typeId = type.typeId();
-    boolean isGeo = typeId == Type.TypeID.GEOMETRY || typeId == Type.TypeID.GEOGRAPHY;
+    boolean isGeo = type.typeId() == Type.TypeID.GEOMETRY || type.typeId() == Type.TypeID.GEOGRAPHY;
     boolean isVariant = type.isVariantType();
+
+    // For geo types, lower/upper bounds are XYZM points stored in geo_lower / geo_upper structs.
+    // For variant types, bounds are unshredded variant values (same type as the field).
+    // For all other primitive types, bounds use the field's type.
+    Type lowerBoundType = isGeo ? geoLowerBoundStruct(baseFieldId) : type;
+    Type upperBoundType = isGeo ? geoUpperBoundStruct(baseFieldId) : type;
+    String lowerBoundDoc =
+        isGeo
+            ? "Lower bound XYZM point of the bounding box for the geo column"
+            : "Lower bound stored as the field's type";
+    String upperBoundDoc =
+        isGeo
+            ? "Upper bound XYZM point of the bounding box for the geo column"
+            : "Upper bound stored as the field's type";
 
     fields.add(
         optional(
             baseFieldId + LOWER_BOUND.offset(),
             LOWER_BOUND.fieldName(),
-            type,
-            "Lower bound stored as the field's type"));
+            lowerBoundType,
+            lowerBoundDoc));
     fields.add(
         optional(
             baseFieldId + UPPER_BOUND.offset(),
             UPPER_BOUND.fieldName(),
-            type,
-            "Upper bound stored as the field's type"));
+            upperBoundType,
+            upperBoundDoc));
 
-    if (!isGeo && !isVariant) {
+    if (!isGeo && !type.isVariantType()) {
       fields.add(
           optional(
               baseFieldId + TIGHT_BOUNDS.offset(),
@@ -133,7 +159,7 @@ enum FieldStatistic {
               "Number of null values in the column"));
     }
 
-    if (typeId == Type.TypeID.FLOAT || typeId == Type.TypeID.DOUBLE) {
+    if (type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE) {
       fields.add(
           optional(
               baseFieldId + NAN_VALUE_COUNT.offset(),
@@ -142,15 +168,51 @@ enum FieldStatistic {
               "Number of NaN values in the column"));
     }
 
-    if (typeId == Type.TypeID.STRING || typeId == Type.TypeID.BINARY || isVariant) {
+    if (type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY || isVariant) {
       fields.add(
           optional(
               baseFieldId + AVG_VALUE_SIZE_IN_BYTES.offset(),
               AVG_VALUE_SIZE_IN_BYTES.fieldName(),
               Types.IntegerType.get(),
-              "Avg value size (uncompressed) in bytes to estimate memory consumption"));
+              "Avg value size in memory (uncompressed) in bytes to estimate memory consumption"));
     }
 
     return Types.StructType.of(fields);
+  }
+
+  private static Types.StructType geoLowerBoundStruct(int baseFieldId) {
+    return Types.StructType.of(
+        required(
+            baseFieldId + GEO_LOWER_X_OFFSET,
+            "x",
+            Types.DoubleType.get(),
+            "Bounding box westernmost/xmin; [-180..180]"),
+        required(
+            baseFieldId + GEO_LOWER_Y_OFFSET,
+            "y",
+            Types.DoubleType.get(),
+            "Bounding box southernmost/ymin; [-90..90]"),
+        optional(
+            baseFieldId + GEO_LOWER_Z_OFFSET, "z", Types.DoubleType.get(), "Bounding box zmin"),
+        optional(
+            baseFieldId + GEO_LOWER_M_OFFSET, "m", Types.DoubleType.get(), "Bounding box mmin"));
+  }
+
+  private static Types.StructType geoUpperBoundStruct(int baseFieldId) {
+    return Types.StructType.of(
+        required(
+            baseFieldId + GEO_UPPER_X_OFFSET,
+            "x",
+            Types.DoubleType.get(),
+            "Bounding box easternmost/xmax; [-180..180]"),
+        required(
+            baseFieldId + GEO_UPPER_Y_OFFSET,
+            "y",
+            Types.DoubleType.get(),
+            "Bounding box northernmost/ymax; [-90..90]"),
+        optional(
+            baseFieldId + GEO_UPPER_Z_OFFSET, "z", Types.DoubleType.get(), "Bounding box zmax"),
+        optional(
+            baseFieldId + GEO_UPPER_M_OFFSET, "m", Types.DoubleType.get(), "Bounding box mmax"));
   }
 }
