@@ -35,11 +35,14 @@ class TestTrackedFileStruct {
           Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
           Types.NestedField.optional(1001, "category", Types.StringType.get()));
 
+  // Ordinal of MetadataColumns.ROW_POSITION within TrackingStruct's BASE_TYPE,
+  // which appends ROW_POSITION after the Tracking schema fields.
+  private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
+
   @Test
   void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking =
-        TrackingStruct.builder().status(EntryStatus.ADDED).snapshotId(42L).build();
+    TrackingStruct tracking = TrackingStruct.added(42L).build();
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")
@@ -98,9 +101,9 @@ class TestTrackedFileStruct {
   void testReaderSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
-    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = TrackingStruct.added(0L).build();
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
-    tracking.set(8, 7L);
+    tracking.set(MANIFEST_POS_ORDINAL, 7L);
 
     file.set(0, tracking);
     file.set(1, FileContent.DATA.id());
@@ -328,14 +331,9 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.ADDED)
-            .snapshotId(42L)
-            .dataSequenceNumber(10L)
-            .build();
+    TrackingStruct tracking = TrackingStruct.added(42L).build();
     tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.set(8, 3L);
+    tracking.set(MANIFEST_POS_ORDINAL, 3L);
 
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()

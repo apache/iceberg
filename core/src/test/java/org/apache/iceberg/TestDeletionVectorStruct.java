@@ -106,11 +106,11 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testBuilderValidation() {
+  void testBuilderMissingRequiredFields() {
     assertThatThrownBy(
             () -> DeletionVectorStruct.builder().offset(0).sizeInBytes(1).cardinality(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid location: null");
+        .hasMessage("Missing required value: location");
 
     assertThatThrownBy(
             () ->
@@ -119,28 +119,47 @@ class TestDeletionVectorStruct {
                     .sizeInBytes(1)
                     .cardinality(1)
                     .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: offset");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .cardinality(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: size in bytes");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .sizeInBytes(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: cardinality");
+  }
+
+  @Test
+  void testBuilderRejectsInvalidValuesAtSetter() {
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().location(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid location: null");
+
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().offset(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid offset: -1 (must be >= 0)");
 
-    assertThatThrownBy(
-            () ->
-                DeletionVectorStruct.builder()
-                    .location("s3://bucket/dv.puffin")
-                    .offset(0)
-                    .cardinality(1)
-                    .build())
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().sizeInBytes(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid size in bytes: -1 (must be >= 0)");
 
-    assertThatThrownBy(
-            () ->
-                DeletionVectorStruct.builder()
-                    .location("s3://bucket/dv.puffin")
-                    .offset(0)
-                    .sizeInBytes(1)
-                    .build())
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().cardinality(0))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid cardinality: -1 (must be >= 0)");
+        .hasMessage("Invalid cardinality: 0 (must be positive)");
   }
 
   @Test

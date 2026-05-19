@@ -86,7 +86,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       long minSequenceNumber,
       byte[] dv,
       Long dvCardinality) {
-    super(BASE_TYPE, BASE_TYPE);
+    super(BASE_TYPE.fields().size());
     this.addedFilesCount = addedFilesCount;
     this.existingFilesCount = existingFilesCount;
     this.deletedFilesCount = deletedFilesCount;
@@ -257,116 +257,135 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   }
 
   static class Builder {
-    private int addedFilesCount = -1;
-    private int existingFilesCount = -1;
-    private int deletedFilesCount = -1;
-    private int replacedFilesCount = -1;
-    private long addedRowsCount = -1L;
-    private long existingRowsCount = -1L;
-    private long deletedRowsCount = -1L;
-    private long replacedRowsCount = -1L;
-    private long minSequenceNumber = -1L;
+    private Integer addedFilesCount = null;
+    private Integer existingFilesCount = null;
+    private Integer deletedFilesCount = null;
+    private Integer replacedFilesCount = null;
+    private Long addedRowsCount = null;
+    private Long existingRowsCount = null;
+    private Long deletedRowsCount = null;
+    private Long replacedRowsCount = null;
+    private Long minSequenceNumber = null;
     private byte[] dv = null;
     private Long dvCardinality = null;
 
     Builder addedFilesCount(int count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid added files count: %s (must be >= 0)", count);
       this.addedFilesCount = count;
       return this;
     }
 
     Builder existingFilesCount(int count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid existing files count: %s (must be >= 0)", count);
       this.existingFilesCount = count;
       return this;
     }
 
     Builder deletedFilesCount(int count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid deleted files count: %s (must be >= 0)", count);
       this.deletedFilesCount = count;
       return this;
     }
 
     Builder replacedFilesCount(int count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid replaced files count: %s (must be >= 0)", count);
       this.replacedFilesCount = count;
       return this;
     }
 
     Builder addedRowsCount(long count) {
+      Preconditions.checkArgument(count >= 0, "Invalid added rows count: %s (must be >= 0)", count);
       this.addedRowsCount = count;
       return this;
     }
 
     Builder existingRowsCount(long count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid existing rows count: %s (must be >= 0)", count);
       this.existingRowsCount = count;
       return this;
     }
 
     Builder deletedRowsCount(long count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid deleted rows count: %s (must be >= 0)", count);
       this.deletedRowsCount = count;
       return this;
     }
 
     Builder replacedRowsCount(long count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid replaced rows count: %s (must be >= 0)", count);
       this.replacedRowsCount = count;
       return this;
     }
 
     Builder minSequenceNumber(long sequenceNumber) {
+      Preconditions.checkArgument(
+          sequenceNumber >= 0, "Invalid min sequence number: %s (must be >= 0)", sequenceNumber);
       this.minSequenceNumber = sequenceNumber;
       return this;
     }
 
     Builder dv(ByteBuffer buffer) {
-      this.dv = buffer != null ? ByteBuffers.toByteArray(buffer) : null;
+      Preconditions.checkArgument(buffer != null, "Invalid DV: null");
+      this.dv = ByteBuffers.toByteArray(buffer);
       return this;
     }
 
-    Builder dv(byte[] buffer) {
-      this.dv = buffer;
-      return this;
-    }
-
-    Builder dvCardinality(Long cardinality) {
+    Builder dvCardinality(long cardinality) {
+      Preconditions.checkArgument(
+          cardinality > 0, "Invalid DV cardinality: %s (must be positive)", cardinality);
       this.dvCardinality = cardinality;
       return this;
     }
 
     ManifestInfoStruct build() {
       Preconditions.checkArgument(
-          addedFilesCount >= 0, "Invalid added files count: %s (must be >= 0)", addedFilesCount);
+          addedFilesCount != null, "Missing required value: added files count");
       Preconditions.checkArgument(
-          existingFilesCount >= 0,
-          "Invalid existing files count: %s (must be >= 0)",
+          existingFilesCount != null, "Missing required value: existing files count");
+      Preconditions.checkArgument(
+          deletedFilesCount != null, "Missing required value: deleted files count");
+      Preconditions.checkArgument(
+          replacedFilesCount != null, "Missing required value: replaced files count");
+      Preconditions.checkArgument(
+          addedRowsCount != null, "Missing required value: added rows count");
+      Preconditions.checkArgument(
+          existingRowsCount != null, "Missing required value: existing rows count");
+      Preconditions.checkArgument(
+          deletedRowsCount != null, "Missing required value: deleted rows count");
+      Preconditions.checkArgument(
+          replacedRowsCount != null, "Missing required value: replaced rows count");
+      Preconditions.checkArgument(
+          minSequenceNumber != null, "Missing required value: min sequence number");
+      Preconditions.checkArgument(
+          addedRowsCount == 0 || addedFilesCount > 0,
+          "Invalid added counts: %s rows in %s files",
+          addedRowsCount,
+          addedFilesCount);
+      Preconditions.checkArgument(
+          existingRowsCount == 0 || existingFilesCount > 0,
+          "Invalid existing counts: %s rows in %s files",
+          existingRowsCount,
           existingFilesCount);
       Preconditions.checkArgument(
-          deletedFilesCount >= 0,
-          "Invalid deleted files count: %s (must be >= 0)",
+          deletedRowsCount == 0 || deletedFilesCount > 0,
+          "Invalid deleted counts: %s rows in %s files",
+          deletedRowsCount,
           deletedFilesCount);
       Preconditions.checkArgument(
-          replacedFilesCount >= 0,
-          "Invalid replaced files count: %s (must be >= 0)",
+          replacedRowsCount == 0 || replacedFilesCount > 0,
+          "Invalid replaced counts: %s rows in %s files",
+          replacedRowsCount,
           replacedFilesCount);
-      Preconditions.checkArgument(
-          addedRowsCount >= 0, "Invalid added rows count: %s (must be >= 0)", addedRowsCount);
-      Preconditions.checkArgument(
-          existingRowsCount >= 0,
-          "Invalid existing rows count: %s (must be >= 0)",
-          existingRowsCount);
-      Preconditions.checkArgument(
-          deletedRowsCount >= 0, "Invalid deleted rows count: %s (must be >= 0)", deletedRowsCount);
-      Preconditions.checkArgument(
-          replacedRowsCount >= 0,
-          "Invalid replaced rows count: %s (must be >= 0)",
-          replacedRowsCount);
-      Preconditions.checkArgument(
-          minSequenceNumber >= 0,
-          "Invalid min sequence number: %s (must be >= 0)",
-          minSequenceNumber);
       Preconditions.checkArgument(
           (dv == null) == (dvCardinality == null),
           "Invalid DV and cardinality: must both be null or non-null");
-      Preconditions.checkArgument(
-          dvCardinality == null || dvCardinality > 0,
-          "Invalid DV cardinality: %s (must be positive)",
-          dvCardinality);
       return new ManifestInfoStruct(
           addedFilesCount,
           existingFilesCount,

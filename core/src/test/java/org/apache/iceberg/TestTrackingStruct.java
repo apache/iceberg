@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -30,16 +31,28 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class TestTrackingStruct {
 
+  // Ordinals looked up from Tracking.schema() so tests don't hard-code positions.
+  private static final List<Types.NestedField> TRACKING_FIELDS = Tracking.schema().fields();
+  private static final int STATUS_ORDINAL = TRACKING_FIELDS.indexOf(Tracking.STATUS);
+  private static final int SNAPSHOT_ID_ORDINAL = TRACKING_FIELDS.indexOf(Tracking.SNAPSHOT_ID);
+  private static final int DATA_SEQUENCE_NUMBER_ORDINAL =
+      TRACKING_FIELDS.indexOf(Tracking.SEQUENCE_NUMBER);
+  private static final int FILE_SEQUENCE_NUMBER_ORDINAL =
+      TRACKING_FIELDS.indexOf(Tracking.FILE_SEQUENCE_NUMBER);
+  private static final int DV_SNAPSHOT_ID_ORDINAL =
+      TRACKING_FIELDS.indexOf(Tracking.DV_SNAPSHOT_ID);
+  private static final int FIRST_ROW_ID_ORDINAL = TRACKING_FIELDS.indexOf(Tracking.FIRST_ROW_ID);
+
   @Test
   void testFieldAccess() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
-    tracking.set(0, EntryStatus.ADDED.id());
-    tracking.set(1, 42L);
-    tracking.set(2, 10L);
-    tracking.set(3, 11L);
-    tracking.set(4, 43L);
-    tracking.set(5, 1000L);
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+    tracking.set(SNAPSHOT_ID_ORDINAL, 42L);
+    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, 10L);
+    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, 11L);
+    tracking.set(DV_SNAPSHOT_ID_ORDINAL, 43L);
+    tracking.set(FIRST_ROW_ID_ORDINAL, 1000L);
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
@@ -54,29 +67,27 @@ class TestTrackingStruct {
   @Test
   void testCopy() {
     TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.ADDED)
-            .snapshotId(42L)
-            .dataSequenceNumber(10L)
-            .deletedPositions(new byte[] {1, 2})
+        TrackingStruct.added(42L)
+            .dvSnapshotId(99L)
+            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
             .build();
 
     TrackingStruct copy = tracking.copy();
 
     assertThat(copy.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(copy.snapshotId()).isEqualTo(42L);
-    assertThat(copy.dataSequenceNumber()).isEqualTo(10L);
+    assertThat(copy.dvSnapshotId()).isEqualTo(99L);
     assertThat(copy.deletedPositions()).isNotNull();
 
-    // verify deep copy of ByteBuffer
-    assertThat(copy.deletedPositions()).isNotSameAs(tracking.deletedPositions());
+    // verify deep copy of ByteBuffer backing array
+    assertThat(copy.deletedPositions().array()).isNotSameAs(tracking.deletedPositions().array());
   }
 
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
   void testAllStatuses(EntryStatus status) {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, status.id());
+    tracking.set(STATUS_ORDINAL, status.id());
     assertThat(tracking.status()).isEqualTo(status);
   }
 
@@ -84,22 +95,24 @@ class TestTrackingStruct {
   void testIsLive() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
 
-    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
     assertThat(tracking.isLive()).isTrue();
 
-    tracking.set(0, EntryStatus.EXISTING.id());
+    tracking.set(STATUS_ORDINAL, EntryStatus.EXISTING.id());
     assertThat(tracking.isLive()).isTrue();
 
-    tracking.set(0, EntryStatus.DELETED.id());
+    tracking.set(STATUS_ORDINAL, EntryStatus.DELETED.id());
     assertThat(tracking.isLive()).isFalse();
 
-    tracking.set(0, EntryStatus.REPLACED.id());
+    tracking.set(STATUS_ORDINAL, EntryStatus.REPLACED.id());
     assertThat(tracking.isLive()).isFalse();
   }
 
   @Test
   void testInheritSnapshotId() {
-    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // snapshotId is null, should inherit from manifest
@@ -108,7 +121,9 @@ class TestTrackingStruct {
 
   @Test
   void testInheritSequenceNumberForAddedEntries() {
-    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are null and status is ADDED, should inherit
@@ -118,12 +133,11 @@ class TestTrackingStruct {
 
   @Test
   void testDoNotInheritSequenceNumberForExistingEntries() {
-    TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.EXISTING)
-            .dataSequenceNumber(5L)
-            .fileSequenceNumber(6L)
-            .build();
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.EXISTING.id());
+    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, 5L);
+    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, 6L);
+
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are not inherited for EXISTING entries
@@ -133,13 +147,12 @@ class TestTrackingStruct {
 
   @Test
   void testExplicitValuesOverrideInheritance() {
-    TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.ADDED)
-            .snapshotId(200L)
-            .dataSequenceNumber(75L)
-            .fileSequenceNumber(76L)
-            .build();
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+    tracking.set(SNAPSHOT_ID_ORDINAL, 200L);
+    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, 75L);
+    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, 76L);
+
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // explicit values should take precedence
@@ -151,13 +164,13 @@ class TestTrackingStruct {
   @Test
   void testInheritFromRejectsUnequalSequenceNumbers() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-    tracking.set(0, EntryStatus.ADDED.id());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
 
     TrackingStruct manifestTracking = new TrackingStruct(Tracking.schema());
-    manifestTracking.set(0, EntryStatus.ADDED.id());
-    manifestTracking.set(1, 100L);
-    manifestTracking.set(2, 50L);
-    manifestTracking.set(3, 60L);
+    manifestTracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+    manifestTracking.set(SNAPSHOT_ID_ORDINAL, 100L);
+    manifestTracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, 50L);
+    manifestTracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, 60L);
 
     assertThatThrownBy(() -> tracking.inheritFrom(manifestTracking))
         .isInstanceOf(IllegalArgumentException.class)
@@ -166,7 +179,8 @@ class TestTrackingStruct {
 
   @Test
   void testNoDefaultingWithoutInheritance() {
-    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
 
     // no inheritance, nulls stay null
     assertThat(tracking.snapshotId()).isNull();
@@ -175,19 +189,113 @@ class TestTrackingStruct {
   }
 
   private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
-    return TrackingStruct.builder()
-        .status(EntryStatus.ADDED)
-        .snapshotId(snapshotId)
-        .dataSequenceNumber(sequenceNumber)
-        .fileSequenceNumber(sequenceNumber)
-        .build();
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+    tracking.set(SNAPSHOT_ID_ORDINAL, snapshotId);
+    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, sequenceNumber);
+    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, sequenceNumber);
+    return tracking;
   }
 
   @Test
-  void testBuilderValidation() {
-    assertThatThrownBy(() -> TrackingStruct.builder().build())
+  void testAddedBuilder() {
+    TrackingStruct tracking =
+        TrackingStruct.added(42L)
+            .dvSnapshotId(43L)
+            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .replacedPositions(ByteBuffer.wrap(new byte[] {3, 4}))
+            .build();
+
+    assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(tracking.snapshotId()).isEqualTo(42L);
+    assertThat(tracking.dvSnapshotId()).isEqualTo(43L);
+    assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
+    assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
+    // sequence numbers and firstRowId remain null; populated by inheritance
+    assertThat(tracking.dataSequenceNumber()).isNull();
+    assertThat(tracking.fileSequenceNumber()).isNull();
+    assertThat(tracking.firstRowId()).isNull();
+  }
+
+  @Test
+  void testExistingBuilderPreservesSourceFields() {
+    Tracking source = sourceTracking();
+
+    TrackingStruct existing = TrackingStruct.existing(source).build();
+
+    assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(existing.snapshotId()).isEqualTo(source.snapshotId());
+    assertThat(existing.dataSequenceNumber()).isEqualTo(source.dataSequenceNumber());
+    assertThat(existing.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
+    assertThat(existing.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
+    assertThat(existing.firstRowId()).isEqualTo(source.firstRowId());
+  }
+
+  @Test
+  void testDeletedBuilderUpdatesSnapshotIdAndPreservesRest() {
+    Tracking source = sourceTracking();
+
+    TrackingStruct deleted = TrackingStruct.deleted(source, 999L).build();
+
+    assertThat(deleted.status()).isEqualTo(EntryStatus.DELETED);
+    assertThat(deleted.snapshotId()).isEqualTo(999L);
+    assertThat(deleted.dataSequenceNumber()).isEqualTo(source.dataSequenceNumber());
+    assertThat(deleted.fileSequenceNumber()).isEqualTo(source.fileSequenceNumber());
+    assertThat(deleted.dvSnapshotId()).isEqualTo(source.dvSnapshotId());
+    assertThat(deleted.firstRowId()).isEqualTo(source.firstRowId());
+  }
+
+  @Test
+  void testExistingBuilderAllowsDvMutation() {
+    TrackingStruct existing = TrackingStruct.existing(sourceTracking()).dvSnapshotId(999L).build();
+    assertThat(existing.dvSnapshotId()).isEqualTo(999L);
+  }
+
+  @Test
+  void testDeletedBuilderRejectsMutators() {
+    Tracking source = sourceTracking();
+
+    assertThatThrownBy(() -> TrackingStruct.deleted(source, 1L).dvSnapshotId(123L))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot set dv snapshot ID on a DELETED entry");
+
+    assertThatThrownBy(
+            () ->
+                TrackingStruct.deleted(source, 1L)
+                    .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot set deleted positions on a DELETED entry");
+
+    assertThatThrownBy(
+            () ->
+                TrackingStruct.deleted(source, 1L)
+                    .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot set replaced positions on a DELETED entry");
+  }
+
+  @Test
+  void testBuilderRejectsNullSource() {
+    assertThatThrownBy(() -> TrackingStruct.existing(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid status: null");
+        .hasMessage("Invalid source tracking: null");
+
+    assertThatThrownBy(() -> TrackingStruct.deleted(null, 1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid source tracking: null");
+  }
+
+  @Test
+  void testExistingAndDeletedRejectSourceWithoutSequenceNumbers() {
+    Tracking incomplete = TrackingStruct.added(42L).build();
+
+    assertThatThrownBy(() -> TrackingStruct.existing(incomplete))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Source tracking has no data sequence number; cannot mark as EXISTING");
+
+    assertThatThrownBy(() -> TrackingStruct.deleted(incomplete, 1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Source tracking has no data sequence number; cannot mark as DELETED");
   }
 
   @Test
@@ -212,36 +320,47 @@ class TestTrackingStruct {
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.ADDED)
-            .snapshotId(42L)
-            .dataSequenceNumber(10L)
-            .deletedPositions(new byte[] {1, 2})
+        TrackingStruct.added(42L)
+            .dvSnapshotId(99L)
+            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .replacedPositions(ByteBuffer.wrap(new byte[] {3, 4}))
             .build();
 
     TrackingStruct deserialized = TestHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.snapshotId()).isEqualTo(42L);
-    assertThat(deserialized.dataSequenceNumber()).isEqualTo(10L);
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(99L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
+    assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }
 
   @Test
   void testKryoSerializationRoundTrip() throws IOException {
     TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.ADDED)
-            .snapshotId(42L)
-            .dataSequenceNumber(10L)
-            .deletedPositions(new byte[] {1, 2})
+        TrackingStruct.added(42L)
+            .dvSnapshotId(99L)
+            .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
+            .replacedPositions(ByteBuffer.wrap(new byte[] {3, 4}))
             .build();
 
     TrackingStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.snapshotId()).isEqualTo(42L);
-    assertThat(deserialized.dataSequenceNumber()).isEqualTo(10L);
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(99L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
+    assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
+  }
+
+  private static Tracking sourceTracking() {
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+    tracking.set(SNAPSHOT_ID_ORDINAL, 42L);
+    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, 10L);
+    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, 10L);
+    tracking.set(DV_SNAPSHOT_ID_ORDINAL, 43L);
+    tracking.set(FIRST_ROW_ID_ORDINAL, 1000L);
+    return tracking;
   }
 }

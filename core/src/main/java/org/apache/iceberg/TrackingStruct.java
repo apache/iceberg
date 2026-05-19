@@ -59,6 +59,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     super(BASE_TYPE, type);
   }
 
+  /** Constructor for Java serialization. */
+  TrackingStruct() {
+    super(BASE_TYPE.fields().size());
+  }
+
   private TrackingStruct(TrackingStruct toCopy) {
     super(toCopy);
     this.status = toCopy.status;
@@ -88,7 +93,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       Long firstRowId,
       byte[] deletedPositions,
       byte[] replacedPositions) {
-    super(BASE_TYPE, BASE_TYPE);
+    super(BASE_TYPE.fields().size());
     this.status = status;
     this.snapshotId = snapshotId;
     this.dataSequenceNumber = dataSequenceNumber;
@@ -249,8 +254,21 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
   }
 
-  static Builder builder() {
-    return new Builder();
+  /** Creates a builder for a newly added file in the given snapshot. */
+  static Builder added(long snapshotId) {
+    return new Builder(EntryStatus.ADDED, snapshotId);
+  }
+
+  /** Creates a builder for an existing file based on tracking read from a manifest. */
+  static Builder existing(Tracking source) {
+    Preconditions.checkArgument(source != null, "Invalid source tracking: null");
+    return new Builder(EntryStatus.EXISTING, source, source.snapshotId());
+  }
+
+  /** Creates a builder for a deleted file in the given snapshot. */
+  static Builder deleted(Tracking source, long snapshotId) {
+    Preconditions.checkArgument(source != null, "Invalid source tracking: null");
+    return new Builder(EntryStatus.DELETED, source, snapshotId);
   }
 
   @Override
@@ -268,67 +286,67 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   }
 
   static class Builder {
-    private EntryStatus status = null;
-    private Long snapshotId = null;
-    private Long dataSequenceNumber = null;
-    private Long fileSequenceNumber = null;
-    private Long dvSnapshotId = null;
-    private Long firstRowId = null;
-    private byte[] deletedPositions = null;
-    private byte[] replacedPositions = null;
+    private final EntryStatus status;
+    private final Long snapshotId;
+    private final Long dataSequenceNumber;
+    private final Long fileSequenceNumber;
+    private final Long firstRowId;
+    private Long dvSnapshotId;
+    private byte[] deletedPositions;
+    private byte[] replacedPositions;
 
-    Builder status(EntryStatus entryStatus) {
-      this.status = entryStatus;
-      return this;
+    private Builder(EntryStatus status, long snapshotId) {
+      this.status = status;
+      this.snapshotId = snapshotId;
+      this.dataSequenceNumber = null;
+      this.fileSequenceNumber = null;
+      this.firstRowId = null;
     }
 
-    Builder snapshotId(Long id) {
-      this.snapshotId = id;
-      return this;
+    private Builder(EntryStatus status, Tracking source, Long snapshotId) {
+      Preconditions.checkArgument(
+          source.dataSequenceNumber() != null,
+          "Source tracking has no data sequence number; cannot mark as %s",
+          status);
+      Preconditions.checkArgument(
+          source.fileSequenceNumber() != null,
+          "Source tracking has no file sequence number; cannot mark as %s",
+          status);
+      this.status = status;
+      this.snapshotId = snapshotId;
+      this.dataSequenceNumber = source.dataSequenceNumber();
+      this.fileSequenceNumber = source.fileSequenceNumber();
+      this.firstRowId = source.firstRowId();
+      this.dvSnapshotId = source.dvSnapshotId();
+      ByteBuffer sourceDeleted = source.deletedPositions();
+      this.deletedPositions = sourceDeleted != null ? ByteBuffers.toByteArray(sourceDeleted) : null;
+      ByteBuffer sourceReplaced = source.replacedPositions();
+      this.replacedPositions =
+          sourceReplaced != null ? ByteBuffers.toByteArray(sourceReplaced) : null;
     }
 
-    Builder dataSequenceNumber(Long sequenceNumber) {
-      this.dataSequenceNumber = sequenceNumber;
-      return this;
-    }
-
-    Builder fileSequenceNumber(Long sequenceNumber) {
-      this.fileSequenceNumber = sequenceNumber;
-      return this;
-    }
-
-    Builder dvSnapshotId(Long id) {
+    Builder dvSnapshotId(long id) {
+      Preconditions.checkState(
+          status != EntryStatus.DELETED, "Cannot set dv snapshot ID on a DELETED entry");
       this.dvSnapshotId = id;
       return this;
     }
 
-    Builder firstRowId(Long rowId) {
-      this.firstRowId = rowId;
-      return this;
-    }
-
     Builder deletedPositions(ByteBuffer positions) {
+      Preconditions.checkState(
+          status != EntryStatus.DELETED, "Cannot set deleted positions on a DELETED entry");
       this.deletedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
       return this;
     }
 
-    Builder deletedPositions(byte[] positions) {
-      this.deletedPositions = positions;
-      return this;
-    }
-
     Builder replacedPositions(ByteBuffer positions) {
+      Preconditions.checkState(
+          status != EntryStatus.DELETED, "Cannot set replaced positions on a DELETED entry");
       this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
       return this;
     }
 
-    Builder replacedPositions(byte[] positions) {
-      this.replacedPositions = positions;
-      return this;
-    }
-
     TrackingStruct build() {
-      Preconditions.checkArgument(status != null, "Invalid status: null");
       return new TrackingStruct(
           status,
           snapshotId,
