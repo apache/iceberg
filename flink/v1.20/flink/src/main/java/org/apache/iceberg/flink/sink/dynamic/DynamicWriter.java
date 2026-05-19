@@ -28,14 +28,16 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
 import org.apache.flink.api.connector.sink2.SinkWriter;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
+import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -56,27 +58,24 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   private final Map<WriteTarget, RowDataTaskWriterFactory> taskWriterFactories;
   private final Map<WriteTarget, TaskWriter<RowData>> writers;
+  private final Configuration flinkConfig;
+  private final Map<String, String> commonWriteProperties;
   private final DynamicWriterMetrics metrics;
   private final int subTaskId;
   private final int attemptId;
   private final Catalog catalog;
-  private final FileFormat dataFileFormat;
-  private final long targetDataFileSize;
-  private final Map<String, String> commonWriteProperties;
 
   DynamicWriter(
       Catalog catalog,
-      FileFormat dataFileFormat,
-      long targetDataFileSize,
       Map<String, String> commonWriteProperties,
+      Configuration flinkConfig,
       int cacheMaximumSize,
       DynamicWriterMetrics metrics,
       int subTaskId,
       int attemptId) {
     this.catalog = catalog;
-    this.dataFileFormat = dataFileFormat;
-    this.targetDataFileSize = targetDataFileSize;
     this.commonWriteProperties = commonWriteProperties;
+    this.flinkConfig = flinkConfig;
     this.metrics = metrics;
     this.subTaskId = subTaskId;
     this.attemptId = attemptId;
@@ -106,10 +105,6 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                         Table table =
                             catalog.loadTable(TableIdentifier.parse(factoryKey.tableName()));
 
-                        Map<String, String> tableWriteProperties =
-                            Maps.newHashMap(table.properties());
-                        tableWriteProperties.putAll(commonWriteProperties);
-
                         Set<Integer> equalityFieldIds =
                             getEqualityFields(table, element.equalityFields());
                         if (element.upsertMode()) {
@@ -128,12 +123,18 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                           }
                         }
 
+                        FlinkWriteConf flinkWriteConf =
+                            new FlinkWriteConf(table, commonWriteProperties, flinkConfig);
+                        Map<String, String> tableWriteProperties =
+                            SinkUtil.writeProperties(
+                                flinkWriteConf.dataFileFormat(), flinkWriteConf, table);
+
                         LOG.debug("Creating new writer factory for table '{}'", table.name());
                         return new RowDataTaskWriterFactory(
                             () -> table,
                             FlinkSchemaUtil.convert(element.schema()),
-                            targetDataFileSize,
-                            dataFileFormat,
+                            flinkWriteConf.targetDataFileSize(),
+                            flinkWriteConf.dataFileFormat(),
                             tableWriteProperties,
                             Lists.newArrayList(equalityFieldIds),
                             element.upsertMode(),
@@ -165,8 +166,6 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     return MoreObjects.toStringHelper(this)
         .add("subtaskId", subTaskId)
         .add("attemptId", attemptId)
-        .add("dataFileFormat", dataFileFormat)
-        .add("targetDataFileSize", targetDataFileSize)
         .add("writeProperties", commonWriteProperties)
         .toString();
   }
@@ -189,7 +188,11 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
           writeResult.dataFiles().length,
           writeResult.deleteFiles().length);
 
-      result.add(new DynamicWriteResult(writeTarget, writeResult));
+      result.add(
+          new DynamicWriteResult(
+              new TableKey(writeTarget.tableName(), writeTarget.branch()),
+              writeTarget.specId(),
+              writeResult));
     }
 
     writers.clear();

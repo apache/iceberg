@@ -40,7 +40,7 @@ class ManifestLists {
             .project(ManifestFile.schema())
             .build()) {
 
-      return Lists.newLinkedList(files);
+      return Lists.newArrayList(files);
 
     } catch (IOException e) {
       throw new RuntimeIOException(

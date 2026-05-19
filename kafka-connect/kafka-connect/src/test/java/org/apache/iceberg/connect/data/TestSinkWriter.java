@@ -91,7 +91,7 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   @Test
@@ -119,7 +119,7 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   @Test
@@ -150,7 +150,75 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
+  public void testOffsetTrackedByOriginalTopicPartition() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+
+    IcebergWriterResult writeResult =
+        new IcebergWriterResult(
+            TableIdentifier.parse(TABLE_NAME),
+            ImmutableList.of(mock(DataFile.class)),
+            ImmutableList.of(),
+            Types.StructType.of());
+    IcebergWriter writer = mock(IcebergWriter.class);
+    when(writer.complete()).thenReturn(ImmutableList.of(writeResult));
+
+    IcebergWriterFactory writerFactory = mock(IcebergWriterFactory.class);
+    when(writerFactory.createWriter(any(), any(), anyBoolean())).thenReturn(writer);
+
+    SinkWriter sinkWriter = new SinkWriter(catalog, config);
+
+    // simulate a record that has been transformed by RegexRouter (topic changed)
+    String originalTopic = "orders";
+    int originalPartition = 0;
+    long originalOffset = 42L;
+    Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+
+    SinkRecord original =
+        new SinkRecord(
+            originalTopic,
+            originalPartition,
+            null,
+            "key",
+            null,
+            ImmutableMap.of(ROUTE_FIELD, TABLE_IDENTIFIER.toString()),
+            originalOffset,
+            now.toEpochMilli(),
+            TimestampType.LOG_APPEND_TIME);
+
+    // RegexRouter changes the topic via newRecord
+    String transformedTopic = "tmp.dynamic_orders";
+    SinkRecord transformed =
+        original.newRecord(
+            transformedTopic,
+            originalPartition,
+            original.keySchema(),
+            original.key(),
+            original.valueSchema(),
+            original.value(),
+            original.timestamp());
+
+    sinkWriter.save(ImmutableList.of(transformed));
+    SinkWriterResult result = sinkWriter.completeWrite();
+
+    // offsets must be keyed by the ORIGINAL topic, not the transformed one
+    Offset offset =
+        result.sourceOffsets().get(new TopicPartition(originalTopic, originalPartition));
+    assertThat(offset).isNotNull();
+    assertThat(offset.offset()).isEqualTo(originalOffset + 1);
+    assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));
+
+    // the transformed topic key should NOT be present
+    Offset wrongOffset =
+        result.sourceOffsets().get(new TopicPartition(transformedTopic, originalPartition));
+    assertThat(wrongOffset).isNull();
   }
 
   @Test

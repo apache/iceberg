@@ -43,7 +43,7 @@ To add a dependency on Iceberg in Gradle, add the following to `build.gradle`:
 
 ```
 dependencies {
-  compile 'org.apache.iceberg:iceberg-core:{{ icebergVersion }}'
+  implementation 'org.apache.iceberg:iceberg-core:{{ icebergVersion }}'
 }
 ```
 
@@ -64,6 +64,41 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
+
+### 1.10.2 release
+
+Apache Iceberg 1.10.2 was released on May 18, 2026.
+
+The 1.10.2 release contains bug fixes and security fixes. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.10.2)
+
+* Core
+    - Fix equality deletes non-deterministic schema ordering ([\#15605](https://github.com/apache/iceberg/pull/15605))
+    - Load snapshot after commit to prevent accidental file cleanup ([\#15650](https://github.com/apache/iceberg/pull/15650))
+    - Always merge deletion vectors on commit path ([\#15654](https://github.com/apache/iceberg/pull/15654))
+    - Do not clean up files when CREATE transactions fail with 503 ([\#15662](https://github.com/apache/iceberg/pull/15662))
+    - Validate v2 deletes against concurrent format upgrade ([\#16161](https://github.com/apache/iceberg/pull/16161))
+    - Fix row ID assignment for EXISTING entries during manifest merge ([\#16304](https://github.com/apache/iceberg/pull/16304))
+* Flink
+    - Fix non-deterministic operator UIDs in DynamicIcebergSink ([\#15738](https://github.com/apache/iceberg/pull/15738))
+    - Fix LICENSE and NOTICE files ([\#16175](https://github.com/apache/iceberg/pull/16175), [\#16130](https://github.com/apache/iceberg/pull/16130))
+* Hive
+    - Fix trailing slash issue for database paths in HMS ([\#16010](https://github.com/apache/iceberg/pull/16010))
+* Spark
+    - Fix LICENSE and NOTICE files ([\#16255](https://github.com/apache/iceberg/pull/16255), [\#16162](https://github.com/apache/iceberg/pull/16162))
+* AWS
+    - Fix LICENSE and NOTICE files ([\#16236](https://github.com/apache/iceberg/pull/16236))
+* Azure
+    - Fix LICENSE and NOTICE files ([\#16242](https://github.com/apache/iceberg/pull/16242), [\#16260](https://github.com/apache/iceberg/pull/16260))
+* GCP
+    - Fix LICENSE and NOTICE files ([\#16244](https://github.com/apache/iceberg/pull/16244))
+* Open API
+    - Stop publishing the Open API runtime Jar due to license compliance issues ([\#16188](https://github.com/apache/iceberg/pull/16188)). Users who depended on the shadow JAR must now use the `test-fixtures` classifier and explicitly add `iceberg-core`, `iceberg-core:tests`, `jetty-server`, `jetty-servlet`, `sqlite-jdbc`, and `hadoop-common`.
+* Build
+    - Fix CVE-2025-67721 in io.airlift:aircompressor ([\#15829](https://github.com/apache/iceberg/pull/15829))
+    - Bump Jackson to 2.21.2 to fix GHSA-72hv-8253-57qq ([\#15847](https://github.com/apache/iceberg/pull/15847))
+    - Bump Apache Avro from 1.12.0 to 1.12.1 ([\#15607](https://github.com/apache/iceberg/pull/15607))
+
+## Past releases
 
 ### 1.10.1 release
 
@@ -111,8 +146,6 @@ The 1.10.1 release contains bug fixes. For full release notes visit [Github](htt
     - AWS: Configure builder for reuse of HTTP connection pool in SDK v2 ([\#14161](https://github.com/apache/iceberg/pull/14161))
     - AWS: Fix leaked credentials when contacting multiple catalogs ([\#14178](https://github.com/apache/iceberg/pull/14178))
     - AWS: Exclude logging dependencies from the bundle ([\#14225](https://github.com/apache/iceberg/pull/14225))
-
-## Past releases
 
 ### 1.10.0 release
 

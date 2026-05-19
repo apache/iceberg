@@ -290,7 +290,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     this.skipSize = skipSize;
   }
 
-  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

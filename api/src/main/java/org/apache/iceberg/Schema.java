@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -101,6 +103,10 @@ public class Schema implements Serializable {
 
   public Schema(List<NestedField> columns, Set<Integer> identifierFieldIds, TypeUtil.GetID getId) {
     this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds, getId);
+  }
+
+  public Schema(List<NestedField> columns, TypeUtil.GetID getId) {
+    this(DEFAULT_SCHEMA_ID, columns, ImmutableSet.of(), getId);
   }
 
   public Schema(int schemaId, List<NestedField> columns) {
@@ -628,5 +634,34 @@ public class Schema implements Serializable {
               "Invalid schema for v%s:\n- %s",
               formatVersion, Joiner.on("\n- ").join(problems.values())));
     }
+  }
+
+  /**
+   * Indexes all fields from schemas.
+   *
+   * <p>This method favors field definitions from higher schema IDs to handle type promotions.
+   *
+   * @param schemas the collection of schemas to index
+   * @return a map of field IDs to fields
+   */
+  public static Map<Integer, NestedField> indexFields(Collection<Schema> schemas) {
+    if (schemas.size() == 1) {
+      Schema schema = Iterables.getOnlyElement(schemas);
+      return schema.lazyIdToField();
+    }
+
+    Map<Integer, NestedField> fields = Maps.newHashMap();
+
+    for (Schema schema : sortAndDeduplicate(schemas)) {
+      fields.putAll(schema.lazyIdToField());
+    }
+
+    return fields;
+  }
+
+  private static Set<Schema> sortAndDeduplicate(Collection<Schema> schemas) {
+    Set<Schema> sortedSchemas = Sets.newTreeSet(Comparator.comparingInt(Schema::schemaId));
+    sortedSchemas.addAll(schemas);
+    return sortedSchemas;
   }
 }

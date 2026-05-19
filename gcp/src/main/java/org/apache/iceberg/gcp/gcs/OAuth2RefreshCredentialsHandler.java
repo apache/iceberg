@@ -32,7 +32,9 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -43,6 +45,7 @@ public class OAuth2RefreshCredentialsHandler
     implements OAuth2CredentialsWithRefresh.OAuth2RefreshHandler, AutoCloseable {
   private final Map<String, String> properties;
   private final String credentialsEndpoint;
+  private final String planId;
   // will be used to refresh the OAuth2 token
   private final String catalogEndpoint;
   private volatile HTTPClient client;
@@ -59,19 +62,13 @@ public class OAuth2RefreshCredentialsHandler
         properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.properties = properties;
+    this.planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
   }
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   @Override
   public AccessToken refreshAccessToken() {
-    LoadCredentialsResponse response =
-        httpClient()
-            .get(
-                credentialsEndpoint,
-                null,
-                LoadCredentialsResponse.class,
-                Map.of(),
-                ErrorHandlers.defaultErrorHandler());
+    LoadCredentialsResponse response = fetchCredentials();
 
     List<Credential> gcsCredentials =
         response.credentials().stream()
@@ -92,6 +89,16 @@ public class OAuth2RefreshCredentialsHandler
     return new AccessToken(token, new Date(Long.parseLong(expiresAt)));
   }
 
+  LoadCredentialsResponse fetchCredentials() {
+    return httpClient()
+        .get(
+            credentialsEndpoint,
+            null != planId ? Map.of("planId", planId) : null,
+            LoadCredentialsResponse.class,
+            Map.of(),
+            ErrorHandlers.defaultErrorHandler());
+  }
+
   private void checkCredential(Credential gcsCredential, String gcsOauth2Token) {
     Preconditions.checkState(
         gcsCredential.config().containsKey(gcsOauth2Token),
@@ -108,7 +115,11 @@ public class OAuth2RefreshCredentialsHandler
       synchronized (this) {
         if (null == client) {
           authManager = AuthManagers.loadAuthManager("gcs-credentials-refresh", properties);
-          HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
+          HTTPClient httpClient =
+              HTTPClient.builder(properties)
+                  .uri(catalogEndpoint)
+                  .withHeaders(RESTUtil.configHeaders(properties))
+                  .build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);
         }

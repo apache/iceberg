@@ -19,11 +19,14 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.spark.sql.functions.col;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -150,7 +153,7 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
-  public void testMergeWithSchemaEvolutionNestedStruct() {
+  public void testMergeWithSchemaEvolutionNestedStructSourceHasMoreFields() {
     assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
 
     createAndInitTable(
@@ -186,6 +189,45 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void testMergeWithSchemaEvolutionNestedStructSourceHasFewerFields() {
+    assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
+
+    createAndInitTable(
+        "id INT, s STRUCT<c1:INT,c2:STRING,c3:INT>",
+        "{ \"id\": 1, \"s\": { \"c1\": 100, \"c2\": \"aa\", \"c3\": 1000 } }\n"
+            + "{ \"id\": 2, \"s\": { \"c1\": 200, \"c2\": \"bb\", \"c3\": 2000 } }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, s STRUCT<c1:INT,c2:STRING>",
+        "{ \"id\": 1, \"s\": { \"c1\": 10, \"c2\": \"a\" } }\n"
+            + "{ \"id\": 3, \"s\": { \"c1\": 30, \"c2\": \"c\" } }");
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.mergeNestedTypeCoercion.enabled", "true"),
+        () -> {
+          sql(
+              "MERGE WITH SCHEMA EVOLUTION INTO %s AS t USING source AS s "
+                  + "ON t.id == s.id "
+                  + "WHEN MATCHED THEN "
+                  + "  UPDATE SET * "
+                  + "WHEN NOT MATCHED THEN "
+                  + "  INSERT *",
+              commitTarget());
+          // Rows should have null for missing c3 nested field from source
+          ImmutableList<Object[]> expectedRows =
+              ImmutableList.of(
+                  row(1, row(10, "a", 1000)), // updated, c3 is retained
+                  row(2, row(200, "bb", 2000)), // kept
+                  row(3, row(30, "c", null))); // new, c3 is null
+          assertEquals(
+              "Should have expected rows with nested struct evolution",
+              expectedRows,
+              sql("SELECT id, s FROM %s ORDER BY id", selectTarget()));
+        });
+  }
+
+  @TestTemplate
   public void testMergeWithSchemaEvolutionTypeWidening() {
     assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
 
@@ -218,6 +260,49 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
         "Should have expected rows with type widening",
         expectedRows,
         sql("SELECT id, value FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testMergeWithSchemaEvolutionDisabledByTableProperty() {
+    assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
+
+    createAndInitTable(
+        "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"software\" }");
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'false')",
+        tableName, TableProperties.SPARK_WRITE_AUTO_SCHEMA_EVOLUTION);
+
+    createOrReplaceView(
+        "source",
+        "id INT, dep STRING, salary INT",
+        "{ \"id\": 1, \"dep\": \"hr\", \"salary\": 100 }\n"
+            + "{ \"id\": 3, \"dep\": \"finance\", \"salary\": 300 }");
+
+    sql(
+        "MERGE WITH SCHEMA EVOLUTION INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET * "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT *",
+        commitTarget());
+
+    // Schema should NOT be evolved - 'salary' column should not be added
+    assertThat(sql("SELECT * FROM %s", selectTarget()).get(0).length)
+        .as("Table should still have only 2 columns (id, dep)")
+        .isEqualTo(2);
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, "hr"), // updated without salary
+            row(2, "software"), // kept
+            row(3, "finance")); // new without salary
+    assertEquals(
+        "Should have expected rows without schema evolution",
+        expectedRows,
+        sql("SELECT id, dep FROM %s ORDER BY id", selectTarget()));
   }
 
   @Override

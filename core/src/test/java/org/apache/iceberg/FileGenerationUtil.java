@@ -280,9 +280,13 @@ public class FileGenerationUtil {
   }
 
   private static Pair<ByteBuffer, ByteBuffer> generateBounds(PrimitiveType type, MetricsMode mode) {
-    Comparator<Object> cmp = Comparators.forType(type);
     Object value1 = generateBound(type, mode);
     Object value2 = generateBound(type, mode);
+
+    if (value1 == null || value2 == null) {
+      return Pair.of(null, null);
+    }
+    Comparator<Object> cmp = Comparators.forType(type);
     if (cmp.compare(value1, value2) > 0) {
       ByteBuffer lowerBuffer = Conversions.toByteBuffer(type, value2);
       ByteBuffer upperBuffer = Conversions.toByteBuffer(type, value1);

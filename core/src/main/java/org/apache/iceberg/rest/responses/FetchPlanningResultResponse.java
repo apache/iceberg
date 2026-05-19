@@ -24,24 +24,41 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.PlanStatus;
+import org.apache.iceberg.rest.credentials.Credential;
 
 public class FetchPlanningResultResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
+  private final ErrorResponse errorResponse;
+  private final List<Credential> credentials;
 
   private FetchPlanningResultResponse(
       PlanStatus planStatus,
+      ErrorResponse errorResponse,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
-      Map<Integer, PartitionSpec> specsById) {
+      Map<Integer, PartitionSpec> specsById,
+      List<Credential> credentials) {
     super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
+    this.errorResponse = errorResponse;
+    this.credentials = credentials;
     validate();
   }
 
   public PlanStatus planStatus() {
     return planStatus;
+  }
+
+  public ErrorResponse errorResponse() {
+    return errorResponse;
+  }
+
+  public List<Credential> credentials() {
+    return credentials != null ? credentials : ImmutableList.of();
   }
 
   public static Builder builder() {
@@ -54,6 +71,9 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     Preconditions.checkArgument(
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be returned in a 'completed' status");
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.FAILED || errorResponse() == null,
+        "Invalid response: error can only be returned in a 'failed' status");
     if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
@@ -66,16 +86,34 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     private Builder() {}
 
     private PlanStatus planStatus;
+    private ErrorResponse errorResponse;
+    private final List<Credential> credentials = Lists.newArrayList();
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
       return this;
     }
 
+    public Builder withErrorResponse(ErrorResponse response) {
+      this.errorResponse = response;
+      return this;
+    }
+
+    public Builder withCredentials(List<Credential> credentialsToAdd) {
+      credentials.addAll(credentialsToAdd);
+      return this;
+    }
+
     @Override
     public FetchPlanningResultResponse build() {
       return new FetchPlanningResultResponse(
-          planStatus, planTasks(), fileScanTasks(), deleteFiles(), specsById());
+          planStatus,
+          errorResponse,
+          planTasks(),
+          fileScanTasks(),
+          deleteFiles(),
+          specsById(),
+          credentials);
     }
   }
 }

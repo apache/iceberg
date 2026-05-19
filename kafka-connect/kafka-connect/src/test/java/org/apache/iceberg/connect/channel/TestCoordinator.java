@@ -19,12 +19,16 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DataOperations;
@@ -32,7 +36,9 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.events.AvroUtil;
 import org.apache.iceberg.connect.events.CommitComplete;
 import org.apache.iceberg.connect.events.CommitToTable;
@@ -43,6 +49,8 @@ import org.apache.iceberg.connect.events.PayloadType;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
@@ -71,8 +79,9 @@ public class TestCoordinator extends ChannelTestBase {
 
     Snapshot snapshot = snapshots.get(0);
     assertThat(snapshot.operation()).isEqualTo(DataOperations.APPEND);
-    assertThat(snapshot.addedDataFiles(table.io())).hasSize(1);
-    assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).hasSize(1);
+    assertThat(changes.addedDeleteFiles()).isEmpty();
 
     assertThat(snapshot.summary())
         .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
@@ -98,8 +107,9 @@ public class TestCoordinator extends ChannelTestBase {
 
     Snapshot snapshot = snapshots.get(0);
     assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
-    assertThat(snapshot.addedDataFiles(table.io())).hasSize(1);
-    assertThat(snapshot.addedDeleteFiles(table.io())).hasSize(1);
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    assertThat(changes.addedDataFiles()).hasSize(1);
+    assertThat(changes.addedDeleteFiles()).hasSize(1);
 
     assertThat(snapshot.summary())
         .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
@@ -131,12 +141,33 @@ public class TestCoordinator extends ChannelTestBase {
             .withRecordCount(5)
             .build();
 
-    coordinatorTest(ImmutableList.of(badDataFile), ImmutableList.of(), null);
+    assertThatThrownBy(
+            () -> coordinatorTest(ImmutableList.of(badDataFile), ImmutableList.of(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find partition spec");
 
-    // no commit messages sent
     assertThat(producer.history()).hasSize(1);
-
     assertThat(table.snapshots()).isEmpty();
+  }
+
+  @Test
+  public void testCommitFailedExceptionPropagates() {
+    Table spiedTable = spy(table);
+    AppendFiles spiedAppend = spy(table.newAppend());
+    doThrow(new CommitFailedException("Glue detected concurrent update"))
+        .when(spiedAppend)
+        .commit();
+    when(spiedTable.newAppend()).thenReturn(spiedAppend);
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
+
+    assertThatThrownBy(
+            () ->
+                coordinatorTest(
+                    ImmutableList.of(EventTestUtil.createDataFile()),
+                    ImmutableList.of(),
+                    EventTestUtil.now()))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Glue detected concurrent update");
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
@@ -189,7 +220,7 @@ public class TestCoordinator extends ChannelTestBase {
             new DataWritten(
                 StructType.of(),
                 commitId,
-                new TableReference("catalog", ImmutableList.of("db"), "tbl"),
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
                 dataFiles,
                 deleteFiles));
     bytes = AvroUtil.encode(commitResponse);
@@ -285,13 +316,18 @@ public class TestCoordinator extends ChannelTestBase {
     Snapshot firstSnapshot = table.currentSnapshot();
     assertThat(firstSnapshot.summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
 
-    // Trigger commit to the table
-    coordinatorTest(
-        ImmutableList.of(EventTestUtil.createDataFile()), ImmutableList.of(), EventTestUtil.now());
+    // Trigger commit to the table - should throw ValidationException
+    assertThatThrownBy(
+            () ->
+                coordinatorTest(
+                    ImmutableList.of(EventTestUtil.createDataFile()),
+                    ImmutableList.of(),
+                    EventTestUtil.now()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("stale offsets");
 
-    // Assert that the table was not updated and offsets remain
     table.refresh();
     assertThat(table.snapshots()).hasSize(2);
-    assertThat(firstSnapshot.summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
+    assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
   }
 }

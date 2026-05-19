@@ -852,11 +852,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl2.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db.ns1 is not empty. Contains 1 table(s).");
+        .hasMessage("Namespace db.ns1 is not empty. Contains 1 child namespace(s).");
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl4.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db is not empty. Contains 1 table(s).");
+        .hasMessage("Namespace db is not empty. Contains 2 child namespace(s).");
   }
 
   @Test
@@ -1083,6 +1083,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
           .thenThrow(new SQLException());
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("Unknown failure");
@@ -1103,9 +1104,73 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
-          .isInstanceOf(AlreadyExistsException.class)
+          .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("Table already exists: " + tableIdent);
+    }
+  }
+
+  @Test
+  public void testCommitExceptionWithPostgresUniqueViolation() {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+    BaseTable table = (BaseTable) catalog.buildTable(tableIdent, SCHEMA).create();
+    TableOperations ops = table.operations();
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(UncheckedSQLException.class)
+          .hasMessageStartingWith("Table already exists: " + tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableConstraintExceptionWithMessage() {
+    TableIdentifier existingIdent = TableIdentifier.of("db", "existing_tbl");
+    BaseTable existing = (BaseTable) catalog.buildTable(existingIdent, SCHEMA).create();
+    TableMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("db", "new_tbl");
+    TableOperations ops = catalog.newTableOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table already exists: " + newIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableConstraintExceptionWithPostgresUniqueViolation() {
+    TableIdentifier existingIdent = TableIdentifier.of("db", "existing_tbl2");
+    BaseTable existing = (BaseTable) catalog.buildTable(existingIdent, SCHEMA).create();
+    TableMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("db", "new_tbl2");
+    TableOperations ops = catalog.newTableOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("Table already exists: " + newIdent);
     }
   }
 

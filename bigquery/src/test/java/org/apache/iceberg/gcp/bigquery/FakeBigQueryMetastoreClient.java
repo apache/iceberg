@@ -180,18 +180,11 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
     String incomingEtag = table.getEtag();
     String requiredEtag = existingTable.getEtag();
 
-    // The real patch() uses an If-Match header which is passed separately,
-    // NOT on the incoming table object.
-    // The BigQueryTableOperations does NOT set the ETag on the Table object
-    // it passes to the client update() method.
-    // For a fake, we assume the ETag check needs to be simulated based on
-    // state, BUT the real client.update() expects the ETAG as a separate parameter
-    // (or implicitly via setIfMatch header, which this Fake doesn't see).
-    // To make the fake usable, we'll assume that if an ETag *is* present
-    // on the incoming table object, it must match.
+    // Simulate ETag-based optimistic locking. If the incoming table has an ETag,
+    // it must match the current ETag in the store.
     if (incomingEtag != null && !incomingEtag.equals(requiredEtag)) {
       throw new CommitFailedException(
-          "Etag mismatch for table: %s. Required: %s, Found: %s",
+          "Cannot commit: Etag mismatch for table: %s. Required: %s, Found: %s",
           tableReference, requiredEtag, incomingEtag);
     }
 

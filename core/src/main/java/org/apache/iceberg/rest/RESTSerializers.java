@@ -52,11 +52,17 @@ import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequestParser;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequestParser;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequestParser;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequestParser;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequestParser;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -71,6 +77,7 @@ import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponseParser;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -80,6 +87,8 @@ import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponseParser;
+import org.apache.iceberg.rest.responses.RemoteSignResponse;
+import org.apache.iceberg.rest.responses.RemoteSignResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
@@ -131,6 +140,11 @@ public class RESTSerializers {
         .addSerializer(ImmutableLoadViewResponse.class, new LoadViewResponseSerializer<>())
         .addDeserializer(LoadViewResponse.class, new LoadViewResponseDeserializer<>())
         .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>())
+        .addSerializer(RegisterViewRequest.class, new RegisterViewRequestSerializer<>())
+        .addDeserializer(RegisterViewRequest.class, new RegisterViewRequestDeserializer<>())
+        .addSerializer(ImmutableRegisterViewRequest.class, new RegisterViewRequestSerializer<>())
+        .addDeserializer(
+            ImmutableRegisterViewRequest.class, new RegisterViewRequestDeserializer<>())
         .addSerializer(ConfigResponse.class, new ConfigResponseSerializer<>())
         .addDeserializer(ConfigResponse.class, new ConfigResponseDeserializer<>())
         .addSerializer(LoadTableResponse.class, new LoadTableResponseSerializer<>())
@@ -152,7 +166,15 @@ public class RESTSerializers {
             ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
         .addDeserializer(LoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>())
         .addDeserializer(
-            ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>());
+            ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>())
+        .addSerializer(RemoteSignRequest.class, new RemoteSignRequestSerializer<>())
+        .addSerializer(ImmutableRemoteSignRequest.class, new RemoteSignRequestSerializer<>())
+        .addDeserializer(RemoteSignRequest.class, new RemoteSignRequestDeserializer<>())
+        .addDeserializer(ImmutableRemoteSignRequest.class, new RemoteSignRequestDeserializer<>())
+        .addSerializer(RemoteSignResponse.class, new RemoteSignResponseSerializer<>())
+        .addSerializer(ImmutableRemoteSignResponse.class, new RemoteSignResponseSerializer<>())
+        .addDeserializer(RemoteSignResponse.class, new RemoteSignResponseDeserializer<>())
+        .addDeserializer(ImmutableRemoteSignResponse.class, new RemoteSignResponseDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -444,6 +466,24 @@ public class RESTSerializers {
     }
   }
 
+  static class RegisterViewRequestSerializer<T extends RegisterViewRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      RegisterViewRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class RegisterViewRequestDeserializer<T extends RegisterViewRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) RegisterViewRequestParser.fromJson(jsonNode);
+    }
+  }
+
   static class ConfigResponseSerializer<T extends ConfigResponse> extends JsonSerializer<T> {
     @Override
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
@@ -597,6 +637,7 @@ public class RESTSerializers {
     }
   }
 
+  @SuppressWarnings("deprecation")
   private static TableScanResponseContext parseScanResponseContext(DeserializationContext context)
       throws IOException {
     @SuppressWarnings("unchecked")
@@ -621,6 +662,41 @@ public class RESTSerializers {
 
     boolean isCaseSensitive() {
       return caseSensitive;
+    }
+  }
+
+  static class RemoteSignRequestSerializer<T extends RemoteSignRequest> extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      RemoteSignRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class RemoteSignRequestDeserializer<T extends RemoteSignRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) RemoteSignRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class RemoteSignResponseSerializer<T extends RemoteSignResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      RemoteSignResponseParser.toJson(response, gen);
+    }
+  }
+
+  static class RemoteSignResponseDeserializer<T extends RemoteSignResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) RemoteSignResponseParser.fromJson(jsonNode);
     }
   }
 }

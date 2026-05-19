@@ -58,6 +58,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -728,7 +729,9 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     Snapshot snapshot1 = table.currentSnapshot();
-    DataFile file1 = Iterables.getOnlyElement(snapshot1.addedDataFiles(table.io()));
+    DataFile file1 =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot1).build().addedDataFiles());
 
     List<ThreeColumnRecord> records2 = Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC"));
     writeRecords(records2);
@@ -736,7 +739,9 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     Snapshot snapshot2 = table.currentSnapshot();
-    DataFile file2 = Iterables.getOnlyElement(snapshot2.addedDataFiles(table.io()));
+    DataFile file2 =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot2).build().addedDataFiles());
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     assertThat(manifests).as("Should have 2 manifests before rewrite").hasSize(2);
