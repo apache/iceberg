@@ -34,80 +34,67 @@ import org.slf4j.LoggerFactory;
 
 class StatsUtil {
   private static final Logger LOG = LoggerFactory.getLogger(StatsUtil.class);
-  // the number of reserved field IDs from the reserved field ID space as defined in
-  // https://iceberg.apache.org/spec/#reserved-field-ids
-  static final int NUM_RESERVED_FIELD_IDS = 200;
-  // the starting field ID of the reserved field ID space
-  static final int RESERVED_FIELD_IDS_START = Integer.MAX_VALUE - NUM_RESERVED_FIELD_IDS;
-  // the number of supported stats per table column
+  private static final int FIRST_SUPPORTED_METADATA_FIELD_ID =
+      MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
+  static final Set<Integer> SUPPORTED_METADATA_FIELD_IDS =
+      Sets.newHashSet(
+          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(), MetadataColumns.ROW_ID.fieldId());
   static final int NUM_SUPPORTED_STATS_PER_COLUMN = 200;
-  // the starting field ID of the stats space for data field IDs
+  static final int STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS = 9_000;
   static final int STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS = 10_000;
-  // the starting field ID of the stats space for metadata field IDs
-  static final int STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS = 2_147_000_000;
-  // support stats for only up to this amount of data field IDs
-  static final int MAX_DATA_FIELD_ID = 1_000_000;
-  static final int MAX_DATA_STATS_FIELD_ID = 200_010_000;
+  // exclusive upper bound of the stats field ID range reserved for content_stats
+  static final int STATS_SPACE_FIELD_ID_END = 200_000_000;
+  static final int MAX_DATA_STATS_FIELD_ID =
+      STATS_SPACE_FIELD_ID_END - NUM_SUPPORTED_STATS_PER_COLUMN;
+  // the max data field ID whose stats struct fits within the reserved range
+  static final int MAX_DATA_FIELD_ID =
+      (MAX_DATA_STATS_FIELD_ID - STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS)
+          / NUM_SUPPORTED_STATS_PER_COLUMN;
 
   private StatsUtil() {}
 
   public static int statsFieldIdForField(int fieldId) {
-    return fieldId >= RESERVED_FIELD_IDS_START
+    return SUPPORTED_METADATA_FIELD_IDS.contains(fieldId)
         ? statsFieldIdForReservedField(fieldId)
         : statsFieldIdForDataField(fieldId);
   }
 
   private static int statsFieldIdForDataField(int fieldId) {
-    long statsFieldId =
-        STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS
-            + (NUM_SUPPORTED_STATS_PER_COLUMN * (long) fieldId);
     if (fieldId < 0 || fieldId > MAX_DATA_FIELD_ID) {
       return -1;
     }
 
-    return (int) statsFieldId;
+    return STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS + (NUM_SUPPORTED_STATS_PER_COLUMN * fieldId);
   }
 
   private static int statsFieldIdForReservedField(int fieldId) {
-    int offset = NUM_RESERVED_FIELD_IDS - (Integer.MAX_VALUE - fieldId);
-
-    long statsFieldId =
-        STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS
-            + (NUM_SUPPORTED_STATS_PER_COLUMN * (long) offset);
-    if (statsFieldId < 0 || statsFieldId > RESERVED_FIELD_IDS_START) {
-      // ID overflows
-      return -1;
-    }
-
-    return (int) statsFieldId;
+    return STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS
+        + (NUM_SUPPORTED_STATS_PER_COLUMN * (fieldId - FIRST_SUPPORTED_METADATA_FIELD_ID));
   }
 
   public static int fieldIdForStatsField(int statsFieldId) {
-    if (statsFieldId < STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS
+    if (statsFieldId < STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS
+        || statsFieldId >= STATS_SPACE_FIELD_ID_END
         || statsFieldId % NUM_SUPPORTED_STATS_PER_COLUMN != 0) {
       return -1;
     }
 
-    return statsFieldId < STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS
-        ? fieldIdForStatsFieldFromDataField(statsFieldId)
-        : fieldIdForStatsFieldFromReservedField(statsFieldId);
+    return statsFieldId < STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS
+        ? fieldIdForStatsFieldFromReservedField(statsFieldId)
+        : fieldIdForStatsFieldFromDataField(statsFieldId);
   }
 
   private static int fieldIdForStatsFieldFromDataField(int statsFieldId) {
-    return Math.max(
-        -1,
-        (statsFieldId - STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS)
-            / NUM_SUPPORTED_STATS_PER_COLUMN);
+    return (statsFieldId - STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS)
+        / NUM_SUPPORTED_STATS_PER_COLUMN;
   }
 
   private static int fieldIdForStatsFieldFromReservedField(int statsFieldId) {
-    return Math.max(
-        -1,
-        statsFieldId
-            - NUM_RESERVED_FIELD_IDS
-            + (Integer.MAX_VALUE - statsFieldId)
-            + (statsFieldId - STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS)
-                / NUM_SUPPORTED_STATS_PER_COLUMN);
+    int fieldId =
+        (statsFieldId - STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS)
+                / NUM_SUPPORTED_STATS_PER_COLUMN
+            + FIRST_SUPPORTED_METADATA_FIELD_ID;
+    return SUPPORTED_METADATA_FIELD_IDS.contains(fieldId) ? fieldId : -1;
   }
 
   public static Types.NestedField contentStatsFor(Schema schema) {
