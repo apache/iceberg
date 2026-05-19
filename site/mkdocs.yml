@@ -110,7 +110,7 @@ extra:
   icebergVersion: '1.11.0'
   nessieVersion: '0.105.3'
   flinkVersion: '2.1.0'
-  flinkVersionMajor: '2.0'
+  flinkVersionMajor: '2.1'
   sparkVersionMajor: '4.1_2.13'
   social:
     - icon: fontawesome/regular/comments

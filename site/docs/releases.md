@@ -34,7 +34,6 @@ The latest version of Iceberg is [{{ icebergVersion }}](https://github.com/apach
 * [{{ icebergVersion }} Flink 2.1 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-2.1/{{ icebergVersion }}/iceberg-flink-runtime-2.1-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 2.0 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-2.0/{{ icebergVersion }}/iceberg-flink-runtime-2.0-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.20 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar)
-* [{{ icebergVersion }} Flink 1.19 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.19/{{ icebergVersion }}/iceberg-flink-runtime-1.19-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} aws-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-aws-bundle/{{ icebergVersion }}/iceberg-aws-bundle-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} gcp-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-gcp-bundle/{{ icebergVersion }}/iceberg-gcp-bundle-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} azure-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-azure-bundle/{{ icebergVersion }}/iceberg-azure-bundle-{{ icebergVersion }}.jar)
@@ -76,6 +75,7 @@ Apache Iceberg 1.11.0 was released on May 19, 2026.
 The 1.11.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.11.0)
 
 * Deprecation / End of Support
+    - Flink: Remove Flink 1.19 support ([\#13714](https://github.com/apache/iceberg/pull/13714))
     - AWS, Core, Data, Spark: Remove deprecations for 1.11.0 ([\#14059](https://github.com/apache/iceberg/pull/14059))
     - API: Deprecate loadTable and loadView with Map ([\#15370](https://github.com/apache/iceberg/pull/15370))
     - API: Deprecate TaskGroup ([\#15590](https://github.com/apache/iceberg/pull/15590))
@@ -161,7 +161,7 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
 * ORC
     - Add _row_id and _last_updated_sequence_number reader in ORC to support row lineage ([\#15776](https://github.com/apache/iceberg/pull/15776))
 * Spark
-    - Support Spark 4.1 ([\#14385](https://github.com/apache/iceberg/pull/14385))
+    - Support Spark 4.1 ([\#14155](https://github.com/apache/iceberg/pull/14155))
     - Spark 3.5: Support Trigger AvailableNow in Structured Streaming ([\#13824](https://github.com/apache/iceberg/pull/13824))
     - Enable DV read in Spark ([\#14401](https://github.com/apache/iceberg/pull/14401))
     - Merge DV-based position deletes in Spark ([\#14454](https://github.com/apache/iceberg/pull/14454))
@@ -186,7 +186,7 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - Broadcast join for partitioned read ([\#15803](https://github.com/apache/iceberg/pull/15803))
     - Spark 4.1: Add session configs for adaptive split sizing and parallelism ([\#16088](https://github.com/apache/iceberg/pull/16088))
 * Flink
-    - Support Flink 2.1 ([\#14383](https://github.com/apache/iceberg/pull/14383))
+    - Support Flink 2.1 ([\#13714](https://github.com/apache/iceberg/pull/13714))
     - Add uid-suffix write option to prevent operator UID hash collisions ([\#14063](https://github.com/apache/iceberg/pull/14063))
     - Add _row_id and _last_updated_sequence_number readers ([\#14148](https://github.com/apache/iceberg/pull/14148))
     - Ensure DynamicCommitter idempotence in the presence of failures ([\#14182](https://github.com/apache/iceberg/pull/14182))
