@@ -95,11 +95,11 @@ Iceberg tables support table properties to configure table behavior, like the de
 
 Notes:
 
-1. Metrics modes are explained below:
-    - `none`: In this mode, `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds`, and `upper_bounds` are not persisted.
-    - `counts`: In this mode, `value_counts`, `null_value_counts`, and `nan_value_counts` are persisted.
-    - `truncate(length)`: In this mode, `value_counts`, `null_value_counts`, `nan_value_counts`, truncated `lower_bounds`, and truncated `upper_bounds` are persisted. Only string and binary values are truncated to the specified length. For other types, values are written as is.  
-    - `full`: In this mode, `value_counts`, `null_value_counts`, `nan_value_counts`, full `lower_bounds`, and full `upper_bounds` are persisted.
+1. Available metrics modes:
+   - none: No metrics are persisted
+   - counts: Only count metrics are persisted (value_counts, null_value_counts, nan_value_counts).
+   - truncate(length): Persists counts plus truncated bounds (lower_bounds, upper_bounds). Truncation applies only to string and binary types; all other types are stored as-is.
+    - full: Persists all metrics, including full lower_bounds and upper_bounds.
 
 ### Encryption properties
 
