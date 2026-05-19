@@ -20,7 +20,6 @@
 # iterative development. Use this with ICEBERG_DEV_MODE=true.
 
 INHERIT: ./mkdocs.yml
-
 nav:
   - Home: index.md
   - Quickstart:
