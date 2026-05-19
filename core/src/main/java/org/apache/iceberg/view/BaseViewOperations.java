@@ -32,6 +32,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -199,6 +200,8 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
       Tasks.foreach(newLocation)
           .retry(numRetries)
           .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+          .backoffStrategy(
+              BackoffStrategies.from(currentMetadata != null ? currentMetadata.properties() : null))
           .throwFailureWhenFinished()
           .stopRetryOn(NotFoundException.class) // overridden if shouldRetry is non-null
           .shouldRetryTest(shouldRetry)
