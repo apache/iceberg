@@ -426,6 +426,53 @@ public class TestRewriteTablePathsAction extends TestBase {
     runPositionDeletesTest("orc");
   }
 
+  @TestTemplate
+  public void testRerunWithPositionDeletesReusingStagingLocation() throws Exception {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithPosDeletesRerun"),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                SnapshotChanges.builderFor(tableWithPosDeletes)
+                    .build()
+                    .addedDataFiles()
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+    File file =
+        new File(
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(file.toURI().toString()),
+                deletes,
+                formatVersion)
+            .first();
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    actions()
+        .rewriteTablePath(tableWithPosDeletes)
+        .stagingLocation(stagingLocation())
+        .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+        .execute();
+
+    RewriteTablePath.Result rerun =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    assertThat(rerun.rewrittenDeleteFilePathsCount()).isEqualTo(1);
+  }
+
   private void runPositionDeletesTest(String fileFormat) throws Exception {
     Table tableWithPosDeletes =
         createTableWithSnapshots(
