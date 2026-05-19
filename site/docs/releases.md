@@ -86,7 +86,7 @@ The 1.10.2 release contains bug fixes and security fixes. For full release notes
 * Hive
     - Fix trailing slash issue for database paths in HMS ([\#16010](https://github.com/apache/iceberg/pull/16010))
 * Spark
-    - Fix LICENSE and NOTICE files ([\#16255](https://github.com/apache/iceberg/pull/16255), [\#16162](https://github.com/apache/iceberg/pull/16162), )
+    - Fix LICENSE and NOTICE files ([\#16255](https://github.com/apache/iceberg/pull/16255), [\#16162](https://github.com/apache/iceberg/pull/16162))
 * AWS
     - Fix LICENSE and NOTICE files ([\#16236](https://github.com/apache/iceberg/pull/16236))
 * Azure
