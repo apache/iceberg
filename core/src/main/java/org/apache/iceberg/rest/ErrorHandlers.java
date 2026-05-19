@@ -100,8 +100,7 @@ public class ErrorHandlers {
   /**
    * The OAuth error handler.
    *
-   * @deprecated will be removed in 1.14.0, use {@link
-   *     org.apache.iceberg.rest.auth.oauth2.OAuth2Manager} instead.
+   * @deprecated will be removed in 1.14.0.
    */
   @Deprecated
   public static Consumer<ErrorResponse> oauthErrorHandler() {
@@ -366,8 +365,7 @@ public class ErrorHandlers {
   }
 
   /**
-   * @deprecated will be removed in 1.14.0, use {@link
-   *     org.apache.iceberg.rest.auth.oauth2.OAuth2Manager} instead.
+   * @deprecated will be removed in 1.14.0.
    */
   @Deprecated
   private static class OAuthErrorHandler extends ErrorHandler {
