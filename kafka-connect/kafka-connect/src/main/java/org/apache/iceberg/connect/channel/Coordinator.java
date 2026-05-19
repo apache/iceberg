@@ -53,6 +53,7 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -82,6 +83,7 @@ class Coordinator extends Channel {
   private final CommitState commitState;
   private volatile boolean terminated;
   private final String taskId;
+  private int consecutiveCommitFailures;
 
   Coordinator(
       Catalog catalog,
@@ -150,6 +152,9 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       doCommit(partialCommit);
+      if (!partialCommit) {
+        consecutiveCommitFailures = 0;
+      }
     } catch (RuntimeException e) {
       if (partialCommit) {
         LOG.warn(
@@ -157,13 +162,45 @@ class Coordinator extends Channel {
             commitState.currentCommitId(),
             taskId,
             e);
-      } else {
-        LOG.error("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+        return;
+      }
+
+      if (!isCommitFailedException(e)) {
+        // CommitStateUnknownException, ValidationException, ForbiddenException,
+        // NPE, anything else -- not retryable, terminate immediately
         throw e;
       }
+
+      consecutiveCommitFailures++;
+      if (consecutiveCommitFailures >= config.commitMaxConsecutiveFailures()) {
+        LOG.error(
+            "Commit {} failed for task {} ({} consecutive failures, terminating)",
+            commitState.currentCommitId(),
+            taskId,
+            consecutiveCommitFailures,
+            e);
+        throw e;
+      }
+      LOG.warn(
+          "Commit {} failed for task {} ({} consecutive failures, will retry)",
+          commitState.currentCommitId(),
+          taskId,
+          consecutiveCommitFailures,
+          e);
     } finally {
       commitState.endCurrentCommit();
     }
+  }
+
+  private static boolean isCommitFailedException(Throwable throwable) {
+    Throwable current = throwable;
+    while (current != null) {
+      if (current instanceof CommitFailedException) {
+        return true;
+      }
+      current = current.getCause();
+    }
+    return false;
   }
 
   private void doCommit(boolean partialCommit) {
