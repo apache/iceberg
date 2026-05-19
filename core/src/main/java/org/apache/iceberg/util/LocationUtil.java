@@ -64,15 +64,6 @@ public class LocationUtil {
    * section 3.1</a>.
    */
   private static boolean hasScheme(String location) {
-    if (location.isEmpty()) {
-      return false;
-    }
-
-    // Early termination for relative locations since most commonly start with /
-    if (location.charAt(0) == '/') {
-      return false;
-    }
-
     for (int i = 0; i < location.length(); i += 1) {
       char ch = location.charAt(i);
       if (ch == ':') {
