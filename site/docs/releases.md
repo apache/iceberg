@@ -94,7 +94,7 @@ The 1.10.2 release contains bug fixes and security fixes. For full release notes
 * GCP
     - Fix LICENSE and NOTICE files ([\#16244](https://github.com/apache/iceberg/pull/16244))
 * Open API
-    - Stop publishing the Open API runtime Jar ([\#16188](https://github.com/apache/iceberg/pull/16188))
+    - Stop publishing the Open API runtime Jar due to license compliance issues ([\#16188](https://github.com/apache/iceberg/pull/16188)). Users who depended on the shadow JAR must now use the `test-fixtures` classifier and explicitly add `iceberg-core`, `iceberg-core:tests`, `jetty-server`, `jetty-servlet`, `sqlite-jdbc`, and `hadoop-common`.
 * Build
     - Fix CVE-2025-67721 in io.airlift:aircompressor ([\#15829](https://github.com/apache/iceberg/pull/15829))
     - Bump Jackson to 2.21.2 to fix GHSA-72hv-8253-57qq ([\#15847](https://github.com/apache/iceberg/pull/15847))
