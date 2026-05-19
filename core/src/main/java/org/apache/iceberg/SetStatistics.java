@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.Tasks;
 
 public class SetStatistics implements UpdateStatistics {
@@ -70,6 +71,7 @@ public class SetStatistics implements UpdateStatistics {
             ops.current()
                 .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
+        .backoffStrategy(BackoffStrategies.from(ops.current().properties()))
         .onlyRetryOn(CommitFailedException.class)
         .run(
             taskOps -> {

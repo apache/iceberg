@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
@@ -27,6 +28,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
@@ -91,6 +93,15 @@ class SparkCleanupUtil {
     }
   }
 
+  private static Map<String, String> ioProperties(FileIO io) {
+    try {
+      return io.properties();
+    } catch (UnsupportedOperationException e) {
+      // FileIO implementations are not required to expose their configuration
+      return null;
+    }
+  }
+
   private static void delete(String context, FileIO io, List<String> paths) {
     AtomicInteger deletedFilesCount = new AtomicInteger(0);
 
@@ -105,6 +116,7 @@ class SparkCleanupUtil {
             DELETE_MAX_RETRY_WAIT_MS,
             DELETE_TOTAL_RETRY_TIME_MS,
             2 /* exponential */)
+        .backoffStrategy(BackoffStrategies.from(ioProperties(io)))
         .run(
             path -> {
               io.deleteFile(path);

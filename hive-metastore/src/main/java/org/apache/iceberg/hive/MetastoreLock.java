@@ -45,8 +45,11 @@ import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.util.BackoffStrategies;
+import org.apache.iceberg.util.BackoffStrategy;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -91,6 +94,7 @@ class MetastoreLock implements HiveLock {
   private final long lockHeartbeatIntervalTime;
   private final ScheduledExecutorService exitingScheduledExecutorService;
   private final String agentInfo;
+  private final BackoffStrategy backoffStrategy;
 
   private Optional<Long> hmsLockId = Optional.empty();
   private ReentrantLock jvmLock = null;
@@ -125,6 +129,12 @@ class MetastoreLock implements HiveLock {
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
 
     this.agentInfo = "Iceberg-" + UUID.randomUUID();
+
+    String backoffImpl = conf.get(BackoffStrategies.STRATEGY_IMPL);
+    this.backoffStrategy =
+        backoffImpl == null
+            ? null
+            : BackoffStrategies.loadBackoffStrategy(backoffImpl, ImmutableMap.of());
 
     this.exitingScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor(
@@ -204,6 +214,7 @@ class MetastoreLock implements HiveLock {
         Tasks.foreach(lockInfo.lockId)
             .retry(Integer.MAX_VALUE - 100)
             .exponentialBackoff(lockCheckMinWaitTime, lockCheckMaxWaitTime, lockAcquireTimeout, 1.5)
+            .backoffStrategy(backoffStrategy)
             .throwFailureWhenFinished()
             .onlyRetryOn(WaitingForLockException.class)
             .run(
@@ -293,6 +304,7 @@ class MetastoreLock implements HiveLock {
         .retry(Integer.MAX_VALUE - 100)
         .exponentialBackoff(
             lockCreationMinWaitTime, lockCreationMaxWaitTime, lockCreationTimeout, 2.0)
+        .backoffStrategy(backoffStrategy)
         .shouldRetryTest(
             e ->
                 !interrupted.get()
