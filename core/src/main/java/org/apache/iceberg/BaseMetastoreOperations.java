@@ -30,6 +30,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -122,6 +123,7 @@ public abstract class BaseMetastoreOperations {
         .retry(maxAttempts)
         .suppressFailureWhenFinished()
         .exponentialBackoff(minWaitMs, maxWaitMs, totalRetryMs, 2.0)
+        .backoffStrategy(BackoffStrategies.from(properties))
         .onFailure(
             (location, checkException) ->
                 LOG.error("Cannot check if commit to {} exists.", tableOrViewName, checkException))

@@ -101,6 +101,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.BaseView;
@@ -611,6 +612,8 @@ public class CatalogHandlers {
               COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
+          .backoffStrategy(
+              BackoffStrategies.from(ops.current() != null ? ops.current().properties() : null))
           .onlyRetryOn(CommitFailedException.class)
           .run(
               taskOps -> {
@@ -773,6 +776,8 @@ public class CatalogHandlers {
               COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
+          .backoffStrategy(
+              BackoffStrategies.from(ops.current() != null ? ops.current().properties() : null))
           .onlyRetryOn(CommitFailedException.class)
           .run(
               taskOps -> {

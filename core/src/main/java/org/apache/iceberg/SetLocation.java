@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.Tasks;
 
 public class SetLocation implements UpdateLocation {
@@ -60,6 +61,7 @@ public class SetLocation implements UpdateLocation {
             base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
+        .backoffStrategy(BackoffStrategies.from(base.properties()))
         .onlyRetryOn(CommitFailedException.class)
         .run(taskOps -> taskOps.commit(base, base.updateLocation(newLocation)));
   }
