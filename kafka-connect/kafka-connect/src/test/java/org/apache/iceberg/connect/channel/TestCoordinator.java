@@ -242,6 +242,47 @@ public class TestCoordinator extends ChannelTestBase {
   }
 
   @Test
+  public void testPartialCommitFailureMetric() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(0);
+
+    Table spiedTable = spy(table);
+    AppendFiles spiedAppend = spy(table.newAppend());
+    doThrow(new CommitFailedException("simulated failure")).when(spiedAppend).commit();
+    when(spiedTable.newAppend()).thenReturn(spiedAppend);
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(spiedTable);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+
+    initConsumer();
+
+    coordinator.process();
+
+    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(0);
+
+    UUID commitId =
+        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+    Event commitResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    byte[] bytes = AvroUtil.encode(commitResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+
+    coordinator.process();
+
+    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1);
+  }
+
+  @Test
   public void testCoordinatorRunning() {
     TopicPartition tp0 = new TopicPartition(SRC_TOPIC_NAME, 0);
     TopicPartition tp1 = new TopicPartition(SRC_TOPIC_NAME, 1);
