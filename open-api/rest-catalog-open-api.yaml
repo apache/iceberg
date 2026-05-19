@@ -1227,6 +1227,9 @@ paths:
       tags:
         - Catalog API
       summary: Unregister a table without removing its data or metadata files
+      operationId: unregisterTable
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Unregister a table from the catalog. This is the opposite of
         `registerTable`. The table no longer exists in the catalog, but the
@@ -1238,7 +1241,6 @@ paths:
         corresponding table metadata. This table metadata must include all
         commits that happened before the unregister operation. All attempted
         commits after the unregister operation in this catalog must fail.
-      operationId: unregisterTable
       responses:
         200:
           $ref: '#/components/responses/UnregisterTableResponse'
