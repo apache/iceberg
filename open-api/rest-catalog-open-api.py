@@ -1577,7 +1577,7 @@ class CreateTableRequest(BaseModel):
 
 class UnregisterTableResult(BaseModel):
     """
-    Last metadata location and current table metadata for the table that was successfully unregistered and is no longer tracked by the catalog.
+    Last metadata location and the corresponding table metadata for the table that was successfully unregistered and is no longer tracked by the catalog.
     """
 
     metadata_location: str = Field(

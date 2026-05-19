@@ -1234,10 +1234,10 @@ paths:
         can be registered in another catalog.
 
 
-        On success, this returns the table's last metadata location and current
-        table metadata. This table metadata must include all commits that
-        happened before the unregister operation. All attempted commits after
-        the unregister operation in this catalog must fail.
+        On success, this returns the table's last metadata location and the
+        corresponding table metadata. This table metadata must include all
+        commits that happened before the unregister operation. All attempted
+        commits after the unregister operation in this catalog must fail.
       operationId: unregisterTable
       responses:
         200:
@@ -3842,8 +3842,9 @@ components:
 
     UnregisterTableResult:
       description:
-        Last metadata location and current table metadata for the table that
-        was successfully unregistered and is no longer tracked by the catalog.
+        Last metadata location and the corresponding table metadata for the
+        table that was successfully unregistered and is no longer tracked by
+        the catalog.
       type: object
       required:
         - metadata-location
