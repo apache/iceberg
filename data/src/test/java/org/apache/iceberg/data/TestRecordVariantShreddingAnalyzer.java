@@ -77,7 +77,7 @@ public class TestRecordVariantShreddingAnalyzer {
   @TempDir private Path temp;
 
   @BeforeEach
-  public void setup() {
+  public void before() {
     ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(ImmutableList.of("a", "b"), true);
     VariantMetadata metadata = Variants.metadata(metadataBuffer);
     ByteBuffer objectBuffer =
