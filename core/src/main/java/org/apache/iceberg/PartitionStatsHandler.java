@@ -186,7 +186,7 @@ public class PartitionStatsHandler {
     Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
     Preconditions.checkState(
         formatVersion > 0 && formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
-        "Invalid format version: %d",
+        "Invalid format version: %s",
         formatVersion);
 
     if (formatVersion <= 2) {
