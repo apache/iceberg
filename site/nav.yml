@@ -24,9 +24,10 @@ nav:
   - Docs:
     - Java:
       # First entry determines the default landing page for the Docs tab.
-      - Latest (1.10.2): '!include versioned-docs/latest/mkdocs.yml'
+      - Latest (1.11.0): '!include versioned-docs/latest/mkdocs.yml'
       - Nightly: '!include versioned-docs/nightly/mkdocs.yml'
       - Previous:
+        - 1.10.2: '!include versioned-docs/1.10.2/mkdocs.yml'
         - 1.10.1: '!include versioned-docs/1.10.1/mkdocs.yml'
         - 1.10.0: '!include versioned-docs/1.10.0/mkdocs.yml'
         - 1.9.2: '!include versioned-docs/1.9.2/mkdocs.yml'
