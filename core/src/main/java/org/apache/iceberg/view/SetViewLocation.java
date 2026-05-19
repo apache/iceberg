@@ -30,6 +30,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import org.apache.iceberg.UpdateLocation;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 
@@ -62,6 +63,7 @@ class SetViewLocation implements UpdateLocation {
             PropertyUtil.propertyAsInt(
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
+        .backoffStrategy(BackoffStrategies.from(base.properties()))
         .onlyRetryOn(CommitFailedException.class)
         .run(
             taskOps ->

@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -309,6 +310,7 @@ public class BaseTransaction implements Transaction {
               PropertyUtil.propertyAsInt(
                   props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
+          .backoffStrategy(BackoffStrategies.from(props))
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
@@ -364,6 +366,7 @@ public class BaseTransaction implements Transaction {
               base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
+          .backoffStrategy(BackoffStrategies.from(base.properties()))
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
