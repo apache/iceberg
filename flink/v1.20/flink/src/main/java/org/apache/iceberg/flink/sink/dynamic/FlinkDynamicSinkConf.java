@@ -99,4 +99,20 @@ class FlinkDynamicSinkConf {
         .defaultValue(FlinkDynamicSinkOptions.CASE_SENSITIVE.defaultValue())
         .parse();
   }
+
+  String generatorSlotSharingGroup() {
+    return confParser
+        .stringConf()
+        .option(FlinkDynamicSinkOptions.GENERATOR_SLOT_SHARING_GROUP.key())
+        .flinkConfig(FlinkDynamicSinkOptions.GENERATOR_SLOT_SHARING_GROUP)
+        .parseOptional();
+  }
+
+  String shuffleSinkSlotSharingGroup() {
+    return confParser
+        .stringConf()
+        .option(FlinkDynamicSinkOptions.SHUFFLE_SINK_SLOT_SHARING_GROUP.key())
+        .flinkConfig(FlinkDynamicSinkOptions.SHUFFLE_SINK_SLOT_SHARING_GROUP)
+        .parseOptional();
+  }
 }
