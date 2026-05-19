@@ -99,7 +99,7 @@ Notes:
    - none: No metrics are persisted
    - counts: Only count metrics are persisted (value_counts, null_value_counts, nan_value_counts).
    - truncate(length): Persists counts plus truncated bounds (lower_bounds, upper_bounds). Truncation applies only to string and binary types; all other types are stored as-is.
-    - full: Persists all metrics, including full lower_bounds and upper_bounds.
+   - full: Persists all metrics, including full lower_bounds and upper_bounds.
 
 ### Encryption properties
 
