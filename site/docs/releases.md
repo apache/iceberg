@@ -25,9 +25,13 @@ title: "Releases"
 The latest version of Iceberg is [{{ icebergVersion }}](https://github.com/apache/iceberg/releases/tag/apache-iceberg-{{ icebergVersion }}).
 
 * [{{ icebergVersion }} source tar.gz](https://www.apache.org/dyn/closer.cgi/iceberg/apache-iceberg-{{ icebergVersion }}/apache-iceberg-{{ icebergVersion }}.tar.gz) -- [signature](https://downloads.apache.org/iceberg/apache-iceberg-{{ icebergVersion }}/apache-iceberg-{{ icebergVersion }}.tar.gz.asc) -- [sha512](https://downloads.apache.org/iceberg/apache-iceberg-{{ icebergVersion }}/apache-iceberg-{{ icebergVersion }}.tar.gz.sha512)
+* [{{ icebergVersion }} Spark 4.1\_with Scala 2.13 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-4.1_2.13/{{ icebergVersion }}/iceberg-spark-runtime-4.1_2.13-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Spark 4.0\_with Scala 2.13 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/{{ icebergVersion }}/iceberg-spark-runtime-4.0_2.13-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Spark 3.5\_with Scala 2.12 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Spark 3.5\_with Scala 2.13 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.13/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.13-{{ icebergVersion }}.jar)
+* [{{ icebergVersion }} Spark 3.4\_with Scala 2.12 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.4_2.12-{{ icebergVersion }}.jar)
+* [{{ icebergVersion }} Spark 3.4\_with Scala 2.13 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.13/{{ icebergVersion }}/iceberg-spark-runtime-3.4_2.13-{{ icebergVersion }}.jar)
+* [{{ icebergVersion }} Flink 2.1 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-2.1/{{ icebergVersion }}/iceberg-flink-runtime-2.1-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 2.0 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-2.0/{{ icebergVersion }}/iceberg-flink-runtime-2.0-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.20 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.19 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.19/{{ icebergVersion }}/iceberg-flink-runtime-1.19-{{ icebergVersion }}.jar)
@@ -64,6 +68,181 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
+
+### 1.11.0 release
+
+Apache Iceberg 1.11.0 was released on May 19, 2026.
+
+The 1.11.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.11.0)
+
+* Deprecation / End of Support
+    - AWS, Core, Data, Spark: Remove deprecations for 1.11.0 ([\#14059](https://github.com/apache/iceberg/pull/14059))
+    - API: Deprecate loadTable and loadView with Map ([\#15370](https://github.com/apache/iceberg/pull/15370))
+    - API: Deprecate TaskGroup ([\#15590](https://github.com/apache/iceberg/pull/15590))
+    - API: Deprecate ContentScanTask.file() ([\#15870](https://github.com/apache/iceberg/pull/15870))
+    - Spec: Deprecate Position delete files with row data ([\#14045](https://github.com/apache/iceberg/pull/14045))
+* Spec
+    - Bring back added-rows in snapshot fields ([\#14048](https://github.com/apache/iceberg/pull/14048))
+    - Clarify restrictions for geometry types in V3 ([\#14250](https://github.com/apache/iceberg/pull/14250))
+    - Add view version lineage ([\#14716](https://github.com/apache/iceberg/pull/14716))
+    - Add REST Scan Planning API spec ([\#15147](https://github.com/apache/iceberg/pull/15147))
+    - Add index and partition stats response field ([\#15248](https://github.com/apache/iceberg/pull/15248))
+    - Define server-side manifest planning in the REST catalog spec ([\#15352](https://github.com/apache/iceberg/pull/15352))
+    - Add optional view requirement to REST spec ([\#15363](https://github.com/apache/iceberg/pull/15363))
+    - Add server-managed view version ([\#15476](https://github.com/apache/iceberg/pull/15476))
+    - Fix incorrect field type in PartitionStatisticsFile ([\#15519](https://github.com/apache/iceberg/pull/15519))
+    - Add commit retry requirement for 503 ([\#15533](https://github.com/apache/iceberg/pull/15533))
+    - Clarify table scan planning API ([\#15634](https://github.com/apache/iceberg/pull/15634))
+* API
+    - Enable sanitizing Variant data type ([\#13137](https://github.com/apache/iceberg/pull/13137))
+    - Detect whether required fields nested within optionals can produce nulls ([\#14270](https://github.com/apache/iceberg/pull/14270))
+    - Fix byte buffer conversion for Variant in bounds ([\#14362](https://github.com/apache/iceberg/pull/14362))
+    - Return type for RowDelta.addDeletes to allow chain calls ([\#14567](https://github.com/apache/iceberg/pull/14567))
+    - Extend ContentFile with hasEqualityDeletes() and hasPositionDeletes() predicates ([\#14771](https://github.com/apache/iceberg/pull/14771))
+    - Add REST API for creating and listing scan tasks ([\#15088](https://github.com/apache/iceberg/pull/15088))
+    - Introduce SortOrderParser ([\#15277](https://github.com/apache/iceberg/pull/15277))
+    - Add Catalog.setProperties ([\#15369](https://github.com/apache/iceberg/pull/15369))
+    - Add row lineage reader API ([\#15505](https://github.com/apache/iceberg/pull/15505))
+    - Allow null in ScanTask.start and ScanTask.length ([\#15571](https://github.com/apache/iceberg/pull/15571))
+    - Add ScanTask.files() returning a list of ContentFiles ([\#15871](https://github.com/apache/iceberg/pull/15871))
+    - Add schema to IcebergSource.scan() ([\#15958](https://github.com/apache/iceberg/pull/15958))
+    - Add Catalog.dropView() overload without purge parameter ([\#16015](https://github.com/apache/iceberg/pull/16015))
+* Core
+    - Don't copy stats of delete files in DeleteFileIndex ([\#13161](https://github.com/apache/iceberg/pull/13161))
+    - Add CountNull Aggregation Support ([\#13981](https://github.com/apache/iceberg/pull/13981))
+    - Move properties of REST catalog into RESTCatalogProperties ([\#13991](https://github.com/apache/iceberg/pull/13991))
+    - REST: Expose loading existing table when REST returns 409 ([\#14073](https://github.com/apache/iceberg/pull/14073))
+    - Avoid rewriting DV when puffin file is not needed ([\#14081](https://github.com/apache/iceberg/pull/14081))
+    - Fix HistoryTable to ensure consistent ordering ([\#14109](https://github.com/apache/iceberg/pull/14109))
+    - Fix ResidualEvaluator for TimestampNtz ([\#14253](https://github.com/apache/iceberg/pull/14253))
+    - Support row lineage in Equality Deletes merge ([\#14254](https://github.com/apache/iceberg/pull/14254))
+    - Add row lineage to GenericAppender ([\#14333](https://github.com/apache/iceberg/pull/14333))
+    - Implement row ID assignment for GenericAppender ([\#14334](https://github.com/apache/iceberg/pull/14334))
+    - Add manifest parsing validation ([\#14544](https://github.com/apache/iceberg/pull/14544))
+    - Fix race condition creating manifest lists in S3 ([\#14595](https://github.com/apache/iceberg/pull/14595))
+    - Multiple fixes for Geo bounds, stats and spatial partitioning ([\#14603](https://github.com/apache/iceberg/pull/14603))
+    - REST: Implement Catalog.setProperties() ([\#14715](https://github.com/apache/iceberg/pull/14715))
+    - Support V3 table creation ([\#14733](https://github.com/apache/iceberg/pull/14733))
+    - Support reading DV in PositionDeletes scan ([\#14756](https://github.com/apache/iceberg/pull/14756))
+    - Add FileIO.newInputFile(InputFile) ([\#14775](https://github.com/apache/iceberg/pull/14775))
+    - Support writing in V3 with row lineage ([\#14832](https://github.com/apache/iceberg/pull/14832))
+    - Add scan tasks REST API implementation ([\#14833](https://github.com/apache/iceberg/pull/14833))
+    - REST: Support lazy token refresh in token exchange flow ([\#14843](https://github.com/apache/iceberg/pull/14843))
+    - Fix missing deletion vector cleanup for RewriteFiles ([\#14870](https://github.com/apache/iceberg/pull/14870))
+    - Fix wrong position in ApplyNameMapping for nested partition fields ([\#14920](https://github.com/apache/iceberg/pull/14920))
+    - Compute all fields needed for V3 write ([\#14973](https://github.com/apache/iceberg/pull/14973))
+    - Add REST catalog manifest planning ([\#15070](https://github.com/apache/iceberg/pull/15070))
+    - Fix delete orphan files with DV ([\#15116](https://github.com/apache/iceberg/pull/15116))
+    - Implement Catalog.dropView without purge ([\#15213](https://github.com/apache/iceberg/pull/15213))
+    - Fix V3 default spec ID in metadata builder ([\#15256](https://github.com/apache/iceberg/pull/15256))
+    - Support server-side manifest planning ([\#15353](https://github.com/apache/iceberg/pull/15353))
+    - Add default schemas for row lineage ([\#15385](https://github.com/apache/iceberg/pull/15385))
+    - Add writer for DV-only rewrites ([\#15386](https://github.com/apache/iceberg/pull/15386))
+    - Validate no duplicate entries in ManifestFile ([\#15529](https://github.com/apache/iceberg/pull/15529))
+    - Fix row ID loss when rewriting position deletes ([\#15535](https://github.com/apache/iceberg/pull/15535))
+    - REST catalog support for table scan planning ([\#15623](https://github.com/apache/iceberg/pull/15623))
+    - REST catalog support for view requirements ([\#15652](https://github.com/apache/iceberg/pull/15652))
+    - Optimize V3 data/position delete writes using DV writer ([\#15726](https://github.com/apache/iceberg/pull/15726))
+    - Use manifest planning in REST catalog ([\#15739](https://github.com/apache/iceberg/pull/15739))
+    - Fix sorting in ManifestWriter for row lineage ([\#15833](https://github.com/apache/iceberg/pull/15833))
+    - Support DV in snapshot summary ([\#15869](https://github.com/apache/iceberg/pull/15869))
+    - Fix OOM in RewriteManifests for large tables ([\#15906](https://github.com/apache/iceberg/pull/15906))
+    - Prevent concurrent schema and partition evolution race condition ([\#16063](https://github.com/apache/iceberg/pull/16063))
+    - Fix format validation errors in V3 ([\#16157](https://github.com/apache/iceberg/pull/16157))
+    - Fix row ID assignment for EXISTING entry during a manifest merge ([\#16263](https://github.com/apache/iceberg/pull/16263))
+    - Close metrics reporter in RESTSessionCatalog ([\#16310](https://github.com/apache/iceberg/pull/16310))
+* Arrow
+    - Fix vectorized reads for Parquet TIMESTAMP_MILLIS types ([\#14499](https://github.com/apache/iceberg/pull/14499))
+    - Align vectorized reader handling of unsigned Parquet integers with BaseParquetReaders ([\#16006](https://github.com/apache/iceberg/pull/16006))
+* Parquet
+    - Expose variantShreddingFunc() in Parquet.DataWriteBuilder ([\#14153](https://github.com/apache/iceberg/pull/14153))
+    - Treat VARIANT like nested for eq/in in ParquetMetricsRowGroupFilter ([\#14279](https://github.com/apache/iceberg/pull/14279))
+    - Fix NPE in ParquetAvroWriter when schema contains variant type ([\#15934](https://github.com/apache/iceberg/pull/15934))
+* ORC
+    - Add _row_id and _last_updated_sequence_number reader in ORC to support row lineage ([\#15776](https://github.com/apache/iceberg/pull/15776))
+* Spark
+    - Support Spark 4.1 ([\#14385](https://github.com/apache/iceberg/pull/14385))
+    - Spark 3.5: Support Trigger AvailableNow in Structured Streaming ([\#13824](https://github.com/apache/iceberg/pull/13824))
+    - Enable DV read in Spark ([\#14401](https://github.com/apache/iceberg/pull/14401))
+    - Merge DV-based position deletes in Spark ([\#14454](https://github.com/apache/iceberg/pull/14454))
+    - Add SparkActions to compute partition stats ([\#14514](https://github.com/apache/iceberg/pull/14514))
+    - Improve aggregate pushdown handling for NaN values in floating point columns ([\#14579](https://github.com/apache/iceberg/pull/14579))
+    - Use deletion vectors in equality delete merge ([\#14624](https://github.com/apache/iceberg/pull/14624))
+    - Spark 4.1: Support AQE's coalesce optimizer for Iceberg ([\#14697](https://github.com/apache/iceberg/pull/14697))
+    - Fix multiple issues with MERGE INTO + DV ([\#14742](https://github.com/apache/iceberg/pull/14742))
+    - Support DROP COLUMN and RENAME COLUMN for bucket transform ([\#14764](https://github.com/apache/iceberg/pull/14764))
+    - Improve RewriteDataFilesSparkAction for DV rewrite ([\#14788](https://github.com/apache/iceberg/pull/14788))
+    - Add opt-in table write property for deletion vectors ([\#14824](https://github.com/apache/iceberg/pull/14824))
+    - Enable write path for deletion vectors ([\#14857](https://github.com/apache/iceberg/pull/14857))
+    - Add adaptive split sizing with session config support ([\#14894](https://github.com/apache/iceberg/pull/14894))
+    - Async Micro Batch Planner for Structured Streaming ([\#14895](https://github.com/apache/iceberg/pull/14895))
+    - Optimized read of position delete files using DV ([\#14961](https://github.com/apache/iceberg/pull/14961))
+    - Add Variant read support in Spark 4.1 ([\#15008](https://github.com/apache/iceberg/pull/15008))
+    - Pass FileIO on Spark read path ([\#15075](https://github.com/apache/iceberg/pull/15075))
+    - Add row lineage write support ([\#15106](https://github.com/apache/iceberg/pull/15106))
+    - Add DV maintenance procedure ([\#15283](https://github.com/apache/iceberg/pull/15283))
+    - Optimize rewrite manifest for DV ([\#15466](https://github.com/apache/iceberg/pull/15466))
+    - Disable min/max aggregation push down for strings ([\#15622](https://github.com/apache/iceberg/pull/15622))
+    - Broadcast join for partitioned read ([\#15803](https://github.com/apache/iceberg/pull/15803))
+    - Spark 4.1: Add session configs for adaptive split sizing and parallelism ([\#16088](https://github.com/apache/iceberg/pull/16088))
+* Flink
+    - Support Flink 2.1 ([\#14383](https://github.com/apache/iceberg/pull/14383))
+    - Add uid-suffix write option to prevent operator UID hash collisions ([\#14063](https://github.com/apache/iceberg/pull/14063))
+    - Add _row_id and _last_updated_sequence_number readers ([\#14148](https://github.com/apache/iceberg/pull/14148))
+    - Ensure DynamicCommitter idempotence in the presence of failures ([\#14182](https://github.com/apache/iceberg/pull/14182))
+    - Support schema evolution for DynamicIcebergSink ([\#14490](https://github.com/apache/iceberg/pull/14490))
+    - Add write support for _row_id and _last_updated_sequence_number ([\#14684](https://github.com/apache/iceberg/pull/14684))
+    - Support range distribution for DynamicIcebergSink ([\#14745](https://github.com/apache/iceberg/pull/14745))
+    - Support speculative execution for DynamicIcebergSink ([\#15061](https://github.com/apache/iceberg/pull/15061))
+    - Support custom partition refresh interval for FlinkCatalog ([\#15210](https://github.com/apache/iceberg/pull/15210))
+    - Add UUID type support in Avro and Parquet readers and writers ([\#16097](https://github.com/apache/iceberg/pull/16097))
+    - Support row lineage for FlinkSink ([\#15614](https://github.com/apache/iceberg/pull/15614))
+    - Fix nanosecond gaps in SortKeySerializer and ColumnStatsWatermarkExtractor ([\#16268](https://github.com/apache/iceberg/pull/16268))
+* Hive
+    - Fix lock selection during table creation to respect table properties ([\#14236](https://github.com/apache/iceberg/pull/14236))
+    - Metadata integrity check for encrypted tables ([\#14685](https://github.com/apache/iceberg/pull/14685))
+    - Update view query in HMS when replacing view ([\#14831](https://github.com/apache/iceberg/pull/14831))
+* Kafka Connect
+    - Use GenericFileWriterFactory instead of GenericAppenderFactory ([\#14328](https://github.com/apache/iceberg/pull/14328))
+    - Don't check that consumer group is stable for coordinator leader election ([\#14395](https://github.com/apache/iceberg/pull/14395))
+    - Add task ID snapshot property ([\#14493](https://github.com/apache/iceberg/pull/14493))
+    - Validate offsets for refreshed table state on commit ([\#14510](https://github.com/apache/iceberg/pull/14510))
+    - Fix CVE-2025-55163 in grpc-netty-shaded ([\#14985](https://github.com/apache/iceberg/pull/14985))
+    - Fix Exactly-Once semantics (EOS) for tables with evolving schemas ([\#15095](https://github.com/apache/iceberg/pull/15095))
+    - Fix potential data loss when committing to a table with rebalanced partitions ([\#15477](https://github.com/apache/iceberg/pull/15477))
+* Vendor integrations
+    - Azure: Don't fetch credential from endpoint if properties contain a valid credential ([\#13966](https://github.com/apache/iceberg/pull/13966))
+    - BigQuery: Add table validity check for BigQueryMetastoreCatalog ([\#14113](https://github.com/apache/iceberg/pull/14113))
+    - Azure: Add support to specify token credential provider ([\#14136](https://github.com/apache/iceberg/pull/14136))
+    - AWS: Add S3 express one zone support ([\#14209](https://github.com/apache/iceberg/pull/14209))
+    - AWS: Support SigV4A multi-region signing ([\#14290](https://github.com/apache/iceberg/pull/14290))
+    - AWS: Add support for anonymous credentials ([\#14293](https://github.com/apache/iceberg/pull/14293))
+    - AWS: Fix Athena catalog by avoiding client-side table creation assumption ([\#14326](https://github.com/apache/iceberg/pull/14326))
+    - AWS: Support loading credentials from S3 at startup time ([\#14573](https://github.com/apache/iceberg/pull/14573))
+    - GCP: Support BigQuery as a catalog ([\#14627](https://github.com/apache/iceberg/pull/14627))
+    - GCP: Add storage credentials support for BigQuery ([\#14722](https://github.com/apache/iceberg/pull/14722))
+    - AWS: Fix multipart upload lock duration ([\#14752](https://github.com/apache/iceberg/pull/14752))
+    - Azure: Lazy initialization of TokenCredential ([\#14923](https://github.com/apache/iceberg/pull/14923))
+    - AWS: Fix S3 multipart upload checksum validation ([\#15006](https://github.com/apache/iceberg/pull/15006))
+    - GCP: Fix GCS file upload issue with content range mismatch ([\#15084](https://github.com/apache/iceberg/pull/15084))
+    - AWS: Fix S3 URI path handling with encoded characters ([\#15212](https://github.com/apache/iceberg/pull/15212))
+    - AWS: Support custom Athena endpoint ([\#15394](https://github.com/apache/iceberg/pull/15394))
+    - GCP: Support GCS Managed Folders access control ([\#15398](https://github.com/apache/iceberg/pull/15398))
+    - GCP: Support workspace service identity credentials in Google authentication ([\#15499](https://github.com/apache/iceberg/pull/15499))
+    - GCP: Fix GCS getPathUri for append case ([\#15679](https://github.com/apache/iceberg/pull/15679))
+    - AWS: Add support for AWS SDK exponential backoff retry strategy ([\#15688](https://github.com/apache/iceberg/pull/15688))
+* Dependencies
+    - Parquet: 1.16.0 -> 1.17.1
+    - ORC: 1.9.6 -> 1.9.8
+    - Hadoop: 3.4.1 -> 3.4.2
+    - Jackson: 2.19.1 -> 2.20.0
+    - AWS SDK: 2.31.63 -> 2.33.4
+    - Nessie: 0.103.6 -> 0.105.3
+    - Netty: 4.2.2.Final -> 4.2.5.Final
+    - Guava: 33.4.8-jre -> 33.5.0-jre
+    - Comet: 0.8.1 -> 0.12.0
+    - Added Spark 4.1 support
+    - Added Flink 2.1 support
 
 ### 1.10.2 release
 
