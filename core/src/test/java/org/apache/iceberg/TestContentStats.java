@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.FieldStatistic.EXACT_BOUNDS;
+import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE_IN_BYTES;
 import static org.apache.iceberg.FieldStatistic.LOWER_BOUND;
-import static org.apache.iceberg.FieldStatistic.MAX_VALUE_SIZE;
 import static org.apache.iceberg.FieldStatistic.NAN_VALUE_COUNT;
 import static org.apache.iceberg.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.TIGHT_BOUNDS;
 import static org.apache.iceberg.FieldStatistic.UPPER_BOUND;
 import static org.apache.iceberg.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -244,7 +243,7 @@ public class TestContentStats {
     Schema tableSchema = new Schema(optional(1, "s", Types.StringType.get()));
     Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
     Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
-    assertThat(statsStructForFieldId.fields()).hasSize(7);
+    assertThat(statsStructForFieldId.fields()).hasSize(6);
 
     GenericRecord record = GenericRecord.create(statsStructForFieldId);
     BaseFieldStats<String> fieldStats =
@@ -253,20 +252,18 @@ public class TestContentStats {
             .fieldId(1)
             .valueCount(10L)
             .nullValueCount(2L)
-            .avgValueSize(3)
-            .maxValueSize(10)
+            .avgValueSizeInBytes(3)
             .lowerBound("aa")
             .upperBound("zzz")
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
-    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
-    record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
-    record.setField(AVG_VALUE_SIZE.fieldName(), fieldStats.avgValueSize());
-    record.setField(MAX_VALUE_SIZE.fieldName(), fieldStats.maxValueSize());
     record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
     record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
-    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
+    record.setField(TIGHT_BOUNDS.fieldName(), fieldStats.tightBounds());
+    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
+    record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
+    record.setField(AVG_VALUE_SIZE_IN_BYTES.fieldName(), fieldStats.avgValueSizeInBytes());
 
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
     stats.set(0, record);
@@ -290,15 +287,15 @@ public class TestContentStats {
             .nanValueCount(3L)
             .lowerBound(5.0)
             .upperBound(20.0)
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
+    record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
+    record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
+    record.setField(TIGHT_BOUNDS.fieldName(), fieldStats.tightBounds());
     record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
     record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
     record.setField(NAN_VALUE_COUNT.fieldName(), fieldStats.nanValueCount());
-    record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
-    record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
-    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
 
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
     stats.set(0, record);
@@ -320,13 +317,13 @@ public class TestContentStats {
             .valueCount(10L)
             .lowerBound(5)
             .upperBound(20)
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
-    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
     record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
     record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
-    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
+    record.setField(TIGHT_BOUNDS.fieldName(), fieldStats.tightBounds());
+    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
 
     // this is typically called by Avro reflection code
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);

@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.FieldStatistic.EXACT_BOUNDS;
+import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE_IN_BYTES;
 import static org.apache.iceberg.FieldStatistic.LOWER_BOUND;
-import static org.apache.iceberg.FieldStatistic.MAX_VALUE_SIZE;
 import static org.apache.iceberg.FieldStatistic.NAN_VALUE_COUNT;
 import static org.apache.iceberg.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.TIGHT_BOUNDS;
 import static org.apache.iceberg.FieldStatistic.UPPER_BOUND;
 import static org.apache.iceberg.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -223,27 +222,25 @@ public class TestStatsUtil {
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(required(1, "x", Types.IntegerType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName())
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName())
         .doesNotContain(
             NULL_VALUE_COUNT.fieldName(),
             NAN_VALUE_COUNT.fieldName(),
-            AVG_VALUE_SIZE.fieldName(),
-            MAX_VALUE_SIZE.fieldName());
+            AVG_VALUE_SIZE_IN_BYTES.fieldName());
 
     assertThat(
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(optional(1, "x", Types.IntegerType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
-            NULL_VALUE_COUNT.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName())
-        .doesNotContain(
-            NAN_VALUE_COUNT.fieldName(), AVG_VALUE_SIZE.fieldName(), MAX_VALUE_SIZE.fieldName());
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName())
+        .doesNotContain(NAN_VALUE_COUNT.fieldName(), AVG_VALUE_SIZE_IN_BYTES.fieldName());
   }
 
   @Test
@@ -252,24 +249,23 @@ public class TestStatsUtil {
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(required(1, "x", Types.FloatType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
-            NAN_VALUE_COUNT.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName())
-        .doesNotContain(
-            NULL_VALUE_COUNT.fieldName(), AVG_VALUE_SIZE.fieldName(), MAX_VALUE_SIZE.fieldName());
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NAN_VALUE_COUNT.fieldName())
+        .doesNotContain(NULL_VALUE_COUNT.fieldName(), AVG_VALUE_SIZE_IN_BYTES.fieldName());
 
     assertThat(
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(optional(1, "x", Types.DoubleType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
-            NULL_VALUE_COUNT.fieldName(),
-            NAN_VALUE_COUNT.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName());
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            NAN_VALUE_COUNT.fieldName());
   }
 
   @Test
@@ -278,25 +274,23 @@ public class TestStatsUtil {
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(required(1, "x", Types.StringType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
-            AVG_VALUE_SIZE.fieldName(),
-            MAX_VALUE_SIZE.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName())
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName())
         .doesNotContain(NULL_VALUE_COUNT.fieldName(), NAN_VALUE_COUNT.fieldName());
 
     assertThat(
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(optional(1, "x", Types.StringType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
-            NULL_VALUE_COUNT.fieldName(),
-            AVG_VALUE_SIZE.fieldName(),
-            MAX_VALUE_SIZE.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName());
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName());
   }
 
   @Test
@@ -305,26 +299,101 @@ public class TestStatsUtil {
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(optional(1, "x", Types.BinaryType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
-            NULL_VALUE_COUNT.fieldName(),
-            AVG_VALUE_SIZE.fieldName(),
-            MAX_VALUE_SIZE.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName())
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName())
         .doesNotContain(NAN_VALUE_COUNT.fieldName());
 
     assertThat(
             fieldStatsNames(
                 FieldStatistic.fieldStatsFor(required(1, "x", Types.BinaryType.get()), 10000)))
         .containsExactly(
-            VALUE_COUNT.fieldName(),
-            AVG_VALUE_SIZE.fieldName(),
-            MAX_VALUE_SIZE.fieldName(),
             LOWER_BOUND.fieldName(),
             UPPER_BOUND.fieldName(),
-            EXACT_BOUNDS.fieldName())
+            TIGHT_BOUNDS.fieldName(),
+            VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName())
         .doesNotContain(NULL_VALUE_COUNT.fieldName(), NAN_VALUE_COUNT.fieldName());
+  }
+
+  @Test
+  public void conditionalFieldInclusionForGeometry() {
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(required(1, "x", Types.GeometryType.crs84()), 10000)))
+        .containsExactly(LOWER_BOUND.fieldName(), UPPER_BOUND.fieldName(), VALUE_COUNT.fieldName())
+        .doesNotContain(
+            TIGHT_BOUNDS.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            NAN_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName());
+
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(optional(1, "x", Types.GeometryType.crs84()), 10000)))
+        .containsExactly(
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName())
+        .doesNotContain(
+            TIGHT_BOUNDS.fieldName(),
+            NAN_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName());
+  }
+
+  @Test
+  public void conditionalFieldInclusionForGeography() {
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(required(1, "x", Types.GeographyType.crs84()), 10000)))
+        .containsExactly(LOWER_BOUND.fieldName(), UPPER_BOUND.fieldName(), VALUE_COUNT.fieldName())
+        .doesNotContain(
+            TIGHT_BOUNDS.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            NAN_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName());
+
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(optional(1, "x", Types.GeographyType.crs84()), 10000)))
+        .containsExactly(
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName())
+        .doesNotContain(
+            TIGHT_BOUNDS.fieldName(),
+            NAN_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName());
+  }
+
+  @Test
+  public void conditionalFieldInclusionForVariant() {
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(required(1, "x", Types.VariantType.get()), 10000)))
+        .containsExactly(
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName())
+        .doesNotContain(
+            TIGHT_BOUNDS.fieldName(), NULL_VALUE_COUNT.fieldName(), NAN_VALUE_COUNT.fieldName());
+
+    assertThat(
+            fieldStatsNames(
+                FieldStatistic.fieldStatsFor(optional(1, "x", Types.VariantType.get()), 10000)))
+        .containsExactly(
+            LOWER_BOUND.fieldName(),
+            UPPER_BOUND.fieldName(),
+            VALUE_COUNT.fieldName(),
+            NULL_VALUE_COUNT.fieldName(),
+            AVG_VALUE_SIZE_IN_BYTES.fieldName())
+        .doesNotContain(TIGHT_BOUNDS.fieldName(), NAN_VALUE_COUNT.fieldName());
   }
 
   private List<String> fieldStatsNames(Types.StructType structType) {

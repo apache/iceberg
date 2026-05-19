@@ -26,14 +26,13 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 enum FieldStatistic {
-  VALUE_COUNT(1, "value_count"),
-  NULL_VALUE_COUNT(2, "null_value_count"),
-  NAN_VALUE_COUNT(3, "nan_value_count"),
-  AVG_VALUE_SIZE(4, "avg_value_size_in_bytes"),
-  MAX_VALUE_SIZE(5, "max_value_size_in_bytes"),
-  LOWER_BOUND(6, "lower_bound"),
-  UPPER_BOUND(7, "upper_bound"),
-  EXACT_BOUNDS(8, "exact_bounds");
+  LOWER_BOUND(1, "lower_bound"),
+  UPPER_BOUND(2, "upper_bound"),
+  TIGHT_BOUNDS(3, "tight_bounds"),
+  VALUE_COUNT(4, "value_count"),
+  NULL_VALUE_COUNT(5, "null_value_count"),
+  NAN_VALUE_COUNT(6, "nan_value_count"),
+  AVG_VALUE_SIZE_IN_BYTES(7, "avg_value_size_in_bytes");
 
   private final int offset;
   private final String fieldName;
@@ -78,28 +77,52 @@ enum FieldStatistic {
    */
   public static FieldStatistic fromPosition(int position) {
     return switch (position) {
-      case 0 -> VALUE_COUNT;
-      case 1 -> NULL_VALUE_COUNT;
-      case 2 -> NAN_VALUE_COUNT;
-      case 3 -> AVG_VALUE_SIZE;
-      case 4 -> MAX_VALUE_SIZE;
-      case 5 -> LOWER_BOUND;
-      case 6 -> UPPER_BOUND;
-      case 7 -> EXACT_BOUNDS;
+      case 0 -> LOWER_BOUND;
+      case 1 -> UPPER_BOUND;
+      case 2 -> TIGHT_BOUNDS;
+      case 3 -> VALUE_COUNT;
+      case 4 -> NULL_VALUE_COUNT;
+      case 5 -> NAN_VALUE_COUNT;
+      case 6 -> AVG_VALUE_SIZE_IN_BYTES;
       default -> throw new IllegalArgumentException("Invalid statistic position: " + position);
     };
   }
 
   public static Types.StructType fieldStatsFor(Types.NestedField field, int baseFieldId) {
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(8);
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(7);
     Type type = field.type();
+    Type.TypeID typeId = type.typeId();
+    boolean isGeo = typeId == Type.TypeID.GEOMETRY || typeId == Type.TypeID.GEOGRAPHY;
+    boolean isVariant = type.isVariantType();
+
+    fields.add(
+        optional(
+            baseFieldId + LOWER_BOUND.offset(),
+            LOWER_BOUND.fieldName(),
+            type,
+            "Lower bound stored as the field's type"));
+    fields.add(
+        optional(
+            baseFieldId + UPPER_BOUND.offset(),
+            UPPER_BOUND.fieldName(),
+            type,
+            "Upper bound stored as the field's type"));
+
+    if (!isGeo && !isVariant) {
+      fields.add(
+          optional(
+              baseFieldId + TIGHT_BOUNDS.offset(),
+              TIGHT_BOUNDS.fieldName(),
+              Types.BooleanType.get(),
+              "When true, lower_bound and upper_bound must be equal to the min and max values"));
+    }
 
     fields.add(
         optional(
             baseFieldId + VALUE_COUNT.offset(),
             VALUE_COUNT.fieldName(),
             Types.LongType.get(),
-            "Total value count, including null and NaN"));
+            "Number of values in the column (including null and NaN values)"));
 
     if (field.isOptional()) {
       fields.add(
@@ -107,43 +130,26 @@ enum FieldStatistic {
               baseFieldId + NULL_VALUE_COUNT.offset(),
               NULL_VALUE_COUNT.fieldName(),
               Types.LongType.get(),
-              "Total null value count"));
+              "Number of null values in the column"));
     }
 
-    if (type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE) {
+    if (typeId == Type.TypeID.FLOAT || typeId == Type.TypeID.DOUBLE) {
       fields.add(
           optional(
               baseFieldId + NAN_VALUE_COUNT.offset(),
               NAN_VALUE_COUNT.fieldName(),
               Types.LongType.get(),
-              "Total NaN value count"));
+              "Number of NaN values in the column"));
     }
 
-    if (type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY) {
+    if (typeId == Type.TypeID.STRING || typeId == Type.TypeID.BINARY || isVariant) {
       fields.add(
           optional(
-              baseFieldId + AVG_VALUE_SIZE.offset(),
-              AVG_VALUE_SIZE.fieldName(),
+              baseFieldId + AVG_VALUE_SIZE_IN_BYTES.offset(),
+              AVG_VALUE_SIZE_IN_BYTES.fieldName(),
               Types.IntegerType.get(),
-              "Avg value size in bytes of variable-length types (String, Binary)"));
-      fields.add(
-          optional(
-              baseFieldId + MAX_VALUE_SIZE.offset(),
-              MAX_VALUE_SIZE.fieldName(),
-              Types.IntegerType.get(),
-              "Max value size in bytes of variable-length types (String, Binary)"));
+              "Avg value size (uncompressed) in bytes to estimate memory consumption"));
     }
-
-    fields.add(
-        optional(baseFieldId + LOWER_BOUND.offset(), LOWER_BOUND.fieldName(), type, "Lower bound"));
-    fields.add(
-        optional(baseFieldId + UPPER_BOUND.offset(), UPPER_BOUND.fieldName(), type, "Upper bound"));
-    fields.add(
-        optional(
-            baseFieldId + EXACT_BOUNDS.offset(),
-            EXACT_BOUNDS.fieldName(),
-            Types.BooleanType.get(),
-            "Whether the upper/lower bound is exact or not"));
 
     return Types.StructType.of(fields);
   }
