@@ -28,8 +28,7 @@ import org.immutables.value.Value;
  * The purpose of this class is to hold OAuth configuration options for {@link
  * OAuth2Util.AuthSession}.
  *
- * @deprecated will be removed in 1.14.0, use {@link
- *     org.apache.iceberg.rest.auth.oauth2.OAuth2Config} instead.
+ * @deprecated will be removed in 1.14.0.
  */
 @Value.Style(redactedMask = "****")
 @Value.Immutable

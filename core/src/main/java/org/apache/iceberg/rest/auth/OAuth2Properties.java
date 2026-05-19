@@ -19,8 +19,7 @@
 package org.apache.iceberg.rest.auth;
 
 /**
- * @deprecated will be removed in 1.14.0, use {@link
- *     org.apache.iceberg.rest.auth.oauth2.OAuth2Config} instead.
+ * @deprecated will be removed in 1.14.0.
  */
 @Deprecated
 public class OAuth2Properties {
