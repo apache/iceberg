@@ -89,25 +89,29 @@ public class LocationUtil {
 
   /**
    * Resolves a location against a table location. If the location has a URI scheme, it is returned
-   * as-is. Otherwise, the location is appended to the table location without any additional
-   * separator.
+   * as-is. Otherwise, the table location and the relative location are joined by the URI separator
+   * character {@code /}.
    */
   public static String resolveLocation(String tableLocation, String location) {
     if (hasScheme(location)) {
       return location;
     }
 
-    return tableLocation + location;
+    return tableLocation + "/" + location;
   }
 
   /**
-   * Relativizes a location against a table location. If the location starts with the table
-   * location, the prefix is removed and the remaining relative portion is returned. Otherwise, the
-   * location is returned as-is.
+   * Relativizes a location against a table location. If the location starts with the table location
+   * immediately followed by the URI separator character {@code /}, the prefix and separator are
+   * removed and the remaining relative portion is returned. Otherwise, the location is returned
+   * as-is.
    */
   public static String relativizeLocation(String tableLocation, String location) {
-    if (location.startsWith(tableLocation)) {
-      return location.substring(tableLocation.length());
+    int prefixLength = tableLocation.length();
+    if (location.length() > prefixLength
+        && location.charAt(prefixLength) == '/'
+        && location.startsWith(tableLocation)) {
+      return location.substring(prefixLength + 1);
     }
 
     return location;
