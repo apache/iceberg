@@ -150,6 +150,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 * **Absolute path** -- A path string that includes a [URI](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) scheme and can be used directly.
 * **Relative path** -- A path string without a URI scheme that must be [resolved](#path-resolution) against the table location.
+* **Column file** -- A file that contains updated column values for a subset of fields in a data file, used for column-level updates without rewriting the base data file.
 
 ### Writer requirements
 
@@ -1460,6 +1461,70 @@ If a delete column in an equality delete file is later dropped from the table, i
 
 Manifests hold the same statistics for delete files and data files. For delete files, the metrics describe the values that were deleted.
 
+### Column Updates
+
+Column updates allow modifying individual columns of existing data files without rewriting the entire file. Updated column values are stored in separate _column files_ that are associated with a base data file via the `column_files` field. Column updates are added in v4 and are not supported in earlier format versions.
+
+A column file is a standard Parquet data file that contains the updated columns plus a required `_pos` column for a single base data file. Column files are valid only when the base entry's `content_type` is `0` (DATA).
+
+#### Invariants
+
+The following invariants must hold for column files:
+
+* At most one `column_file` entry per field id for a given data file. If multiple columns are updated together, they may be stored in the same column file.
+* The row count of a column file must equal `base_file.record_count - deleted_row_count`, where `deleted_row_count` is the number of positions marked in the base file's deletion vector at the time the column file is written. Column files contain values only for live (non-deleted) rows.
+* The `_pos` column is required and contains the ordinal position in the base data file for each row. `_pos` values must be sorted in ascending order.
+* For complex types (structs, maps, lists), the entire top-level field is replaced. The `field_ids` in a column file entry refer to top-level field ids.
+
+#### Write Rules
+
+Writers producing column updates must follow these rules:
+
+1. The writer reads the base file applying the current deletion vector to determine live rows.
+2. The writer produces a column file containing the full column for all live rows (not just changed ones). Unchanged rows carry over their existing values from the base file.
+3. The `_pos` column records each row's ordinal position in the base data file. Engines should use delta encoding for the `_pos` column to minimize storage overhead.
+4. When the same field is updated again, the writer produces a new column file carrying over all previous values (merging with the prior column file) and replaces the existing `column_file` entry for that field id.
+5. When a column file is added or replaced, the writer must update the content entry's statistics (`lower_bounds`, `upper_bounds`, `null_value_counts`, `value_counts`, `nan_value_counts`) to reflect the merged state of the base data file and all column files. This enables file-level pruning during scan planning without opening column files.
+6. The writer must set the entry status to `REPLACED` (3) and record the updated row positions in the `replaced_positions` bitmap of the entry's tracking information.
+
+#### Read Rules
+
+Readers resolve projected columns as follows:
+
+1. For each projected field id, if a matching entry exists in `column_files`, the column is read from the column file. Otherwise, the column is read from the base data file.
+2. Stitching uses the `_pos` column to map column file values to base file positions. For each base file row at position P:
+    * If P exists in the column file's `_pos`, use the column file's value for updated fields.
+    * If P does not exist in the column file's `_pos`, the row is either deleted (present in the deletion vector) or uses the base file's value.
+3. If a query projects only fields that are not present in any column file, column files are not opened.
+4. If a query projects only fields that are entirely covered by column files, the base file's data columns can be skipped for those fields.
+
+#### Interaction with Deletion Vectors
+
+Column files are written after applying deletion vectors — deleted rows are excluded from column files. At read time, deletion vectors and column files are consistent: a position absent from the column file's `_pos` corresponds to a deleted row.
+
+If a new deletion vector entry is added after a column update (deleting a row that was previously updated), the column file still contains that position but the deletion vector takes precedence — the row is not surfaced to readers. A deletion vector always wins: a row deleted by a deletion vector is never surfaced regardless of column update sequence number.
+
+#### Interaction with Equality Deletes
+
+Column updates must not target field ids that are referenced by an equality delete file with a higher sequence number that applies to the same data file. Equality delete predicates must evaluate against the row state at the time the delete was issued, not the subsequently updated state.
+
+#### Compaction
+
+When a `RewriteDataFiles` operation compacts a data file that has associated column files, the compacted output must merge the base file and all column files into a single new data file. The resulting entry has `column_files` set to null (no remaining column files).
+
+#### Column File Sequence Number
+
+The `sequence_number` in a `column_file` entry is a file sequence number — it records the sequence number of the snapshot that committed the column file. This follows the same inheritance pattern as regular data files:
+
+* Rows in the column file that have a null `_last_updated_sequence_number` inherit the column file's `sequence_number`. This applies to rows whose values were updated in the commit that produced the column file.
+* Rows that carry over unchanged values from a prior column file retain their original `_last_updated_sequence_number`.
+* The `_row_id` for updated rows is unchanged — it is derived from the base data file's `first_row_id` and the row's position. Column files do not reassign row IDs.
+
+The column file sequence number is also used for:
+
+* **Time travel**: When reading at a historical snapshot, only column files with `sequence_number` less than or equal to the requested snapshot's sequence number are applied.
+* **Change detection**: Identifying which column updates are new between two snapshots by comparing sequence numbers.
+
 ## Appendix A: Format-specific Requirements
 
 ### Avro
@@ -1903,6 +1968,17 @@ Reading v4 metadata:
 * Readers must check whether location fields contain a URI scheme to determine if a path is absolute or relative
 * Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
 * When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
+
+Column update changes:
+
+* Added `column_files` to content entries to support column-level updates without rewriting base data files.
+* Column files use dense representation with applied deletes.
+* A required `_pos` column maps each column file row to its ordinal position in the base data file.
+* Readers stitch projected columns using `_pos` to overlay column file values onto base file rows.
+* Deletion vectors are applied before writing column files. Deletion vectors always take precedence at read time.
+* Column updates must not conflict with equality deletes at higher sequence numbers.
+* Compaction merges base files and column files into a single new data file.
+* Entry status `REPLACED` (3) and `replaced_positions` bitmap are used to track column update commits.
 
 ### Version 3
 
