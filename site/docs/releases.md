@@ -82,17 +82,19 @@ The 1.10.2 release contains bug fixes and security fixes. For full release notes
     - Fix row ID assignment for EXISTING entries during manifest merge ([\#16304](https://github.com/apache/iceberg/pull/16304))
 * Flink
     - Fix non-deterministic operator UIDs in DynamicIcebergSink ([\#15738](https://github.com/apache/iceberg/pull/15738))
-    - Fix LICENSE and NOTICE files ([\#16175](https://github.com/apache/iceberg/pull/16175))
+    - Fix LICENSE and NOTICE files ([\#16175](https://github.com/apache/iceberg/pull/16175), [\#16130](https://github.com/apache/iceberg/pull/16130))
 * Hive
     - Fix trailing slash issue for database paths in HMS ([\#16010](https://github.com/apache/iceberg/pull/16010))
 * Spark
-    - Fix LICENSE and NOTICE files ([\#16255](https://github.com/apache/iceberg/pull/16255))
+    - Fix LICENSE and NOTICE files ([\#16255](https://github.com/apache/iceberg/pull/16255), [\#16162](https://github.com/apache/iceberg/pull/16162))
 * AWS
     - Fix LICENSE and NOTICE files ([\#16236](https://github.com/apache/iceberg/pull/16236))
 * Azure
-    - Fix LICENSE and NOTICE files ([\#16242](https://github.com/apache/iceberg/pull/16242))
+    - Fix LICENSE and NOTICE files ([\#16242](https://github.com/apache/iceberg/pull/16242), [\#16260](https://github.com/apache/iceberg/pull/16260))
 * GCP
     - Fix LICENSE and NOTICE files ([\#16244](https://github.com/apache/iceberg/pull/16244))
+* Open API
+    - Stop publishing the Open API runtime Jar due to license compliance issues ([\#16188](https://github.com/apache/iceberg/pull/16188)). Users who depended on the shadow JAR must now use the `test-fixtures` classifier and explicitly add `iceberg-core`, `iceberg-core:tests`, `jetty-server`, `jetty-servlet`, `sqlite-jdbc`, and `hadoop-common`.
 * Build
     - Fix CVE-2025-67721 in io.airlift:aircompressor ([\#15829](https://github.com/apache/iceberg/pull/15829))
     - Bump Jackson to 2.21.2 to fix GHSA-72hv-8253-57qq ([\#15847](https://github.com/apache/iceberg/pull/15847))
