@@ -59,6 +59,7 @@ public class SparkWriteOptions {
       "handle-timestamp-without-timezone";
 
   public static final String OUTPUT_SPEC_ID = "output-spec-id";
+  public static final String OUTPUT_SORT_ORDER_ID = "output-sort-order-id";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";
 

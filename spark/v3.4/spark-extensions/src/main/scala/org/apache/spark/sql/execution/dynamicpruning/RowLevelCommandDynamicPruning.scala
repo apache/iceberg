@@ -45,7 +45,7 @@ import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.PLAN_EXPRESSION
 import org.apache.spark.sql.catalyst.trees.TreePattern.SORT
-import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering
+import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
@@ -67,7 +67,7 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession)
     // apply special dynamic filtering only for plans that don't support deltas
     case RewrittenRowLevelCommand(
           command: RowLevelCommand,
-          DataSourceV2ScanRelation(_, scan: SupportsRuntimeFiltering, _, _, _),
+          DataSourceV2ScanRelation(_, scan: SupportsRuntimeV2Filtering, _, _, _),
           rewritePlan: ReplaceIcebergData)
         if conf.dynamicPartitionPruningEnabled && isCandidate(command) =>
 

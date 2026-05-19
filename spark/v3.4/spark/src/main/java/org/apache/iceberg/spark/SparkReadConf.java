@@ -27,6 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
@@ -265,6 +266,39 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean asyncMicroBatchPlanningEnabled() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+        .sessionConf(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+        .defaultValue(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public long streamingSnapshotPollingIntervalMs() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS)
+        .defaultValue(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT)
+        .parse();
+  }
+
+  public long asyncQueuePreloadFileLimit() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT)
+        .defaultValue(SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT_DEFAULT)
+        .parse();
+  }
+
+  public long asyncQueuePreloadRowLimit() {
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT)
+        .defaultValue(SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT_DEFAULT)
+        .parse();
+  }
+
   public boolean preserveDataGrouping() {
     return confParser
         .booleanConf()
@@ -285,6 +319,7 @@ public class SparkReadConf {
   public boolean adaptiveSplitSizeEnabled() {
     return confParser
         .booleanConf()
+        .sessionConf(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED)
         .tableProperty(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED)
         .defaultValue(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT)
         .parse();
@@ -294,6 +329,17 @@ public class SparkReadConf {
     int defaultParallelism = spark.sparkContext().defaultParallelism();
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     return Math.max(defaultParallelism, numShufflePartitions);
+  }
+
+  public int splitParallelism() {
+    int parallelism =
+        confParser
+            .intConf()
+            .sessionConf(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM)
+            .defaultValue(parallelism())
+            .parse();
+    Preconditions.checkArgument(parallelism > 0, "Split parallelism must be > 0: %s", parallelism);
+    return parallelism;
   }
 
   public boolean distributedPlanningEnabled() {

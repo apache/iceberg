@@ -35,7 +35,6 @@ import org.apache.flink.core.execution.SavepointFormatType;
 import org.apache.flink.runtime.jobgraph.SavepointConfigOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
@@ -416,15 +415,17 @@ public class OperatorTestBase {
   }
 
   protected static void checkSlotSharingGroupsAreSet(StreamExecutionEnvironment env, String name) {
-    String nameToCheck = name != null ? name : StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
-
     env.getTransformations().stream()
         .filter(
             t -> !(t instanceof SinkTransformation) && !(t.getName().equals(IGNORED_OPERATOR_NAME)))
         .forEach(
             t -> {
-              assertThat(t.getSlotSharingGroup()).isPresent();
-              assertThat(t.getSlotSharingGroup().get().getName()).isEqualTo(nameToCheck);
+              if (name == null) {
+                assertThat(t.getSlotSharingGroup()).isNotPresent();
+              } else {
+                assertThat(t.getSlotSharingGroup()).isPresent();
+                assertThat(t.getSlotSharingGroup().get().getName()).isEqualTo(name);
+              }
             });
   }
 
