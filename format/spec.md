@@ -209,11 +209,11 @@ Examples of path resolution:
 |                     | Format Version | Table Location        | File Path                                 | Resolved Path                              | Description                         |
 |---------------------|----------------|-----------------------|-------------------------------------------|--------------------------------------------|-------------------------------------|
 | Relative Path       | v4             | s3://bucket/db/table  | data/00000-0.parquet                      | s3://bucket/db/table/data/00000-0.parquet  | Path parts are joined on `/`        |
-| Absolute Path       | v4             | s3://bucket/db/table  | hdfs:/wh/db/table/data/00000-0.parquet    | hdfs://wh/db/table/data/00000-0.parquet    | Absolute path is used               |
+| Absolute Path       | v4             | s3://bucket/db/table  | hdfs://wh/db/table/data/00000-0.parquet   | hdfs://wh/db/table/data/00000-0.parquet    | Absolute path is used               |
 | Duplicate separator | v4             | s3://bucket/db/table/ | data/00000-0.parquet                      | s3://bucket/db/table//data/00000-0.parquet | Join results in duplicate `//`      |
 | Duplicate separator | v4             | s3://bucket/db/table  | /data/00000-0.parquet                     | s3://bucket/db/table//data/00000-0.parquet | Join results in duplicate `//`      |
 | Fully-qualified     | v3 and earlier | s3://bucket/db/table  | s3://bucket/db/table/data/00000-0.parquet | s3://bucket/db/table/data/00000-0.parquet  | Fully-qualified path is used        |
-| Missing scheme      | v3 and earlier | /wh/db/table          | /wh/db/table/data/00000-0.parquet         | hdfs:/wh/db/table/data/00000-0.parquet     | Scheme is prepended for consistency |
+| Missing scheme      | v3 and earlier | /wh/db/table          | /wh/db/table/data/00000-0.parquet         | hdfs://wh/db/table/data/00000-0.parquet    | Scheme is prepended for consistency |
 
 #### Path Relativization
 
