@@ -178,6 +178,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
           .throwFailureWhenFinished()
           .retry(Integer.MAX_VALUE - 1)
           .exponentialBackoff(acquireIntervalMs(), acquireIntervalMs(), acquireTimeoutMs(), 1)
+          .backoffStrategy(backoffStrategy())
           .onlyRetryOn(
               ConditionalCheckFailedException.class,
               ProvisionedThroughputExceededException.class,

@@ -72,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -468,6 +469,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                 base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
                 base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
                 2.0 /* exponential */)
+            .backoffStrategy(BackoffStrategies.from(base.properties()))
             .onlyRetryOn(CommitFailedException.class)
             .countAttempts(commitMetrics().attempts())
             .run(
