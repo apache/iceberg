@@ -26,14 +26,18 @@ import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX
 
 import java.io.Serializable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.Immutable;
 import org.apache.iceberg.MetricsModes.MetricsMode;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -50,6 +54,7 @@ public final class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
   private static final Joiner DOT = Joiner.on('.');
+  private static final Splitter DOT_SPLITTER = Splitter.on('.');
 
   // Disable metrics by default for wide tables to prevent excessive metadata
   private static final MetricsMode DEFAULT_MODE =
@@ -65,11 +70,47 @@ public final class MetricsConfig implements Serializable {
           DEFAULT_MODE);
 
   private final Map<String, MetricsMode> columnModes;
+  // Column names are sanitized when written to data files (see
+  // AvroSchemaUtil.makeCompatibleName). Metrics mode lookups that resolve column names from a data
+  // file schema (e.g. when computing metrics for imported or migrated files) therefore query the
+  // sanitized name, while columnModes is keyed by the original name. This map holds the sanitized
+  // form of every column as an alias to the same mode so those lookups resolve correctly. It is
+  // kept separate from columnModes so it never reaches validateReferencedColumns.
+  private final Map<String, MetricsMode> sanitizedColumnModes;
   private final MetricsMode defaultMode;
 
   private MetricsConfig(Map<String, MetricsMode> columnModes, MetricsMode defaultMode) {
     this.columnModes = SerializableMap.copyOf(columnModes).immutableMap();
+    this.sanitizedColumnModes =
+        SerializableMap.copyOf(sanitizedAliases(this.columnModes)).immutableMap();
     this.defaultMode = defaultMode;
+  }
+
+  private static Map<String, MetricsMode> sanitizedAliases(Map<String, MetricsMode> columnModes) {
+    Map<String, MetricsMode> aliases = Maps.newHashMap();
+    for (Map.Entry<String, MetricsMode> entry : columnModes.entrySet()) {
+      String sanitized = sanitizeColumnName(entry.getKey());
+      if (!sanitized.equals(entry.getKey())) {
+        // an explicit mode configured directly for the sanitized name wins over the alias
+        aliases.putIfAbsent(sanitized, entry.getValue());
+      }
+    }
+
+    return aliases;
+  }
+
+  private static String sanitizeColumnName(String columnName) {
+    List<String> sanitizedParts = Lists.newArrayList();
+    for (String part : DOT_SPLITTER.split(columnName)) {
+      if (part.isEmpty()) {
+        // not a resolvable dotted path; AvroSchemaUtil rejects empty names, so add no alias
+        return columnName;
+      }
+
+      sanitizedParts.add(AvroSchemaUtil.makeCompatibleName(part));
+    }
+
+    return DOT.join(sanitizedParts);
   }
 
   public static MetricsConfig getDefault() {
@@ -322,6 +363,13 @@ public final class MetricsConfig implements Serializable {
   }
 
   public MetricsMode columnMode(String columnAlias) {
-    return columnModes.getOrDefault(columnAlias, defaultMode);
+    MetricsMode mode = columnModes.get(columnAlias);
+    if (mode != null) {
+      return mode;
+    }
+
+    // fall back to the sanitized name so lookups from a data file schema resolve (see
+    // sanitizedColumnModes); only the original-named columnModes feeds validateReferencedColumns
+    return sanitizedColumnModes.getOrDefault(columnAlias, defaultMode);
   }
 }

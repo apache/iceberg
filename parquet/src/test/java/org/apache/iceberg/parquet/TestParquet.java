@@ -160,6 +160,38 @@ public class TestParquet {
   }
 
   @Test
+  public void testFileMetricsResolvesEscapedColumnName() throws IOException {
+    // Regression for #11950: "$data" is not a valid Parquet name and is sanitized to "_x24data"
+    // in the file schema. When metrics are computed from the footer (the add_files / migrate
+    // path), the metrics mode must still resolve from the configured original column name.
+    Schema schema = new Schema(optional(1, "$data", Types.StringType.get()));
+    String sanitizedName = AvroSchemaUtil.makeCompatibleName("$data");
+
+    File file = createTempFile(temp);
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put(sanitizedName, "value");
+
+    write(file, schema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, record);
+
+    // config keyed by the original column name, as MetricsConfig.forTable would produce; the
+    // "none" default means a missed lookup silently drops all stats for the escaped column
+    MetricsConfig metricsConfig =
+        MetricsConfig.fromProperties(
+            ImmutableMap.of(
+                "write.metadata.metrics.default", "none",
+                "write.metadata.metrics.column.$data", "full"));
+
+    Metrics metrics = ParquetUtil.fileMetrics(Files.localInput(file), metricsConfig);
+
+    assertThat(metrics.valueCounts()).containsEntry(1, 1L);
+    assertThat(metrics.nullValueCounts()).containsEntry(1, 0L);
+    assertThat(metrics.lowerBounds()).containsKey(1);
+    assertThat(metrics.upperBounds()).containsKey(1);
+  }
+
+  @Test
   public void testNumberOfBytesWritten() throws IOException {
     Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
 
