@@ -36,22 +36,24 @@ In MkDocs, the [`docs_dir`](https://www.mkdocs.org/user-guide/configuration/#doc
 
 The static Iceberg website lives under the `/site` directory, while the versioned documentation lives under the `/docs` of the main Iceberg repository. The `/site/docs` directory is named that way to follow the [MkDocs convention](https://www.mkdocs.org/user-guide/configuration/#docs_dir). The `/docs` directory contains the current state of the versioned documentation with local revisions. Notice that the root `/site` and `/docs` just happened to share the same naming convention as MkDocs but does not correlate to the mkdocs.
 
-The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`. The versioned documentation are Markdown files that live at `/docs/docs/*.md` files. You may ask where the older versions of the docs and javadocs are, which is covered later in the build section.
+The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`. The versioned documentation are Markdown files that live at `/site/versioned-docs/<version>/docs/*.md` files. You may ask where the older versions of the docs and javadocs are, which is covered later in the build section.
 
 ```
 .
-├── docs (versioned)
-│   ├── docs
-│   │   ├── assets
-│   │   ├── api.md
-│   │   ├── ...
-│   │   └── table-migration.md
-│   └── mkdocs.yml
+├── versioned-docs (versioned, per version)
+│   ├── <version>
+│   │   ├── docs
+│   │   │   ├── assets
+│   │   │   ├── api.md
+│   │   │   ├── ...
+│   │   │   └── table-migration.md
+│   │   └── mkdocs.yml
+│   └── ...
 └── site (non-versioned)
     ├── docs
-    │   ├── about.md
-    │   ├── ...
-    │   └── view-spec.md
+    │   ├── about.md
+    │   ├── ...
+    │   └── view-spec.md
     ├── ...
     ├── Makefile
     ├── mkdocs.yml
@@ -62,7 +64,7 @@ The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`.
 
 The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddeforphanaorphan) branches and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time:
 
- 1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documentation source files (`/docs`) during release. These versions are mounted at the `/site/docs/docs/<version>` directory at build time.
+ 1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documentation source files (`/docs`) during release. These versions are mounted at the `/site/versioned-docs/<version>` directory at build time.
  1. [`javadoc`](https://github.com/apache/iceberg/tree/javadoc) - contains prior statically generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` directory at  build time.
 
 The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. The `nightly` version, is a soft link to the current local state of the `/docs` markdown files.
@@ -89,20 +91,21 @@ This step will generate the staged source code which blends into the original so
 
 ```
 ./site/
-└── docs
-    ├── docs
-    │   ├── nightly (symlink to /docs/)
-    │   ├── latest (symlink to /site/docs/1.4.0/)
-    │   ├── 1.4.0 
-    │   ├── 1.3.1
-    │   └── ...
-    ├── javadoc
-    │   ├── nightly (currently points to latest)
-    │   ├── latest
-    │   ├── 1.4.0
-    │   ├── 1.3.1
-    │   └── ...
-    └─.asf.yaml
+├── versioned-docs
+│   ├── nightly (symlink to /docs/)
+│   ├── latest (symlink to versioned-docs/<latest-version>)
+│   ├── 1.4.0
+│   ├── 1.3.1
+│   └── ...
+├── docs
+│   ├── javadoc
+│   │   ├── nightly (currently points to latest)
+│   │   ├── latest
+│   │   ├── 1.4.0
+│   │   ├── 1.3.1
+│   │   └── ...
+│   └─.asf.yaml
+└── mkdocs.yml
 ```
 
 #### Linting
@@ -196,21 +199,21 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 
 ```
 ./site/
+├── versioned-docs
+│   ├── nightly
+│   │   ├── docs
+│   │   └── mkdocs.yml
+│   ├── latest
+│   │   ├── docs
+│   │   └── mkdocs.yml
+│   └── 1.4.0
+│       ├── docs
+│       └── mkdocs.yml
 ├── docs
-│   ├── docs
-│   │   ├── nightly
-│   │   │   ├── docs
-│   │   │   └── mkdocs.yml
-│   │   ├── latest
-│   │   │   ├── docs
-│   │   │   └── mkdocs.yml
-│   │   └── 1.4.0
-│   │       ├── docs
-│   │       └── mkdocs.yml
-│   └─ javadoc
-│      ├── nightly
-│      ├── latest
-│      └── 1.4.0
+│   └─ javadoc
+│      ├── nightly
+│      ├── latest
+│      └── 1.4.0
 └── mkdocs.yml
 ```
 
