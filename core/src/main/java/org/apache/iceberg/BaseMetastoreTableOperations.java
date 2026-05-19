@@ -34,6 +34,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.BackoffStrategies;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -194,6 +195,8 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       Tasks.foreach(newLocation)
           .retry(numRetries)
           .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+          .backoffStrategy(
+              BackoffStrategies.from(currentMetadata != null ? currentMetadata.properties() : null))
           .throwFailureWhenFinished()
           .stopRetryOn(NotFoundException.class) // overridden if shouldRetry is non-null
           .shouldRetryTest(shouldRetry)
