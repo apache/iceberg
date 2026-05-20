@@ -65,13 +65,17 @@ public class SetStatistics implements UpdateStatistics {
   public void commit() {
     Tasks.foreach(ops)
         .retry(ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            ops.current().propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            ops.current().propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+        .totalTimeoutMs(
             ops.current()
-                .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .backoffStrategy(BackoffStrategies.from(ops.current().properties()))
+                .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT))
+        .backoffStrategy(
+            BackoffStrategies.from(
+                ops.current().properties(),
+                ops.current()
+                    .propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+                ops.current()
+                    .propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+                2.0))
         .onlyRetryOn(CommitFailedException.class)
         .run(
             taskOps -> {
