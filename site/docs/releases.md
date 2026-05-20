@@ -212,21 +212,7 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - Fix source offset tracking when SMTs modify the record topic ([\#15880](https://github.com/apache/iceberg/pull/15880))
     - Do not fail if no partitions assigned ([\#15955](https://github.com/apache/iceberg/pull/15955))
 * Open API
-    - Make namespace separator configurable by server ([\#14448](https://github.com/apache/iceberg/pull/14448))
-    - Add planId as query param to /credentials endpoint ([\#14519](https://github.com/apache/iceberg/pull/14519))
-    - Add storage-credentials to CompletedPlanningResult ([\#14563](https://github.com/apache/iceberg/pull/14563))
-    - Add idempotency key for the mutating plan endpoints ([\#14730](https://github.com/apache/iceberg/pull/14730))
-    - Etag for CommitTableResponse ([\#14760](https://github.com/apache/iceberg/pull/14760))
-    - Add REST endpoint for registering views ([\#14869](https://github.com/apache/iceberg/pull/14869))
-    - Add SetPartitionStatisticsUpdate/RemovePartitionStatisticsUpdate to TableUpdate ([\#14957](https://github.com/apache/iceberg/pull/14957))
-    - Include storage credentials for PlanTableScanResponse/FetchPlanningResultResponse on plan completed given include-credentials flag is set ([\#15524](https://github.com/apache/iceberg/pull/15524))
     - Remove runtime Jar from build and deploy ([\#16163](https://github.com/apache/iceberg/pull/16163))
-    - Add Idempotency-Key to OpenAPI ([\#14196](https://github.com/apache/iceberg/pull/14196))
-    - Add referenced-by in loadTable API ([\#13810](https://github.com/apache/iceberg/pull/13810))
-    - Add AccessDelegation header to planAPI calls ([\#14781](https://github.com/apache/iceberg/pull/14781))
-    - Include SetPartitionStatisticsUpdate and RemovePartitionStatisticsUpdate in TableUpdate union ([\#15115](https://github.com/apache/iceberg/pull/15115))
-    - Add 404 response for config endpoint ([\#15746](https://github.com/apache/iceberg/pull/15746))
-
 * Vendor integrations
     - AWS: Set retry policy on glue and dynamo clients ([\#15094](https://github.com/apache/iceberg/pull/15094))
     - AWS: Add proxy system property and environment variable configuration for HTTP clients ([\#15506](https://github.com/apache/iceberg/pull/15506))
@@ -238,6 +224,8 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - BigQuery: Add table validity check for BigQueryMetastoreCatalog ([\#14113](https://github.com/apache/iceberg/pull/14113))
     - Aliyun: Add RRSA support for OSS authentication ([\#14443](https://github.com/apache/iceberg/pull/14443))
 * Dependencies
+    - Added Spark 4.1 support
+    - Added Flink 2.1 support
     - Parquet: 1.16.0 -> 1.17.1
     - ORC: 1.9.6 -> 1.9.8
     - Hadoop: 3.4.1 -> 3.4.2
@@ -247,8 +235,6 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - Netty: 4.2.2.Final -> 4.2.5.Final
     - Guava: 33.4.8-jre -> 33.5.0-jre
     - Comet: 0.8.1 -> 0.12.0
-    - Added Spark 4.1 support
-    - Added Flink 2.1 support
 
 ## Past releases
 
