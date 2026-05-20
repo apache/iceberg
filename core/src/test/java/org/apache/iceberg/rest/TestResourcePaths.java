@@ -119,14 +119,14 @@ public class TestResourcePaths {
     // legacy separator is always used by default, so no need to configure it
     ResourcePaths pathsWithLegacySeparator = ResourcePaths.forCatalogProperties(ImmutableMap.of());
 
-    // Encode namespace using legacy separator. No need to provide the separator to encodeNamespace
-    String legacyEncodedNamespace = RESTUtil.encodeNamespace(namespace);
+    // Encode namespace using legacy separator.
+    String legacyEncodedNamespace = RESTUtil.encodeNamespace(namespace, "%1F");
     assertThat(pathsWithLegacySeparator.namespace(namespace))
         .contains(legacyEncodedNamespace)
         .contains(legacySeparator);
 
-    // Decode the namespace containing legacy separator without providing the separator
-    assertThat(RESTUtil.decodeNamespace(legacyEncodedNamespace)).isEqualTo(namespace);
+    // Decode the namespace containing legacy separator
+    assertThat(RESTUtil.decodeNamespace(legacyEncodedNamespace, "%1F")).isEqualTo(namespace);
 
     // Decode the namespace containing legacy separator with providing the new separator
     assertThat(RESTUtil.decodeNamespace(legacyEncodedNamespace, newSeparator)).isEqualTo(namespace);

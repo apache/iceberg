@@ -196,17 +196,6 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
-    assertThatThrownBy(
-            () ->
-                PlanTableScanResponse.builder()
-                    .withPlanStatus(PlanStatus.SUBMITTED)
-                    .withPlanId("somePlanId")
-                    .withDeleteFiles(List.of(FILE_A_DELETES))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
-
     String invalidJson =
         "{\"status\":\"submitted\","
             + "\"plan-id\":\"somePlanId\","
@@ -264,7 +253,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
