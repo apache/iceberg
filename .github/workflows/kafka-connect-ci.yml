@@ -113,3 +113,4 @@ jobs:
         name: test logs
         path: |
           **/build/testlogs
+          **/build/reports/tests/integrationTest
