@@ -194,6 +194,9 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
+
+    def logDir = "${rootDir}/build/testlogs"
+    systemProperty 'dockerLogDir', logDir
   }
 
   processResources {
