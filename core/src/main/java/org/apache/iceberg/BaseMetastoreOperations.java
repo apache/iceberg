@@ -122,8 +122,8 @@ public abstract class BaseMetastoreOperations {
     Tasks.foreach(newMetadataLocation)
         .retry(maxAttempts)
         .suppressFailureWhenFinished()
-        .exponentialBackoff(minWaitMs, maxWaitMs, totalRetryMs, 2.0)
-        .backoffStrategy(BackoffStrategies.from(properties))
+        .totalTimeoutMs(totalRetryMs)
+        .backoffStrategy(BackoffStrategies.from(properties, minWaitMs, maxWaitMs, 2.0))
         .onFailure(
             (location, checkException) ->
                 LOG.error("Cannot check if commit to {} exists.", tableOrViewName, checkException))

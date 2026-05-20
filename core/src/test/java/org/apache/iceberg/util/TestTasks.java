@@ -57,7 +57,8 @@ public class TestTasks {
 
     Tasks.foreach(IntStream.range(0, 10))
         .countAttempts(counter)
-        .exponentialBackoff(0, 0, 5000, 0)
+        .totalTimeoutMs(5000)
+        .backoffStrategy(attempt -> 0L)
         .retry(retries)
         .onlyRetryOn(RuntimeException.class)
         .run(
@@ -207,7 +208,7 @@ public class TestTasks {
   }
 
   @Test
-  public void customBackoffStrategyOverridesExponentialBackoff() {
+  public void customBackoffStrategyIsUsed() {
     List<Integer> attempts = Collections.synchronizedList(Lists.newArrayList());
     BackoffStrategy recording =
         attempt -> {
@@ -235,14 +236,15 @@ public class TestTasks {
   }
 
   @Test
-  public void nullBackoffStrategyKeepsExponentialDefault() {
+  public void nullBackoffStrategyIsNoOp() {
     int retries = 3;
     Counter counter = new DefaultMetricsContext().counter("counter");
 
     Tasks.foreach(IntStream.range(0, 1))
         .countAttempts(counter)
-        .exponentialBackoff(0, 0, 5000, 0)
+        .totalTimeoutMs(5000)
         .retry(retries)
+        .backoffStrategy(attempt -> 0L) // set a non-null strategy first
         .backoffStrategy(null) // mirrors call sites passing BackoffStrategies.from(...) == null
         .onlyRetryOn(RuntimeException.class)
         .run(
