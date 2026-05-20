@@ -1078,9 +1078,9 @@ class QueryEventsRequest(BaseModel):
         alias='catalog-objects-by-name',
         description='Filter events by the list of catalog objects referenced by name (namespaces, tables, views). If not provided, events for all objects must be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) must be returned (recursively).\n',
     )
-    catalog_objects_by_id: Optional[List[CatalogObjectUuid]] = Field(
+    catalog_objects_by_uuid: Optional[List[CatalogObjectUuid]] = Field(
         None,
-        alias='catalog-objects-by-id',
+        alias='catalog-objects-by-uuid',
         description='Filter events by the list of catalog objects referenced by UUID (tables, views).\n',
     )
     object_types: Optional[List[Literal['namespace', 'table', 'view']]] = Field(

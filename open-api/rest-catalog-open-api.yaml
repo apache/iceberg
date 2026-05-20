@@ -3848,7 +3848,7 @@ components:
             If not provided, events for all objects must be returned subject to other filters.
             For specified namespaces, events for the namespaces and all containing objects
             (namespaces, tables, views) must be returned (recursively).
-        catalog-objects-by-id:
+        catalog-objects-by-uuid:
           type: array
           items:
             $ref: "#/components/schemas/CatalogObjectUuid"
