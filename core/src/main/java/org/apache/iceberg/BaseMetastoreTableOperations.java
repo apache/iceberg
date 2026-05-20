@@ -194,9 +194,10 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
           .retry(numRetries)
-          .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+          .totalTimeoutMs(600000)
           .backoffStrategy(
-              BackoffStrategies.from(currentMetadata != null ? currentMetadata.properties() : null))
+              BackoffStrategies.from(
+                  currentMetadata != null ? currentMetadata.properties() : null, 100, 5000, 4.0))
           .throwFailureWhenFinished()
           .stopRetryOn(NotFoundException.class) // overridden if shouldRetry is non-null
           .shouldRetryTest(shouldRetry)

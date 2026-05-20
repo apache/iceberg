@@ -111,12 +111,10 @@ class SparkCleanupUtil {
         .suppressFailureWhenFinished()
         .onFailure((path, exc) -> LOG.warn("Failed to delete {} ({})", path, context, exc))
         .retry(DELETE_NUM_RETRIES)
-        .exponentialBackoff(
-            DELETE_MIN_RETRY_WAIT_MS,
-            DELETE_MAX_RETRY_WAIT_MS,
-            DELETE_TOTAL_RETRY_TIME_MS,
-            2 /* exponential */)
-        .backoffStrategy(BackoffStrategies.from(ioProperties(io)))
+        .totalTimeoutMs(DELETE_TOTAL_RETRY_TIME_MS)
+        .backoffStrategy(
+            BackoffStrategies.from(
+                ioProperties(io), DELETE_MIN_RETRY_WAIT_MS, DELETE_MAX_RETRY_WAIT_MS, 2))
         .run(
             path -> {
               io.deleteFile(path);
