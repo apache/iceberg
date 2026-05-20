@@ -388,6 +388,99 @@ public class TestArrowReader {
     assertThat(totalRowsRead).as("Should read all rows").isEqualTo(millisValues.size());
   }
 
+  /**
+   * Regression test: a decimal column whose Iceberg field carries an initialDefault/writeDefault
+   * must be readable by the vectorized reader. Before the fix to {@code
+   * VectorizedArrowReader#getPhysicalType}, allocating the vector copied the decimal-typed default
+   * onto the underlying physical type (int/long/fixed) and failed with {@code
+   * IllegalArgumentException: Cannot cast default value to ...}.
+   */
+  @Test
+  public void testDecimalWithDefaultIsReadByVectorizedReader() throws Exception {
+    tables = new HadoopTables();
+    Schema schema =
+        new Schema(
+            Types.NestedField.required("id").withId(1).ofType(Types.IntegerType.get()).build(),
+            Types.NestedField.optional("amount")
+                .withId(2)
+                .ofType(Types.DecimalType.of(5, 2))
+                .withInitialDefault(Expressions.lit(new BigDecimal("0.00")))
+                .withWriteDefault(Expressions.lit(new BigDecimal("0.00")))
+                .build());
+
+    Table table =
+        tables.create(
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"),
+            tableLocation);
+
+    File testFile = new File(tempDir, "decimal-with-default.parquet");
+    List<Integer> ids = Lists.newArrayList(1, 2, 3);
+    // raw INT32 unscaled values for 1.23, 4.56, 7.89 at scale 2
+    List<Integer> rawAmounts = Lists.newArrayList(123, 456, 789);
+
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
+                .id(1)
+                .named("id"),
+            primitive(PrimitiveType.PrimitiveTypeName.INT32, Type.Repetition.OPTIONAL)
+                .as(LogicalTypeAnnotation.decimalType(2, 5))
+                .id(2)
+                .named("amount"));
+
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI()))
+            .withType(parquetSchema)
+            // disable dictionary encoding so vector allocation goes through getPhysicalType,
+            // where the bug surfaces. With dict encoding, allocateDictEncodedVector is used
+            // and the buggy path is bypassed.
+            .withDictionaryEncoding(false)
+            .build()) {
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+      for (int i = 0; i < ids.size(); i++) {
+        Group group = factory.newGroup();
+        group.add("id", ids.get(i));
+        group.add("amount", rawAmounts.get(i));
+        writer.write(group);
+      }
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(testFile.getAbsolutePath())
+            .withFileSizeInBytes(testFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(ids.size())
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        FieldVector amountVector = root.getVector("amount");
+        assertThat(amountVector)
+            .as("INT32-backed decimal should be exposed as IntVector by the vectorized reader")
+            .isInstanceOf(IntVector.class);
+
+        IntVector amounts = (IntVector) amountVector;
+        for (int i = 0; i < root.getRowCount(); i++) {
+          assertThat(amounts.get(i))
+              .as("Row %d: raw INT32 decimal value", rowIndex)
+              .isEqualTo(rawAmounts.get(rowIndex));
+          rowIndex++;
+        }
+        root.close();
+      }
+    }
+
+    assertThat(rowIndex).as("Should read all rows").isEqualTo(ids.size());
+  }
+
   @ParameterizedTest
   @MethodSource("rejectedUnsignedIntegerCases")
   public void testUnsignedIntegerColumnThrowsException(
