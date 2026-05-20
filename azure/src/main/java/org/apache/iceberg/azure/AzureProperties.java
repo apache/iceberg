@@ -48,6 +48,12 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
   public static final String ADLS_TOKEN = "adls.token";
+  public static final String AZURE_KEYVAULT_URL = "azure.keyvault.url";
+  public static final String AZURE_KEYVAULT_KEY_WRAP_ALGORITHM =
+      "azure.keyvault.key-wrap-algorithm";
+
+  // Must match KeyWrapAlgorithm.RSA_OAEP_256.getValue() from azure-security-keyvault-keys
+  private static final String DEFAULT_KEY_WRAP_ALGORITHM = "RSA-OAEP-256";
 
   /**
    * Configure the ADLS token credential provider used to get {@link TokenCredential}. A fully
@@ -91,6 +97,8 @@ public class AzureProperties implements Serializable {
   private boolean adlsRefreshCredentialsEnabled;
   private String token;
   private Map<String, String> allProperties = Collections.emptyMap();
+  private String keyWrapAlgorithm;
+  private String keyVaultUrl;
 
   public AzureProperties() {}
 
@@ -124,6 +132,13 @@ public class AzureProperties implements Serializable {
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
     this.token = properties.get(ADLS_TOKEN);
     this.allProperties = SerializableMap.copyOf(properties);
+    if (properties.containsKey(AZURE_KEYVAULT_URL)) {
+      this.keyVaultUrl = properties.get(AZURE_KEYVAULT_URL);
+    }
+
+    this.keyWrapAlgorithm =
+        properties.getOrDefault(
+            AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM, DEFAULT_KEY_WRAP_ALGORITHM);
   }
 
   public Optional<Integer> adlsReadBlockSize() {
@@ -188,5 +203,13 @@ public class AzureProperties implements Serializable {
     } else {
       builder.endpoint("https://" + account);
     }
+  }
+
+  public String keyWrapAlgorithm() {
+    return this.keyWrapAlgorithm;
+  }
+
+  public Optional<String> keyVaultUrl() {
+    return Optional.ofNullable(this.keyVaultUrl);
   }
 }

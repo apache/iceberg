@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import org.apache.curator.shaded.com.google.common.annotations.VisibleForTesting;
 import org.apache.flink.shaded.curator5.org.apache.curator.RetryPolicy;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.CuratorFramework;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.CuratorFrameworkFactory;
@@ -31,6 +30,7 @@ import org.apache.flink.shaded.curator5.org.apache.curator.retry.ExponentialBack
 import org.apache.flink.shaded.curator5.org.apache.curator.retry.RetryNTimes;
 import org.apache.flink.shaded.curator5.org.apache.curator.retry.RetryOneTime;
 import org.apache.flink.shaded.curator5.org.apache.curator.retry.RetryUntilElapsed;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

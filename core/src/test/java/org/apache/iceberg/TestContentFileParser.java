@@ -109,8 +109,8 @@ public class TestContentFileParser {
   public void testPartitionJsonArrayWrongSize() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
     String jsonStr =
-        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":[],\"file-size-in-bytes\":10,"
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":10,"
             + "\"record-count\":1}";
 
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
@@ -124,8 +124,8 @@ public class TestContentFileParser {
   public void testPartitionJsonInvalidType() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
     String jsonStr =
-        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":\"invalid\",\"file-size-in-bytes\":10,"
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":\"invalid\",\"file-size-in-bytes\":10,"
             + "\"record-count\":1}";
 
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
@@ -139,8 +139,8 @@ public class TestContentFileParser {
   public void testParsesFieldIdPartitionMap() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
     String legacyJson =
-        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":\"foo\"},\"file-size-in-bytes\":10,"
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":{\"1000\":\"foo\"},\"file-size-in-bytes\":10,"
             + "\"record-count\":1}";
 
     JsonNode jsonNode = JsonUtil.mapper().readTree(legacyJson);
@@ -155,8 +155,8 @@ public class TestContentFileParser {
   public void testPartitionStructObjectContainsExtraField() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
     String jsonStr =
-        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":\"foo\",\"9999\":\"bar\"},"
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":{\"1000\":\"foo\",\"9999\":\"bar\"},"
             + "\"file-size-in-bytes\":10,\"record-count\":1}";
 
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
@@ -169,8 +169,8 @@ public class TestContentFileParser {
   public void testPartitionStructObjectEmptyIsNull() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
     String jsonStr =
-        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":{},\"file-size-in-bytes\":10,"
+        "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":{},\"file-size-in-bytes\":10,"
             + "\"record-count\":1}";
 
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
@@ -208,6 +208,74 @@ public class TestContentFileParser {
     assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
     assertThat(deserializedContentFile.partition().get(0, Integer.class)).isEqualTo(4);
     assertThat(deserializedContentFile.partition().get(1, String.class)).isEqualTo("foo");
+  }
+
+  @Test
+  public void testInvalidContentType() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,"
+            + "\"content\":\"invalid-content\","
+            + "\"file-path\":\"/path/to/file.parquet\","
+            + "\"file-format\":\"parquet\","
+            + "\"partition\":{},"
+            + "\"file-size-in-bytes\":1,"
+            + "\"record-count\":1}";
+
+    JsonNode node = JsonUtil.mapper().readTree(jsonStr);
+
+    assertThatThrownBy(
+            () -> ContentFileParser.fromJson(node, Map.of(0, PartitionSpec.unpartitioned())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file content value: 'invalid-content'");
+  }
+
+  @Test
+  public void testUppercaseFileFormat() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,"
+            + "\"content\":\"data\","
+            + "\"file-path\":\"/path/to/file.parquet\","
+            + "\"file-format\":\"PARQUET\","
+            + "\"partition\":{},"
+            + "\"file-size-in-bytes\":1,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned()));
+    assertThat(deserializedContentFile.format()).isEqualTo(FileFormat.PARQUET);
+  }
+
+  @ParameterizedTest
+  @MethodSource("enumContentTypeCases")
+  public void testEnumContentTypeSerialization(FileContent content, String expectedJsonContent)
+      throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,"
+            + "\"content\":\""
+            + content.name()
+            + "\","
+            + "\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"parquet\","
+            + "\"partition\":{},"
+            + "\"file-size-in-bytes\":1,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned()));
+    assertThat(deserializedContentFile.content()).isEqualTo(content);
+
+    String serializedStr =
+        ContentFileParser.toJson(deserializedContentFile, PartitionSpec.unpartitioned());
+    assertThat(serializedStr).contains("\"content\":\"" + expectedJsonContent + "\"");
+  }
+
+  private static Stream<Arguments> enumContentTypeCases() {
+    return Stream.of(
+        Arguments.of(FileContent.DATA, "data"),
+        Arguments.of(FileContent.POSITION_DELETES, "position-deletes"),
+        Arguments.of(FileContent.EQUALITY_DELETES, "equality-deletes"));
   }
 
   private static Stream<Arguments> provideSpecAndDataFile() {
@@ -271,18 +339,18 @@ public class TestContentFileParser {
 
   private static String dataFileJsonWithRequiredOnly(PartitionSpec spec) {
     if (spec.isUnpartitioned()) {
-      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\",\"file-format\":\"PARQUET\","
+      return "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\",\"file-format\":\"parquet\","
           + "\"partition\":[],\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0}";
     } else {
-      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\",\"file-format\":\"PARQUET\","
+      return "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\",\"file-format\":\"parquet\","
           + "\"partition\":[1],\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0}";
     }
   }
 
   private static String dataFileJsonWithAllOptional(PartitionSpec spec) {
     if (spec.isUnpartitioned()) {
-      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":[],\"file-size-in-bytes\":350,\"record-count\":10,"
+      return "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-with-stats.parquet\","
+          + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":350,\"record-count\":10,"
           + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
           + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
           + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
@@ -292,8 +360,8 @@ public class TestContentFileParser {
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     } else {
-      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":[1],\"file-size-in-bytes\":350,\"record-count\":10,"
+      return "{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-with-stats.parquet\","
+          + "\"file-format\":\"parquet\",\"partition\":[1],\"file-size-in-bytes\":350,\"record-count\":10,"
           + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
           + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
           + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
@@ -388,8 +456,8 @@ public class TestContentFileParser {
   }
 
   private static String deleteFileWithDataRefJson() {
-    return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.parquet\","
-        + "\"file-format\":\"PARQUET\",\"partition\":[4],\"file-size-in-bytes\":1234,"
+    return "{\"spec-id\":0,\"content\":\"position-deletes\",\"file-path\":\"/path/to/delete.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":[4],\"file-size-in-bytes\":1234,"
         + "\"record-count\":10,\"referenced-data-file\":\"/path/to/data/file.parquet\"}";
   }
 
@@ -414,8 +482,8 @@ public class TestContentFileParser {
   }
 
   private static String dvJson() {
-    return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.puffin\","
-        + "\"file-format\":\"PUFFIN\",\"partition\":[4],\"file-size-in-bytes\":1234,\"record-count\":10,"
+    return "{\"spec-id\":0,\"content\":\"position-deletes\",\"file-path\":\"/path/to/delete.puffin\","
+        + "\"file-format\":\"puffin\",\"partition\":[4],\"file-size-in-bytes\":1234,\"record-count\":10,"
         + "\"referenced-data-file\":\"/path/to/data/file.parquet\",\"content-offset\":4,\"content-size-in-bytes\":40}";
   }
 
@@ -487,18 +555,18 @@ public class TestContentFileParser {
 
   private static String deleteFileJsonWithRequiredOnly(PartitionSpec spec) {
     if (spec.isUnpartitioned()) {
-      return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete-a.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":[],\"file-size-in-bytes\":1234,\"record-count\":9}";
+      return "{\"spec-id\":0,\"content\":\"position-deletes\",\"file-path\":\"/path/to/delete-a.parquet\","
+          + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":1234,\"record-count\":9}";
     } else {
-      return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete-a.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":[9],\"file-size-in-bytes\":1234,\"record-count\":9}";
+      return "{\"spec-id\":0,\"content\":\"position-deletes\",\"file-path\":\"/path/to/delete-a.parquet\","
+          + "\"file-format\":\"parquet\",\"partition\":[9],\"file-size-in-bytes\":1234,\"record-count\":9}";
     }
   }
 
   private static String deleteFileJsonWithAllOptional(PartitionSpec spec) {
     if (spec.isUnpartitioned()) {
-      return "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/delete-with-stats.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":[],\"file-size-in-bytes\":1234,\"record-count\":10,"
+      return "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/delete-with-stats.parquet\","
+          + "\"file-format\":\"parquet\",\"partition\":[],\"file-size-in-bytes\":1234,\"record-count\":10,"
           + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
           + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
           + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
@@ -508,8 +576,8 @@ public class TestContentFileParser {
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
     } else {
-      return "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/delete-with-stats.parquet\","
-          + "\"file-format\":\"PARQUET\",\"partition\":[9],\"file-size-in-bytes\":1234,\"record-count\":10,"
+      return "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/delete-with-stats.parquet\","
+          + "\"file-format\":\"parquet\",\"partition\":[9],\"file-size-in-bytes\":1234,\"record-count\":10,"
           + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
           + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
           + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"

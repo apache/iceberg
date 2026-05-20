@@ -54,6 +54,7 @@ public class SparkWriteOptions {
   public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
 
   public static final String OUTPUT_SPEC_ID = "output-spec-id";
+  public static final String OUTPUT_SORT_ORDER_ID = "output-sort-order-id";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";
 
@@ -85,4 +86,10 @@ public class SparkWriteOptions {
 
   // Overrides the delete granularity
   public static final String DELETE_GRANULARITY = "delete-granularity";
+
+  // Controls whether to shred variant columns during write operations
+  public static final String SHRED_VARIANTS = "shred-variants";
+
+  // Controls the buffer size for variant schema inference during writes
+  public static final String VARIANT_INFERENCE_BUFFER_SIZE = "variant-inference-buffer-size";
 }

@@ -91,6 +91,15 @@ public class TestBase {
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  public static final DeleteFile FILE_A_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-a-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+
   static final DeleteFile FILE_A_DV =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
@@ -127,6 +136,14 @@ public class TestBase {
           .withPartitionPath("data_bucket=1") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  public static final DeleteFile FILE_B_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-b-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=1") // same partition as FILE_B
+          .withRecordCount(1)
+          .build();
   static final DeleteFile FILE_B_DV =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
@@ -154,6 +171,14 @@ public class TestBase {
           .withPartitionPath("data_bucket=2") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  public static final DeleteFile FILE_C_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-c-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=2") // same partition as FILE_C
+          .withRecordCount(1)
+          .build();
   static final DataFile FILE_D =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-d.parquet")
@@ -170,7 +195,7 @@ public class TestBase {
           .withPartitionPath("data_bucket=3") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_WITH_STATS =
+  public static final DataFile FILE_WITH_STATS =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-with-stats.parquet")
           .withMetrics(
@@ -420,6 +445,10 @@ public class TestBase {
     validateSnapshot(old, snap, null, newFiles);
   }
 
+  void validateSnapshot(Table validationTable, Snapshot old, Snapshot snap, DataFile... newFiles) {
+    validateSnapshot(validationTable, old, snap, null, newFiles);
+  }
+
   void validateSnapshot(Snapshot old, Snapshot snap, long sequenceNumber, DataFile... newFiles) {
     validateSnapshot(old, snap, (Long) sequenceNumber, newFiles);
   }
@@ -447,6 +476,16 @@ public class TestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
+    validateSnapshot(table, old, snap, sequenceNumber, newFiles);
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  void validateSnapshot(
+      Table validationTable,
+      Snapshot old,
+      Snapshot snap,
+      Long sequenceNumber,
+      DataFile... newFiles) {
     assertThat(old != null ? Sets.newHashSet(old.deleteManifests(FILE_IO)) : ImmutableSet.of())
         .as("Should not change delete manifests")
         .isEqualTo(Sets.newHashSet(snap.deleteManifests(FILE_IO)));
@@ -466,7 +505,8 @@ public class TestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, validationTable.specs()).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
@@ -504,7 +544,9 @@ public class TestBase {
 
     assertThat(newPaths.hasNext()).as("Should find all files in the manifest").isFalse();
 
-    assertThat(snap.schemaId()).as("Schema ID should match").isEqualTo(table.schema().schemaId());
+    assertThat(snap.schemaId())
+        .as("Schema ID should match")
+        .isEqualTo(validationTable.schema().schemaId());
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
@@ -578,7 +620,8 @@ public class TestBase {
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
 
@@ -604,7 +647,7 @@ public class TestBase {
       Iterator<DeleteFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DeleteFile> entry :
-        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs()).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
 
@@ -762,12 +805,23 @@ public class TestBase {
     }
   }
 
-  static void validateManifestEntries(
+  void validateManifestEntries(
       ManifestFile manifest,
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    validateManifestEntries(table, manifest, ids, expectedFiles, expectedStatuses);
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  void validateManifestEntries(
+      Table validationTable,
+      ManifestFile manifest,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> expectedStatuses) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, validationTable.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
@@ -821,8 +875,8 @@ public class TestBase {
     return Iterators.forArray(files);
   }
 
-  static Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestFiles.read(manifest, FILE_IO).iterator();
+  Iterator<DataFile> files(ManifestFile manifest) {
+    return ManifestFiles.read(manifest, FILE_IO, table.specs()).iterator();
   }
 
   static long recordCount(ContentFile<?>... files) {

@@ -21,7 +21,7 @@ package org.apache.iceberg;
 /**
  * Configuration properties that are controlled by Java system properties.
  *
- * @deprecated Use {@link SystemConfigs} instead; will be removed in 2.0.0
+ * @deprecated Use {@link SystemConfigs} instead; will be removed in 1.12.0
  */
 @Deprecated
 public class SystemProperties {

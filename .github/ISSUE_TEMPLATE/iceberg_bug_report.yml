@@ -34,7 +34,10 @@ body:
       description: What Apache Iceberg version are you using?
       multiple: false
       options:
-        - "1.10.0 (latest release)"
+        - "1.11.0 (latest release)"
+        - "1.10.2"
+        - "1.10.1"
+        - "1.10.0"
         - "1.9.2"
         - "1.9.1"
         - "1.9.0"

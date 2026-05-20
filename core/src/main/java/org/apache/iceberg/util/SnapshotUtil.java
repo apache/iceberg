@@ -23,10 +23,12 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -283,8 +285,8 @@ public class SnapshotUtil {
   }
 
   /**
-   * @deprecated will be removed in 2.0.0, use {@link #newFilesBetween(Long, long, Function,
-   *     FileIO)} instead.
+   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
+   *     #ancestorsBetween(long, Long, Function)} instead.
    */
   @Deprecated
   public static List<DataFile> newFiles(
@@ -309,6 +311,11 @@ public class SnapshotUtil {
     return newFiles;
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0, use {@link SnapshotChanges} with {@link
+   *     #ancestorsBetween(long, Long, Function)} instead.
+   */
+  @Deprecated
   public static CloseableIterable<DataFile> newFilesBetween(
       Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
 
@@ -395,11 +402,18 @@ public class SnapshotUtil {
   /**
    * Returns the schema of the table for the specified snapshot.
    *
+   * <p>Note that metadata tables may support time travel but don't inherit the snapshot schema,
+   * unlike normal data scans.
+   *
    * @param table a {@link Table}
    * @param snapshotId the ID of the snapshot
    * @return the schema
    */
   public static Schema schemaFor(Table table, long snapshotId) {
+    if (table instanceof BaseMetadataTable) {
+      return table.schema();
+    }
+
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Cannot find snapshot with ID %s", snapshotId);
     Integer schemaId = snapshot.schemaId();

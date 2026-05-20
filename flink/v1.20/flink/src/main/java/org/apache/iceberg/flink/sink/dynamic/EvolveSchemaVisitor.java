@@ -21,10 +21,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Visitor class that accumulates the set of changes needed to evolve an existing schema into the
@@ -36,30 +39,42 @@ import org.apache.iceberg.types.Types;
  *   <li>Adding new columns
  *   <li>Widening the type of existing columsn
  *   <li>Reordering columns
+ *   <li>Dropping columns (when dropUnusedColumns is enabled)
  * </ul>
  *
  * We don't support:
  *
  * <ul>
- *   <li>Dropping columns
  *   <li>Renaming columns
  * </ul>
  *
- * The reason is that dropping columns would create issues with late / out of order data. Once we
- * drop fields, we wouldn't be able to easily add them back later without losing the associated
- * data. Renaming columns is not supported because we compare schemas by name, which doesn't allow
- * for renaming without additional hints.
+ * By default, any columns present in the table but absent from the input schema are marked as
+ * optional to prevent issues caused by late or out-of-order data. If dropUnusedColumns is enabled,
+ * these columns are removed instead to ensure a strict one-to-one schema alignment.
  */
 public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boolean> {
 
+  private static final Logger LOG = LoggerFactory.getLogger(EvolveSchemaVisitor.class);
+  private final TableIdentifier identifier;
   private final UpdateSchema api;
   private final Schema existingSchema;
   private final Schema targetSchema;
+  private final boolean caseSensitive;
+  private final boolean dropUnusedColumns;
 
-  private EvolveSchemaVisitor(UpdateSchema api, Schema existingSchema, Schema targetSchema) {
-    this.api = api;
+  private EvolveSchemaVisitor(
+      TableIdentifier identifier,
+      UpdateSchema api,
+      Schema existingSchema,
+      Schema targetSchema,
+      boolean caseSensitive,
+      boolean dropUnusedColumns) {
+    this.identifier = identifier;
+    this.api = api.caseSensitive(caseSensitive);
     this.existingSchema = existingSchema;
     this.targetSchema = targetSchema;
+    this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
   /**
@@ -70,13 +85,22 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
    * @param api an UpdateSchema for adding changes
    * @param existingSchema an existing schema
    * @param targetSchema a new schema to compare with the existing
+   * @param caseSensitive whether field name matching should be case-sensitive
+   * @param dropUnusedColumns whether to drop columns not present in target schema
    */
-  public static void visit(UpdateSchema api, Schema existingSchema, Schema targetSchema) {
+  public static void visit(
+      TableIdentifier identifier,
+      UpdateSchema api,
+      Schema existingSchema,
+      Schema targetSchema,
+      boolean caseSensitive,
+      boolean dropUnusedColumns) {
     visit(
         targetSchema,
         -1,
-        new EvolveSchemaVisitor(api, existingSchema, targetSchema),
-        new CompareSchemasVisitor.PartnerIdByNameAccessors(existingSchema));
+        new EvolveSchemaVisitor(
+            identifier, api, existingSchema, targetSchema, caseSensitive, dropUnusedColumns),
+        new CompareSchemasVisitor.PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
   @Override
@@ -89,25 +113,36 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     Types.StructType partnerStruct = findFieldType(partnerId).asStructType();
     String after = null;
     for (Types.NestedField targetField : struct.fields()) {
-      Types.NestedField nestedField = partnerStruct.field(targetField.name());
+      Types.NestedField nestedField =
+          CompareSchemasVisitor.getFieldFromStruct(
+              targetField.name(), partnerStruct, caseSensitive);
       final String columnName;
       if (nestedField != null) {
         updateColumn(nestedField, targetField);
         columnName = this.existingSchema.findColumnName(nestedField.fieldId());
       } else {
         addColumn(partnerId, targetField);
-        columnName = this.targetSchema.findColumnName(targetField.fieldId());
+        columnName = targetSchema.findColumnName(targetField.fieldId());
       }
 
       setPosition(columnName, after);
       after = columnName;
     }
 
-    // Ensure that unused fields are made optional
     for (Types.NestedField existingField : partnerStruct.fields()) {
-      if (struct.field(existingField.name()) == null) {
-        if (existingField.isRequired()) {
-          this.api.makeColumnOptional(this.existingSchema.findColumnName(existingField.fieldId()));
+      Types.NestedField targetField =
+          caseSensitive
+              ? struct.field(existingField.name())
+              : struct.caseInsensitiveField(existingField.name());
+      if (targetField == null) {
+        String columnName = this.existingSchema.findColumnName(existingField.fieldId());
+        if (dropUnusedColumns) {
+          LOG.debug("{}: Dropping column: {}", identifier.name(), columnName);
+          this.api.deleteColumn(columnName);
+        } else {
+          if (existingField.isRequired()) {
+            this.api.makeColumnOptional(columnName);
+          }
         }
       }
     }

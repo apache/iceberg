@@ -124,6 +124,10 @@ TriggerLockFactory lockFactory = new ZkLockFactory(
 );
 ```
 
+#### Flink-maintained lock
+
+Maintain the lock within Flink itself. This does not require configuring external systems. The only prerequisite is that there are no parallel table maintenance jobs for a given table.
+
 ### Quick Start
 
 The following example demonstrates the implementation of automated maintenance for an Iceberg table within a Flink environment.
@@ -147,7 +151,10 @@ TriggerLockFactory lockFactory = new JdbcLockFactory(
     jdbcProps                                   // JDBC connection properties
 );
 
+// Option 1: With external lock factory (plan to deprecate this Option since 1.12)
 TableMaintenance.forTable(env, tableLoader, lockFactory)
+// Option 2: With Flink-managed lock (no external lock required)
+TableMaintenance.forTable(env, tableLoader)
     .uidSuffix("my-maintenance-job")
     .rateLimit(Duration.ofMinutes(10))
     .lockCheckDelay(Duration.ofSeconds(10))
@@ -200,7 +207,7 @@ env.execute("Table Maintenance Job");
 | `retainLast(int)` | Minimum number of snapshots to retain | 1 | int |
 | `deleteBatchSize(int)` | Number of files to delete in each batch | 1000 | int |
 | `planningWorkerPoolSize(int)` | Number of worker threads for planning snapshot expiration | Shared worker pool | int |
-| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | false | boolean |
+| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | true | boolean |
 
 #### RewriteDataFiles Configuration
 
@@ -218,13 +225,14 @@ env.execute("Table Maintenance Job");
 | `partialProgressMaxCommits(int)` | Maximum commits allowed for partial progress when partialProgressEnabled is true | 10 | int |
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
 | `filter(Expression)` | Filter expression for selecting files to rewrite | Expressions.alwaysTrue() | Expression |
+| `maxFileGroupInputFiles(long)`         | Maximum allowed number of input files within a file group                                              | Long.MAX_VALUE | long |
 
 #### DeleteOrphanFiles Configuration
 
 | Method                                   | Description                                                                                                                                                                                                                                                                                                                                                             | Default Value           | Type               |
 |------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|--------------------|
-| `location(string)`                       | The location to start the recursive listing the candidate files for removal.                                                                                                                                                                                                                                                                                            | Table's location        | String             |
-| `usePrefixListing(boolean)`              | When true, use prefix-based file listing via the SupportsPrefixOperations interface. The Table FileIO implementation must support SupportsPrefixOperations when this flag is enabled.(Note: Setting it to False will use a recursive method to obtain file information. If the underlying storage is object storage, it will repeatedly call the API to get the path.)  | False                   | boolean            |
+| `location(string)`                       | The location to start the recursive listing of the candidate files for removal.                                                                                                                                                                                                                                                                                            | Table's location        | String             |
+| `usePrefixListing(boolean)`              | When true, use prefix-based file listing via the SupportsPrefixOperations interface. The Table FileIO implementation must support SupportsPrefixOperations when this flag is enabled.(Note: Setting it to False will use a recursive method to obtain file information. If the underlying storage is object storage, it will repeatedly call the API to get the path.)  | True                    | boolean            |
 | `prefixMismatchMode(PrefixMismatchMode)` | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul>                                                                                                                                                                                        | ERROR                   | PrefixMismatchMode |
 | `equalSchemes(Map<String, String>)`      | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme                                                                                                                                                                                                                                                   | "s3n"=>"s3","s3a"=>"s3" | Map<String,String> |  
 | `equalAuthorities(Map<String, String>)`  | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                                                                                                                                                                                                      | Empty map               | Map<String,String> |  
@@ -294,19 +302,50 @@ public class TableMaintenanceJob {
 
 Apache Iceberg Sink V2 for Flink allows automatic execution of maintenance tasks after data is committed to the table, using the addPostCommitTopology(...) method.
 
+#### DataStream API
+
+##### Builder
+
+```java
+IcebergSink.forRowData(dataStream)
+    .table(table)
+    .tableLoader(tableLoader)
+    .rewriteDataFiles(Map.of(
+        RewriteDataFilesConfig.MAX_BYTES, "1073741824"))
+    .expireSnapshots(Map.of(
+        ExpireSnapshotsConfig.RETAIN_LAST, "5",
+        ExpireSnapshotsConfig.MAX_SNAPSHOT_AGE_SECONDS, "604800"))
+    .deleteOrphanFiles(Map.of(
+        DeleteOrphanFilesConfig.MIN_AGE_SECONDS, "259200"))
+    .append();
+```
+
+##### Config
+
+All maintenance tasks are configured through string properties:
+
 ```java
 Map<String, String> flinkConf = new HashMap<>();
 
-// Enable compaction and maintenance features
-flinkConf.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
+// Enable maintenance tasks
+flinkConf.put("flink-maintenance.rewrite.enabled", "true");
+flinkConf.put("flink-maintenance.expire-snapshots.enabled", "true");
+flinkConf.put("flink-maintenance.delete-orphan-files.enabled", "true");
 
-// Configure JDBC lock settings
-flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
-flinkConf.put(LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(), "jdbc:postgresql://localhost:5432/iceberg");
-flinkConf.put(LockConfig.LOCK_ID_OPTION.key(), "catalog.db.table");
+// Configure rewrite data files
+flinkConf.put("flink-maintenance.rewrite.max-bytes", "1073741824");
 
-// Add any other maintenance-related options here as needed
-// ...
+// Configure expire snapshots
+flinkConf.put("flink-maintenance.expire-snapshots.retain-last", "5");
+flinkConf.put("flink-maintenance.expire-snapshots.max-snapshot-age-seconds", "604800");
+
+// Configure delete orphan files
+flinkConf.put("flink-maintenance.delete-orphan-files.min-age-seconds", "259200");
+
+// Configure JDBC lock settings (deprecated, lock configuration is no longer required for a single Flink job)
+flinkConf.put("flink-maintenance.lock.type", "jdbc");
+flinkConf.put("flink-maintenance.lock.jdbc.uri", "jdbc:postgresql://localhost:5432/iceberg");
+flinkConf.put("flink-maintenance.lock.lock-id", "catalog.db.table");
 
 IcebergSink.forRowData(dataStream)
     .table(table)
@@ -320,9 +359,20 @@ IcebergSink.forRowData(dataStream)
 You can enable maintenance and configure locks using SQL before executing writes:
 
 ```sql
--- Enable Iceberg V2 Sink and compaction (maintenance)
+-- Enable Iceberg V2 Sink and maintenance tasks
 SET 'table.exec.iceberg.use.v2.sink' = 'true';
-SET 'compaction-enabled' = 'true';
+SET 'flink-maintenance.rewrite.enabled' = 'true';
+SET 'flink-maintenance.expire-snapshots.enabled' = 'true';
+SET 'flink-maintenance.delete-orphan-files.enabled' = 'true';
+
+-- Configure rewrite data files
+SET 'flink-maintenance.rewrite.max-bytes' = '1073741824';
+
+-- Configure expire snapshots
+SET 'flink-maintenance.expire-snapshots.retain-last' = '5';
+
+-- Configure delete orphan files
+SET 'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200';
 
 -- Configure maintenance lock (JDBC)
 SET 'flink-maintenance.lock.type' = 'jdbc';
@@ -344,7 +394,13 @@ CREATE TABLE db.tbl (
   'catalog-name' = 'my_catalog',
   'catalog-database' = 'db',
   'catalog-table' = 'tbl',
-  'compaction-enabled' = 'true',
+  'flink-maintenance.rewrite.enabled' = 'true',
+  'flink-maintenance.expire-snapshots.enabled' = 'true',
+  'flink-maintenance.delete-orphan-files.enabled' = 'true',
+
+  'flink-maintenance.rewrite.max-bytes' = '1073741824',
+  'flink-maintenance.expire-snapshots.retain-last' = '5',
+  'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200',
 
   'flink-maintenance.lock.type' = 'jdbc',
   'flink-maintenance.lock.lock-id' = 'catalog.db.table',
@@ -353,9 +409,59 @@ CREATE TABLE db.tbl (
 );
 ```
 
+### IcebergSink Maintenance Configuration (SQL)
+
+These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Builder.set()` / `setAll()`.
+
+#### Enable Flags
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.rewrite.enabled` | Enable compaction (rewrite data files) | `false` |
+| `flink-maintenance.expire-snapshots.enabled` | Enable expire snapshots | `false` |
+| `flink-maintenance.delete-orphan-files.enabled` | Enable delete orphan files | `false` |
+
+#### Rewrite Data Files Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.rewrite.schedule.commit-count` | Trigger after N commits | `10` |
+| `flink-maintenance.rewrite.schedule.data-file-count` | Trigger after N data files | `1000` |
+| `flink-maintenance.rewrite.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
+| `flink-maintenance.rewrite.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
+| `flink-maintenance.rewrite.max-bytes` | Maximum bytes to rewrite per execution | `Long.MAX_VALUE` |
+| `flink-maintenance.rewrite.partial-progress.enabled` | Enable partial progress commits | `false` |
+| `flink-maintenance.rewrite.partial-progress.max-commits` | Maximum commits for partial progress | `10` |
+
+#### Expire Snapshots Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.expire-snapshots.schedule.commit-count` | Trigger after N commits | `10` |
+| `flink-maintenance.expire-snapshots.schedule.interval-second` | Trigger after time interval (seconds) | `3600` (1 hour) |
+| `flink-maintenance.expire-snapshots.max-snapshot-age-seconds` | Maximum age of snapshots to retain (seconds) | Not set |
+| `flink-maintenance.expire-snapshots.retain-last` | Minimum number of snapshots to retain | Not set |
+| `flink-maintenance.expire-snapshots.delete-batch-size` | Batch size for deleting expired files | `1000` |
+| `flink-maintenance.expire-snapshots.clean-expired-metadata` | Remove expired metadata (partition specs, schemas) | `true` |
+| `flink-maintenance.expire-snapshots.planning-worker-pool-size` | Worker pool size for planning | Shared pool |
+
+#### Delete Orphan Files Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.delete-orphan-files.schedule.interval-second` | Trigger after time interval (seconds) | `3600` (1 hour) |
+| `flink-maintenance.delete-orphan-files.min-age-seconds` | Minimum age of files to consider for deletion (seconds) | `259200` (3 days) |
+| `flink-maintenance.delete-orphan-files.delete-batch-size` | Batch size for deleting orphan files | `1000` |
+| `flink-maintenance.delete-orphan-files.location` | Location to start recursive listing | Table location |
+| `flink-maintenance.delete-orphan-files.use-prefix-listing` | Use prefix listing for file discovery | `true` |
+| `flink-maintenance.delete-orphan-files.planning-worker-pool-size` | Worker pool size for planning | Shared pool |
+| `flink-maintenance.delete-orphan-files.equal-schemes` | Equivalent schemes (format: `s3n=s3,s3a=s3`) | `s3n=s3,s3a=s3` |
+| `flink-maintenance.delete-orphan-files.equal-authorities` | Equivalent authorities (format: `auth1=auth2`) | Not set |
+| `flink-maintenance.delete-orphan-files.prefix-mismatch-mode` | Behavior on prefix mismatch: `ERROR`, `IGNORE`, `DELETE` | `ERROR` |
+
 ### Lock Configuration (SQL)
 
-These keys are used in SQL (SET or table WITH options) and are applicable when writing with compaction enabled.
+These keys are used in SQL (SET or table WITH options) and are applicable when writing with maintenance enabled.
 
 - JDBC
 
@@ -379,6 +485,12 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 | `flink-maintenance.lock.zookeeper.base-sleep-ms` | Base sleep between retries (ms) | `3000` |
 | `flink-maintenance.lock.zookeeper.max-sleep-ms`          | Maximum sleep time (ms) between retries. Caps the exponential backoff delay.  | `10000` |
 | `flink-maintenance.lock.zookeeper.retry-policy`          | Retry policy name for ZooKeeper client. Supported values include: ONE_TIME, N_TIME, BOUNDED_EXPONENTIAL_BACKOFF, UNTIL_ELAPSED, EXPONENTIAL_BACKOFF.  | `EXPONENTIAL_BACKOFF` |
+
+- COORDINATOR LOCK
+
+| Key | Description          | Default |
+|-----|----------------------|---------|
+| `flink-maintenance.lock.type` | Set to `` or not set |  |
 
 ### Best Practices
 

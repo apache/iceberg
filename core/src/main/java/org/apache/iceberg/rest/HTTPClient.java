@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
@@ -29,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import javax.net.ssl.HostnameVerifier;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
@@ -43,6 +43,7 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -299,6 +300,7 @@ public class HTTPClient extends BaseHTTPClient {
         req, responseType, errorHandler, responseHeaders, ParserContext.builder().build());
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   protected <T extends RESTResponse> T execute(
       HTTPRequest req,
@@ -326,35 +328,36 @@ public class HTTPClient extends BaseHTTPClient {
 
       // Skip parsing the response stream for any successful request not expecting a response body
       if (emptyBody(response, responseType)) {
+        if (response.getCode() == HttpStatus.SC_NOT_MODIFIED
+            && !req.headers().contains(HttpHeaders.IF_NONE_MATCH)) {
+          // 304-NOT_MODIFIED is used for freshness-aware loading and requires an ETag sent to the
+          // server via IF_NONE_MATCH header in the request. If no ETag was sent, we shouldn't
+          // receive a 304.
+          throw new RESTException(
+              "Invalid (NOT_MODIFIED) response for request: method=%s, path=%s",
+              req.method(), req.path());
+        }
+
         return null;
       }
 
-      String responseBody = extractResponseBodyAsString(response);
-
       if (!isSuccessful(response)) {
         // The provided error handler is expected to throw, but a RESTException is thrown if not.
+        String responseBody = extractResponseBodyAsString(response);
         throwFailure(response, responseBody, errorHandler);
       }
 
-      if (responseBody == null) {
+      if (response.getEntity() == null) {
         throw new RESTException(
             "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
             responseType.getSimpleName(), req.method(), req.path(), response.getCode());
       }
 
-      try {
-        ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
-        if (parserContext != null && !parserContext.isEmpty()) {
-          reader = reader.with(parserContext.toInjectableValues());
-        }
-        return reader.readValue(responseBody);
-      } catch (JsonProcessingException e) {
-        throw new RESTException(
-            e,
-            "Received a success response code of %d, but failed to parse response body into %s",
-            response.getCode(),
-            responseType.getSimpleName());
+      ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
+      if (parserContext != null && !parserContext.isEmpty()) {
+        reader = reader.with(parserContext.toInjectableValues());
       }
+      return reader.readValue(response.getEntity().getContent());
     } catch (IOException e) {
       throw new RESTException(e, "Error occurred while processing %s request", req.method());
     }
@@ -399,13 +402,19 @@ public class HTTPClient extends BaseHTTPClient {
 
     TLSConfigurer tlsConfigurer = loadTlsConfigurer(properties);
     if (tlsConfigurer != null) {
+      HostnameVerifier customVerifier = tlsConfigurer.hostnameVerifier();
+      HostnameVerificationPolicy verificationPolicy =
+          customVerifier != null
+              ? HostnameVerificationPolicy.CLIENT
+              : HostnameVerificationPolicy.BUILTIN;
       connectionManagerBuilder.setTlsSocketStrategy(
           new DefaultClientTlsStrategy(
               tlsConfigurer.sslContext(),
               tlsConfigurer.supportedProtocols(),
               tlsConfigurer.supportedCipherSuites(),
               SSLBufferMode.STATIC,
-              tlsConfigurer.hostnameVerifier()));
+              verificationPolicy,
+              customVerifier));
     }
 
     return connectionManagerBuilder.build();

@@ -1,0 +1,159 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.formats;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.FileWriter;
+import org.apache.iceberg.util.ArrayUtil;
+
+/**
+ * A generic builder interface for creating specialized file writers in the Iceberg ecosystem.
+ *
+ * <p>This builder provides a unified configuration API for generating various types of content
+ * writers:
+ *
+ * <ul>
+ *   <li>{@link DataWriter} for creating data files with table records
+ *   <li>{@link EqualityDeleteWriter} for creating files with equality-based delete records
+ *   <li>{@link PositionDeleteWriter} for creating files with position-based delete records
+ * </ul>
+ *
+ * <p>Each concrete implementation configures the underlying file format writer while adding
+ * content-specific metadata and behaviors.
+ *
+ * @param <W> the concrete writer type the builder produces
+ * @param <S> the type of the engine schema for the input data
+ */
+public interface FileWriterBuilder<W extends FileWriter<?, ?>, S> {
+
+  /**
+   * Set a writer configuration property which affects the writer behavior.
+   *
+   * @param property a writer config property name
+   * @param value config value
+   * @return this for method chaining
+   */
+  FileWriterBuilder<W, S> set(String property, String value);
+
+  /**
+   * Adds the new properties to the writer configuration.
+   *
+   * @param properties a map of writer config properties
+   * @return this for method chaining
+   */
+  default FileWriterBuilder<W, S> setAll(Map<String, String> properties) {
+    properties.forEach(this::set);
+    return this;
+  }
+
+  /**
+   * Set a file metadata property in the created file.
+   *
+   * @param property a file metadata property name
+   * @param value config value
+   * @return this for method chaining
+   */
+  FileWriterBuilder<W, S> meta(String property, String value);
+
+  /**
+   * Add the new properties to file metadata for the created file.
+   *
+   * @param properties a map of file metadata properties
+   * @return this for method chaining
+   */
+  default FileWriterBuilder<W, S> meta(Map<String, String> properties) {
+    properties.forEach(this::meta);
+    return this;
+  }
+
+  /** Sets the metrics configuration used for collecting column metrics for the created file. */
+  FileWriterBuilder<W, S> metricsConfig(MetricsConfig metricsConfig);
+
+  /** Overwrite the file if it already exists. By default, overwrite is disabled. */
+  FileWriterBuilder<W, S> overwrite();
+
+  /**
+   * Sets the encryption key used for writing the file. If the writer does not support encryption,
+   * then an exception should be thrown.
+   */
+  FileWriterBuilder<W, S> withFileEncryptionKey(ByteBuffer encryptionKey);
+
+  /**
+   * Sets the additional authentication data (AAD) prefix used for writing the file. If the writer
+   * does not support encryption, then an exception should be thrown.
+   */
+  FileWriterBuilder<W, S> withAADPrefix(ByteBuffer aadPrefix);
+
+  /** Sets the partition specification for the Iceberg metadata. */
+  FileWriterBuilder<W, S> spec(PartitionSpec newSpec);
+
+  /** Sets the partition value for the Iceberg metadata. */
+  FileWriterBuilder<W, S> partition(StructLike partition);
+
+  /** Sets the encryption key metadata for Iceberg metadata. */
+  FileWriterBuilder<W, S> keyMetadata(EncryptionKeyMetadata keyMetadata);
+
+  /** Sets the sort order for the Iceberg metadata. */
+  FileWriterBuilder<W, S> sortOrder(SortOrder sortOrder);
+
+  /** Set the file schema. */
+  FileWriterBuilder<W, S> schema(Schema schema);
+
+  /**
+   * Sets the engine-specific schema that describes records accepted by the writer.
+   *
+   * <p>Some data types require additional type information from the engine schema that cannot be
+   * fully expressed by the Iceberg schema or the data itself. For example, an engine's tinyint or
+   * smallint types are mapped to Iceberg's integer type, but the writer may need the original type
+   * for proper serialization. Similarly, a variant type may use a shredded representation that
+   * relies on engine-specific metadata to map back to the Iceberg schema.
+   *
+   * <p>The engine schema must be aligned with the Iceberg schema, but may include representation
+   * details that Iceberg considers equivalent.
+   */
+  FileWriterBuilder<W, S> engineSchema(S schema);
+
+  /**
+   * Sets the equality field ids for the equality delete writer. Only applicable when building an
+   * {@link EqualityDeleteWriter}.
+   */
+  default FileWriterBuilder<W, S> equalityFieldIds(List<Integer> fieldIds) {
+    return equalityFieldIds(ArrayUtil.toIntArray(fieldIds));
+  }
+
+  /**
+   * Sets the equality field ids for the equality delete writer. Only applicable when building an
+   * {@link EqualityDeleteWriter}.
+   */
+  FileWriterBuilder<W, S> equalityFieldIds(int... fieldIds);
+
+  W build() throws IOException;
+}

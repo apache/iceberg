@@ -210,8 +210,8 @@ public class TestPlanTableScanResponseParser {
     String invalidJson =
         "{\"status\":\"submitted\","
             + "\"plan-id\":\"somePlanId\","
-            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
-            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
+            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
+            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
             + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1}]"
             + "}";
 
@@ -238,18 +238,17 @@ public class TestPlanTableScanResponseParser {
         PlanTableScanResponse.builder()
             .withPlanStatus(PlanStatus.COMPLETED)
             .withFileScanTasks(List.of(fileScanTask))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
     String expectedToJson =
         "{\"status\":\"completed\","
-            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
-            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
+            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
+            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
             + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1}],"
             + "\"file-scan-tasks\":["
-            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":[0],"
+            + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[0],"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
             + "\"delete-file-references\":[0],"
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
@@ -307,7 +306,6 @@ public class TestPlanTableScanResponseParser {
         PlanTableScanResponse.builder()
             .withPlanStatus(PlanStatus.COMPLETED)
             .withFileScanTasks(List.of(taskA, taskB, taskC))
-            .withDeleteFiles(List.of(FILE_A_DELETES, FILE_B_DELETES, FILE_C2_DELETES))
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
@@ -316,25 +314,25 @@ public class TestPlanTableScanResponseParser {
             + "  \"status\" : \"completed\",\n"
             + "  \"delete-files\" : [ {\n"
             + "    \"spec-id\" : 0,\n"
-            + "    \"content\" : \"POSITION_DELETES\",\n"
+            + "    \"content\" : \"position-deletes\",\n"
             + "    \"file-path\" : \"/path/to/data-a-deletes.parquet\",\n"
-            + "    \"file-format\" : \"PARQUET\",\n"
+            + "    \"file-format\" : \"parquet\",\n"
             + "    \"partition\" : [ 0 ],\n"
             + "    \"file-size-in-bytes\" : 10,\n"
             + "    \"record-count\" : 1\n"
             + "  }, {\n"
             + "    \"spec-id\" : 0,\n"
-            + "    \"content\" : \"POSITION_DELETES\",\n"
+            + "    \"content\" : \"position-deletes\",\n"
             + "    \"file-path\" : \"/path/to/data-b-deletes.parquet\",\n"
-            + "    \"file-format\" : \"PARQUET\",\n"
+            + "    \"file-format\" : \"parquet\",\n"
             + "    \"partition\" : [ 1 ],\n"
             + "    \"file-size-in-bytes\" : 10,\n"
             + "    \"record-count\" : 1\n"
             + "  }, {\n"
             + "    \"spec-id\" : 0,\n"
-            + "    \"content\" : \"EQUALITY_DELETES\",\n"
+            + "    \"content\" : \"equality-deletes\",\n"
             + "    \"file-path\" : \"/path/to/data-c-deletes.parquet\",\n"
-            + "    \"file-format\" : \"PARQUET\",\n"
+            + "    \"file-format\" : \"parquet\",\n"
             + "    \"partition\" : [ 2 ],\n"
             + "    \"file-size-in-bytes\" : 10,\n"
             + "    \"record-count\" : 1,\n"
@@ -344,9 +342,9 @@ public class TestPlanTableScanResponseParser {
             + "  \"file-scan-tasks\" : [ {\n"
             + "    \"data-file\" : {\n"
             + "      \"spec-id\" : 0,\n"
-            + "      \"content\" : \"DATA\",\n"
+            + "      \"content\" : \"data\",\n"
             + "      \"file-path\" : \"/path/to/data-a.parquet\",\n"
-            + "      \"file-format\" : \"PARQUET\",\n"
+            + "      \"file-format\" : \"parquet\",\n"
             + "      \"partition\" : [ 0 ],\n"
             + "      \"file-size-in-bytes\" : 10,\n"
             + "      \"record-count\" : 1,\n"
@@ -357,9 +355,9 @@ public class TestPlanTableScanResponseParser {
             + "  }, {\n"
             + "    \"data-file\" : {\n"
             + "      \"spec-id\" : 0,\n"
-            + "      \"content\" : \"DATA\",\n"
+            + "      \"content\" : \"data\",\n"
             + "      \"file-path\" : \"/path/to/data-b.parquet\",\n"
-            + "      \"file-format\" : \"PARQUET\",\n"
+            + "      \"file-format\" : \"parquet\",\n"
             + "      \"partition\" : [ 1 ],\n"
             + "      \"file-size-in-bytes\" : 10,\n"
             + "      \"record-count\" : 1,\n"
@@ -371,9 +369,9 @@ public class TestPlanTableScanResponseParser {
             + "  }, {\n"
             + "    \"data-file\" : {\n"
             + "      \"spec-id\" : 0,\n"
-            + "      \"content\" : \"DATA\",\n"
+            + "      \"content\" : \"data\",\n"
             + "      \"file-path\" : \"/path/to/data-c.parquet\",\n"
-            + "      \"file-format\" : \"PARQUET\",\n"
+            + "      \"file-format\" : \"parquet\",\n"
             + "      \"partition\" : [ 2 ],\n"
             + "      \"file-size-in-bytes\" : 10,\n"
             + "      \"record-count\" : 1,\n"
@@ -409,8 +407,8 @@ public class TestPlanTableScanResponseParser {
     String expectedJson =
         "{\"status\":\"completed\","
             + "\"file-scan-tasks\":["
-            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":[0],"
+            + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[0],"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
             + "}";
@@ -425,7 +423,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -578,7 +575,6 @@ public class TestPlanTableScanResponseParser {
         PlanTableScanResponse.builder()
             .withPlanStatus(PlanStatus.COMPLETED)
             .withFileScanTasks(List.of(fileScanTask))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .withCredentials(credentials)
             .build();
@@ -608,9 +604,9 @@ public class TestPlanTableScanResponseParser {
             + "  } ],\n"
             + "  \"delete-files\" : [ {\n"
             + "    \"spec-id\" : 0,\n"
-            + "    \"content\" : \"POSITION_DELETES\",\n"
+            + "    \"content\" : \"position-deletes\",\n"
             + "    \"file-path\" : \"/path/to/data-a-deletes.parquet\",\n"
-            + "    \"file-format\" : \"PARQUET\",\n"
+            + "    \"file-format\" : \"parquet\",\n"
             + "    \"partition\" : [ 0 ],\n"
             + "    \"file-size-in-bytes\" : 10,\n"
             + "    \"record-count\" : 1\n"
@@ -618,9 +614,9 @@ public class TestPlanTableScanResponseParser {
             + "  \"file-scan-tasks\" : [ {\n"
             + "    \"data-file\" : {\n"
             + "      \"spec-id\" : 0,\n"
-            + "      \"content\" : \"DATA\",\n"
+            + "      \"content\" : \"data\",\n"
             + "      \"file-path\" : \"/path/to/data-a.parquet\",\n"
-            + "      \"file-format\" : \"PARQUET\",\n"
+            + "      \"file-format\" : \"parquet\",\n"
             + "      \"partition\" : [ 0 ],\n"
             + "      \"file-size-in-bytes\" : 10,\n"
             + "      \"record-count\" : 1,\n"
@@ -645,12 +641,79 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .withCredentials(credentials)
             .build();
 
     assertThat(PlanTableScanResponseParser.toJson(copyResponse, true)).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithFailedStatusAndErrorResponse() {
+    ErrorResponse errorResponse =
+        ErrorResponse.builder()
+            .withMessage("Scan planning failed: table too large to plan")
+            .withType("IllegalStateException")
+            .responseCode(500)
+            .build();
+
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.FAILED)
+            .withErrorResponse(errorResponse)
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+
+    String expectedJson =
+        "{\"status\":\"failed\","
+            + "\"error\":{\"message\":\"Scan planning failed: table too large to plan\","
+            + "\"type\":\"IllegalStateException\",\"code\":500}}";
+    String json = PlanTableScanResponseParser.toJson(response);
+    assertThat(json).isEqualTo(expectedJson);
+
+    PlanTableScanResponse fromResponse =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(fromResponse.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(fromResponse.errorResponse()).isNotNull();
+    assertThat(fromResponse.errorResponse().message())
+        .isEqualTo("Scan planning failed: table too large to plan");
+    assertThat(fromResponse.errorResponse().type()).isEqualTo("IllegalStateException");
+    assertThat(fromResponse.errorResponse().code()).isEqualTo(500);
+  }
+
+  @Test
+  public void parseFailedStatusWithoutErrorObject() {
+    // Spec requires an `error` object on failed responses, but parse leniently so
+    // a non-compliant server still surfaces the failure to the client.
+    String json = "{\"status\":\"failed\"}";
+    PlanTableScanResponse response =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void parseFailedStatusWithPrimitiveErrorField() {
+    String json = "{\"status\":\"failed\",\"error\":\"oops\"}";
+    PlanTableScanResponse response =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void cannotBuildWithErrorResponseWhenStatusIsNotFailed() {
+    ErrorResponse errorResponse =
+        ErrorResponse.builder().withMessage("boom").withType("X").responseCode(500).build();
+    assertThatThrownBy(
+            () ->
+                PlanTableScanResponse.builder()
+                    .withPlanStatus(PlanStatus.COMPLETED)
+                    .withErrorResponse(errorResponse)
+                    .withSpecsById(PARTITION_SPECS_BY_ID)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid response: error can only be defined when status is 'failed'");
   }
 }

@@ -82,10 +82,6 @@ class UpdateNamespacePropertiesRequest(BaseModel):
     )
 
 
-class CatalogObjectIdentifier(BaseModel):
-    __root__: List[str] = Field(..., example=['accounting', 'tax'])
-
-
 class CatalogObjectUuid(BaseModel):
     """
     Identify a table or view by its uuid.
@@ -105,6 +101,18 @@ class PageToken(BaseModel):
     __root__: Optional[str] = Field(
         None,
         description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
+    )
+
+
+class CatalogObjectIdentifier(BaseModel):
+    """
+    Reference to a catalog object (for example, table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.
+    """
+
+    __root__: List[str] = Field(
+        ...,
+        description='Reference to a catalog object (for example, table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.',
+        example=['accounting', 'tax', 'paid'],
     )
 
 
@@ -536,6 +544,11 @@ class RegisterTableRequest(BaseModel):
     )
 
 
+class RegisterViewRequest(BaseModel):
+    name: str
+    metadata_location: str = Field(..., alias='metadata-location')
+
+
 class TokenType(BaseModel):
     __root__: Literal[
         'urn:ietf:params:oauth:token-type:access_token',
@@ -909,6 +922,43 @@ class PlanTask(BaseModel):
     )
 
 
+class MultiValuedMap(BaseModel):
+    """
+    A map of string keys where each key can map to multiple string values.
+    """
+
+    __root__: Dict[str, List[str]]
+
+
+class RemoteSignRequest(BaseModel):
+    """
+    The request to be signed remotely.
+    """
+
+    region: str
+    uri: str
+    method: Literal['PUT', 'GET', 'HEAD', 'POST', 'DELETE', 'PATCH', 'OPTIONS']
+    headers: MultiValuedMap
+    properties: Optional[Dict[str, str]] = None
+    body: Optional[str] = Field(
+        None,
+        description='Optional body of the request to send to the signing API. This should only be populated for requests where the body of the message contains content which must be validated before a request is signed, such as the S3 DeleteObjects call.',
+    )
+    provider: Optional[str] = Field(
+        None,
+        description='The storage provider for which the request is to be signed. The provider should correspond to the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility, if this is not specified, the provider is assumed to be `s3`.',
+    )
+
+
+class RemoteSignResult(BaseModel):
+    """
+    The result of a remote request signing operation.
+    """
+
+    uri: str
+    headers: MultiValuedMap
+
+
 class Namespace(BaseModel):
     """
     Reference to one or more levels of a namespace
@@ -1253,19 +1303,18 @@ class RenameViewOperation(RenameTableRequest):
 class UnaryExpression(BaseModel):
     type: ExpressionType
     term: Term
-    value: Dict[str, Any]
 
 
 class LiteralExpression(BaseModel):
     type: ExpressionType
     term: Term
-    value: Dict[str, Any]
+    value: PrimitiveTypeValue
 
 
 class SetExpression(BaseModel):
     type: ExpressionType
     term: Term
-    values: List[Dict[str, Any]]
+    values: List[PrimitiveTypeValue]
 
 
 class StructField(BaseModel):
@@ -1402,6 +1451,8 @@ class TableUpdate(BaseModel):
         RemovePropertiesUpdate,
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
+        SetPartitionStatisticsUpdate,
+        RemovePartitionStatisticsUpdate,
         RemovePartitionSpecsUpdate,
         RemoveSchemasUpdate,
         AddEncryptionKeyUpdate,
@@ -1439,6 +1490,9 @@ class LoadTableResult(BaseModel):
     ## General Configurations
 
     - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+    - `scan-planning-mode`: Communicates to clients the supported planning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
+      - `client`: Clients MUST use client-side scan planning
+      - `server`: Clients MUST use server-side scan planning via the `planTableScan` endpoint
 
     ## AWS Configurations
 
@@ -1447,13 +1501,19 @@ class LoadTableResult(BaseModel):
      - `s3.access-key-id`: id for credentials that provide access to the data in S3
      - `s3.secret-access-key`: secret for credentials that provide access to data in S3
      - `s3.session-token`: if present, this value should be used for as the session token
-     - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+     - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
      - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
 
     ## Storage Credentials
 
     Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
     Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+    ## Remote Signing
+
+    If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
+     - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+     - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
 
     """
 

@@ -27,13 +27,22 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 abstract class BaseGCSFile {
   private final Storage storage;
+  // Using AutoCloseable avoids a runtime dependency on gcs-analytics-core. Cast via
+  // AnalyticsCoreUtil.
+  private final AutoCloseable gcsFileSystem;
   private final GCPProperties gcpProperties;
   private final BlobId blobId;
   private Blob metadata;
   private final MetricsContext metrics;
 
-  BaseGCSFile(Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
+  BaseGCSFile(
+      Storage storage,
+      AutoCloseable gcsFileSystem,
+      BlobId blobId,
+      GCPProperties gcpProperties,
+      MetricsContext metrics) {
     this.storage = storage;
+    this.gcsFileSystem = gcsFileSystem;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
     this.metrics = metrics;
@@ -45,6 +54,10 @@ abstract class BaseGCSFile {
 
   Storage storage() {
     return storage;
+  }
+
+  AutoCloseable gcsFileSystem() {
+    return gcsFileSystem;
   }
 
   URI uri() {

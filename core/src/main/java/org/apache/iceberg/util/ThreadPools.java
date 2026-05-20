@@ -35,8 +35,8 @@ public class ThreadPools {
   private ThreadPools() {}
 
   /**
-   * @deprecated Use {@link SystemConfigs#WORKER_THREAD_POOL_SIZE WORKER_THREAD_POOL_SIZE} instead;
-   *     will be removed in 2.0.0
+   * @deprecated Use {@link SystemConfigs#WORKER_THREAD_POOL_SIZE} instead. will be removed in
+   *     1.12.0
    */
   @Deprecated
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
@@ -113,7 +113,7 @@ public class ThreadPools {
    * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
    * depending on the intended lifecycle of the thread pool.
    *
-   * @deprecated will be removed in 2.0.0. Use {@link #newExitingWorkerPool(String, int)} for
+   * @deprecated will be removed in 1.12.0. Use {@link #newExitingWorkerPool(String, int)} for
    *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
    *     int)} for short-lived thread pools where you manage the lifecycle.
    */
@@ -134,7 +134,7 @@ public class ThreadPools {
    * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
    * depending on the intended lifecycle of the thread pool.
    *
-   * @deprecated will be removed in 2.0.0. Use {@link #newExitingWorkerPool(String, int)} for
+   * @deprecated will be removed in 1.12.0. Use {@link #newExitingWorkerPool(String, int)} for
    *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
    *     int)} for short-lived thread pools where you manage the lifecycle.
    */

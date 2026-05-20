@@ -19,6 +19,9 @@
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.gax.rpc.FixedHeaderProvider;
+import com.google.auth.Credentials;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
@@ -38,9 +41,11 @@ class PrefixedStorage implements AutoCloseable {
   private static final String GCS_FILE_IO_USER_AGENT = "gcsfileio/" + EnvironmentContext.get();
   private final String storagePrefix;
   private final GCPProperties gcpProperties;
+  private final Map<String, String> propertiesWithUserAgent;
   private SerializableSupplier<Storage> storage;
   private CloseableGroup closeableGroup;
   private transient volatile Storage storageClient;
+  private transient volatile AutoCloseable gcsFileSystem;
 
   PrefixedStorage(
       String storagePrefix, Map<String, String> properties, SerializableSupplier<Storage> storage) {
@@ -50,7 +55,12 @@ class PrefixedStorage implements AutoCloseable {
     this.storagePrefix = storagePrefix;
     this.storage = storage;
     this.gcpProperties = new GCPProperties(properties);
-
+    this.propertiesWithUserAgent =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .put("gcs.user-agent", GCS_FILE_IO_USER_AGENT)
+            .build();
+    this.closeableGroup = new CloseableGroup();
     if (null == storage) {
       this.storage =
           () -> {
@@ -64,18 +74,9 @@ class PrefixedStorage implements AutoCloseable {
             gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
             gcpProperties.serviceHost().ifPresent(builder::setHost);
 
-            // Google Cloud APIs default to automatically detect the credentials to use, which is
-            // in most cases the convenient way, especially in GCP.
-            // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault()
-            if (gcpProperties.noAuth()) {
-              // Explicitly allow "no credentials" for testing purposes
-              builder.setCredentials(NoCredentials.getInstance());
-            }
-
-            if (gcpProperties.oauth2Token().isPresent()) {
-              this.closeableGroup = new CloseableGroup();
-              builder.setCredentials(
-                  GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup));
+            Credentials credentials = credentials(gcpProperties);
+            if (credentials != null) {
+              builder.setCredentials(credentials);
             }
 
             return builder.build().getService();
@@ -105,17 +106,80 @@ class PrefixedStorage implements AutoCloseable {
 
   @Override
   public void close() {
-    if (null != closeableGroup) {
+    try {
       try {
-        closeableGroup.close();
+        if (null != closeableGroup) {
+          closeableGroup.close();
+        }
       } catch (IOException ioe) {
         throw new UncheckedIOException(ioe);
+      } finally {
+        if (null != gcsFileSystem) {
+          AnalyticsCoreUtil.close(gcsFileSystem);
+          gcsFileSystem = null;
+        }
+      }
+    } finally {
+      if (null != storage) {
+        // GCS Storage does not appear to be closable, so release the reference
+        storage = null;
+      }
+    }
+  }
+
+  // Returns AutoCloseable to avoid a runtime dependency on gcs-analytics-core. Cast via
+  // AnalyticsCoreUtil.
+  AutoCloseable gcsFileSystem() {
+    if (!gcpProperties.isGcsAnalyticsCoreEnabled()) {
+      return null;
+    }
+
+    if (gcsFileSystem == null) {
+      synchronized (this) {
+        if (gcsFileSystem == null) {
+          this.gcsFileSystem =
+              AnalyticsCoreUtil.createFileSystem(
+                  propertiesWithUserAgent, credentials(gcpProperties));
+        }
       }
     }
 
-    if (null != storage) {
-      // GCS Storage does not appear to be closable, so release the reference
-      storage = null;
+    return gcsFileSystem;
+  }
+
+  private Credentials credentials(GCPProperties properties) {
+    // Google Cloud APIs default to automatically detect the credentials to use, which is
+    // in most cases the convenient way, especially in GCP.
+    // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault()
+    if (properties.oauth2Token().isPresent()) {
+      return GCPAuthUtils.oauth2CredentialsFromGcpProperties(properties, closeableGroup);
+    } else if (properties.noAuth()) {
+      // Explicitly allow "no credentials" for testing purposes
+      return NoCredentials.getInstance();
+    } else if (properties.impersonateServiceAccount().isPresent()) {
+      return buildImpersonatedCredentials(properties);
+    } else {
+      return null;
+    }
+  }
+
+  private Credentials buildImpersonatedCredentials(GCPProperties properties) {
+    try {
+      GoogleCredentials sourceCredentials = GoogleCredentials.getApplicationDefault();
+
+      ImpersonatedCredentials impersonatedCredentials =
+          ImpersonatedCredentials.create(
+              sourceCredentials,
+              properties.impersonateServiceAccount().get(),
+              properties.impersonateDelegates(),
+              properties.impersonateScopes(),
+              properties.impersonateLifetimeSeconds());
+
+      // Refresh to get initial token
+      impersonatedCredentials.refresh();
+      return impersonatedCredentials;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to create impersonated credentials for GCS", e);
     }
   }
 }

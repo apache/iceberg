@@ -21,13 +21,16 @@ package org.apache.iceberg.aws;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
-import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
-class ApacheHttpClientConfigurations {
+class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
   private Long connectionTimeoutMs;
   private Long socketTimeoutMs;
   private Long acquisitionTimeoutMs;
@@ -38,13 +41,16 @@ class ApacheHttpClientConfigurations {
   private Boolean tcpKeepAliveEnabled;
   private Boolean useIdleConnectionReaperEnabled;
   private String proxyEndpoint;
+  private Boolean proxyUseSystemPropertyValues;
+  private Boolean proxyUseEnvironmentVariableValues;
 
   private ApacheHttpClientConfigurations() {}
 
-  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
-    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+  @Override
+  protected SdkHttpClient buildHttpClient() {
+    final ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     configureApacheHttpClientBuilder(apacheHttpClientBuilder);
-    awsClientBuilder.httpClientBuilder(apacheHttpClientBuilder);
+    return apacheHttpClientBuilder.build();
   }
 
   private void initialize(Map<String, String> httpClientProperties) {
@@ -78,6 +84,12 @@ class ApacheHttpClientConfigurations {
     this.proxyEndpoint =
         PropertyUtil.propertyAsString(
             httpClientProperties, HttpClientProperties.PROXY_ENDPOINT, null);
+    this.proxyUseSystemPropertyValues =
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES);
+    this.proxyUseEnvironmentVariableValues =
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES);
   }
 
   @VisibleForTesting
@@ -109,10 +121,54 @@ class ApacheHttpClientConfigurations {
     if (useIdleConnectionReaperEnabled != null) {
       apacheHttpClientBuilder.useIdleConnectionReaper(useIdleConnectionReaperEnabled);
     }
-    if (proxyEndpoint != null) {
-      apacheHttpClientBuilder.proxyConfiguration(
-          ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());
+    configureProxy(apacheHttpClientBuilder);
+  }
+
+  private void configureProxy(ApacheHttpClient.Builder apacheHttpClientBuilder) {
+    if (proxyEndpoint != null
+        || proxyUseSystemPropertyValues != null
+        || proxyUseEnvironmentVariableValues != null) {
+      ProxyConfiguration.Builder proxyBuilder = ProxyConfiguration.builder();
+
+      if (proxyEndpoint != null) {
+        proxyBuilder.endpoint(URI.create(proxyEndpoint));
+      }
+      if (proxyUseSystemPropertyValues != null) {
+        proxyBuilder.useSystemPropertyValues(proxyUseSystemPropertyValues);
+      }
+      if (proxyUseEnvironmentVariableValues != null) {
+        proxyBuilder.useEnvironmentVariableValues(proxyUseEnvironmentVariableValues);
+      }
+
+      apacheHttpClientBuilder.proxyConfiguration(proxyBuilder.build());
     }
+  }
+
+  /**
+   * Generate a cache key based on HTTP client configuration. This ensures clients with identical
+   * configurations share the same HTTP client instance.
+   */
+  @Override
+  protected String generateHttpClientCacheKey() {
+    Map<String, Object> keyComponents = Maps.newTreeMap();
+
+    keyComponents.put("type", "apache");
+    keyComponents.put("connectionTimeoutMs", connectionTimeoutMs);
+    keyComponents.put("socketTimeoutMs", socketTimeoutMs);
+    keyComponents.put("acquisitionTimeoutMs", acquisitionTimeoutMs);
+    keyComponents.put("connectionMaxIdleTimeMs", connectionMaxIdleTimeMs);
+    keyComponents.put("connectionTimeToLiveMs", connectionTimeToLiveMs);
+    keyComponents.put("expectContinueEnabled", expectContinueEnabled);
+    keyComponents.put("maxConnections", maxConnections);
+    keyComponents.put("tcpKeepAliveEnabled", tcpKeepAliveEnabled);
+    keyComponents.put("useIdleConnectionReaperEnabled", useIdleConnectionReaperEnabled);
+    keyComponents.put("proxyEndpoint", proxyEndpoint);
+    keyComponents.put("proxyUseSystemPropertyValues", proxyUseSystemPropertyValues);
+    keyComponents.put("proxyUseEnvironmentVariableValues", proxyUseEnvironmentVariableValues);
+
+    return keyComponents.entrySet().stream()
+        .map(entry -> entry.getKey() + "=" + Objects.toString(entry.getValue(), "null"))
+        .collect(Collectors.joining(",", "apache[", "]"));
   }
 
   public static ApacheHttpClientConfigurations create(Map<String, String> properties) {

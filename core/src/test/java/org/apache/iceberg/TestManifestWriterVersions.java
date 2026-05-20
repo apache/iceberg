@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -64,6 +67,9 @@ public class TestManifestWriterVersions {
           .hour("timestamp")
           .bucket("id", 16)
           .build();
+
+  private static final Map<Integer, PartitionSpec> SPECS_BY_ID =
+      ImmutableMap.of(SPEC.specId(), SPEC);
 
   private static final long SEQUENCE_NUMBER = 34L;
   private static final long SNAPSHOT_ID = 987134631982734L;
@@ -309,6 +315,35 @@ public class TestManifestWriterVersions {
     checkRewrittenEntry(readManifest(manifest3), 0L, FileContent.DATA, FIRST_ROW_ID);
   }
 
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testDefaultManifestCompression(int formatVersion) throws IOException {
+    File manifestFile = temp.resolve("default-v" + formatVersion + ".avro").toFile();
+    OutputFile outputFile = Files.localOutput(manifestFile);
+
+    try (ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID)) {
+      writer.add(DATA_FILE);
+    }
+
+    assertThat(readAvroCodec(manifestFile)).isEqualTo("deflate");
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testCustomManifestCompression(int formatVersion) throws IOException {
+    Map<String, String> props = ImmutableMap.of(TableProperties.AVRO_COMPRESSION, "snappy");
+    File manifestFile = temp.resolve("snappy-v" + formatVersion + ".avro").toFile();
+    OutputFile outputFile = Files.localOutput(manifestFile);
+
+    try (ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID, props)) {
+      writer.add(DATA_FILE);
+    }
+
+    assertThat(readAvroCodec(manifestFile)).isEqualTo("snappy");
+  }
+
   void checkEntry(
       ManifestEntry<?> entry,
       Long expectedDataSequenceNumber,
@@ -465,7 +500,7 @@ public class TestManifestWriterVersions {
   private List<ManifestEntry<DataFile>> readManifestAsList(ManifestFile manifest)
       throws IOException {
     try (CloseableIterable<ManifestEntry<DataFile>> reader =
-        ManifestFiles.read(manifest, io).entries()) {
+        ManifestFiles.read(manifest, io, SPECS_BY_ID).entries()) {
       return Lists.newArrayList(Iterables.transform(reader, ManifestEntry::copy));
     }
   }
@@ -491,7 +526,7 @@ public class TestManifestWriterVersions {
 
   private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
     try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
-        ManifestFiles.readDeleteManifest(manifest, io, null).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, io, SPECS_BY_ID).entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
       assertThat(entries).hasSize(1);
       return entries.get(0);

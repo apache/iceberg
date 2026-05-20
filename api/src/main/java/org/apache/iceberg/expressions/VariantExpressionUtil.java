@@ -24,13 +24,11 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantValue;
 
 class VariantExpressionUtil {
-  // TODO: Implement PhysicalType.TIME
-  // TODO: Implement PhysicalType.TIMESTAMPNTZ_NANO and PhysicalType.TIMESTAMPTZ_NANO
-  // TODO: Implement PhysicalType.UUID
   private static final Map<Type, PhysicalType> NO_CONVERSION_NEEDED =
       ImmutableMap.<Type, PhysicalType>builder()
           .put(Types.IntegerType.get(), PhysicalType.INT32)
@@ -40,6 +38,10 @@ class VariantExpressionUtil {
           .put(Types.DateType.get(), PhysicalType.DATE)
           .put(Types.TimestampType.withoutZone(), PhysicalType.TIMESTAMPNTZ)
           .put(Types.TimestampType.withZone(), PhysicalType.TIMESTAMPTZ)
+          .put(Types.TimestampNanoType.withoutZone(), PhysicalType.TIMESTAMPNTZ_NANOS)
+          .put(Types.TimestampNanoType.withZone(), PhysicalType.TIMESTAMPTZ_NANOS)
+          .put(Types.TimeType.get(), PhysicalType.TIME)
+          .put(Types.UUIDType.get(), PhysicalType.UUID)
           .put(Types.StringType.get(), PhysicalType.STRING)
           .put(Types.BinaryType.get(), PhysicalType.BINARY)
           .put(Types.UnknownType.get(), PhysicalType.NULL)
@@ -47,7 +49,7 @@ class VariantExpressionUtil {
 
   private VariantExpressionUtil() {}
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "CyclomaticComplexity"})
   static <T> T castTo(VariantValue value, Type type) {
     if (value == null) {
       return null;
@@ -111,6 +113,40 @@ class VariantExpressionUtil {
         }
 
         break;
+      case TIMESTAMP:
+        if (value.type() == PhysicalType.TIMESTAMPTZ_NANOS
+            || value.type() == PhysicalType.TIMESTAMPNTZ_NANOS) {
+          return (T)
+              (Long) DateTimeUtil.nanosToMicros(((Number) value.asPrimitive().get()).longValue());
+        } else if (value.type() == PhysicalType.DATE) {
+          return (T)
+              (Long)
+                  DateTimeUtil.microsFromTimestamp(
+                      DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
+                          .atStartOfDay());
+        }
+        break;
+      case TIMESTAMP_NANO:
+        if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {
+          return (T)
+              (Long) DateTimeUtil.microsToNanos(((Number) value.asPrimitive().get()).longValue());
+        } else if (value.type() == PhysicalType.DATE) {
+          return (T)
+              (Long)
+                  DateTimeUtil.nanosFromTimestamp(
+                      DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
+                          .atStartOfDay());
+        }
+        break;
+      case DATE:
+        if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {
+          return (T)
+              (Integer) DateTimeUtil.microsToDays(((Number) value.asPrimitive().get()).longValue());
+        } else if (value.type() == PhysicalType.TIMESTAMPTZ_NANOS
+            || value.type() == PhysicalType.TIMESTAMPNTZ_NANOS) {
+          return (T)
+              (Integer) DateTimeUtil.nanosToDays(((Number) value.asPrimitive().get()).longValue());
+        }
     }
 
     return null;

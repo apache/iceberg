@@ -40,7 +40,13 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-/** A base writer factory to be extended by query engine integrations. */
+/**
+ * A base writer factory to be extended by query engine integrations.
+ *
+ * @deprecated since version 1.11.0 and will be removed in 1.12.0. Use {@link
+ *     RegistryBasedFileWriterFactory}
+ */
+@Deprecated
 public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, Serializable {
   private final Table table;
   private final FileFormat dataFileFormat;
@@ -75,13 +81,6 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
     this.positionDeleteRowSchema = null;
   }
 
-  /**
-   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-   *     Position deletes that include row data are no longer supported. Use {@link
-   *     #BaseFileWriterFactory(Table, FileFormat, Schema, SortOrder, FileFormat, int[], Schema,
-   *     SortOrder, Map)} instead.
-   */
-  @Deprecated
   protected BaseFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,

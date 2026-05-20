@@ -33,6 +33,7 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.TableMetadataParser.Codec;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -167,6 +168,10 @@ public class ViewMetadataParser {
 
   public static void write(ViewMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, false);
+  }
+
+  public static ViewMetadata read(FileIO io, String path) {
+    return read(io.newInputFile(path));
   }
 
   public static ViewMetadata read(InputFile file) {

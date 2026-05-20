@@ -21,6 +21,7 @@ package org.apache.iceberg.nessie;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -32,7 +33,7 @@ import org.projectnessie.client.api.NessieApi;
 public class TestCustomNessieClient extends BaseTestIceberg {
 
   public TestCustomNessieClient() {
-    super("main");
+    super(SnapshotRef.MAIN_BRANCH);
   }
 
   @Test

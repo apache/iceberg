@@ -20,11 +20,13 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -475,5 +477,64 @@ public class MetricsUtil {
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
     }
+  }
+
+  static ContentStats fromMetrics(Schema schema, Metrics metrics) {
+    if (null == metrics) {
+      return null;
+    }
+
+    BaseContentStats.Builder builder = BaseContentStats.builder().withTableSchema(schema);
+    Map<Integer, BaseFieldStats.Builder<Object>> map = Maps.newHashMap();
+    mergeCountMetric(map, metrics.valueCounts(), BaseFieldStats.Builder::valueCount);
+    mergeCountMetric(map, metrics.nullValueCounts(), BaseFieldStats.Builder::nullValueCount);
+    mergeCountMetric(map, metrics.nanValueCounts(), BaseFieldStats.Builder::nanValueCount);
+    mergeBoundMetric(
+        map, metrics.lowerBounds(), metrics.originalTypes(), BaseFieldStats.Builder::lowerBound);
+    mergeBoundMetric(
+        map, metrics.upperBounds(), metrics.originalTypes(), BaseFieldStats.Builder::upperBound);
+
+    map.values().forEach(fieldStats -> builder.withFieldStats(fieldStats.build()));
+
+    return builder.build();
+  }
+
+  private static void mergeCountMetric(
+      Map<Integer, BaseFieldStats.Builder<Object>> fieldStatsById,
+      Map<Integer, Long> counts,
+      BiFunction<BaseFieldStats.Builder<Object>, Long, BaseFieldStats.Builder<Object>> setter) {
+    if (counts == null) {
+      return;
+    }
+
+    counts.forEach(
+        (id, value) ->
+            fieldStatsById.merge(
+                id,
+                setter.apply(BaseFieldStats.builder().fieldId(id), value),
+                (oldVal, newVal) -> setter.apply(oldVal, value)));
+  }
+
+  private static void mergeBoundMetric(
+      Map<Integer, BaseFieldStats.Builder<Object>> fieldStatsById,
+      Map<Integer, ByteBuffer> bounds,
+      Map<Integer, Type> originalTypes,
+      BiFunction<BaseFieldStats.Builder<Object>, Object, BaseFieldStats.Builder<Object>> setter) {
+    if (bounds == null || originalTypes == null) {
+      return;
+    }
+
+    bounds.entrySet().stream()
+        .filter(entry -> originalTypes.get(entry.getKey()) != null)
+        .forEach(
+            entry -> {
+              Integer id = entry.getKey();
+              Type type = originalTypes.get(id);
+              Object boundValue = Conversions.fromByteBuffer(type, entry.getValue());
+              fieldStatsById.merge(
+                  id,
+                  setter.apply(BaseFieldStats.builder().fieldId(id).type(type), boundValue),
+                  (oldVal, newVal) -> setter.apply(oldVal.type(type), boundValue));
+            });
   }
 }

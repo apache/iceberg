@@ -26,9 +26,13 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchPlanIdException;
+import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.NoSuchWarehouseException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
@@ -73,12 +77,42 @@ public class ErrorHandlers {
     return CommitErrorHandler.INSTANCE;
   }
 
+  public static Consumer<ErrorResponse> createTableErrorHandler() {
+    return CreateTableErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> planErrorHandler() {
+    return PlanErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> planTaskHandler() {
+    return PlanTaskErrorHandler.INSTANCE;
+  }
+
   public static Consumer<ErrorResponse> defaultErrorHandler() {
     return DefaultErrorHandler.INSTANCE;
   }
 
+  public static Consumer<ErrorResponse> configErrorHandler() {
+    return ConfigErrorHandler.INSTANCE;
+  }
+
   public static Consumer<ErrorResponse> oauthErrorHandler() {
     return OAuthErrorHandler.INSTANCE;
+  }
+
+  /**
+   * Creates a RESTException from an ErrorResponse with a standardized message format.
+   *
+   * <p>The exception message includes the error code, type, and message in a consistent format:
+   * "Unable to process (code: &lt;code&gt;, type: &lt;type&gt;): &lt;message&gt;"
+   *
+   * @param error the error response
+   * @return a RESTException with formatted message including code, type, and message
+   */
+  private static RESTException createRESTException(ErrorResponse error) {
+    return new RESTException(
+        "Unable to process (code: %s, type: %s): %s", error.code(), error.type(), error.message());
   }
 
   /** Table commit error handler. */
@@ -114,11 +148,70 @@ public class ErrorHandlers {
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
             throw new NoSuchNamespaceException("%s", error.message());
+          } else if (NotFoundException.class.getSimpleName().equals(error.type())) {
+            throw new NotFoundException("%s", error.message());
           } else {
             throw new NoSuchTableException("%s", error.message());
           }
         case 409:
           throw new AlreadyExistsException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Table create error handler. */
+  private static class CreateTableErrorHandler extends CommitErrorHandler {
+    private static final ErrorHandler INSTANCE = new CreateTableErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 404:
+          throw new NoSuchNamespaceException("%s", error.message());
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Plan level error handler. */
+  private static class PlanErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new PlanErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      if (error.code() == 404) {
+        if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchNamespaceException("%s", error.message());
+        } else if (NoSuchTableException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchTableException("%s", error.message());
+        } else {
+          throw new NoSuchPlanIdException("%s", error.message());
+        }
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** PlanTask level error handler. */
+  private static class PlanTaskErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new PlanTaskErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      if (error.code() == 404) {
+        if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchNamespaceException("%s", error.message());
+        } else if (NoSuchTableException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchTableException("%s", error.message());
+        } else {
+          throw new NoSuchPlanTaskException("%s", error.message());
+        }
       }
 
       super.accept(error);
@@ -186,7 +279,7 @@ public class ErrorHandlers {
         case 409:
           throw new AlreadyExistsException("%s", error.message());
         case 422:
-          throw new RESTException("Unable to process: %s", error.message());
+          throw createRESTException(error);
       }
 
       super.accept(error);
@@ -201,6 +294,20 @@ public class ErrorHandlers {
     public void accept(ErrorResponse error) {
       if (error.code() == 409) {
         throw new NamespaceNotEmptyException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Request error handler for config endpoint. */
+  private static class ConfigErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new ConfigErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      if (error.code() == 404 && error.type() != null) {
+        throw new NoSuchWarehouseException("%s", error.message());
       }
 
       super.accept(error);
@@ -247,7 +354,7 @@ public class ErrorHandlers {
           throw new ServiceUnavailableException("Service unavailable: %s", error.message());
       }
 
-      throw new RESTException("Unable to process: %s", error.message());
+      throw createRESTException(error);
     }
   }
 
@@ -280,7 +387,7 @@ public class ErrorHandlers {
                 "Malformed request: %s: %s", error.type(), error.message());
         }
       }
-      throw new RESTException("Unable to process: %s", error.message());
+      throw createRESTException(error);
     }
   }
 }

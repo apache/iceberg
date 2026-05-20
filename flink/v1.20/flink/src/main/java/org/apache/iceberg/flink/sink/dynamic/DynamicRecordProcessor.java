@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
@@ -30,6 +32,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.flink.CatalogLoader;
+import org.apache.iceberg.flink.FlinkWriteConf;
 
 @Internal
 class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal>
@@ -37,36 +40,47 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   @VisibleForTesting
   static final String DYNAMIC_TABLE_UPDATE_STREAM = "dynamic-table-update-stream";
 
+  @VisibleForTesting static final String DYNAMIC_FORWARD_STREAM = "dynamic-forward-stream";
+
   private final DynamicRecordGenerator<T> generator;
   private final CatalogLoader catalogLoader;
+  private final Map<String, String> writeProperties;
+  private final Configuration flinkConfig;
   private final boolean immediateUpdate;
+  private final boolean dropUnusedColumns;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
+  private final boolean caseSensitive;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
   private transient TableUpdater updater;
   private transient OutputTag<DynamicRecordInternal> updateStream;
+  private transient OutputTag<DynamicRecordInternal> forwardStream;
   private transient Collector<DynamicRecordInternal> collector;
+  private transient DynamicRecordWithConfig dynamicRecordWithConfig;
   private transient Context context;
 
   DynamicRecordProcessor(
       DynamicRecordGenerator<T> generator,
       CatalogLoader catalogLoader,
-      boolean immediateUpdate,
-      int cacheMaximumSize,
-      long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize,
-      TableCreator tableCreator) {
+      TableCreator tableCreator,
+      FlinkDynamicSinkConf sinkConfig,
+      Map<String, String> writeProperties,
+      Configuration flinkConfig) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
-    this.immediateUpdate = immediateUpdate;
-    this.cacheMaximumSize = cacheMaximumSize;
-    this.cacheRefreshMs = cacheRefreshMs;
-    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.flinkConfig = flinkConfig;
+    this.writeProperties = writeProperties;
+    this.immediateUpdate = sinkConfig.immediateTableUpdate();
+    this.cacheMaximumSize = sinkConfig.cacheMaxSize();
+    this.cacheRefreshMs = sinkConfig.cacheRefreshMs();
+    this.inputSchemasPerTableCacheMaximumSize = sinkConfig.inputSchemasPerTableCacheMaxSize();
     this.tableCreator = tableCreator;
+    this.caseSensitive = sinkConfig.caseSensitive();
+    this.dropUnusedColumns = sinkConfig.dropUnusedColumns();
   }
 
   @Override
@@ -75,19 +89,31 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     Catalog catalog = catalogLoader.loadCatalog();
     this.tableCache =
         new TableMetadataCache(
-            catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize);
+            catalog,
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemasPerTableCacheMaximumSize,
+            caseSensitive,
+            dropUnusedColumns);
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
-    if (immediateUpdate) {
-      updater = new TableUpdater(tableCache, catalog);
-    } else {
+    // Always create updater — needed for forced immediate updates on forward records
+    this.updater = new TableUpdater(tableCache, catalog, caseSensitive, dropUnusedColumns);
+    // Always create forward stream tag for forward (distributionMode == null) records
+    this.forwardStream =
+        new OutputTag<>(
+            DYNAMIC_FORWARD_STREAM,
+            new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
+    if (!immediateUpdate) {
       updateStream =
           new OutputTag<>(
               DYNAMIC_TABLE_UPDATE_STREAM,
               new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
     }
 
+    this.dynamicRecordWithConfig =
+        new DynamicRecordWithConfig(new FlinkWriteConf(writeProperties, flinkConfig));
     generator.open(openContext);
   }
 
@@ -100,7 +126,10 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   }
 
   @Override
-  public void collect(DynamicRecord data) {
+  public void collect(DynamicRecord inputData) {
+    DynamicRecordWithConfig data = dynamicRecordWithConfig.wrap(inputData);
+
+    boolean isForward = data.distributionMode() == null;
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
@@ -111,21 +140,26 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
     PartitionSpec foundSpec = exists ? tableCache.spec(data.tableIdentifier(), data.spec()) : null;
 
-    if (!exists
-        || foundBranch == null
-        || foundSpec == null
-        || foundSchema.compareResult() == CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
-      if (immediateUpdate) {
+    boolean needsUpdate =
+        !exists
+            || foundBranch == null
+            || foundSpec == null
+            || foundSchema.compareResult() == CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED;
+
+    if (needsUpdate) {
+      if (isForward || immediateUpdate) {
+        // Forward records always force immediate update
         Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
             updater.update(
                 data.tableIdentifier(), data.branch(), data.schema(), data.spec(), tableCreator);
         emit(
-            collector,
             data,
             newData.f0.resolvedTableSchema(),
             newData.f0.recordConverter(),
-            newData.f1);
+            newData.f1,
+            isForward);
       } else {
+        // Shuffled records with immediateUpdate=false go to the update side output
         int writerKey =
             hashKeyGenerator.generateKey(
                 data,
@@ -148,33 +182,38 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       }
     } else {
       emit(
-          collector,
           data,
           foundSchema.resolvedTableSchema(),
           foundSchema.recordConverter(),
-          foundSpec);
+          foundSpec,
+          isForward);
     }
   }
 
   private void emit(
-      Collector<DynamicRecordInternal> out,
       DynamicRecord data,
       Schema schema,
       DataConverter recordConverter,
-      PartitionSpec spec) {
+      PartitionSpec spec,
+      boolean forward) {
     RowData rowData = (RowData) recordConverter.convert(data.rowData());
-    int writerKey = hashKeyGenerator.generateKey(data, schema, spec, rowData);
-    String tableName = data.tableIdentifier().toString();
-    out.collect(
+    // writerKey is unused in the forward path.
+    int writerKey = forward ? -1 : hashKeyGenerator.generateKey(data, schema, spec, rowData);
+    DynamicRecordInternal record =
         new DynamicRecordInternal(
-            tableName,
+            data.tableIdentifier().toString(),
             data.branch(),
             schema,
             rowData,
             spec,
             writerKey,
             data.upsertMode(),
-            DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema)));
+            DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema));
+    if (forward) {
+      context.output(forwardStream, record);
+    } else {
+      collector.collect(record);
+    }
   }
 
   @Override

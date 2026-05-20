@@ -986,4 +986,60 @@ public class TestS3FileIO {
       // do nothing
     }
   }
+
+  @Test
+  public void setCredentialsRefreshesClients() {
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "s3://custom-uri",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "initialKeyId",
+                "s3.secret-access-key",
+                "initialSecretKey",
+                "s3.session-token",
+                "initialSessionToken"));
+
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(ImmutableList.of(initialCredential));
+    fileIO.initialize(ImmutableMap.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
+
+    S3Client initialClient = fileIO.client("s3://custom-uri/table1");
+    assertThat(initialClient.serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            future -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) future.get();
+              assertThat(identity.accessKeyId()).isEqualTo("initialKeyId");
+              assertThat(identity.secretAccessKey()).isEqualTo("initialSecretKey");
+              assertThat(identity.sessionToken()).isEqualTo("initialSessionToken");
+            });
+
+    StorageCredential refreshedCredential =
+        StorageCredential.create(
+            "s3://custom-uri",
+            ImmutableMap.of(
+                "s3.access-key-id",
+                "refreshedKeyId",
+                "s3.secret-access-key",
+                "refreshedSecretKey",
+                "s3.session-token",
+                "refreshedSessionToken"));
+
+    fileIO.setCredentials(ImmutableList.of(refreshedCredential));
+
+    S3Client refreshedClient = fileIO.client("s3://custom-uri/table1");
+    assertThat(refreshedClient).isNotSameAs(initialClient);
+    assertThat(refreshedClient.serviceClientConfiguration())
+        .extracting(AwsServiceClientConfiguration::credentialsProvider)
+        .extracting(IdentityProvider::resolveIdentity)
+        .satisfies(
+            x -> {
+              AwsSessionCredentialsIdentity identity = (AwsSessionCredentialsIdentity) x.get();
+              assertThat(identity.accessKeyId()).isEqualTo("refreshedKeyId");
+              assertThat(identity.secretAccessKey()).isEqualTo("refreshedSecretKey");
+              assertThat(identity.sessionToken()).isEqualTo("refreshedSessionToken");
+            });
+  }
 }

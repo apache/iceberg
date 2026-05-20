@@ -127,7 +127,12 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     singleByteBuffer.position(0);
 
     pos += 1;
-    channel.read(singleByteBuffer);
+    try {
+      channel.read(singleByteBuffer);
+    } catch (IOException e) {
+      GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
+      throw e;
+    }
     readBytes.increment();
     readOperations.increment();
 
@@ -174,7 +179,12 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
       throws IOException {
     buffer.position(off);
     buffer.limit(Math.min(off + len, buffer.capacity()));
-    return readChannel.read(buffer);
+    try {
+      return readChannel.read(buffer);
+    } catch (IOException e) {
+      GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
+      throw e;
+    }
   }
 
   @Override
@@ -186,7 +196,7 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     }
   }
 
-  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

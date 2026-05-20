@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -29,6 +30,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -70,7 +72,7 @@ class SchemaUpdate implements UpdateSchema {
     this(ops, ops.current());
   }
 
-  /** For testing only. */
+  @VisibleForTesting
   SchemaUpdate(Schema schema, int lastColumnId) {
     this(null, null, schema, lastColumnId);
   }
@@ -164,7 +166,7 @@ class SchemaUpdate implements UpdateSchema {
     int newId = assignNewColumnId();
 
     // update tracking for moves
-    addedNameToId.put(fullName, newId);
+    addedNameToId.put(caseSensitivityAwareName(fullName), newId);
     if (parentId != TABLE_ROOT_ID) {
       idToParent.put(newId, parentId);
     }
@@ -391,7 +393,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private boolean isAdded(String name) {
-    return addedNameToId.containsKey(name);
+    return addedNameToId.containsKey(caseSensitivityAwareName(name));
   }
 
   private Types.NestedField findForUpdate(String name) {
@@ -405,7 +407,7 @@ class SchemaUpdate implements UpdateSchema {
       return existing;
     }
 
-    Integer addedId = addedNameToId.get(name);
+    Integer addedId = addedNameToId.get(caseSensitivityAwareName(name));
     if (addedId != null) {
       return updates.get(addedId);
     }
@@ -414,7 +416,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private Integer findForMove(String name) {
-    Integer addedId = addedNameToId.get(name);
+    Integer addedId = addedNameToId.get(caseSensitivityAwareName(name));
     if (addedId != null) {
       return addedId;
     }
@@ -869,5 +871,9 @@ class SchemaUpdate implements UpdateSchema {
 
   private Types.NestedField findField(String fieldName) {
     return caseSensitive ? schema.findField(fieldName) : schema.caseInsensitiveFindField(fieldName);
+  }
+
+  private String caseSensitivityAwareName(String name) {
+    return caseSensitive ? name : name.toLowerCase(Locale.ROOT);
   }
 }

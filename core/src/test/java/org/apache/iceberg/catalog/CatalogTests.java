@@ -24,8 +24,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.setMaxStackTraceElementsDisplayed;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +44,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
@@ -62,9 +69,12 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -80,6 +90,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -419,6 +430,44 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .as("Dropping an existing namespace should return true")
         .isTrue();
     assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
+  }
+
+  @Test
+  public void testDropNamespaceWithNestedNamespace() {
+    assumeThat(supportsNestedNamespaces())
+        .as("Only valid when the catalog supports nested namespaces")
+        .isTrue();
+
+    C catalog = catalog();
+
+    Namespace parent = Namespace.of("parent");
+    Namespace nested = Namespace.of("parent", "child");
+
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should not exist").isFalse();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should not exist").isFalse();
+
+    catalog.createNamespace(parent);
+    catalog.createNamespace(nested);
+
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should exist").isTrue();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should exist").isTrue();
+
+    assertThatThrownBy(() -> catalog.dropNamespace(parent))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty");
+
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should still exist").isTrue();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should still exist").isTrue();
+
+    assertThat(catalog.dropNamespace(nested))
+        .as("Dropping an existing nested namespace should return true")
+        .isTrue();
+    assertThat(catalog.namespaceExists(nested)).as("Nested namespace should not exist").isFalse();
+
+    assertThat(catalog.dropNamespace(parent))
+        .as("Dropping an existing namespace should return true")
+        .isTrue();
+    assertThat(catalog.namespaceExists(parent)).as("Parent namespace should not exist").isFalse();
   }
 
   @Test
@@ -960,6 +1009,37 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    catalog.buildTable(TBL, SCHEMA).create();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+
+    Table table = catalog.loadTable(TBL);
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    Path renamedMetadataFile = tempDir.resolve("tmp.json");
+    renamedMetadataFile.toFile().deleteOnExit();
+    Files.writeString(renamedMetadataFile, "metadata");
+    Path metadataFilePath =
+        metadataFileLocation.startsWith("file:")
+            ? Paths.get(URI.create(metadataFileLocation))
+            : Paths.get(metadataFileLocation);
+    try {
+      Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
+      assertThatThrownBy(() -> catalog.loadTable(TBL))
+          .isInstanceOf(NotFoundException.class)
+          .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
+    } finally {
+      Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
+    }
+  }
+
+  @Test
   public void testRenameTable() {
     C catalog = catalog();
 
@@ -984,6 +1064,86 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.dropTable(RENAMED_TABLE);
     assertEmpty("Should not contain table after drop", catalog, NS);
+  }
+
+  @Test
+  public void createTableInUniqueLocation() {
+    Map<String, String> additionalProperties =
+        ImmutableMap.of(CatalogProperties.UNIQUE_TABLE_LOCATION, "true");
+    C catalog = initCatalog("uniq_path_catalog", additionalProperties);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned());
+    catalog.renameTable(TABLE, RENAMED_TABLE);
+    catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned());
+
+    Table table = catalog.loadTable(TABLE);
+    Table renamedTable = catalog.loadTable(RENAMED_TABLE);
+
+    assertThat(table.location())
+        .as("Tables %s and %s have different location", TABLE, RENAMED_TABLE)
+        .isNotEqualTo(renamedTable.location());
+  }
+
+  @Test
+  public void dropAfterRenameDoesntCorruptTable() throws IOException {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+
+    Table initialTable = catalog.createTable(TABLE, SCHEMA, spec);
+    String initialFilePath = initialTable.locationProvider().newDataLocation("data-a.parquet");
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath(initialFilePath)
+            .withFileSizeInBytes(10)
+            .withRecordCount(2)
+            .build();
+    initialTable.io().newOutputFile(initialFilePath).create().close();
+    initialTable.newAppend().appendFile(dataFile).commit();
+
+    catalog.renameTable(TABLE, RENAMED_TABLE);
+
+    Table newTable = catalog.createTable(TABLE, SCHEMA, spec);
+    String newFilePath = newTable.locationProvider().newDataLocation("data-b.parquet");
+    DataFile anotherFile =
+        DataFiles.builder(spec)
+            .withPath(newFilePath)
+            .withFileSizeInBytes(10)
+            .withRecordCount(2)
+            .build();
+    newTable.io().newOutputFile(newFilePath).create().close();
+    newTable.newAppend().appendFile(anotherFile).commit();
+
+    catalog.dropTable(RENAMED_TABLE, true);
+
+    assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("After PURGE, %s must not exist", RENAMED_TABLE)
+        .isFalse();
+    assertThat(catalog.tableExists(TABLE))
+        .as(
+            "After dropping the renamed table with PURGE, the recreated table with the original name (%s) must exist",
+            TABLE)
+        .isTrue();
+
+    Table table = catalog.loadTable(TABLE);
+    FileIO io = table.io();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            InputFile file = io.newInputFile(task.file().location());
+            assertThat(file.exists())
+                .as("Table %s should remain unaffected by dropping %s", TABLE, RENAMED_TABLE)
+                .isTrue();
+          });
+    }
   }
 
   @Test
@@ -1650,7 +1810,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.newAppend().appendFile(anotherFile).commit();
     table
         .expireSnapshots()
-        .cleanExpiredFiles(false)
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
         .expireOlderThan(table.currentSnapshot().timestampMillis())
         .cleanExpiredMetadata(true)
         .commit();
@@ -3232,11 +3392,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(CustomMetricsReporter.SCAN_COUNTER.get()).isEqualTo(1);
     // reset counter in case subclasses run this test multiple times
     CustomMetricsReporter.SCAN_COUNTER.set(0);
+
+    CustomMetricsReporter.CLOSE_COUNTER.set(0);
+    ((Closeable) catalogWithCustomReporter).close();
+    assertThat(CustomMetricsReporter.CLOSE_COUNTER.get())
+        .as("Catalog.close() must propagate to the configured MetricsReporter")
+        .isEqualTo(1);
   }
 
   public static class CustomMetricsReporter implements MetricsReporter {
     static final AtomicInteger SCAN_COUNTER = new AtomicInteger(0);
     static final AtomicInteger COMMIT_COUNTER = new AtomicInteger(0);
+    static final AtomicInteger CLOSE_COUNTER = new AtomicInteger(0);
 
     @Override
     public void report(MetricsReport report) {
@@ -3245,6 +3412,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       } else if (report instanceof CommitReport) {
         COMMIT_COUNTER.incrementAndGet();
       }
+    }
+
+    @Override
+    public void close() {
+      CLOSE_COUNTER.incrementAndGet();
     }
   }
 

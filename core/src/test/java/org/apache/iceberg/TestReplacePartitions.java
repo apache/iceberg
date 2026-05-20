@@ -125,7 +125,8 @@ public class TestReplacePartitions extends TestBase {
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
     return TestHelpers.ALL_VERSIONS.stream()
-        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "branch"}))
+        .flatMap(
+            v -> Stream.of(new Object[] {v, SnapshotRef.MAIN_BRANCH}, new Object[] {v, "branch"}))
         .collect(Collectors.toList());
   }
 
@@ -187,14 +188,17 @@ public class TestReplacePartitions extends TestBase {
 
     assertThat(TestTables.metadataVersion("unpartitioned")).isEqualTo(0);
 
-    commit(table, unpartitioned.newAppend().appendFile(FILE_A), branch);
+    commit(unpartitioned, unpartitioned.newAppend().appendFile(FILE_A), branch);
     // make sure the data was successfully added
     assertThat(TestTables.metadataVersion("unpartitioned")).isEqualTo(1);
     validateSnapshot(
-        null, latestSnapshot(TestTables.readMetadata("unpartitioned"), branch), FILE_A);
+        unpartitioned,
+        null,
+        latestSnapshot(TestTables.readMetadata("unpartitioned"), branch),
+        FILE_A);
 
     ReplacePartitions replacePartitions = unpartitioned.newReplacePartitions().addFile(FILE_B);
-    commit(table, replacePartitions, branch);
+    commit(unpartitioned, replacePartitions, branch);
 
     assertThat(TestTables.metadataVersion("unpartitioned")).isEqualTo(2);
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
@@ -203,12 +207,14 @@ public class TestReplacePartitions extends TestBase {
     assertThat(latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io())).hasSize(2);
 
     validateManifestEntries(
+        unpartitioned,
         latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io()).get(0),
         ids(replaceId),
         files(FILE_B),
         statuses(Status.ADDED));
 
     validateManifestEntries(
+        unpartitioned,
         latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io()).get(1),
         ids(replaceId),
         files(FILE_A),
@@ -222,6 +228,7 @@ public class TestReplacePartitions extends TestBase {
 
     commit(tableVoid, tableVoid.newAppend().appendFile(FILE_ALL_VOID_UNPARTITIONED_A), branch);
     validateSnapshot(
+        tableVoid,
         null,
         latestSnapshot(TestTables.readMetadata("allvoidUnpartitioned"), branch),
         FILE_ALL_VOID_UNPARTITIONED_A);
@@ -239,12 +246,14 @@ public class TestReplacePartitions extends TestBase {
     assertThat(manifestFiles).hasSize(2);
 
     validateManifestEntries(
+        tableVoid,
         manifestFiles.get(0),
         ids(replaceId),
         files(FILE_ALL_VOID_UNPARTITIONED_B),
         statuses(Status.ADDED));
 
     validateManifestEntries(
+        tableVoid,
         manifestFiles.get(1),
         ids(replaceId),
         files(FILE_ALL_VOID_UNPARTITIONED_A),
@@ -263,15 +272,18 @@ public class TestReplacePartitions extends TestBase {
     assertThat(TestTables.metadataVersion("unpartitioned")).isEqualTo(1);
 
     AppendFiles appendFiles = unpartitioned.newAppend().appendFile(FILE_A);
-    commit(table, appendFiles, branch);
+    commit(unpartitioned, appendFiles, branch);
 
     // make sure the data was successfully added
     assertThat(TestTables.metadataVersion("unpartitioned")).isEqualTo(2);
     validateSnapshot(
-        null, latestSnapshot(TestTables.readMetadata("unpartitioned"), branch), FILE_A);
+        unpartitioned,
+        null,
+        latestSnapshot(TestTables.readMetadata("unpartitioned"), branch),
+        FILE_A);
 
     ReplacePartitions replacePartitions = unpartitioned.newReplacePartitions().addFile(FILE_B);
-    commit(table, replacePartitions, branch);
+    commit(unpartitioned, replacePartitions, branch);
 
     assertThat(TestTables.metadataVersion("unpartitioned")).isEqualTo(3);
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
@@ -280,6 +292,7 @@ public class TestReplacePartitions extends TestBase {
     assertThat(latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io())).hasSize(1);
 
     validateManifestEntries(
+        unpartitioned,
         latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io()).get(0),
         ids(replaceId, replaceId),
         files(FILE_B, FILE_A),

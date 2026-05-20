@@ -26,10 +26,12 @@ import static org.mockserver.model.HttpResponse.response;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
@@ -486,6 +488,54 @@ public class TestVendedCredentialsProvider {
 
     // token endpoint is hit once due to the properties not containing the token's expiration
     mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
+  public void planIdQueryParamIsSent() {
+    String planId = "randomPlanId";
+    HttpRequest mockRequest =
+        request("/v1/credentials")
+            .withMethod(HttpMethod.GET.name())
+            .withQueryStringParameter("planId", planId);
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3")
+            .config(
+                ImmutableMap.of(
+                    S3FileIOProperties.ACCESS_KEY_ID,
+                    "randomAccessKey",
+                    S3FileIOProperties.SECRET_ACCESS_KEY,
+                    "randomSecretAccessKey",
+                    S3FileIOProperties.SESSION_TOKEN,
+                    "sessionToken",
+                    S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                    Long.toString(Instant.now().plus(1, ChronoUnit.MINUTES).toEpochMilli())))
+            .build();
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build();
+
+    HttpResponse mockResponse =
+        response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
+            .build();
+
+    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(properties)) {
+      AwsCredentials awsCredentials = provider.resolveCredentials();
+      verifyCredentials(awsCredentials, credential);
+
+      // resolving credentials multiple times should hit the credentials endpoint again and send the
+      // planId again
+      AwsCredentials refreshedCredentials = provider.resolveCredentials();
+      assertThat(refreshedCredentials).isNotSameAs(awsCredentials);
+      verifyCredentials(refreshedCredentials, credential);
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.exactly(2));
   }
 
   private void verifyCredentials(AwsCredentials awsCredentials, Credential credential) {

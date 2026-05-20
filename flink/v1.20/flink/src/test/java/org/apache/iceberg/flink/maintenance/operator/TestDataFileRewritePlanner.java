@@ -18,11 +18,15 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MAX_FILE_GROUP_INPUT_FILES;
 import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataFiles;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,6 +36,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -105,7 +110,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     1L,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue()))) {
+                    Expressions::alwaysTrue,
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       // Cause an exception
@@ -171,7 +177,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
                     11,
                     maxRewriteBytes,
                     ImmutableMap.of(MIN_INPUT_FILES, "2"),
-                    Expressions.alwaysTrue()))) {
+                    Expressions::alwaysTrue,
+                    SnapshotRef.MAIN_BRANCH))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);
@@ -179,6 +186,103 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
       // Only a single group is planned
       assertThat(testHarness.extractOutputValues()).hasSize(1);
+    }
+  }
+
+  @Test
+  void testMaxFileGroupCount() throws Exception {
+    Table table = createPartitionedTable();
+    insertPartitioned(table, 1, "p1");
+    insertPartitioned(table, 2, "p1");
+    insertPartitioned(table, 3, "p2");
+    insertPartitioned(table, 4, "p2");
+    insertPartitioned(table, 5, "p2");
+    insertPartitioned(table, 6, "p2");
+
+    List<DataFileRewritePlanner.PlannedGroup> planWithNoLimit = planDataFileRewrite(tableLoader());
+    assertThat(planWithNoLimit).hasSize(2);
+
+    List<DataFileRewritePlanner.PlannedGroup> planWithMaxFileGroupCount =
+        planDataFileRewrite(
+            tableLoader(), ImmutableMap.of(MIN_INPUT_FILES, "2", MAX_FILE_GROUP_INPUT_FILES, "2"));
+    assertThat(planWithMaxFileGroupCount).hasSize(3);
+  }
+
+  @Test
+  void testBranch() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    String branchName = "test-branch";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    // Insert more data on main only
+    insert(table, 3, "c");
+
+    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new DataFileRewritePlanner(
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    0,
+                    tableLoader(),
+                    11,
+                    10_000_000L,
+                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    Expressions::alwaysTrue,
+                    branchName))) {
+      testHarness.open();
+
+      trigger(testHarness);
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
+      assertThat(planned).hasSize(1);
+      // Branch has 2 files, main has 3
+      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
+      assertThat(planned.get(0).branch()).isEqualTo(branchName);
+    }
+  }
+
+  @Test
+  void testFilterSupplierWithTimestamp() throws Exception {
+    Table table = createTableWithTimestampWithoutZone();
+
+    LocalDateTime oldTs = LocalDateTime.now().minusDays(10);
+    insertWithTimestampWithoutZone(table, 1, "old_a", oldTs);
+    insertWithTimestampWithoutZone(table, 2, "old_b", oldTs);
+
+    LocalDateTime recentTs = LocalDateTime.now().minusHours(1);
+    insertWithTimestampWithoutZone(table, 3, "new_a", recentTs);
+    insertWithTimestampWithoutZone(table, 4, "new_b", recentTs);
+
+    try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new DataFileRewritePlanner(
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    0,
+                    tableLoader(),
+                    11,
+                    10_000_000L,
+                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    () ->
+                        Expressions.greaterThanOrEqual(
+                            "ts",
+                            LocalDateTime.now(ZoneOffset.UTC).minus(Duration.ofDays(3)).toString()),
+                    SnapshotRef.MAIN_BRANCH))) {
+      testHarness.open();
+
+      trigger(testHarness);
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+      List<DataFileRewritePlanner.PlannedGroup> planned = testHarness.extractOutputValues();
+
+      assertThat(planned).hasSize(1);
+      assertThat(planned.get(0).group().fileScanTasks()).hasSize(2);
     }
   }
 

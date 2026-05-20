@@ -28,7 +28,6 @@ import com.google.api.client.http.HttpStatusCodes;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.Data;
 import com.google.api.services.bigquery.Bigquery;
-import com.google.api.services.bigquery.BigqueryScopes;
 import com.google.api.services.bigquery.model.Dataset;
 import com.google.api.services.bigquery.model.DatasetList;
 import com.google.api.services.bigquery.model.DatasetList.Datasets;
@@ -61,6 +60,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
@@ -70,7 +70,6 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -127,9 +126,10 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       throws IOException, GeneralSecurityException {
     // Initialize client that will be used to send requests. This client only needs to be created
     // once, and can be reused for multiple requests
-    HttpCredentialsAdapter httpCredentialsAdapter =
-        new HttpCredentialsAdapter(
-            GoogleCredentials.getApplicationDefault().createScoped(BigqueryScopes.all()));
+
+    GoogleCredentials credentials = (GoogleCredentials) options.getCredentials();
+    HttpCredentialsAdapter httpCredentialsAdapter = new HttpCredentialsAdapter(credentials);
+
     this.client =
         new Bigquery.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
@@ -650,7 +650,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       case HttpStatusCodes.STATUS_CODE_FORBIDDEN:
         throw new ForbiddenException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_PRECONDITION_FAILED:
-        throw new ValidationException("%s", errorMessage);
+        throw new CommitFailedException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_NOT_FOUND:
         throw new IllegalArgumentException(errorMessage);
       case HttpStatusCodes.STATUS_CODE_SERVER_ERROR:

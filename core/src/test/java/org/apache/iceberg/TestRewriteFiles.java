@@ -48,7 +48,8 @@ public class TestRewriteFiles extends TestBase {
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
     return TestHelpers.ALL_VERSIONS.stream()
-        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "branch"}))
+        .flatMap(
+            v -> Stream.of(new Object[] {v, SnapshotRef.MAIN_BRANCH}, new Object[] {v, "branch"}))
         .collect(Collectors.toList());
   }
 
@@ -364,7 +365,7 @@ public class TestRewriteFiles extends TestBase {
     long pendingId = pending.snapshotId();
     ManifestFile newManifest = pending.allManifests(table.io()).get(0);
     validateManifestEntries(newManifest, ids(pendingId), files(FILE_D), statuses(ADDED));
-    assertThat(ManifestFiles.read(newManifest, FILE_IO).entries())
+    assertThat(ManifestFiles.read(newManifest, FILE_IO, table.specs()).entries())
         .allSatisfy(entry -> assertThat(entry.dataSequenceNumber()).isEqualTo(oldSequenceNumber));
     assertThat(newManifest.sequenceNumber()).isEqualTo(oldSequenceNumber + 1);
 

@@ -35,6 +35,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
@@ -242,13 +243,14 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         false,
         elementsPerCheckpoint,
         expectedRecords,
-        "main");
+        SnapshotRef.MAIN_BRANCH);
 
-    DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).build();
+    DeleteFile deleteFile = changes.addedDeleteFiles().iterator().next();
     String fromStat =
         new String(
             deleteFile.lowerBounds().get(MetadataColumns.DELETE_FILE_PATH.fieldId()).array());
-    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    DataFile dataFile = changes.addedDataFiles().iterator().next();
     assumeThat(fromStat).isEqualTo(dataFile.location());
   }
 }

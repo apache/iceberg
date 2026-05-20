@@ -24,17 +24,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestDynamicTableUpdateOperator {
+
+  private static final boolean CASE_SENSITIVE = true;
+  private static final boolean CASE_INSENSITIVE = false;
+
+  private static final boolean DROP_COLUMNS = true;
+  private static final boolean PRESERVE_COLUMNS = false;
 
   @RegisterExtension
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
@@ -50,9 +60,6 @@ class TestDynamicTableUpdateOperator {
 
   @Test
   void testDynamicTableUpdateOperatorNewTable() throws Exception {
-    int cacheMaximumSize = 10;
-    int cacheRefreshMs = 1000;
-    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
@@ -60,10 +67,8 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            cacheMaximumSize,
-            cacheRefreshMs,
-            inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open((OpenContext) null);
 
     DynamicRecordInternal input =
@@ -84,19 +89,14 @@ class TestDynamicTableUpdateOperator {
 
   @Test
   void testDynamicTableUpdateOperatorSchemaChange() throws Exception {
-    int cacheMaximumSize = 10;
-    int cacheRefreshMs = 1000;
-    int inputSchemaCacheMaximumSize = 10;
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier table = TableIdentifier.of(TABLE);
 
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            cacheMaximumSize,
-            cacheRefreshMs,
-            inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
     operator.open((OpenContext) null);
 
     catalog.createTable(table, SCHEMA1);
@@ -119,5 +119,127 @@ class TestDynamicTableUpdateOperator {
     DynamicRecordInternal output2 = operator.map(input);
     assertThat(output2).isEqualTo(output);
     assertThat(catalog.loadTable(table).schema().schemaId()).isEqualTo(output.schema().schemaId());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void testCaseInSensitivity(boolean caseSensitive) throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier table = TableIdentifier.of(TABLE);
+
+    Schema initialSchema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    Schema caseSensitiveSchema =
+        new Schema(Types.NestedField.required(1, "Id", Types.IntegerType.get()));
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(caseSensitive, PRESERVE_COLUMNS));
+    operator.open((OpenContext) null);
+
+    catalog.createTable(table, initialSchema);
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            caseSensitiveSchema,
+            GenericRowData.of(1, "test"),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+    DynamicRecordInternal output = operator.map(input);
+
+    if (caseSensitive) {
+      // Schema changes due to case sensitivity
+      Schema expectedSchema =
+          new Schema(
+              Types.NestedField.optional(2, "Id", Types.IntegerType.get()),
+              Types.NestedField.optional(1, "id", Types.IntegerType.get()));
+      Schema tableSchema = catalog.loadTable(table).schema();
+      assertThat(tableSchema.sameSchema(expectedSchema)).isTrue();
+      assertThat(output.schema().sameSchema(expectedSchema)).isTrue();
+    } else {
+      // No schema change due to case insensitivity
+      assertThat(catalog.loadTable(table).schema().sameSchema(initialSchema)).isTrue();
+      assertThat(output.schema().sameSchema(initialSchema)).isTrue();
+    }
+  }
+
+  @Test
+  void testDynamicTableUpdateOperatorPreserveUnusedColumns() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier table = TableIdentifier.of(TABLE);
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
+    operator.open((OpenContext) null);
+
+    catalog.createTable(table, SCHEMA2);
+
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            SCHEMA1,
+            GenericRowData.of(1),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+    DynamicRecordInternal output = operator.map(input);
+
+    Schema tableSchema = catalog.loadTable(table).schema();
+    assertThat(tableSchema.columns()).hasSize(2);
+    assertThat(tableSchema.findField("id")).isNotNull();
+    assertThat(tableSchema.findField("data")).isNotNull();
+    assertThat(tableSchema.findField("data").isOptional()).isTrue();
+    assertThat(input).isEqualTo(output);
+  }
+
+  @Test
+  void testDynamicTableUpdateOperatorDropUnusedColumns() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier table = TableIdentifier.of(TABLE);
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(CASE_INSENSITIVE, DROP_COLUMNS));
+    operator.open((OpenContext) null);
+
+    catalog.createTable(table, SCHEMA2);
+
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            SCHEMA1,
+            GenericRowData.of(1),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+    DynamicRecordInternal output = operator.map(input);
+
+    Schema tableSchema = catalog.loadTable(table).schema();
+    assertThat(tableSchema.columns()).hasSize(1);
+    assertThat(tableSchema.findField("id")).isNotNull();
+    assertThat(tableSchema.findField("data")).isNull();
+    assertThat(input).isEqualTo(output);
+  }
+
+  private static FlinkDynamicSinkConf flinkDynamicSinkConfiguration(
+      boolean caseSensitive, boolean dropUnusedColumns) {
+    return new FlinkDynamicSinkConf(
+        ImmutableMap.of(
+            FlinkDynamicSinkOptions.CASE_SENSITIVE.key(), String.valueOf(caseSensitive),
+            FlinkDynamicSinkOptions.DROP_UNUSED_COLUMNS.key(), String.valueOf(dropUnusedColumns)),
+        new Configuration());
   }
 }

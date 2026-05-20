@@ -21,17 +21,26 @@ package org.apache.iceberg.encryption;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class EncryptionUtil {
+  private static final Set<String> ENCRYPTION_TABLE_PROPERTIES =
+      ImmutableSet.<String>builder()
+          .add(TableProperties.ENCRYPTION_TABLE_KEY)
+          .add(TableProperties.ENCRYPTION_DEK_LENGTH)
+          .build();
 
   private EncryptionUtil() {}
 
@@ -45,8 +54,18 @@ public class EncryptionUtil {
         kmsType,
         kmsImpl);
 
-    // TODO: Add KMS implementations
-    Preconditions.checkArgument(kmsType == null, "Unsupported KMS type: %s", kmsType);
+    if (kmsType != null) {
+      kmsImpl =
+          switch (kmsType.toLowerCase(Locale.ROOT)) {
+            case CatalogProperties.ENCRYPTION_KMS_TYPE_AWS ->
+                CatalogProperties.ENCRYPTION_KMS_IMPL_AWS;
+            case CatalogProperties.ENCRYPTION_KMS_TYPE_AZURE ->
+                CatalogProperties.ENCRYPTION_KMS_IMPL_AZURE;
+            case CatalogProperties.ENCRYPTION_KMS_TYPE_GCP ->
+                CatalogProperties.ENCRYPTION_KMS_IMPL_GCP;
+            default -> throw new IllegalStateException("Unsupported KMS type: " + kmsType);
+          };
+    }
 
     KeyManagementClient kmsClient;
     DynConstructors.Ctor<KeyManagementClient> ctor;
@@ -181,5 +200,19 @@ public class EncryptionUtil {
         encryptor.encrypt(mlkMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
 
     return ByteBuffer.wrap(encryptedKeyMetadata);
+  }
+
+  public static void checkCompatibility(Map<String, String> tableProperties, int formatVersion) {
+    if (formatVersion >= 3) {
+      return;
+    }
+
+    Set<String> encryptionProperties =
+        Sets.intersection(ENCRYPTION_TABLE_PROPERTIES, tableProperties.keySet());
+    Preconditions.checkArgument(
+        encryptionProperties.isEmpty(),
+        "Invalid properties for v%s: %s",
+        formatVersion,
+        encryptionProperties);
   }
 }

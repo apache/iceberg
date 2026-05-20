@@ -32,6 +32,7 @@ import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
@@ -65,7 +66,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   @Test
   public void testWithNullRefLoadsMain() throws NessieNotFoundException {
     NessieIcebergClient client = new NessieIcebergClient(api, null, null, ImmutableMap.of());
-    assertThat(client.getRef().getReference()).isEqualTo(api.getReference().refName("main").get());
+    assertThat(client.getRef().getReference())
+        .isEqualTo(api.getReference().refName(SnapshotRef.MAIN_BRANCH).get());
   }
 
   @Test
@@ -76,11 +78,15 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
 
   @Test
   public void testWithReference() throws NessieNotFoundException {
-    NessieIcebergClient client = new NessieIcebergClient(api, "main", null, ImmutableMap.of());
+    NessieIcebergClient client =
+        new NessieIcebergClient(api, SnapshotRef.MAIN_BRANCH, null, ImmutableMap.of());
 
     assertThat(client.withReference(null, null)).isEqualTo(client);
-    assertThat(client.withReference("main", null)).isNotEqualTo(client);
-    assertThat(client.withReference("main", api.getReference().refName("main").get().getHash()))
+    assertThat(client.withReference(SnapshotRef.MAIN_BRANCH, null)).isNotEqualTo(client);
+    assertThat(
+            client.withReference(
+                SnapshotRef.MAIN_BRANCH,
+                api.getReference().refName(SnapshotRef.MAIN_BRANCH).get().getHash()))
         .isEqualTo(client);
 
     assertThat(client.withReference(BRANCH, null)).isNotEqualTo(client);

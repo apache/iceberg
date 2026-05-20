@@ -38,7 +38,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -54,6 +56,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   private final SerializableMap<String, String> properties;
   private final String credentialsEndpoint;
   private final String catalogEndpoint;
+  private final String planId;
   private transient volatile Map<String, SimpleTokenCache> sasCredentialByAccount;
   private transient volatile HTTPClient client;
   private transient AuthManager authManager;
@@ -67,6 +70,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     this.properties = SerializableMap.copyOf(properties);
     this.credentialsEndpoint = properties.get(URI);
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
+    this.planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
   }
 
   Mono<String> credentialForAccount(String storageAccount) {
@@ -151,7 +155,11 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
       synchronized (this) {
         if (null == client) {
           authManager = AuthManagers.loadAuthManager("adls-credentials-refresh", properties);
-          HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
+          HTTPClient httpClient =
+              HTTPClient.builder(properties)
+                  .uri(catalogEndpoint)
+                  .withHeaders(RESTUtil.configHeaders(properties))
+                  .build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);
         }
@@ -165,7 +173,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     return httpClient()
         .get(
             credentialsEndpoint,
-            null,
+            null != planId ? Map.of("planId", planId) : null,
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());

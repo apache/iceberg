@@ -139,18 +139,6 @@ if (flinkVersions.contains("2.1")) {
   project(":iceberg-flink:flink-runtime-2.1").name = "iceberg-flink-runtime-2.1"
 }
 
-if (sparkVersions.contains("3.4")) {
-  include ":iceberg-spark:spark-3.4_${scalaVersion}"
-  include ":iceberg-spark:spark-extensions-3.4_${scalaVersion}"
-  include ":iceberg-spark:spark-runtime-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark')
-  project(":iceberg-spark:spark-3.4_${scalaVersion}").name = "iceberg-spark-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-extensions-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark-extensions')
-  project(":iceberg-spark:spark-extensions-3.4_${scalaVersion}").name = "iceberg-spark-extensions-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-runtime-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark-runtime')
-  project(":iceberg-spark:spark-runtime-3.4_${scalaVersion}").name = "iceberg-spark-runtime-3.4_${scalaVersion}"
-}
-
 if (sparkVersions.contains("3.5")) {
   include ":iceberg-spark:spark-3.5_${scalaVersion}"
   include ":iceberg-spark:spark-extensions-3.5_${scalaVersion}"
@@ -173,6 +161,18 @@ if (sparkVersions.contains("4.0")) {
   project(":iceberg-spark:spark-extensions-4.0_2.13").name = "iceberg-spark-extensions-4.0_2.13"
   project(":iceberg-spark:spark-runtime-4.0_2.13").projectDir = file('spark/v4.0/spark-runtime')
   project(":iceberg-spark:spark-runtime-4.0_2.13").name = "iceberg-spark-runtime-4.0_2.13"
+}
+
+if (sparkVersions.contains("4.1")) {
+    include ":iceberg-spark:spark-4.1_2.13"
+    include ":iceberg-spark:spark-extensions-4.1_2.13"
+    include ":iceberg-spark:spark-runtime-4.1_2.13"
+    project(":iceberg-spark:spark-4.1_2.13").projectDir = file('spark/v4.1/spark')
+    project(":iceberg-spark:spark-4.1_2.13").name = "iceberg-spark-4.1_2.13"
+    project(":iceberg-spark:spark-extensions-4.1_2.13").projectDir = file('spark/v4.1/spark-extensions')
+    project(":iceberg-spark:spark-extensions-4.1_2.13").name = "iceberg-spark-extensions-4.1_2.13"
+    project(":iceberg-spark:spark-runtime-4.1_2.13").projectDir = file('spark/v4.1/spark-runtime')
+    project(":iceberg-spark:spark-runtime-4.1_2.13").name = "iceberg-spark-runtime-4.1_2.13"
 }
 
 if (kafkaVersions.contains("3")) {

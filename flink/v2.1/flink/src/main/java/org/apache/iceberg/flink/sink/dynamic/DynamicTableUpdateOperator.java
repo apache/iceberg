@@ -38,24 +38,25 @@ import org.apache.iceberg.flink.CatalogLoader;
 class DynamicTableUpdateOperator
     extends RichMapFunction<DynamicRecordInternal, DynamicRecordInternal> {
   private final CatalogLoader catalogLoader;
+  private final boolean dropUnusedColumns;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
+  private final boolean caseSensitive;
 
   private transient TableUpdater updater;
 
   DynamicTableUpdateOperator(
-      CatalogLoader catalogLoader,
-      int cacheMaximumSize,
-      long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize,
-      TableCreator tableCreator) {
+      CatalogLoader catalogLoader, TableCreator tableCreator, FlinkDynamicSinkConf configuration) {
     this.catalogLoader = catalogLoader;
-    this.cacheMaximumSize = cacheMaximumSize;
-    this.cacheRefreshMs = cacheRefreshMs;
-    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCreator = tableCreator;
+
+    this.cacheMaximumSize = configuration.cacheMaxSize();
+    this.cacheRefreshMs = configuration.cacheRefreshMs();
+    this.inputSchemasPerTableCacheMaximumSize = configuration.inputSchemasPerTableCacheMaxSize();
+    this.caseSensitive = configuration.caseSensitive();
+    this.dropUnusedColumns = configuration.dropUnusedColumns();
   }
 
   @Override
@@ -65,8 +66,15 @@ class DynamicTableUpdateOperator
     this.updater =
         new TableUpdater(
             new TableMetadataCache(
-                catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
-            catalog);
+                catalog,
+                cacheMaximumSize,
+                cacheRefreshMs,
+                inputSchemasPerTableCacheMaximumSize,
+                caseSensitive,
+                dropUnusedColumns),
+            catalog,
+            caseSensitive,
+            dropUnusedColumns);
   }
 
   @Override
