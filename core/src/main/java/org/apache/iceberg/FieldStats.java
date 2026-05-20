@@ -24,7 +24,13 @@ interface FieldStats<T> extends StructLike {
   /** The field ID of the statistic */
   int fieldId();
 
-  /** The field type of the statistic */
+  /**
+   * The field type of the statistic.
+   *
+   * <p>For geo types (geometry/geography), this returns the bounding box struct type (geo_lower /
+   * geo_upper) rather than the column's geometry or geography type, because the type is inferred
+   * from the lower/upper bound schema fields.
+   */
   Type type();
 
   /** The lower bound */

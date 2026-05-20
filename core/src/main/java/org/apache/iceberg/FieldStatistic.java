@@ -57,7 +57,7 @@ enum FieldStatistic {
   /**
    * The offset from the field ID of the base stats structure
    *
-   * @return The offset from the field ID of the base strats structure
+   * @return The offset from the field ID of the base stats structure
    */
   public int offset() {
     return offset;

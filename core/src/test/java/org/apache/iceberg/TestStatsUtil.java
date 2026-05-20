@@ -210,7 +210,7 @@ public class TestStatsUtil {
                 Types.StructType.of(
                     optional(
                         10000,
-                        "0",
+                        "i",
                         FieldStatistic.fieldStatsFor(
                             required(0, "i", Types.IntegerType.get()), 10000)),
                     optional(
