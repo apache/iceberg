@@ -271,8 +271,9 @@ class RESTTableScan extends DataTableScan {
     AtomicReference<FetchPlanningResultResponse> result = new AtomicReference<>();
     try {
       Tasks.foreach(planId)
-          .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, maxWaitTimeMs, SCALE_FACTOR)
-          .backoffStrategy(BackoffStrategies.from(catalogProperties))
+          .totalTimeoutMs(maxWaitTimeMs)
+          .backoffStrategy(
+              BackoffStrategies.from(catalogProperties, MIN_SLEEP_MS, MAX_SLEEP_MS, SCALE_FACTOR))
           .retry(maxRetries)
           .onlyRetryOn(NotCompleteException.class)
           .onFailure(

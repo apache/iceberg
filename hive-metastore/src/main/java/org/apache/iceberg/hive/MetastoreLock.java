@@ -94,7 +94,8 @@ class MetastoreLock implements HiveLock {
   private final long lockHeartbeatIntervalTime;
   private final ScheduledExecutorService exitingScheduledExecutorService;
   private final String agentInfo;
-  private final BackoffStrategy backoffStrategy;
+  private final BackoffStrategy acquireBackoff;
+  private final BackoffStrategy creationBackoff;
 
   private Optional<Long> hmsLockId = Optional.empty();
   private ReentrantLock jvmLock = null;
@@ -131,10 +132,18 @@ class MetastoreLock implements HiveLock {
     this.agentInfo = "Iceberg-" + UUID.randomUUID();
 
     String backoffImpl = conf.get(BackoffStrategies.STRATEGY_IMPL);
-    this.backoffStrategy =
+    BackoffStrategy customStrategy =
         backoffImpl == null
             ? null
             : BackoffStrategies.loadBackoffStrategy(backoffImpl, ImmutableMap.of());
+    this.acquireBackoff =
+        customStrategy != null
+            ? customStrategy
+            : BackoffStrategies.from(null, lockCheckMinWaitTime, lockCheckMaxWaitTime, 1.5);
+    this.creationBackoff =
+        customStrategy != null
+            ? customStrategy
+            : BackoffStrategies.from(null, lockCreationMinWaitTime, lockCreationMaxWaitTime, 2.0);
 
     this.exitingScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor(
@@ -213,8 +222,8 @@ class MetastoreLock implements HiveLock {
         // boundary issues.
         Tasks.foreach(lockInfo.lockId)
             .retry(Integer.MAX_VALUE - 100)
-            .exponentialBackoff(lockCheckMinWaitTime, lockCheckMaxWaitTime, lockAcquireTimeout, 1.5)
-            .backoffStrategy(backoffStrategy)
+            .totalTimeoutMs(lockAcquireTimeout)
+            .backoffStrategy(acquireBackoff)
             .throwFailureWhenFinished()
             .onlyRetryOn(WaitingForLockException.class)
             .run(
@@ -302,9 +311,8 @@ class MetastoreLock implements HiveLock {
     AtomicBoolean interrupted = new AtomicBoolean(false);
     Tasks.foreach(lockRequest)
         .retry(Integer.MAX_VALUE - 100)
-        .exponentialBackoff(
-            lockCreationMinWaitTime, lockCreationMaxWaitTime, lockCreationTimeout, 2.0)
-        .backoffStrategy(backoffStrategy)
+        .totalTimeoutMs(lockCreationTimeout)
+        .backoffStrategy(creationBackoff)
         .shouldRetryTest(
             e ->
                 !interrupted.get()
