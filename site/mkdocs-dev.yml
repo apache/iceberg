@@ -29,8 +29,9 @@ nav:
     - Hive: hive-quickstart.md
   - Docs:
     - Java:
-      - Nightly: '!include docs/docs/nightly/mkdocs.yml'
-      - Latest (1.10.1): '!include docs/docs/latest/mkdocs.yml'
+      # First entry determines the default landing page for the Docs tab.
+      - Latest (1.10.2): '!include versioned-docs/latest/mkdocs.yml'
+      - Nightly: '!include versioned-docs/nightly/mkdocs.yml'
     - Other Implementations:
       - Python: https://py.iceberg.apache.org/
       - Rust: https://rust.iceberg.apache.org/
@@ -108,9 +109,6 @@ nav:
 
 exclude_docs: |
   !.asf.yaml
-  docs/
   javadoc/
-  !docs/nightly/
   !javadoc/nightly/
-  !docs/latest/
   !javadoc/latest/

@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
-import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.S3_SIGNER_URI;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -119,12 +120,21 @@ class TestS3V4RestSignerClient {
   public static Stream<Arguments> validOAuth2Properties() {
     return Stream.of(
         // No OAuth2 data
-        Arguments.of(Map.of(S3_SIGNER_URI, "https://signer.com"), "sign", null),
+        Arguments.of(
+            Map.of(
+                RESTCatalogProperties.SIGNER_URI,
+                "https://signer.com",
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3"),
+            "sign",
+            null),
         // Token only
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -134,8 +144,10 @@ class TestS3V4RestSignerClient {
         // Credential only: expect a token to be fetched
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
@@ -145,8 +157,10 @@ class TestS3V4RestSignerClient {
         // Token and credential: should use token as is, not fetch a new one
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -158,8 +172,10 @@ class TestS3V4RestSignerClient {
         // Custom scope
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
@@ -168,5 +184,64 @@ class TestS3V4RestSignerClient {
                 "custom"),
             "custom",
             "token"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("legacySignerProperties")
+  void legacySignerProperties(
+      Map<String, String> properties, String expectedBaseSignerUri, String expectedEndpoint)
+      throws Exception {
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder().properties(properties).build()) {
+      assertThat(client.baseSignerUri()).isEqualTo(expectedBaseSignerUri);
+      assertThat(client.endpoint()).isEqualTo(expectedEndpoint);
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  public static Stream<Arguments> legacySignerProperties() {
+    return Stream.of(
+        // Only legacy properties
+        Arguments.of(
+            Map.of(
+                CatalogProperties.URI,
+                "https://catalog.com",
+                S3V4RestSignerClient.S3_SIGNER_URI,
+                "https://legacy-signer.com",
+                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                "v1/legacy/sign"),
+            "https://legacy-signer.com",
+            "https://legacy-signer.com/v1/legacy/sign"),
+        // Only new properties
+        Arguments.of(
+            Map.of(
+                CatalogProperties.URI,
+                "https://catalog.com",
+                RESTCatalogProperties.SIGNER_URI,
+                "https://new-signer.com",
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                "v1/new/sign"),
+            "https://new-signer.com",
+            "https://new-signer.com/v1/new/sign"),
+        // Mixed properties: legacy properties take precedence
+        Arguments.of(
+            Map.of(
+                CatalogProperties.URI,
+                "https://catalog.com",
+                RESTCatalogProperties.SIGNER_URI,
+                "https://new-signer.com",
+                RESTCatalogProperties.SIGNER_ENDPOINT,
+                "v1/new/sign",
+                S3V4RestSignerClient.S3_SIGNER_URI,
+                "https://legacy-signer.com",
+                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                "v1/legacy/sign"),
+            "https://legacy-signer.com",
+            "https://legacy-signer.com/v1/legacy/sign"),
+        // No signer properties: the catalog URI and the deprecated default endpoint are used
+        Arguments.of(
+            Map.of(CatalogProperties.URI, "https://catalog.com"),
+            "https://catalog.com",
+            "https://catalog.com/" + S3V4RestSignerClient.S3_SIGNER_DEFAULT_ENDPOINT));
   }
 }

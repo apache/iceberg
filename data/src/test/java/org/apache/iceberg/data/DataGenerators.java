@@ -29,7 +29,7 @@ import org.apache.iceberg.types.Types;
  */
 class DataGenerators {
 
-  static final DataGenerator[] ALL = new DataGenerator[] {new StructOfPrimitive()};
+  static final DataGenerator[] ALL = new DataGenerator[] {new StructOfPrimitive(), new Decimals()};
 
   private DataGenerators() {}
 
@@ -50,6 +50,19 @@ class DataGenerators {
     }
   }
 
+  static class Decimals implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            required(1, "dec_9_2", Types.DecimalType.of(9, 2)),
+            required(2, "dec_15_3", Types.DecimalType.of(15, 3)),
+            required(3, "dec_38_10", Types.DecimalType.of(38, 10)));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+  }
+
   static class DefaultSchema implements DataGenerator {
     private final Schema schema =
         new Schema(
@@ -58,6 +71,18 @@ class DataGenerators {
             Types.NestedField.required(3, "col_c", Types.LongType.get()),
             Types.NestedField.required(4, "col_d", Types.FloatType.get()),
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+  }
+
+  static class FloatDoubleSchema implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col_float", Types.FloatType.get()),
+            Types.NestedField.required(2, "col_double", Types.DoubleType.get()));
 
     @Override
     public Schema schema() {

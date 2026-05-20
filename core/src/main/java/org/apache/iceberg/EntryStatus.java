@@ -26,6 +26,8 @@ enum EntryStatus {
   /** Indicates an entry that has been replaced by a column update or DV change. Added in v4. */
   REPLACED(3);
 
+  private static final EntryStatus[] VALUES = EntryStatus.values();
+
   private final int id;
 
   EntryStatus(int id) {
@@ -34,5 +36,9 @@ enum EntryStatus {
 
   public int id() {
     return id;
+  }
+
+  static EntryStatus fromId(int id) {
+    return VALUES[id];
   }
 }

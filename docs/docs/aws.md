@@ -43,11 +43,11 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.4 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.5 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
 
 ```sh
 # start Spark SQL client shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
     --conf spark.sql.defaultCatalog=my_catalog \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
@@ -288,7 +288,7 @@ This feature requires the following lock related catalog properties:
 2. Set `lock.table` as the DynamoDB table name you would like to use. If the lock table with the given name does not exist in DynamoDB, a new table is created with billing mode set as [pay-per-request](https://aws.amazon.com/blogs/aws/amazon-dynamodb-on-demand-no-capacity-planning-and-pay-per-request-pricing).
 
 Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
-For more details, please refer to [Lock catalog properties](configuration.md#lock-catalog-properties).
+For more details, please refer to [Lock catalog properties](catalog-properties.md#lock-catalog-properties).
 
 ## S3 FileIO
 
@@ -685,7 +685,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.type=glue \
@@ -705,10 +705,12 @@ For more details of configuration, see sections [URL Connection HTTP Client Conf
 
 Configurations for the HTTP client can be set via catalog properties. Below is an overview of available configurations:
 
-| Property                   | Default | Description                                                                                                |
-|----------------------------|---------|------------------------------------------------------------------------------------------------------------|
-| http-client.type           | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
-| http-client.proxy-endpoint | null    | An optional proxy endpoint to use for the HTTP client.                                                     |
+| Property                                          | Default | Description                                                                                                                                                                                                                                                          |
+|---------------------------------------------------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| http-client.type                                  | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client                                                                                                                                                          |
+| http-client.proxy-endpoint                        | null    | An optional proxy endpoint to use for the HTTP client.                                                                                                                                                                                                               |
+| http-client.proxy-use-system-property-values      | null, enabled by default | An optional `true/false` setting that controls whether proxy configuration is read from Java system properties (`http.proxyHost`, `http.proxyPort`, `http.nonProxyHosts`, etc.).                                                               |
+| http-client.proxy-use-environment-variable-values | null, enabled by default | An optional `true/false` setting that controls whether proxy configuration is read from environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, etc.).                                                                                |
 
 #### URL Connection HTTP Client Configurations
 

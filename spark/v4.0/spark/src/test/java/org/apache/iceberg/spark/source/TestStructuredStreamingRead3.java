@@ -31,13 +31,17 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -50,15 +54,22 @@ import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.VoidFunction2;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
@@ -73,9 +84,72 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, async = {3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        false
+      },
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        true
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        false
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        true
+      },
+      {
+        SparkCatalogConfig.REST.catalogName(),
+        SparkCatalogConfig.REST.implementation(),
+        ImmutableMap.builder()
+            .putAll(SparkCatalogConfig.REST.properties())
+            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+            .build(),
+        false
+      },
+      {
+        SparkCatalogConfig.REST.catalogName(),
+        SparkCatalogConfig.REST.implementation(),
+        ImmutableMap.builder()
+            .putAll(SparkCatalogConfig.REST.properties())
+            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+            .build(),
+        true
+      },
+      {
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
+        false
+      },
+      {
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
+        true
+      }
+    };
+  }
+
   private Table table;
 
   private final AtomicInteger microBatches = new AtomicInteger();
+
+  @Parameter(index = 3)
+  private Boolean async;
 
   /**
    * test data to be used by multiple writes each write creates a snapshot and writes a list of
@@ -197,8 +271,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         Trigger.AvailableNow());
 
     // soft limit of 1 is being enforced, the stream is not blocked.
-    StreamingQuery query =
-        startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"));
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1");
 
     // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
@@ -259,14 +332,40 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testReadStreamWithLowAsyncQueuePreload() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+    // Set low preload limits to test async queue behavior - background thread should load
+    // remaining data
+
+    StreamingQuery query =
+        startStream(
+            ImmutableMap.of(
+                SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT,
+                "5",
+                SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT,
+                "5"));
+
+    List<SimpleRecord> actual = rowsAvailable(query);
+    assertThat(actual)
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(TEST_DATA_MULTIPLE_SNAPSHOTS));
+  }
+
+  @TestTemplate
   public void testAvailableNowStreamReadShouldNotHangOrReprocessData() throws Exception {
     File writerCheckpointFolder = temp.resolve("writer-checkpoint-folder").toFile();
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
     File output = temp.resolve("junit").toFile();
 
+    Map<String, String> options = Maps.newHashMap();
+    options.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      options.put(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
     DataStreamWriter querySource =
         spark
             .readStream()
+            .options(options)
             .format("iceberg")
             .load(tableName)
             .writeStream()
@@ -321,10 +420,17 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     long expectedSnapshotId = table.currentSnapshot().snapshotId();
 
     String sinkTable = "availablenow_sink";
+    Map<String, String> options = Maps.newHashMap();
+    options.put(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1");
+    options.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      options.put(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
     StreamingQuery query =
         spark
             .readStream()
-            .option(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")
+            .options(options)
             .format("iceberg")
             .load(tableName)
             .writeStream()
@@ -364,6 +470,142 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     // Verify only the initial data was processed
     assertThat(actualResults.size()).isEqualTo(expectedRecordCount);
     assertThat(actualResults).containsExactlyInAnyOrderElementsOf(Iterables.concat(expectedData));
+  }
+
+  @TestTemplate
+  public void testTriggerAvailableNowCapsAsyncPreloadAfterPrepare() {
+    List<List<SimpleRecord>> initialData =
+        List.of(List.of(new SimpleRecord(1, "one")), List.of(new SimpleRecord(2, "two")));
+    appendDataAsMultipleSnapshots(initialData);
+
+    table.refresh();
+    long expectedCapSnapshotId = table.currentSnapshot().snapshotId();
+
+    SparkMicroBatchStream stream =
+        new SparkMicroBatchStream(
+            JavaSparkContext.fromSparkContext(spark.sparkContext()),
+            table,
+            table::io,
+            new SparkReadConf(
+                spark,
+                table,
+                ImmutableMap.of(
+                    SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED,
+                    async.toString(),
+                    SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH,
+                    "1",
+                    SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS,
+                    "1",
+                    SparkReadOptions.ASYNC_QUEUE_PRELOAD_FILE_LIMIT,
+                    "10",
+                    SparkReadOptions.ASYNC_QUEUE_PRELOAD_ROW_LIMIT,
+                    "10")),
+            table.schema(),
+            temp.resolve("available-now-cap-checkpoint").toString());
+
+    try {
+      stream.prepareForTriggerAvailableNow();
+
+      appendData(List.of(new SimpleRecord(3, "three")));
+
+      Offset startOffset = stream.initialOffset();
+      Offset firstEndOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+      assertThat(firstEndOffset).isNotNull();
+      stream.planInputPartitions(startOffset, firstEndOffset);
+
+      Offset secondEndOffset = stream.latestOffset(firstEndOffset, stream.getDefaultReadLimit());
+      assertThat(secondEndOffset).isNotNull();
+      stream.planInputPartitions(firstEndOffset, secondEndOffset);
+
+      assertThat(stream.latestOffset(secondEndOffset, stream.getDefaultReadLimit())).isNull();
+      assertThat(((StreamingOffset) secondEndOffset).snapshotId()).isEqualTo(expectedCapSnapshotId);
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
+  public void testLatestOffsetReturnsNullAfterFinalBatchIsConsumed() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    table.refresh();
+    int expectedBatchCount;
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      expectedBatchCount = Iterables.size(tasks);
+    }
+
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+            "drain-to-null-checkpoint");
+
+    try {
+      int plannedBatchCount = 0;
+      Offset startOffset = stream.initialOffset();
+      Offset endOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+      while (endOffset != null) {
+        InputPartition[] partitions = stream.planInputPartitions(startOffset, endOffset);
+        assertThat(partitions).isNotEmpty();
+        plannedBatchCount += 1;
+        startOffset = endOffset;
+        endOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+      }
+
+      assertThat(endOffset).isNull();
+      assertThat(plannedBatchCount).isEqualTo(expectedBatchCount);
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
+  public void testPlanInputPartitionsIsIdempotentForSameOffsets() {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(
+            ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+            "idempotent-plan-files-checkpoint");
+
+    try {
+      Offset startOffset = stream.initialOffset();
+      Offset endOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+
+      assertThat(endOffset).isNotNull();
+
+      InputPartition[] firstPartitions = stream.planInputPartitions(startOffset, endOffset);
+      InputPartition[] secondPartitions = stream.planInputPartitions(startOffset, endOffset);
+
+      List<String> firstFileLocations = Lists.newArrayList();
+      for (InputPartition partition : firstPartitions) {
+        SparkInputPartition sparkInputPartition = (SparkInputPartition) partition;
+        for (FileScanTask task : sparkInputPartition.<FileScanTask>taskGroup().tasks()) {
+          firstFileLocations.add(task.file().location());
+        }
+      }
+
+      List<String> secondFileLocations = Lists.newArrayList();
+      for (InputPartition partition : secondPartitions) {
+        SparkInputPartition sparkInputPartition = (SparkInputPartition) partition;
+        for (FileScanTask task : sparkInputPartition.<FileScanTask>taskGroup().tasks()) {
+          secondFileLocations.add(task.file().location());
+        }
+      }
+
+      assertThat(firstFileLocations).containsExactlyInAnyOrderElementsOf(secondFileLocations);
+
+      startOffset = endOffset;
+      endOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+      while (endOffset != null) {
+        assertThat(stream.planInputPartitions(startOffset, endOffset)).isNotEmpty();
+        startOffset = endOffset;
+        endOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+      }
+
+      assertThat(endOffset).isNull();
+    } finally {
+      stream.stop();
+    }
   }
 
   @TestTemplate
@@ -433,6 +675,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     // Data appended after the timestamp should appear
     appendData(data);
+    // Allow async background thread to refresh, else test sometimes fails
+    Thread.sleep(50);
     actual = rowsAvailable(query);
     assertThat(actual).containsExactlyInAnyOrderElementsOf(data);
   }
@@ -885,13 +1129,18 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   private static final String MEMORY_TABLE = "_stream_view_mem";
 
   private StreamingQuery startStream(Map<String, String> options) throws TimeoutException {
+    Map<String, String> allOptions = Maps.newHashMap(options);
+    allOptions.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      allOptions.putIfAbsent(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
     return spark
         .readStream()
-        .options(options)
+        .options(allOptions)
         .format("iceberg")
         .load(tableName)
         .writeStream()
-        .options(options)
+        .options(allOptions)
         .format("memory")
         .queryName(MEMORY_TABLE)
         .outputMode(OutputMode.Append())
@@ -916,11 +1165,17 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   private void assertMicroBatchRecordSizes(
       Map<String, String> options, List<Long> expectedMicroBatchRecordSize, Trigger trigger)
       throws TimeoutException {
-    Dataset<Row> ds = spark.readStream().options(options).format("iceberg").load(tableName);
+    Map<String, String> allOptions = Maps.newHashMap(options);
+    allOptions.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      allOptions.putIfAbsent(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
+    Dataset<Row> ds = spark.readStream().options(allOptions).format("iceberg").load(tableName);
 
     List<Long> syncList = Collections.synchronizedList(Lists.newArrayList());
     ds.writeStream()
-        .options(options)
+        .options(allOptions)
         .trigger(trigger)
         .foreachBatch(
             (VoidFunction2<Dataset<Row>, Long>)
@@ -940,5 +1195,22 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .sql("select * from " + MEMORY_TABLE)
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
+  }
+
+  private SparkMicroBatchStream newMicroBatchStream(
+      Map<String, String> options, String checkpointDirName) {
+    Map<String, String> allOptions = Maps.newHashMap(options);
+    allOptions.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      allOptions.putIfAbsent(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
+    return new SparkMicroBatchStream(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        table::io,
+        new SparkReadConf(spark, table, allOptions),
+        table.schema(),
+        temp.resolve(checkpointDirName).toString());
   }
 }

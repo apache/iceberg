@@ -2207,4 +2207,47 @@ public class TestRemoveSnapshots extends TestBase {
   private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
   }
+
+  @TestTemplate
+  public void testAppendOnlyManifestsNotScannedDuringCleanup() {
+    assumeThat(incrementalCleanup).isTrue();
+
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "testAppendOnlyManifests";
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+
+    testTable.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = testTable.currentSnapshot();
+
+    Set<String> appendOnlyManifestPaths =
+        firstSnapshot.allManifests(testTable.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    testTable.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(testTable.currentSnapshot().timestampMillis());
+
+    Mockito.clearInvocations(spyFileIO);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(testTable)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
+
+    appendOnlyManifestPaths.forEach(
+        path -> Mockito.verify(spyFileIO, Mockito.never()).newInputFile(path));
+  }
 }

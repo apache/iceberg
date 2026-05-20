@@ -162,6 +162,15 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Warehouse provided in the `warehouse` query parameter is not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchWarehouseExample:
+                  $ref: '#/components/examples/NoSuchWarehouseError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -598,7 +607,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -918,7 +927,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -974,9 +983,9 @@ paths:
         - in: query
           name: snapshots
           description:
-            The snapshots to return in the body of the metadata. Setting the value to `all` would
-            return the full set of snapshots currently valid for the table. Setting the value to
-            `refs` would load all snapshots referenced by branches or tags.
+            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+            the value to `all` would return the full set of snapshots currently valid for the table.
+            Setting the value to `refs` would load all snapshots referenced by branches or tags.
 
             Default if no param is provided is `all`.
           required: false
@@ -1584,7 +1593,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The view already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -2257,6 +2266,17 @@ components:
         name:
           type: string
           nullable: false
+
+    CatalogObjectIdentifier:
+      description:
+        Reference to a catalog object (for example, table, view, or namespace) as
+        an ordered list of hierarchical levels.
+        The object kind is determined by context (e.g. the endpoint or a
+        companion type discriminator), not by the identifier structure alone.
+      type: array
+      items:
+        type: string
+      example: [ "accounting", "tax", "paid" ]
 
     PrimitiveType:
       type: string
@@ -5168,6 +5188,16 @@ components:
         }
       }
 
+    NoSuchWarehouseError:
+      summary: The requested warehouse does not exist
+      value: {
+        "error": {
+          "message": "The given warehouse does not exist",
+          "type": "NoSuchWarehouseException",
+          "code": 404
+        }
+      }
+
     NoSuchNamespaceError:
       summary: The requested namespace does not exist
       value: {
@@ -5206,7 +5236,7 @@ components:
       summary: The requested table identifier already exists
       value: {
         "error": {
-          "message": "The given table already exists",
+          "message": "The requested table identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }
@@ -5216,7 +5246,7 @@ components:
       summary: The requested view identifier already exists
       value: {
         "error": {
-          "message": "The given view already exists",
+          "message": "The requested view identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }

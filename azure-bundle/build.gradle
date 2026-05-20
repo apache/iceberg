@@ -23,6 +23,12 @@ project(":iceberg-azure-bundle") {
 
   tasks.jar.dependsOn tasks.shadowJar
 
+  configurations {
+    implementation {
+      exclude group: 'org.slf4j'
+    }
+  }
+
   dependencies {
     implementation platform(libs.azuresdk.bom)
     implementation "com.azure:azure-storage-file-datalake"
@@ -38,10 +44,6 @@ project(":iceberg-azure-bundle") {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
-    }
-
-    dependencies {
-      exclude(dependency('org.slf4j:slf4j-api'))
     }
 
     // relocate Azure-specific versions
