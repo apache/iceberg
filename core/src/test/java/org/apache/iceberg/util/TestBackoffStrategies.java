@@ -115,6 +115,39 @@ public class TestBackoffStrategies {
         .hasMessageContaining("init failed");
   }
 
+  @Test
+  public void fromWithDefaultsReturnsExponentialWhenKeyAbsent() {
+    BackoffStrategy strategy = BackoffStrategies.from(ImmutableMap.of(), 100, 1000, 2.0);
+
+    assertThat(strategy).isInstanceOf(ExponentialBackoffStrategy.class);
+    long wait = strategy.computeBackoff(1);
+    assertThat(wait).isGreaterThanOrEqualTo(100L).isLessThan(110L);
+  }
+
+  @Test
+  public void fromWithDefaultsReturnsCustomWhenKeySet() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            BackoffStrategies.STRATEGY_IMPL,
+            FixedBackoffStrategy.class.getName(),
+            "delay-ms",
+            "42");
+
+    BackoffStrategy strategy = BackoffStrategies.from(properties, 100, 1000, 2.0);
+
+    assertThat(strategy).isInstanceOf(FixedBackoffStrategy.class);
+    assertThat(strategy.computeBackoff(1)).isEqualTo(42L);
+  }
+
+  @Test
+  public void fromWithDefaultsAcceptsNullProperties() {
+    BackoffStrategy strategy = BackoffStrategies.from(null, 100, 1000, 2.0);
+
+    assertThat(strategy).isInstanceOf(ExponentialBackoffStrategy.class);
+    long wait = strategy.computeBackoff(1);
+    assertThat(wait).isGreaterThanOrEqualTo(100L).isLessThan(110L);
+  }
+
   /** Test strategy with a public no-arg constructor that records its initialize properties. */
   public static class FixedBackoffStrategy implements BackoffStrategy {
     private long delayMs = 0;

@@ -54,6 +54,30 @@ public class BackoffStrategies {
   }
 
   /**
+   * Resolves the configured strategy from the given properties, falling back to a default {@link
+   * ExponentialBackoffStrategy} configured from the provided min/max/scale parameters when {@link
+   * #STRATEGY_IMPL} is not set. Never returns {@code null}.
+   *
+   * @param properties properties that may contain {@link #STRATEGY_IMPL}; may be {@code null}
+   * @param defaultMinSleepTimeMs min sleep for the default exponential fallback
+   * @param defaultMaxSleepTimeMs max sleep for the default exponential fallback
+   * @param defaultScaleFactor scale factor for the default exponential fallback
+   * @return the configured custom strategy if {@link #STRATEGY_IMPL} is set, otherwise a fresh
+   *     {@link ExponentialBackoffStrategy} with the given parameters
+   */
+  public static BackoffStrategy from(
+      Map<String, String> properties,
+      long defaultMinSleepTimeMs,
+      long defaultMaxSleepTimeMs,
+      double defaultScaleFactor) {
+    BackoffStrategy custom = from(properties);
+    return custom != null
+        ? custom
+        : new ExponentialBackoffStrategy(
+            defaultMinSleepTimeMs, defaultMaxSleepTimeMs, defaultScaleFactor);
+  }
+
+  /**
    * Loads and initializes a {@link BackoffStrategy} by class name.
    *
    * @param impl fully-qualified class name of a {@link BackoffStrategy} with a no-arg constructor
