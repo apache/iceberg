@@ -4277,11 +4277,11 @@ components:
     QueryEventsResponse:
       type: object
       required:
-        - next-page-token
+        - continuation-token
         - highest-processed-timestamp-ms
         - events
       properties:
-        next-page-token:
+        continuation-token:
           type: string
           description: >
             An opaque continuation token to fetch the next page of events.

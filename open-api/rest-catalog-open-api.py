@@ -1602,9 +1602,9 @@ class CommitTableResponse(BaseModel):
 
 
 class QueryEventsResponse(BaseModel):
-    next_page_token: str = Field(
+    continuation_token: str = Field(
         ...,
-        alias='next-page-token',
+        alias='continuation-token',
         description="An opaque continuation token to fetch the next page of events. This token encodes the server's cursor position and filter state. Clients should treat this as an opaque value and pass it unmodified in subsequent requests.\n",
     )
     highest_processed_timestamp_ms: int = Field(
