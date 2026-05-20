@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
@@ -27,12 +28,17 @@ import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NullOrdering;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 
-class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
+public class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
 
   private final Map<Integer, String> quotedNameById;
 
   SortOrderToSpark(Schema schema) {
     this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(schema);
+  }
+
+  public static SortOrder[] convert(org.apache.iceberg.SortOrder order, Schema schema) {
+    List<SortOrder> converted = SortOrderVisitor.visit(order, new SortOrderToSpark(schema));
+    return converted.toArray(new SortOrder[0]);
   }
 
   @Override
