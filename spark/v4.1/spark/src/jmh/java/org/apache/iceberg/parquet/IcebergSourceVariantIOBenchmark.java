@@ -894,11 +894,27 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   }
 
   /** Reset the metrics counter. */
-  private void resetMetricsCounter() {}
+  private void resetMetricsCounter() {
+    /*
+    ParquetMetricsRowGroupFilter.resetShreddedMetricsCounters();
+    */
+  }
 
   /**
    * On shredded tables, assert that shredded field were scanned for filtering operations. Log the
    * count at info.
    */
-  private void expectFilteringOfShreddedFields() {}
+  private void expectFilteringOfShreddedFields() {
+    /*
+      if (isShredded()) {
+        final long scans = ParquetMetricsRowGroupFilter.variantPredicatesShreddedMetricsEvaluated();
+        final long skipped = ParquetMetricsRowGroupFilter.variantPredicatesShreddedSkipped();
+        LOG.info("Scanned {} shredded metrics, skipped {} row groups", scans, skipped);
+        assertThat(scans)
+            .describedAs("Number of times rowgroup metrics of shredded fields were scanned")
+            .isGreaterThan(0);
+        assertThat(skipped).describedAs("rowgroups skipped").isGreaterThan(0);
+      }
+    */
+  }
 }
