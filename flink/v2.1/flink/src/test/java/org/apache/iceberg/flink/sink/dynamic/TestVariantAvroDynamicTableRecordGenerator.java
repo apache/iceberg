@@ -21,11 +21,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.flink.api.common.functions.DefaultOpenContext;
 import org.apache.flink.api.common.functions.util.ListCollector;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -50,6 +52,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
   public static final String TEST_DB = "test_db";
   public static final String TEST_TABLE = "test_table";
   public static final String BRANCH = "main";
+  private static final Configuration FLINK_CONFIG = new Configuration();
 
   @Test
   public void testMissingRequiredFields() {
@@ -63,7 +66,10 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     RowType rowType = RowType.of(types.toArray(new LogicalType[0]), names.toArray(new String[0]));
 
-    assertThatThrownBy(() -> new VariantAvroDynamicTableRecordGenerator(rowType, Maps.newHashMap()))
+    assertThatThrownBy(
+            () ->
+                new VariantAvroDynamicTableRecordGenerator(
+                    rowType, Collections.emptyMap(), FLINK_CONFIG))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Missing column data. Expected column data of type VARIANT NOT NULL.");
@@ -82,7 +88,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     RowType rowType = createRowTypeWithRequiredFields();
     VariantAvroDynamicTableRecordGenerator generator =
-        new VariantAvroDynamicTableRecordGenerator(rowType, writeProperties);
+        new VariantAvroDynamicTableRecordGenerator(rowType, writeProperties, FLINK_CONFIG);
     generator.open(new DefaultOpenContext());
 
     RowData inputRecord =
@@ -101,7 +107,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
         .isEqualTo(TableIdentifier.of("test_db_override", "test_table_override"));
     assertThat(record.branch()).isNull();
     assertThat(record.spec()).isEqualTo(PartitionSpec.unpartitioned());
-    assertThat(record.writeParallelism()).isEqualTo(-1);
+    assertThat(record.writeParallelism()).isEqualTo(0);
   }
 
   @Test
@@ -113,7 +119,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     RowType rowType = createRowTypeWithAllColumns();
     VariantAvroDynamicTableRecordGenerator generator =
-        new VariantAvroDynamicTableRecordGenerator(rowType, Maps.newHashMap());
+        new VariantAvroDynamicTableRecordGenerator(rowType, Collections.emptyMap(), FLINK_CONFIG);
     generator.open(new DefaultOpenContext());
 
     RowData inputRecord =
@@ -157,7 +163,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     RowType rowType = createRowTypeWithDbAndTable();
     VariantAvroDynamicTableRecordGenerator generator =
-        new VariantAvroDynamicTableRecordGenerator(rowType, Maps.newHashMap());
+        new VariantAvroDynamicTableRecordGenerator(rowType, Collections.emptyMap(), FLINK_CONFIG);
     generator.open(new DefaultOpenContext());
 
     List<DynamicRecord> records = Lists.newArrayList();
@@ -248,7 +254,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     RowType rowType = createRowTypeWithDbAndTable();
     VariantAvroDynamicTableRecordGenerator generator =
-        new VariantAvroDynamicTableRecordGenerator(rowType, Maps.newHashMap());
+        new VariantAvroDynamicTableRecordGenerator(rowType, Collections.emptyMap(), FLINK_CONFIG);
     generator.open(new DefaultOpenContext());
 
     List<DynamicRecord> records = Lists.newArrayList();
@@ -318,7 +324,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     RowType rowType = createRowTypeWithAllColumns();
     VariantAvroDynamicTableRecordGenerator generator =
-        new VariantAvroDynamicTableRecordGenerator(rowType, Maps.newHashMap());
+        new VariantAvroDynamicTableRecordGenerator(rowType, Collections.emptyMap(), FLINK_CONFIG);
     generator.open(new DefaultOpenContext());
 
     List<DynamicRecord> records = Lists.newArrayList();
