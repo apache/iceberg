@@ -288,35 +288,37 @@ To read a table, simply use the Iceberg table's name.
 
 Iceberg has several catalog back-ends that can be used to track tables, like JDBC, Hive MetaStore and Glue.
 Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`. In this guide,
-we use JDBC, but you can follow these instructions to configure other catalog types. To learn more, check out
+we use Hadoop catalog, but you can follow these instructions to configure other catalog types. To learn more, check out
 the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
 
-This configuration creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+This configuration creates a path-based catalog named `local` for tables under `/home/iceberg/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+In the Docker Compose setup, `$PWD/warehouse` on the host is mounted to `/home/iceberg/warehouse` in the container.
 
 === "CLI"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}\
+    docker exec -it spark-iceberg spark-sql \
         --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
         --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
         --conf spark.sql.catalog.spark_catalog.type=hive \
         --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
         --conf spark.sql.catalog.local.type=hadoop \
-        --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
+        --conf spark.sql.catalog.local.warehouse=/home/iceberg/warehouse \
         --conf spark.sql.defaultCatalog=local
     ```
 
 === "spark-defaults.conf"
 
     ```sh
-    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
+    docker exec -it spark-iceberg bash -c "cat << EOF >> /opt/spark/conf/spark-defaults.conf
     spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
     spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
     spark.sql.catalog.spark_catalog.type                 hive
     spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
     spark.sql.catalog.local.type                         hadoop
-    spark.sql.catalog.local.warehouse                    $PWD/warehouse
+    spark.sql.catalog.local.warehouse                    /home/iceberg/warehouse
     spark.sql.defaultCatalog                             local
+    EOF"
     ```
 
 !!! note
