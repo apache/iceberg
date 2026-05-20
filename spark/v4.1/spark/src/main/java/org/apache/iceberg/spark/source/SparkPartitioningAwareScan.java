@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -41,14 +42,18 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SortOrderToSpark;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.read.SupportsReportOrdering;
 import org.apache.spark.sql.connector.read.SupportsReportPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.KeyGroupedPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.Partitioning;
@@ -57,7 +62,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends SparkScan
-    implements SupportsReportPartitioning {
+    implements SupportsReportPartitioning, SupportsReportOrdering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPartitioningAwareScan.class);
 
@@ -121,6 +126,63 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
           table().name());
       return new KeyGroupedPartitioning(groupingKeyTransforms(), taskGroups().size());
     }
+  }
+
+  @Override
+  public SortOrder[] outputOrdering() {
+    List<T> planned = tasks();
+    if (planned.isEmpty()) {
+      return new SortOrder[0];
+    }
+
+    Integer uniformId = uniformSortOrderId(planned);
+    if (uniformId == null || uniformId == org.apache.iceberg.SortOrder.unsorted().orderId()) {
+      return new SortOrder[0];
+    }
+
+    org.apache.iceberg.SortOrder icebergOrder = table().sortOrders().get(uniformId);
+    if (icebergOrder == null || icebergOrder.isUnsorted()) {
+      return new SortOrder[0];
+    }
+
+    if (!allTaskGroupsAreSingleFile()) {
+      return new SortOrder[0];
+    }
+
+    if (!allFieldsAreIdentity(icebergOrder)) {
+      return new SortOrder[0];
+    }
+
+    return SortOrderToSpark.convert(icebergOrder, table().schema());
+  }
+
+  private Integer uniformSortOrderId(List<T> planned) {
+    Integer id = null;
+    for (T task : planned) {
+      if (!(task instanceof FileScanTask)) {
+        return null;
+      }
+      int taskId = ((FileScanTask) task).file().sortOrderId();
+      if (id == null) {
+        id = taskId;
+      } else if (id != taskId) {
+        return null;
+      }
+    }
+    return id;
+  }
+
+  private boolean allTaskGroupsAreSingleFile() {
+    for (ScanTaskGroup<T> group : taskGroups()) {
+      if (group.tasks().size() != 1) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static boolean allFieldsAreIdentity(org.apache.iceberg.SortOrder order) {
+    return order.fields().stream().allMatch(f -> f.transform().equals(Transforms.identity()));
   }
 
   @Override
