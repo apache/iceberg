@@ -48,6 +48,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -247,23 +248,18 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   public void testCreateTableWithTableComment() {
     // create table with comment
     sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("comment", "table comment");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
   }
 
   @TestTemplate
   public void testAlterTableModifyTableComment() {
     // create table with comment
     sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("comment", "table comment");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
 
     // alter table comment
     sql("ALTER TABLE tl SET('comment' = 'new comment')");
-    properties.put("comment", "new comment");
-    assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "new comment");
   }
 
   @TestTemplate
