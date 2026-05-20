@@ -38,6 +38,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -163,7 +164,7 @@ public class TestSinkWriter {
 
     IcebergWriterResult writeResult =
         new IcebergWriterResult(
-            TableIdentifier.parse(TABLE_NAME),
+            TableReference.of("unknown", TableIdentifier.parse(TABLE_NAME), null),
             ImmutableList.of(mock(DataFile.class)),
             ImmutableList.of(),
             Types.StructType.of());
@@ -239,7 +240,7 @@ public class TestSinkWriter {
       Map<String, Object> value, IcebergSinkConfig config) {
     IcebergWriterResult writeResult =
         new IcebergWriterResult(
-            TableIdentifier.parse(TABLE_NAME),
+            TableReference.of("unknown", TableIdentifier.parse(TABLE_NAME), null),
             ImmutableList.of(mock(DataFile.class)),
             ImmutableList.of(),
             Types.StructType.of());

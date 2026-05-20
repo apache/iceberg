@@ -198,21 +198,9 @@ class TestS3V4RestSignerClient {
     }
   }
 
-  @SuppressWarnings("deprecation")
   public static Stream<Arguments> legacySignerProperties() {
     return Stream.of(
-        // Only legacy properties
-        Arguments.of(
-            Map.of(
-                CatalogProperties.URI,
-                "https://catalog.com",
-                S3V4RestSignerClient.S3_SIGNER_URI,
-                "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
-                "v1/legacy/sign"),
-            "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // Only new properties
+        // Signer URI + endpoint
         Arguments.of(
             Map.of(
                 CatalogProperties.URI,
@@ -223,25 +211,14 @@ class TestS3V4RestSignerClient {
                 "v1/new/sign"),
             "https://new-signer.com",
             "https://new-signer.com/v1/new/sign"),
-        // Mixed properties: legacy properties take precedence
+        // No signer URI: the catalog URI is used as base
         Arguments.of(
             Map.of(
                 CatalogProperties.URI,
                 "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
-                "https://new-signer.com",
                 RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/new/sign",
-                S3V4RestSignerClient.S3_SIGNER_URI,
-                "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
-                "v1/legacy/sign"),
-            "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // No signer properties: the catalog URI and the deprecated default endpoint are used
-        Arguments.of(
-            Map.of(CatalogProperties.URI, "https://catalog.com"),
+                "v1/tables/t/sign"),
             "https://catalog.com",
-            "https://catalog.com/" + S3V4RestSignerClient.S3_SIGNER_DEFAULT_ENDPOINT));
+            "https://catalog.com/v1/tables/t/sign"));
   }
 }
