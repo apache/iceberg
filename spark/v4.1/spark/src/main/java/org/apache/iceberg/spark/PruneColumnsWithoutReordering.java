@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.data.SparkVariantExtractionUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.TypeUtil;
@@ -127,6 +128,16 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
         requestedField.nullable() || field.isRequired(),
         "Cannot project an optional field as non-null: %s",
         field.name());
+
+    // When the Iceberg field is VARIANT and Spark has rewritten it to an annotated struct
+    // (all sub-fields carry __VARIANT_METADATA_KEY via SupportsPushDownVariantExtractions),
+    // treat the field as a full variant projection. The struct is an optimizer artifact that
+    // maps ordinal slot i to a specific shredded path; Iceberg's projection must keep the full
+    // VariantType column so the reader can access both metadata/value and typed_value columns.
+    if (field.type().typeId() == TypeID.VARIANT
+        && SparkVariantExtractionUtil.isVariantExtractionStruct(requestedField.dataType())) {
+      return Types.VariantType.get();
+    }
 
     this.current = requestedField.dataType();
     try {

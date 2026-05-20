@@ -57,6 +57,7 @@ import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
 import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
+import org.apache.spark.sql.connector.read.VariantExtraction;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
@@ -76,6 +77,24 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private Scan localScan;
+  // All extractions Spark passed to pushVariantExtractions, kept in original order so that
+  // readSchema() can reproduce the per-column ordinals Spark already embedded in the plan.
+  private VariantExtraction[] allVariantExtractions = new VariantExtraction[0];
+  // Parallel boolean array: accepted[i] == true iff extractions[i] was accepted.
+  private boolean[] variantExtractionAccepted = new boolean[0];
+
+  protected void setVariantExtractions(VariantExtraction[] extractions, boolean[] accepted) {
+    this.allVariantExtractions = extractions;
+    this.variantExtractionAccepted = accepted;
+  }
+
+  protected VariantExtraction[] variantExtractions() {
+    return allVariantExtractions;
+  }
+
+  protected boolean[] variantExtractionAccepted() {
+    return variantExtractionAccepted;
+  }
 
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
     this(
@@ -264,6 +283,8 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         readConf(),
         projection,
         filters(),
+        variantExtractions(),
+        variantExtractionAccepted(),
         metricsReporter()::scanReport);
   }
 

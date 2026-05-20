@@ -47,6 +47,7 @@ import org.apache.iceberg.rest.RESTCatalogServer;
 import org.apache.iceberg.rest.RESTServerExtension;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -153,6 +154,12 @@ public abstract class TestBaseWithCatalog extends TestBase {
   public void before() {
     configureValidationCatalog();
 
+    // TODO: remove once PR #16714 is merged.
+    // Disable variant extraction pushdown until the Parquet selective reader (PR #16714) is merged
+    // and wired through engineProjection. Without it the reader returns VariantVal while the
+    // rewritten readSchema() declares a struct, causing ClassCastException at runtime.
+    spark.conf().set(SparkSQLProperties.VARIANT_EXTRACTION_PUSH_DOWN_ENABLED, "false");
+
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
     catalogConfig.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
@@ -165,6 +172,11 @@ public abstract class TestBaseWithCatalog extends TestBase {
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
     sql("CREATE NAMESPACE IF NOT EXISTS default");
+  }
+
+  @AfterEach
+  public void afterEach() {
+    spark.conf().unset(SparkSQLProperties.VARIANT_EXTRACTION_PUSH_DOWN_ENABLED);
   }
 
   protected String tableName(String name) {
