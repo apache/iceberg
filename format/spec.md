@@ -135,7 +135,7 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 All location fields in format versions 3 and prior contain fully-qualified paths.
 
-Version 4 of the Iceberg spec adds support for relative locations in metadata, enabling tables to be relocated without rewriting metadata files. Relative locations are allowed in all metadata tracked location fields and are resolved against the table's base location. The table's location may be fixed in table metadata or inferred, but is intended to be managed and supplied by a catalog. Requirements for relativization and resolution are in [Relative Paths](#path-resolution)
+Version 4 of the Iceberg spec adds support for relative locations in metadata, enabling tables to be relocated without rewriting metadata files. Relative locations are allowed in all metadata tracked location fields and are resolved against the table's base location. The table's location may be fixed in table metadata or inferred, but is intended to be managed and supplied by a catalog. Requirements for relativization and resolution are in [Relative Paths](#path-resolution).
 
 ## Specification
 
@@ -197,10 +197,10 @@ Prior to v4, all path fields must contain fully-qualified paths. Starting with v
 
 Path resolution is the process of producing an absolute path from a relative path by combining it with the table's base location:
 
-* If the path contains a URI scheme, it is absolute and is used without modification.
-* If the path does not contain a URI scheme, the resolved path is the table location followed by the relative path joined by the URI separator character `/`.
+* If the path starts with a URI scheme, it is absolute and is used without modification.
+* If the path does not start with a URI scheme, the resolved path is the table location followed by the relative path joined by the URI separator character `/`.
 
-The relative portion is joined to the prefix (table location) without consideration of any additional separator characters. The recommended convention for table location is to not end in a path separator because the join process would add a second separator character. (See example below).
+The relative portion is joined to the prefix (table location) without consideration of any additional separator characters. The recommended convention for table location is to not end in a path separator because the join process would add a second separator character. (See example below.)
 
 Paths in manifests produced prior to v4 are fully-qualified and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
 
@@ -224,7 +224,7 @@ Path relativization is the process of converting an absolute path to a relative 
 
 #### Table Location Specification
 
-When the `location` field is present in table metadata, it is used directly as the table's base location. When the `location` field is not present (v4 and later), the table location must be provided.  How the table location is persisted or determined when not specified in metadata is not a table-level concern; catalogs should provide a table's location
+When the `location` field is present in table metadata, it is used directly as the table's base location. When the `location` field is not present (v4 and later), the table location must be provided.  How the table location is persisted or determined when not specified in metadata is not a table-level concern; catalogs should provide a table's location.
 
 ### Schemas and Data Types
 
@@ -1737,10 +1737,10 @@ The binary single-value serialization can be used to store the lower and upper b
 
 Relative path support is added in v4.
 
-Reading v3 metadata for v4:
+Reading v3 or prior metadata for v4:
 
 * All location fields are fully-qualified paths and interpreted as absolute paths for v4
-* Any location field without a uri scheme prefix must prepend a scheme component consistent with v4 absolute paths
+* Any location field without a URI scheme prefix must prepend a scheme component consistent with v4 absolute paths
 
 Writing v4 metadata:
 
