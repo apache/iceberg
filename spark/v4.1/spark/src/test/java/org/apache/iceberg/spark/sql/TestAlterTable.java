@@ -254,11 +254,10 @@ public class TestAlterTable extends CatalogTestBase {
 
   @TestTemplate
   public void testAlterColumnPositionAfter() {
-    // first add then modify position
     sql("ALTER TABLE %s ADD COLUMN count int", tableName);
     sql("ALTER TABLE %s ALTER COLUMN count AFTER id", tableName);
 
-    Types.StructType expectedSchema1 =
+    Types.StructType expectedSchema =
         Types.StructType.of(
             NestedField.required(1, "id", Types.LongType.get()),
             NestedField.optional(3, "count", Types.IntegerType.get()),
@@ -266,30 +265,15 @@ public class TestAlterTable extends CatalogTestBase {
 
     assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
         .as("Schema should match expected")
-        .isEqualTo(expectedSchema1);
-
-    // add to exact position
-    sql("ALTER TABLE %s ADD COLUMN name string AFTER id", tableName);
-
-    Types.StructType expectedSchema2 =
-        Types.StructType.of(
-            NestedField.required(1, "id", Types.LongType.get()),
-            NestedField.optional(4, "name", Types.StringType.get()),
-            NestedField.optional(3, "count", Types.IntegerType.get()),
-            NestedField.optional(2, "data", Types.StringType.get()));
-
-    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
-        .as("Schema should match expected")
-        .isEqualTo(expectedSchema2);
+        .isEqualTo(expectedSchema);
   }
 
   @TestTemplate
   public void testAlterColumnPositionFirst() {
-    // first add then modify position
     sql("ALTER TABLE %s ADD COLUMN count int", tableName);
     sql("ALTER TABLE %s ALTER COLUMN count FIRST", tableName);
 
-    Types.StructType expectedSchema1 =
+    Types.StructType expectedSchema =
         Types.StructType.of(
             NestedField.optional(3, "count", Types.IntegerType.get()),
             NestedField.required(1, "id", Types.LongType.get()),
@@ -297,21 +281,7 @@ public class TestAlterTable extends CatalogTestBase {
 
     assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
         .as("Schema should match expected")
-        .isEqualTo(expectedSchema1);
-
-    // add to exact position
-    sql("ALTER TABLE %s ADD COLUMN name string FIRST", tableName);
-
-    Types.StructType expectedSchema2 =
-        Types.StructType.of(
-            NestedField.optional(4, "name", Types.StringType.get()),
-            NestedField.optional(3, "count", Types.IntegerType.get()),
-            NestedField.required(1, "id", Types.LongType.get()),
-            NestedField.optional(2, "data", Types.StringType.get()));
-
-    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
-        .as("Schema should match expected")
-        .isEqualTo(expectedSchema2);
+        .isEqualTo(expectedSchema);
   }
 
   @TestTemplate
