@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
@@ -33,13 +34,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public abstract class DynamicTableRecordGenerator implements DynamicRecordGenerator<RowData> {
 
   private final RowType rowType;
+  private final Configuration flinkConfiguration;
   private final Map<String, String> writeProperties;
   private final Map<String, Integer> fieldNameToPosition;
 
-  public DynamicTableRecordGenerator(RowType rowType, Map<String, String> writeProperties) {
+  public DynamicTableRecordGenerator(
+      RowType rowType, Map<String, String> writeProperties, Configuration flinkConfiguration) {
     this.rowType = rowType;
     this.writeProperties = writeProperties;
     this.fieldNameToPosition = fieldNameToPositionMapping();
+    this.flinkConfiguration = flinkConfiguration;
   }
 
   protected RowType rowType() {
@@ -48,6 +52,10 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
 
   protected Map<String, String> writeProperties() {
     return writeProperties;
+  }
+
+  protected Configuration flinkConfiguration() {
+    return flinkConfiguration;
   }
 
   protected Map<String, Integer> fieldNameToPosition() {
