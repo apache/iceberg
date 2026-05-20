@@ -382,7 +382,7 @@ public class TestMergeAppend extends TestBase {
   }
 
   @TestTemplate
-  public void testAppendWithCommitManifestsExecutor() {
+  public void testAppendWithWriteManifestsExecutor() {
     assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
@@ -396,7 +396,7 @@ public class TestMergeAppend extends TestBase {
                 .newAppend()
                 .appendFile(FILE_A)
                 .appendFile(FILE_B)
-                .commitManifestsWith(
+                .writeManifestsWith(
                     Executors.newFixedThreadPool(
                         1,
                         runnable -> {
@@ -404,7 +404,8 @@ public class TestMergeAppend extends TestBase {
                           thread.setName("commit-" + commitThreadsIndex.getAndIncrement());
                           thread.setDaemon(true);
                           return thread;
-                        })),
+                        }),
+                    1),
             branch);
     assertThat(commitThreadsIndex.get())
         .as("Thread should be created in provided commit pool")
@@ -413,7 +414,7 @@ public class TestMergeAppend extends TestBase {
   }
 
   @TestTemplate
-  public void testAppendWithSeparateScanAndCommitExecutors() {
+  public void testAppendWithSeparateScanAndWriteExecutors() {
     assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
@@ -437,7 +438,7 @@ public class TestMergeAppend extends TestBase {
                           thread.setDaemon(true);
                           return thread;
                         }))
-                .commitManifestsWith(
+                .writeManifestsWith(
                     Executors.newFixedThreadPool(
                         1,
                         runnable -> {
@@ -445,7 +446,8 @@ public class TestMergeAppend extends TestBase {
                           thread.setName("commit-" + commitThreadsIndex.getAndIncrement());
                           thread.setDaemon(true);
                           return thread;
-                        })),
+                        }),
+                    1),
             branch);
     assertThat(scanThreadsIndex.get())
         .as("Thread should be created in provided scan pool")

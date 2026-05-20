@@ -256,33 +256,24 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testCommitManifestsWithNullExecutorThrows() {
-    assertThatThrownBy(() -> table.newAppend().commitManifestsWith(null))
+  public void testWriteManifestsWithNullExecutorThrows() {
+    assertThatThrownBy(() -> table.newAppend().writeManifestsWith(null, 4))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid executor service: null");
+        .hasMessage("Executor service cannot be null");
   }
 
   @TestTemplate
-  public void testCommitManifestsWithSingleThreadExecutorThrows() {
-    ExecutorService singleThread = Executors.newSingleThreadExecutor();
+  public void testWriteManifestsWithInvalidParallelismThrows() {
+    ExecutorService executor = Executors.newFixedThreadPool(4);
     try {
-      assertThatThrownBy(() -> table.newAppend().commitManifestsWith(singleThread))
+      assertThatThrownBy(() -> table.newAppend().writeManifestsWith(executor, 0))
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("Expected a fixed-size ThreadPoolExecutor");
-    } finally {
-      singleThread.shutdownNow();
-    }
-  }
-
-  @TestTemplate
-  public void testCommitManifestsWithCachedThreadPoolThrows() {
-    ExecutorService cachedPool = Executors.newCachedThreadPool();
-    try {
-      assertThatThrownBy(() -> table.newAppend().commitManifestsWith(cachedPool))
+          .hasMessageContaining("Parallelism must be greater than 0");
+      assertThatThrownBy(() -> table.newAppend().writeManifestsWith(executor, -1))
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("Unbounded executor is not supported");
+          .hasMessageContaining("Parallelism must be greater than 0");
     } finally {
-      cachedPool.shutdownNow();
+      executor.shutdownNow();
     }
   }
 }
