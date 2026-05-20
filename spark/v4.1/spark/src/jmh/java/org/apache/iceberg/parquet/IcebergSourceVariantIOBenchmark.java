@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -52,6 +53,11 @@ import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -117,17 +123,21 @@ import org.slf4j.LoggerFactory;
  *       -PjmhOutputPath=build/reports/benchmark/iceberg-source-variant-io-benchmark-result.txt
  * </code>
  */
-@Fork(0)
-@Warmup(iterations = 1)
-@Measurement(iterations = 1)
+@Fork(1)
+@Warmup(iterations = 20)
+@Measurement(iterations = 20)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
+@Timeout(time = 60, timeUnit = TimeUnit.MINUTES)
 public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceVariantIOBenchmark.class);
 
+  /** Table to use in benchmark. */
+  @Param({"Avro", "Unshredded", "Shredded"})
+  private TableType tableType;
+
   private static final int NUM_FILES = 1;
-  private static final int NUM_ROWS_PER_FILE = 10_000_000;
+  private static final int NUM_ROWS_PER_FILE = 100_000;
 
   /** Size of a compressed rowgroup. */
   private static final int ROW_GROUP_SIZE = 1 * 1024 * 1024;
@@ -214,10 +224,6 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     }
   }
 
-  /** Table to use in benchmark. */
-  @Param({"Avro", "Unshredded", "Shredded"})
-  private TableType tableType;
-
   /** Size must be 20 as the choice of string is derived from category. */
   private String[] repeatedStrings;
 
@@ -258,10 +264,9 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     properties.put(TableProperties.SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     // large split size keeps the single data file as one Spark task.
     properties.put(TableProperties.SPLIT_SIZE, Integer.toString(512 * 1024 * 1024));
-    // turn off compression to remove it as a factor.
-    properties.put(TableProperties.METADATA_COMPRESSION, "none");
-    properties.put(TableProperties.PARQUET_COMPRESSION, "none");
-    properties.put(TableProperties.AVRO_COMPRESSION, "none");
+    /*    properties.put(TableProperties.METADATA_COMPRESSION, "zstd");
+    properties.put(TableProperties.PARQUET_COMPRESSION, "zstd");
+    properties.put(TableProperties.AVRO_COMPRESSION, "zstd");*/
     // small row group size ensures multiple row groups per file for row-group skipping benchmarks.
     properties.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(ROW_GROUP_SIZE));
     // variant projection pushdown not supported with the vectorized reader.
@@ -435,7 +440,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    */
   @Benchmark
   public void filterCatProjectVarID(Blackhole blackhole) {
-    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_CATEGORY, true);
+    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_CATEGORY, false);
   }
 
   /** Project on ID. */
@@ -476,7 +481,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
 
   @Benchmark
   public void filterVarCatSetMembership(Blackhole blackhole) {
-    select(blackhole, COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (5)", true);
+    select(blackhole, COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (1)", true);
   }
 
   @Benchmark
@@ -629,13 +634,16 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
                     .locationProvider()
                     .newDataLocation(String.format(Locale.ROOT, "data-%05d.parquet", fileIndex)));
 
+    // forTable(table()) propagates the table properties (including
+    // PARQUET_ROW_GROUP_SIZE_BYTES set in initTable()) into the writer. Without this,
+    // the writer falls back to the Parquet default row-group size and emits a single
+    // row group for the whole file, defeating row-group skipping.
     DataWriter<Record> writer =
         Parquet.writeData(outputFile)
-            .schema(SCHEMA)
+            .forTable(table())
             .createWriterFunc(GenericParquetWriter::create)
             .variantShreddingFunc(shredder)
             .overwrite()
-            .withSpec(PartitionSpec.unpartitioned())
             .build();
 
     writeOneFile(writer, variantMetadata, fileIndex);
@@ -645,7 +653,125 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
         fileIndex,
         dataFile.fileSizeInBytes(),
         Math.max(1, dataFile.fileSizeInBytes() / ROW_GROUP_SIZE));
+    dumpRowGroupDiagnostics(outputFile);
     return dataFile;
+  }
+
+  /**
+   * Per-row-group statistics dump. Confirms that:
+   *
+   * <ul>
+   *   <li>multiple row groups were actually written (not just one)
+   *   <li>category and shredded {@code varcategory} columns have populated min/max stats
+   *   <li>clustering produced tight ranges per row group (most groups have {@code min == max})
+   *   <li>a filter like {@code varcategory = 1} can theoretically skip groups
+   * </ul>
+   *
+   * <p>Only the shredded path looks at {@code nested.typed_value.varcategory.typed_value}; on
+   * unshredded runs that path doesn't exist and is silently absent in the per-block dump.
+   */
+  private void dumpRowGroupDiagnostics(OutputFile outputFile) throws IOException {
+    ColumnPath categoryPath = ColumnPath.get("category");
+    ColumnPath shreddedVarcategoryPath =
+        ColumnPath.get("nested", "typed_value", "varcategory", "typed_value");
+    int expectedSkipForVarcatEq1 = 0;
+    int blocksMissingShreddedVarcategory = 0;
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(outputFile.toInputFile()))) {
+      List<BlockMetaData> blocks = reader.getFooter().getBlocks();
+      LOG.info("Parquet diagnostics: {} row groups", blocks.size());
+      for (int i = 0; i < blocks.size(); i++) {
+        BlockMetaData block = blocks.get(i);
+        ColumnChunkMetaData categoryChunk = findChunk(block, categoryPath);
+        ColumnChunkMetaData varcategoryChunk = findChunk(block, shreddedVarcategoryPath);
+        String categorySummary = summarizeStats(categoryChunk);
+        String varcategorySummary =
+            varcategoryChunk == null ? "<absent>" : summarizeStats(varcategoryChunk);
+        LOG.info(
+            "  block[{}]: rows={} bytes={} category={} shreddedVarcategory={}",
+            i,
+            block.getRowCount(),
+            block.getTotalByteSize(),
+            categorySummary,
+            varcategorySummary);
+        if (isShredded()) {
+          if (varcategoryChunk == null) {
+            blocksMissingShreddedVarcategory++;
+          } else if (rangeExcludesIntLiteral(varcategoryChunk.getStatistics(), 1)) {
+            expectedSkipForVarcatEq1++;
+          }
+        }
+      }
+      if (isShredded()) {
+        if (blocksMissingShreddedVarcategory > 0) {
+          LOG.warn(
+              "Shredded run is missing the varcategory typed_value column in {} of {} blocks "
+                  + "- shredding did not produce the expected layout",
+              blocksMissingShreddedVarcategory,
+              blocks.size());
+        }
+        LOG.info(
+            "Parquet diagnostics summary: rowGroups={} expectedSkipForVarcatEq1={}",
+            blocks.size(),
+            expectedSkipForVarcatEq1);
+      }
+    }
+  }
+
+  /**
+   * Find the column chunk for a given column path
+   *
+   * @param block metadata
+   * @param path column path
+   * @return chunk metadata or null if not found.
+   */
+  private static ColumnChunkMetaData findChunk(BlockMetaData block, ColumnPath path) {
+    return block.getColumns().stream()
+        .filter(chunk -> chunk.getPath().equals(path))
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * Generate a simple summary of the column chunk stats, or &lt;absent&gt; if the supplied metadata
+   * is null, &lt;no-stats&gt; if there were no statistics found.
+   *
+   * @param chunk chunk metadata
+   * @return summary.
+   */
+  private static String summarizeStats(ColumnChunkMetaData chunk) {
+    if (chunk == null) {
+      return "<absent>";
+    }
+    Statistics<?> stats = chunk.getStatistics();
+    if (stats == null || stats.isEmpty()) {
+      return "<no-stats>";
+    }
+    return String.format(
+        Locale.ROOT,
+        "min=%s max=%s nulls=%s values=%d",
+        stats.hasNonNullValue() ? stats.genericGetMin() : "<unset>",
+        stats.hasNonNullValue() ? stats.genericGetMax() : "<unset>",
+        stats.isNumNullsSet() ? Long.toString(stats.getNumNulls()) : "<unset>",
+        chunk.getValueCount());
+  }
+
+  /**
+   * True if the chunk's statistics prove the integer literal cannot appear in the group — i.e. the
+   * row group is skippable for an equality predicate on that literal. Returns false if stats are
+   * absent, empty, or span the literal.
+   */
+  private static boolean rangeExcludesIntLiteral(Statistics<?> stats, int literal) {
+    if (stats == null || stats.isEmpty() || !stats.hasNonNullValue()) {
+      return false;
+    }
+    if (!(stats.genericGetMin() instanceof Number minNum)
+        || !(stats.genericGetMax() instanceof Number maxNum)) {
+      return false;
+    }
+    long min = minNum.longValue();
+    long max = maxNum.longValue();
+    return literal < min || literal > max;
   }
 
   /**
@@ -684,6 +810,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
 
     DataWriter<Record> writer =
         Avro.writeData(outputFile)
+            .forTable(table())
             .schema(SCHEMA)
             .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
             .overwrite()
