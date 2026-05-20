@@ -616,13 +616,13 @@ public class CatalogHandlers {
     try {
       Tasks.foreach(ops)
           .retry(COMMIT_NUM_RETRIES_DEFAULT)
-          .exponentialBackoff(
-              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
-              COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-              2.0 /* exponential */)
+          .totalTimeoutMs(COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT)
           .backoffStrategy(
-              BackoffStrategies.from(ops.current() != null ? ops.current().properties() : null))
+              BackoffStrategies.from(
+                  ops.current() != null ? ops.current().properties() : null,
+                  COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+                  COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+                  2.0))
           .onlyRetryOn(CommitFailedException.class)
           .run(
               taskOps -> {
@@ -780,13 +780,13 @@ public class CatalogHandlers {
     try {
       Tasks.foreach(ops)
           .retry(COMMIT_NUM_RETRIES_DEFAULT)
-          .exponentialBackoff(
-              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
-              COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-              2.0 /* exponential */)
+          .totalTimeoutMs(COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT)
           .backoffStrategy(
-              BackoffStrategies.from(ops.current() != null ? ops.current().properties() : null))
+              BackoffStrategies.from(
+                  ops.current() != null ? ops.current().properties() : null,
+                  COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+                  COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+                  2.0))
           .onlyRetryOn(CommitFailedException.class)
           .run(
               taskOps -> {
