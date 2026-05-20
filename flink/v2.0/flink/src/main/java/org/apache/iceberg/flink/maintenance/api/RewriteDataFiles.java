@@ -290,58 +290,58 @@ public class RewriteDataFiles {
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       SingleOutputStreamOperator<DataFileRewritePlanner.PlannedGroup> planned =
-          trigger
-              .process(
-                  new DataFileRewritePlanner(
-                      tableName(),
-                      taskName(),
-                      index(),
-                      tableLoader(),
-                      partialProgressEnabled ? partialProgressMaxCommits : 1,
-                      maxRewriteBytes,
-                      rewriteOptions,
-                      filterSupplier,
-                      branch))
-              .name(operatorName(PLANNER_TASK_NAME))
-              .uid(PLANNER_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              trigger
+                  .process(
+                      new DataFileRewritePlanner(
+                          tableName(),
+                          taskName(),
+                          index(),
+                          tableLoader(),
+                          partialProgressEnabled ? partialProgressMaxCommits : 1,
+                          maxRewriteBytes,
+                          rewriteOptions,
+                          filterSupplier,
+                          branch))
+                  .name(operatorName(PLANNER_TASK_NAME))
+                  .uid(PLANNER_TASK_NAME + uidSuffix())
+                  .forceNonParallel());
 
       SingleOutputStreamOperator<DataFileRewriteRunner.ExecutedGroup> rewritten =
-          planned
-              .rebalance()
-              .process(new DataFileRewriteRunner(tableName(), taskName(), index()))
-              .name(operatorName(REWRITE_TASK_NAME))
-              .uid(REWRITE_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .setParallelism(parallelism());
+          setSlotSharingGroup(
+              planned
+                  .rebalance()
+                  .process(new DataFileRewriteRunner(tableName(), taskName(), index()))
+                  .name(operatorName(REWRITE_TASK_NAME))
+                  .uid(REWRITE_TASK_NAME + uidSuffix())
+                  .setParallelism(parallelism()));
 
       SingleOutputStreamOperator<Trigger> updated =
-          rewritten
-              .transform(
-                  operatorName(COMMIT_TASK_NAME),
-                  TypeInformation.of(Trigger.class),
-                  new DataFileRewriteCommitter(
-                      tableName(), taskName(), index(), tableLoader(), branch))
-              .uid(COMMIT_TASK_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              rewritten
+                  .transform(
+                      operatorName(COMMIT_TASK_NAME),
+                      TypeInformation.of(Trigger.class),
+                      new DataFileRewriteCommitter(
+                          tableName(), taskName(), index(), tableLoader(), branch))
+                  .uid(COMMIT_TASK_NAME + uidSuffix())
+                  .forceNonParallel());
 
-      return trigger
-          .union(updated)
-          .connect(
-              planned
-                  .getSideOutput(TaskResultAggregator.ERROR_STREAM)
-                  .union(
-                      rewritten.getSideOutput(TaskResultAggregator.ERROR_STREAM),
-                      updated.getSideOutput(TaskResultAggregator.ERROR_STREAM)))
-          .transform(
-              operatorName(AGGREGATOR_TASK_NAME),
-              TypeInformation.of(TaskResult.class),
-              new TaskResultAggregator(tableName(), taskName(), index()))
-          .uid(AGGREGATOR_TASK_NAME + uidSuffix())
-          .slotSharingGroup(slotSharingGroup())
-          .forceNonParallel();
+      return setSlotSharingGroup(
+          trigger
+              .union(updated)
+              .connect(
+                  planned
+                      .getSideOutput(TaskResultAggregator.ERROR_STREAM)
+                      .union(
+                          rewritten.getSideOutput(TaskResultAggregator.ERROR_STREAM),
+                          updated.getSideOutput(TaskResultAggregator.ERROR_STREAM)))
+              .transform(
+                  operatorName(AGGREGATOR_TASK_NAME),
+                  TypeInformation.of(TaskResult.class),
+                  new TaskResultAggregator(tableName(), taskName(), index()))
+              .uid(AGGREGATOR_TASK_NAME + uidSuffix())
+              .forceNonParallel());
     }
   }
 }

@@ -242,10 +242,12 @@ For `geometry` type, the CRS does not affect geometric calculations, which are a
 
 The default CRS value `OGC:CRS84` means that the objects must be stored in longitude, latitude based on the WGS84 datum.
 
-Custom CRS values can be specified by a string of the format `type:identifier`, where `type` is one of the following values:
+Non-default CRS values are specified by any string that uniquely identifies a coordinate reference system associated with this type.
+To maximize interoperability, suggested formats for CRS include, but are not limited to:
+* `<context>:<identifier>`: Identifies a CRS by name or other identifier in some well-documented context. Examples: `OGC:CRS84`, `EPSG:4326`, `IGNF:ATI` and `SRID:0`
+* `projjson:<property-name>` - where <property-name> refers to a table property where CRS definition in [PROJJSON](https://proj.org/en/stable/specifications/projjson.html) format is stored.
 
-* `srid`: [Spatial reference identifier](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), `identifier` is the SRID itself.
-* `projjson`: [PROJJSON](https://proj.org/en/stable/specifications/projjson.html), `identifier` is the name of a table property where the projjson string is stored.
+CRS value must not contain inlined PROJJSON definitions and implementations must not parse the contents of the CRS as PROJJSON. PROJJSON definitions are very verbose, hence inlining them as part of schema would cause significant performance degradation. If the intention is for a PROJJSON definition to be part of the table metadata, then it must be stored in a table property and referenced from the CRS field using the `projjson:<property-name>` form described above.
 
 For `geography` types, the custom CRS must be geographic, with longitudes bound by [-180, 180] and latitudes bound by [-90, 90].
 
@@ -654,6 +656,7 @@ The `data_file` struct consists of the following fields:
     | _required_ | _required_ | _required_ | **`102  partition`**              | `struct<...>`                                                               | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
     | _required_ | _required_ | _required_ | **`103  record_count`**           | `long`                                                                      | Number of records in this file, or the cardinality of a deletion vector |
     | _required_ | _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                                                                      | Total file size in bytes |
+    |            |            |            | **`146  content_stats`**          | `content_stats` `struct`                                                    | Container struct for per-field metrics structs. See [Content Stats](#content-stats) |
     | _required_ |            |            | ~~**`105 block_size_in_bytes`**~~ | `long`                                                                      | **Deprecated. Always write a default in v1. Do not write in v2 or v3.** |
     | _optional_ |            |            | ~~**`106  file_ordinal`**~~       | `int`                                                                       | **Deprecated. Do not write.** |
     | _optional_ |            |            | ~~**`107  sort_columns`**~~       | `list<112: int>`                                                            | **Deprecated. Do not write.** |
@@ -675,7 +678,7 @@ The `data_file` struct consists of the following fields:
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
-The column metrics maps are used when filtering to select both data and delete files. For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
+The v4 `content_stats` container struct stores field-level metrics. Unlike the metrics maps, the type of `content_stats` is based on table metadata, like schema. Similar to the `partition` struct, the same type is used for all files tracked in a manifest.
 
 Notes:
 
@@ -686,9 +689,31 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
-###### Bounds for Variant, Geometry, and Geography
+##### Field-level Metrics and Statistics
 
-For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
+Field statistics (or, interchangeably, metrics) are used when filtering to select data and delete files.
+
+In v3 and earlier, metrics are stored in maps keyed by field id: `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds` and `upper_bounds`.
+
+In v4, metrics are stored as typed values in the `content_stats` struct, documented in the [Content Stats](#content-stats) section.
+
+Both representations store equivalent information. If a map or id in a map is missing in v3, it is equivalent to a `null` value or missing field struct in v4. Lower bounds must be less than or equal to all non-null and non-NaN values and upper bounds must be greater than or equal to all non-null and non-NaN values.
+
+For delete files, metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
+
+###### Bounds for Geometry and Geography
+
+For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are points with coordinates X, Y, Z (optional), and M (optional) that represent the lower and upper bounds of a bounding box that contains all objects in the file.
+
+For `geography` only, xmin (X value of `lower_bounds`) may be greater than xmax (X value of `upper_bounds`), in which case an object in this bounding box may match if it contains an X such that x >= xmin OR x <= xmax. In geographic terminology, the concepts of xmin, xmax, ymin, and ymax are also known as westernmost, easternmost, southernmost and northernmost, respectively. These points are further restricted to the canonical ranges of [-180..180] for X and [-90..90] for Y.
+
+When calculating upper and lower bounds for `geometry` and `geography`, null or NaN values in a coordinate dimension are skipped; for example, POINT (1 NaN) contributes a value to X but no values to Y, Z, or M dimension bounds. If a dimension has only null or NaN values, that dimension is omitted from the bounding box. If either the X or Y dimension is missing then the bounding box itself is not produced.
+
+In v3, lower and upper bound points are serialized as binary (see [Bound Serialization](#bound-serialization) in Appendix D). In v4, bounds are stored in `geo_lower` and `geo_upper` structs (see [Content Stats](#content-stats)).
+
+###### Bounds for Variant
+
+For Variant, lower and upper bound values store Variant objects that contain lower or upper bounds, respectively, for fields within the variant. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
 
 Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate for all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a **measurement** field that contains int64 and null values may have bounds, but if the field also contained a string value such as **n/a** or **0** then the field may not have bounds.
 
@@ -704,11 +729,133 @@ Examples of valid field paths using normalized JSON path format are:
 * `$['tags']` -- the `tags` array
 * `$['addresses']['zip']` -- the `zip` field in an `addresses` array that contains objects
 
-For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see Appendix G) which are the lower / upper bound of all objects in the file.
+##### Content Stats
 
-For `geography` only, xmin (X value of `lower_bounds`) may be greater than xmax (X value of `upper_bounds`), in which case an object in this bounding box may match if it contains an X such that x >= xmin OR x <= xmax. In geographic terminology, the concepts of xmin, xmax, ymin, and ymax are also known as westernmost, easternmost, southernmost and northernmost, respectively. These points are further restricted to the canonical ranges of [-180..180] for X and [-90..90] for Y.
+In Iceberg v4, statistics are stored in typed fields grouped in a struct that corresponds to the table field. These stats structs are nested within the `content_stats` struct in manifest files.
 
-When calculating upper and lower bounds for `geometry` and `geography`, null or NaN values in a coordinate dimension are skipped; for example, POINT (1 NaN) contributes a value to X but no values to Y, Z, or M dimension bounds. If a dimension has only null or NaN values, that dimension is omitted from the bounding box. If either the X or Y dimension is missing then the bounding box itself is not produced.
+###### Field Statistics
+
+Field-level structs in `content_stats` are based on the corresponding table field's type, requirement, and ID (`field-id`).
+
+Field stats structs are assigned a range of 200 IDs, starting at `10_000 + 200 * field-id`. The first ID in the range (`base-id`) is the ID of the struct field in `content_stats`. Fields within the stats struct are assigned IDs from the range by adding an offset to the `base-id`. For example, the stats struct for table field 2 uses IDs in the range `[10_400, 10_599]`, the field within `content_stats` uses the `base-id`, ID `10_400`, and its `lower_bound` field (offset 1) uses ID `10_401`.
+
+Content stats must be resolved by ID; field names used for stats structs are informational. The recommended name for each field is the full name of the field in the table schema.
+
+IDs in the range `10_000` (inclusive) to `200_000_000` (exclusive) are reserved for column stats structs in `content_stats`. Stats for table fields with stats IDs outside that range cannot be stored in `content_stats`.
+
+[Reserved metadata fields](#reserved-field-ids) must use the stats ID ranges from the following table. Stats for metadata fields not in the table are not tracked.
+
+| Reserved field                  | ID         | `base-id` | Range end |
+|---------------------------------|------------|-----------|-----------|
+| `_last_updated_sequence_number` | 2147483539 | 9000      | 9199 |
+| `_row_id`                       | 2147483540 | 9200      | 9399 |
+
+Each stats struct holds statistics for one table field. It may contain the following metrics:
+
+| Requirement | Offset | Name                      | Type                      | Included for                                  | Description |
+|-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
+| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
+| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
+| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all except `geometry`, `geography`, `variant` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
+| _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
+| _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
+| _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
+| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`                 | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+
+For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
+
+```
+10_400: optional struct id (default null) {
+  10_401: optional int lower_bound; // type matches the field type (int)
+  10_402: optional int upper_bound; // type matches the field type (int)
+  10_403: optional boolean tight_bounds;
+  10_404: optional long value_count;
+
+  // null_value_count is only used for optional fields
+  // nan_value_count is only used for float and double
+  // avg_value_size_in_bytes is only used for variable length types
+}
+```
+
+If any field is missing from the struct, readers must assume that it is unknown.
+
+Lower and upper bounds for `geometry` and `geography` columns are XYZM points that define a bounding box, stored in `geo_lower` and `geo_upper` structs (see [Bounds for Geometry and Geography](#bounds-for-geometry-and-geography)). IDs used by geo structs are assigned using offsets in the table field's stats ID range.
+
+The `geo_lower` struct is defined as:
+
+| Requirement | Offset | Name | Type     | Description |
+|-------------|--------|------|----------|-------------|
+| _required_  | 10     | `x`  | `double` | Bounding box westernmost/xmin; [-180..180] |
+| _required_  | 11     | `y`  | `double` | Bounding box southernmost/ymin; [-90..90] |
+| _optional_  | 12     | `z`  | `double` | Bounding box zmin |
+| _optional_  | 13     | `m`  | `double` | Bounding box mmin |
+
+The `geo_upper` struct is defined as:
+
+| Requirement | Offset | Name | Type     | Description |
+|-------------|--------|------|----------|-------------|
+| _required_  | 14     | `x`  | `double` | Bounding box easternmost/xmax; [-180..180] |
+| _required_  | 15     | `y`  | `double` | Bounding box northernmost/ymax; [-90..90] |
+| _optional_  | 16     | `z`  | `double` | Bounding box zmax |
+| _optional_  | 17     | `m`  | `double` | Bounding box mmax |
+
+For example, stats for an optional `geometry` field named `location` with field-id `4` are stored as:
+
+```
+10_800: optional struct location (default null) {
+  10_801: optional struct lower_bound (default null) { // geo_lower
+    10_810: required double x;
+    10_811: required double y;
+    10_812: optional double z;
+    10_813: optional double m;
+  }
+  10_802: optional struct upper_bound (default null) { // geo_upper
+    10_814: required double x;
+    10_815: required double y;
+    10_816: optional double z;
+    10_817: optional double m;
+  }
+  10_804: optional long value_count;
+  10_805: optional long null_value_count;
+  // tight_bounds, nan_value_count, avg_value_size_in_bytes are omitted for geo types
+}
+```
+
+For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
+
+###### Content Stats in Manifests
+
+Manifest files are written using a specific `content_stats` container struct type, determined by the writer and incorporated into the manifest schema. All field-level structs are optional fields in the `content_stats` struct.
+
+For example, stats for a table with a required int, `id`, and an optional string, `data`, are stored as:
+
+```
+146: optional struct content_stats {
+  // stats struct for table field 2: required int id
+  10_400: optional struct id (default null) {
+    10_401: optional int lower_bound;
+    10_402: optional int upper_bound;
+    10_403: optional boolean tight_bounds;
+    10_404: optional long value_count;
+  }
+
+  // stats struct for table field 3: optional string data
+  10_600: optional struct data (default null) {
+    10_601: optional string lower_bound;
+    10_602: optional string upper_bound;
+    10_603: optional boolean tight_bounds;
+    10_604: optional long value_count;
+    10_605: optional long null_value_count;
+    10_607: optional int avg_value_size_in_bytes;
+  }
+}
+```
+
+Implementations may produce stats structs for fields that are not in the table schema, if a field ID from the table's column ID space is assigned for the data values (by allocating an ID using `last-column-id`). Implementations are not required to write a stats struct for every table field.
+
+Fields with stats tracked in `content_stats` change based on updates like schema evolution or metrics configuration. Writers adapt to table changes by writing new manifest files with the implementation's current `content_stats` type. When existing file metadata is written to new manifests, writers must update `content_stats` by discarding old stats (for removed fields), set unknown stats structs to null (for added fields), and promote lower and upper bounds types (for type promotion) to conform to the manifest schema.
+
+A simple (and recommended) way for writers to adapt existing metadata for table changes is to read manifests with the implementation's current `content_stats` type and apply schema evolution rules, such as reading `int` as `long` for promoted fields.
 
 #### Sequence Number Inheritance
 

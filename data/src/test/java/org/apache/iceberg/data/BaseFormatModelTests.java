@@ -272,6 +272,42 @@ public abstract class BaseFormatModelTests<T> {
     assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
+  /** Write with engine type T, read with engine type T */
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+    Schema schema = dataGenerator.schema();
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+
+    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    try (writer) {
+      engineRecords.forEach(writer::write);
+    }
+
+    DataFile dataFile = writer.toDataFile();
+
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    List<T> readRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertEquals(schema, engineRecords, readRecords);
+  }
+
   /** Write with engine type T, read with Generic Record */
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
