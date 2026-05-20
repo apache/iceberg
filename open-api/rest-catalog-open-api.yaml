@@ -1962,7 +1962,7 @@ paths:
 
         Consumers should be prepared to handle 410 Gone responses when requested sequences are
         outside the server's retention window. Consumers should also de-duplicate received events based
-        on the event's `event-id`. Consistency guarantees vary between server implementations.
+        on the events `event-id`. Consistency guarantees vary between server implementations.
       operationId: getEvents
       requestBody:
         content:
@@ -2282,23 +2282,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/CatalogObjectIdentifier'
       example: [ "accounting", "tax" ]
-
-    CatalogObjectUuid:
-      description: Identify a table or view by its uuid.
-      type: object
-      required:
-        - uuid
-        - type
-      properties:
-        uuid:
-          type: string
-          description: The UUID of the catalog object
-          example: "123e4567-e89b-12d3-a456-426614174000"
-        type:
-          type: string
-          description: The type of the catalog object
-          enum: ["table", "view"]
-          example: "table"
 
     PageToken:
       description:
@@ -3851,9 +3834,11 @@ components:
         catalog-objects-by-uuid:
           type: array
           items:
-            $ref: "#/components/schemas/CatalogObjectUuid"
+            type: string
+            format: uuid
           description: >
-            Filter events by the list of catalog objects referenced by UUID (tables, views).
+            Filter events by the list of catalog object UUIDs (tables, views).
+            Combine with `object-types` to narrow to a specific object kind.
         object-types:
           type: array
           items:
