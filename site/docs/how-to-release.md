@@ -356,14 +356,16 @@ cp -R apache-iceberg-1.8.0/site/docs/javadoc/1.8.0 1.8.0
 
 Once this is done, create a PR against the `javadoc` branch, similar to https://github.com/apache/iceberg/pull/12412.
 
-#### Release versioned docs and javadoc
-
-Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
-
 #### Site update
 
 Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242,
 to update the Iceberg version, the links to the new version's documentation, and the release notes.
+
+Once this PR is merged, the [`site-ci`](https://github.com/apache/iceberg/blob/main/.github/workflows/site-ci.yml)
+GitHub Actions workflow is automatically triggered for any push to `main` that touches `docs/`, `site/`,
+or `format/`. The workflow runs `make deploy` to build and push the documentation site to the `asf-site`
+branch, which publishes the new version's docs and javadoc. Manually running `make deploy` is no longer
+required as part of the release.
 
 # How to Verify a Release
 
