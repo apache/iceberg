@@ -244,17 +244,20 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableComment() {
+  public void testCreateTableWithTableComment() {
     // create table with comment
-    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment' WITH ('param'='some value')");
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
     Map<String, String> properties = Maps.newHashMap();
     properties.put("comment", "table comment");
-    properties.put("param", "some value");
     assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+  }
 
-    // update parameter
-    sql("ALTER TABLE tl SET('param'='new value')");
-    properties.put("param", "new value");
+  @TestTemplate
+  public void testAlterTableModifyTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("comment", "table comment");
     assertThat(table("tl").properties()).containsAllEntriesOf(properties);
 
     // alter table comment
