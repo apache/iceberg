@@ -67,6 +67,27 @@ public class ParquetFormatModel<D, S, R>
         type, schemaType, writerFunction, readerFunction, false, null, null);
   }
 
+  /**
+   * @deprecated Will be removed in 1.12.0; use {@link #create(Class, Class, WriterFunction,
+   *     ReaderFunction, VariantShreddingAnalyzer, Function)} instead.
+   */
+  @Deprecated
+  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
+      Class<D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
+      VariantShreddingAnalyzer<D, S> variantAnalyzer,
+      UnaryOperator<D> copyFunc) {
+    return create(
+        type,
+        schemaType,
+        writerFunction,
+        readerFunction,
+        variantAnalyzer,
+        (Function<S, UnaryOperator<D>>) unused -> copyFunc);
+  }
+
   public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
       Class<D> type,
       Class<S> schemaType,
