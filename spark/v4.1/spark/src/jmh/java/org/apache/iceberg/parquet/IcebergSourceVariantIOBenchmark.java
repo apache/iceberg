@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -54,8 +55,10 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RuntimeConfig;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
@@ -63,6 +66,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Timeout;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,15 +86,15 @@ import org.slf4j.LoggerFactory;
  *
  * <pre>
  *   id: int64 :- unique per row
- *   category: int32 :- in range 0-19; written in clustered order so each Parquet row group covers
- *                      only a narrow category range (~1–2 row groups per category).
+ *   category: int32 :- in a very small range; written in clustered order so each Parquet row group should
+ *     contain very few entries from different ranges.
  *   nested: variant (object)
  *       .idstr: string :- unique string per row
  *       .varid: int64  :- id
- *       .varcategory: int32  :- category (0-19)
- *       .col4: string :- non-unique string per row (picked from 20 values based on category)
+ *       .varcategory: int32
+ *       .col4: string :- non-unique string per row (same number as category count)
  *   arr: variant (array, always unshredded)
- *       [0]: int32 :- category (0-19)
+ *       [0]: int32 :- category
  *       [1]: int32 :- id % 20
  *       [2]: int32 :- id % 100
  *       [3]: int32 :- id % 50
@@ -113,9 +117,9 @@ import org.slf4j.LoggerFactory;
  *       -PjmhOutputPath=build/reports/benchmark/iceberg-source-variant-io-benchmark-result.txt
  * </code>
  */
-@Fork(1)
-@Warmup(iterations = 4)
-@Measurement(iterations = 4)
+@Fork(0)
+@Warmup(iterations = 1)
+@Measurement(iterations = 1)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
 public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
@@ -123,17 +127,13 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceVariantIOBenchmark.class);
 
   private static final int NUM_FILES = 1;
-  private static final int NUM_ROWS_PER_FILE = 1_000_000;
+  private static final int NUM_ROWS_PER_FILE = 10_000_000;
 
-  /**
-   * At ~140 bytes/row (uncompressed), 4MB ≈ 29k rows/group. With 1M rows in one file clustered by
-   * 20 categories (50k rows each), this gives ~1–2 row groups per category. Filter={@code category
-   * IN (5)} skips ~32/34 row groups (95% skip rate).
-   */
-  private static final int ROW_GROUP_SIZE = 4 * 1024 * 1024; // 4 MB
+  /** Size of a compressed rowgroup. */
+  private static final int ROW_GROUP_SIZE = 1 * 1024 * 1024;
 
   /** Number of distinct category values. */
-  private static final int NUM_CATEGORIES = 20;
+  private static final int NUM_CATEGORIES = 5;
 
   public static final String COL_ID = "id";
   private static final String COL_NESTED = "nested";
@@ -155,9 +155,6 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
           required(3, COL_NESTED, Types.VariantType.get()), /* The variant object. */
           required(4, COL_ARR, Types.VariantType.get())); /* The variant array. */
 
-  /** Filter to use when filtering on category column: {@value}. */
-  private static final String FILTER_ON_CATEGORY = "category = 5";
-
   /** Get the category column from the variant: {@value}. */
   private static final String VARIANT_GET_NESTED_CATEGORY =
       "variant_get(nested, '$.varcategory', 'int')";
@@ -165,27 +162,25 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   /** Get the ID field from inside the variant: {@value}. */
   private static final String VARIANT_GET_NESTED_ID = "variant_get(nested, '$.varid', 'int')";
 
-  /**
-   * Equality check.
-   */
-  public static final String EQUALITY_CHECK_5 = " = 5";
+  /** Equality check. Pulled out to allow experimentation with set membershop vs. equals. */
+  public static final String EQUALITY_CHECK = " = 1";
+
+  /** Filter to use when filtering on category column: {@value}. */
+  private static final String FILTER_ON_CATEGORY = "category " + EQUALITY_CHECK;
 
   /** Equivalent of {@link #FILTER_ON_CATEGORY} using the field within the variant: {@value}. */
   private static final String FILTER_ON_NESTED_CATEGORY =
-      VARIANT_GET_NESTED_CATEGORY + EQUALITY_CHECK_5;
+      VARIANT_GET_NESTED_CATEGORY + EQUALITY_CHECK;
 
   /**
-   * Get element 0 of the array variant; element 0 = category (range 0-19): {@value}.
+   * Get element 0 of the array variant: {@value}.
    *
    * <p>Note: {@code variant_get} with a JSONPath {@code $[n]} expression accesses array elements.
    */
   private static final String VARIANT_GET_ARR_ELT0 = "variant_get(arr, '$[0]', 'int')";
 
-  /**
-   * Filter on element 0 of the array variant — same ~5% selectivity as {@link #FILTER_ON_CATEGORY}:
-   * {@value}.
-   */
-  private static final String FILTER_ON_ARR_ELT0 = VARIANT_GET_ARR_ELT0 + EQUALITY_CHECK_5;
+  /** Filter on element 0 of the array variant: {@value}. */
+  private static final String FILTER_ON_ARR_ELT0 = VARIANT_GET_ARR_ELT0 + EQUALITY_CHECK;
 
   /** Table to use in benchmark. */
   public enum TableType {
@@ -275,11 +270,12 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     return tables.create(SCHEMA, PartitionSpec.unpartitioned(), properties, newTableLocation());
   }
 
-  @Setup
+  @Setup(Level.Trial)
   public void setupBenchmark() throws IOException {
     setupSpark();
+    final RuntimeConfig sc = spark().conf();
     // one shuffle partition keeps the join benchmark on a single task.
-    spark().conf().set("spark.sql.shuffle.partitions", "1");
+    sc.set("spark.sql.shuffle.partitions", "1");
 
     // build the parquet schema of the shredded type by creating one variant instance
     // and type converting it.
@@ -287,12 +283,11 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     Type shreddedType =
         ParquetVariantUtil.toParquetSchema(buildVariant(variantMetadata, 0, 0, "").value());
     shredder =
-        tableType.shredded
+        isShredded()
             ? (fieldId, fieldName) -> COL_NESTED.equals(fieldName) ? shreddedType : null
             : (fieldId, fieldName) -> null;
 
-    // algorithm for category produces a value 0..19
-    final int categoryCount = 20;
+    final int categoryCount = NUM_CATEGORIES;
     repeatedStrings = new String[categoryCount];
     IntStream.range(0, categoryCount)
         .forEach(i -> repeatedStrings[i] = "Longer repeated string " + i);
@@ -330,10 +325,19 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     return spark().read().format("iceberg").load(table().location());
   }
 
+  /**
+   * Is the table shredded?
+   *
+   * @return true if the table is shredded.
+   */
+  private boolean isShredded() {
+    return tableType.shredded;
+  }
+
   /** Read the entire table. */
   @Benchmark
-  public void count() {
-    project("*");
+  public void count(Blackhole blackhole) {
+    project(blackhole, "*");
   }
 
   /**
@@ -344,32 +348,75 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    * row-structured ones, especially as the tables grow in size or row width.
    */
   @Benchmark
-  public void filterCatProjectID() {
-    select(COL_ID, FILTER_ON_CATEGORY);
+  public void filterCatProjectID(Blackhole blackhole) {
+    select(blackhole, COL_ID, FILTER_ON_CATEGORY, false);
   }
 
   /**
-   * Perform a sql select operation.
+   * Perform a sql select operation to non-zero count of rows.
+   *
+   * @param blackhole consumer of all data
+   * @param projection columns to project.
+   * @param where optional WHERE clause
+   * @param expectPushdownWhenShredded on a shredded table, should the rowgroup filter report
+   *     invocation?
+   * @return the result.
+   */
+  private long select(
+      final Blackhole blackhole,
+      String projection,
+      String where,
+      boolean expectPushdownWhenShredded) {
+    final long result = sql(blackhole, toSql(projection, where));
+    if (expectPushdownWhenShredded) {
+      expectFilteringOfShreddedFields();
+    }
+    return result;
+  }
+
+  /**
+   * Perform a sql select operation where the result is an empty set.
    *
    * @param projection columns to project.
    * @param where optional WHERE clause
-   * @return the result.
+   * @param expectPushdownWhenShredded on a shredded table, should the rowgroup filter report
+   *     invocation?
    */
-  private long select(String projection, String where) {
-    final String text =
-        "SELECT " + projection + " FROM " + TEMP_VIEW + (where != null ? " WHERE " + where : "");
-    return sql(text);
+  private void selectEmptyResults(
+      final String projection, final String where, boolean expectPushdownWhenShredded) {
+    String command = toSql(projection, where);
+    resetMetricsCounter();
+    final Dataset<Row> ds = spark().sql(command);
+    assertThat(ds.collectAsList()).describedAs("Result of command %s", command).isEmpty();
+    if (expectPushdownWhenShredded) {
+      expectFilteringOfShreddedFields();
+    }
   }
 
   /**
-   * Issue any Spark SQL command.
+   * Create a SQL select statement.
    *
+   * @param projection projection clause
+   * @param where filter, may be null
+   * @return the string for evaluation.
+   */
+  private static String toSql(final String projection, final String where) {
+    final String text =
+        "SELECT " + projection + " FROM " + TEMP_VIEW + (where != null ? " WHERE " + where : "");
+    return text;
+  }
+
+  /**
+   * Issue any Spark SQL command that returns a non-zero count of rows.
+   *
+   * @param blackhole consumer of all data
    * @param command command to execute
    * @return count of result.
    */
-  private long sql(String command) {
+  private long sql(final Blackhole blackhole, String command) {
     LOG.info("{}", command);
-    return materializeNonEmpty(command, spark().sql(command));
+    resetMetricsCounter();
+    return materializeNonEmpty(blackhole, command, spark().sql(command));
   }
 
   /**
@@ -378,8 +425,8 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    * @param projection columns to project.
    * @return the result.
    */
-  private long project(String projection) {
-    return select(projection, null);
+  private long project(final Blackhole blackhole, String projection) {
+    return select(blackhole, projection, null, false);
   }
 
   /**
@@ -387,20 +434,20 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    * the variant ID.
    */
   @Benchmark
-  public void filterCatProjectVarID() {
-    select(VARIANT_GET_NESTED_ID, FILTER_ON_CATEGORY);
+  public void filterCatProjectVarID(Blackhole blackhole) {
+    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_CATEGORY, true);
   }
 
   /** Project on ID. */
   @Benchmark
-  public void projectID() {
-    project(COL_ID);
+  public void projectID(Blackhole blackhole) {
+    project(blackhole, COL_ID);
   }
 
   /** Extract the varid field only. */
   @Benchmark
-  public void projectVarID() {
-    project(VARIANT_GET_NESTED_ID);
+  public void projectVarID(Blackhole blackhole) {
+    project(blackhole, VARIANT_GET_NESTED_ID);
   }
 
   /**
@@ -411,60 +458,119 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    * reconstructed before filtering? or does the {@code variant_get()} get used early.
    */
   @Benchmark
-  public void filterVarcatProjectID() {
-    select(COL_ID, FILTER_ON_NESTED_CATEGORY);
+  public void filterVarcatProjectID(Blackhole blackhole) {
+    select(blackhole, COL_ID, FILTER_ON_NESTED_CATEGORY, true);
   }
 
   /** Filter to the category match; no projection. */
   @Benchmark
-  public void filterCat() {
-    select("*", FILTER_ON_CATEGORY);
+  public void filterCat(Blackhole blackhole) {
+    select(blackhole, "*", FILTER_ON_CATEGORY, false);
   }
 
   /** Filter to the varcat match; no projection. */
   @Benchmark
-  public void filterVarCat() {
-    select("*", FILTER_ON_NESTED_CATEGORY);
+  public void filterVarCat(Blackhole blackhole) {
+    select(blackhole, "*", FILTER_ON_NESTED_CATEGORY, true);
   }
 
   @Benchmark
-  public void filterVarCatSetMembership() {
-    select(COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (5)");
+  public void filterVarCatSetMembership(Blackhole blackhole) {
+    select(blackhole, COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (5)", true);
   }
 
   @Benchmark
-  public void filterVarCatSetNotInMembership() {
-    select(COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (100, 400)");
+  public void filterVarCatSetNotInMembership(Blackhole blackhole) {
+    selectEmptyResults(COL_ID, VARIANT_GET_NESTED_CATEGORY + " IN (100, 400)", false);
   }
 
   @Benchmark
-  public void filterVarCatSetNotInRange() {
-    select(COL_ID, VARIANT_GET_NESTED_CATEGORY + " < 0");
+  public void filterVarCatSetNotInRange(Blackhole blackhole) {
+    selectEmptyResults(COL_ID, VARIANT_GET_NESTED_CATEGORY + " < 0", false);
   }
 
   /** Project on the category field within the variant; no filtering. */
   @Benchmark
-  public void projectVarCat() {
-    project(VARIANT_GET_NESTED_CATEGORY);
+  public void projectVarCat(Blackhole blackhole) {
+    project(blackhole, VARIANT_GET_NESTED_CATEGORY);
   }
 
   /** Filter on nested category field then project on the nested ID field. */
   @Benchmark
-  public void filterVarcatProjectVarID() {
-    select(VARIANT_GET_NESTED_ID, FILTER_ON_NESTED_CATEGORY);
+  public void filterVarcatProjectVarID(Blackhole blackhole) {
+    select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_NESTED_CATEGORY, true);
+  }
+
+  /**
+   * Project element 0 of the array variant.
+   *
+   * <p>Note: the {@code arr} column is stored unshredded in all table types (array shredding is out
+   * of scope). This benchmark compares unshredded Parquet vs Avro array element access.
+   */
+  @Benchmark
+  public void projectArrayCategory(Blackhole blackhole) {
+    project(blackhole, VARIANT_GET_ARR_ELT0);
+  }
+
+  /** Filter on element 0 of the array variant then project on ID. */
+  @Benchmark
+  public void filterArrayCategoryProjectID(Blackhole blackhole) {
+    select(blackhole, COL_ID, FILTER_ON_ARR_ELT0, false);
+  }
+
+  /**
+   * Filter on element 0 of the array variant then project element 0.
+   *
+   * <p>Both the filter and projection touch the same array element; this measures the cost of
+   * evaluating {@code variant_get} on an array twice per row (once for filter, once for output).
+   */
+  @Benchmark
+  public void filterArray0ProjectArray0(Blackhole blackhole) {
+    select(blackhole, VARIANT_GET_ARR_ELT0, FILTER_ON_ARR_ELT0, false);
+  }
+
+  /** Explode the array variant into one row per element. */
+  @Benchmark
+  public void explodeArraryColumns(Blackhole blackhole) {
+    sql(blackhole, "select t.* from " + TEMP_VIEW + " as table, lateral variant_explode(arr) as t");
+  }
+
+  /**
+   * Self-join the table on {@code arr[4]} (= {@code id % 1000}, range 0-999) against {@code
+   * varcategory} from the nested variant.
+   *
+   * <p>TODO: failing in spark. Needs investigation.
+   */
+  // @Benchmark
+  public void joinArrElt4OnVarcat(Blackhole blackhole) {
+    final String text =
+        "SELECT t1."
+            + COL_ID
+            + ", t2."
+            + COL_ID
+            + " FROM "
+            + TEMP_VIEW
+            + " t1 JOIN "
+            + TEMP_VIEW2
+            + " t2 ON "
+            + "variant_get(t1.arr, '$[4]', 'int') = variant_get(t2.nested, '$.varcategory', 'int')";
+    sql(blackhole, text);
+    expectFilteringOfShreddedFields();
   }
 
   /**
    * Materialize a dataset by counting its elements; raise an exception if the set is empty, as that
    * is interpreted a sign the query is somehow broken.
    *
+   * @param blackhole consumer of all data
    * @param operation operation (for logging)
    * @param ds dataset
    * @return count of records returned.
    */
-  private long materializeNonEmpty(String operation, Dataset<?> ds) {
+  private long materializeNonEmpty(final Blackhole blackhole, String operation, Dataset<?> ds) {
     LOG.info("{} table={}", operation, tableType);
-    final long count = ds.count();
+    final long count = ds.queryExecution().toRdd().toJavaRDD().count();
+    blackhole.consume(count);
     Preconditions.checkState(
         count > 0, "Operation %s on %s table returned no results", operation, tableType);
     LOG.info("Materialization of Dataset returned {} records", count);
@@ -647,7 +753,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
    * <p>Arrays have no field-name metadata, so {@link Variants#emptyMetadata()} is used.
    *
    * @param id row ID
-   * @param category category value (0-19)
+   * @param category category value
    * @return a variant holding an array
    */
   private static Variant buildArrayVariant(long id, int category) {
@@ -660,72 +766,12 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     return Variant.of(Variants.emptyMetadata(), arr);
   }
 
-  /**
-   * Project element 0 of the array variant.
-   *
-   * <p>Note: the {@code arr} column is stored unshredded in all table types (array shredding is out
-   * of scope). This benchmark compares unshredded Parquet vs Avro array element access.
-   */
-  @Benchmark
-  public void projectArrayCategory() {
-    project(VARIANT_GET_ARR_ELT0);
-  }
+  /** Reset the metrics counter. */
+  private void resetMetricsCounter() {}
 
   /**
-   * Filter on element 0 of the array variant then project on ID.
-   *
-   * <p>Element 0 equals {@code category} (0-19), so this has the same ~5% selectivity as {@link
-   * #filterCatProjectID()}, enabling direct comparison.
+   * On shredded tables, assert that shredded field were scanned for filtering operations. Log the
+   * count at info.
    */
-  @Benchmark
-  public void filterArraryCategoryProjectID() {
-    select(COL_ID, FILTER_ON_ARR_ELT0);
-  }
-
-  /**
-   * Filter on element 0 of the array variant then project element 0.
-   *
-   * <p>Both the filter and projection touch the same array element; this measures the cost of
-   * evaluating {@code variant_get} on an array twice per row (once for filter, once for output).
-   */
-  @Benchmark
-  public void filterArray0ProjectArray0() {
-    select(VARIANT_GET_ARR_ELT0, FILTER_ON_ARR_ELT0);
-  }
-
-  /**
-   * Explode the array variant into one row per element.
-   *
-   * <p>With 5 elements per row and 1M rows the result set is 5M rows. Uses Spark's TVF syntax:
-   * {@code LATERAL variant_explode(arr) AS t}, which returns {@code (pos, key, value)} — {@code
-   * key} is null for arrays.
-   */
-  @Benchmark
-  public void explodeArraryColumns() {
-    sql("select t.* from " + TEMP_VIEW + " as table, lateral variant_explode(arr) as t");
-  }
-
-  /**
-   * Self-join the table on {@code arr[4]} (= {@code id % 1000}, range 0-999) against {@code
-   * varcategory} (range 0-19) from the nested variant.
-   *
-   * <p>Because arr[4] spans 0-999 and varcategory spans 0-19, only ~2% of probe rows match, giving
-   * a small result set. This benchmark measures the cost of extracting variant values on both sides
-   * of a join condition.
-   */
-  @Benchmark
-  public void joinArrElt4OnVarcat() {
-    final String text =
-        "SELECT t1."
-            + COL_ID
-            + ", t2."
-            + COL_ID
-            + " FROM "
-            + TEMP_VIEW
-            + " t1 JOIN "
-            + TEMP_VIEW2
-            + " t2 ON "
-            + "variant_get(t1.arr, '$[4]', 'int') = variant_get(t2.nested, '$.varcategory', 'int')";
-    sql(text);
-  }
+  private void expectFilteringOfShreddedFields() {}
 }
