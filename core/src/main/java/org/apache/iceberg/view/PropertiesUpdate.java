@@ -65,15 +65,17 @@ class PropertiesUpdate implements UpdateViewProperties {
         .retry(
             PropertyUtil.propertyAsInt(
                 base.properties(), COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
+        .totalTimeoutMs(
             PropertyUtil.propertyAsInt(
-                base.properties(), COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(
-                base.properties(), COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(
-                base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .backoffStrategy(BackoffStrategies.from(base.properties()))
+                base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT))
+        .backoffStrategy(
+            BackoffStrategies.from(
+                base.properties(),
+                PropertyUtil.propertyAsInt(
+                    base.properties(), COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+                PropertyUtil.propertyAsInt(
+                    base.properties(), COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+                2.0))
         .onlyRetryOn(CommitFailedException.class)
         .run(taskOps -> taskOps.commit(base, internalApply()));
   }
