@@ -389,10 +389,10 @@ public class SparkPositionDeletesRewrite implements Write {
       long position = record.getLong(positionOrdinal);
       InternalRow row = record.getStruct(rowOrdinal, rowSize);
       if (row != null) {
-        positionDelete.set(file, position, row);
+        positionDelete.set(file, position);
         lazyWriterWithRow().write(positionDelete, spec, partition);
       } else {
-        positionDelete.set(file, position, null);
+        positionDelete.set(file, position);
         lazyWriterWithoutRow().write(positionDelete, spec, partition);
       }
     }
@@ -498,7 +498,7 @@ public class SparkPositionDeletesRewrite implements Write {
     public void write(InternalRow record) {
       String file = record.getString(fileOrdinal);
       long position = record.getLong(positionOrdinal);
-      positionDelete.set(file, position, null);
+      positionDelete.set(file, position);
       dvWriter.write(positionDelete, spec, partition);
     }
 

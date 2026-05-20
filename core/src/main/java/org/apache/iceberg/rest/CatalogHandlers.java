@@ -502,15 +502,6 @@ public class CatalogHandlers {
     }
   }
 
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #loadTable(Catalog,
-   *     TableIdentifier, SnapshotMode)} instead.
-   */
-  @Deprecated
-  public static LoadTableResponse loadTable(Catalog catalog, TableIdentifier ident) {
-    return loadTable(catalog, ident, SnapshotMode.ALL);
-  }
-
   public static LoadTableResponse loadTable(
       Catalog catalog, TableIdentifier ident, SnapshotMode mode) {
     Table table = catalog.loadTable(ident);

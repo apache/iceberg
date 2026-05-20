@@ -169,7 +169,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
       MetricsConfig metricsConfig =
           table == null
               ? MetricsConfig.forPositionDelete()
-              : MetricsConfig.forPositionDelete(table);
+              : MetricsConfig.forPositionDelete();
 
       try {
         return switch (deleteFormat) {

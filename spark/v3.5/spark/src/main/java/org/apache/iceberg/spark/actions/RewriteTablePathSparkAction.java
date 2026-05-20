@@ -714,13 +714,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     @Override
     public PositionDeleteWriter<Record> writer(
-        OutputFile outputFile,
-        FileFormat format,
-        PartitionSpec spec,
-        StructLike partition,
-        Schema rowSchema)
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
         throws IOException {
-      return positionDeletesWriter(outputFile, format, spec, partition, rowSchema);
+      return positionDeletesWriter(outputFile, format, spec, partition);
     }
   }
 
@@ -757,44 +753,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private static PositionDeleteWriter<Record> positionDeletesWriter(
-      OutputFile outputFile,
-      FileFormat format,
-      PartitionSpec spec,
-      StructLike partition,
-      Schema rowSchema)
+      OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
       throws IOException {
-    if (rowSchema == null) {
-      return FormatModelRegistry.<Record>positionDeleteWriteBuilder(
-              format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
-          .partition(partition)
-          .spec(spec)
-          .build();
-    } else {
-      return switch (format) {
-        case AVRO ->
-            Avro.writeDeletes(outputFile)
-                .createWriterFunc(DataWriter::create)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        case PARQUET ->
-            Parquet.writeDeletes(outputFile)
-                .createWriterFunc(GenericParquetWriter::create)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        case ORC ->
-            ORC.writeDeletes(outputFile)
-                .createWriterFunc(GenericOrcWriter::buildWriter)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        default -> throw new UnsupportedOperationException("Unsupported file format: " + format);
-      };
-    }
+    return FormatModelRegistry.<Record>positionDeleteWriteBuilder(
+            format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
+        .partition(partition)
+        .spec(spec)
+        .build();
   }
 
   private Set<Snapshot> snapshotSet(TableMetadata metadata) {

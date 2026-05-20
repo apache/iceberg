@@ -457,7 +457,7 @@ public class OperatorTestBase {
     GenericRecord nested = GenericRecord.create(table.schema());
     nested.set(0, id);
     nested.set(1, oldData);
-    posDelete.set(path, pos, nested);
+    posDelete.set(path, pos);
     return FileHelpers.writePosDeleteFile(
         table, Files.localOutput(file), null, Lists.newArrayList(posDelete), formatVersion);
   }

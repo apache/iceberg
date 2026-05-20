@@ -2503,7 +2503,7 @@ public class TestRewriteDataFilesAction extends TestBase {
               .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
-      posDeleteWriter.write(posDelete.set(path, rowPosition, null));
+      posDeleteWriter.write(posDelete.set(path, rowPosition));
       try {
         posDeleteWriter.close();
       } catch (IOException e) {
@@ -2547,7 +2547,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       for (int position = file * positionsPerDeleteFile;
           position < (file + 1) * positionsPerDeleteFile;
           position++) {
-        posDeleteWriter.write(posDelete.set(path, position, null));
+        posDeleteWriter.write(posDelete.set(path, position));
       }
 
       try {

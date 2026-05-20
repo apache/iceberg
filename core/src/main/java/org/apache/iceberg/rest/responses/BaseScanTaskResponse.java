@@ -94,15 +94,6 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
     }
 
     /**
-     * @deprecated since 1.11.0, will be removed in 1.12.0.
-     */
-    @Deprecated
-    public B withDeleteFiles(List<DeleteFile> deleteFilesList) {
-      this.deleteFiles = DeleteFileSet.of(deleteFilesList);
-      return self();
-    }
-
-    /**
      * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
      */
     @Deprecated

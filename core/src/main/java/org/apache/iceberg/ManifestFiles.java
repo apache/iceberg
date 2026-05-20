@@ -109,39 +109,6 @@ public class ManifestFiles {
   }
 
   /**
-   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
-   *
-   * @param manifest a ManifestFile
-   * @param io a FileIO
-   * @return a manifest reader
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #readPaths(ManifestFile,
-   *     FileIO, Map)} instead.
-   */
-  @Deprecated
-  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
-    return readPaths(manifest, io, null);
-  }
-
-  /**
-   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
-   *
-   * <p><em>Note:</em> Callers should use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} to
-   * ensure the schema used by filters is the latest table schema. This should be used only when
-   * reading a manifest without filters.
-   *
-   * @param manifest a ManifestFile
-   * @param io a FileIO
-   * @return a manifest reader
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #read(ManifestFile, FileIO,
-   *     Map)} instead. Reading partition specs from manifest file metadata will not be supported
-   *     for non-Avro manifest formats.
-   */
-  @Deprecated
-  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io) {
-    return read(manifest, io, null);
-  }
-
-  /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
    * @param manifest a {@link ManifestFile}
@@ -435,15 +402,6 @@ public class ManifestFiles {
    */
   public static ManifestFile decode(byte[] manifestData) throws IOException {
     return AvroEncoderUtil.decode(manifestData);
-  }
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #open(ManifestFile, FileIO,
-   *     Map)} instead.
-   */
-  @Deprecated
-  static ManifestReader<?> open(ManifestFile manifest, FileIO io) {
-    return open(manifest, io, null);
   }
 
   static ManifestReader<?> open(

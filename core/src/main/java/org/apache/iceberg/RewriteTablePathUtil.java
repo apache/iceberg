@@ -576,24 +576,8 @@ public class RewriteTablePathUtil {
   public interface PositionDeleteReaderWriter extends Serializable {
     CloseableIterable<Record> reader(InputFile inputFile, FileFormat format, PartitionSpec spec);
 
-    default PositionDeleteWriter<Record> writer(
-        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
-        throws IOException {
-      return writer(outputFile, format, spec, partition, null);
-    }
-
-    /**
-     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-     *     Position deletes that include row data are no longer supported. Use {@link
-     *     #writer(OutputFile, FileFormat, PartitionSpec, StructLike)} instead.
-     */
-    @Deprecated
     PositionDeleteWriter<Record> writer(
-        OutputFile outputFile,
-        FileFormat format,
-        PartitionSpec spec,
-        StructLike partition,
-        Schema rowSchema)
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
         throws IOException;
   }
 
@@ -634,18 +618,16 @@ public class RewriteTablePathUtil {
     try (CloseableIterable<Record> reader =
         posDeleteReaderWriter.reader(sourceFile, deleteFile.format(), spec)) {
       Record record = null;
-      Schema rowSchema = null;
       CloseableIterator<Record> recordIt = reader.iterator();
 
       if (recordIt.hasNext()) {
         record = recordIt.next();
-        rowSchema = record.get(2) != null ? spec.schema() : null;
       }
 
       if (record != null) {
         try (PositionDeleteWriter<Record> writer =
             posDeleteReaderWriter.writer(
-                outputFile, deleteFile.format(), spec, deleteFile.partition(), rowSchema)) {
+                outputFile, deleteFile.format(), spec, deleteFile.partition())) {
 
           writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
 
@@ -723,7 +705,7 @@ public class RewriteTablePathUtil {
               + oldPath);
     }
     String newPath = newPath(oldPath, sourcePrefix, targetPrefix);
-    delete.set(newPath, (Long) record.get(1), record.get(2));
+    delete.set(newPath, (Long) record.get(1));
     return delete;
   }
 

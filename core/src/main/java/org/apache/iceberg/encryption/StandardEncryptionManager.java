@@ -54,15 +54,6 @@ public class StandardEncryptionManager implements EncryptionManager {
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
-   * @deprecated will be removed in 1.12.0.
-   */
-  @Deprecated
-  public StandardEncryptionManager(
-      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
-    this(List.of(), tableKeyId, dataKeyLength, kmsClient);
-  }
-
-  /**
    * @param keys encryption keys from table metadata
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
@@ -135,22 +126,6 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
 
     return lazyRNG;
-  }
-
-  /**
-   * @deprecated will be removed in 1.12.0.
-   */
-  @Deprecated
-  public ByteBuffer wrapKey(ByteBuffer secretKey) {
-    return kmsClient.wrapKey(secretKey, tableKeyId);
-  }
-
-  /**
-   * @deprecated will be removed in 1.12.0.
-   */
-  @Deprecated
-  public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
-    return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 
   Map<String, EncryptedKey> encryptionKeys() {
