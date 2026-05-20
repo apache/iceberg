@@ -177,7 +177,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
       Tasks.foreach(entityId)
           .throwFailureWhenFinished()
           .retry(Integer.MAX_VALUE - 1)
-          .exponentialBackoff(acquireIntervalMs(), acquireIntervalMs(), acquireTimeoutMs(), 1)
+          .totalTimeoutMs(acquireTimeoutMs())
           .backoffStrategy(backoffStrategy())
           .onlyRetryOn(
               ConditionalCheckFailedException.class,

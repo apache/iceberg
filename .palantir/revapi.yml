@@ -576,6 +576,13 @@ acceptedBreaks:
         \ org.apache.iceberg.PartitionStatsHandler::readPartitionStatsFile(org.apache.iceberg.Schema,\
         \ org.apache.iceberg.io.InputFile)"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.util.Tasks.Builder<I> org.apache.iceberg.util.Tasks.Builder<I>::exponentialBackoff(long,\
+        \ long, long, double)"
+      justification: "Split into Tasks.Builder.totalTimeoutMs(long) for the retry\
+        \ budget and Tasks.Builder.backoffStrategy(BackoffStrategy) for the per-attempt\
+        \ wait formula. The previous 4-arg method conflated two unrelated concerns\
+        \ and obscured operator-facing terminology (commit.retry.total-timeout-ms)."
   "1.2.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.field.constantValueChanged"
