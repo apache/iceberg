@@ -73,11 +73,11 @@ Apache Iceberg 1.11.0 was released on May 19, 2026.
 The 1.11.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.11.0)
 
 * Deprecation / End of Support
-    - Flink: Remove Flink 1.19 support ([\#13714](https://github.com/apache/iceberg/pull/13714))
-    - AWS, Core, Data, Spark: Remove deprecations for 1.11.0 ([\#14059](https://github.com/apache/iceberg/pull/14059))
     - Spec: Deprecate Position delete files with row data ([\#14045](https://github.com/apache/iceberg/pull/14045))
     - Drop support for Java 11 ([\#14400](https://github.com/apache/iceberg/pull/14400))
     - Spark 3.4: Deprecate support ([\#14099](https://github.com/apache/iceberg/pull/14099))
+    - Flink: Remove Flink 1.19 support ([\#13714](https://github.com/apache/iceberg/pull/13714))
+    - AWS, Core, Data, Spark: Remove deprecations for 1.11.0 ([\#14059](https://github.com/apache/iceberg/pull/14059))
 * Spec
     - Introduce SQL UDF specification ([\#14117](https://github.com/apache/iceberg/pull/14117))
     - Bring back added-rows in snapshot fields ([\#14048](https://github.com/apache/iceberg/pull/14048))
@@ -148,7 +148,7 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - Spark 4.1: Control merge schema evolution by table property ([\#15825](https://github.com/apache/iceberg/pull/15825))
     - Spark 4.1: Add session configs for adaptive split sizing and parallelism ([\#16088](https://github.com/apache/iceberg/pull/16088))
     - Disable min/max aggregation push down for string under any mode ([\#16320](https://github.com/apache/iceberg/pull/16320))
-    - Fix equality deletes non-deterministic schema ordering ([\#13873](https://github.com/apache/iceberg/pull/13873))
+    - Fix equality deletes non-deterministic schema ordering ([\#15514](https://github.com/apache/iceberg/pull/15514))
     - Add Support for PartitionStatistics Files in RewriteTablePath. ([\#13956](https://github.com/apache/iceberg/pull/13956))
     - enable stream-results option for remove orphan files ([\#14278](https://github.com/apache/iceberg/pull/14278))
     - Support writing shredded variant in Iceberg-Spark ([\#14297](https://github.com/apache/iceberg/pull/14297))
@@ -228,15 +228,15 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - Add 404 response for config endpoint ([\#15746](https://github.com/apache/iceberg/pull/15746))
 
 * Vendor integrations
-    - Azure: Don't fetch credential from endpoint if properties contain a valid credential ([\#13966](https://github.com/apache/iceberg/pull/13966))
-    - BigQuery: Add table validity check for BigQueryMetastoreCatalog ([\#14113](https://github.com/apache/iceberg/pull/14113))
-    - Azure: Add support to specify token credential provider ([\#14136](https://github.com/apache/iceberg/pull/14136))
-    - Aliyun: Add RRSA support for OSS authentication ([\#14443](https://github.com/apache/iceberg/pull/14443))
-    - GCP: Add service account impersonation support for BigQueryMetastoreCatalog ([\#14447](https://github.com/apache/iceberg/pull/14447))
     - AWS: Set retry policy on glue and dynamo clients ([\#15094](https://github.com/apache/iceberg/pull/15094))
     - AWS: Add proxy system property and environment variable configuration for HTTP clients ([\#15506](https://github.com/apache/iceberg/pull/15506))
     - AWS: Add scheduled refresh for the S3FileIO held storage credentials ([\#15678](https://github.com/apache/iceberg/pull/15678))
+    - Azure: Don't fetch credential from endpoint if properties contain a valid credential ([\#13966](https://github.com/apache/iceberg/pull/13966))
+    - Azure: Add support to specify token credential provider ([\#14136](https://github.com/apache/iceberg/pull/14136))
+    - GCP: Add service account impersonation support for BigQueryMetastoreCatalog ([\#14447](https://github.com/apache/iceberg/pull/14447))
     - GCP: Add scheduled refresh for storage credentials held by GCSFileIO ([\#15696](https://github.com/apache/iceberg/pull/15696))
+    - BigQuery: Add table validity check for BigQueryMetastoreCatalog ([\#14113](https://github.com/apache/iceberg/pull/14113))
+    - Aliyun: Add RRSA support for OSS authentication ([\#14443](https://github.com/apache/iceberg/pull/14443))
 * Dependencies
     - Parquet: 1.16.0 -> 1.17.1
     - ORC: 1.9.6 -> 1.9.8
@@ -249,6 +249,8 @@ The 1.11.0 release contains bug fixes and new features. For full release notes v
     - Comet: 0.8.1 -> 0.12.0
     - Added Spark 4.1 support
     - Added Flink 2.1 support
+
+## Past releases
 
 ### 1.10.2 release
 
@@ -282,8 +284,6 @@ The 1.10.2 release contains bug fixes and security fixes. For full release notes
     - Fix CVE-2025-67721 in io.airlift:aircompressor ([\#15829](https://github.com/apache/iceberg/pull/15829))
     - Bump Jackson to 2.21.2 to fix GHSA-72hv-8253-57qq ([\#15847](https://github.com/apache/iceberg/pull/15847))
     - Bump Apache Avro from 1.12.0 to 1.12.1 ([\#15607](https://github.com/apache/iceberg/pull/15607))
-
-## Past releases
 
 ### 1.10.1 release
 
