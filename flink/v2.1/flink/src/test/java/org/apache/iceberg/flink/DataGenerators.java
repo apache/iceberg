@@ -273,6 +273,12 @@ public class DataGenerators {
           .add("binary_field", builder.of(binaryBytes))
           .add("decimal_field", builder.of(BIG_DECIMAL_NEGATIVE))
           .add("fixed_field", builder.of(FIXED_BYTES))
+          // Flink Variant natively supports TIMESTAMP, TIMESTAMP_LTZ for timestamp and both assume
+          // MicroSecond Precision.
+          // Fields need to be serialized as BIGINT Variant type inorder to be read using Nano
+          // precision.
+          .add("ts_ns_with_zone_field", builder.of(ICEBERG_MAX_NANOS_EPOCH))
+          .add("ts_ns_without_zone_field", builder.of(ICEBERG_MAX_NANOS_EPOCH))
           .build();
     }
 
