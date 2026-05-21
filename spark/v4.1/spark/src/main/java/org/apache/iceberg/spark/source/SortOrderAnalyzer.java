@@ -125,11 +125,10 @@ class SortOrderAnalyzer {
   private static boolean allFilesHaveSortOrder(
       ScanTaskGroup<?> taskGroup, int expectedSortOrderId) {
     for (ScanTask task : taskGroup.tasks()) {
-      if (!(task instanceof FileScanTask)) {
+      if (!(task instanceof FileScanTask fileTask)) {
         continue;
       }
 
-      FileScanTask fileTask = (FileScanTask) task;
       Integer fileSortOrderId = fileTask.file().sortOrderId();
 
       if (fileSortOrderId == null || fileSortOrderId != expectedSortOrderId) {
