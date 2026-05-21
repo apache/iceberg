@@ -48,6 +48,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -241,6 +242,24 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
             FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
             FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
         .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+  }
+
+  @TestTemplate
+  public void testCreateTableWithTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
+  }
+
+  @TestTemplate
+  public void testAlterTableModifyTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
+
+    // alter table comment
+    sql("ALTER TABLE tl SET('comment' = 'new comment')");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "new comment");
   }
 
   @TestTemplate
