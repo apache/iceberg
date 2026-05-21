@@ -127,7 +127,11 @@ io.netty:netty-transport:4.2
 io.opencensus:opencensus-api:0.31
 io.opencensus:opencensus-contrib-http-util:0.31
 io.opentelemetry.contrib:opentelemetry-gcp-resources:1.37
-io.opentelemetry.semconv:opentelemetry-semconv:1.29
+io.opentelemetry.instrumentation:opentelemetry-apache-httpclient-5.2:2.23
+io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:2.23
+io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:2.23
+io.opentelemetry.semconv:opentelemetry-semconv:1.37
+io.opentelemetry:opentelemetry-api-incubator:1.57
 io.opentelemetry:opentelemetry-api:1.57
 io.opentelemetry:opentelemetry-common:1.57
 io.opentelemetry:opentelemetry-context:1.57

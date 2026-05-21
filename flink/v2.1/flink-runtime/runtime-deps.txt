@@ -6,6 +6,14 @@ com.github.luben:zstd-jni:1.5
 com.google.errorprone:error_prone_annotations:2.10
 dev.failsafe:failsafe:3.3
 io.airlift:aircompressor:2.0
+io.opentelemetry.instrumentation:opentelemetry-apache-httpclient-5.2:2.23
+io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:2.23
+io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:2.23
+io.opentelemetry.semconv:opentelemetry-semconv:1.37
+io.opentelemetry:opentelemetry-api-incubator:1.57
+io.opentelemetry:opentelemetry-api:1.57
+io.opentelemetry:opentelemetry-common:1.57
+io.opentelemetry:opentelemetry-context:1.57
 org.apache.avro:avro:1.12
 org.apache.datasketches:datasketches-java:6.2
 org.apache.datasketches:datasketches-memory:3.0

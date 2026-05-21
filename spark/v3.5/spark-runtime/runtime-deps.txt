@@ -9,6 +9,14 @@ dev.failsafe:failsafe:3.3
 io.airlift:aircompressor:2.0
 io.netty:netty-buffer:4.2
 io.netty:netty-common:4.2
+io.opentelemetry.instrumentation:opentelemetry-apache-httpclient-5.2:2.23
+io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:2.23
+io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:2.23
+io.opentelemetry.semconv:opentelemetry-semconv:1.37
+io.opentelemetry:opentelemetry-api-incubator:1.57
+io.opentelemetry:opentelemetry-api:1.57
+io.opentelemetry:opentelemetry-common:1.57
+io.opentelemetry:opentelemetry-context:1.57
 org.apache.arrow:arrow-format:15.0
 org.apache.arrow:arrow-memory-core:15.0
 org.apache.arrow:arrow-memory-netty:15.0
