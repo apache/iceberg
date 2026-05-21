@@ -31,7 +31,9 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.InternalTestHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.formats.FileWriterBuilder;
@@ -39,6 +41,7 @@ import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetFileTestUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -193,6 +196,60 @@ public class TestRecordVariantShreddingAnalyzer {
   }
 
   @Test
+  public void testAnalyzeVariantColumnsRejectsNullEngineSchema() {
+    RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+
+    assertThatThrownBy(() -> analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Invalid engine schema: null");
+  }
+
+  @Test
+  public void testGenericFileWriterFactoryShreddingRoundTrip() throws IOException {
+    Table table =
+        TestTables.create(
+            temp.resolve("table").toFile(),
+            "variant",
+            VARIANT_AFTER_ID_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            3);
+    try {
+      GenericFileWriterFactory writerFactory =
+          new GenericFileWriterFactory.Builder(table)
+              .dataFileFormat(FileFormat.PARQUET)
+              .dataSchema(VARIANT_AFTER_ID_SCHEMA)
+              .writerProperties(
+                  ImmutableMap.of(
+                      TableProperties.PARQUET_SHRED_VARIANTS, "true",
+                      TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "2"))
+              .build();
+
+      OutputFileFactory fileFactory =
+          OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PARQUET).build();
+      EncryptedOutputFile encryptedOutputFile = fileFactory.newOutputFile();
+
+      // KC path: RegistryBasedFileWriterFactory passes inputSchema=null as engineSchema.
+      try (DataWriter<Record> writer =
+          writerFactory.newDataWriter(encryptedOutputFile, table.spec(), null)) {
+        for (Record rec : records) {
+          writer.write(rec);
+        }
+      }
+
+      OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
+      try (ParquetFileReader reader =
+          ParquetFileReader.open(ParquetFileTestUtils.file(outputFile.toInputFile()))) {
+        assertShreddedVariantParquetSchema(reader.getFooter().getFileMetaData().getSchema());
+      }
+
+      assertAllRawParquetRowsShredded(outputFile);
+      assertRecordsRoundTrip(outputFile);
+    } finally {
+      TestTables.clearTables();
+    }
+  }
+
+  @Test
   public void testFormatModelRegistryShreddingRoundTrip() throws IOException {
     OutputFile outputFile = Files.localOutput(temp.resolve("variant-shredded.parquet").toFile());
     EncryptedOutputFile encryptedOutputFile = EncryptedFiles.plainAsEncryptedOutput(outputFile);
@@ -216,28 +273,47 @@ public class TestRecordVariantShreddingAnalyzer {
 
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetFileTestUtils.file(outputFile.toInputFile()))) {
-      MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
-      GroupType variantGroup = parquetSchema.getType("v").asGroupType();
-      assertThat(variantGroup.containsField("typed_value")).isTrue();
-
-      GroupType typedValue = variantGroup.getType("typed_value").asGroupType();
-      assertThat(typedValue.containsField("a")).isTrue();
-      assertThat(typedValue.containsField("b")).isTrue();
+      assertShreddedVariantParquetSchema(reader.getFooter().getFileMetaData().getSchema());
     }
 
+    assertAllRawParquetRowsShredded(outputFile);
+    assertRecordsRoundTrip(outputFile);
+  }
+
+  private void assertShreddedVariantParquetSchema(MessageType parquetSchema) {
+    GroupType variantGroup = parquetSchema.getType("v").asGroupType();
+    assertThat(variantGroup.containsField("typed_value")).isTrue();
+
+    GroupType typedValue = variantGroup.getType("typed_value").asGroupType();
+    assertThat(typedValue.containsField("a")).isTrue();
+    assertThat(typedValue.containsField("b")).isTrue();
+  }
+
+  private void assertShreddedTypedValueOnRow(Group row) {
+    Group variantData = row.getGroup("v", 0);
+    assertThat(variantData.getFieldRepetitionCount("value")).isEqualTo(0);
+
+    Group typedValue = variantData.getGroup("typed_value", 0);
+    assertThat(typedValue.getGroup("a", 0).getInteger("typed_value", 0)).isEqualTo(42);
+    assertThat(typedValue.getGroup("b", 0).getString("typed_value", 0)).isEqualTo("hello");
+  }
+
+  private void assertAllRawParquetRowsShredded(OutputFile outputFile) throws IOException {
     try (ParquetReader<Group> rawReader =
         ParquetReader.builder(
                 new GroupReadSupport(), new org.apache.hadoop.fs.Path(outputFile.location()))
             .build()) {
-      Group row = rawReader.read();
-      Group variantData = row.getGroup("v", 0);
-      assertThat(variantData.getFieldRepetitionCount("value")).isEqualTo(0);
-
-      Group typedValue = variantData.getGroup("typed_value", 0);
-      assertThat(typedValue.getGroup("a", 0).getInteger("typed_value", 0)).isEqualTo(42);
-      assertThat(typedValue.getGroup("b", 0).getString("typed_value", 0)).isEqualTo("hello");
+      Group row;
+      int rowCount = 0;
+      while ((row = rawReader.read()) != null) {
+        assertShreddedTypedValueOnRow(row);
+        rowCount++;
+      }
+      assertThat(rowCount).isEqualTo(records.size());
     }
+  }
 
+  private void assertRecordsRoundTrip(OutputFile outputFile) throws IOException {
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
         Parquet.read(outputFile.toInputFile())

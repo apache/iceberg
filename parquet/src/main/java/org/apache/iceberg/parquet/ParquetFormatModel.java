@@ -141,10 +141,11 @@ public class ParquetFormatModel<D, S, R>
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ModelWriteBuilder<D, S> schema(Schema newSchema) {
       this.schema = newSchema;
       internal.schema(newSchema);
-      if (Schema.class.equals(schemaType)) {
+      if (this.engineSchema == null && Schema.class.equals(schemaType)) {
         this.engineSchema = (S) newSchema;
       }
       return this;
@@ -152,7 +153,9 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> engineSchema(S newSchema) {
-      this.engineSchema = newSchema;
+      if (newSchema != null) {
+        this.engineSchema = newSchema;
+      }
       return this;
     }
 

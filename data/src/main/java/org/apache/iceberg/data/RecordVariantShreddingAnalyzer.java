@@ -19,10 +19,12 @@
 package org.apache.iceberg.data;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.VariantShreddingAnalyzer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantValue;
@@ -30,25 +32,33 @@ import org.apache.iceberg.variants.VariantValue;
 /**
  * Generic {@link Record} implementation that extracts variant values from {@link Record#get(int)}
  * using positional indices aligned with {@link Schema#columns()}.
+ *
+ * <p>Buffered rows must be laid out against the same {@link Schema} passed as {@code engineSchema};
+ * otherwise {@link Record#get(int)} positions will not match the resolved column indices.
  */
 class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Schema> {
+
+  private final Map<Schema, Map<String, Integer>> columnIndicesBySchema = Maps.newHashMap();
 
   RecordVariantShreddingAnalyzer() {}
 
   @Override
   protected int resolveColumnIndex(Schema engineSchema, String columnName) {
-    if (engineSchema == null) {
-      return -1;
-    }
+    Preconditions.checkNotNull(engineSchema, "Invalid engine schema: null");
 
-    List<NestedField> cols = engineSchema.columns();
+    Map<String, Integer> indices =
+        columnIndicesBySchema.computeIfAbsent(engineSchema, RecordVariantShreddingAnalyzer::indexByName);
+    Integer index = indices.get(columnName);
+    return index != null ? index : -1;
+  }
+
+  private static Map<String, Integer> indexByName(Schema schema) {
+    List<NestedField> cols = schema.columns();
+    Map<String, Integer> indices = Maps.newHashMapWithExpectedSize(cols.size());
     for (int i = 0; i < cols.size(); i++) {
-      if (cols.get(i).name().equals(columnName)) {
-        return i;
-      }
+      indices.put(cols.get(i).name(), i);
     }
-
-    return -1;
+    return indices;
   }
 
   @Override
