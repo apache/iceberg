@@ -106,7 +106,8 @@ public class ParquetFormatModel<D, S, R>
 
   @Override
   public ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
-    return new WriteBuilderWrapper<>(outputFile, writerFunction(), variantAnalyzer, copyFunc);
+    return new WriteBuilderWrapper<>(
+        outputFile, writerFunction(), variantAnalyzer, copyFunc, schemaType());
   }
 
   @Override
@@ -119,6 +120,7 @@ public class ParquetFormatModel<D, S, R>
     private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
     private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
     private final UnaryOperator<D> copyFunc;
+    private final Class<S> schemaType;
     private Schema schema;
     private S engineSchema;
     private FileContent content;
@@ -129,17 +131,22 @@ public class ParquetFormatModel<D, S, R>
         EncryptedOutputFile outputFile,
         WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
         VariantShreddingAnalyzer<D, S> variantAnalyzer,
-        UnaryOperator<D> copyFunc) {
+        UnaryOperator<D> copyFunc,
+        Class<S> schemaType) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
       this.variantAnalyzer = variantAnalyzer;
       this.copyFunc = copyFunc;
+      this.schemaType = schemaType;
     }
 
     @Override
     public ModelWriteBuilder<D, S> schema(Schema newSchema) {
       this.schema = newSchema;
       internal.schema(newSchema);
+      if (Schema.class.equals(schemaType)) {
+        this.engineSchema = (S) newSchema;
+      }
       return this;
     }
 

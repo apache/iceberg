@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -101,7 +102,7 @@ public class TestRecordVariantShreddingAnalyzer {
     RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
 
     Map<Integer, Type> shreddedTypes =
-        analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, null);
+        analyzer.analyzeVariantColumns(records, VARIANT_AFTER_ID_SCHEMA, VARIANT_AFTER_ID_SCHEMA);
 
     assertThat(shreddedTypes).containsOnlyKeys(2);
     GroupType typedValue = shreddedTypes.get(2).asGroupType();
@@ -120,10 +121,75 @@ public class TestRecordVariantShreddingAnalyzer {
 
     RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
     Map<Integer, Type> shreddedTypes =
-        analyzer.analyzeVariantColumns(variantFirstRecords, VARIANT_BEFORE_ID_SCHEMA, null);
+        analyzer.analyzeVariantColumns(
+            variantFirstRecords, VARIANT_BEFORE_ID_SCHEMA, VARIANT_BEFORE_ID_SCHEMA);
 
     assertThat(shreddedTypes).containsOnlyKeys(1);
     assertThat(shreddedTypes.get(1).asGroupType().containsField("a")).isTrue();
+  }
+
+  @Test
+  public void testAnalyzeVariantColumnsSkipsNullVariantValues() {
+    GenericRecord withVariant = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
+    withVariant.setField("id", 1L);
+    withVariant.setField("v", variant);
+
+    GenericRecord withNullVariant = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
+    withNullVariant.setField("id", 2L);
+    withNullVariant.setField("v", null);
+
+    GenericRecord withVariant2 = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
+    withVariant2.setField("id", 3L);
+    withVariant2.setField("v", variant);
+
+    List<Record> recordsWithNulls = ImmutableList.of(withVariant, withNullVariant, withVariant2);
+
+    RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+    Map<Integer, Type> shreddedTypes =
+        analyzer.analyzeVariantColumns(
+            recordsWithNulls, VARIANT_AFTER_ID_SCHEMA, VARIANT_AFTER_ID_SCHEMA);
+
+    assertThat(shreddedTypes).containsOnlyKeys(2);
+    assertThat(shreddedTypes.get(2).asGroupType().containsField("a")).isTrue();
+    assertThat(shreddedTypes.get(2).asGroupType().containsField("b")).isTrue();
+  }
+
+  @Test
+  public void testAnalyzeVariantColumnsWithAllNullVariantValues() {
+    GenericRecord nullVariant1 = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
+    nullVariant1.setField("id", 1L);
+    nullVariant1.setField("v", null);
+
+    GenericRecord nullVariant2 = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
+    nullVariant2.setField("id", 2L);
+    nullVariant2.setField("v", null);
+
+    List<Record> allNullVariants = ImmutableList.of(nullVariant1, nullVariant2);
+
+    RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+    Map<Integer, Type> shreddedTypes =
+        analyzer.analyzeVariantColumns(
+            allNullVariants, VARIANT_AFTER_ID_SCHEMA, VARIANT_AFTER_ID_SCHEMA);
+
+    assertThat(shreddedTypes).isEmpty();
+  }
+
+  @Test
+  public void testAnalyzeVariantColumnsRejectsNonVariantValues() {
+    GenericRecord invalidRecord = GenericRecord.create(VARIANT_AFTER_ID_SCHEMA);
+    invalidRecord.setField("id", 1L);
+    invalidRecord.setField("v", "not-a-variant");
+
+    RecordVariantShreddingAnalyzer analyzer = new RecordVariantShreddingAnalyzer();
+
+    assertThatThrownBy(
+            () ->
+                analyzer.analyzeVariantColumns(
+                    ImmutableList.of(invalidRecord),
+                    VARIANT_AFTER_ID_SCHEMA,
+                    VARIANT_AFTER_ID_SCHEMA))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Expected Variant at index 1 but was: java.lang.String");
   }
 
   @Test

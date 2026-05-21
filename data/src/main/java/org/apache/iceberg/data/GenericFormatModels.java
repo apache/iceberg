@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.data;
 
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
@@ -44,7 +45,7 @@ public class GenericFormatModels {
     FormatModelRegistry.register(
         ParquetFormatModel.create(
             Record.class,
-            Void.class,
+            Schema.class,
             (icebergSchema, fileSchema, engineSchema) ->
                 GenericParquetWriter.create(icebergSchema, fileSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
