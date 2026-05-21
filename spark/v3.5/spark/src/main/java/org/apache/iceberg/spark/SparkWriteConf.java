@@ -742,7 +742,7 @@ public class SparkWriteConf {
         .enumConf(DeleteGranularity::fromString)
         .option(SparkWriteOptions.DELETE_GRANULARITY)
         .tableProperty(TableProperties.DELETE_GRANULARITY)
-        .defaultValue(DeleteGranularity.FILE)
+        .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
         .parse();
   }
 }
