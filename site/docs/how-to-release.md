@@ -364,7 +364,7 @@ to update the Iceberg version, the links to the new version's documentation, and
 Once this PR is merged, the [`site-ci`](https://github.com/apache/iceberg/blob/main/.github/workflows/site-ci.yml)
 GitHub Actions workflow is automatically triggered for any push to `main` that touches `docs/`, `site/`,
 or `format/`. The workflow runs `make deploy` to build and push the documentation site to the `asf-site`
-branch, which publishes the new version's docs and javadoc. 
+branch, which publishes the new version's docs and javadoc.
 
 The site will be updated automatically. Manually running `make deploy` is no longer required as part of the release.
 
