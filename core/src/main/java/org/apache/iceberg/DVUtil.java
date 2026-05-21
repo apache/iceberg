@@ -54,6 +54,7 @@ class DVUtil {
         ContentFileUtil.isDV(deleteFile),
         "Cannot read, not a deletion vector: %s",
         deleteFile.location());
+    ContentFileUtil.validateDV(deleteFile);
     InputFile inputFile = fileIO.newInputFile(deleteFile);
     long offset = deleteFile.contentOffset();
     int length = deleteFile.contentSizeInBytes().intValue();
