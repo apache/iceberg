@@ -161,7 +161,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | write-parallelism                       | Upstream operator parallelism              | Overrides the writer parallelism                                                                                                                |
 | uid-suffix                              | As per table property                      | Overrides the uid suffix used in the underlying IcebergSink for this table                                                                      |
 | shred-variants                          | Table write.parquet.shred-variants         | Overrides this table's shred variants for this write |
-| variant-inference-buffer-size           | Table write.parquet.variant-inference-buffer-size | Overrides this table's variant inference buffer size this write |
+| variant-inference-buffer-size           | Table write.parquet.variant-inference-buffer-size | Overrides this table's variant inference buffer size for this write |
 
 #### Range distribution statistics type
 
