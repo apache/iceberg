@@ -264,6 +264,12 @@ public class FileMetadata {
         Preconditions.checkArgument(contentOffset != null, "Content offset is required for DV");
         Preconditions.checkArgument(contentSizeInBytes != null, "Content size is required for DV");
         Preconditions.checkArgument(
+            contentOffset >= 0, "Content offset must be non-negative for DV: %s", contentOffset);
+        Preconditions.checkArgument(
+            contentSizeInBytes >= 0,
+            "Content size must be non-negative for DV: %s",
+            contentSizeInBytes);
+        Preconditions.checkArgument(
             referencedDataFile != null, "Referenced data file is required for DV");
       } else {
         Preconditions.checkArgument(contentOffset == null, "Content offset can only be set for DV");
