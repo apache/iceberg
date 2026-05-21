@@ -77,6 +77,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", tableName("table_source"));
     spark.conf().unset(SparkSQLProperties.PRESERVE_DATA_ORDERING);
+    spark.conf().unset(SparkSQLProperties.PRESERVE_DATA_GROUPING);
   }
 
   @TestTemplate
@@ -731,12 +732,13 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new ThreeColumnRecord(2, "b", "P1"), new ThreeColumnRecord(4, "d", "P1")));
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     // c1 is the sort key but is NOT in the SELECT list.
     Dataset<Row> result = spark.sql(String.format("SELECT c2 FROM %s WHERE c3 = 'P1'", tableName));
     List<Object[]> rows = rowsToJava(result.collectAsList());
 
-    assertThat(rows).hasSize(4).containsExactlyInAnyOrder(row("a"), row("b"), row("c"), row("d"));
+    assertThat(rows).hasSize(4).containsExactly(row("a"), row("b"), row("c"), row("d"));
   }
 
   @TestTemplate

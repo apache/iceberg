@@ -115,18 +115,13 @@ class SparkBatch implements Batch {
     return partitions;
   }
 
-  /** Returns whether sort ordering was reported for this batch's scan. */
-  private boolean isOrderingEnabled() {
-    return orderingEnabled;
-  }
-
   /**
    * Returns true if this task group should use a k-way merging reader. This requires ordering to be
-   * enabled at the table level (validated by {@link #isOrderingEnabled()}, multiple files in the
-   * group, and all tasks being {@link FileScanTask}s.
+   * enabled at the table level, multiple files in the group, and all tasks being {@link
+   * FileScanTask}s.
    */
   private boolean shouldUseMergingSortedReader(ScanTaskGroup<?> taskGroup) {
-    return isOrderingEnabled()
+    return orderingEnabled
         && taskGroup.tasks().size() > 1
         && taskGroup.tasks().stream().allMatch(task -> task instanceof FileScanTask);
   }
