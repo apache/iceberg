@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -83,16 +82,16 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     Schema projection = partition.projection();
     SortOrder sortOrder = table.sortOrder();
 
+    int numFiles = taskGroup.tasks().size();
+
     Preconditions.checkState(
         sortOrder.isSorted(), "Cannot create merging reader for unsorted table %s", table.name());
     Preconditions.checkState(
-        taskGroup.tasks().size() > 1,
-        "Merging reader requires multiple files, got %s",
-        taskGroup.tasks().size());
+        numFiles > 1, "Merging reader requires multiple files, got %s", numFiles);
 
     LOG.info(
         "Creating merging reader for {} files with sort order {} in table {}",
-        taskGroup.tasks().size(),
+        numFiles,
         sortOrder.orderId(),
         table.name());
 
@@ -115,10 +114,10 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
                         mergeReadSchema,
                         partition.isCaseSensitive(),
                         partition.cacheDeleteFilesOnExecutors()))
-            .collect(Collectors.toList());
+            .toList();
     // Wrap each reader as a CloseableIterable and feed into SortedMerge.
     List<CloseableIterable<InternalRow>> fileIterables =
-        fileReaders.stream().map(this::readerToIterable).collect(Collectors.toList());
+        fileReaders.stream().map(this::readerToIterable).toList();
     SortedMerge<InternalRow> sortedMerge =
         new SortedMerge<>(buildComparator(mergeReadSchema, sortOrder), fileIterables);
     resources.addCloseable(sortedMerge);
