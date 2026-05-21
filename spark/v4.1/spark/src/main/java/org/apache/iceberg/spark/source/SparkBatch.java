@@ -58,6 +58,7 @@ class SparkBatch implements Batch {
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
   private final boolean orderingEnabled;
+  private Boolean lazyAnyGroupNeedsMerging;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -161,12 +162,28 @@ class SparkBatch implements Batch {
     return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
   }
 
+  private boolean anyGroupNeedsMergingReader() {
+    if (lazyAnyGroupNeedsMerging == null) {
+      lazyAnyGroupNeedsMerging =
+          orderingEnabled
+              && taskGroups.stream()
+                  .anyMatch(
+                      group ->
+                          group.tasks().size() > 1
+                              && group.tasks().stream()
+                                  .allMatch(task -> task instanceof FileScanTask));
+    }
+    return lazyAnyGroupNeedsMerging;
+  }
+
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
+  // - no task group requires a merging sorted reader (incompatible with vectorized reads)
   // - only primitives or metadata columns are projected
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
+        && !anyGroupNeedsMergingReader()
         && projection.columns().stream().allMatch(this::supportsParquetBatchReads)
         && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
@@ -174,12 +191,6 @@ class SparkBatch implements Batch {
   private boolean supportsParquetBatchReads(ScanTask task) {
     if (task instanceof ScanTaskGroup) {
       ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
-
-      // Vectorized readers cannot merge sorted data from multiple files
-      if (shouldUseMergingSortedReader(taskGroup)) {
-        return false;
-      }
-
       return taskGroup.tasks().stream().allMatch(this::supportsParquetBatchReads);
 
     } else if (task.isFileScanTask() && !task.isDataTask()) {
@@ -197,21 +208,17 @@ class SparkBatch implements Batch {
 
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
+  // - no task group requires a merging sorted reader (incompatible with vectorized reads)
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
+        && !anyGroupNeedsMergingReader()
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {
     if (task instanceof ScanTaskGroup) {
       ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
-
-      // Vectorized readers cannot merge sorted data from multiple files
-      if (shouldUseMergingSortedReader(taskGroup)) {
-        return false;
-      }
-
       return taskGroup.tasks().stream().allMatch(this::supportsOrcBatchReads);
 
     } else if (task.isFileScanTask() && !task.isDataTask()) {
