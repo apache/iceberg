@@ -330,6 +330,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 4:
+        // Preserve the constructor-initialized partitionData when the reader returns null
+        // (e.g., v4 Parquet manifests for unpartitioned tables omit the partition field).
         if (value != null) {
           this.partitionData = (PartitionData) value;
         }

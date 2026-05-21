@@ -279,6 +279,8 @@ class V4Metadata {
   }
 
   static Types.StructType fileType(Types.StructType partitionType) {
+    // Parquet cannot represent empty groups, so the partition field is omitted entirely from
+    // the file schema for unpartitioned tables. DataFileWrapper adjusts positions to match.
     ImmutableList.Builder<Types.NestedField> fields =
         ImmutableList.builderWithExpectedSize(partitionType.fields().isEmpty() ? 18 : 19);
     fields.add(DataFile.CONTENT.asRequired());

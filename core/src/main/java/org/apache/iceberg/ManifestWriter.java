@@ -92,6 +92,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         && encryptedFile instanceof NativeEncryptionOutputFile nativeFile) {
       return nativeFile;
     }
+
     return encryptedFile.encryptingOutputFile();
   }
 
@@ -257,6 +258,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     } else if (keyMetadata != null) {
       return keyMetadata.buffer();
     }
+
     return null;
   }
 

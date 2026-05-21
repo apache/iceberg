@@ -70,7 +70,7 @@ final class ManifestBenchmarkUtil {
               .withRecordCount(1000 + i)
               .withMetrics(randomMetrics(random, numCols));
 
-      if (!spec.isUnpartitioned()) {
+      if (spec.isPartitioned()) {
         builder.withPartitionPath(
             String.format(
                 Locale.ROOT, "id=%d/data=val-%d/customer=cust-%d", i % 100, i % 50, i % 200));
