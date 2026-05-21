@@ -324,9 +324,11 @@ public class BaseTransaction implements Transaction {
                 // metadata has changed since the transaction started, fail instead of rebasing and
                 // merging staged updates.
                 if (base != null && underlyingOps.current() != base) {
-                  throw new CommitFailedException(
-                      "Cannot commit replace transaction for %s: table was modified concurrently",
-                      tableName);
+                  throw new PendingUpdateFailedException(
+                      new CommitFailedException(
+                          "Cannot commit replace transaction for %s:"
+                              + " table was modified concurrently",
+                          tableName));
                 }
 
                 underlyingOps.commit(base, current);
@@ -334,6 +336,11 @@ public class BaseTransaction implements Transaction {
 
     } catch (CommitStateUnknownException e) {
       throw e;
+
+    } catch (PendingUpdateFailedException e) {
+      cleanAllUpdates();
+      deleteUncommittedFiles(deletedFiles);
+      throw e.wrapped();
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
