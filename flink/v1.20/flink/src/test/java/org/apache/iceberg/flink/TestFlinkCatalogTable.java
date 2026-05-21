@@ -398,6 +398,31 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testAlterTableAddColumnPosition() {
+    sql("CREATE TABLE tl(id BIGINT, name STRING)");
+    Schema schemaBefore = table("tl").schema();
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "name", Types.StringType.get()))
+                .asStruct());
+
+    sql("ALTER TABLE tl ADD (col1 STRING FIRST)");
+    sql("ALTER TABLE tl ADD (col2 INT AFTER id)");
+
+    Schema schemaAfter = table("tl").schema();
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(4, "col2", Types.IntegerType.get()),
+                    Types.NestedField.optional(2, "name", Types.StringType.get()))
+                .asStruct());
+  }
+
+  @TestTemplate
   public void testAlterTableDropColumn() {
     sql("CREATE TABLE tl(id BIGINT, dt STRING, col1 STRING, col2 BIGINT)");
     Schema schemaBefore = table("tl").schema();
