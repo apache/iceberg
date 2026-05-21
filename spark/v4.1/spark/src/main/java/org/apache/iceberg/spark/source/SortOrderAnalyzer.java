@@ -22,9 +22,12 @@ import java.util.List;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortField;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.slf4j.Logger;
@@ -37,6 +40,7 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  *   <li>The table has a defined sort order (non-null and {@code sortOrder.isSorted() == true})
+ *   <li>The sort order only references top-level columns.
  *   <li>Each partition key maps to exactly ONE task group (Spark drops the ordering guarantee when
  *       multiple {@code InputPartition}s share the same partition key)
  *   <li>Every {@link FileScanTask} in every task group carries the current sort order ID
@@ -64,6 +68,11 @@ class SortOrderAnalyzer {
 
     if (taskGroups == null || taskGroups.isEmpty()) {
       LOG.debug("Cannot report ordering: no task groups for table {}", table.name());
+      return false;
+    }
+
+    if (hasNestedSortFields(sortOrder, table.schema())) {
+      LOG.debug("Cannot report ordering: table {} has sort order with nested fields", table.name());
       return false;
     }
 
@@ -137,5 +146,14 @@ class SortOrderAnalyzer {
     }
 
     return true;
+  }
+
+  private static boolean hasNestedSortFields(SortOrder sortOrder, Schema schema) {
+    for (SortField field : sortOrder.fields()) {
+      if (!TypeUtil.ancestorFields(schema, field.sourceId()).isEmpty()) {
+        return true;
+      }
+    }
+    return false;
   }
 }
