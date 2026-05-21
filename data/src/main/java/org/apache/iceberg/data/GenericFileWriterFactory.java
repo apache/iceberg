@@ -242,9 +242,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
           "Deprecated feature used. Position delete row schema is used to create the position delete writer.");
       Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
       MetricsConfig metricsConfig =
-          table == null
-              ? MetricsConfig.forPositionDelete()
-              : MetricsConfig.forPositionDelete(table);
+          table == null ? MetricsConfig.forPositionDelete() : MetricsConfig.forPositionDelete();
 
       try {
         return switch (format) {

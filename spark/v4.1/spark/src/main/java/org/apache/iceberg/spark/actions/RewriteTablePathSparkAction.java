@@ -39,7 +39,6 @@ import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter;
 import org.apache.iceberg.RewriteTablePathUtil.RewriteResult;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.StatisticsFile;
@@ -50,11 +49,7 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -64,8 +59,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -714,13 +707,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     @Override
     public PositionDeleteWriter<Record> writer(
-        OutputFile outputFile,
-        FileFormat format,
-        PartitionSpec spec,
-        StructLike partition,
-        Schema rowSchema)
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
         throws IOException {
-      return positionDeletesWriter(outputFile, format, spec, partition, rowSchema);
+      return positionDeletesWriter(outputFile, format, spec, partition);
     }
   }
 
@@ -757,44 +746,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private static PositionDeleteWriter<Record> positionDeletesWriter(
-      OutputFile outputFile,
-      FileFormat format,
-      PartitionSpec spec,
-      StructLike partition,
-      Schema rowSchema)
+      OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
       throws IOException {
-    if (rowSchema == null) {
-      return FormatModelRegistry.<Record>positionDeleteWriteBuilder(
-              format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
-          .partition(partition)
-          .spec(spec)
-          .build();
-    } else {
-      return switch (format) {
-        case AVRO ->
-            Avro.writeDeletes(outputFile)
-                .createWriterFunc(DataWriter::create)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        case PARQUET ->
-            Parquet.writeDeletes(outputFile)
-                .createWriterFunc(GenericParquetWriter::create)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        case ORC ->
-            ORC.writeDeletes(outputFile)
-                .createWriterFunc(GenericOrcWriter::buildWriter)
-                .withPartition(partition)
-                .rowSchema(rowSchema)
-                .withSpec(spec)
-                .buildPositionWriter();
-        default -> throw new UnsupportedOperationException("Unsupported file format: " + format);
-      };
-    }
+    return FormatModelRegistry.<Record>positionDeleteWriteBuilder(
+            format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
+        .partition(partition)
+        .spec(spec)
+        .build();
   }
 
   private Set<Snapshot> snapshotSet(TableMetadata metadata) {

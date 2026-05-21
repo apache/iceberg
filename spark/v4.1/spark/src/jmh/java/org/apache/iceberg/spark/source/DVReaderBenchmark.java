@@ -209,7 +209,7 @@ public class DVReaderBenchmark {
       for (InternalRow row : rows) {
         String path = row.getString(0);
         long pos = row.getLong(1);
-        positionDelete.set(path, pos, null /* no row */);
+        positionDelete.set(path, pos);
         closableWriter.write(positionDelete, table.spec(), null);
       }
     }

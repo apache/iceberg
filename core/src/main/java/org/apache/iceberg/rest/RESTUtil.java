@@ -40,20 +40,6 @@ public class RESTUtil {
   /** The namespace separator as url encoded UTF-8 character */
   static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%1F";
 
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#namespaceToQueryParam(Namespace)}} instead.
-   */
-  @Deprecated
-  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR_AS_UNICODE);
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#namespaceFromQueryParam(String)} instead.
-   */
-  @Deprecated
-  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR_AS_UNICODE);
-
   public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
   private RESTUtil() {}
@@ -259,24 +245,6 @@ public class RESTUtil {
    * <p>This function needs to be called when a namespace is used as a path variable (or query
    * parameter etc.), to format the namespace per the spec.
    *
-   * <p>{@link #decodeNamespace} should be used to parse the namespace from a URL parameter.
-   *
-   * @param ns namespace to encode
-   * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#encodeNamespace(Namespace, String)} instead.
-   */
-  @Deprecated
-  public static String encodeNamespace(Namespace ns) {
-    return encodeNamespace(ns, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
-  }
-
-  /**
-   * Returns a String representation of a namespace that is suitable for use in a URL / URI.
-   *
-   * <p>This function needs to be called when a namespace is used as a path variable (or query
-   * parameter etc.), to format the namespace per the spec.
-   *
    * <p>{@link RESTUtil#decodeNamespace(String, String)} should be used to parse the namespace from
    * a URL parameter.
    *
@@ -297,22 +265,6 @@ public class RESTUtil {
     }
 
     return Joiner.on(separator).join(encodedLevels);
-  }
-
-  /**
-   * Takes in a string representation of a namespace as used for a URL parameter and returns the
-   * corresponding namespace.
-   *
-   * <p>See also {@link #encodeNamespace} for generating correctly formatted URLs.
-   *
-   * @param encodedNs a namespace to decode
-   * @return a namespace
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
-   *     RESTUtil#decodeNamespace(String, String)} instead.
-   */
-  @Deprecated
-  public static Namespace decodeNamespace(String encodedNs) {
-    return decodeNamespace(encodedNs, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   /**

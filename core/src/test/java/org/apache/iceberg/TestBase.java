@@ -777,7 +777,7 @@ public class TestBase {
 
   protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos, T row) {
     PositionDelete<T> positionDelete = PositionDelete.create();
-    return positionDelete.set(path, pos, row);
+    return positionDelete.set(path, pos);
   }
 
   protected void withUnavailableLocations(Iterable<String> locations, Action action) {

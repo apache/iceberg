@@ -466,7 +466,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closableWriter = writer) {
       for (PositionDelete<T> delete : deletes) {
-        closableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
+        closableWriter.write(posDelete.set(delete.path(), delete.pos()));
       }
     }
 

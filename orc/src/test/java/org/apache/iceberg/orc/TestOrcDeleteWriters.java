@@ -132,7 +132,7 @@ public class TestOrcDeleteWriters {
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        positionDelete.set(deletePath, pos, records.get(i));
+        positionDelete.set(deletePath, pos);
         writer.write(positionDelete);
         expectedDeleteRecords.add(
             posDelete.copy(
@@ -187,7 +187,7 @@ public class TestOrcDeleteWriters {
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        positionDelete.set(deletePath, pos, null);
+        positionDelete.set(deletePath, pos);
         writer.write(positionDelete);
         expectedDeleteRecords.add(
             posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));

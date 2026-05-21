@@ -703,7 +703,7 @@ public class ParquetValueWriters {
         case 1:
           return delete.pos();
         case 2:
-          return delete.row();
+          return null;
       }
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }

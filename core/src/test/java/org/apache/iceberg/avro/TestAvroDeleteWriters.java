@@ -138,7 +138,7 @@ public class TestAvroDeleteWriters {
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.write(positionDelete.set(deletePath, pos, records.get(i)));
+        writer.write(positionDelete.set(deletePath, pos));
         expectedDeleteRecords.add(
             posDelete.copy(
                 ImmutableMap.of(
@@ -194,7 +194,7 @@ public class TestAvroDeleteWriters {
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.write(positionDelete.set(deletePath, pos, null));
+        writer.write(positionDelete.set(deletePath, pos));
         expectedDeleteRecords.add(
             posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));
       }

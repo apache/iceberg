@@ -1535,7 +1535,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
   private PositionDelete<GenericRecord> positionDelete(CharSequence path, Long position) {
     PositionDelete<GenericRecord> posDelete = PositionDelete.create();
-    posDelete.set(path, position, null);
+    posDelete.set(path, position);
     return posDelete;
   }
 
@@ -1546,7 +1546,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     for (int i = 0; i < values.length; i++) {
       nested.set(i, values[i]);
     }
-    posDelete.set(path, position, nested);
+    posDelete.set(path, position);
     return posDelete;
   }
 
@@ -1585,7 +1585,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
               GenericRecord record = GenericRecord.create(finalSchema);
               record.setField("file_path", p.path());
               record.setField("pos", p.pos());
-              record.setField("row", formatVersion >= 3 ? null : p.row());
+              record.setField("row", null);
               if (partitionStruct != null) {
                 record.setField("partition", partitionStruct);
               }

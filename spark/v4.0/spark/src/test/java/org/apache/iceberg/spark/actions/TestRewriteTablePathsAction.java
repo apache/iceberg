@@ -1647,7 +1647,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     for (int i = 0; i < values.length; i++) {
       nested.set(i, values[i]);
     }
-    posDelete.set(path, position, nested);
+    posDelete.set(path, position);
     return posDelete;
   }
 

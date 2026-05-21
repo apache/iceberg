@@ -229,7 +229,7 @@ public abstract class TestAppenderFactory<T> extends TestBase {
     PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        closeableWriter.write(posDelete.set(delete.first(), delete.second(), null));
+        closeableWriter.write(posDelete.set(delete.first(), delete.second()));
       }
     }
 
@@ -278,7 +278,7 @@ public abstract class TestAppenderFactory<T> extends TestBase {
     PositionDelete<T> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (PositionDelete<T> delete : deletes) {
-        closeableWriter.write(posDelete.set(delete.path(), delete.pos(), delete.row()));
+        closeableWriter.write(posDelete.set(delete.path(), delete.pos()));
       }
     }
 

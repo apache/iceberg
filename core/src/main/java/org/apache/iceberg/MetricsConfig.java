@@ -32,7 +32,6 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.Immutable;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -49,7 +48,6 @@ import org.slf4j.LoggerFactory;
 public final class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
-  private static final Joiner DOT = Joiner.on('.');
 
   // Disable metrics by default for wide tables to prevent excessive metadata
   private static final MetricsMode DEFAULT_MODE =
@@ -98,34 +96,6 @@ public final class MetricsConfig implements Serializable {
    */
   public static MetricsConfig forTable(Table table) {
     return from(table.properties(), table.schema(), table.sortOrder());
-  }
-
-  /**
-   * Creates a metrics config for a position delete file.
-   *
-   * @param table an Iceberg table
-   * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-   *     Position deletes that include row data are no longer supported. Use {@link
-   *     #forPositionDelete()} instead.
-   */
-  @Deprecated
-  public static MetricsConfig forPositionDelete(Table table) {
-    ImmutableMap.Builder<String, MetricsMode> columnModes = ImmutableMap.builder();
-
-    columnModes.put(MetadataColumns.DELETE_FILE_PATH.name(), MetricsModes.Full.get());
-    columnModes.put(MetadataColumns.DELETE_FILE_POS.name(), MetricsModes.Full.get());
-
-    MetricsConfig tableConfig = forTable(table);
-
-    MetricsMode defaultMode = tableConfig.defaultMode;
-    tableConfig.columnModes.forEach(
-        (columnAlias, mode) -> {
-          String positionDeleteColumnAlias =
-              DOT.join(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME, columnAlias);
-          columnModes.put(positionDeleteColumnAlias, mode);
-        });
-
-    return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
   static Set<Integer> limitFieldIds(Schema schema, int limit) {

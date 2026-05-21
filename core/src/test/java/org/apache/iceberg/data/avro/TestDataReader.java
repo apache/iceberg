@@ -69,7 +69,7 @@ class TestDataReader {
     avroSchema.getField("timestamp_micros").addProp("field-id", 2);
     avroSchema.getField("timestamp_millis").addProp("field-id", 3);
 
-    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
+    PlannedDataReader<Record> reader = PlannedDataReader.create(icebergSchema);
     reader.setSchema(avroSchema);
 
     // post-epoch timestamps
@@ -131,7 +131,7 @@ class TestDataReader {
     avroSchema.getField("timestamp_micros_tz").addProp("field-id", 2);
     avroSchema.getField("timestamp_millis_tz").addProp("field-id", 3);
 
-    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
+    PlannedDataReader<Record> reader = PlannedDataReader.create(icebergSchema);
     reader.setSchema(avroSchema);
 
     // post-epoch timestamps
@@ -186,7 +186,8 @@ class TestDataReader {
         .isEqualTo(preEpochTimestampMillis.withOffsetSameInstant(ZoneOffset.UTC));
   }
 
-  private Record readRecord(DataReader<Record> reader, Schema avroSchema, GenericRecord avroRecord)
+  private Record readRecord(
+      PlannedDataReader<Record> reader, Schema avroSchema, GenericRecord avroRecord)
       throws IOException {
     try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
       BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);

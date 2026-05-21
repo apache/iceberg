@@ -538,26 +538,10 @@ public class Avro {
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(
-          rowSchema == null || createWriterFunc != null,
-          "Create function should be provided if we write row data");
-
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        // the appender uses the row schema wrapped with position fields
-        appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
-
-        appenderBuilder.createWriterFunc(
-            avroSchema -> new PositionAndRowDatumWriter<>(createWriterFunc.apply(avroSchema)));
-
-      } else {
-        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
-
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
-        // write row data itself
-        appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
-      }
+      appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
+      appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
 
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
@@ -578,44 +562,6 @@ public class Avro {
     public void write(PositionDelete<?> delete, Encoder out) throws IOException {
       PATH_WRITER.write(delete.path(), out);
       POS_WRITER.write(delete.pos(), out);
-    }
-
-    @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.concat(PATH_WRITER.metrics(), POS_WRITER.metrics());
-    }
-  }
-
-  /**
-   * A {@link DatumWriter} implementation that wraps another to produce position deletes with row
-   * data.
-   *
-   * @param <D> the type of datum written as a deleted row
-   */
-  private static class PositionAndRowDatumWriter<D>
-      implements MetricsAwareDatumWriter<PositionDelete<D>> {
-    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
-    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
-
-    private final DatumWriter<D> rowWriter;
-
-    private PositionAndRowDatumWriter(DatumWriter<D> rowWriter) {
-      this.rowWriter = rowWriter;
-    }
-
-    @Override
-    public void setSchema(Schema schema) {
-      Schema.Field rowField = schema.getField("row");
-      if (rowField != null) {
-        rowWriter.setSchema(rowField.schema());
-      }
-    }
-
-    @Override
-    public void write(PositionDelete<D> delete, Encoder out) throws IOException {
-      PATH_WRITER.write(delete.path(), out);
-      POS_WRITER.write(delete.pos(), out);
-      rowWriter.write(delete.row(), out);
     }
 
     @Override

@@ -288,9 +288,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig =
-        table != null
-            ? MetricsConfig.forPositionDelete(table)
-            : MetricsConfig.fromProperties(config);
+        table != null ? MetricsConfig.forPositionDelete() : MetricsConfig.fromProperties(config);
 
     try {
       switch (format) {

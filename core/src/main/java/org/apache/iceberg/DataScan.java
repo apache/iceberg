@@ -49,7 +49,7 @@ abstract class DataScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
       boolean withColumnStats) {
 
     ManifestGroup manifestGroup =
-        new ManifestGroup(io(), dataManifests, deleteManifests)
+        new ManifestGroup(fileIO().get(), dataManifests, deleteManifests)
             .caseSensitive(isCaseSensitive())
             .select(withColumnStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
             .filterData(filter())
