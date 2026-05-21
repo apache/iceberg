@@ -514,7 +514,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
-| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int` [1]   |
+| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `date` [1]  |
 | **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                              | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
@@ -522,7 +522,7 @@ All transforms must return `null` for a `null` input value.
 
 Notes:
 
-1. The `day` transform's result is the number of days from `1970-01-01`, which has the same physical representation as the `date` type. When writing a partition field produced by `day` to an Avro manifest, writers SHOULD encode the field as `{ "type": "int", "logicalType": "date" }` rather than plain Avro `int`. Readers MUST accept both encodings. The logical Iceberg result type remains `int` for the purposes of expression evaluation, projection, and type promotion.
+1. The result type for `day` has been documented as both `int` and `date` in earlier revisions of this spec. The physical representation has always been a 4-byte integer counting days from `1970-01-01`, regardless of whether the Avro field is annotated with `logicalType: date`. Readers may encounter manifests in either form; per the Avro specification, unrecognized logical type annotations are ignored, so the bytes on disk are identical.
 
 The `void` transform may be used to replace the transform in an existing partition field so that the field is effectively dropped in v1 tables. See partition evolution below.
 
