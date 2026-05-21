@@ -82,6 +82,10 @@ public class LocationUtil {
    * Resolves a location against a table location. If the location has a URI scheme, it is returned
    * as-is. Otherwise, the table location and the relative location are joined by the URI separator
    * character {@code /}.
+   *
+   * <p>The separator is appended unconditionally; {@code tableLocation} is expected not to end with
+   * {@code /} and {@code location} is expected not to start with {@code /}. Otherwise the result
+   * will contain a duplicate {@code //}.
    */
   public static String resolveLocation(String tableLocation, String location) {
     if (hasScheme(location)) {
@@ -96,6 +100,9 @@ public class LocationUtil {
    * immediately followed by the URI separator character {@code /}, the prefix and separator are
    * removed and the remaining relative portion is returned. Otherwise, the location is returned
    * as-is.
+   *
+   * <p>{@code tableLocation} is expected not to end with {@code /}. A trailing separator on the
+   * table location will cause locations that would otherwise match to be returned unchanged.
    */
   public static String relativizeLocation(String tableLocation, String location) {
     int prefixLength = tableLocation.length();

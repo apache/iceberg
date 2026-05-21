@@ -219,6 +219,27 @@ public class TestLocationUtil {
   }
 
   @Test
+  public void testResolveWithTrailingOrLeadingSlashProducesDuplicateSeparator() {
+    // the spec documents that joining a table location ending with '/' or a relative location
+    // starting with '/' yields a duplicate '//'; callers are expected to avoid this
+    assertThat(LocationUtil.resolveLocation("s3://bucket/table/", "data/00000-0.parquet"))
+        .isEqualTo("s3://bucket/table//data/00000-0.parquet");
+
+    assertThat(LocationUtil.resolveLocation("s3://bucket/table", "/data/00000-0.parquet"))
+        .isEqualTo("s3://bucket/table//data/00000-0.parquet");
+  }
+
+  @Test
+  public void testRelativizeWithTrailingSlashTableLocationNotRelativized() {
+    // a trailing '/' on the table location prevents the prefix match because relativization
+    // expects the separator to follow the prefix; the location is returned as-is
+    assertThat(
+            LocationUtil.relativizeLocation(
+                "s3://bucket/table/", "s3://bucket/table/data/00000-0.parquet"))
+        .isEqualTo("s3://bucket/table/data/00000-0.parquet");
+  }
+
+  @Test
   public void testRelativizeResolveRoundTripWithHDFS() {
     String tableLocation = "hdfs://namenode/warehouse/table";
     String absoluteLocation = "hdfs://namenode/warehouse/table/data/00000-0.parquet";
