@@ -742,6 +742,40 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void testNestedStructSortOrderNoReporting() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRUCT<sort_key:INT, value:STRING>, part STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (part)",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.replaceSortOrder().asc("data.sort_key").commit();
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, named_struct('sort_key', 1, 'value', 'a'), 'P1'), "
+            + "(2, named_struct('sort_key', 3, 'value', 'c'), 'P1')",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(3, named_struct('sort_key', 2, 'value', 'b'), 'P1'), "
+            + "(4, named_struct('sort_key', 4, 'value', 'd'), 'P1')",
+        tableName);
+
+    // Nested sort fields are not supported by the merging reader, so ordering must not be reported
+    withSQLConf(ENABLED_ORDERING_SQL_CONF, () -> assertScanReportsNoOrdering(tableIdent));
+
+    // Verify all data is still readable
+    Dataset<Row> result =
+        spark.sql(String.format("SELECT id, data.value FROM %s WHERE part = 'P1'", tableName));
+    List<Object[]> rows = rowsToJava(result.collectAsList());
+    assertThat(rows)
+        .hasSize(4)
+        .containsExactlyInAnyOrder(row(1, "a"), row(2, "c"), row(3, "b"), row(4, "d"));
+  }
+
+  @TestTemplate
   void testMergeOnReadWithDeleteFiles() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
