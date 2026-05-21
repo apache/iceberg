@@ -479,11 +479,11 @@ spark-shell \
 
 To verify using Flink, start a Flink SQL Client with the following command:
 ```bash
-wget ${MAVEN_URL}/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar
+wget ${MAVEN_URL}/iceberg-flink-runtime-2.0/{{ icebergVersion }}/iceberg-flink-runtime-2.0-{{ icebergVersion }}.jar
 
 sql-client.sh embedded \
-    -j iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar \
-    -j flink-connector-hive_2.12-1.20.jar \
+    -j iceberg-flink-runtime-2.0-{{ icebergVersion }}.jar \
+    -j flink-connector-hive_2.12-2.0.jar \
     shell
 ```
 
