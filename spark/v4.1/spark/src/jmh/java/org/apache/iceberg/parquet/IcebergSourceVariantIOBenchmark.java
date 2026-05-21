@@ -123,9 +123,9 @@ import org.slf4j.LoggerFactory;
  *       -PjmhOutputPath=build/reports/benchmark/iceberg-source-variant-io-benchmark-result.txt
  * </code>
  */
-@Fork(1)
-@Warmup(iterations = 20)
-@Measurement(iterations = 20)
+@Fork(0)
+@Warmup(iterations = 5)
+@Measurement(iterations = 5)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Timeout(time = 60, timeUnit = TimeUnit.MINUTES)
 public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
@@ -143,7 +143,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   private static final int ROW_GROUP_SIZE = 1 * 1024 * 1024;
 
   /** Number of distinct category values. */
-  private static final int NUM_CATEGORIES = 5;
+  private static final int NUM_CATEGORIES = 10;
 
   public static final String COL_ID = "id";
   private static final String COL_NESTED = "nested";
@@ -264,9 +264,6 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     properties.put(TableProperties.SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     // large split size keeps the single data file as one Spark task.
     properties.put(TableProperties.SPLIT_SIZE, Integer.toString(512 * 1024 * 1024));
-    /*    properties.put(TableProperties.METADATA_COMPRESSION, "zstd");
-    properties.put(TableProperties.PARQUET_COMPRESSION, "zstd");
-    properties.put(TableProperties.AVRO_COMPRESSION, "zstd");*/
     // small row group size ensures multiple row groups per file for row-group skipping benchmarks.
     properties.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(ROW_GROUP_SIZE));
     // variant projection pushdown not supported with the vectorized reader.
@@ -314,6 +311,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   public void tearDownBenchmark() throws IOException {
     tearDownSpark();
     cleanupFiles();
+    logRowGroupFiltering();
   }
 
   @Override
@@ -504,6 +502,13 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   @Benchmark
   public void filterVarcatProjectVarID(Blackhole blackhole) {
     select(blackhole, VARIANT_GET_NESTED_ID, FILTER_ON_NESTED_CATEGORY, true);
+  }
+
+  /** selecting on 1, but using a pair of ranges to locate. Two scans needed */
+  @Benchmark
+  public void filterVarcatProjectVarIDRanged(Blackhole blackhole) {
+    select(blackhole, VARIANT_GET_NESTED_ID,
+        VARIANT_GET_NESTED_CATEGORY + " > 0 and " + VARIANT_GET_NESTED_CATEGORY + " < 2", true);
   }
 
   /**
@@ -891,6 +896,13 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
     arr.add(Variants.of((int) (id % 50)));
     arr.add(Variants.of((int) (id % 1000)));
     return Variant.of(Variants.emptyMetadata(), arr);
+  }
+
+  /** Log the parquet metrics invocations. */
+  private void logRowGroupFiltering() {
+    final long scans = ParquetMetricsRowGroupFilter.variantPredicatesShreddedMetricsEvaluated();
+    final long skipped = ParquetMetricsRowGroupFilter.variantPredicatesShreddedSkipped();
+    LOG.info("Scanned {} shredded metrics, skipped {} row groups", scans, skipped);
   }
 
   /** Reset the metrics counter. */
