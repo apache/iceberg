@@ -177,6 +177,7 @@ class TestSortOrderAnalyzer {
   private static Table mockTable(SortOrder sortOrder) {
     Table table = mock(Table.class);
     when(table.sortOrder()).thenReturn(sortOrder);
+    when(table.schema()).thenReturn(SCHEMA);
     when(table.name()).thenReturn("test_table");
     return table;
   }
@@ -224,5 +225,29 @@ class TestSortOrderAnalyzer {
     GenericRecord record = GenericRecord.create(KEY_TYPE);
     record.setField("partition", value);
     return record;
+  }
+
+  @Test
+  void testNestedSortFieldReturnsFalse() {
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "data",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "sort_key", Types.IntegerType.get()),
+                    Types.NestedField.optional(4, "value", Types.StringType.get()))),
+            Types.NestedField.required(5, "part", Types.StringType.get()));
+    SortOrder nestedSortOrder = SortOrder.builderFor(nestedSchema).asc("data.sort_key").build();
+    Table table = mock(Table.class);
+    when(table.sortOrder()).thenReturn(nestedSortOrder);
+    when(table.schema()).thenReturn(nestedSchema);
+    when(table.name()).thenReturn("test_table");
+
+    ScanTaskGroup<?> group = taskGroupWithKey(nestedSortOrder.orderId(), "P1");
+
+    assertThat(SortOrderAnalyzer.canReportOrdering(table, ImmutableList.of(group), KEY_TYPE))
+        .isFalse();
   }
 }
