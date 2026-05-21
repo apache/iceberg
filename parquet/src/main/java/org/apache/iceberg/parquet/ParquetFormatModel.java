@@ -68,7 +68,7 @@ public class ParquetFormatModel<D, S, R>
   }
 
   /**
-   * @deprecated Will be removed in 1.12.0; use {@link #create(Class, Class, WriterFunction,
+   * @deprecated Will be removed in 1.13.0; use {@link #create(Class, Class, WriterFunction,
    *     ReaderFunction, VariantShreddingAnalyzer, Function)} instead.
    */
   @Deprecated
@@ -289,6 +289,7 @@ public class ParquetFormatModel<D, S, R>
      * top-level fields.
      */
     private FileAppender<D> buildShreddedAppender() {
+      Preconditions.checkState(copyFuncFactory != null, "copyFuncFactory must not be null");
       UnaryOperator<D> copyFunc = copyFuncFactory.apply(engineSchema);
       Preconditions.checkState(copyFunc != null, "copyFunc must not return null");
 
