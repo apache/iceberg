@@ -195,4 +195,80 @@ public class TestReplaceTableSafety {
     assertThat(after.schema().asStruct()).isEqualTo(SCHEMA_WITH_EXTRA_COL.asStruct());
     assertThat(after.properties()).containsEntry("k1", "v1");
   }
+
+  @Test
+  public void createOrReplaceVsSchemaUpdateFailsAndPreservesSchema() {
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    Transaction createOrReplace = catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction();
+    createOrReplace.newFastAppend().appendFile(FILE_A).commit();
+
+    // concurrent schema update
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+
+    assertThatThrownBy(createOrReplace::commitTransaction)
+        .isInstanceOf(org.apache.iceberg.exceptions.CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
+
+    Table after = catalog.loadTable(TABLE);
+    assertThat(after.schema().asStruct()).isEqualTo(SCHEMA_WITH_EXTRA_COL.asStruct());
+  }
+
+  @Test
+  public void createOrReplaceNewTableSucceeds() {
+    Transaction createOrReplace =
+        catalog
+            .buildTable(TableIdentifier.of(NS, "new_tbl"), SCHEMA)
+            .createOrReplaceTransaction();
+    createOrReplace.newFastAppend().appendFile(FILE_A).commit();
+    createOrReplace.commitTransaction();
+
+    Table created = catalog.loadTable(TableIdentifier.of(NS, "new_tbl"));
+    assertThat(created).isNotNull();
+    assertThat(created.currentSnapshot()).isNotNull();
+  }
+
+  @Test
+  public void createOrReplaceVsPropertyWriteFailsAndPreservesProperty() {
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    Transaction createOrReplace = catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction();
+    createOrReplace.newFastAppend().appendFile(FILE_A).commit();
+
+    // concurrent property update
+    table.updateProperties().set("k1", "v1").commit();
+
+    assertThatThrownBy(createOrReplace::commitTransaction)
+        .isInstanceOf(org.apache.iceberg.exceptions.CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
+
+    Table after = catalog.loadTable(TABLE);
+    assertThat(after.properties()).containsEntry("k1", "v1");
+  }
+
+  @Test
+  public void replaceV3TableVsConcurrentAppendFails() {
+    catalog
+        .buildTable(TABLE, SCHEMA)
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .create();
+
+    Table table = catalog.loadTable(TABLE);
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Transaction replace =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withProperty(TableProperties.FORMAT_VERSION, "3")
+            .replaceTransaction();
+    replace.newFastAppend().appendFile(FILE_B).commit();
+
+    // concurrent append on v3 table advances next-row-id
+    table = catalog.loadTable(TABLE);
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(org.apache.iceberg.exceptions.CommitFailedException.class)
+        .hasMessageContaining("replace transaction");
+  }
 }
