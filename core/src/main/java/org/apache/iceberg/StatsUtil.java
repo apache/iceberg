@@ -20,11 +20,13 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -34,11 +36,11 @@ import org.slf4j.LoggerFactory;
 
 class StatsUtil {
   private static final Logger LOG = LoggerFactory.getLogger(StatsUtil.class);
-  private static final int FIRST_SUPPORTED_METADATA_FIELD_ID =
-      MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
   static final Set<Integer> SUPPORTED_METADATA_FIELD_IDS =
-      Sets.newHashSet(
+      ImmutableSet.of(
           MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(), MetadataColumns.ROW_ID.fieldId());
+  private static final int FIRST_SUPPORTED_METADATA_FIELD_ID =
+      Collections.min(SUPPORTED_METADATA_FIELD_IDS);
   static final int NUM_SUPPORTED_STATS_PER_COLUMN = 200;
   static final int STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS = 9_000;
   static final int STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS = 10_000;

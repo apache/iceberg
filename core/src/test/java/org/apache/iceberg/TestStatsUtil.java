@@ -123,7 +123,7 @@ public class TestStatsUtil {
   }
 
   @Test
-  public void statsIdsForReservedColumns() {
+  public void statsIdsForMetadataColumns() {
     int fieldId = MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
     int statsFieldId = 9_000;
     assertThat(StatsUtil.statsFieldIdForField(fieldId)).isEqualTo(statsFieldId);
