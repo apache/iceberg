@@ -1025,6 +1025,36 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result4.orphanFilesCount()).as("Action should find nothing").isEqualTo(0L);
   }
 
+  @TestTemplate
+  public void testCompareToFileListDoesNotMatchSiblingLocationPrefix() {
+    assumeThat(usePrefixListing)
+        .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+        .isEqualTo(false);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<FilePathLastModifiedRecord> siblingFiles =
+        Lists.newArrayList(
+            new FilePathLastModifiedRecord(
+                table.location() + "-backup/data/file.parquet", new Timestamp(0L)));
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(siblingFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {})
+            .execute();
+
+    assertThat(result.orphanFileLocations()).as("Should ignore sibling paths").isEmpty();
+    assertThat(result.orphanFilesCount()).as("Should ignore sibling paths").isEqualTo(0L);
+  }
+
   protected long waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();
     while (current <= timestampMillis) {

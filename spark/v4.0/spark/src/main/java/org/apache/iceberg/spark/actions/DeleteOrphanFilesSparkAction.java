@@ -225,12 +225,17 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<String> filteredCompareToFileList() {
     Dataset<Row> files = compareToFileList;
     if (location != null) {
-      files = files.filter(files.col(FILE_PATH).startsWith(location));
+      files = files.filter(isFileInLocation(files.col(FILE_PATH), location));
     }
     return files
         .filter(files.col(LAST_MODIFIED).lt(new Timestamp(olderThanTimestamp)))
         .select(files.col(FILE_PATH))
         .as(Encoders.STRING());
+  }
+
+  private static Column isFileInLocation(Column filePath, String location) {
+    String locationPrefix = location.endsWith("/") ? location : location + "/";
+    return filePath.equalTo(location).or(filePath.startsWith(locationPrefix));
   }
 
   @Override
