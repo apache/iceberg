@@ -32,6 +32,7 @@ permissions:
 
 jobs:
   deploy:
+    if: github.repository == 'apache/iceberg'
     runs-on: ubuntu-slim
     permissions:
       contents: write
