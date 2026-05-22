@@ -150,12 +150,17 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       doCommit(partialCommit);
-    } catch (Exception e) {
-      LOG.warn(
-          "Coordinator {} failed to commit for commit {}, will try again next cycle",
-          taskId,
-          commitState.currentCommitId(),
-          e);
+    } catch (RuntimeException e) {
+      if (partialCommit) {
+        LOG.warn(
+            "Partial commit {} failed for task {}, will retry",
+            commitState.currentCommitId(),
+            taskId,
+            e);
+      } else {
+        LOG.error("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+        throw e;
+      }
     } finally {
       commitState.endCurrentCommit();
     }

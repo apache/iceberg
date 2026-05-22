@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.data;
 
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -51,7 +53,7 @@ public class GenericFormatModels {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
             new RecordVariantShreddingAnalyzer(),
-            Record::copy));
+            (Function<Schema, UnaryOperator<Record>>) engineSchema -> Record::copy));
 
     FormatModelRegistry.register(ParquetFormatModel.forPositionDeletes());
 

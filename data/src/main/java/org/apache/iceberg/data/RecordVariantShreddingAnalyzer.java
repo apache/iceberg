@@ -47,7 +47,8 @@ class RecordVariantShreddingAnalyzer extends VariantShreddingAnalyzer<Record, Sc
     Preconditions.checkNotNull(engineSchema, "Invalid engine schema: null");
 
     Map<String, Integer> indices =
-        columnIndicesBySchema.computeIfAbsent(engineSchema, RecordVariantShreddingAnalyzer::indexByName);
+        columnIndicesBySchema.computeIfAbsent(
+            engineSchema, RecordVariantShreddingAnalyzer::indexByName);
     Integer index = indices.get(columnName);
     return index != null ? index : -1;
   }
