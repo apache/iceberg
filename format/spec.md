@@ -520,11 +520,11 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 All transforms must return `null` for a `null` input value.
 
+The `void` transform may be used to replace the transform in an existing partition field so that the field is effectively dropped in v1 tables. See partition evolution below.
+
 Notes:
 
-1. The result type for `day` has been documented as both `int` and `date` in earlier revisions of this spec. The physical representation has always been a 4-byte integer counting days from `1970-01-01`, regardless of whether the Avro field is annotated with `logicalType: date`. Readers may encounter manifests in either form; per the Avro specification, unrecognized logical type annotations are ignored, so the bytes on disk are identical.
-
-The `void` transform may be used to replace the transform in an existing partition field so that the field is effectively dropped in v1 tables. See partition evolution below.
+1. The physical representation is a 4-byte integer counting days from `1970-01-01`. Writers may produce Avro fields annotated both with and without a logical `date` annotation, and readers must accept both forms.
 
 #### Bucket Transform Details
 
