@@ -89,16 +89,16 @@ public class TestReadabilityChecks {
 
   @Test
   public void testUnknownTypeReadCompatibility() {
-    Schema write = new Schema(required(1, "from_field", Types.UnknownType.get()));
+    Schema write = new Schema(optional(1, "from_field", Types.UnknownType.get()));
     List<String> primitiveErrors =
         CheckCompatibility.writeCompatibilityErrors(
-            new Schema(required(1, "to_field", Types.IntegerType.get())), write);
+            new Schema(optional(1, "to_field", Types.IntegerType.get())), write);
     assertThat(primitiveErrors).isEmpty();
 
     List<String> structErrors =
         CheckCompatibility.writeCompatibilityErrors(
             new Schema(
-                required(
+                optional(
                     1,
                     "to_field",
                     Types.StructType.of(required(2, "nested", Types.IntegerType.get())))),
@@ -108,7 +108,8 @@ public class TestReadabilityChecks {
 
     List<String> listErrors =
         CheckCompatibility.writeCompatibilityErrors(
-            new Schema(required(1, "to_field", Types.ListType.ofRequired(2, Types.IntegerType.get()))),
+            new Schema(
+                optional(1, "to_field", Types.ListType.ofRequired(2, Types.IntegerType.get()))),
             write);
     assertThat(listErrors).hasSize(1);
     assertThat(listErrors.get(0)).contains("cannot be read as a list");
@@ -116,10 +117,11 @@ public class TestReadabilityChecks {
     List<String> mapErrors =
         CheckCompatibility.writeCompatibilityErrors(
             new Schema(
-                required(
+                optional(
                     1,
                     "to_field",
-                    Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.IntegerType.get()))),
+                    Types.MapType.ofRequired(
+                        2, 3, Types.StringType.get(), Types.IntegerType.get()))),
             write);
     assertThat(mapErrors).hasSize(1);
     assertThat(mapErrors.get(0)).contains("cannot be read as a map");

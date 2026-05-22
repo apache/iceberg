@@ -2493,7 +2493,8 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), optional(2, "unk", Types.UnknownType.get()));
     Schema expected =
-        new Schema(required(1, "id", Types.LongType.get()), optional(2, "unk", Types.IntegerType.get()));
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "unk", Types.IntegerType.get()));
 
     Schema actual =
         new SchemaUpdate(schema, schema.highestFieldId())
