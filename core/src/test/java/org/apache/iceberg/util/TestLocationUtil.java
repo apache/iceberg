@@ -207,6 +207,36 @@ public class TestLocationUtil {
   }
 
   @Test
+  public void testResolveTreatsNonAsciiSchemeAsRelative() {
+    // RFC 3986 restricts schemes to US-ASCII; a non-ASCII letter such as the Greek alpha
+    // (U+03B1) is not a valid scheme character and the location is treated as relative
+    String tableLocation = "s3://bucket/db/table";
+    String location = "αscheme://host/path";
+
+    assertThat(LocationUtil.resolveLocation(tableLocation, location))
+        .isEqualTo(tableLocation + "/" + location);
+  }
+
+  @Test
+  public void testResolveTreatsNonAlphaLeadingCharAsRelative() {
+    // RFC 3986 section 3.1 requires the first scheme character to be ALPHA; locations
+    // beginning with a digit or with '+'/'-'/'.' are treated as relative
+    String tableLocation = "s3://bucket/db/table";
+
+    assertThat(LocationUtil.resolveLocation(tableLocation, "3com://host"))
+        .isEqualTo("s3://bucket/db/table/3com://host");
+
+    assertThat(LocationUtil.resolveLocation(tableLocation, "+ssh://host"))
+        .isEqualTo("s3://bucket/db/table/+ssh://host");
+
+    assertThat(LocationUtil.resolveLocation(tableLocation, "-foo://host"))
+        .isEqualTo("s3://bucket/db/table/-foo://host");
+
+    assertThat(LocationUtil.resolveLocation(tableLocation, ".bar://host"))
+        .isEqualTo("s3://bucket/db/table/.bar://host");
+  }
+
+  @Test
   public void testRelativizeResolveRoundTrip() {
     String tableLocation = "s3://bucket/db/table";
     String absoluteLocation = "s3://bucket/db/table/metadata/root-manifest.parquet";

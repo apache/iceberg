@@ -64,18 +64,27 @@ public class LocationUtil {
    * section 3.1</a>.
    */
   private static boolean hasScheme(String location) {
+    // RFC 3986 section 3.1: scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
     for (int i = 0; i < location.length(); i += 1) {
       char ch = location.charAt(i);
       if (ch == ':') {
         return i > 0;
       }
 
-      if (!Character.isLetterOrDigit(ch) && ch != '+' && ch != '-' && ch != '.') {
+      if (!isSchemeChar(ch, i)) {
         return false;
       }
     }
 
     return false;
+  }
+
+  private static boolean isSchemeChar(char ch, int position) {
+    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+      return true;
+    }
+
+    return position > 0 && ((ch >= '0' && ch <= '9') || ch == '+' || ch == '-' || ch == '.');
   }
 
   /**
