@@ -257,7 +257,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .build();
   }
 
-  FileAppender<Record> getParquetWriterWithoutDictionary(Schema schema, File testFile)
+  FileAppender<Record> parquetWriterWithoutDictionary(Schema schema, File testFile)
       throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
@@ -475,9 +475,6 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   @Test
   public void testDecimalWithDefaultValueNotDictionaryEncoded() throws Exception {
-    // Regression test for vector allocation of a decimal column whose Iceberg field carries a
-    // default value. The bug only surfaces when the column is not dictionary-encoded, because
-    // VectorizedArrowReader#allocateDictEncodedVector bypasses the buggy code path.
     Schema schema =
         new Schema(
             required(100, "id", Types.LongType.get()),
@@ -502,7 +499,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     File dataFile = temp.resolve("decimal-no-dict.parquet").toFile();
     Iterable<Record> data = generateData(schema, 1000, 0L, 0.0f, IDENTITY);
-    try (FileAppender<Record> writer = getParquetWriterWithoutDictionary(schema, dataFile)) {
+    try (FileAppender<Record> writer = parquetWriterWithoutDictionary(schema, dataFile)) {
       writer.addAll(data);
     }
 

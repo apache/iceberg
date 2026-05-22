@@ -252,15 +252,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         // Use FixedSizeBinaryVector for binary backed decimal
         type = Types.FixedType.ofLength(primitive.getTypeLength());
       }
-      // do not copy initialDefault/writeDefault from the logical type: those defaults are typed
-      // for the logical (decimal) type and cannot be cast to the underlying physical type
+      // drop initialDefault/writeDefault: they are typed for the logical (decimal) type and
+      // cannot be cast to the underlying physical type
       physicalType =
-          Types.NestedField.builder()
-              .isOptional(logicalType.isOptional())
-              .withId(logicalType.fieldId())
-              .withName(logicalType.name())
+          Types.NestedField.from(logicalType)
               .ofType(type)
-              .withDoc(logicalType.doc())
+              .withInitialDefault(null)
+              .withWriteDefault(null)
               .build();
     }
 
