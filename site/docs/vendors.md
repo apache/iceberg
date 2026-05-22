@@ -214,3 +214,11 @@ Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/
 [OLake](https://olake.io/) is an open-source ELT tool to facilitate the replication of databases into Apache Iceberg™ data lakehouses. It offers native integration with PostgreSQL, MySQL, MongoDB, Oracle, and Kafka, enabling real-time data ingestion without the need for intermediary layers like Debezium, Kafka or Spark. The platform's modular architecture supports full-load operations, continuous Change Data Capture (CDC), and incremental synchronization with bookmark/cursor column support, with resumable syncs and schema evolution handling. By employing a parallelized chunking strategy, OLake accelerates initial syncs, while CDC cursor preservation ensures that incremental updates capture all events.
 
 Learn more in the [OLake documentation](https://olake.io/docs) and explore the [Github repository](https://github.com/datazip-inc/olake).
+
+### [LakeOps](https://lakeops.dev)
+
+[LakeOps](https://lakeops.dev) is an autonomous control plane for Apache Iceberg lakehouses. It connects to existing Iceberg catalogs and object storage, continuously analyzes table health, file layout, manifests, snapshots, delete files, and query telemetry, then coordinates maintenance operations such as compaction, snapshot expiration, manifest optimization, orphan file cleanup, and delete-file optimization.
+
+LakeOps is designed for teams operating Iceberg across multiple catalogs, storage systems, and query engines. It provides lake-wide observability, coordinated automated table maintenance, query-aware compaction with a powerful Rust engine, policy-based governance, multi-engine routing, and agentic AI readiness through MCP interfaces and SQL guardrails, without moving data or replacing the underlying catalog, storage, or compute engines.
+
+Learn more in the [LakeOps documentation](https://lakeops.dev/docs) and the [LakeOps blog](https://lakeops.dev/blog).
