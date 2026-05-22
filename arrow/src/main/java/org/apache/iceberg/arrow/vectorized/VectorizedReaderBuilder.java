@@ -155,6 +155,16 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   }
 
   @Override
+  public VectorizedReader<?> variant(
+      Types.VariantType iVariant, GroupType variant, VectorizedReader<?> result) {
+    if (iVariant != null) {
+      throw new UnsupportedOperationException(
+          "Vectorized reads are not supported yet for variant fields");
+    }
+    return null;
+  }
+
+  @Override
   public VectorizedReader<?> primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
 

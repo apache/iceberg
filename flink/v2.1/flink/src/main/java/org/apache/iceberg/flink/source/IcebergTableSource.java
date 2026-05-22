@@ -121,6 +121,7 @@ public class IcebergTableSource
     }
   }
 
+  @SuppressWarnings("deprecation")
   private DataStream<RowData> createDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData()
         .env(execEnv)

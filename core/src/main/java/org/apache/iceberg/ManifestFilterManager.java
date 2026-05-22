@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -74,6 +75,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Set<String> manifestsWithDeletes = Sets.newHashSet();
   private final PartitionSet dropPartitions;
   private final CharSequenceSet deletePaths = CharSequenceSet.empty();
+  // count of manifests that were rewritten with different manifest entry status during filtering
+  private final AtomicInteger replacedManifestsCount = new AtomicInteger(0);
+
   private Expression deleteExpression = Expressions.alwaysFalse();
   private long minSequenceNumber = 0;
   private boolean failAnyDelete = false;
@@ -314,6 +318,18 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   /**
+   * Returns the count of manifests that were replaced (rewritten) during filtering.
+   *
+   * <p>A manifest is considered replaced when a new manifest was created to replace the original
+   * one (i.e., the original manifest != filtered manifest).
+   *
+   * @return the count of replaced manifests
+   */
+  int replacedManifestsCount() {
+    return replacedManifestsCount.get();
+  }
+
+  /**
    * Deletes filtered manifests that were created by this class, but are not in the committed
    * manifest set.
    *
@@ -329,9 +345,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       ManifestFile manifest = entry.getKey();
       ManifestFile filtered = entry.getValue();
       if (!committed.contains(filtered)) {
-        // only delete if the filtered copy was created
+        // only delete if the filtered copy was created (manifest was replaced)
         if (!manifest.equals(filtered)) {
           deleteFile(filtered.path());
+          replacedManifestsCount.decrementAndGet();
         }
 
         // remove the entry from the cache
@@ -342,6 +359,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   private void invalidateFilteredCache() {
     cleanUncommitted(SnapshotProducer.EMPTY_SET);
+    replacedManifestsCount.set(0);
   }
 
   /**
@@ -367,7 +385,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
       if (manifestHasDeletedFiles(evaluator, manifest, reader)) {
-        return filterManifestWithDeletedFiles(evaluator, manifest, reader);
+        ManifestFile filtered = filterManifestWithDeletedFiles(evaluator, manifest, reader);
+        replacedManifestsCount.incrementAndGet();
+        return filtered;
       } else {
         filteredManifests.put(manifest, manifest);
         return manifest;

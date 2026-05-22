@@ -39,6 +39,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
@@ -762,7 +763,6 @@ public class ExpressionUtil {
     }
     return builder.toString();
   }
-
   /**
    * Transform UUID literals in an unbound expression to use signed comparators, if the expression
    * contains UUID bounds predicates. This maintains backward compatibility with files written

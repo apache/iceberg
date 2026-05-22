@@ -45,7 +45,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         StructLike,
         SpecificData.SchemaConstructable,
         Serializable {
-  private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
+
   static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
   static final PartitionData EMPTY_PARTITION_DATA =
       new PartitionData(EMPTY_STRUCT_TYPE) {
@@ -316,7 +316,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
-        this.content = value != null ? FILE_CONTENT_VALUES[(Integer) value] : FileContent.DATA;
+        this.content = value != null ? FileContent.fromId((Integer) value) : FileContent.DATA;
         return;
       case 1:
         // always coerce to String for Serializable

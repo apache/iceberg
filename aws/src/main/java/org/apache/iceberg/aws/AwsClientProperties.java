@@ -212,6 +212,12 @@ public class AwsClientProperties implements Serializable {
   @SuppressWarnings("checkstyle:HiddenField")
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      clientCredentialsProviderProperties.put(
+          VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
+      return credentialsProvider(this.clientCredentialsProvider);
+    }
+
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
       clientCredentialsProviderProperties.put(
           VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
@@ -226,10 +232,6 @@ public class AwsClientProperties implements Serializable {
         return StaticCredentialsProvider.create(
             AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
       }
-    }
-
-    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
-      return credentialsProvider(this.clientCredentialsProvider);
     }
 
     // Create a new credential provider for each client

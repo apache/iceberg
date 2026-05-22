@@ -119,6 +119,7 @@ subprojects {
           '-Xep:InconsistentCapitalization:ERROR',
           '-Xep:InconsistentHashCode:ERROR',
           '-Xep:IntLongMath:ERROR',
+          '-Xep:JavaUtilDate:ERROR',
           '-Xep:JdkObsolete:ERROR',
           // prefer method references over lambdas
           '-Xep:LambdaMethodReference:ERROR',
@@ -156,6 +157,8 @@ subprojects {
           '-Xep:Slf4jThrowable:ERROR',
           // Added because it errors out compile, but we need to figure out if we want it
           '-Xep:StrictUnusedVariable:OFF',
+          // This rule doesn't enforce the use of method references. That's handled by checkstyle.
+          '-Xep:StringCaseLocaleUsage:ERROR',
           // Enforce safe string splitting
           '-Xep:StringSplitter:ERROR',
           '-Xep:TypeParameterShadowing:OFF',

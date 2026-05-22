@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
@@ -57,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -375,11 +377,31 @@ public class SparkTable
       }
     }
 
-    return canDeleteUsingMetadata(deleteExpr);
+    return canDeleteUsingMetadata(deleteExpr, scanBranchForDelete());
+  }
+
+  // Resolves the branch to scan during canDeleteWhere so it matches the branch deleteWhere
+  // will commit to. Falls back to main when WAP is configured but the WAP branch does not
+  // exist yet, since this is a read scan.
+  private String scanBranchForDelete() {
+    if (branch != null) {
+      return branch;
+    }
+
+    if (!SparkTableUtil.wapEnabled(table())) {
+      return null;
+    }
+
+    String wapBranch = sparkSession().conf().get(SparkSQLProperties.WAP_BRANCH, null);
+    if (wapBranch != null && table().refs().containsKey(wapBranch)) {
+      return wapBranch;
+    }
+
+    return null;
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
-  private boolean canDeleteUsingMetadata(Expression deleteExpr) {
+  private boolean canDeleteUsingMetadata(Expression deleteExpr, String scanBranch) {
     boolean caseSensitive = SparkUtil.caseSensitive(sparkSession());
 
     if (ExpressionUtil.selectsPartitions(deleteExpr, table(), caseSensitive)) {
@@ -394,14 +416,14 @@ public class SparkTable
             .includeColumnStats()
             .ignoreResiduals();
 
-    if (branch != null) {
-      scan = scan.useRef(branch);
+    if (scanBranch != null) {
+      scan = scan.useRef(scanBranch);
     }
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Map<Integer, Evaluator> evaluators = Maps.newHashMap();
       StrictMetricsEvaluator metricsEvaluator =
-          new StrictMetricsEvaluator(SnapshotUtil.schemaFor(table(), branch), deleteExpr);
+          new StrictMetricsEvaluator(SnapshotUtil.schemaFor(table(), scanBranch), deleteExpr);
 
       return Iterables.all(
           tasks,
@@ -438,12 +460,13 @@ public class SparkTable
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
+    String writeBranch = branch;
     if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+      writeBranch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
     }
 
-    if (branch != null) {
-      deleteFiles.toBranch(branch);
+    if (writeBranch != null) {
+      deleteFiles.toBranch(writeBranch);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
@@ -466,15 +489,16 @@ public class SparkTable
       return false;
     }
 
-    // use only name in order to correctly invalidate Spark cache
     SparkTable that = (SparkTable) other;
-    return icebergTable.name().equals(that.icebergTable.name());
+    return icebergTable.name().equals(that.icebergTable.name())
+        && Objects.equals(table().uuid(), that.table().uuid())
+        && Objects.equals(snapshotId, that.snapshotId)
+        && Objects.equals(branch, that.branch);
   }
 
   @Override
   public int hashCode() {
-    // use only name in order to correctly invalidate Spark cache
-    return icebergTable.name().hashCode();
+    return Objects.hash(icebergTable.name(), table().uuid(), snapshotId, branch);
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(

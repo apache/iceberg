@@ -1111,5 +1111,5 @@ public class TestStrictMetricsEvaluator {
     assertThat(allMatch)
         .as("Strict NOT IN should match when all values below lower bound in RFC order")
         .isTrue();
-  }
+}
 }

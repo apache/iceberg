@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import org.apache.iceberg.DeleteFileIndex.EqualityDeletes;
 import org.apache.iceberg.DeleteFileIndex.PositionDeletes;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -39,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.TestTemplate;
@@ -717,11 +719,12 @@ public abstract class DeleteFileIndexTestBase<
     DeleteFile file3 = withDataSequenceNumber(3, partitionedEqDeletes(SPEC, FILE_A.partition()));
     DeleteFile file4 = withDataSequenceNumber(4, partitionedEqDeletes(SPEC, FILE_A.partition()));
 
-    EqualityDeletes group = new EqualityDeletes();
-    group.add(SPEC, file4);
-    group.add(SPEC, file2);
-    group.add(SPEC, file1);
-    group.add(SPEC, file3);
+    Function<Integer, Types.NestedField> fieldLookup = SCHEMA::findField;
+    EqualityDeletes group = new EqualityDeletes(fieldLookup);
+    group.add(file4);
+    group.add(file2);
+    group.add(file1);
+    group.add(file3);
 
     // the group must not be empty
     assertThat(group.isEmpty()).isFalse();
@@ -741,7 +744,7 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(group.filter(4, FILE_A)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
-    assertThatThrownBy(() -> group.add(SPEC, file1))
+    assertThatThrownBy(() -> group.add(file1))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Can't add files upon indexing");
   }

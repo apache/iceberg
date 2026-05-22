@@ -50,28 +50,25 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
 
   private final SparkSession spark;
   private final Table table;
+  private final String fileSetId;
   private final SparkWriteConf writeConf;
-  private final LogicalWriteInfo writeInfo;
+  private final LogicalWriteInfo info;
   private final StructType dsSchema;
   private final Schema writeSchema;
 
   SparkPositionDeletesRewriteBuilder(
-      SparkSession spark, Table table, String branch, LogicalWriteInfo info) {
+      SparkSession spark, Table table, String fileSetId, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
-    this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
-    this.writeInfo = info;
+    this.fileSetId = fileSetId;
+    this.writeConf = new SparkWriteConf(spark, table, info.options());
+    this.info = info;
     this.dsSchema = info.schema();
     this.writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema, writeConf.caseSensitive());
   }
 
   @Override
   public Write build() {
-    String fileSetId = writeConf.rewrittenFileSetId();
-
-    Preconditions.checkArgument(
-        fileSetId != null, "Can only write to %s via actions", table.name());
-
     // all files of rewrite group have same partition and spec id
     ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
     List<PositionDeletesScanTask> tasks = taskSetManager.fetchTasks(table, fileSetId);
@@ -82,10 +79,10 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
     StructLike partition = partition(fileSetId, tasks);
 
     return new SparkPositionDeletesRewrite(
-        spark, table, writeConf, writeInfo, writeSchema, dsSchema, specId, partition);
+        spark, table, fileSetId, writeConf, info, writeSchema, dsSchema, specId, partition);
   }
 
-  private int specId(String fileSetId, List<PositionDeletesScanTask> tasks) {
+  private static int specId(String fileSetId, List<PositionDeletesScanTask> tasks) {
     Set<Integer> specIds = tasks.stream().map(t -> t.spec().specId()).collect(Collectors.toSet());
     Preconditions.checkArgument(
         specIds.size() == 1,
@@ -95,7 +92,7 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
     return tasks.get(0).spec().specId();
   }
 
-  private StructLike partition(String fileSetId, List<PositionDeletesScanTask> tasks) {
+  private static StructLike partition(String fileSetId, List<PositionDeletesScanTask> tasks) {
     StructLikeSet partitions = StructLikeSet.create(tasks.get(0).spec().partitionType());
     tasks.stream().map(ContentScanTask::partition).forEach(partitions::add);
     Preconditions.checkArgument(

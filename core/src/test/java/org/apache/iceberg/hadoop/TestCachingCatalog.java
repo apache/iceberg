@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -405,6 +406,34 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     catalog.invalidateTable(tableIdent);
     assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
     assertThat(wrappedCatalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  @Test
+  public void testRegisterTableWithOverwriteInvalidatesCache() throws Exception {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier sourceIdent = TableIdentifier.of(namespace, "src");
+    TableIdentifier targetIdent = TableIdentifier.of(namespace, "tgt");
+
+    Table sourceTable =
+        catalog.createTable(sourceIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+    String metadataLocation =
+        ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+
+    Table registered = catalog.registerTable(targetIdent, metadataLocation, false);
+    assertThat(registered).isNotNull();
+
+    // load so the target table is cached
+    catalog.loadTable(targetIdent);
+    assertThat(catalog.cache().asMap()).containsKey(targetIdent);
+
+    // drop and re-register with overwrite=false to verify cache invalidation
+    catalog.dropTable(targetIdent);
+    catalog.registerTable(targetIdent, metadataLocation, false);
+
+    // cache should have been invalidated by registerTable
+    assertThat(catalog.cache().asMap()).doesNotContainKey(targetIdent);
   }
 
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {

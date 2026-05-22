@@ -27,7 +27,7 @@ info:
   version: 0.0.1
   description:
     Defines the specification for the first version of the REST Catalog API.
-    Implementations should ideally support both Iceberg table specs v1 and v2, with priority given to v2.
+    Implementations should ideally support all Iceberg table spec versions.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -162,6 +162,15 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Warehouse provided in the `warehouse` query parameter is not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchWarehouseExample:
+                  $ref: '#/components/examples/NoSuchWarehouseError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -598,7 +607,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -618,6 +627,7 @@ paths:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/data-access'
     post:
       tags:
         - Catalog API
@@ -707,6 +717,7 @@ paths:
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
       - $ref: '#/components/parameters/plan-id'
+      - $ref: '#/components/parameters/data-access'
 
     get:
       tags:
@@ -885,6 +896,7 @@ paths:
         - Catalog API
       summary: Register a table in the given namespace using given metadata file location
       parameters:
+        - $ref: '#/components/parameters/data-access'
         - $ref: '#/components/parameters/idempotency-key'
       description:
         Register a table using given metadata file location.
@@ -915,7 +927,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -971,15 +983,16 @@ paths:
         - in: query
           name: snapshots
           description:
-            The snapshots to return in the body of the metadata. Setting the value to `all` would
-            return the full set of snapshots currently valid for the table. Setting the value to
-            `refs` would load all snapshots referenced by branches or tags.
+            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+            the value to `all` would return the full set of snapshots currently valid for the table.
+            Setting the value to `refs` would load all snapshots referenced by branches or tags.
 
             Default if no param is provided is `all`.
           required: false
           schema:
             type: string
             enum: [ all, refs ]
+        - $ref: '#/components/parameters/referenced-by'
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
@@ -1222,6 +1235,7 @@ paths:
           schema:
             type: string
           description: The plan ID that has been used for server-side scan planning
+        - $ref: '#/components/parameters/referenced-by'
       description: Load vended credentials for a table from the catalog.
       responses:
         200:
@@ -1242,6 +1256,40 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/sign:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Remotely signs requests to object storage
+      operationId: signRequest
+      requestBody:
+        description: The request to be signed
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoteSignRequest'
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/RemoteSignResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1545,7 +1593,7 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The view already exists
+          description: Conflict - The identifier already exists as a table or view
           content:
             application/json:
               schema:
@@ -1586,6 +1634,8 @@ paths:
         view. The configuration key "token" is used to pass an access token to be used as a bearer token
         for view requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+      parameters:
+        - $ref: '#/components/parameters/referenced-by'
       responses:
         200:
           $ref: '#/components/responses/LoadViewResponse'
@@ -1956,12 +2006,8 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
-        Specific properties and handling for `vended-credentials` is documented
-        in the `LoadTableResult` schema section of this spec document.
-
-
-        The protocol and specification for `remote-signing` is documented in
-        the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
+        Specific properties and handling for `vended-credentials` and `remote-signing`
+        are documented in the `LoadTableResult` schema section of this spec document.
 
       required: false
       schema:
@@ -2001,6 +2047,31 @@ components:
         different metadata content but represent the same version of table metadata.  For example,
         the `snapshots` query parameter may result in different metadata representations depending
         on whether `refs` or `all` is provided, therefore should have distinct ETags.
+      required: false
+      schema:
+        type: string
+
+    referenced-by:
+      name: referenced-by
+      in: query
+      description:
+        A comma-separated list of fully qualified view names (namespace and view name) representing the view
+        reference chain when an entity (table or view) is loaded via a view. The list should be ordered with the outermost view
+        first, followed by any intermediate views it references, down to the view that directly references the entity.
+        For a simple case where a view directly references the entity, the list contains a single view identifier.
+        For nested views (a view referencing another view which references the entity), the list contains multiple
+        view identifiers representing the complete dependency chain.
+
+        The view identifier is a composite string of the format {namespace}{separator}{viewName}.
+        The namespace-separator (defined in /config) acts as the delimiter.
+        When parsing, the last occurrence of this separator identifies the boundary between the namespace and the view name.
+        Multipart namespaces must follow the encoding rules of the parent parameter in the list namespaces endpoint.
+
+        Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
+        to parse individual view identifiers. If view names contain commas, they must be url-encoded as %2C.
+
+        Example with multiple views (where prod%1Fanalytics is a nested namespace which has a quarterly_view which references to monthly_view
+        which then references the entity being loaded) - prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view
       required: false
       schema:
         type: string
@@ -2195,6 +2266,17 @@ components:
         name:
           type: string
           nullable: false
+
+    CatalogObjectIdentifier:
+      description:
+        Reference to a catalog object (for example, table, view, or namespace) as
+        an ordered list of hierarchical levels.
+        The object kind is determined by context (e.g. the endpoint or a
+        companion type discriminator), not by the identifier structure alone.
+      type: array
+      items:
+        type: string
+      example: [ "accounting", "tax", "paid" ]
 
     PrimitiveType:
       type: string
@@ -3219,6 +3301,8 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
+        - $ref: '#/components/schemas/SetPartitionStatisticsUpdate'
+        - $ref: '#/components/schemas/RemovePartitionStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
         - $ref: '#/components/schemas/RemoveSchemasUpdate'
         - $ref: '#/components/schemas/AddEncryptionKeyUpdate'
@@ -3434,6 +3518,9 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+        - `scan-planning-mode`: Communicates to clients the supported planning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
+          - `client`: Clients MUST use client-side scan planning
+          - `server`: Clients MUST use server-side scan planning via the `planTableScan` endpoint
 
         ## AWS Configurations
 
@@ -3442,13 +3529,19 @@ components:
          - `s3.access-key-id`: id for credentials that provide access to the data in S3
          - `s3.secret-access-key`: secret for credentials that provide access to data in S3
          - `s3.session-token`: if present, this value should be used for as the session token
-         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
          - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
 
         ## Storage Credentials
 
         Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
         Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+        ## Remote Signing
+
+        If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
+         - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
       type: object
       required:
         - metadata
@@ -4659,6 +4752,59 @@ components:
           allOf:
             - $ref: '#/components/schemas/Expression'
 
+    MultiValuedMap:
+      description: A map of string keys where each key can map to multiple string values.
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+
+    RemoteSignRequest:
+      description: The request to be signed remotely.
+      type: object
+      required:
+        - region
+        - uri
+        - method
+        - headers
+      properties:
+        region:
+          type: string
+        uri:
+          type: string
+        method:
+          type: string
+          enum: ["PUT", "GET", "HEAD", "POST", "DELETE", "PATCH", "OPTIONS"]
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        body:
+          type: string
+          description: Optional body of the request to send to the signing API. This should only be populated
+            for requests where the body of the message contains content which must be validated before a request is
+            signed, such as the S3 DeleteObjects call.
+        provider:
+          type: string
+          description: The storage provider for which the request is to be signed. The provider should correspond to
+            the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility,
+            if this is not specified, the provider is assumed to be `s3`.
+
+    RemoteSignResult:
+      description: The result of a remote request signing operation.
+      type: object
+      required:
+        - uri
+        - headers
+      properties:
+        uri:
+          type: string
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+
   #############################
   # Reusable Response Objects #
   #############################
@@ -4940,6 +5086,15 @@ components:
           schema:
             $ref: '#/components/schemas/LoadCredentialsResponse'
 
+    RemoteSignResponse:
+      description: The response containing signed & unsigned headers. The server will also send
+        a Cache-Control header, indicating whether the response can be cached (Cache-Control = ["private"])
+        or not (Cache-Control = ["no-cache"]).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RemoteSignResult'
+
   #######################################
   # Common examples of different values #
   #######################################
@@ -5033,6 +5188,16 @@ components:
         }
       }
 
+    NoSuchWarehouseError:
+      summary: The requested warehouse does not exist
+      value: {
+        "error": {
+          "message": "The given warehouse does not exist",
+          "type": "NoSuchWarehouseException",
+          "code": 404
+        }
+      }
+
     NoSuchNamespaceError:
       summary: The requested namespace does not exist
       value: {
@@ -5071,7 +5236,7 @@ components:
       summary: The requested table identifier already exists
       value: {
         "error": {
-          "message": "The given table already exists",
+          "message": "The requested table identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }
@@ -5081,7 +5246,7 @@ components:
       summary: The requested view identifier already exists
       value: {
         "error": {
-          "message": "The given view already exists",
+          "message": "The requested view identifier already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }

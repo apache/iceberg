@@ -32,51 +32,41 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.expressions.Expressions;
+import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Statistics;
-import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
-import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.sources.In;
+import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
-    implements SupportsRuntimeFiltering {
+    implements SupportsRuntimeV2Filtering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
 
   private final Snapshot snapshot;
+  private final String branch;
+
   private Set<String> filteredLocations = null;
 
   SparkCopyOnWriteScan(
       SparkSession spark,
       Table table,
-      SparkReadConf readConf,
-      Schema expectedSchema,
-      List<Expression> filters,
-      Supplier<ScanReport> scanReportSupplier) {
-    this(spark, table, null, null, readConf, expectedSchema, filters, scanReportSupplier);
-  }
-
-  SparkCopyOnWriteScan(
-      SparkSession spark,
-      Table table,
-      BatchScan scan,
+      Schema schema,
       Snapshot snapshot,
+      String branch,
+      BatchScan scan,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier);
-
+    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
     this.snapshot = snapshot;
-
+    this.branch = branch;
     if (scan == null) {
       this.filteredLocations = Collections.emptySet();
     }
@@ -98,31 +88,15 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
   @Override
   public NamedReference[] filterAttributes() {
-    NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
-    return new NamedReference[] {file};
+    return new NamedReference[] {SparkMetadataColumns.FILE_PATH.asRef()};
   }
 
   @Override
-  public void filter(Filter[] filters) {
-    Preconditions.checkState(
-        Objects.equals(snapshotId(), currentSnapshotId()),
-        "Runtime file filtering is not possible: the table has been concurrently modified. "
-            + "Row-level operation scan snapshot ID: %s, current table snapshot ID: %s. "
-            + "If an external process modifies the table, enable table caching in the catalog. "
-            + "If multiple threads modify the table, use independent Spark sessions in each thread.",
-        snapshotId(),
-        currentSnapshotId());
-
-    for (Filter filter : filters) {
-      // Spark can only pass In filters at the moment
-      if (filter instanceof In
-          && ((In) filter).attribute().equalsIgnoreCase(MetadataColumns.FILE_PATH.name())) {
-        In in = (In) filter;
-
-        Set<String> fileLocations = Sets.newHashSet();
-        for (Object value : in.values()) {
-          fileLocations.add((String) value);
-        }
+  public void filter(Predicate[] predicates) {
+    for (Predicate predicate : predicates) {
+      // Spark can only pass IN predicates at the moment
+      if (isFilePathInPredicate(predicate)) {
+        Set<String> fileLocations = extractStringLiterals(predicate);
 
         // Spark may call this multiple times for UPDATEs with subqueries
         // as such cases are rewritten using UNION and the same scan on both sides
@@ -144,7 +118,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
           resetTasks(filteredTasks);
         }
       } else {
-        LOG.warn("Unsupported runtime filter {}", filter);
+        LOG.warn("Unsupported runtime filter {}", predicate);
       }
     }
   }
@@ -161,9 +135,11 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
+        && Objects.equals(snapshot, that.snapshot)
+        && Objects.equals(branch, that.branch)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filterExpressions().toString().equals(that.filterExpressions().toString())
-        && Objects.equals(snapshotId(), that.snapshotId())
+        && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }
 
@@ -171,21 +147,46 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   public int hashCode() {
     return Objects.hash(
         table().name(),
+        table().uuid(),
+        snapshot,
+        branch,
         readSchema(),
-        filterExpressions().toString(),
-        snapshotId(),
+        filtersDesc(),
         filteredLocations);
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
-        "IcebergCopyOnWriteScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), filterExpressions(), caseSensitive());
+        "IcebergCopyOnWriteScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, groupedBy=%s)",
+        table(), schema().schemaId(), snapshotId(), branch, filtersDesc(), groupingKeyDesc());
   }
 
-  private Long currentSnapshotId() {
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table(), branch());
-    return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+  private static boolean isFilePathInPredicate(Predicate predicate) {
+    if (!"IN".equals(predicate.name()) || predicate.children().length < 1) {
+      return false;
+    }
+
+    if (!(predicate.children()[0] instanceof NamedReference)) {
+      return false;
+    }
+
+    String[] fieldNames = ((NamedReference) predicate.children()[0]).fieldNames();
+
+    return fieldNames.length == 1
+        && fieldNames[0].equalsIgnoreCase(MetadataColumns.FILE_PATH.name());
+  }
+
+  private static Set<String> extractStringLiterals(Predicate predicate) {
+    Set<String> values = Sets.newHashSet();
+    for (int i = 1; i < predicate.children().length; i++) {
+      if (predicate.children()[i] instanceof Literal) {
+        Object value = ((Literal<?>) predicate.children()[i]).value();
+        // V2 string literals come through as UTF8String; toString() materializes the Java String
+        values.add(value.toString());
+      }
+    }
+
+    return values;
   }
 }

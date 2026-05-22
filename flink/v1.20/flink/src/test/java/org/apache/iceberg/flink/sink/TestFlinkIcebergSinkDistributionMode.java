@@ -38,6 +38,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
@@ -279,7 +280,14 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     // only keep the snapshots with added data files
     snapshots =
         snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .filter(
+                snapshot ->
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(snapshot)
+                        .build()
+                        .addedDataFiles()
+                        .iterator()
+                        .hasNext())
             .collect(Collectors.toList());
 
     // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -322,7 +330,14 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     // only keep the snapshots with added data files
     snapshots =
         snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .filter(
+                snapshot ->
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(snapshot)
+                        .build()
+                        .addedDataFiles()
+                        .iterator()
+                        .hasNext())
             .collect(Collectors.toList());
 
     // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -367,7 +382,14 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     // only keep the snapshots with added data files
     snapshots =
         snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .filter(
+                snapshot ->
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(snapshot)
+                        .build()
+                        .addedDataFiles()
+                        .iterator()
+                        .hasNext())
             .collect(Collectors.toList());
 
     // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -383,14 +405,24 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     if (partitioned) {
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+            Lists.newArrayList(
+                SnapshotChanges.builderFor(table)
+                    .snapshot(snapshot)
+                    .build()
+                    .addedDataFiles()
+                    .iterator());
         // up to 26 partitions
         assertThat(addedDataFiles).hasSizeLessThanOrEqualTo(26);
       }
     } else {
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+            Lists.newArrayList(
+                SnapshotChanges.builderFor(table)
+                    .snapshot(snapshot)
+                    .build()
+                    .addedDataFiles()
+                    .iterator());
         // each writer task should only write one file for non-partition sort column
         assertThat(addedDataFiles).hasSize(writeParallelism);
         // verify there is no overlap in min-max stats range
@@ -438,7 +470,14 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     // only keep the snapshots with added data files
     snapshots =
         snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .filter(
+                snapshot ->
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(snapshot)
+                        .build()
+                        .addedDataFiles()
+                        .iterator()
+                        .hasNext())
             .collect(Collectors.toList());
 
     // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -456,7 +495,12 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     // for partitioned or not
     for (Snapshot snapshot : rangePartitionedCycles) {
       List<DataFile> addedDataFiles =
-          Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+          Lists.newArrayList(
+              SnapshotChanges.builderFor(table)
+                  .snapshot(snapshot)
+                  .build()
+                  .addedDataFiles()
+                  .iterator());
       // each writer task should only write one file for non-partition sort column
       assertThat(addedDataFiles).hasSize(writeParallelism);
       // verify there is no overlap in min-max stats range
@@ -517,7 +561,14 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     // only keep the snapshots with added data files
     snapshots =
         snapshots.stream()
-            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .filter(
+                snapshot ->
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(snapshot)
+                        .build()
+                        .addedDataFiles()
+                        .iterator()
+                        .hasNext())
             .collect(Collectors.toList());
 
     // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -535,7 +586,12 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     // for partitioned or not
     for (Snapshot snapshot : rangePartitionedCycles) {
       List<DataFile> addedDataFiles =
-          Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+          Lists.newArrayList(
+              SnapshotChanges.builderFor(table)
+                  .snapshot(snapshot)
+                  .build()
+                  .addedDataFiles()
+                  .iterator());
       // each writer task should only write one file for non-partition sort column
       // sometimes
       assertThat(addedDataFiles).hasSize(writeParallelism);

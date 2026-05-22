@@ -170,6 +170,18 @@ public class TestTransaction extends TestBase {
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+
+    // validate snapshot summaries for manifest metrics
+    assertThat(appendSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
+    // delete rewrites the append manifest
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
   }
 
   @TestTemplate

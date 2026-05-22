@@ -319,14 +319,14 @@ public class TestResourcePaths {
         .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
 
     // The planId contains a space which needs to be encoded
-    String spaceSeperatedPlanId = "plan with spaces";
+    String spaceSeparatedPlanId = "plan with spaces";
     // The expected encoded version of the planId
     String encodedPlanId = "plan+with+spaces";
 
-    assertThat(withPrefix.plan(tableId, spaceSeperatedPlanId))
+    assertThat(withPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo(
             "v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
-    assertThat(withoutPrefix.plan(tableId, spaceSeperatedPlanId))
+    assertThat(withoutPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
 
     // Test with different identifiers
@@ -335,5 +335,21 @@ public class TestResourcePaths {
         .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
     assertThat(withoutPrefix.plan(complexId, "plan-xyz-789"))
         .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
+  }
+
+  @Test
+  public void testRemoteSign() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    assertThat(withPrefix.remoteSign(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/sign");
+    assertThat(withoutPrefix.remoteSign(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/sign");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.remoteSign(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/sign");
+    assertThat(withoutPrefix.remoteSign(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/sign");
   }
 }

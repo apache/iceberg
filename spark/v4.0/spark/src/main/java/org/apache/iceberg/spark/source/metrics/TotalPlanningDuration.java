@@ -22,7 +22,7 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class TotalPlanningDuration extends CustomSumMetric {
 
-  static final String NAME = "totalPlanningDuration";
+  public static final String NAME = "totalPlanningDuration";
 
   @Override
   public String name() {

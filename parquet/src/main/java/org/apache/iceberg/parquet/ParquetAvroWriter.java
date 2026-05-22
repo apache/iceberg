@@ -104,6 +104,11 @@ public class ParquetAvroWriter {
     }
 
     @Override
+    public ParquetValueWriter<?> variant(GroupType variant) {
+      throw new UnsupportedOperationException("Avro writer does not support variant types");
+    }
+
+    @Override
     public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 

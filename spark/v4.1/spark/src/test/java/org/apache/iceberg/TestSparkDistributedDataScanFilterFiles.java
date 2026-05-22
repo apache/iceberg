@@ -21,8 +21,8 @@ package org.apache.iceberg;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterAll;
@@ -62,6 +62,7 @@ public class TestSparkDistributedDataScanFilterFiles
             .master("local[2]")
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config(SQLConf.SHUFFLE_PARTITIONS().key(), "4")
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
 
@@ -79,7 +80,7 @@ public class TestSparkDistributedDataScanFilterFiles
         .set(TableProperties.DATA_PLANNING_MODE, dataMode.modeName())
         .set(TableProperties.DELETE_PLANNING_MODE, deleteMode.modeName())
         .commit();
-    SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+    SparkReadConf readConf = new SparkReadConf(spark, table);
     return new SparkDistributedDataScan(spark, table, readConf);
   }
 }

@@ -168,7 +168,7 @@ public class PropertyUtil {
 
     return properties.entrySet().stream()
         .filter(e -> e.getKey().startsWith(prefix))
-        .collect(Collectors.toMap(e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
+        .collect(Collectors.toMap(e -> e.getKey().substring(prefix.length()), Map.Entry::getValue));
   }
 
   /**

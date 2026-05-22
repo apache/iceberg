@@ -263,7 +263,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
   @Override
   public int read() throws IOException {
     if (current == null) {
-      throw new EOFException();
+      return -1;
     }
 
     while (true) {
@@ -272,7 +272,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
         return current.get() & 0xFF; // as unsigned
       } else if (!nextBuffer()) {
         // there are no more buffers
-        throw new EOFException();
+        return -1;
       }
     }
   }

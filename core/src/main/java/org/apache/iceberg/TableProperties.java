@@ -83,6 +83,9 @@ public class TableProperties {
           DEFAULT_PARTITION_SPEC,
           DEFAULT_SORT_ORDER);
 
+  /** A table property that documents the business meaning and usage context of this table. */
+  public static final String COMMENT = "comment";
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
@@ -132,6 +135,10 @@ public class TableProperties {
       "write.delete.parquet.page-size-bytes";
   public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
+  public static final String PARQUET_PAGE_VERSION = "write.parquet.page-version";
+  public static final String DELETE_PARQUET_PAGE_VERSION = "write.delete.parquet.page-version";
+  public static final String PARQUET_PAGE_VERSION_DEFAULT = "v1";
+
   public static final String PARQUET_PAGE_ROW_LIMIT = "write.parquet.page-row-limit";
   public static final String DELETE_PARQUET_PAGE_ROW_LIMIT = "write.delete.parquet.page-row-limit";
   public static final int PARQUET_PAGE_ROW_LIMIT_DEFAULT = 20_000;
@@ -150,6 +157,12 @@ public class TableProperties {
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL =
       "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
+
+  public static final String PARQUET_SHRED_VARIANTS = "write.parquet.shred-variants";
+  public static final boolean PARQUET_SHRED_VARIANTS_DEFAULT = false;
+  public static final String PARQUET_VARIANT_BUFFER_SIZE =
+      "write.parquet.variant-inference-buffer-size";
+  public static final int PARQUET_VARIANT_BUFFER_SIZE_DEFAULT = 100;
 
   public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
       "write.parquet.row-group-check-min-record-count";
@@ -187,6 +200,12 @@ public class TableProperties {
   public static final String AVRO_COMPRESSION_LEVEL = "write.avro.compression-level";
   public static final String DELETE_AVRO_COMPRESSION_LEVEL = "write.delete.avro.compression-level";
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
+
+  public static final String MANIFEST_COMPRESSION = "write.manifest.compression-codec";
+  public static final String MANIFEST_COMPRESSION_DEFAULT = "gzip";
+
+  public static final String MANIFEST_COMPRESSION_LEVEL = "write.manifest.compression-level";
+  public static final String MANIFEST_COMPRESSION_LEVEL_DEFAULT = null;
 
   public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
 
@@ -246,6 +265,15 @@ public class TableProperties {
   public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
+
+  /**
+   * When true, declares that the table's identifier fields can be relied upon as a primary key by
+   * query engines for optimization purposes (e.g. eliminating redundant joins or distinct). This is
+   * not enforced at write time and does not validate existing data.
+   */
+  public static final String IDENTIFIER_FIELDS_RELY = "identifier-fields.rely";
+
+  public static final boolean IDENTIFIER_FIELDS_RELY_DEFAULT = false;
 
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
@@ -327,6 +355,10 @@ public class TableProperties {
 
   public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
   public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
+  public static final String SPARK_WRITE_AUTO_SCHEMA_EVOLUTION =
+      "write.spark.auto-schema-evolution.enabled";
+  public static final boolean SPARK_WRITE_AUTO_SCHEMA_EVOLUTION_DEFAULT = true;
 
   public static final String SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES =
       "write.spark.advisory-partition-size-bytes";
