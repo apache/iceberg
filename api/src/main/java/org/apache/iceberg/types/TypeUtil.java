@@ -445,6 +445,9 @@ public class TypeUtil {
     }
 
     switch (from.typeId()) {
+      case UNKNOWN:
+        return true;
+
       case INTEGER:
         return to.typeId() == Type.TypeID.LONG;
 
