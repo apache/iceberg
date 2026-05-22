@@ -98,19 +98,30 @@ public abstract class S3V4RestSignerClient
 
   private static final String SCOPE = "sign";
 
-  @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
-  @VisibleForTesting
-  static volatile AuthManager authManager;
+  @SuppressWarnings("immutables:incompat")
+  private volatile AuthManager authManager;
 
-  @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
-  @VisibleForTesting
-  static volatile RESTClient httpClient;
+  @SuppressWarnings("immutables:incompat")
+  private volatile RESTClient httpClient;
 
   public abstract Map<String, String> properties();
 
   @Value.Default
   public Supplier<Map<String, String>> requestPropertiesSupplier() {
     return Collections::emptyMap;
+  }
+
+  /**
+   * Supplies the {@link RESTClient} used to contact the signer service. Each signer instance owns
+   * its own client so that per-catalog configuration (custom headers, timeouts, ...) is never
+   * shared across catalogs. The client is built without a base URI because each request is sent to
+   * a fully resolved {@link #endpoint()}. Exposed as a settable default so tests can inject a mock
+   * client.
+   */
+  @Value.Default
+  Supplier<RESTClient> httpClientSupplier() {
+    return () ->
+        HTTPClient.builder(properties()).withHeaders(RESTUtil.configHeaders(properties())).build();
   }
 
   @Value.Lazy
@@ -175,11 +186,12 @@ public abstract class S3V4RestSignerClient
         OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
   }
 
-  private AuthManager authManager() {
+  @VisibleForTesting
+  AuthManager authManager() {
     if (null == authManager) {
-      synchronized (S3V4RestSignerClient.class) {
+      synchronized (this) {
         if (null == authManager) {
-          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
+          this.authManager = AuthManagers.loadAuthManager("s3-signer", properties());
         }
       }
     }
@@ -187,16 +199,12 @@ public abstract class S3V4RestSignerClient
     return authManager;
   }
 
-  private RESTClient httpClient() {
+  @VisibleForTesting
+  RESTClient httpClient() {
     if (null == httpClient) {
-      synchronized (S3V4RestSignerClient.class) {
+      synchronized (this) {
         if (null == httpClient) {
-          // Don't include a base URI because this client may be used for contacting different
-          // catalogs.
-          httpClient =
-              HTTPClient.builder(properties())
-                  .withHeaders(RESTUtil.configHeaders(properties()))
-                  .build();
+          this.httpClient = httpClientSupplier().get();
         }
       }
     }
@@ -357,7 +365,12 @@ public abstract class S3V4RestSignerClient
   }
 
   @Override
-  public void close() throws Exception {}
+  public void close() {
+    IoUtils.closeQuietlyV2(httpClient, null);
+    IoUtils.closeQuietlyV2(authManager, null);
+    this.httpClient = null;
+    this.authManager = null;
+  }
 
   /**
    * Only add body for DeleteObjectsRequest. Refer to
