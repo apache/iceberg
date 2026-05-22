@@ -87,85 +87,97 @@ public class TestLocationUtil {
 
   @Test
   public void testResolveRelativeLocations() {
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
     assertThat(LocationUtil.resolveLocation(tableLocation, "metadata/file.parquet"))
-        .isEqualTo("s3://bucket/table/metadata/file.parquet");
+        .isEqualTo("s3://bucket/db/table/metadata/file.parquet");
 
     assertThat(LocationUtil.resolveLocation(tableLocation, "data/00000-0.parquet"))
-        .isEqualTo("s3://bucket/table/data/00000-0.parquet");
+        .isEqualTo("s3://bucket/db/table/data/00000-0.parquet");
   }
 
   @Test
   public void testResolveLocationsWithColonsInSegments() {
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
     assertThat(LocationUtil.resolveLocation(tableLocation, "data/partition=key:value/file.parquet"))
-        .isEqualTo("s3://bucket/table/data/partition=key:value/file.parquet");
+        .isEqualTo("s3://bucket/db/table/data/partition=key:value/file.parquet");
 
     assertThat(LocationUtil.resolveLocation(tableLocation, "metadata/snap-123:456.avro"))
-        .isEqualTo("s3://bucket/table/metadata/snap-123:456.avro");
+        .isEqualTo("s3://bucket/db/table/metadata/snap-123:456.avro");
   }
 
   @Test
   public void testResolveAbsoluteLocationsUnchanged() {
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
-    assertThat(LocationUtil.resolveLocation(tableLocation, "s3://other-bucket/path/file.parquet"))
-        .isEqualTo("s3://other-bucket/path/file.parquet");
+    // different scheme (from the spec example table)
+    assertThat(
+            LocationUtil.resolveLocation(tableLocation, "hdfs://wh/db/table/data/00000-0.parquet"))
+        .isEqualTo("hdfs://wh/db/table/data/00000-0.parquet");
 
-    assertThat(LocationUtil.resolveLocation(tableLocation, "hdfs://namenode/path/file.parquet"))
-        .isEqualTo("hdfs://namenode/path/file.parquet");
+    // different bucket
+    assertThat(
+            LocationUtil.resolveLocation(
+                tableLocation, "s3://other-bucket/db/table/data/file.parquet"))
+        .isEqualTo("s3://other-bucket/db/table/data/file.parquet");
+
+    // same bucket, different path
+    assertThat(
+            LocationUtil.resolveLocation(
+                tableLocation, "s3://bucket/db/other-table/data/file.parquet"))
+        .isEqualTo("s3://bucket/db/other-table/data/file.parquet");
   }
 
   @Test
   public void testRelativize() {
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
     assertThat(
             LocationUtil.relativizeLocation(
-                tableLocation, "s3://bucket/table/metadata/file.parquet"))
+                tableLocation, "s3://bucket/db/table/metadata/file.parquet"))
         .isEqualTo("metadata/file.parquet");
 
     assertThat(
             LocationUtil.relativizeLocation(
-                tableLocation, "s3://bucket/table/data/00000-0.parquet"))
+                tableLocation, "s3://bucket/db/table/data/00000-0.parquet"))
         .isEqualTo("data/00000-0.parquet");
   }
 
   @Test
   public void testRelativizeLocationNotUnderTableLocation() {
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
     // different bucket
     assertThat(
-            LocationUtil.relativizeLocation(tableLocation, "s3://other-bucket/path/file.parquet"))
-        .isEqualTo("s3://other-bucket/path/file.parquet");
+            LocationUtil.relativizeLocation(
+                tableLocation, "s3://other-bucket/db/table/data/file.parquet"))
+        .isEqualTo("s3://other-bucket/db/table/data/file.parquet");
 
     // same bucket, different path
     assertThat(
             LocationUtil.relativizeLocation(
-                tableLocation, "s3://bucket/other-table/data/file.parquet"))
-        .isEqualTo("s3://bucket/other-table/data/file.parquet");
+                tableLocation, "s3://bucket/db/other-table/data/file.parquet"))
+        .isEqualTo("s3://bucket/db/other-table/data/file.parquet");
   }
 
   @Test
   public void testRelativizeLocationWithSharedPrefix() {
     // sibling locations that share a byte prefix with the table location but are not
     // children of it must not be relativized (e.g. "table" vs "table_v2")
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
     assertThat(
             LocationUtil.relativizeLocation(
-                tableLocation, "s3://bucket/table_v2/data/00000-0.parquet"))
-        .isEqualTo("s3://bucket/table_v2/data/00000-0.parquet");
+                tableLocation, "s3://bucket/db/table_v2/data/00000-0.parquet"))
+        .isEqualTo("s3://bucket/db/table_v2/data/00000-0.parquet");
   }
 
   @Test
   public void testRelativizeLocationEqualToTableLocation() {
     // a location equal to the table location is not followed by a separator,
     // so it is not a child of the table location and is returned as-is
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
     assertThat(LocationUtil.relativizeLocation(tableLocation, tableLocation))
         .isEqualTo(tableLocation);
@@ -188,7 +200,7 @@ public class TestLocationUtil {
 
   @Test
   public void testResolveAbsoluteLocationWithNonAlphanumericScheme() {
-    String tableLocation = "s3://bucket/table";
+    String tableLocation = "s3://bucket/db/table";
 
     assertThat(LocationUtil.resolveLocation(tableLocation, "git+ssh://host/repo"))
         .isEqualTo("git+ssh://host/repo");
@@ -196,8 +208,8 @@ public class TestLocationUtil {
 
   @Test
   public void testRelativizeResolveRoundTrip() {
-    String tableLocation = "s3://bucket/table";
-    String absoluteLocation = "s3://bucket/table/metadata/root-manifest.parquet";
+    String tableLocation = "s3://bucket/db/table";
+    String absoluteLocation = "s3://bucket/db/table/metadata/root-manifest.parquet";
 
     String relativized = LocationUtil.relativizeLocation(tableLocation, absoluteLocation);
     assertThat(relativized).isEqualTo("metadata/root-manifest.parquet");
@@ -222,11 +234,11 @@ public class TestLocationUtil {
   public void testResolveWithTrailingOrLeadingSlashProducesDuplicateSeparator() {
     // the spec documents that joining a table location ending with '/' or a relative location
     // starting with '/' yields a duplicate '//'; callers are expected to avoid this
-    assertThat(LocationUtil.resolveLocation("s3://bucket/table/", "data/00000-0.parquet"))
-        .isEqualTo("s3://bucket/table//data/00000-0.parquet");
+    assertThat(LocationUtil.resolveLocation("s3://bucket/db/table/", "data/00000-0.parquet"))
+        .isEqualTo("s3://bucket/db/table//data/00000-0.parquet");
 
-    assertThat(LocationUtil.resolveLocation("s3://bucket/table", "/data/00000-0.parquet"))
-        .isEqualTo("s3://bucket/table//data/00000-0.parquet");
+    assertThat(LocationUtil.resolveLocation("s3://bucket/db/table", "/data/00000-0.parquet"))
+        .isEqualTo("s3://bucket/db/table//data/00000-0.parquet");
   }
 
   @Test
@@ -235,8 +247,8 @@ public class TestLocationUtil {
     // expects the separator to follow the prefix; the location is returned as-is
     assertThat(
             LocationUtil.relativizeLocation(
-                "s3://bucket/table/", "s3://bucket/table/data/00000-0.parquet"))
-        .isEqualTo("s3://bucket/table/data/00000-0.parquet");
+                "s3://bucket/db/table/", "s3://bucket/db/table/data/00000-0.parquet"))
+        .isEqualTo("s3://bucket/db/table/data/00000-0.parquet");
   }
 
   @Test
