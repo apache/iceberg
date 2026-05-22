@@ -18,24 +18,21 @@
  */
 package org.apache.iceberg.functions;
 
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Package-private helpers shared by {@link Action} implementations. */
-final class Actions {
-
-  private Actions() {}
+/**
+ * An {@link IcebergFunction} that requires a per-query salt for binding.
+ *
+ * @param <S> input column value type
+ * @param <T> output column value type
+ */
+public interface SaltedFunction<S, T> extends IcebergFunction<S, T> {
 
   /**
-   * Base for masking functions where null input must pass through as null unchanged (spec: "For all
-   * actions, if the input column value is NULL, the output MUST be NULL."). Subclasses implement
-   * {@link #applyNonNull(Object)} and don't have to repeat the guard.
+   * Returns a function that applies this projection using the given salt.
+   *
+   * @throws IllegalArgumentException if the type is not supported or the salt is invalid.
    */
-  abstract static class NullSafeFunction<S, T> implements SerializableFunction<S, T> {
-    @Override
-    public final T apply(S value) {
-      return value == null ? null : applyNonNull(value);
-    }
-
-    protected abstract T applyNonNull(S value);
-  }
+  SerializableFunction<S, T> bind(Type type, byte[] salt);
 }

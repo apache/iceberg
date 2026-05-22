@@ -31,7 +31,7 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Returns a spec-defined fixed value for the column's type. */
-public final class MaskToFixedValue extends Action.BaseAction<Object> {
+public final class MaskToFixedValue extends IcebergFunction.BaseFunction<Object, Object> {
 
   private static final Integer INT_DEFAULT = 0;
   private static final Long LONG_DEFAULT = 0L;
@@ -54,7 +54,7 @@ public final class MaskToFixedValue extends Action.BaseAction<Object> {
   }
 
   @Override
-  public String actionType() {
+  public String name() {
     return MASK_TO_FIXED_VALUE;
   }
 
@@ -126,7 +126,7 @@ public final class MaskToFixedValue extends Action.BaseAction<Object> {
     }
   }
 
-  private static final class ConstantFn extends Actions.NullSafeFunction<Object, Object> {
+  private static final class ConstantFn implements SerializableFunction<Object, Object> {
     private final Object constant;
 
     ConstantFn(Object constant) {
@@ -134,14 +134,12 @@ public final class MaskToFixedValue extends Action.BaseAction<Object> {
     }
 
     @Override
-    protected Object applyNonNull(Object value) {
+    public Object apply(Object value) {
       return constant;
     }
   }
 
-  // ByteBuffer has a mutable position; returning a fresh duplicate per call keeps callers
-  // isolated from each other.
-  private static final class ConstantByteBufferFn extends Actions.NullSafeFunction<Object, Object> {
+  private static final class ConstantByteBufferFn implements SerializableFunction<Object, Object> {
     private final ByteBuffer constant;
 
     ConstantByteBufferFn(ByteBuffer constant) {
@@ -149,7 +147,7 @@ public final class MaskToFixedValue extends Action.BaseAction<Object> {
     }
 
     @Override
-    protected Object applyNonNull(Object value) {
+    public Object apply(Object value) {
       return constant.duplicate();
     }
   }

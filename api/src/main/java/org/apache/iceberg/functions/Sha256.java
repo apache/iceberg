@@ -27,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Type;
 
 /** Shared SHA-256 masking function. One instance per (type, salt) pair. */
-final class Sha256 extends Actions.NullSafeFunction<Object, Object> {
+final class Sha256 extends IcebergFunctions.NullSafeFunction<Object, Object> {
 
   private static final ThreadLocal<MessageDigest> DIGEST =
       ThreadLocal.withInitial(

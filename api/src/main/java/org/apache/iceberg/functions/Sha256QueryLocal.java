@@ -27,13 +27,14 @@ import org.apache.iceberg.util.SerializableFunction;
  * #bind(Type, byte[])}; the no-salt variant fails fast so callers can't accidentally strip the
  * query-local randomness.
  */
-public final class Sha256QueryLocal extends Action.BaseAction<Object> {
+public final class Sha256QueryLocal extends IcebergFunction.BaseFunction<Object, Object>
+    implements SaltedFunction<Object, Object> {
   public Sha256QueryLocal(int fieldId) {
     super(fieldId);
   }
 
   @Override
-  public String actionType() {
+  public String name() {
     return SHA_256_QUERY_LOCAL;
   }
 

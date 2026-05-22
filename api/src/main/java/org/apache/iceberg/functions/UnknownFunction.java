@@ -23,23 +23,23 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
- * Preserves an action with a discriminator string this client doesn't recognize so that newer
- * server-side action types don't break parsing. Callers that intend to enforce the action
+ * Preserves a function with a discriminator string this client doesn't recognize so that newer
+ * server-side function types don't break parsing. Callers that intend to enforce the function
  * (engine-side rules) must fail closed when they encounter this — silent skipping would leak
  * unmasked data.
  */
-public final class UnknownAction extends Action.BaseAction<Object> {
-  private final String actionType;
+public final class UnknownFunction extends IcebergFunction.BaseFunction<Object, Object> {
+  private final String functionName;
 
-  public UnknownAction(int fieldId, String actionType) {
+  public UnknownFunction(int fieldId, String functionName) {
     super(fieldId);
-    Preconditions.checkArgument(actionType != null, "Invalid action type: null");
-    this.actionType = actionType;
+    Preconditions.checkArgument(functionName != null, "Invalid function name: null");
+    this.functionName = functionName;
   }
 
   @Override
-  public String actionType() {
-    return actionType;
+  public String name() {
+    return functionName;
   }
 
   @Override
@@ -50,9 +50,9 @@ public final class UnknownAction extends Action.BaseAction<Object> {
   @Override
   public SerializableFunction<Object, Object> bind(Type type) {
     throw new IllegalArgumentException(
-        "Cannot bind unknown action type '"
-            + actionType
-            + "': this client does not recognize the action. Upgrade the client or remove the "
-            + "action from the server-side policy.");
+        "Cannot bind unknown function '"
+            + functionName
+            + "': this client does not recognize the function. Upgrade the client or remove the "
+            + "function from the server-side policy.");
   }
 }
