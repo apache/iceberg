@@ -80,24 +80,19 @@ public class TestTableSerialization extends HadoopTableTestBase {
   }
 
   @Test
-  public void testSerializableTableSortOrdersWithDroppedColumn() {
-    // add an extra column and establish sort order 1 on id + ts
+  public void testSerializableTableSortOrdersWithDroppedColumn()
+      throws IOException, ClassNotFoundException {
     table.updateSchema().addColumn("ts", Types.LongType.get()).commit();
     table.replaceSortOrder().asc("id").asc("ts").commit();
-    table.newAppend().appendFile(FILE_A).commit();
 
-    // switch to sort order 2 using only "id", then drop "ts"
-    // historical sort order 1 still references the dropped "ts" field
+    // historical sort order 1 still references "ts" after the column is dropped
     table.replaceSortOrder().asc("id").commit();
     table.updateSchema().deleteColumn("ts").commit();
 
-    // SerializableTable.copyOf captures all sort orders at construction time
-    Table serialized = SerializableTable.copyOf(table);
-
-    // sortOrders() must return all historical orders without throwing a ValidationException,
-    // even though sort order 1 references the now-dropped "ts" field
-    assertThat(serialized.sortOrders()).hasSize(3); // unsorted(0), order-1(id+ts), order-2(id)
-    assertThat(serialized.sortOrder().fields()).hasSize(1); // current default is order-2
+    TestHelpers.assertSerializedAndLoadedMetadata(table, TestHelpers.roundTripSerialize(table));
+    Table serializableTable = SerializableTable.copyOf(table);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
   }
 
   @Test
