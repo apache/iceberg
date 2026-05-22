@@ -290,7 +290,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
         }
       }
       Preconditions.checkState(
-          found, "Projection field id=%d not found in merge read schema — this is a bug", fieldId);
+          found, "Projection field id=%s not found in merge read schema — this is a bug", fieldId);
     }
 
     return positions;
