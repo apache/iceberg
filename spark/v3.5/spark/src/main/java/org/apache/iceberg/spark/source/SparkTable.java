@@ -362,6 +362,11 @@ public class SparkTable
   private boolean canDeleteUsingMetadata(Expression deleteExpr, String scanBranch) {
     boolean caseSensitive = SparkUtil.caseSensitive(sparkSession());
 
+    Schema deleteSchema = SnapshotUtil.schemaFor(table(), scanBranch);
+    if (ExpressionUtil.hasBoundUUIDBoundsPredicate(deleteSchema, deleteExpr, caseSensitive)) {
+      return false;
+    }
+
     if (ExpressionUtil.selectsPartitions(deleteExpr, table(), caseSensitive)) {
       return true;
     }
@@ -381,7 +386,7 @@ public class SparkTable
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Map<Integer, Evaluator> evaluators = Maps.newHashMap();
       StrictMetricsEvaluator metricsEvaluator =
-          new StrictMetricsEvaluator(SnapshotUtil.schemaFor(table(), scanBranch), deleteExpr);
+          new StrictMetricsEvaluator(deleteSchema, deleteExpr);
 
       return Iterables.all(
           tasks,

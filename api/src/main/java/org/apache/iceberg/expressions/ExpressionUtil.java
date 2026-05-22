@@ -763,6 +763,7 @@ public class ExpressionUtil {
     }
     return builder.toString();
   }
+
   /**
    * Transform UUID literals in an unbound expression to use signed comparators, if the expression
    * contains UUID bounds predicates. This maintains backward compatibility with files written
@@ -773,13 +774,26 @@ public class ExpressionUtil {
    * literals to a Set of raw values, so the evaluator must handle this separately.
    *
    * @param expr an unbound expression
-   * @return the expression with signed UUID comparators, or null if no UUID predicates are present
+   * @return the expression with signed UUID comparators, or null if no UUID bounds predicates are
+   *     present
    */
   @Nullable
   public static Expression toSignedUUIDLiteral(Expression expr) {
     SignedUUIDLiteralVisitor visitor = new SignedUUIDLiteralVisitor();
     Expression transformed = ExpressionVisitors.visit(expr, visitor);
     return visitor.foundUUIDBoundsPredicate() ? transformed : null;
+  }
+
+  /**
+   * Returns true if the expression binds to a UUID predicate that relies on lower/upper bounds.
+   *
+   * <p>This must bind the expression first because some engines represent UUID literals as strings
+   * before Iceberg coerces them to UUID values.
+   */
+  public static boolean hasBoundUUIDBoundsPredicate(
+      Schema schema, Expression unbound, boolean caseSensitive) {
+    Expression bound = Binder.bind(schema.asStruct(), unbound, caseSensitive);
+    return ExpressionVisitors.visit(bound, new BoundUUIDBoundsPredicateVisitor());
   }
 
   /**
@@ -860,6 +874,57 @@ public class ExpressionUtil {
 
         default:
           return pred;
+      }
+    }
+  }
+
+  private static class BoundUUIDBoundsPredicateVisitor
+      extends ExpressionVisitors.BoundVisitor<Boolean> {
+
+    @Override
+    public Boolean alwaysTrue() {
+      return false;
+    }
+
+    @Override
+    public Boolean alwaysFalse() {
+      return false;
+    }
+
+    @Override
+    public Boolean not(Boolean result) {
+      return result;
+    }
+
+    @Override
+    public Boolean and(Boolean leftResult, Boolean rightResult) {
+      return leftResult || rightResult;
+    }
+
+    @Override
+    public Boolean or(Boolean leftResult, Boolean rightResult) {
+      return leftResult || rightResult;
+    }
+
+    @Override
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      if (pred.term().ref().type().typeId() != Type.TypeID.UUID) {
+        return false;
+      }
+
+      switch (pred.op()) {
+        case LT:
+        case LT_EQ:
+        case GT:
+        case GT_EQ:
+        case EQ:
+        case NOT_EQ:
+        case IN:
+        case NOT_IN:
+          return true;
+
+        default:
+          return false;
       }
     }
   }
