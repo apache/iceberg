@@ -35,7 +35,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderComparators;
 import org.apache.iceberg.StructLike;
@@ -214,7 +214,7 @@ class SparkKWayMergeFileRewriteRunner extends SparkDataFileRewriteRunner {
     if (cachedTableBroadcast == null) {
       synchronized (this) {
         if (cachedTableBroadcast == null) {
-          cachedTableBroadcast = jsc.broadcast(SerializableTable.copyOf(table()));
+          cachedTableBroadcast = jsc.broadcast(SerializableTableWithSize.copyOf(table()));
         }
       }
     }
