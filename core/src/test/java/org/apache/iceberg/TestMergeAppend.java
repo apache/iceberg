@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -90,6 +91,11 @@ public class TestMergeAppend extends TestBase {
     assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
 
     int multiplier = 3;
+    assumeThat(ThreadPools.WORKER_THREAD_POOL_SIZE)
+        .as(
+            "Worker thread pool size should be at least 3 to test manifest file ordering with multiple threads")
+        .isGreaterThanOrEqualTo(multiplier);
+
     int groupSize = SnapshotProducer.MIN_FILE_GROUP_SIZE;
     List<DataFile> dataFiles = Lists.newArrayList();
 
