@@ -87,6 +87,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junitpioneer.jupiter.ClearEnvironmentVariable;
 import org.mockito.Mockito;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -955,6 +956,9 @@ public class TestS3FileIO {
   }
 
   @Test
+  @ClearEnvironmentVariable(key = "AWS_PROFILE")
+  @ClearEnvironmentVariable(key = "AWS_ACCESS_KEY_ID")
+  @ClearEnvironmentVariable(key = "AWS_SECRET_ACCESS_KEY")
   public void noStorageCredentialConfiguredWithoutCredentialsInProperties() {
     S3FileIO fileIO = new S3FileIO();
     fileIO.initialize(ImmutableMap.of("client.region", "us-east-1"));
