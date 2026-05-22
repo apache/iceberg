@@ -46,8 +46,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -503,6 +507,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                     update.addSnapshot(newSnapshot);
                   } else {
                     update.setBranchSnapshot(newSnapshot, targetBranch);
+                  }
+
+                  EncryptionManager encryptionManager = ops.encryption();
+                  if (encryptionManager instanceof StandardEncryptionManager) {
+                    Map<String, EncryptedKey> keys =
+                        EncryptionUtil.encryptionKeys(encryptionManager);
+                    keys.values().forEach(update::addEncryptionKey);
                   }
 
                   TableMetadata updated = update.build();
