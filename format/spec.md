@@ -1084,7 +1084,7 @@ The Avro schema for version 1 is a record with the following fields, in order:
 | Field name | Avro type | Required | Description |
 |---|---|---|---|
 | **`encryption_key`** | `bytes` | _required_ | The data encryption key (DEK) for this file. Must be 16, 24, or 32 bytes (corresponding to AES-128, AES-192, or AES-256). |
-| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for [AES GCM Stream](gcm-stream-spec.md) block authentication. |
+| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for [AES GCM Stream](gcm-stream-spec.md) integrity protection. |
 | **`file_length`** | `long` | _optional_ | The plaintext file length before encryption. Used to detect truncation attacks (see [AES GCM Stream file length](gcm-stream-spec.md#file-length)). |
 
 The AAD prefix is combined with a 4-byte little-endian block index to form the AAD for each AES GCM Stream cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data).
@@ -1093,7 +1093,7 @@ The AAD prefix is combined with a 4-byte little-endian block index to form the A
 
 The standard encryption scheme uses a two-tier key hierarchy tracked in the table metadata `encryption-keys` list:
 
-1. **Key Encryption Keys (KEKs):** Entries where `encrypted-by-id` equals the table's encryption key ID (configured via `encryption.key-id`). The `encrypted-key-metadata` contains the KEK wrapped by the KMS and is opaque to Iceberg — its format is determined by the KMS provider.
+1. **Key Encryption Keys (KEKs):** Entries where `encrypted-by-id` equals the table's encryption key ID (configured via `encryption.key-id`). The `encrypted-key-metadata` contains the KEK wrapped by the KMS and is opaque to Iceberg — its format is determined by the KMS provider. KEK entries must include a `KEY_TIMESTAMP` property recording the creation time in milliseconds since epoch; this timestamp is used as the AAD when encrypting manifest list key metadata.
 
 2. **Manifest List Keys:** Entries where `encrypted-by-id` references a KEK. The `encrypted-key-metadata` contains the Standard Key Metadata (defined above) encrypted with AES GCM using the referenced unwrapped KEK. The ciphertext format is:
 
