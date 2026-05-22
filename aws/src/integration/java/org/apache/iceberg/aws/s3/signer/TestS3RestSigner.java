@@ -76,7 +76,6 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
-import software.amazon.awssdk.utils.IoUtils;
 
 @Testcontainers
 public class TestS3RestSigner {
@@ -93,6 +92,7 @@ public class TestS3RestSigner {
       MinioUtil.createContainer(MinioUtil.LATEST_TAG, CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
+  private static S3V4RestSignerClient signerClient;
   private static ValidatingSigner validatingSigner;
   private S3Client s3;
 
@@ -104,19 +104,18 @@ public class TestS3RestSigner {
       httpServer = initHttpServer();
     }
 
-    validatingSigner =
-        new ValidatingSigner(
-            ImmutableS3V4RestSignerClient.builder()
-                .properties(
-                    ImmutableMap.of(
-                        CatalogProperties.URI,
-                        httpServer.getURI().toString(),
-                        RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
-                        S3SignerServlet.S3_SIGNER_ENDPOINT,
-                        OAuth2Properties.CREDENTIAL,
-                        "catalog:12345"))
-                .build(),
-            new CustomAwsS3V4Signer());
+    signerClient =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                ImmutableMap.of(
+                    CatalogProperties.URI,
+                    httpServer.getURI().toString(),
+                    RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                    S3SignerServlet.S3_SIGNER_ENDPOINT,
+                    OAuth2Properties.CREDENTIAL,
+                    "catalog:12345"))
+            .build();
+    validatingSigner = new ValidatingSigner(signerClient, new CustomAwsS3V4Signer());
   }
 
   @AfterAll
@@ -150,10 +149,9 @@ public class TestS3RestSigner {
       httpServer.stop();
     }
 
-    IoUtils.closeQuietlyV2(S3V4RestSignerClient.authManager, null);
-    IoUtils.closeQuietlyV2(S3V4RestSignerClient.httpClient, null);
-    S3V4RestSignerClient.authManager = null;
-    S3V4RestSignerClient.httpClient = null;
+    if (null != signerClient) {
+      signerClient.close();
+    }
   }
 
   @BeforeEach
