@@ -27,13 +27,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.Test;
 
-public class TestActions {
+public class TestIcebergFunctions {
 
   @Test
   public void maskAlphanumSpecExample() {
@@ -163,9 +162,9 @@ public class TestActions {
   }
 
   @Test
-  public void maskToFixedValueNullReturnsNull() {
+  public void maskToFixedValueNullReturnsFixedValue() {
     SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.IntegerType.get());
-    assertThat(fn.apply(null)).isNull();
+    assertThat(fn.apply(null)).isEqualTo(0);
   }
 
   @Test
@@ -261,15 +260,6 @@ public class TestActions {
   }
 
   @Test
-  public void applyExpressionFailsOnApply() {
-    SerializableFunction<Object, Object> fn =
-        new ApplyExpression(1, Expressions.alwaysTrue()).bind(Types.StringType.get());
-    assertThatThrownBy(() -> fn.apply("any"))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("apply-expression");
-  }
-
-  @Test
   public void bindRejectsMaskAlphanumOnNonString() {
     assertThatThrownBy(() -> new MaskAlphanum(1).bind(Types.IntegerType.get()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -284,8 +274,8 @@ public class TestActions {
   }
 
   @Test
-  public void bindFailsClosedOnUnknownAction() {
-    assertThatThrownBy(() -> new UnknownAction(1, "future-mask-v2").bind(Types.StringType.get()))
+  public void bindFailsClosedOnUnknownFunction() {
+    assertThatThrownBy(() -> new UnknownFunction(1, "future-mask-v2").bind(Types.StringType.get()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("future-mask-v2");
   }

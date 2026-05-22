@@ -24,15 +24,15 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
- * A column projection action from the ReadRestrictions spec.
+ * A named, type-aware function that can be bound to an Iceberg {@link Type}.
  *
- * <p>{@link #bind(Type)} returns the masking {@link SerializableFunction} for a given column type;
- * all bound functions return null for null input. Per spec all predefined actions preserve the
- * input column type, so the bound function maps {@code T -> T}.
+ * <p>{@link #bind(Type)} returns a {@link SerializableFunction} that applies this function's logic
+ * to values of the bound type.
  *
- * @param <T> column value type
+ * @param <S> input value type
+ * @param <T> output value type
  */
-public interface Action<T> extends Serializable {
+public interface IcebergFunction<S, T> extends Serializable {
 
   String MASK_ALPHANUM = "mask-alphanum";
   String MASK_TO_FIXED_VALUE = "mask-to-fixed-value";
@@ -43,39 +43,30 @@ public interface Action<T> extends Serializable {
   String TRUNCATE_TO_MONTH = "truncate-to-month";
   String SHA_256_GLOBAL = "sha-256-global";
   String SHA_256_QUERY_LOCAL = "sha-256-query-local";
-  String APPLY_EXPRESSION = "apply-expression";
 
-  /** The action discriminator string as sent on the wire. */
-  String actionType();
+  /** The function name as sent on the wire (REST action discriminator). */
+  String name();
 
-  /** The field id of the column this action applies to. */
+  /** The field id of the column this function applies to. */
   int fieldId();
 
   /**
-   * Returns a function that applies this action to values of the given {@link Type}.
+   * Returns a function that applies this projection to values of the given {@link Type}.
    *
-   * @throws IllegalArgumentException if the type is not supported by this action.
+   * @throws IllegalArgumentException if the type is not supported by this function.
    */
-  default SerializableFunction<T, T> bind(Type type) {
+  default SerializableFunction<S, T> bind(Type type) {
     throw new UnsupportedOperationException("bind is not implemented for " + getClass().getName());
   }
 
-  /**
-   * Variant that accepts a per-query salt. Only {@link Sha256QueryLocal} uses the salt; other
-   * actions ignore it and delegate to {@link #bind(Type)}.
-   */
-  default SerializableFunction<T, T> bind(Type type, byte[] salt) {
-    return bind(type);
-  }
-
-  /** Returns true if this action can be bound to the given {@link Type}. */
+  /** Returns true if this function can be bound to the given {@link Type}. */
   boolean canBind(Type type);
 
-  /** Base for all concrete actions; holds the field id. */
-  abstract class BaseAction<T> implements Action<T> {
+  /** Base for all concrete functions; holds the field id. */
+  abstract class BaseFunction<S, T> implements IcebergFunction<S, T> {
     private final int fieldId;
 
-    BaseAction(int fieldId) {
+    BaseFunction(int fieldId) {
       this.fieldId = fieldId;
     }
 
@@ -89,21 +80,21 @@ public interface Action<T> extends Serializable {
       if (this == o) {
         return true;
       }
-      if (!(o instanceof Action)) {
+      if (o == null || getClass() != o.getClass()) {
         return false;
       }
-      Action<?> other = (Action<?>) o;
-      return fieldId == other.fieldId() && actionType().equals(other.actionType());
+      IcebergFunction<?, ?> other = (IcebergFunction<?, ?>) o;
+      return fieldId == other.fieldId() && name().equals(other.name());
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(actionType(), fieldId);
+      return Objects.hash(name(), fieldId);
     }
 
     @Override
     public String toString() {
-      return actionType() + "(" + fieldId + ")";
+      return name() + "(" + fieldId + ")";
     }
   }
 }

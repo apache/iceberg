@@ -25,7 +25,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.DateTimeUtil;
 
 /** Truncates date/timestamp values to the first instant of their year or month. */
-final class TruncateTemporal extends Actions.NullSafeFunction<Object, Object> {
+final class TruncateTemporal extends IcebergFunctions.NullSafeFunction<Object, Object> {
 
   enum Unit {
     YEAR,
