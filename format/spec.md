@@ -135,7 +135,7 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 All location fields in format versions 3 and prior contain fully-qualified paths.
 
-Version 4 of the Iceberg spec adds support for relative locations in metadata, enabling tables to be relocated without rewriting metadata files. Relative locations are allowed in all metadata tracked location fields and are resolved against the table's base location. The table's location may be fixed in table metadata or inferred, but is intended to be managed and supplied by a catalog. Requirements for relativization and resolution are in [Relative Paths](#path-resolution).
+Version 4 of the Iceberg spec adds support for relative locations in metadata, enabling tables to be relocated without rewriting metadata files. Relative locations are allowed in all metadata tracked location fields and are resolved against the table's base location. The table's location may be fixed in table metadata or inferred, but is intended to be managed and supplied by a catalog. Requirements for relativization and resolution are in [Paths in Metadata](#paths-in-metadata).
 
 ## Specification
 
@@ -202,7 +202,7 @@ Path resolution is the process of producing an absolute path from a relative pat
 
 The relative portion is joined to the prefix (table location) without consideration of any additional separator characters. The recommended convention for table location is to not end in a path separator because the join process would add a second separator character. (See example below.)
 
-Paths in manifests produced prior to v4 are fully-qualified and must be produced with a URI scheme if the scheme was omitted to be consistent with V4 paths.
+Paths in manifests produced prior to v4 are fully-qualified and must be produced with a URI scheme, if the scheme was omitted, to be consistent with v4 paths.
 
 Examples of path resolution:
 
