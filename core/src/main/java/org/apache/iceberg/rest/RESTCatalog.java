@@ -87,7 +87,7 @@ public class RESTCatalog
    */
   protected RESTSessionCatalog newSessionCatalog(
       Function<Map<String, String>, RESTClient> clientBuilder) {
-    return new RESTSessionCatalog(clientBuilder, null);
+    return new RESTSessionCatalog(clientBuilder, (FileIOBuilder) null);
   }
 
   @Override
