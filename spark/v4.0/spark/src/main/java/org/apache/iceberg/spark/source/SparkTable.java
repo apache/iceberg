@@ -338,10 +338,31 @@ public class SparkTable
       icebergTable.refresh();
     }
 
+    // When snapshot-id is passed via options (e.g. DataFrameReader.option()) but this SparkTable
+    // was not constructed with a snapshotId field, resolve the schema against the requested
+    // snapshot so that filter column names are validated against the correct snapshot schema.
+    Long scanSnapshotId = snapshotId;
+    if (scanSnapshotId == null && branch == null) {
+      String snapshotIdStr = options.get(SparkReadOptions.SNAPSHOT_ID);
+      if (snapshotIdStr != null) {
+        scanSnapshotId = Long.parseLong(snapshotIdStr);
+      }
+    }
+
     CaseInsensitiveStringMap scanOptions =
         branch != null ? options : addSnapshotId(options, snapshotId);
     return new SparkScanBuilder(
-        sparkSession(), icebergTable, branch, snapshotSchema(), scanOptions);
+        sparkSession(), icebergTable, branch, scanSchemaFor(scanSnapshotId), scanOptions);
+  }
+
+  private Schema scanSchemaFor(Long scanSnapshotId) {
+    if (icebergTable instanceof BaseMetadataTable) {
+      return icebergTable.schema();
+    } else if (branch != null) {
+      return addLineageIfRequired(SnapshotUtil.schemaFor(icebergTable, branch));
+    } else {
+      return addLineageIfRequired(SnapshotUtil.schemaFor(icebergTable, scanSnapshotId, null));
+    }
   }
 
   @Override

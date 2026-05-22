@@ -70,6 +70,11 @@ abstract class BaseDistributedDataScan
     this.localPlanningSizeThreshold = localParallelism * LOCAL_PLANNING_MAX_SLOT_SIZE;
   }
 
+  @Override
+  protected boolean useSnapshotSchema() {
+    return true;
+  }
+
   /**
    * Returns the cluster parallelism.
    *
@@ -397,7 +402,7 @@ abstract class BaseDistributedDataScan
 
   private <R> Map<Integer, R> specCache(Function<PartitionSpec, R> load) {
     Map<Integer, R> cache = Maps.newHashMap();
-    table().specs().forEach((specId, spec) -> cache.put(specId, load.apply(spec)));
+    specs().forEach((specId, spec) -> cache.put(specId, load.apply(spec)));
     return cache;
   }
 
