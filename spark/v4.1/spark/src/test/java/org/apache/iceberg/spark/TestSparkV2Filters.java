@@ -839,6 +839,44 @@ public class TestSparkV2Filters {
     return DateTimeUtil.microsToDays(DateTimeUtil.isoTimestamptzToMicros(timestampString));
   }
 
+  @Test
+  void testAndWithPartiallyConvertiblePredicatesReturnsNull() {
+    // SparkV2Filters.convert() intentionally returns null for partial AND predicates
+    // because the pushPredicates() method in BaseSparkScanBuilder handles partial
+    // AND conversion separately via convertAndConjuncts() to ensure the original
+    // predicate always remains as a post-scan filter for correctness.
+    NamedReference col = FieldReference.apply("id");
+    LiteralValue value = new LiteralValue(1, DataTypes.IntegerType);
+    org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
+        new org.apache.spark.sql.connector.expressions.Expression[] {col, value};
+
+    Predicate convertible = new Predicate("=", attrAndValue);
+    Predicate unconvertible =
+        new Predicate(
+            "UNSUPPORTED_FUNC",
+            new org.apache.spark.sql.connector.expressions.Expression[] {col, value});
+
+    // convert() returns null for partial AND — this is by design
+    And andPredicate = new And(convertible, unconvertible);
+    assertThat(SparkV2Filters.convert(andPredicate))
+        .as("convert() should return null for partial AND (handled at pushPredicates level)")
+        .isNull();
+
+    And andReversed = new And(unconvertible, convertible);
+    assertThat(SparkV2Filters.convert(andReversed))
+        .as("convert() should return null for partial AND (reversed)")
+        .isNull();
+
+    And andBothUnconvertible = new And(unconvertible, unconvertible);
+    assertThat(SparkV2Filters.convert(andBothUnconvertible))
+        .as("convert() should return null when both sides are unconvertible")
+        .isNull();
+
+    // But each individual conjunct CAN be converted
+    assertThat(SparkV2Filters.convert(convertible)).isNotNull();
+    assertThat(SparkV2Filters.convert(unconvertible)).isNull();
+  }
+
   private static int timestampNtzToDays(String timestampNtzString) {
     return DateTimeUtil.microsToDays(DateTimeUtil.isoTimestampToMicros(timestampNtzString));
   }
