@@ -51,6 +51,9 @@ hooks:
   # Post-build: symlink docs/latest -> docs/<icebergVersion> in the site output,
   # so /docs/latest/... resolves to the current release's docs.
   - hooks/version_alias.py
+  # Restrict the search index to docs/<icebergVersion>/ and top-level pages;
+  # all other docs/<segment>/ pages (nightly, prior releases) are excluded.
+  - hooks/search_index_current_version_only.py
 
 plugins:
   - search
@@ -81,11 +84,6 @@ plugins:
         'docs/nightly/amoro.md': 'integrations/amoro.md'
         'docs/nightly/daft.md': 'integrations/daft.md'
         'docs/nightly/risingwave.md': 'integrations/risingwave.md'
-  - exclude-search:
-      # Index only docs/latest/* to avoid duplicate hits across versions.
-      exclude:
-        - 'docs/nightly*'  # excludes nightly and its children
-        - 'docs/[0-9]*'    # excludes docs/<x.y.z> and their children
 
 markdown_extensions:
   - pymdownx.highlight:
