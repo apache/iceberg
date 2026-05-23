@@ -19,6 +19,10 @@
 
 def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
 
+project(':iceberg-flink') {
+  description = 'Apache Flink integration parent module for Apache Iceberg'
+}
+
 if (flinkVersions.contains("1.20")) {
   apply from: file("$projectDir/v1.20/build.gradle")
 }

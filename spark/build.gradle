@@ -20,6 +20,10 @@
 // add enabled Spark version modules to the build
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 
+project(':iceberg-spark') {
+  description = 'Apache Spark integration parent module for Apache Iceberg'
+}
+
 if (sparkVersions.contains("3.5")) {
   apply from: file("$projectDir/v3.5/build.gradle")
 }

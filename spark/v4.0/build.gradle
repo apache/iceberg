@@ -39,6 +39,7 @@ configure(sparkProjects) {
 }
 
 project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
+  description = "Apache Spark ${sparkMajorVersion} integration for Apache Iceberg"
   apply plugin: 'scala'
   apply plugin: 'com.github.alisiikh.scalastyle'
 
@@ -122,6 +123,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 }
 
 project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}") {
+  description = "Spark SQL extensions for Apache Iceberg (Spark ${sparkMajorVersion})"
   apply plugin: 'java-library'
   apply plugin: 'scala'
   apply plugin: 'com.github.alisiikh.scalastyle'
@@ -191,6 +193,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 }
 
 project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}") {
+  description = "Shaded runtime bundle for Apache Iceberg and Spark ${sparkMajorVersion}"
   apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar

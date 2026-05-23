@@ -23,6 +23,7 @@ afterEvaluate {
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-events') {
+  description = 'Kafka Connect event types for Apache Iceberg'
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
@@ -37,6 +38,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-events') {
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect') {
+  description = 'Kafka Connect sink connector for Apache Iceberg'
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
@@ -259,6 +261,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
+  description = 'Kafka Connect Single Message Transforms for Apache Iceberg'
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation libs.bson

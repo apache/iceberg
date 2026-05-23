@@ -18,6 +18,7 @@
  */
 
 project(':iceberg-mr') {
+  description = 'MapReduce input/output format integration for Apache Iceberg'
   configurations {
     testImplementation {
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'

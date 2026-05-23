@@ -18,6 +18,7 @@
  */
 
 project(":iceberg-azure-bundle") {
+  description = 'Shaded Azure SDK dependency bundle for Apache Iceberg'
 
   apply plugin: 'com.gradleup.shadow'
 
