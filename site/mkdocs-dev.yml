@@ -71,6 +71,7 @@ nav:
         - Presto: https://prestodb.io/docs/current/connector/iceberg.html
         - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
         - RisingWave: integrations/risingwave.md
+        - LakeOps: https://lakeops.dev/docs
         - Ryft: https://docs.ryft.io/platform
         - Sail: https://docs.lakesail.com/sail/latest/guide/sources/iceberg
         - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
