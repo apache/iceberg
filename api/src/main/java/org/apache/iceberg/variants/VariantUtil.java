@@ -31,7 +31,36 @@ class VariantUtil {
   private static final int BASIC_TYPE_OBJECT = 2;
   private static final int BASIC_TYPE_ARRAY = 3;
 
+  /**
+   * Maximum permitted nesting depth of a Variant value. The top-level value is depth 0, so a
+   * Variant may contain up to {@code MAX_VARIANT_DEPTH} nested levels.
+   */
+  static final int MAX_VARIANT_DEPTH = 500;
+
   private VariantUtil() {}
+
+  static VariantValue fromBuffer(VariantMetadata metadata, ByteBuffer value, int depth) {
+    Preconditions.checkArgument(
+        depth <= MAX_VARIANT_DEPTH,
+        "Invalid variant: nesting depth %s exceeds maximum %s",
+        depth,
+        MAX_VARIANT_DEPTH);
+    Preconditions.checkArgument(value.remaining() >= 1, "Invalid variant: empty value buffer");
+    int header = readByte(value, 0);
+    BasicType basicType = basicType(header);
+    switch (basicType) {
+      case PRIMITIVE:
+        return SerializedPrimitive.from(value, header);
+      case SHORT_STRING:
+        return SerializedShortString.from(value, header);
+      case OBJECT:
+        return SerializedObject.from(metadata, value, header, depth);
+      case ARRAY:
+        return SerializedArray.from(metadata, value, header, depth);
+    }
+
+    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+  }
 
   /** A hacky absolute put for ByteBuffer */
   static int writeBufferAbsolute(ByteBuffer buffer, int offset, ByteBuffer toCopy) {
