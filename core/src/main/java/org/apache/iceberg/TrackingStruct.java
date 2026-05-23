@@ -256,19 +256,25 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
 
   /** Creates a builder for a newly added file in the given snapshot. */
   static Builder added(long snapshotId) {
-    return new Builder(EntryStatus.ADDED, snapshotId);
+    return new Builder(snapshotId);
   }
 
   /** Creates a builder for an existing file based on tracking read from a manifest. */
   static Builder existing(Tracking source) {
     Preconditions.checkArgument(source != null, "Invalid source tracking: null");
-    return new Builder(EntryStatus.EXISTING, source, source.snapshotId());
+    return new Builder(source);
   }
 
   /** Creates a builder for a deleted file in the given snapshot. */
   static Builder deleted(Tracking source, long snapshotId) {
     Preconditions.checkArgument(source != null, "Invalid source tracking: null");
     return new Builder(EntryStatus.DELETED, source, snapshotId);
+  }
+
+  /** Creates a builder for a replaced file in the given snapshot. */
+  static Builder replaced(Tracking source, long snapshotId) {
+    Preconditions.checkArgument(source != null, "Invalid source tracking: null");
+    return new Builder(EntryStatus.REPLACED, source, snapshotId);
   }
 
   @Override
@@ -295,53 +301,78 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     private byte[] deletedPositions;
     private byte[] replacedPositions;
 
-    private Builder(EntryStatus status, long snapshotId) {
-      this.status = status;
+    private Builder(long snapshotId) {
+      this.status = EntryStatus.ADDED;
       this.snapshotId = snapshotId;
       this.dataSequenceNumber = null;
       this.fileSequenceNumber = null;
       this.firstRowId = null;
+      this.deletedPositions = null;
+      this.replacedPositions = null;
+    }
+
+    private Builder(Tracking source) {
+      this(EntryStatus.EXISTING, source, source.snapshotId());
     }
 
     private Builder(EntryStatus status, Tracking source, Long snapshotId) {
       Preconditions.checkArgument(
           source.dataSequenceNumber() != null,
-          "Source tracking has no data sequence number; cannot mark as %s",
-          status);
+          "Invalid tracking source: data sequence number is null");
       Preconditions.checkArgument(
           source.fileSequenceNumber() != null,
-          "Source tracking has no file sequence number; cannot mark as %s",
-          status);
+          "Invalid tracking source: file sequence number is null");
+      checkStatus(source.status(), status);
       this.status = status;
       this.snapshotId = snapshotId;
       this.dataSequenceNumber = source.dataSequenceNumber();
       this.fileSequenceNumber = source.fileSequenceNumber();
       this.firstRowId = source.firstRowId();
       this.dvSnapshotId = source.dvSnapshotId();
-      ByteBuffer sourceDeleted = source.deletedPositions();
-      this.deletedPositions = sourceDeleted != null ? ByteBuffers.toByteArray(sourceDeleted) : null;
-      ByteBuffer sourceReplaced = source.replacedPositions();
-      this.replacedPositions =
-          sourceReplaced != null ? ByteBuffers.toByteArray(sourceReplaced) : null;
+      this.deletedPositions = null;
+      this.replacedPositions = null;
+    }
+
+    // TODO: extend allowed transitions once MODIFIED status is added.
+    private static void checkStatus(EntryStatus from, EntryStatus to) {
+      Preconditions.checkArgument(from != null, "Invalid tracking source: status is null");
+      Preconditions.checkArgument(
+          from == EntryStatus.ADDED || from == EntryStatus.EXISTING,
+          "Cannot transition from %s status",
+          from);
+      Preconditions.checkArgument(
+          to == EntryStatus.EXISTING || to == EntryStatus.DELETED || to == EntryStatus.REPLACED,
+          "Cannot transition to %s status",
+          to);
+      Preconditions.checkArgument(from != to, "Invalid status transition: %s -> %s", from, to);
     }
 
     Builder dvSnapshotId(long id) {
       Preconditions.checkState(
           status != EntryStatus.DELETED, "Cannot set dv snapshot ID on a DELETED entry");
+      Preconditions.checkState(
+          deletedPositions == null && replacedPositions == null,
+          "Cannot set dv snapshot ID with manifest delete vector positions");
       this.dvSnapshotId = id;
       return this;
     }
 
+    // TODO: revisit when MODIFIED status is added; MDV setters will need to handle MODIFIED.
     Builder deletedPositions(ByteBuffer positions) {
       Preconditions.checkState(
-          status != EntryStatus.DELETED, "Cannot set deleted positions on a DELETED entry");
+          status == EntryStatus.EXISTING, "Cannot set deleted positions on a %s entry", status);
+      Preconditions.checkState(
+          dvSnapshotId == null, "Cannot set deleted positions with dv snapshot ID");
       this.deletedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
       return this;
     }
 
+    // TODO: revisit when MODIFIED status is added; MDV setters will need to handle MODIFIED.
     Builder replacedPositions(ByteBuffer positions) {
       Preconditions.checkState(
-          status != EntryStatus.DELETED, "Cannot set replaced positions on a DELETED entry");
+          status == EntryStatus.EXISTING, "Cannot set replaced positions on a %s entry", status);
+      Preconditions.checkState(
+          dvSnapshotId == null, "Cannot set replaced positions with dv snapshot ID");
       this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
       return this;
     }
