@@ -118,6 +118,13 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
       exclude group: 'org.eclipse.jetty'
+      exclude group: 'org.glassfish.hk2.external'
+      exclude group: 'org.glassfish.hk2'
+      exclude group: 'org.glassfish.jaxb'
+      exclude group: 'org.glassfish.jersey.containers'
+      exclude group: 'org.glassfish.jersey.core'
+      exclude group: 'org.glassfish.jersey.inject'
+      exclude group: 'org.javassist', module: 'javassist'
     }
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')

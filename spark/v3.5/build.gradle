@@ -140,9 +140,9 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     }
     testRuntimeClasspath {
       resolutionStrategy {
-        force "org.apache.hadoop:hadoop-common:${libs.versions.hadoop3.previous.get()}"
-        force "org.apache.hadoop:hadoop-auth:${libs.versions.hadoop3.previous.get()}"
-        force "org.apache.hadoop:hadoop-annotations:${libs.versions.hadoop3.previous.get()}"
+        force "org.apache.hadoop:hadoop-common:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-auth:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-annotations:${libs.versions.hadoop3.spark35.get()}"
       }
     }
   }
@@ -230,9 +230,9 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
     integrationRuntimeClasspath {
       resolutionStrategy {
-        force "org.apache.hadoop:hadoop-common:${libs.versions.hadoop3.previous.get()}"
-        force "org.apache.hadoop:hadoop-auth:${libs.versions.hadoop3.previous.get()}"
-        force "org.apache.hadoop:hadoop-annotations:${libs.versions.hadoop3.previous.get()}"
+        force "org.apache.hadoop:hadoop-common:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-auth:${libs.versions.hadoop3.spark35.get()}"
+        force "org.apache.hadoop:hadoop-annotations:${libs.versions.hadoop3.spark35.get()}"
       }
     }
   }

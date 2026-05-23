@@ -538,6 +538,32 @@ License: MIT
 
 --------------------------------------------------------------------------------
 
+This product bundles MSAL4J Persistence Extension.
+
+Project URL: https://github.com/AzureAD/microsoft-authentication-library-for-java
+License: MIT
+| Copyright (c) Microsoft Corporation. All rights reserved.
+|
+| Permission is hereby granted, free of charge, to any person obtaining a copy
+| of this software and associated documentation files (the "Software"), to deal
+| in the Software without restriction, including without limitation the rights
+| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+| copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions:
+|
+| The above copyright notice and this permission notice shall be included in all
+| copies or substantial portions of the Software.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+| SOFTWARE
+
+--------------------------------------------------------------------------------
+
 This product bundles Nimbus Content Type.
 
 Project URL: https://bitbucket.org/connect2id/nimbus-content-type
@@ -563,13 +589,6 @@ This product bundles Nimbus OAuth2 OIDC SDK.
 
 Project URL: https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles JAXB.
-
-Project URL: http://jaxb.java.net/
-License: CDDL 1.1 - https://glassfish.java.net/public/CDDL+GPL_1_1.html
 
 --------------------------------------------------------------------------------
 
@@ -749,44 +768,10 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Jakarta Activation API.
+This product bundles Jakarta Server Pages API.
 
-Project URL: https://www.eclipse.org
+Project URL: https://projects.eclipse.org/projects/ee4j.jsp
 License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
-
---------------------------------------------------------------------------------
-
-This product bundles Javax Annotation API.
-
-Project URL: https://javaee.github.io/glassfish
-License: CDDL 1.1 - https://github.com/javaee/javax.annotation/blob/master/LICENSE
-
---------------------------------------------------------------------------------
-
-This product bundles Javax Servlet API.
-
-Project URL: http://servlet-spec.java.net
-License: CDDL 1.1 - https://glassfish.dev.java.net/nonav/public/CDDL+GPL.html
-
---------------------------------------------------------------------------------
-
-This product bundles Javax Servlet JSP.
-
-Project URL: https://github.com/javaee/javaee-jsp-api
-License: CDDL 1.1 - https://github.com/javaee/javaee-jsp-api/blob/master/LICENSE
-
---------------------------------------------------------------------------------
-
-This product bundles JAXB.
-
-Project URL: https://jaxb.dev.java.net/
-License: CDDL 1.1 - https://glassfish.dev.java.net/public/CDDL+GPL_1_1.html
-
---------------------------------------------------------------------------------
-
-This product bundles Stax API.
-
-License: CDDL 1.0 - http://www.sun.com/cddl/cddl.html
 
 --------------------------------------------------------------------------------
 

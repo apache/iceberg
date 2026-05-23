@@ -1122,6 +1122,13 @@ project(':iceberg-open-api') {
       exclude group: 'org.xerial.snappy', module: 'snappy-java'
       exclude group: 'commons-cli', module: 'commons-cli'
       exclude group: 'com.github.pjfanning', module: 'jersey-json'
+      exclude group: 'org.glassfish.hk2.external'
+      exclude group: 'org.glassfish.hk2'
+      exclude group: 'org.glassfish.jaxb'
+      exclude group: 'org.glassfish.jersey.containers'
+      exclude group: 'org.glassfish.jersey.core'
+      exclude group: 'org.glassfish.jersey.inject'
+      exclude group: 'org.javassist', module: 'javassist'
     }
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testFixturesImplementation libs.junit.jupiter
