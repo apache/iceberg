@@ -178,17 +178,7 @@ public class AzureProperties implements Serializable {
         builder.credential(
             new StorageSharedKeyCredential(namedKeyCreds.getKey(), namedKeyCreds.getValue()));
       } else if (token != null && !token.isEmpty()) {
-        // Use TokenCredential with the provided token
-        TokenCredential tokenCredential =
-            new TokenCredential() {
-              @Override
-              public Mono<AccessToken> getToken(TokenRequestContext request) {
-                // Assume the token is valid for 1 hour from the current time
-                return Mono.just(
-                    new AccessToken(token, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
-              }
-            };
-        builder.credential(tokenCredential);
+        builder.credential(tokenCredential(token));
       } else {
         AdlsTokenCredentialProvider credentialProvider =
             AdlsTokenCredentialProviders.from(allProperties);
@@ -211,5 +201,39 @@ public class AzureProperties implements Serializable {
 
   public Optional<String> keyVaultUrl() {
     return Optional.ofNullable(this.keyVaultUrl);
+  }
+
+  /**
+   * Returns the credential to use when authenticating to Azure Key Vault, derived only from
+   * credentials explicitly supplied through configuration: a catalog-vended {@link #ADLS_TOKEN}
+   * bearer token, or an explicitly configured {@link #ADLS_TOKEN_CREDENTIAL_PROVIDER}.
+   *
+   * <p>Ambient credentials such as {@link com.azure.identity.DefaultAzureCredential} are
+   * intentionally not used for Key Vault: combined with a misconfigured or malicious vault URL they
+   * could be used to exfiltrate the client's ambient identity. The supplied token must be scoped
+   * for Key Vault (for the public cloud, {@code https://vault.azure.net}).
+   *
+   * @return the configured Key Vault token credential, or empty if none was supplied
+   */
+  public Optional<TokenCredential> keyVaultTokenCredential() {
+    if (token != null && !token.isEmpty()) {
+      return Optional.of(tokenCredential(token));
+    }
+
+    if (allProperties.containsKey(ADLS_TOKEN_CREDENTIAL_PROVIDER)) {
+      return Optional.of(AdlsTokenCredentialProviders.from(allProperties).credential());
+    }
+
+    return Optional.empty();
+  }
+
+  private static TokenCredential tokenCredential(String token) {
+    return new TokenCredential() {
+      @Override
+      public Mono<AccessToken> getToken(TokenRequestContext request) {
+        // Assume the token is valid for 1 hour from the current time
+        return Mono.just(new AccessToken(token, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
+      }
+    };
   }
 }
