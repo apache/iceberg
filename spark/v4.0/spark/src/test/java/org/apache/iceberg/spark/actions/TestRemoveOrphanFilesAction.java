@@ -1026,7 +1026,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testCompareToFileListWithSiblingDirectory() throws IOException {
+  public void testCompareToFileListExcludesPathsOutsideLocationScope() throws IOException {
     assumeThat(usePrefixListing)
         .as("Should not test both prefix listing and Hadoop file listing (redundant)")
         .isEqualTo(false);
@@ -1038,9 +1038,13 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     // Production storage URIs like "s3://bucket/table" typically have no trailing separator,
-    // which is the shape that previously allowed sibling prefixes to fall into scope.
+    // which is the shape that previously let out-of-scope paths fall into scope.
     String scopedLocation = tableLocation.substring(0, tableLocation.length() - 1);
+    // Case 1 - a sibling directory sharing the location's prefix (".../table-orphan-sibling/...").
     String siblingFilePath = scopedLocation + "-orphan-sibling/data.parquet";
+    // Case 2 - a path equal to the location itself (".../table"): the new trailing-separator
+    // prefix excludes it, whereas the previous raw startsWith(location) filter kept it in scope.
+    String exactLocationFilePath = scopedLocation;
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
@@ -1056,6 +1060,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     List<FilePathLastModifiedRecord> fileList = Lists.newArrayList(validFiles);
     fileList.add(new FilePathLastModifiedRecord(siblingFilePath, new Timestamp(0L)));
+    fileList.add(new FilePathLastModifiedRecord(exactLocationFilePath, new Timestamp(0L)));
 
     waitUntilAfter(System.currentTimeMillis());
 
@@ -1078,6 +1083,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations())
         .as("Sibling prefix must not fall inside the location scope")
         .doesNotContain(siblingFilePath);
+    assertThat(result.orphanFileLocations())
+        .as("A path equal to the location is excluded by the trailing-separator prefix")
+        .doesNotContain(exactLocationFilePath);
     assertThat(result.orphanFileLocations())
         .as("Valid files are known to the table; nothing should be reported as orphan")
         .isEmpty();
