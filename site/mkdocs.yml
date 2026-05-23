@@ -48,7 +48,8 @@ theme:
     - content.code.annotate
 
 hooks:
-  # Symlinks docs/<version>/ to docs/latest/ so both URLs resolve.
+  # Post-build: symlink docs/latest -> docs/<icebergVersion> in the site output,
+  # so /docs/latest/... resolves to the current release's docs.
   - hooks/version_alias.py
 
 plugins:

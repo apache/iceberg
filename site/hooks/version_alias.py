@@ -16,11 +16,10 @@
 # under the License.
 
 """
-MkDocs hook: version URL alias.
+MkDocs hook: latest URL alias.
 
-Creates a symlink so that /docs/<icebergVersion>/ resolves to /docs/latest/.
-This allows version-specific URLs (e.g. /docs/1.11.0/) to work without
-duplicating the navigation entry for the latest version.
+The canonical built directory for the current release is /docs/<icebergVersion>/.
+This hook creates /docs/latest/ as a symlink to it so both URLs resolve.
 """
 
 import logging
@@ -30,22 +29,24 @@ log = logging.getLogger("mkdocs.hooks.version_alias")
 
 
 def on_post_build(config):
-    version = config["extra"].get("icebergVersion")
+    version = config.get("extra", {}).get("icebergVersion")
     if not version:
+        log.warning("extra.icebergVersion is not set; skipping docs/latest alias")
         return
 
     site_dir = Path(config["site_dir"])
-    latest_dir = site_dir / "docs" / "latest"
-    version_link = site_dir / "docs" / version
+    version_dir = site_dir / "docs" / version
+    latest_link = site_dir / "docs" / "latest"
 
-    if not latest_dir.exists():
-        log.warning("docs/latest not found in site output; skipping version alias")
+    if not version_dir.exists():
+        log.warning("docs/%s not found in site output; skipping latest alias", version)
         return
 
-    # Remove stale symlink if the version changed between rebuilds
-    if version_link.is_symlink():
-        version_link.unlink()
+    if latest_link.is_symlink():
+        latest_link.unlink()
+    elif latest_link.exists():
+        log.warning("docs/latest exists as a real path; refusing to replace")
+        return
 
-    if not version_link.exists():
-        version_link.symlink_to("latest")
-        log.info("Created version alias: docs/%s -> docs/latest", version)
+    latest_link.symlink_to(version)
+    log.info("Created latest alias: docs/latest -> docs/%s", version)

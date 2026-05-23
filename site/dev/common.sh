@@ -103,33 +103,16 @@ get_latest_version () {
   echo "${latest_version}"
 }
 
-# Creates a 'latest' version of the documentation based on a specified ICEBERG_VERSION.
+# Sets up the 'latest' javadoc symlink pointing at ICEBERG_VERSION.
 # Arguments:
-#   $1: ICEBERG_VERSION - The version number of the documentation to be treated as the latest.
-create_latest () {
+#   $1: ICEBERG_VERSION - The version number to expose as 'latest'.
+create_latest_javadoc_symlink () {
   local ICEBERG_VERSION="$1"
 
   # Ensure ICEBERG_VERSION is not empty
   assert_not_empty "${ICEBERG_VERSION}"
 
-  echo " --> create latest from ${ICEBERG_VERSION}"
-
-  # Output the provided ICEBERG_VERSION for verification
-  echo "${ICEBERG_VERSION}"  
-
-  # Remove any existing 'latest' directory and recreate it
-  rm -rf versioned-docs/latest/
-  mkdir versioned-docs/latest/
-
-  # Create symbolic links and copy configuration files for the 'latest' documentation
-  ln -s "../${ICEBERG_VERSION}/docs" versioned-docs/latest/docs
-  cp "versioned-docs/${ICEBERG_VERSION}/mkdocs.yml" versioned-docs/latest/
-
-  cd versioned-docs/
-
-  # Update version information within the 'latest' documentation
-  update_version "latest"  
-  cd -
+  echo " --> create latest javadoc symlink from ${ICEBERG_VERSION}"
 
   # Remove any javadoc 'latest' symbolic link
   rm -rf docs/javadoc/latest
@@ -200,10 +183,10 @@ pull_versioned_docs () {
     git worktree add -f docs/javadoc "${javadoc_branch}"
   fi
   
-  # Create the 'latest' version of documentation
-  create_latest "${latest_version}"
+  # Create the 'latest' javadoc symlink
+  create_latest_javadoc_symlink "${latest_version}"
 
-  # Create the 'nightly' version of documentation
+  # Create the 'nightly' docs source and javadoc symlinks
   create_nightly
 }
 
