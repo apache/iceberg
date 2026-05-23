@@ -207,6 +207,10 @@ They should have the following key-value tags.
 | dataFilesSizeHistogram    | Histogram  | Histogram distribution of data file sizes (in bytes).                                               |
 | deleteFilesSizeHistogram  | Histogram  | Histogram distribution of delete file sizes (in bytes).                                             |
 
+The `Histogram` metrics above require `org.apache.flink:flink-metrics-dropwizard` on the classpath,
+which is not shipped by Flink by default. Please add this artifact to your classpath to see histogram metrics.
+If not present, histogram metrics will be missing. All other metric types will continue to get published.
+
 Committer metrics are added under the sub group of `IcebergFilesCommitter`.
 They should have the following key-value tags.
 
@@ -546,6 +550,8 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
 | `tableCreator(TableCreator creator)` | When DynamicIcebergSink creates new Iceberg tables, allows overriding how tables are created - setting custom table properties and location based on the table name. |
 | `dropUnusedColumns(boolean enabled)`                 | When enabled, drops all columns from the current table schema which are not contained in the input schema (see the caveats above on dropping columns).                  |
+| `shuffleSinkSlotSharingGroup(String ssg)`            | Name of the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the shuffle sink. Register the group with its resource spec on the `StreamExecutionEnvironment` via `env.registerSlotSharingGroup(...)`. |
+| `generatorSlotSharingGroup(String ssg)`              | Name of the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the generator (and forward sink chained to it). Register the group with its resource spec on the `StreamExecutionEnvironment` via `env.registerSlotSharingGroup(...)`. |
 
 ### Distribution Modes
 

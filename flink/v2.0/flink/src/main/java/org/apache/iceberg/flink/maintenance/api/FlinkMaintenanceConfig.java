@@ -23,7 +23,6 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkConfParser;
 
@@ -60,7 +59,7 @@ public class FlinkMaintenanceConfig {
   public static final ConfigOption<String> SLOT_SHARING_GROUP_OPTION =
       ConfigOptions.key(SLOT_SHARING_GROUP)
           .stringType()
-          .defaultValue(StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP)
+          .noDefaultValue()
           .withDescription(
               "The slot sharing group for maintenance tasks. "
                   + "Determines which operators can share slots in the Flink execution environment.");
@@ -114,8 +113,7 @@ public class FlinkMaintenanceConfig {
         .stringConf()
         .option(SLOT_SHARING_GROUP)
         .flinkConfig(SLOT_SHARING_GROUP_OPTION)
-        .defaultValue(SLOT_SHARING_GROUP_OPTION.defaultValue())
-        .parse();
+        .parseOptional();
   }
 
   public RewriteDataFilesConfig createRewriteDataFilesConfig() {

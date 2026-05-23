@@ -61,6 +61,13 @@ public class TestColumnStatsWatermarkExtractor {
           required(3, "long_column", Types.LongType.get()),
           required(4, "string_column", Types.StringType.get()));
 
+  // Separate schema for nanosecond columns: TIMESTAMP_NANO requires table format v3, which the
+  // HadoopTableExtension above does not provision. Tested via constructor preconditions only.
+  private static final Schema NANO_SCHEMA =
+      new Schema(
+          required(1, "timestamp_ns_column", Types.TimestampNanoType.withoutZone()),
+          required(2, "timestamptz_ns_column", Types.TimestampNanoType.withZone()));
+
   private static final List<List<Record>> TEST_RECORDS =
       ImmutableList.of(
           RandomGenericData.generate(SCHEMA, 3, 2L), RandomGenericData.generate(SCHEMA, 3, 19L));
@@ -147,7 +154,17 @@ public class TestColumnStatsWatermarkExtractor {
     assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Found STRING, expected a LONG or TIMESTAMP column for watermark generation.");
+            "Found STRING, expected a LONG, TIMESTAMP, or TIMESTAMP_NANO column for watermark generation.");
+  }
+
+  @TestTemplate
+  public void testTimestampNanoAccepted() {
+    // Run the precondition check exactly once across the parameterized matrix.
+    assumeThat(columnName).isEqualTo("timestamp_column");
+
+    // Both flavours of TIMESTAMP_NANO must be accepted by the extractor's precondition check.
+    new ColumnStatsWatermarkExtractor(NANO_SCHEMA, "timestamp_ns_column", null);
+    new ColumnStatsWatermarkExtractor(NANO_SCHEMA, "timestamptz_ns_column", null);
   }
 
   @TestTemplate
