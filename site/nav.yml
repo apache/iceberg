@@ -86,6 +86,7 @@ nav:
         - Nimtable: https://github.com/nimtable/nimtable
         - OLake: https://olake.io/docs
         - Presto: https://prestodb.io/docs/current/connector/iceberg.html
+        - QueryFlux: https://github.com/lakeops-org/queryflux
         - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
         - RisingWave: integrations/risingwave.md
         - Ryft: https://docs.ryft.io/platform
