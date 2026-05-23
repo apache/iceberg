@@ -67,7 +67,7 @@ The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/doc
  1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documentation source files (`/docs`) during release. These versions are mounted at the `/site/versioned-docs/<version>` directory at build time.
  1. [`javadoc`](https://github.com/apache/iceberg/tree/javadoc) - contains prior statically generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` directory at  build time.
 
-The current release is built directly from `versioned-docs/<icebergVersion>` (where `icebergVersion` is set in `mkdocs.yml`). The `/docs/latest/` URL is created post-build as a copy of `/docs/<icebergVersion>/` by [`hooks/version_alias.py`](hooks/version_alias.py), so both URLs resolve. A real copy (not a symlink) is required because `mkdocs gh-deploy` runs ghp-import with `followlinks=False`, which silently drops symlinked directories from the published `asf-site` branch. The `nightly` version is a soft link to the current local state of the `/docs` markdown files.
+The current release is built directly from `versioned-docs/<icebergVersion>` (where `icebergVersion` is set in `mkdocs.yml`). The `/docs/latest/` URL is created post-build as a copy of `/docs/<icebergVersion>/` by [`hooks/version_alias.py`](hooks/version_alias.py), so both URLs resolve. The `nightly` version is a soft link to the current local state of the `/docs` markdown files.
 
 The site search index is restricted to the current release by [`hooks/search_index_current_version_only.py`](hooks/search_index_current_version_only.py), so prior versions and nightly docs do not appear in search results.
 

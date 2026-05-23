@@ -48,10 +48,7 @@ theme:
     - content.code.annotate
 
 hooks:
-  # Post-build: copy docs/<icebergVersion>/ to docs/latest/ in the site output,
-  # so /docs/latest/... resolves to the current release's docs. A real copy is
-  # required because `mkdocs gh-deploy` runs ghp-import with followlinks=False,
-  # which silently drops symlinked directories from the published asf-site branch.
+  # Post-build: copy docs/<icebergVersion>/ to docs/latest/ so both URLs resolve.
   - hooks/version_alias.py
   # Restrict the search index to docs/<icebergVersion>/ and top-level pages;
   # all other docs/<segment>/ pages (nightly, prior releases) are excluded.
