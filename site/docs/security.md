@@ -27,6 +27,19 @@ responded.
 
 To report a possible security vulnerability, please email <a href="mailto:security@iceberg.apache.org">security@iceberg.apache.org</a>.
 
+# Security Model
+
+Apache Iceberg is a table format and a set of libraries and integrations used inside larger systems such as catalogs, query engines, and services.
+In most deployments, the primary trust and authorization boundaries are enforced by the surrounding catalog, engine, service, operator configuration, and storage-level authorization rather than by Iceberg alone.
+
+Iceberg security issues generally include secret or credential disclosure to a newly reachable audience, and other cases where Iceberg itself creates a new unauthorized capability rather than merely reflecting the trust decisions of a catalog, engine, or operator.
+
+Many other issues may still be valid bugs, but are not normally considered security vulnerabilities in Iceberg.
+This includes robustness issues such as malformed-input crashes or memory exhaustion, as well as issues that require a malicious catalog, metastore, or other external service.
+
+Potential vulnerabilities that fall within this security model should be reported privately using the process above.
+Other bugs and hardening issues should be reported through the public issue tracker.
+
 # Verifying Signed Releases
 
 Please refer to the instructions on the [Release Verification](https://www.apache.org/info/verification.html) page.

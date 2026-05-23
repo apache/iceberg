@@ -21,6 +21,10 @@
 
 Project conventions, architecture, and coding patterns synthesized from 58,000+ review comments across 4,300+ merged PRs.
 
+## Security Model
+
+When assessing potential vulnerabilities or calibrating automated security findings, use the public security model in [`site/docs/security.md`](site/docs/security.md) as the authoritative description of Iceberg's security boundaries and non-boundaries.
+
 ## Architecture
 
 ### Module Boundaries
