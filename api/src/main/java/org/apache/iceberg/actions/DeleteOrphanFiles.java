@@ -35,10 +35,15 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   /**
    * Passes a location which should be scanned for orphan files.
    *
+   * <p>The location is interpreted as a directory: only files contained within that directory
+   * subtree are considered. Files that merely share the location's path prefix without being nested
+   * under it (for example a sibling directory such as {@code .../table-backup} relative to a {@code
+   * .../table} location, or the location path itself) are out of scope.
+   *
    * <p>If not set, the root table location will be scanned potentially removing both orphan data
    * and metadata files.
    *
-   * @param location the location where to look for orphan files
+   * @param location the root directory under which to look for orphan files
    * @return this for method chaining
    */
   DeleteOrphanFiles location(String location);
