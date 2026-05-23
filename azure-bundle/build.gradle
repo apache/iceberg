@@ -46,6 +46,10 @@ project(":iceberg-azure-bundle") {
       include 'NOTICE'
     }
 
+    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'
