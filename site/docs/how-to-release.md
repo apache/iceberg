@@ -362,7 +362,7 @@ Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12
 to update the following files for the new release:
 
 - `site/mkdocs.yml` — bump `extra.icebergVersion` to the new release. This value drives
-  both the `docs/latest/` symlink (via `site/hooks/version_alias.py`) and the search-index
+  both the `docs/latest/` copy (via `site/hooks/version_alias.py`) and the search-index
   filter (via `site/hooks/search_index_current_version_only.py`).
 - `site/nav.yml` — update the `Latest (x.y.z)` label and the
   `!include versioned-docs/<version>/mkdocs.yml` path, and move the prior version into the

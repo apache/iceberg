@@ -19,10 +19,15 @@
 MkDocs hook: latest URL alias.
 
 The canonical built directory for the current release is /docs/<icebergVersion>/.
-This hook creates /docs/latest/ as a symlink to it so both URLs resolve.
+This hook copies it to /docs/latest/ so both URLs resolve.
+
+A real copy (not a symlink) is required because `mkdocs gh-deploy` invokes
+ghp-import with its default `followlinks=False`, which silently drops
+symlinked directories from the published `asf-site` branch.
 """
 
 import logging
+import shutil
 from pathlib import Path
 
 log = logging.getLogger("mkdocs.hooks.version_alias")
@@ -36,17 +41,16 @@ def on_post_build(config):
 
     site_dir = Path(config["site_dir"])
     version_dir = site_dir / "docs" / version
-    latest_link = site_dir / "docs" / "latest"
+    latest_dir = site_dir / "docs" / "latest"
 
     if not version_dir.exists():
         log.warning("docs/%s not found in site output; skipping latest alias", version)
         return
 
-    if latest_link.is_symlink():
-        latest_link.unlink()
-    elif latest_link.exists():
-        log.warning("docs/latest exists as a real path; refusing to replace")
-        return
+    if latest_dir.is_symlink() or latest_dir.is_file():
+        latest_dir.unlink()
+    elif latest_dir.is_dir():
+        shutil.rmtree(latest_dir)
 
-    latest_link.symlink_to(version)
-    log.info("Created latest alias: docs/latest -> docs/%s", version)
+    shutil.copytree(version_dir, latest_dir, symlinks=False)
+    log.info("Created latest alias: docs/latest (copy of docs/%s)", version)

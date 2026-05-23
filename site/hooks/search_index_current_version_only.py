@@ -20,8 +20,8 @@ MkDocs hook: keep only the current version's docs in the search index.
 
 Excludes every page under ``docs/<segment>/`` where ``<segment>`` is not the
 current ``extra.icebergVersion``. Top-level site pages (community, blog, etc.)
-remain indexed. The ``docs/latest`` alias is a post-build symlink and produces
-no pages of its own.
+remain indexed. The ``docs/latest`` alias is created post-build (after the
+search index is built) and produces no pages of its own.
 """
 
 import logging
