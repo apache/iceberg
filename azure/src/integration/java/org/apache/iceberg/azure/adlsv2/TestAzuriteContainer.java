@@ -58,14 +58,16 @@ public class TestAzuriteContainer {
   @Test
   public void rethrowsLastFailureAfterExhaustingAttempts() {
     AtomicInteger calls = new AtomicInteger();
+    ContainerFetchException fetchFailure =
+        new ContainerFetchException("transient", new RuntimeException("404"));
     Runnable start =
         () -> {
           calls.incrementAndGet();
-          throw new ContainerFetchException("always", new RuntimeException("404"));
+          throw fetchFailure;
         };
 
     assertThatThrownBy(() -> AzuriteContainer.startWithRetry(start, MAX_ATTEMPTS, Duration.ZERO))
-        .isInstanceOf(ContainerFetchException.class);
+        .isSameAs(fetchFailure);
     assertThat(calls.get()).isEqualTo(MAX_ATTEMPTS);
   }
 
