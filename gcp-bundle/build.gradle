@@ -52,6 +52,10 @@ project(":iceberg-gcp-bundle") {
       include 'NOTICE'
     }
 
+    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+
     // relocate GCP-specific versions
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.gcp.shaded.com.fasterxml.jackson'
     relocate 'com.google.common', 'org.apache.iceberg.gcp.shaded.com.google.common'

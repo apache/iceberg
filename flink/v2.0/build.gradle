@@ -235,6 +235,10 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       include 'NOTICE'
     }
 
+    // exclude dependency-provided LICENSE/NOTICE files in favor of the bundled Iceberg ones
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
