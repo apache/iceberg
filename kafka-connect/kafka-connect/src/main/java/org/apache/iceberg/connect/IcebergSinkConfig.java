@@ -65,8 +65,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String WRITE_PROP_PREFIX = "iceberg.tables.write-props.";
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
-  private static final String TOPIC_TO_TABLE_MAP_PROP =
-      "iceberg.tables.topic-to-table-map";
+  private static final String TOPIC_TO_TABLE_MAP_PROP = "iceberg.tables.topic-to-table-map";
   private static final String TABLES_PROP = "iceberg.tables";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
