@@ -158,14 +158,19 @@ public abstract class TestBase extends SparkTestHelperBase {
   }
 
   private void move(String location, String newLocation) {
-    Path path = Paths.get(URI.create(location));
-    Path tempPath = Paths.get(URI.create(newLocation));
+    Path path = toPath(location);
+    Path tempPath = toPath(newLocation);
 
     try {
       Files.move(path, tempPath);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to move: " + location, e);
     }
+  }
+
+  private static Path toPath(String location) {
+    URI uri = URI.create(location);
+    return uri.getScheme() != null ? Paths.get(uri) : Paths.get(location);
   }
 
   protected void withUnavailableLocations(Iterable<String> locations, Action action) {
