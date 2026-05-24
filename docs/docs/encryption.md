@@ -28,7 +28,7 @@ Currently, encryption is supported in the Hive and REST catalogs for tables with
 
 Two parameters are required to activate encryption of a table:
 
-1. Catalog property `encryption.kms-impl`, that specifies the class path for a client of a KMS ("key management service").
+1. Catalog property that specifies the KMS ("key management service"). It can be either `encryption.kms-type` for pre-defined KMS clients (`aws`, `azure` or `gcp`) or `encryption.kms-impl` with the client class path for custom KMS clients.
 2. Table property `encryption.key-id`, that specifies the ID of a master key used to encrypt and decrypt the table. Master keys are stored and managed in the KMS.
 
 For more details on table encryption, see the "Appendix: Internals Overview" [subsection](#appendix-internals-overview).
@@ -42,7 +42,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMaj
     --conf spark.sql.catalog.spark_catalog.type=hive \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.local.type=hive \
-    --conf spark.sql.catalog.local.encryption.kms-impl=org.apache.iceberg.aws.AwsKeyManagementClient
+    --conf spark.sql.catalog.local.encryption.kms-type=aws
 ```
 
 ```sql

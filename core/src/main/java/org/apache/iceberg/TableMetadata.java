@@ -57,6 +57,7 @@ public class TableMetadata implements Serializable {
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 4;
   static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
+  static final int MIN_FORMAT_VERSION_PARQUET_MANIFESTS = 4;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
@@ -1250,7 +1251,7 @@ public class TableMetadata implements Serializable {
           "Snapshot already exists for id: %s",
           snapshot.snapshotId());
 
-      ValidationException.check(
+      RetryableValidationException.check(
           formatVersion == 1
               || snapshot.sequenceNumber() > lastSequenceNumber
               || snapshot.parentId() == null,
@@ -1266,7 +1267,7 @@ public class TableMetadata implements Serializable {
       if (formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE) {
         ValidationException.check(
             snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
-        ValidationException.check(
+        RetryableValidationException.check(
             snapshot.firstRowId() != null && snapshot.firstRowId() >= nextRowId,
             "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
             snapshot.firstRowId(),

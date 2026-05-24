@@ -57,6 +57,17 @@ There are several exceptions to a single committer being able to merge a PR:
 * Behavioral and functional changes to a specification must go through the [Iceberg improvement proposal](#apache-iceberg-improvement-proposals) before any code can be merged.
 * Changes to files under the `format` directory and `open-api/rest-catalog*` are considered specification changes. Unless already covered under an Iceberg improvement proposal, specification changes require their own vote (e.g. bug fixes or specification clarifications). The vote follows the ASF [code modification](https://www.apache.org/foundation/voting.html#votes-on-code-modification) model and no lazy consensus modifier. Grammar, spelling and minor formatting fixes are exempted from this rule. Draft specifications (new independent specifications that are going through the Iceberg improvement process) do not require a vote but authors should provide notice on the developer mailing list about substantive changes (the final draft will be subject to a vote).
 
+### Guidelines for AI-assisted Contributions
+
+The Iceberg community welcomes contributions that are created or assisted by AI tools (e.g., large language models or code assistants). Contributors using such tools are expected to adhere to the following principles:
+
+* The PR author should **understand the core ideas** behind the implementation **end-to-end**, and be able to justify the design and code during review.
+* PR titles, commit messages, and code must align with the style, tone, and level of detail used in the existing Iceberg codebase.
+* Use AI for acceleration, then verify. Treat AI output as a draft for code, tests, or docs; run linters/tests and review the logic yourself.
+* Be transparent about AI usage and uncertainties. Disclose if AI was used (e.g., draft, refactoring, test scaffolding) and call out any areas of uncertainty or assumptions, especially regarding complex logic, concurrency, or internal APIs, so reviewers can focus on them.
+* **Respect ASF policy**. Ensure generated content does not introduce incompatible licenses or undisclosed third-party code; review the [ASF Generative Tooling Guidance](https://www.apache.org/legal/generative-tooling.html) and licensing rules when in doubt.
+* If you are filing a security report based on AI assisted scanning, please verify that the issue is reproducible and clearly document the steps to reproduce it before submitting. Security reports can be time-consuming for maintainers to examine and triage, so thorough, well-documented reports help ensure they are addressed efficiently.
+
 ## Apache Iceberg Improvement Proposals
 
 ### What is an improvement proposal?
@@ -95,12 +106,12 @@ settle disagreements or to force a decision.
 
 ## Building the Project Locally
 
-Iceberg is built using Gradle with Java 11, 17, or 21.
+Iceberg is built using Gradle with Java 17 or 21.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
 * To fix code style: `./gradlew spotlessApply`
-* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.4,3.5 -DflinkVersions=1.14`
+* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.5,4.0 -DflinkVersions=1.20,2.0`
 
 Iceberg table support is organized in library modules:
 
@@ -179,7 +190,7 @@ being difficult to orchestrate, it is up to the committers to decide if deprecat
 All interfaces, classes, and methods targeted for deprecation must include the following:
 
 1. `@Deprecated` annotation on the appropriate element
-2. `@depreceted` javadoc comment including: the version for removal, the appropriate alternative for usage
+2. `@deprecated` javadoc comment including: the version for removal, the appropriate alternative for usage
 3. Replacement of existing code paths that use the deprecated behavior
 
 Example:
@@ -268,7 +279,7 @@ Execution failed for task ':iceberg-api:revapi'.
 
 ### Adding a default implementation
 
-To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:`
+To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:
 
 ```java
 public interface ManageSnapshots extends PendingUpdate<Snapshot> {
@@ -418,7 +429,7 @@ Use `this` when assigning values to instance variables, making it clear when the
 #### Config naming
 
 1. Use `-` to link words in one concept
-    * For example, preferred convection `access-key-id` rather than `access.key.id`
+    * For example, preferred convention `access-key-id` rather than `access.key.id`
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
 

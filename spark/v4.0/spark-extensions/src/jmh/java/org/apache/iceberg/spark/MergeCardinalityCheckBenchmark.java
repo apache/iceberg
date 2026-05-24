@@ -155,7 +155,7 @@ public class MergeCardinalityCheckBenchmark {
   private void setupSpark() {
     this.spark =
         SparkSession.builder()
-            .config("spark.ui.enabled", false)
+            .config(TestBase.DISABLE_UI)
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName())
             .config("spark.sql.catalog.spark_catalog.type", "hadoop")

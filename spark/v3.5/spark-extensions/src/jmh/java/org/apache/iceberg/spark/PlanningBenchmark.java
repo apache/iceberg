@@ -215,7 +215,7 @@ public class PlanningBenchmark {
   private void setupSpark() {
     this.spark =
         SparkSession.builder()
-            .config("spark.ui.enabled", false)
+            .config(TestBase.DISABLE_UI)
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config("spark.driver.maxResultSize", "8G")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())

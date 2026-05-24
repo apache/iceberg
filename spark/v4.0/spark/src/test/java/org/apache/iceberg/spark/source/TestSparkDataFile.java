@@ -60,6 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -126,6 +127,7 @@ public class TestSparkDataFile {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
     TestSparkDataFile.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
@@ -190,7 +192,8 @@ public class TestSparkDataFile {
     assertThat(manifests).hasSize(1);
 
     List<DataFile> dataFiles = Lists.newArrayList();
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       for (DataFile dataFile : reader) {
         checkDataFile(dataFile.copy(), DataFiles.builder(dataFilesSpec).copy(dataFile).build());
         dataFiles.add(dataFile.copy());

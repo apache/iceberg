@@ -33,20 +33,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.types.Types.LongType;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionMap;
@@ -66,106 +60,6 @@ public class PartitionStatsHandler {
   private PartitionStatsHandler() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsHandler.class);
-
-  // schema of the partition stats file as per spec
-  public static final int PARTITION_FIELD_ID = 1;
-  public static final String PARTITION_FIELD_NAME = "partition";
-  public static final NestedField SPEC_ID = NestedField.required(2, "spec_id", IntegerType.get());
-  public static final NestedField DATA_RECORD_COUNT =
-      NestedField.required(3, "data_record_count", LongType.get());
-  public static final NestedField DATA_FILE_COUNT =
-      NestedField.required(4, "data_file_count", IntegerType.get());
-  public static final NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
-      NestedField.required(5, "total_data_file_size_in_bytes", LongType.get());
-  public static final NestedField POSITION_DELETE_RECORD_COUNT =
-      NestedField.optional(6, "position_delete_record_count", LongType.get());
-  public static final NestedField POSITION_DELETE_FILE_COUNT =
-      NestedField.optional(7, "position_delete_file_count", IntegerType.get());
-  public static final NestedField EQUALITY_DELETE_RECORD_COUNT =
-      NestedField.optional(8, "equality_delete_record_count", LongType.get());
-  public static final NestedField EQUALITY_DELETE_FILE_COUNT =
-      NestedField.optional(9, "equality_delete_file_count", IntegerType.get());
-  public static final NestedField TOTAL_RECORD_COUNT =
-      NestedField.optional(10, "total_record_count", LongType.get());
-  public static final NestedField LAST_UPDATED_AT =
-      NestedField.optional(11, "last_updated_at", LongType.get());
-  public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
-      NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
-  // Using default value for v3 field to support v3 reader reading file written by v2
-  public static final NestedField DV_COUNT =
-      NestedField.required("dv_count")
-          .withId(13)
-          .ofType(Types.IntegerType.get())
-          .withInitialDefault(Literal.of(0))
-          .withWriteDefault(Literal.of(0))
-          .build();
-
-  /**
-   * Generates the partition stats file schema for a given format version based on a combined
-   * partition type which considers all specs in a table.
-   *
-   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
-   *     Partitioning#partitionType(Table)}.
-   * @return a schema that corresponds to the provided unified partition type.
-   */
-  public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
-    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
-    Preconditions.checkState(
-        formatVersion > 0 && formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
-        "Invalid format version: %d",
-        formatVersion);
-
-    if (formatVersion <= 2) {
-      return v2Schema(unifiedPartitionType);
-    }
-
-    return v3Schema(unifiedPartitionType);
-  }
-
-  private static Schema v2Schema(StructType unifiedPartitionType) {
-    return new Schema(
-        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
-        POSITION_DELETE_RECORD_COUNT,
-        POSITION_DELETE_FILE_COUNT,
-        EQUALITY_DELETE_RECORD_COUNT,
-        EQUALITY_DELETE_FILE_COUNT,
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID);
-  }
-
-  private static Schema v3Schema(StructType unifiedPartitionType) {
-    return new Schema(
-        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
-        NestedField.required(
-            POSITION_DELETE_RECORD_COUNT.fieldId(),
-            POSITION_DELETE_RECORD_COUNT.name(),
-            LongType.get()),
-        NestedField.required(
-            POSITION_DELETE_FILE_COUNT.fieldId(),
-            POSITION_DELETE_FILE_COUNT.name(),
-            IntegerType.get()),
-        NestedField.required(
-            EQUALITY_DELETE_RECORD_COUNT.fieldId(),
-            EQUALITY_DELETE_RECORD_COUNT.name(),
-            LongType.get()),
-        NestedField.required(
-            EQUALITY_DELETE_FILE_COUNT.fieldId(),
-            EQUALITY_DELETE_FILE_COUNT.name(),
-            IntegerType.get()),
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID,
-        DV_COUNT);
-  }
 
   /**
    * Computes the stats incrementally after the snapshot that has partition stats file till the
@@ -208,9 +102,7 @@ public class PartitionStatsHandler {
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
-    StructType partitionType = Partitioning.partitionType(table);
-
-    Collection<PartitionStats> stats;
+    Collection<PartitionStatistics> stats;
     PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
     if (statisticsFile == null) {
       LOG.info(
@@ -225,7 +117,7 @@ public class PartitionStatsHandler {
       }
 
       try {
-        stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
+        stats = computeAndMergeStatsIncremental(table, snapshot, statisticsFile.snapshotId());
       } catch (InvalidStatsFileException exception) {
         LOG.warn(
             "Using full compute as previous statistics file is corrupted for incremental compute.");
@@ -240,17 +132,18 @@ public class PartitionStatsHandler {
       return null;
     }
 
-    List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
+    StructType partitionType = Partitioning.partitionType(table);
+    List<PartitionStatistics> sortedStats = sortStatsByPartition(stats, partitionType);
     return writePartitionStatsFile(
         table,
         snapshot.snapshotId(),
-        schema(partitionType, TableUtil.formatVersion(table)),
+        PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table)),
         sortedStats);
   }
 
   @VisibleForTesting
   static PartitionStatisticsFile writePartitionStatsFile(
-      Table table, long snapshotId, Schema dataSchema, Iterable<PartitionStats> records)
+      Table table, long snapshotId, Schema dataSchema, Iterable<PartitionStatistics> records)
       throws IOException {
     FileFormat fileFormat =
         FileFormat.fromString(
@@ -270,28 +163,6 @@ public class PartitionStatsHandler {
         .build();
   }
 
-  /**
-   * Reads partition statistics from the specified {@link InputFile} using given schema.
-   *
-   * @param schema The {@link Schema} of the partition statistics file.
-   * @param inputFile An {@link InputFile} pointing to the partition stats file.
-   * @deprecated will be removed in 1.12.0, use {@link PartitionStatisticsScan} instead
-   */
-  @Deprecated
-  public static CloseableIterable<PartitionStats> readPartitionStatsFile(
-      Schema schema, InputFile inputFile) {
-    Preconditions.checkArgument(schema != null, "Invalid schema: null");
-    Preconditions.checkArgument(inputFile != null, "Invalid input file: null");
-
-    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
-    Preconditions.checkArgument(
-        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
-
-    CloseableIterable<StructLike> records =
-        InternalData.read(fileFormat, inputFile).project(schema).build();
-    return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
-  }
-
   private static OutputFile newPartitionStatsFile(
       Table table, FileFormat fileFormat, long snapshotId) {
     Preconditions.checkArgument(
@@ -309,30 +180,11 @@ public class PartitionStatsHandler {
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
   }
 
-  private static PartitionStats recordToPartitionStats(StructLike record) {
-    int pos = 0;
-    PartitionStats stats =
-        new PartitionStats(
-            record.get(pos++, StructLike.class), // partition
-            record.get(pos++, Integer.class)); // spec id
-    for (; pos < record.size(); pos++) {
-      stats.set(pos, record.get(pos, Object.class));
-    }
-
-    return stats;
-  }
-
-  private static Collection<PartitionStats> computeAndMergeStatsIncremental(
-      Table table,
-      Snapshot snapshot,
-      StructType partitionType,
-      PartitionStatisticsFile previousStatsFile) {
-    PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
-    // read previous stats, note that partition field will be read as GenericRecord
-    try (CloseableIterable<PartitionStats> oldStats =
-        readPartitionStatsFile(
-            schema(partitionType, TableUtil.formatVersion(table)),
-            table.io().newInputFile(previousStatsFile.path()))) {
+  private static Collection<PartitionStatistics> computeAndMergeStatsIncremental(
+      Table table, Snapshot snapshot, long lastSnapshotWithStats) {
+    PartitionMap<PartitionStatistics> statsMap = PartitionMap.create(table.specs());
+    try (CloseableIterable<PartitionStatistics> oldStats =
+        table.newPartitionStatisticsScan().useSnapshot(lastSnapshotWithStats).scan()) {
       oldStats.forEach(
           partitionStats ->
               statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
@@ -341,8 +193,8 @@ public class PartitionStatsHandler {
     }
 
     // incrementally compute the new stats, partition field will be written as PartitionData
-    PartitionMap<PartitionStats> incrementalStatsMap =
-        computeStatsDiff(table, table.snapshot(previousStatsFile.snapshotId()), snapshot);
+    PartitionMap<PartitionStatistics> incrementalStatsMap =
+        computeStatsDiff(table, table.snapshot(lastSnapshotWithStats), snapshot);
 
     // convert PartitionData into GenericRecord and merge stats
     incrementalStatsMap.forEach(
@@ -351,7 +203,7 @@ public class PartitionStatsHandler {
                 Pair.of(key.first(), partitionDataToRecord((PartitionData) key.second())),
                 value,
                 (existingEntry, newEntry) -> {
-                  existingEntry.appendStats(newEntry);
+                  appendStats(existingEntry, newEntry);
                   return existingEntry;
                 }));
 
@@ -389,7 +241,7 @@ public class PartitionStatsHandler {
     return null;
   }
 
-  private static PartitionMap<PartitionStats> computeStatsDiff(
+  private static PartitionMap<PartitionStatistics> computeStatsDiff(
       Table table, Snapshot fromSnapshot, Snapshot toSnapshot) {
     Iterable<Snapshot> snapshots =
         SnapshotUtil.ancestorsBetween(
@@ -408,10 +260,10 @@ public class PartitionStatsHandler {
     return computeStats(table, manifests, true /* incremental */);
   }
 
-  private static PartitionMap<PartitionStats> computeStats(
+  private static PartitionMap<PartitionStatistics> computeStats(
       Table table, List<ManifestFile> manifests, boolean incremental) {
     StructType partitionType = Partitioning.partitionType(table);
-    Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Queue<PartitionMap<PartitionStatistics>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
@@ -421,19 +273,20 @@ public class PartitionStatsHandler {
                 statsByManifest.add(
                     collectStatsForManifest(table, manifest, partitionType, incremental)));
 
-    PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
-    for (PartitionMap<PartitionStats> stats : statsByManifest) {
+    PartitionMap<PartitionStatistics> statsMap = PartitionMap.create(table.specs());
+    for (PartitionMap<PartitionStatistics> stats : statsByManifest) {
       mergePartitionMap(stats, statsMap);
     }
 
     return statsMap;
   }
 
-  private static PartitionMap<PartitionStats> collectStatsForManifest(
+  private static PartitionMap<PartitionStatistics> collectStatsForManifest(
       Table table, ManifestFile manifest, StructType partitionType, boolean incremental) {
     List<String> projection = BaseScan.scanColumns(manifest.content());
-    try (ManifestReader<?> reader = ManifestFiles.open(manifest, table.io()).select(projection)) {
-      PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+    try (ManifestReader<?> reader =
+        ManifestFiles.open(manifest, table.io(), table.specs()).select(projection)) {
+      PartitionMap<PartitionStatistics> statsMap = PartitionMap.create(table.specs());
       int specId = manifest.partitionSpecId();
       PartitionSpec spec = table.specs().get(specId);
       PartitionData keyTemplate = new PartitionData(partitionType);
@@ -444,22 +297,22 @@ public class PartitionStatsHandler {
             PartitionUtil.coercePartition(partitionType, spec, file.partition());
         StructLike key = keyTemplate.copyFor(coercedPartition);
         Snapshot snapshot = table.snapshot(entry.snapshotId());
-        PartitionStats stats =
+        PartitionStatistics stats =
             statsMap.computeIfAbsent(
                 specId,
                 ((PartitionData) file.partition()).copy(),
-                () -> new PartitionStats(key, specId));
+                () -> new BasePartitionStatistics(key, specId));
         if (entry.isLive()) {
           // Live can have both added and existing entries. Consider only added entries for
           // incremental compute as existing entries was already included in previous compute.
           if (!incremental || entry.status() == ManifestEntry.Status.ADDED) {
-            stats.liveEntry(file, snapshot);
+            liveEntry(stats, file, snapshot);
           }
         } else {
           if (incremental) {
-            stats.deletedEntryForIncrementalCompute(file, snapshot);
+            deletedEntryForIncrementalCompute(stats, file, snapshot);
           } else {
-            stats.deletedEntry(snapshot);
+            deletedEntry(stats, snapshot);
           }
         }
       }
@@ -471,24 +324,208 @@ public class PartitionStatsHandler {
   }
 
   private static void mergePartitionMap(
-      PartitionMap<PartitionStats> fromMap, PartitionMap<PartitionStats> toMap) {
+      PartitionMap<PartitionStatistics> fromMap, PartitionMap<PartitionStatistics> toMap) {
     fromMap.forEach(
         (key, value) ->
             toMap.merge(
                 key,
                 value,
                 (existingEntry, newEntry) -> {
-                  existingEntry.appendStats(newEntry);
+                  appendStats(existingEntry, newEntry);
                   return existingEntry;
                 }));
   }
 
-  private static List<PartitionStats> sortStatsByPartition(
-      Collection<PartitionStats> stats, StructType partitionType) {
-    List<PartitionStats> entries = Lists.newArrayList(stats);
+  private static List<PartitionStatistics> sortStatsByPartition(
+      Collection<PartitionStatistics> stats, StructType partitionType) {
+    List<PartitionStatistics> entries = Lists.newArrayList(stats);
     entries.sort(
-        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
+        Comparator.comparing(PartitionStatistics::partition, Comparators.forType(partitionType)));
     return entries;
+  }
+
+  /**
+   * Updates the partition stats from the data/delete file.
+   *
+   * @param stats partition statistics to be updated.
+   * @param file the {@link ContentFile} from the manifest entry.
+   * @param snapshot the snapshot corresponding to the live entry.
+   */
+  private static void liveEntry(PartitionStatistics stats, ContentFile<?> file, Snapshot snapshot) {
+    Preconditions.checkArgument(stats.specId() == file.specId(), "Spec IDs must match");
+
+    switch (file.content()) {
+      case DATA:
+        stats.set(
+            PartitionStatistics.DATA_RECORD_COUNT_POSITION,
+            stats.dataRecordCount() + file.recordCount());
+        stats.set(PartitionStatistics.DATA_FILE_COUNT_POSITION, stats.dataFileCount() + 1);
+        stats.set(
+            PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
+            stats.totalDataFileSizeInBytes() + file.fileSizeInBytes());
+        break;
+      case POSITION_DELETES:
+        stats.set(
+            PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION,
+            stats.positionDeleteRecordCount() + file.recordCount());
+        if (file.format() == FileFormat.PUFFIN) {
+          stats.set(PartitionStatistics.DV_COUNT_POSITION, stats.dvCount() + 1);
+        } else {
+          stats.set(
+              PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION,
+              stats.positionDeleteFileCount() + 1);
+        }
+
+        break;
+      case EQUALITY_DELETES:
+        stats.set(
+            PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION,
+            stats.equalityDeleteRecordCount() + file.recordCount());
+        stats.set(
+            PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION,
+            stats.equalityDeleteFileCount() + 1);
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+    }
+
+    if (snapshot != null) {
+      updateSnapshotInfo(stats, snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+
+    // Note: Not computing the `TOTAL_RECORD_COUNT` for now as it needs scanning the data.
+  }
+
+  /**
+   * Updates the modified time and snapshot ID in stats for the deleted manifest entry.
+   *
+   * @param stats partition statistics to be updated.
+   * @param snapshot the snapshot corresponding to the deleted manifest entry.
+   */
+  private static void deletedEntry(PartitionStatistics stats, Snapshot snapshot) {
+    if (snapshot != null) {
+      updateSnapshotInfo(stats, snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+  }
+
+  /**
+   * Decrement the counters in stats as it was included in the previous stats and updates the
+   * modified time and snapshot ID for the deleted manifest entry.
+   *
+   * @param stats partition statistics to be updated.
+   * @param snapshot the snapshot corresponding to the deleted manifest entry.
+   */
+  private static void deletedEntryForIncrementalCompute(
+      PartitionStatistics stats, ContentFile<?> file, Snapshot snapshot) {
+    Preconditions.checkArgument(stats.specId() == file.specId(), "Spec IDs must match");
+
+    switch (file.content()) {
+      case DATA:
+        stats.set(
+            PartitionStatistics.DATA_RECORD_COUNT_POSITION,
+            stats.dataRecordCount() - file.recordCount());
+        stats.set(PartitionStatistics.DATA_FILE_COUNT_POSITION, stats.dataFileCount() - 1);
+        stats.set(
+            PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
+            stats.totalDataFileSizeInBytes() - file.fileSizeInBytes());
+        break;
+      case POSITION_DELETES:
+        stats.set(
+            PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION,
+            stats.positionDeleteRecordCount() - file.recordCount());
+        if (file.format() == FileFormat.PUFFIN) {
+          stats.set(PartitionStatistics.DV_COUNT_POSITION, stats.dvCount() - 1);
+        } else {
+          stats.set(
+              PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION,
+              stats.positionDeleteFileCount() - 1);
+        }
+
+        break;
+      case EQUALITY_DELETES:
+        stats.set(
+            PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION,
+            stats.equalityDeleteRecordCount() - file.recordCount());
+        stats.set(
+            PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION,
+            stats.equalityDeleteFileCount() - 1);
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+    }
+
+    if (snapshot != null) {
+      updateSnapshotInfo(stats, snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+  }
+
+  /**
+   * Appends statistics from given entry to another entry.
+   *
+   * @param targetStats partition statistics to be updated.
+   * @param inputStats the partition statistics used as input.
+   */
+  @VisibleForTesting
+  static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
+    Preconditions.checkArgument(targetStats.specId() != null, "Invalid spec ID: null");
+    Preconditions.checkArgument(
+        targetStats.specId().equals(inputStats.specId()), "Spec IDs must match");
+
+    // This is expected to be called on the compute/write path where we use full schemas, hence
+    // these members can't be null.
+    targetStats.set(
+        PartitionStatistics.DATA_RECORD_COUNT_POSITION,
+        targetStats.dataRecordCount() + inputStats.dataRecordCount());
+    targetStats.set(
+        PartitionStatistics.DATA_FILE_COUNT_POSITION,
+        targetStats.dataFileCount() + inputStats.dataFileCount());
+    targetStats.set(
+        PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
+        targetStats.totalDataFileSizeInBytes() + inputStats.totalDataFileSizeInBytes());
+    targetStats.set(
+        PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION,
+        targetStats.positionDeleteRecordCount() + inputStats.positionDeleteRecordCount());
+    targetStats.set(
+        PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION,
+        targetStats.positionDeleteFileCount() + inputStats.positionDeleteFileCount());
+    targetStats.set(
+        PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION,
+        targetStats.equalityDeleteRecordCount() + inputStats.equalityDeleteRecordCount());
+    targetStats.set(
+        PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION,
+        targetStats.equalityDeleteFileCount() + inputStats.equalityDeleteFileCount());
+
+    if (inputStats.dvCount() != null) {
+      if (targetStats.dvCount() == null) {
+        targetStats.set(PartitionStatistics.DV_COUNT_POSITION, inputStats.dvCount());
+      } else {
+        targetStats.set(
+            PartitionStatistics.DV_COUNT_POSITION, targetStats.dvCount() + inputStats.dvCount());
+      }
+    }
+
+    if (inputStats.totalRecords() != null) {
+      if (targetStats.totalRecords() == null) {
+        targetStats.set(PartitionStatistics.TOTAL_RECORD_COUNT_POSITION, inputStats.totalRecords());
+      } else {
+        targetStats.set(
+            PartitionStatistics.TOTAL_RECORD_COUNT_POSITION,
+            targetStats.totalRecords() + inputStats.totalRecords());
+      }
+    }
+
+    if (inputStats.lastUpdatedAt() != null) {
+      updateSnapshotInfo(
+          targetStats, inputStats.lastUpdatedSnapshotId(), inputStats.lastUpdatedAt());
+    }
+  }
+
+  private static void updateSnapshotInfo(
+      PartitionStatistics stats, long snapshotId, long updatedAt) {
+    if (stats.lastUpdatedAt() == null || stats.lastUpdatedAt() < updatedAt) {
+      stats.set(PartitionStatistics.LAST_UPDATED_AT_POSITION, updatedAt);
+      stats.set(PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID_POSITION, snapshotId);
+    }
   }
 
   private static class InvalidStatsFileException extends RuntimeException {

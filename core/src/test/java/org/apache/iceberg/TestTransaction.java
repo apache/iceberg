@@ -170,6 +170,18 @@ public class TestTransaction extends TestBase {
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+
+    // validate snapshot summaries for manifest metrics
+    assertThat(appendSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
+    // delete rewrites the append manifest
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
   }
 
   @TestTemplate
@@ -654,7 +666,7 @@ public class TestTransaction extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshotId, FILE_A),
             manifestEntry(ManifestEntry.Status.EXISTING, secondSnapshotId, FILE_B));
 
@@ -799,7 +811,7 @@ public class TestTransaction extends TestBase {
             .rewriteManifests()
             .addManifest(
                 writeManifest(
-                    "new_delete_manifest.avro",
+                    manifestFormat().addExtension("new_delete_manifest"),
                     // Specify data sequence number so that the delete files don't get aged out
                     // first
                     manifestEntry(
@@ -868,7 +880,7 @@ public class TestTransaction extends TestBase {
             .rewriteManifests()
             .addManifest(
                 writeManifest(
-                    "new_manifest.avro",
+                    manifestFormat().addExtension("new_manifest"),
                     manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A),
                     manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A2),
                     manifestEntry(Status.EXISTING, second.snapshotId(), FILE_B)))

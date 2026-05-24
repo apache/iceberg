@@ -63,6 +63,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.sql.iceberg.aggregate_pushdown", "true")
+            .config(TestBase.DISABLE_UI)
             .enableHiveSupport()
             .getOrCreate();
 
@@ -123,8 +124,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
             + "max(boolean_data), min(boolean_data), count(boolean_data), "
             + "max(float_data), min(float_data), count(float_data), "
             + "max(double_data), min(double_data), count(double_data), "
-            + "max(decimal_data), min(decimal_data), count(decimal_data), "
-            + "max(binary_data), min(binary_data), count(binary_data) FROM %s";
+            + "max(decimal_data), min(decimal_data), count(decimal_data) FROM %s";
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
@@ -147,10 +147,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
         && explainString.contains("count(double_data)")
         && explainString.contains("max(decimal_data)")
         && explainString.contains("min(decimal_data)")
-        && explainString.contains("count(decimal_data)")
-        && explainString.contains("max(binary_data)")
-        && explainString.contains("min(binary_data)")
-        && explainString.contains("count(binary_data)")) {
+        && explainString.contains("count(decimal_data)")) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -180,10 +177,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
           5L,
           new BigDecimal("66.66"),
           new BigDecimal("11.11"),
-          6L,
-          new byte[] {85, 85},
-          new byte[] {17, 17},
-          5L
+          6L
         });
     assertEquals("min/max/count push down", expected, actual);
   }
@@ -334,13 +328,13 @@ public class TestAggregatePushDown extends CatalogTestBase {
   public void testAggregateNotPushDownForStringType() {
     sql("CREATE TABLE %s (id LONG, data STRING) USING iceberg", tableName);
     sql(
-        "INSERT INTO TABLE %s VALUES (1, '1111'), (1, '2222'), (2, '3333'), (2, '4444'), (3, '5555'), (3, '6666') ",
-        tableName);
-    sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)");
+        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(5)");
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, '111111'), (1, '2222'), (2, '3333'), (2, '4444'), (3, '5555'), (3, '666666') ",
+        tableName);
 
-    String select1 = "SELECT MAX(id), MAX(data) FROM %s";
+    String select1 = "SELECT MAX(id), MAX(data), MIN(data) FROM %s";
 
     List<Object[]> explain1 = sql("EXPLAIN " + select1, tableName);
     String explainString1 = explain1.get(0)[0].toString().toLowerCase(Locale.ROOT);
@@ -355,7 +349,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
 
     List<Object[]> actual1 = sql(select1, tableName);
     List<Object[]> expected1 = Lists.newArrayList();
-    expected1.add(new Object[] {3L, "6666"});
+    expected1.add(new Object[] {3L, "666666", "111111"});
     assertEquals("expected and actual should equal", expected1, actual1);
 
     String select2 = "SELECT COUNT(data) FROM %s";
@@ -378,7 +372,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "full");
-    String select3 = "SELECT count(data), max(data) FROM %s";
+    String select3 = "SELECT count(data), max(data), min(data) FROM %s";
     List<Object[]> explain3 = sql("EXPLAIN " + select3, tableName);
     String explainString3 = explain3.get(0)[0].toString().toLowerCase(Locale.ROOT);
     if (explainString3.contains("count(data)") && explainString3.contains("max(data)")) {
@@ -386,12 +380,85 @@ public class TestAggregatePushDown extends CatalogTestBase {
     }
 
     assertThat(explainContainsPushDownAggregates)
-        .as("explain should contain the pushed down aggregates")
-        .isTrue();
+        .as("explain should not contain the pushed down aggregates")
+        .isFalse();
 
     List<Object[]> actual3 = sql(select3, tableName);
     List<Object[]> expected3 = Lists.newArrayList();
-    expected3.add(new Object[] {6L, "6666"});
+    expected3.add(new Object[] {6L, "666666", "111111"});
+    assertEquals("expected and actual should equal", expected3, actual3);
+  }
+
+  @TestTemplate
+  public void testAggregateNotPushDownForBinaryType() {
+    sql("CREATE TABLE %s (id LONG, data BINARY) USING iceberg", tableName);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(5)");
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, X'111111111111'), (1, X'2222'),"
+            + " (2, X'3333'), (2, X'4444'),"
+            + " (3, X'5555'), (3, X'555555555555') ",
+        tableName);
+
+    String select1 = "SELECT MAX(id), MAX(data), MIN(data) FROM %s";
+
+    List<Object[]> explain1 = sql("EXPLAIN " + select1, tableName);
+    String explainString1 = explain1.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString1.contains("max(id)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should not contain the pushed down aggregates")
+        .isFalse();
+
+    List<Object[]> actual1 = sql(select1, tableName);
+    List<Object[]> expected1 = Lists.newArrayList();
+    expected1.add(
+        new Object[] {
+          3L, new byte[] {85, 85, 85, 85, 85, 85}, new byte[] {17, 17, 17, 17, 17, 17}
+        });
+    assertEquals("expected and actual should equal", expected1, actual1);
+
+    String select2 = "SELECT COUNT(data) FROM %s";
+    List<Object[]> explain2 = sql("EXPLAIN " + select2, tableName);
+    String explainString2 = explain2.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    if (explainString2.contains("count(data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should contain the pushed down aggregates")
+        .isTrue();
+
+    List<Object[]> actual2 = sql(select2, tableName);
+    List<Object[]> expected2 = Lists.newArrayList();
+    expected2.add(new Object[] {6L});
+    assertEquals("expected and actual should equal", expected2, actual2);
+
+    explainContainsPushDownAggregates = false;
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "full");
+    String select3 = "SELECT count(data), max(data), min(data) FROM %s";
+    List<Object[]> explain3 = sql("EXPLAIN " + select3, tableName);
+    String explainString3 = explain3.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    if (explainString3.contains("count(data)") && explainString3.contains("max(data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should not contain the pushed down aggregates")
+        .isFalse();
+
+    List<Object[]> actual3 = sql(select3, tableName);
+    List<Object[]> expected3 = Lists.newArrayList();
+    expected3.add(
+        new Object[] {
+          6L, new byte[] {85, 85, 85, 85, 85, 85}, new byte[] {17, 17, 17, 17, 17, 17}
+        });
     assertEquals("expected and actual should equal", expected3, actual3);
   }
 
@@ -763,6 +830,51 @@ public class TestAggregatePushDown extends CatalogTestBase {
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
     expected.add(new Object[] {6L, Float.NaN, 1.0F, 6L});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
+
+  @TestTemplate
+  public void testNanWithLowerAndUpperBoundMetrics() {
+    sql("CREATE TABLE %s (id int, data float) USING iceberg PARTITIONED BY (id)", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, float('nan')),"
+            + "(1, float('nan')), "
+            + "(1, 10.0), "
+            + "(2, 2), "
+            + "(2, float('nan')), "
+            + "(3, float('nan')), "
+            + "(3, 1)",
+        tableName);
+
+    // Validate all files has upper bound, lower bound and nan count
+    String countsQuery =
+        "select readable_metrics.data.nan_value_count > 0, "
+            + "isnull(readable_metrics.data.lower_bound), "
+            + "isnull(readable_metrics.data.upper_bound) "
+            + "from  %s.files";
+
+    Object[] expectedResult = new Object[] {true, false, false};
+    assertThat(sql(countsQuery, tableName))
+        .as("Data files should contain nan count, lower bound and upper bound.")
+        .allMatch(row -> Arrays.equals(row, expectedResult));
+
+    // Check aggregates are not pushed down
+    String select = "SELECT count(*), max(data), min(data), count(data) FROM %s";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates =
+        (explainString.contains("max(data)")
+            || explainString.contains("min(data)")
+            || explainString.contains("count(data)"));
+
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should not contain the pushed down aggregates")
+        .isFalse();
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {7L, Float.NaN, 1.0F, 7L});
     assertEquals("expected and actual should equal", expected, actual);
   }
 

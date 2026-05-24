@@ -220,6 +220,24 @@ public class FlinkWriteConf {
     return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
   }
 
+  public boolean expireSnapshotsMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE)
+        .defaultValue(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.defaultValue())
+        .parse();
+  }
+
+  public boolean deleteOrphanFilesMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE)
+        .defaultValue(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.defaultValue())
+        .parse();
+  }
+
   public boolean compactMode() {
     return confParser
         .booleanConf()
@@ -243,5 +261,23 @@ public class FlinkWriteConf {
         .option(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key())
         .flinkConfig(FlinkWriteOptions.TABLE_REFRESH_INTERVAL)
         .parseOptional();
+  }
+
+  public boolean parquetShredVariants() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.SHRED_VARIANTS.key())
+        .tableProperty(TableProperties.PARQUET_SHRED_VARIANTS)
+        .defaultValue(TableProperties.PARQUET_SHRED_VARIANTS_DEFAULT)
+        .parse();
+  }
+
+  public int parquetVariantInferenceBufferSize() {
+    return confParser
+        .intConf()
+        .option(FlinkWriteOptions.VARIANT_INFERENCE_BUFFER_SIZE.key())
+        .tableProperty(TableProperties.PARQUET_VARIANT_BUFFER_SIZE)
+        .defaultValue(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT)
+        .parse();
   }
 }

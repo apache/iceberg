@@ -109,14 +109,6 @@ public class Spark3Util {
 
   private Spark3Util() {}
 
-  public static CaseInsensitiveStringMap setOption(
-      String key, String value, CaseInsensitiveStringMap options) {
-    Map<String, String> newOptions = Maps.newHashMap();
-    newOptions.putAll(options);
-    newOptions.put(key, value);
-    return new CaseInsensitiveStringMap(newOptions);
-  }
-
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
     ImmutableMap.Builder<String, String> tableProperties = ImmutableMap.builder();
     createProperties.entrySet().stream()
@@ -369,6 +361,10 @@ public class Spark3Util {
     return Expressions.column(name);
   }
 
+  public static NamedReference[] toNamedReferences(Set<String> names) {
+    return names.stream().map(Spark3Util::toNamedReference).toArray(NamedReference[]::new);
+  }
+
   public static Term toIcebergTerm(Expression expr) {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
@@ -544,6 +540,31 @@ public class Spark3Util {
   public static boolean extensionsEnabled(SparkSession spark) {
     String extensions = spark.conf().get("spark.sql.extensions", "");
     return extensions.contains("IcebergSparkSessionExtensions");
+  }
+
+  public static boolean containsIncrementalOptions(CaseInsensitiveStringMap options) {
+    return options.containsKey(SparkReadOptions.START_SNAPSHOT_ID)
+        || options.containsKey(SparkReadOptions.END_SNAPSHOT_ID);
+  }
+
+  public static void validateNoLegacyTimeTravel(CaseInsensitiveStringMap options) {
+    Preconditions.checkArgument(
+        !options.containsKey(SparkReadOptions.LEGACY_SNAPSHOT_ID),
+        "Time travel option `%s` is no longer supported, use Spark built-in `%s` instead",
+        SparkReadOptions.LEGACY_SNAPSHOT_ID,
+        SparkReadOptions.VERSION_AS_OF);
+
+    Preconditions.checkArgument(
+        !options.containsKey(SparkReadOptions.LEGACY_AS_OF_TIMESTAMP),
+        "Time travel option `%s` (in millis) is no longer supported, use Spark built-in `%s` instead (properly formatted timestamp)",
+        SparkReadOptions.LEGACY_AS_OF_TIMESTAMP,
+        SparkReadOptions.TIMESTAMP_AS_OF);
+
+    Preconditions.checkArgument(
+        !options.containsKey(SparkReadOptions.LEGACY_TAG),
+        "Time travel option `%s` is no longer supported, use Spark built-in `%s` instead",
+        SparkReadOptions.LEGACY_TAG,
+        SparkReadOptions.VERSION_AS_OF);
   }
 
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
@@ -850,6 +871,15 @@ public class Spark3Util {
       this.identifier = identifier.second();
     }
 
+    public TableCatalog tableCatalog() {
+      Preconditions.checkArgument(
+          catalog instanceof TableCatalog,
+          "%s is not a valid table catalog: %s",
+          catalog.name(),
+          catalog.getClass().getName());
+      return (TableCatalog) catalog;
+    }
+
     public CatalogPlugin catalog() {
       return catalog;
     }
@@ -985,7 +1015,7 @@ public class Spark3Util {
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
   }
 
-  static String baseTableUUID(org.apache.iceberg.Table table) {
+  public static String baseTableUUID(org.apache.iceberg.Table table) {
     if (table instanceof HasTableOperations) {
       TableOperations ops = ((HasTableOperations) table).operations();
       return ops.current().uuid();

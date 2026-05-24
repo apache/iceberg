@@ -126,8 +126,8 @@ public class RowDataRewriter {
 
     @Override
     public void open(Configuration parameters) {
-      this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-      this.attemptId = getRuntimeContext().getAttemptNumber();
+      this.subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+      this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
       // Initialize the task writer factory.
       this.taskWriterFactory.initialize(subTaskId, attemptId);
     }

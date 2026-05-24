@@ -29,9 +29,11 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -43,8 +45,14 @@ import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTe
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 
 class TestRewriteDataFiles extends MaintenanceTaskTestBase {
+
+  private static final FileFormat[] FILE_FORMATS =
+      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+
   @Test
   void testRewriteUnpartitioned() throws Exception {
     Table table = createTable();
@@ -82,13 +90,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(4, "d")));
   }
 
-  @Test
-  void testRewriteUnpartitionedPreserveLineage() throws Exception {
-    Table table = createTable(3);
-    insert(table, 1, "a");
-    insert(table, 2, "b");
-    insert(table, 3, "c");
-    insert(table, 4, "d");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewriteUnpartitionedPreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createTable(3, fileFormat);
+    insert(table, 1, "a", fileFormat);
+    insert(table, 2, "b", fileFormat);
+    insert(table, 3, "c", fileFormat);
+    insert(table, 4, "d", fileFormat);
 
     assertFileNum(table, 4, 0);
 
@@ -122,15 +131,17 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
-  void testRewriteTheSameFilePreserveLineage() throws Exception {
-    Table table = createTable(3);
-    insert(table, 1, "a");
-    insert(table, 2, "b");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewriteTheSameFilePreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createTable(3, fileFormat);
+    insert(table, 1, "a", fileFormat);
+    insert(table, 2, "b", fileFormat);
     // Create a file with two lines of data to verify that the rowid is read correctly.
     insert(
         table,
-        ImmutableList.of(SimpleDataUtil.createRecord(3, "c"), SimpleDataUtil.createRecord(4, "d")));
+        ImmutableList.of(SimpleDataUtil.createRecord(3, "c"), SimpleDataUtil.createRecord(4, "d")),
+        fileFormat);
 
     assertFileNum(table, 3, 0);
 
@@ -166,13 +177,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
-  void testRewritePartitionedPreserveLineage() throws Exception {
-    Table table = createPartitionedTable(3);
-    insertPartitioned(table, 1, "p1");
-    insertPartitioned(table, 2, "p1");
-    insertPartitioned(table, 3, "p2");
-    insertPartitioned(table, 4, "p2");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewritePartitionedPreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createPartitionedTable(3, fileFormat);
+    insertPartitioned(table, 1, "p1", fileFormat);
+    insertPartitioned(table, 2, "p1", fileFormat);
+    insertPartitioned(table, 3, "p2", fileFormat);
+    insertPartitioned(table, 4, "p2", fileFormat);
 
     assertFileNum(table, 4, 0);
 
@@ -328,7 +340,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             0,
             tableLoader(),
             UID_SUFFIX,
-            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
+            null,
             1)
         .sinkTo(infra.sink());
 
@@ -527,6 +539,92 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(2, "b"),
             createRecord(3, "c"),
             createRecord(4, "d")));
+  }
+
+  /**
+   * By verifying that the creation time of the data content in the builder is later than the
+   * creation time of the filter condition — if the filter condition is actually created in the
+   * planner, then all files can be compacted; otherwise, not all files can be compacted — we can
+   * confirm whether the filter condition is actually created in the planner.
+   */
+  @Test
+  void testRewriteWithFilterSupplier() throws Exception {
+    Table table = createTable();
+
+    appendRewriteDataFiles(
+        RewriteDataFiles.builder()
+            .parallelism(2)
+            .deleteFileThreshold(10)
+            .targetFileSizeBytes(1_000_000L)
+            .maxFileGroupSizeBytes(10_000_000L)
+            .maxFileSizeBytes(2_000_000L)
+            .minFileSizeBytes(500_000L)
+            .minInputFiles(2)
+            // Rewrite data files where id is less than current timestamp in planner
+            .filter(() -> Expressions.lessThan("id", (int) Instant.now().getEpochSecond()))
+            .partialProgressEnabled(true)
+            .partialProgressMaxCommits(1)
+            .maxRewriteBytes(100_000L)
+            .rewriteAll(false));
+
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    insert(table, 3, "c");
+
+    int epochSecond = (int) Instant.now().getEpochSecond();
+    insert(table, epochSecond, "d");
+
+    assertFileNum(table, 4, 0);
+
+    Thread.sleep(1_000L);
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    // There is four files, only id is less than current timestamp will be rewritten. so expect 2
+    // files.
+    assertFileNum(table, 1, 0);
+
+    SimpleDataUtil.assertTableRecords(
+        table,
+        ImmutableList.of(
+            createRecord(1, "a"),
+            createRecord(2, "b"),
+            createRecord(3, "c"),
+            createRecord(epochSecond, "d")));
+  }
+
+  @Test
+  void testBranch() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+
+    // Create branch based on above inserts
+    String branchName = "test-branch";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    // Insert another file on main only (main has 3 files, branch stays at 2)
+    insert(table, 3, "c");
+
+    appendRewriteDataFiles(RewriteDataFiles.builder().rewriteAll(true).branch(branchName));
+
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    table.refresh();
+
+    // Branch should be compacted from 2 files to 1
+    assertThat(
+            table.snapshot(branchName).dataManifests(table.io()).stream()
+                .flatMap(
+                    m ->
+                        StreamSupport.stream(
+                            ManifestFiles.read(m, table.io(), table.specs()).spliterator(), false))
+                .count())
+        .isEqualTo(1);
+    SimpleDataUtil.assertTableRecords(
+        table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")), branchName);
+
+    // Main should be untouched with 3 files
+    assertFileNum(table, 3, 0);
   }
 
   private void appendRewriteDataFiles() {

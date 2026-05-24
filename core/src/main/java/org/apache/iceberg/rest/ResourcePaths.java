@@ -35,6 +35,8 @@ public class ResourcePaths {
   public static final String V1_TABLE = "/v1/{prefix}/namespaces/{namespace}/tables/{table}";
   public static final String V1_TABLE_CREDENTIALS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials";
+  public static final String V1_TABLE_REMOTE_SIGN =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign";
   public static final String V1_TABLE_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register";
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
@@ -49,6 +51,7 @@ public class ResourcePaths {
   public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
   public static final String V1_VIEW_RENAME = "/v1/{prefix}/views/rename";
+  public static final String V1_VIEW_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register-view";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
     return new ResourcePaths(
@@ -56,7 +59,7 @@ public class ResourcePaths {
         PropertyUtil.propertyAsString(
             properties,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
-            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
+            RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT));
   }
 
   public static String config() {
@@ -129,6 +132,17 @@ public class ResourcePaths {
         "metrics");
   }
 
+  public String remoteSign(TableIdentifier identifier) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(identifier.namespace()),
+        "tables",
+        RESTUtil.encodeString(identifier.name()),
+        "sign");
+  }
+
   public String commitTransaction() {
     return SLASH.join("v1", prefix, "transactions", "commit");
   }
@@ -149,6 +163,10 @@ public class ResourcePaths {
 
   public String renameView() {
     return SLASH.join("v1", prefix, "views", "rename");
+  }
+
+  public String registerView(Namespace ns) {
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "register-view");
   }
 
   public String planTableScan(TableIdentifier ident) {

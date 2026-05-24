@@ -85,6 +85,7 @@ public class ShreddedObject implements VariantObject {
   public void remove(String field) {
     shreddedFields.remove(field);
     removedFields.add(field);
+    this.serializationState = null;
   }
 
   public void put(String field, VariantValue value) {
@@ -153,12 +154,12 @@ public class ShreddedObject implements VariantObject {
     private SerializationState(
         VariantMetadata metadata,
         VariantObject unshredded,
-        Map<String, VariantValue> shreddedFields,
+        Map<String, VariantValue> shredded,
         Set<String> removedFields) {
       this.metadata = metadata;
       // field ID size is the size needed to store the largest field ID in the data
       this.fieldIdSize = VariantUtil.sizeOf(metadata.dictionarySize());
-      this.shreddedFields = Maps.newHashMap(shreddedFields);
+      this.shreddedFields = Maps.newHashMap(shredded);
 
       int totalDataSize = 0;
       // get the unshredded field names and values as byte buffers
