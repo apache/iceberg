@@ -125,15 +125,11 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         2
       },
       {
-        "testrest",
+        "testhive",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
-            "type",
-            "rest",
-            CatalogProperties.URI,
-            restCatalog.properties().get(CatalogProperties.URI),
-            "cache-enabled",
-            "false"),
+            "type", "hive",
+            "default-namespace", "default"),
         FileFormat.PARQUET,
         true,
         WRITE_DISTRIBUTION_MODE_HASH,
