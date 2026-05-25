@@ -77,9 +77,6 @@ public abstract class S3V4RestSignerClient
   private static final String CACHE_CONTROL = "Cache-Control";
   private static final String CACHE_CONTROL_PRIVATE = "private";
 
-  private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
-      Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
-
   private static final String SCOPE = "sign";
 
   @SuppressWarnings("immutables:incompat")
@@ -87,6 +84,10 @@ public abstract class S3V4RestSignerClient
 
   @SuppressWarnings("immutables:incompat")
   private volatile RESTClient httpClient;
+
+  @SuppressWarnings("immutables:incompat")
+  private final Cache<Key, SignedComponent> signedComponentCache =
+      Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
   public abstract Map<String, String> properties();
 
@@ -206,6 +207,11 @@ public abstract class S3V4RestSignerClient
   }
 
   @VisibleForTesting
+  Cache<Key, SignedComponent> signedComponentCache() {
+    return signedComponentCache;
+  }
+
+  @VisibleForTesting
   AuthSession authSession() {
     ImmutableMap.Builder<String, String> properties =
         ImmutableMap.<String, String>builder()
@@ -309,7 +315,7 @@ public abstract class S3V4RestSignerClient
             .build();
 
     Key cacheKey = Key.from(remoteSigningRequest);
-    SignedComponent cachedSignedComponent = SIGNED_COMPONENT_CACHE.getIfPresent(cacheKey);
+    SignedComponent cachedSignedComponent = signedComponentCache().getIfPresent(cacheKey);
     SignedComponent signedComponent;
 
     if (null != cachedSignedComponent) {
@@ -335,7 +341,7 @@ public abstract class S3V4RestSignerClient
               .build();
 
       if (canBeCached(responseHeaders)) {
-        SIGNED_COMPONENT_CACHE.put(cacheKey, signedComponent);
+        signedComponentCache().put(cacheKey, signedComponent);
       }
     }
 
