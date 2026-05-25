@@ -58,6 +58,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final int defaultSpecId;
   private final Map<Integer, String> specAsJsonMap;
   private final String sortOrderAsJson;
+  private final int defaultSortOrderId;
   private final Map<Integer, String> sortOrderAsJsonMap;
   private final FileIO io;
   private final EncryptionManager encryption;
@@ -83,6 +84,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     Map<Integer, PartitionSpec> specs = table.specs();
     specs.forEach((specId, spec) -> specAsJsonMap.put(specId, PartitionSpecParser.toJson(spec)));
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
+    this.defaultSortOrderId = table.sortOrder().orderId();
     this.sortOrderAsJsonMap = Maps.newHashMap();
     table
         .sortOrders()
@@ -253,7 +255,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
           ImmutableMap.Builder<Integer, SortOrder> sortOrders =
               ImmutableMap.builderWithExpectedSize(sortOrderAsJsonMap.size());
           sortOrderAsJsonMap.forEach(
-              (id, json) -> sortOrders.put(id, SortOrderParser.fromJson(schema(), json)));
+              (id, json) ->
+                  sortOrders.put(id, SortOrderParser.fromJson(schema(), json, defaultSortOrderId)));
           this.lazySortOrders = sortOrders.build();
         } else if (lazySortOrders == null) {
           this.lazySortOrders = lazyTable.sortOrders();

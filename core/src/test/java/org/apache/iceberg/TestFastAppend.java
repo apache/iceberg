@@ -509,14 +509,18 @@ public class TestFastAppend extends TestBase {
     assertThat(base.currentSnapshot()).isNull();
 
     ManifestFile manifestWithExistingFiles =
-        writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
+        writeManifest(
+            manifestFormat().addExtension("manifest-file-1"),
+            manifestEntry(Status.EXISTING, null, FILE_A));
     assertThatThrownBy(
             () -> table.newFastAppend().appendManifest(manifestWithExistingFiles).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot append manifest with existing files");
 
     ManifestFile manifestWithDeletedFiles =
-        writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
+        writeManifest(
+            manifestFormat().addExtension("manifest-file-2"),
+            manifestEntry(Status.DELETED, null, FILE_A));
     assertThatThrownBy(
             () -> table.newFastAppend().appendManifest(manifestWithDeletedFiles).commit())
         .isInstanceOf(IllegalArgumentException.class)

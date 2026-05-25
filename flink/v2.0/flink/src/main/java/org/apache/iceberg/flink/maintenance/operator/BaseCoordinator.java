@@ -226,7 +226,7 @@ abstract class BaseCoordinator implements OperatorCoordinator {
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
           !gateways.containsKey(attemptNumber),
-          "Coordinator of %s already has a subtask gateway for (#%d)",
+          "Coordinator of %s already has a subtask gateway for (#%s)",
           operatorName,
           attemptNumber);
       LOG.debug("Coordinator of {} registers gateway for attempt {}", operatorName, attemptNumber);

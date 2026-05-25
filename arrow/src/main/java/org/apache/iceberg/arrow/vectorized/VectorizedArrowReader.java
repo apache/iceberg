@@ -584,7 +584,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
-      FieldVector vector = arrowField.createVector(rootAlloc);
       int bitWidth = intLogicalType.getBitWidth();
 
       if (bitWidth == 8 || bitWidth == 16 || bitWidth == 32) {
@@ -594,12 +593,26 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         // BaseParquetReaders for the non-vectorized path.
         Preconditions.checkArgument(
             intLogicalType.isSigned() || bitWidth < 32, "Cannot read UINT32 as an int value");
+        Field intField =
+            new Field(
+                icebergField.name(),
+                new FieldType(
+                    icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true), null, null),
+                null);
+        FieldVector vector = intField.createVector(rootAlloc);
         ((IntVector) vector).allocateNew(batchSize);
         return Optional.of(
             new LogicalTypeVisitorResult(vector, ReadType.INT, (int) IntVector.TYPE_WIDTH));
       } else if (bitWidth == 64) {
         Preconditions.checkArgument(
             intLogicalType.isSigned(), "Cannot read UINT64 as a long value");
+        Field longField =
+            new Field(
+                icebergField.name(),
+                new FieldType(
+                    icebergField.isOptional(), new ArrowType.Int(Long.SIZE, true), null, null),
+                null);
+        FieldVector vector = longField.createVector(rootAlloc);
         ((BigIntVector) vector).allocateNew(batchSize);
         return Optional.of(
             new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));

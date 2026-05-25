@@ -48,6 +48,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -244,6 +245,24 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testCreateTableWithTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
+  }
+
+  @TestTemplate
+  public void testAlterTableModifyTableComment() {
+    // create table with comment
+    sql("CREATE TABLE tl(id BIGINT) COMMENT 'table comment'");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "table comment");
+
+    // alter table comment
+    sql("ALTER TABLE tl SET('comment' = 'new comment')");
+    assertThat(table("tl").properties()).containsEntry(TableProperties.COMMENT, "new comment");
+  }
+
+  @TestTemplate
   public void testCreateTableLocation() {
     assumeThat(isHadoopCatalog)
         .as("HadoopCatalog does not support creating table with location")
@@ -402,6 +421,31 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Try to add a column `id` which already exists in the table.");
+  }
+
+  @TestTemplate
+  public void testAlterTableAddColumnPosition() {
+    sql("CREATE TABLE tl(id BIGINT, name STRING)");
+    Schema schemaBefore = table("tl").schema();
+    assertThat(schemaBefore.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "name", Types.StringType.get()))
+                .asStruct());
+
+    sql("ALTER TABLE tl ADD (col1 STRING FIRST)");
+    sql("ALTER TABLE tl ADD (col2 INT AFTER id)");
+
+    Schema schemaAfter = table("tl").schema();
+    assertThat(schemaAfter.asStruct())
+        .isEqualTo(
+            new Schema(
+                    Types.NestedField.optional(3, "col1", Types.StringType.get()),
+                    Types.NestedField.optional(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(4, "col2", Types.IntegerType.get()),
+                    Types.NestedField.optional(2, "name", Types.StringType.get()))
+                .asStruct());
   }
 
   @TestTemplate

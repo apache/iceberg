@@ -146,7 +146,6 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_SPLIT = "split";
   static final String FEATURE_READER_DEFAULT = "readerDefault";
   static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
-  static final String FEATURE_META_ROW_LINEAGE = "metaRowLineage";
   static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
 
@@ -162,10 +161,7 @@ public abstract class BaseFormatModelTests<T> {
           },
           FileFormat.ORC,
           new String[] {
-            FEATURE_REUSE_CONTAINERS,
-            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
-            FEATURE_META_ROW_LINEAGE,
-            FEATURE_READER_DEFAULT
+            FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_READER_DEFAULT
           });
 
   private InMemoryFileIO fileIO;
@@ -270,6 +266,42 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
+  }
+
+  /** Write with engine type T, read with engine type T */
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+    Schema schema = dataGenerator.schema();
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+
+    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    try (writer) {
+      engineRecords.forEach(writer::write);
+    }
+
+    DataFile dataFile = writer.toDataFile();
+
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    List<T> readRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertEquals(schema, engineRecords, readRecords);
   }
 
   /** Write with engine type T, read with Generic Record */
@@ -1085,7 +1117,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinage(FileFormat fileFormat) throws IOException {
-    assumeSupports(fileFormat, FEATURE_META_ROW_LINEAGE);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
@@ -1119,7 +1150,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinageExistValue(FileFormat fileFormat) throws IOException {
-    assumeSupports(fileFormat, FEATURE_META_ROW_LINEAGE);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema dataSchema = dataGenerator.schema();

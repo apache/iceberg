@@ -57,6 +57,7 @@ public class TableMetadata implements Serializable {
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 4;
   static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
+  static final int MIN_FORMAT_VERSION_PARQUET_MANIFESTS = 4;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;

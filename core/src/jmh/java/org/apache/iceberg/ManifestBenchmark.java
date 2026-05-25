@@ -18,23 +18,15 @@
  */
 package org.apache.iceberg;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Types;
-import org.openjdk.jmh.annotations.AuxCounters;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -52,7 +44,12 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * A benchmark that measures manifest read/write performance across compression codecs.
+ * A benchmark that measures manifest read/write performance across format versions and file
+ * formats.
+ *
+ * <p>V1-V3 only support Avro manifests. V4 supports both Avro and Parquet. The {@code
+ * versionFormat} parameter encodes valid combinations as {@code "<version>_<format>"} (e.g. {@code
+ * "4_PARQUET"}) so that only meaningful pairings are benchmarked.
  *
  * <p>Entry counts are calibrated per column count via {@link #ENTRY_BASE}. Set to 300_000 for ~8 MB
  * manifests (matching the default {@code commit.manifest.target-size-bytes}) or 15_000 for ~400 KB.
@@ -63,13 +60,25 @@ import org.openjdk.jmh.infra.Blackhole;
  * # all combinations
  * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark
  *
- * # single codec
+ * # V4-only (Avro vs Parquet)
  * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark \
- *     -PjmhParams="codec=gzip"
+ *     -PjmhParams="versionFormat=4_AVRO|4_PARQUET"
+ *
+ * # all versions, single column count
+ * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark \
+ *     -PjmhParams="numCols=50"
+ *
+ * # single version
+ * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark \
+ *     -PjmhParams="versionFormat=3_AVRO"
  * }</pre>
  */
 @Fork(1)
 @State(Scope.Benchmark)
+// Parquet's columnar write path has a deep call graph (per-column encoders, page assembly,
+// dictionary management) that requires more warmup iterations than Avro for the JIT compiler to
+// fully optimize. Profiling shows ~650ms of JIT compilation spread across the first 3-4
+// iterations, so 6 warmups ensure measurement begins after JIT has stabilized.
 @Warmup(iterations = 6)
 @Measurement(iterations = 10)
 @BenchmarkMode(Mode.SingleShotTime)
@@ -78,19 +87,8 @@ public class ManifestBenchmark {
 
   static final int ENTRY_BASE = 300_000;
 
-  private static final int FORMAT_VERSION = 4;
-
-  private static final Schema SCHEMA =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()),
-          Types.NestedField.required(3, "customer", Types.StringType.get()));
-
-  private static final PartitionSpec SPEC =
-      PartitionSpec.builderFor(SCHEMA).identity("id").identity("data").identity("customer").build();
-
-  @Param({"gzip", "snappy", "zstd", "uncompressed"})
-  private String codec;
+  @Param({"1_AVRO", "2_AVRO", "3_AVRO", "4_AVRO", "4_PARQUET"})
+  private String versionFormat;
 
   @Param({"true", "false"})
   private String partitioned;
@@ -98,11 +96,11 @@ public class ManifestBenchmark {
   @Param({"10", "50", "100"})
   private int numCols;
 
+  private int formatVersion;
+  private FileFormat fileFormat;
   private PartitionSpec spec;
   private Map<Integer, PartitionSpec> specsById;
-  private Map<String, String> writerProperties;
   private List<DataFile> dataFiles;
-  private int numEntries;
 
   private String writeBaseDir;
   private OutputFile writeOutputFile;
@@ -112,21 +110,26 @@ public class ManifestBenchmark {
 
   @Setup(Level.Trial)
   public void setupTrial() {
-    this.spec = Boolean.parseBoolean(partitioned) ? SPEC : PartitionSpec.unpartitioned();
-    this.specsById = Map.of(spec.specId(), spec);
-    this.writerProperties = Map.of(TableProperties.AVRO_COMPRESSION, codec);
-    // ENTRY_BASE / cols: empirically calibrated — 300_000 → ~8 MB, 15_000 → ~400 KB manifests
-    this.numEntries = ENTRY_BASE / numCols;
-    this.dataFiles = generateDataFiles();
+    String[] parts = versionFormat.split("_", 2);
+    this.formatVersion = Integer.parseInt(parts[0]);
+    this.fileFormat = FileFormat.fromString(parts[1]);
+    this.spec =
+        Boolean.parseBoolean(partitioned)
+            ? ManifestBenchmarkUtil.SPEC
+            : PartitionSpec.unpartitioned();
+    this.specsById = ImmutableMap.of(spec.specId(), spec);
+    int numEntries = ManifestBenchmarkUtil.entriesForColumnCount(ENTRY_BASE, numCols);
+    this.dataFiles = ManifestBenchmarkUtil.generateDataFiles(spec, numEntries, numCols);
     setupReadManifest();
   }
 
   @Setup(Level.Invocation)
   public void setupWriteInvocation() throws IOException {
-    this.writeBaseDir = Files.createTempDirectory("bench-write-").toAbsolutePath().toString();
+    this.writeBaseDir =
+        java.nio.file.Files.createTempDirectory("bench-write-").toAbsolutePath().toString();
     this.writeOutputFile =
-        org.apache.iceberg.Files.localOutput(
-            String.format(Locale.ROOT, "%s/manifest.avro", writeBaseDir));
+        Files.localOutput(
+            String.format(Locale.ROOT, "%s/%s", writeBaseDir, fileFormat.addExtension("manifest")));
 
     for (DataFile file : dataFiles) {
       file.path();
@@ -137,7 +140,7 @@ public class ManifestBenchmark {
 
   @TearDown(Level.Trial)
   public void tearDownTrial() {
-    cleanDir(readBaseDir);
+    ManifestBenchmarkUtil.cleanDir(readBaseDir);
     readBaseDir = null;
     readManifest = null;
     dataFiles = null;
@@ -145,28 +148,15 @@ public class ManifestBenchmark {
 
   @TearDown(Level.Invocation)
   public void tearDownInvocation() {
-    cleanDir(writeBaseDir);
+    ManifestBenchmarkUtil.cleanDir(writeBaseDir);
     writeBaseDir = null;
     writeOutputFile = null;
   }
 
-  @AuxCounters(AuxCounters.Type.EVENTS)
-  @State(Scope.Thread)
-  @SuppressWarnings("checkstyle:VisibilityModifier")
-  public static class FileSizeCounters {
-    public double manifestSizeMB;
-
-    @Setup(Level.Invocation)
-    public void reset() {
-      manifestSizeMB = 0;
-    }
-  }
-
   @Benchmark
   @Threads(1)
-  public ManifestFile writeManifest(FileSizeCounters counters) throws IOException {
-    ManifestWriter<DataFile> writer =
-        ManifestFiles.write(FORMAT_VERSION, spec, writeOutputFile, 1L, writerProperties);
+  public ManifestFile writeManifest() throws IOException {
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, spec, writeOutputFile, 1L);
 
     try (ManifestWriter<DataFile> w = writer) {
       for (DataFile file : dataFiles) {
@@ -174,9 +164,7 @@ public class ManifestBenchmark {
       }
     }
 
-    ManifestFile manifest = writer.toManifestFile();
-    counters.manifestSizeMB = manifest.length() / (1024.0 * 1024.0);
-    return manifest;
+    return writer.toManifestFile();
   }
 
   @Benchmark
@@ -193,17 +181,17 @@ public class ManifestBenchmark {
 
   private void setupReadManifest() {
     try {
-      this.readBaseDir = Files.createTempDirectory("bench-read-").toAbsolutePath().toString();
+      this.readBaseDir =
+          java.nio.file.Files.createTempDirectory("bench-read-").toAbsolutePath().toString();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
 
     OutputFile manifestFile =
-        org.apache.iceberg.Files.localOutput(
-            String.format(Locale.ROOT, "%s/manifest.avro", readBaseDir));
+        Files.localOutput(
+            String.format(Locale.ROOT, "%s/%s", readBaseDir, fileFormat.addExtension("manifest")));
 
-    ManifestWriter<DataFile> writer =
-        ManifestFiles.write(FORMAT_VERSION, spec, manifestFile, 1L, writerProperties);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, spec, manifestFile, 1L);
 
     try (ManifestWriter<DataFile> w = writer) {
       for (DataFile file : dataFiles) {
@@ -214,66 +202,5 @@ public class ManifestBenchmark {
     }
 
     this.readManifest = writer.toManifestFile();
-  }
-
-  private List<DataFile> generateDataFiles() {
-    Random random = new Random(42);
-    List<DataFile> files = Lists.newArrayListWithCapacity(numEntries);
-    for (int i = 0; i < numEntries; i++) {
-      DataFiles.Builder builder =
-          DataFiles.builder(spec)
-              .withFormat(FileFormat.PARQUET)
-              .withPath(String.format(Locale.ROOT, "/path/to/data-%d.parquet", i))
-              .withFileSizeInBytes(1024 + i)
-              .withRecordCount(1000 + i)
-              .withMetrics(randomMetrics(random, numCols));
-
-      if (!spec.isUnpartitioned()) {
-        builder.withPartitionPath(
-            String.format(
-                Locale.ROOT, "id=%d/data=val-%d/customer=cust-%d", i % 100, i % 50, i % 200));
-      }
-
-      files.add(builder.build());
-    }
-
-    return files;
-  }
-
-  static Metrics randomMetrics(Random random, int cols) {
-    long rowCount = 100_000L + random.nextInt(1000);
-    Map<Integer, Long> columnSizes = Maps.newHashMap();
-    Map<Integer, Long> valueCounts = Maps.newHashMap();
-    Map<Integer, Long> nullValueCounts = Maps.newHashMap();
-    Map<Integer, Long> nanValueCounts = Maps.newHashMap();
-    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
-    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
-    for (int i = 0; i < cols; i++) {
-      columnSizes.put(i, 1_000_000L + random.nextInt(100_000));
-      valueCounts.put(i, 100_000L + random.nextInt(100));
-      nullValueCounts.put(i, (long) random.nextInt(5));
-      nanValueCounts.put(i, (long) random.nextInt(5));
-      byte[] lower = new byte[8];
-      random.nextBytes(lower);
-      lowerBounds.put(i, ByteBuffer.wrap(lower));
-      byte[] upper = new byte[8];
-      random.nextBytes(upper);
-      upperBounds.put(i, ByteBuffer.wrap(upper));
-    }
-
-    return new Metrics(
-        rowCount,
-        columnSizes,
-        valueCounts,
-        nullValueCounts,
-        nanValueCounts,
-        lowerBounds,
-        upperBounds);
-  }
-
-  private static void cleanDir(String dir) {
-    if (dir != null) {
-      FileUtils.deleteQuietly(new File(dir));
-    }
   }
 }

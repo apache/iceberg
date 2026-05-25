@@ -68,4 +68,24 @@ public class FlinkDynamicSinkOptions {
           .defaultValue(true)
           .withDescription(
               "Controls whether schema field name matching should be case-sensitive in Dynamic Sink.");
+
+  public static final ConfigOption<String> GENERATOR_SLOT_SHARING_GROUP =
+      ConfigOptions.key("dynamic-sink.generator-slot-sharing-group")
+          .stringType()
+          .noDefaultValue()
+          .withDescription(
+              "Name of the slot sharing group for the generator and the forward-writer chained to it. "
+                  + "Register the slot sharing group with its resource spec on the StreamExecutionEnvironment "
+                  + "via env.registerSlotSharingGroup(...). If unset, Flink inherits the slot sharing group "
+                  + "from the upstream operator.");
+
+  public static final ConfigOption<String> SHUFFLE_SINK_SLOT_SHARING_GROUP =
+      ConfigOptions.key("dynamic-sink.shuffle-sink-slot-sharing-group")
+          .stringType()
+          .noDefaultValue()
+          .withDescription(
+              "Name of the slot sharing group for the shuffling sink (writer plus committer). "
+                  + "Register the slot sharing group with its resource spec on the StreamExecutionEnvironment "
+                  + "via env.registerSlotSharingGroup(...). If unset, Flink inherits the slot sharing group "
+                  + "from the upstream operator.");
 }

@@ -318,7 +318,7 @@ public class RewriteTablePathUtil {
 
   private static List<ManifestFile> manifestFilesInSnapshot(FileIO io, Snapshot snapshot) {
     String path = snapshot.manifestListLocation();
-    List<ManifestFile> manifestFiles = Lists.newLinkedList();
+    List<ManifestFile> manifestFiles = Lists.newArrayList();
     try {
       manifestFiles = ManifestLists.read(io.newInputFile(path));
     } catch (RuntimeIOException e) {

@@ -31,14 +31,14 @@
 // It adds two tasks:
 //
 //   generateRuntimeDeps  - resolves runtimeClasspath and writes a sorted
-//                          baseline of group:artifact:version coordinates
+//                          baseline of group:artifact:major.minor coordinates
 //                          to runtime-deps.txt in the project directory.
+//                          Patch versions are omitted so that routine
+//                          Dependabot bumps never cause baseline drift.
 //
 //   checkRuntimeDeps     - compares the resolved dependencies against the
 //                          checked-in baseline and fails with a diff if
-//                          they don't match. Patch-level version changes are
-//                          ignored so that routine Dependabot bumps don't
-//                          require a baseline update. Wired into the 'check'
+//                          they don't match. Wired into the 'check'
 //                          lifecycle.
 //
 // Workflow:
@@ -49,10 +49,18 @@
 
 def depsFile = file("${projectDir}/runtime-deps.txt")
 
+def majorMinor = { version ->
+  def parts = version.split('\\.')
+  parts.length >= 2 ? "${parts[0]}.${parts[1]}" : version
+}
+
 def resolveRuntimeDeps = {
   configurations.runtimeClasspath.resolvedConfiguration
     .resolvedArtifacts
-    .collect { "${it.moduleVersion.id.group}:${it.moduleVersion.id.name}:${it.moduleVersion.id.version}" }
+    .collect {
+      def id = it.moduleVersion.id
+      "${id.group}:${id.name}:${majorMinor(id.version)}"
+    }
     .findAll { !it.startsWith('org.apache.iceberg:') }
     .toSorted()
     .toUnique()
@@ -86,12 +94,6 @@ tasks.register('checkRuntimeDeps') {
     def expected = depsFile.readLines().findAll { it.trim() }.toSorted()
 
     def groupArtifact = { coord -> coord.substring(0, coord.lastIndexOf(':')) }
-    def majorMinor = { coord ->
-      def ver = coord.substring(coord.lastIndexOf(':') + 1)
-      def parts = ver.split('\\.')
-      parts.length >= 2 ? "${parts[0]}.${parts[1]}" : ver
-    }
-
     def actualByModule = actual.collectEntries { [(groupArtifact(it)): it] }
     def expectedByModule = expected.collectEntries { [(groupArtifact(it)): it] }
 
@@ -99,7 +101,7 @@ tasks.register('checkRuntimeDeps') {
     def removed = expectedByModule.keySet() - actualByModule.keySet()
     def shared = actualByModule.keySet().intersect(expectedByModule.keySet())
     def versionChanged = shared.findAll {
-      majorMinor(actualByModule[it]) != majorMinor(expectedByModule[it])
+      actualByModule[it] != expectedByModule[it]
     }
 
     if (added || removed || versionChanged) {

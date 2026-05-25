@@ -112,6 +112,10 @@ public class SortOrderParser {
     return fromJson(json).bind(schema);
   }
 
+  public static SortOrder fromJson(Schema schema, String json, int defaultSortOrderId) {
+    return JsonUtil.parse(json, node -> fromJson(schema, node, defaultSortOrderId));
+  }
+
   public static SortOrder fromJson(Schema schema, JsonNode json, int defaultSortOrderId) {
     UnboundSortOrder unboundSortOrder = fromJson(json);
 

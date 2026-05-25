@@ -666,7 +666,7 @@ public class TestTransaction extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            manifestFormat().addExtension("manifest-file-1"),
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshotId, FILE_A),
             manifestEntry(ManifestEntry.Status.EXISTING, secondSnapshotId, FILE_B));
 
@@ -811,7 +811,7 @@ public class TestTransaction extends TestBase {
             .rewriteManifests()
             .addManifest(
                 writeManifest(
-                    "new_delete_manifest.avro",
+                    manifestFormat().addExtension("new_delete_manifest"),
                     // Specify data sequence number so that the delete files don't get aged out
                     // first
                     manifestEntry(
@@ -880,7 +880,7 @@ public class TestTransaction extends TestBase {
             .rewriteManifests()
             .addManifest(
                 writeManifest(
-                    "new_manifest.avro",
+                    manifestFormat().addExtension("new_manifest"),
                     manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A),
                     manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A2),
                     manifestEntry(Status.EXISTING, second.snapshotId(), FILE_B)))

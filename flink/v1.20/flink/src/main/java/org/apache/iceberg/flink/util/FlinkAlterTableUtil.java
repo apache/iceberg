@@ -124,20 +124,7 @@ public class FlinkAlterTableUtil {
       UpdateSchema pendingUpdate, List<TableChange> schemaChanges) {
     for (TableChange change : schemaChanges) {
       if (change instanceof TableChange.AddColumn) {
-        TableChange.AddColumn addColumn = (TableChange.AddColumn) change;
-        Column flinkColumn = addColumn.getColumn();
-        Preconditions.checkArgument(
-            FlinkCompatibilityUtil.isPhysicalColumn(flinkColumn),
-            "Unsupported table change: Adding computed column %s.",
-            flinkColumn.getName());
-        Type icebergType = FlinkSchemaUtil.convert(flinkColumn.getDataType().getLogicalType());
-        if (flinkColumn.getDataType().getLogicalType().isNullable()) {
-          pendingUpdate.addColumn(
-              flinkColumn.getName(), icebergType, flinkColumn.getComment().orElse(null));
-        } else {
-          pendingUpdate.addRequiredColumn(
-              flinkColumn.getName(), icebergType, flinkColumn.getComment().orElse(null));
-        }
+        applyAddColumn(pendingUpdate, (TableChange.AddColumn) change);
       } else if (change instanceof TableChange.ModifyColumn) {
         TableChange.ModifyColumn modifyColumn = (TableChange.ModifyColumn) change;
         applyModifyColumn(pendingUpdate, modifyColumn);
@@ -161,6 +148,31 @@ public class FlinkAlterTableUtil {
       } else {
         throw new UnsupportedOperationException("Cannot apply unknown table change: " + change);
       }
+    }
+  }
+
+  private static void applyAddColumn(UpdateSchema pendingUpdate, TableChange.AddColumn addColumn) {
+    Column flinkColumn = addColumn.getColumn();
+    Preconditions.checkArgument(
+        FlinkCompatibilityUtil.isPhysicalColumn(flinkColumn),
+        "Unsupported table change: Adding computed column %s.",
+        flinkColumn.getName());
+
+    Type icebergType = FlinkSchemaUtil.convert(flinkColumn.getDataType().getLogicalType());
+
+    if (flinkColumn.getDataType().getLogicalType().isNullable()) {
+      pendingUpdate.addColumn(
+          flinkColumn.getName(), icebergType, flinkColumn.getComment().orElse(null));
+    } else {
+      pendingUpdate.addRequiredColumn(
+          flinkColumn.getName(), icebergType, flinkColumn.getComment().orElse(null));
+    }
+
+    if (addColumn.getPosition() != null) {
+      TableChange.ColumnPosition position = addColumn.getPosition();
+      TableChange.ModifyColumnPosition modifyColumnPosition =
+          new TableChange.ModifyColumnPosition(addColumn.getColumn(), position);
+      applyModifyColumnPosition(pendingUpdate, modifyColumnPosition);
     }
   }
 

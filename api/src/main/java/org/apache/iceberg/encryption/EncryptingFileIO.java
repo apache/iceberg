@@ -29,6 +29,8 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestListFile;
+import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
@@ -48,7 +50,9 @@ public class EncryptingFileIO implements FileIO, Serializable {
       return combine(encryptingIO.io, em);
     }
 
-    if (io instanceof SupportsPrefixOperations) {
+    if (io instanceof DelegateFileIO) {
+      return new WithDelegateFileIO((DelegateFileIO) io, em);
+    } else if (io instanceof SupportsPrefixOperations) {
       return new WithSupportsPrefixOperations((SupportsPrefixOperations) io, em);
     } else {
       return new EncryptingFileIO(io, em);
@@ -236,6 +240,30 @@ public class EncryptingFileIO implements FileIO, Serializable {
     @Override
     public void deletePrefix(String prefix) {
       prefixIo.deletePrefix(prefix);
+    }
+  }
+
+  static class WithDelegateFileIO extends EncryptingFileIO implements DelegateFileIO {
+    private final DelegateFileIO delegateFileIO;
+
+    WithDelegateFileIO(DelegateFileIO io, EncryptionManager em) {
+      super(io, em);
+      this.delegateFileIO = io;
+    }
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+      delegateFileIO.deleteFiles(pathsToDelete);
+    }
+
+    @Override
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      return delegateFileIO.listPrefix(prefix);
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+      delegateFileIO.deletePrefix(prefix);
     }
   }
 }

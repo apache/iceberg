@@ -244,7 +244,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> kafkaProps;
   private final Map<String, String> autoCreateProps;
   private final Map<String, String> writeProps;
-  private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
+  private final Map<String, TableSinkConfig> tableConfigMap = Maps.newConcurrentMap();
   private final JsonConverter jsonConverter;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
