@@ -19,12 +19,17 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -113,5 +118,51 @@ public class TestCommitterImpl {
       assertThat(committer.hasLeaderPartition(leaderAssignments)).isTrue();
       assertThat(committer.hasLeaderPartition(nonLeaderAssignments)).isFalse();
     }
+  }
+
+  @Test
+  public void testCommitFailurePropagatesAsNotRunningException()
+      throws NoSuchFieldException, IllegalAccessException {
+    Coordinator coordinator = mock(Coordinator.class);
+    doThrow(new RuntimeException("commit failed")).when(coordinator).process();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    // wait for the thread to catch the exception, set terminated, and call stop
+    verify(coordinator, timeout(1000)).stop();
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    assertThatThrownBy(() -> committer.save(Collections.emptyList()))
+        .isInstanceOf(NotRunningException.class)
+        .hasMessageContaining("Coordinator unexpectedly terminated");
+  }
+
+  @Test
+  public void testStartFailurePropagatesAsNotRunningException()
+      throws NoSuchFieldException, IllegalAccessException {
+    Coordinator coordinator = mock(Coordinator.class);
+    doThrow(new RuntimeException("start failed")).when(coordinator).start();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    // wait for the thread to catch the exception, set terminated, and call stop
+    verify(coordinator, timeout(1000)).stop();
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    assertThatThrownBy(() -> committer.save(Collections.emptyList()))
+        .isInstanceOf(NotRunningException.class)
+        .hasMessageContaining("Coordinator unexpectedly terminated");
   }
 }

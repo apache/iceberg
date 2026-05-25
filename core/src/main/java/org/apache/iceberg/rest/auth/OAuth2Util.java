@@ -529,6 +529,7 @@ public class OAuth2Util {
                 .from(config())
                 .token(response.token())
                 .tokenType(response.issuedTokenType())
+                .expiresAtMillis(OAuth2Util.expiresAtMillis(response.token()))
                 .build();
         Map<String, String> currentHeaders = this.headers;
         this.headers = RESTUtil.merge(currentHeaders, authHeaders(config.token()));
@@ -618,6 +619,7 @@ public class OAuth2Util {
                   .from(parent.config())
                   .token(token)
                   .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+                  .expiresAtMillis(OAuth2Util.expiresAtMillis(token))
                   .build());
 
       long startTimeMillis = System.currentTimeMillis();
@@ -699,6 +701,7 @@ public class OAuth2Util {
                   .token(response.token())
                   .tokenType(issuedTokenType)
                   .credential(credential)
+                  .expiresAtMillis(OAuth2Util.expiresAtMillis(response.token()))
                   .build());
 
       Long expiresAtMillis = session.expiresAtMillis();

@@ -290,9 +290,14 @@ public class IcebergSink
           .add(maintenanceTasks)
           .rateLimit(Duration.ofSeconds(flinkMaintenanceConfig.rateLimit()))
           .lockCheckDelay(Duration.ofSeconds(flinkMaintenanceConfig.lockCheckDelay()))
-          .slotSharingGroup(flinkMaintenanceConfig.slotSharingGroup())
-          .parallelism(flinkMaintenanceConfig.parallelism())
-          .append();
+          .parallelism(flinkMaintenanceConfig.parallelism());
+
+      String slotSharingGroup = flinkMaintenanceConfig.slotSharingGroup();
+      if (slotSharingGroup != null) {
+        builder.slotSharingGroup(slotSharingGroup);
+      }
+
+      builder.append();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create tableMaintenance ", e);
     }
