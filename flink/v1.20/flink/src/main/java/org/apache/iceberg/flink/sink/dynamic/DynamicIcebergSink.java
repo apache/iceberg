@@ -313,6 +313,28 @@ public class DynamicIcebergSink
     }
 
     /**
+     * Set the slot sharing group for the generator (and the forward-writer chained to it) by name.
+     * Register the slot sharing group with its resource spec on the {@code
+     * StreamExecutionEnvironment} via {@code env.registerSlotSharingGroup(...)}. If unset, Flink
+     * inherits the slot sharing group from the upstream operator.
+     */
+    public Builder<T> generatorSlotSharingGroup(String ssg) {
+      writeOptions.put(FlinkDynamicSinkOptions.GENERATOR_SLOT_SHARING_GROUP.key(), ssg);
+      return this;
+    }
+
+    /**
+     * Set the slot sharing group for the shuffling sink (writer plus committer) by name. Register
+     * the slot sharing group with its resource spec on the {@code StreamExecutionEnvironment} via
+     * {@code env.registerSlotSharingGroup(...)}. If unset, Flink inherits the slot sharing group
+     * from the upstream operator.
+     */
+    public Builder<T> shuffleSinkSlotSharingGroup(String ssg) {
+      writeOptions.put(FlinkDynamicSinkOptions.SHUFFLE_SINK_SLOT_SHARING_GROUP.key(), ssg);
+      return this;
+    }
+
+    /**
      * Set the uid prefix for IcebergSink operators. Note that IcebergSink internally consists of
      * multiple operators (like writer, committer, aggregator) Actual operator uid will be appended
      * with a suffix like "uidPrefix-writer".
@@ -438,7 +460,7 @@ public class DynamicIcebergSink
       TypeInformation<CommittableMessage<DynamicWriteResult>> writeResultTypeInfo =
           CommittableMessageTypeInfo.of(DynamicWriteResultSerializer::new);
 
-      DataStream<CommittableMessage<DynamicWriteResult>> forwardWriteResults =
+      SingleOutputStreamOperator<CommittableMessage<DynamicWriteResult>> forwardWriteResults =
           converted
               .getSideOutput(
                   new OutputTag<>(DynamicRecordProcessor.DYNAMIC_FORWARD_STREAM, sideOutputType))
@@ -448,6 +470,11 @@ public class DynamicIcebergSink
                   new SinkWriterOperatorFactory<>(forwardWriterSink))
               .setParallelism(converted.getParallelism())
               .uid(prefixIfNotNull(uidPrefix, "-forward-writer"));
+
+      String generatorSsg = flinkDynamicSinkConf.generatorSlotSharingGroup();
+      if (generatorSsg != null) {
+        forwardWriteResults.slotSharingGroup(generatorSsg);
+      }
 
       // Inject forward write results into sink — they'll be unioned in addPreCommitTopology
       return instantiateSink(writeOptions, flinkConfig, forwardWriteResults);
@@ -513,6 +540,10 @@ public class DynamicIcebergSink
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
+      String generatorSsg = flinkDynamicSinkConf.generatorSlotSharingGroup();
+      if (generatorSsg != null) {
+        converted.slotSharingGroup(generatorSsg);
+      }
 
       DynamicIcebergSink sink = build(converted, sideOutputType);
 
@@ -534,6 +565,10 @@ public class DynamicIcebergSink
           shuffleInput
               .sinkTo(sink) // Forward write results are implicitly injected here
               .uid(prefixIfNotNull(uidPrefix, "-sink"));
+      String shuffleSinkSsg = flinkDynamicSinkConf.shuffleSinkSlotSharingGroup();
+      if (shuffleSinkSsg != null) {
+        result.slotSharingGroup(shuffleSinkSsg);
+      }
 
       FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
       if (flinkWriteConf.writeParallelism() != null) {

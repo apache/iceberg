@@ -89,6 +89,12 @@
         <property name="message" value="Preconditions.checkArgument does not support %d. use %s instead"/>
     </module>
     <module name="RegexpMultiline">
+        <property name="fileExtensions" value="java"/>
+        <property name="matchAcrossLines" value="true"/>
+        <property name="format" value="Preconditions\.checkState\([^;]+%d[^;]+\);"/>
+        <property name="message" value="Preconditions.checkState does not support %d. use %s instead"/>
+    </module>
+    <module name="RegexpMultiline">
         <property name="format" value="^\s*import\s+static\s+(?!\Qorg.assertj.core.api.Assertions.\E).*\.assertThatThrownBy;"/>
         <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
     </module>

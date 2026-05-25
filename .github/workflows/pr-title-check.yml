@@ -34,10 +34,10 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          PATTERN='^[A-Za-z][A-Za-z0-9._+/&-]*: .+'
+          PATTERN='^(Revert ")?[A-Za-z][A-Za-z0-9._+/&,-]*( [A-Za-z0-9][A-Za-z0-9._+/&,-]*)*: .+'
           if ! echo "$PR_TITLE" | grep -Eq "$PATTERN"; then
             echo "::error::PR title must follow 'Module: Description' format. Got: '$PR_TITLE'"
-            echo "Examples: 'Core: Fix ...', 'Spark: Add ...', 'API: Remove ...', 'Docs: Update ...'"
+            echo "Examples: 'Core: Fix ...', 'Spark: Add ...', 'Flink 2.1: Add ...', 'API, Core: Update ...'"
             exit 1
           fi
 
