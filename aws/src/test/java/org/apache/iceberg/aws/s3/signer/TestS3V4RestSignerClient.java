@@ -249,6 +249,18 @@ class TestS3V4RestSignerClient {
   }
 
   @Test
+  void signedComponentCacheNotSharedAcrossInstances() {
+    try (S3V4RestSignerClient first =
+            ImmutableS3V4RestSignerClient.builder().properties(SIGNER_PROPERTIES).build();
+        S3V4RestSignerClient second =
+            ImmutableS3V4RestSignerClient.builder().properties(SIGNER_PROPERTIES).build()) {
+      // each signer must keep its own signed-component cache so a signed URL minted for one
+      // catalog can never be served to another catalog
+      assertThat(first.signedComponentCache()).isNotSameAs(second.signedComponentCache());
+    }
+  }
+
+  @Test
   void closeReleasesHttpClient() throws Exception {
     RESTClient mockHttpClient = Mockito.mock(RESTClient.class);
     S3V4RestSignerClient client =
