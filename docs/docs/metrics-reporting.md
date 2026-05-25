@@ -120,6 +120,190 @@ This is the default when using the [`RESTCatalog`](https://github.com/apache/ice
 
 Sending metrics via REST can be controlled with the `rest-metrics-reporting-enabled` (defaults to `true`) property.
 
+### [`OtelMetricsReporter`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/OtelMetricsReporter.java)
+
+Exports [`ScanReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/ScanReport.java) and [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/CommitReport.java) through the [OpenTelemetry](https://opentelemetry.io/) API as `iceberg.scan.*` and `iceberg.commit.*` metrics. Any OTLP-compatible backend (Prometheus, CloudWatch, Datadog, Grafana Cloud, Honeycomb, etc.) can receive them through a host-owned OpenTelemetry SDK.
+
+#### Host responsibilities
+
+`OtelMetricsReporter` does not own the OpenTelemetry SDK. It calls `GlobalOpenTelemetry.get().getMeter("org.apache.iceberg")` in `initialize(...)` and reports through whatever SDK the host application has registered. If no SDK has been registered, OpenTelemetry returns the no-op implementation and metric calls are silently dropped — the standard OpenTelemetry API contract.
+
+The host application is therefore responsible for:
+
+1. Adding the OpenTelemetry **API**, **SDK**, and a **metric exporter** matching the target backend to the runtime classpath. Iceberg core compiles against `opentelemetry-api` only; it does not bundle the SDK or any exporter.
+2. Building and registering an `OpenTelemetrySdk`, either via the [OpenTelemetry Java agent](https://opentelemetry.io/docs/zero-code/java/agent/) (which auto-instruments the SDK at JVM startup) or programmatically with `OpenTelemetrySdk.builder()...buildAndRegisterGlobal()`.
+3. Configuring the exporter's endpoint, credentials, batching, retry, and resource attributes — typically via the [standard OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_HEADERS`, ...).
+
+Because the host owns the SDK, Iceberg has no reporter-specific catalog properties for endpoint, protocol, headers, intervals, or resource attributes. The catalog only needs to know the reporter class:
+
+```
+metrics-reporter-impl=org.apache.iceberg.metrics.OtelMetricsReporter
+```
+
+#### Packaging the exporter
+
+Pick one OTLP exporter (or any other OpenTelemetry exporter for your backend) and add it to the host's runtime classpath alongside the API and SDK. The OTLP/HTTP path works against any OpenTelemetry Collector or backend that accepts OTLP/HTTP; OTLP/gRPC is functionally equivalent over gRPC.
+
+Gradle (for a Spark application or any plain JVM app):
+
+```groovy
+dependencies {
+  // OpenTelemetry API + SDK
+  runtimeOnly "io.opentelemetry:opentelemetry-api:1.61.0"
+  runtimeOnly "io.opentelemetry:opentelemetry-sdk:1.61.0"
+
+  // Pick one exporter for your backend
+  runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp:1.61.0"
+  // or "io.opentelemetry:opentelemetry-exporter-prometheus:1.61.0-alpha"
+}
+```
+
+For Spark `spark-submit`, the same artifacts can be passed via `--packages`:
+
+```bash
+spark-submit \
+  --packages io.opentelemetry:opentelemetry-api:1.61.0,io.opentelemetry:opentelemetry-sdk:1.61.0,io.opentelemetry:opentelemetry-exporter-otlp:1.61.0 \
+  ...
+```
+
+For Flink, add the same jars to the `lib/` directory of the Flink distribution. For Trino, OpenTelemetry is part of the platform classpath.
+
+#### Programmatic SDK registration
+
+A typical host bootstrap, executed once before the catalog is loaded:
+
+```java
+SdkMeterProvider meterProvider =
+    SdkMeterProvider.builder()
+        .setResource(
+            Resource.getDefault().toBuilder()
+                .put(AttributeKey.stringKey("service.name"), "my-iceberg-app")
+                .build())
+        .registerMetricReader(
+            PeriodicMetricReader.builder(
+                    OtlpHttpMetricExporter.builder()
+                        .setEndpoint("http://collector.example:4318/v1/metrics")
+                        .build())
+                .setInterval(Duration.ofSeconds(30))
+                .build())
+        .build();
+
+OpenTelemetrySdk.builder()
+    .setMeterProvider(meterProvider)
+    .buildAndRegisterGlobal();
+```
+
+When using the [OpenTelemetry Java agent](https://opentelemetry.io/docs/zero-code/java/agent/), the agent registers the SDK automatically and no programmatic bootstrap is required.
+
+#### Examples: routing metrics to common backends
+
+The reporter itself is backend-neutral — what changes between backends is the host-side OpenTelemetry SDK exporter and, optionally, the OpenTelemetry Collector configuration sitting in front of the backend.
+
+**OpenTelemetry Collector**
+
+The most flexible production setup: the host exports OTLP to a local Collector and the Collector forwards to one or more backends, handling auth, batching, retries, and fan-out centrally.
+
+Host side — point the OTLP exporter at the Collector:
+
+```java
+OtlpGrpcMetricExporter.builder()
+    .setEndpoint("http://localhost:4317")
+    .build();
+```
+
+Collector side — a minimal `otel-config.yaml`:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+processors:
+  batch: {}
+exporters:
+  debug: { verbosity: detailed }
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+```
+
+Replace the `debug` exporter with any of the [exporters bundled in `otelcol-contrib`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter) (Prometheus, AWS CloudWatch, Datadog, Grafana Cloud, etc.).
+
+**Prometheus**
+
+Two patterns are common, depending on whether Prometheus pulls or the host pushes.
+
+*Pull* — the host exposes a Prometheus-format `/metrics` endpoint via the OpenTelemetry Prometheus exporter, and Prometheus scrapes it. No Collector required:
+
+```groovy
+runtimeOnly "io.opentelemetry:opentelemetry-exporter-prometheus:1.61.0-alpha"
+```
+
+```java
+SdkMeterProvider.builder()
+    .registerMetricReader(
+        PrometheusHttpServer.builder().setPort(9464).build())
+    .build();
+```
+
+*Push (via Collector)* — the host exports OTLP to a Collector, and the Collector converts to Prometheus Remote Write:
+
+```yaml
+exporters:
+  prometheusremotewrite:
+    endpoint: "https://prometheus.example/api/v1/write"
+service:
+  pipelines:
+    metrics:
+      exporters: [prometheusremotewrite]
+```
+
+**Amazon CloudWatch**
+
+CloudWatch's OTLP ingestion endpoint requires SigV4 signing, which the OpenTelemetry Java SDK does not provide directly. The standard pattern is to run an OpenTelemetry Collector locally with the [`sigv4auth`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/sigv4authextension) extension; the host exports plain OTLP and the Collector signs the egress:
+
+```yaml
+extensions:
+  sigv4auth:
+    service: monitoring
+    region: us-west-2
+exporters:
+  otlphttp:
+    endpoint: "https://monitoring.us-west-2.amazonaws.com"
+    auth:
+      authenticator: sigv4auth
+service:
+  extensions: [sigv4auth]
+  pipelines:
+    metrics:
+      exporters: [otlphttp]
+```
+
+Use the `otelcol-contrib` distribution rather than the AWS Distro for OpenTelemetry if a macOS binary is required, since the latter ships only Linux and Windows binaries.
+
+#### Emitted metrics
+
+| Metric                                  | Type       | Unit | Source                                |
+|-----------------------------------------|------------|------|----------------------------------------|
+| `iceberg.scan.planning.duration`        | histogram  | ms   | `ScanReport.scanMetrics().totalPlanningDuration()` |
+| `iceberg.scan.result.data_files`        | sum        |      | `ScanReport.scanMetrics().resultDataFiles()` |
+| `iceberg.scan.result.delete_files`      | sum        |      | `ScanReport.scanMetrics().resultDeleteFiles()` |
+| `iceberg.scan.data_manifests.scanned`   | sum        |      | `ScanReport.scanMetrics().scannedDataManifests()` |
+| `iceberg.scan.data_manifests.skipped`   | sum        |      | `ScanReport.scanMetrics().skippedDataManifests()` |
+| `iceberg.scan.file_size.bytes`          | sum        | By   | `ScanReport.scanMetrics().totalFileSizeInBytes()` |
+| `iceberg.commit.duration`               | histogram  | ms   | `CommitReport.commitMetrics().totalDuration()` |
+| `iceberg.commit.attempts`               | sum        |      | `CommitReport.commitMetrics().attempts()` |
+| `iceberg.commit.data_files.added`       | sum        |      | `CommitReport.commitMetrics().addedDataFiles()` |
+| `iceberg.commit.data_files.removed`     | sum        |      | `CommitReport.commitMetrics().removedDataFiles()` |
+| `iceberg.commit.records.added`          | sum        |      | `CommitReport.commitMetrics().addedRecords()` |
+| `iceberg.commit.file_size.added_bytes`  | sum        | By   | `CommitReport.commitMetrics().addedFilesSizeInBytes()` |
+
+Scan metrics carry `iceberg.table.name` and `iceberg.schema.id` as attributes; commit metrics carry `iceberg.table.name` and `iceberg.operation`. `iceberg.snapshot.id` is not attached as a metric attribute, since snapshot ids are monotonically increasing and unique per commit and would create unbounded cardinality in any time-series backend. Per-snapshot detail is still available through the source `ScanReport`/`CommitReport`.
+
 ## Implementing a custom Metrics Reporter
 
 Implementing the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) API gives full flexibility in dealing with incoming [`MetricsReport`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReport.java) instances. For example, it would be possible to send results to a Prometheus endpoint or any other observability framework/system.
