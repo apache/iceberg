@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
@@ -57,7 +59,7 @@ public class SparkFormatModels {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
             new SparkVariantShreddingAnalyzer(),
-            InternalRow::copy));
+            (Function<StructType, UnaryOperator<InternalRow>>) unused -> InternalRow::copy));
 
     FormatModelRegistry.register(
         ParquetFormatModel.create(
