@@ -340,7 +340,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             0,
             tableLoader(),
             UID_SUFFIX,
-            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
+            null,
             1)
         .sinkTo(infra.sink());
 
