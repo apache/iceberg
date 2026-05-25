@@ -22,6 +22,7 @@ import static org.apache.iceberg.SnapshotSummary.PUBLISHED_WAP_ID_PROP;
 import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -227,7 +228,11 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testDefaultManifestCompression() throws IOException {
+  public void testDefaultAvroManifestCompression() throws IOException {
+    assumeThat(formatVersion)
+        .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
+        .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
+
     table.newFastAppend().appendFile(FILE_A).commit();
 
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
@@ -235,7 +240,11 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testManifestCompressionFromTableProperty() throws IOException {
+  public void testAvroManifestCompressionFromTableProperty() throws IOException {
+    assumeThat(formatVersion)
+        .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
+        .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
+
     table.updateProperties().set(TableProperties.MANIFEST_COMPRESSION, "snappy").commit();
 
     table.newFastAppend().appendFile(FILE_A).commit();

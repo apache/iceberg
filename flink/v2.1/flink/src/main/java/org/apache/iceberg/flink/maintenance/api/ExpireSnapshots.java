@@ -126,30 +126,30 @@ public class ExpireSnapshots {
       Preconditions.checkNotNull(tableLoader(), "TableLoader should not be null");
 
       SingleOutputStreamOperator<TaskResult> result =
-          trigger
-              .process(
-                  new ExpireSnapshotsProcessor(
-                      tableLoader(),
-                      maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
-                      numSnapshots,
-                      planningWorkerPoolSize,
-                      cleanExpiredMetadata))
-              .name(operatorName(EXECUTOR_OPERATOR_NAME))
-              .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
-              .slotSharingGroup(slotSharingGroup())
-              .forceNonParallel();
+          setSlotSharingGroup(
+              trigger
+                  .process(
+                      new ExpireSnapshotsProcessor(
+                          tableLoader(),
+                          maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
+                          numSnapshots,
+                          planningWorkerPoolSize,
+                          cleanExpiredMetadata))
+                  .name(operatorName(EXECUTOR_OPERATOR_NAME))
+                  .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
+                  .forceNonParallel());
 
-      result
-          .getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM)
-          .rebalance()
-          .transform(
-              operatorName(DELETE_FILES_OPERATOR_NAME),
-              TypeInformation.of(Void.class),
-              new DeleteFilesProcessor(
-                  tableLoader().loadTable(), taskName(), index(), deleteBatchSize))
-          .uid(DELETE_FILES_OPERATOR_NAME + uidSuffix())
-          .slotSharingGroup(slotSharingGroup())
-          .setParallelism(parallelism());
+      setSlotSharingGroup(
+          result
+              .getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM)
+              .rebalance()
+              .transform(
+                  operatorName(DELETE_FILES_OPERATOR_NAME),
+                  TypeInformation.of(Void.class),
+                  new DeleteFilesProcessor(
+                      tableLoader().loadTable(), taskName(), index(), deleteBatchSize))
+              .uid(DELETE_FILES_OPERATOR_NAME + uidSuffix())
+              .setParallelism(parallelism()));
 
       // Ignore the file deletion result and return the DataStream<TaskResult> directly
       return result;

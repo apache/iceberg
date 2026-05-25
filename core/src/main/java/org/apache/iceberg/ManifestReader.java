@@ -60,6 +60,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
+  private static final Types.NestedField UNPARTITIONED_PARTITION_FIELD =
+      Types.NestedField.optional(
+          DataFile.PARTITION_ID,
+          DataFile.PARTITION_NAME,
+          Types.StructType.of(),
+          DataFile.PARTITION_DOC);
+
   private static final Set<String> STATS_COLUMNS =
       ImmutableSet.of(
           "value_counts",
@@ -173,6 +180,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
+    FileFormat manifestFormat = FileFormat.fromFileName(inputFile.location());
+    Preconditions.checkArgument(
+        manifestFormat == FileFormat.AVRO,
+        "Reading manifest metadata is only supported for Avro manifests: %s",
+        inputFile.location());
+
     Map<String, String> metadata;
     try {
       try (CloseableIterable<ManifestEntry<T>> headerReader =
@@ -298,8 +311,22 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     Preconditions.checkArgument(
         format != null, "Unable to determine format of manifest: %s", file.location());
 
+    boolean unpartitioned = spec.rawPartitionType().fields().isEmpty();
+
+    // V4+ manifests omit the partition field when unpartitioned (Parquet cannot represent
+    // empty structs, and the field is meaningless regardless of format). Mark it optional so
+    // the reader returns null for the missing field instead of throwing. The field must stay
+    // in the projection to preserve positional access for callers like StructProjection.
+    // For older versions where the empty struct is present, making it optional is harmless.
     List<Types.NestedField> fields = Lists.newArrayList();
-    fields.addAll(projection.asStruct().fields());
+    for (Types.NestedField field : projection.asStruct().fields()) {
+      if (unpartitioned && field.fieldId() == DataFile.PARTITION_ID) {
+        fields.add(UNPARTITIONED_PARTITION_FIELD);
+      } else {
+        fields.add(field);
+      }
+    }
+
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
       fields.add(DataFile.RECORD_COUNT);
     }

@@ -64,11 +64,11 @@ public class KeyStoreKmsClient extends MemoryMockKMS {
   public void initialize(Map<String, String> properties) {
     String keystorePath = properties.get(KEYSTORE_FILE_PATH_PROP);
     Preconditions.checkNotNull(
-        keystorePath, KEYSTORE_FILE_PATH_PROP + " must be set in hadoop or table " + "properties");
+        keystorePath, KEYSTORE_FILE_PATH_PROP + " must be set in hadoop or table properties");
 
     String keystorePassword = System.getenv(KEYSTORE_PASSWORD_ENV_VAR);
     Preconditions.checkNotNull(
-        keystorePassword, KEYSTORE_PASSWORD_ENV_VAR + " environment variable " + "must be set");
+        keystorePassword, KEYSTORE_PASSWORD_ENV_VAR + " environment variable must be set");
 
     KeyStore keyStore;
     try {

@@ -69,8 +69,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.location-provider.impl                        | null                        | Optional custom implementation for LocationProvider                                                                                                                                                                                                |
 | write.metadata.compression-codec                    | none                        | Metadata compression codec; none or gzip                                                                                                                                                                                                           |
 | write.metadata.metrics.max-inferred-column-defaults | 100                         | Defines the maximum number of columns for which metrics are collected. Columns are included with a pre-order traversal of the schema: top level fields first; then all elements of the first nested struct; then the next nested struct and so on. |
-| write.metadata.metrics.default                      | truncate(16)                | Default metrics mode for all columns in the table; none, counts, truncate(length), or full                                                                                                                                                         |
-| write.metadata.metrics.column.col1                  | (not set)                   | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full                                                                                                                                                 |
+| write.metadata.metrics.default                      | truncate(16)                | Default metrics mode for all columns in the table; none, counts, truncate(length), or full [1]                                                                                                                                                         |
+| write.metadata.metrics.column.col1                  | (not set)                   | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full [1]                                                                                                                                                |
 | write.target-file-size-bytes                        | 536870912 (512 MB)          | Controls the size of files generated to target about this many bytes                                                                                                                                                                               |
 | write.delete.target-file-size-bytes                 | 67108864 (64 MB)            | Controls the size of delete files generated to target about this many bytes                                                                                                                                                                        |
 | write.distribution-mode                             |  not set, see engines for specific defaults, for example [Spark Writes](spark-writes.md#writing-distribution-modes) | Defines distribution of write data: __none__: don't shuffle rows; __hash__: hash distribute by partition key ; __range__: range distribute by partition key or sort key if table has an SortOrder                                                  |
@@ -93,6 +93,14 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.merge.mode                                    | copy-on-write               | Mode used for merge commands: copy-on-write or merge-on-read (v2 and above)                                                                                                                                                                        |
 | write.merge.isolation-level                         | serializable                | Isolation level for merge commands: serializable or snapshot                                                                                                                                                                                       |
 | write.delete.granularity                            | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                                                                              |
+
+Notes:
+
+1. Available metrics modes:
+   - none: No metrics are persisted
+   - counts: Only count metrics are persisted (value_counts, null_value_counts, nan_value_counts).
+   - truncate(length): Persists counts plus truncated bounds (lower_bounds, upper_bounds). Truncation applies only to string and binary types; all other types are stored as-is.
+   - full: Persists all metrics, including full lower_bounds and upper_bounds.
 
 ### Encryption properties
 
