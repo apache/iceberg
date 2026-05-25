@@ -896,7 +896,13 @@ public class TestHelpers {
 
     protected CustomizedDeleteFilter(
         boolean hasDeletes, Schema tableSchema, Schema projectedSchema) {
-      super("", List.of(), ids -> TypeUtil.project(tableSchema, ids), projectedSchema, new DeleteCounter(), true);
+      super(
+          "",
+          List.of(),
+          ids -> TypeUtil.project(tableSchema, ids),
+          projectedSchema,
+          new DeleteCounter(),
+          true);
       this.hasDeletes = hasDeletes;
     }
 

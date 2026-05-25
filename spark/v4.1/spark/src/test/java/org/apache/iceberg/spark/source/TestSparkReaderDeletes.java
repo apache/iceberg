@@ -72,7 +72,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -81,6 +80,7 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -769,8 +769,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       GenericRecord inner = GenericRecord.create(innerStructType);
       inner.setField("structInnerData", "structInnerData_" + i);
       optionalRecords.add(
-          record.copy(
-              ImmutableMap.of("id", i + 200, "data", "testData", "structData", inner)));
+          record.copy(ImmutableMap.of("id", i + 200, "data", "testData", "structData", inner)));
     }
     DataFile dataFile =
         FileHelpers.writeDataFile(
