@@ -18,7 +18,7 @@ name: PR Title Check
 
 on:
   pull_request:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, ready_for_review]
 
 concurrency:
   group: pr-title-${{ github.event.pull_request.number }}
@@ -28,6 +28,7 @@ permissions: {}
 
 jobs:
   check-pr-title:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-slim
     steps:
       - name: Check PR Title

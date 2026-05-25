@@ -28,6 +28,7 @@ on:
     tags:
     - 'apache-iceberg-**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/api-binary-compatibility.yml'
@@ -70,6 +71,7 @@ concurrency:
 
 jobs:
   core-tests:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04
     strategy:
       max-parallel: 15
@@ -99,6 +101,7 @@ jobs:
           **/build/testlogs
 
   build-checks:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04
     strategy:
       max-parallel: 15
@@ -119,6 +122,7 @@ jobs:
     - run: ./gradlew -DallModules build -x test -x javadoc -x integrationTest
 
   build-javadoc:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04
     strategy:
       max-parallel: 15
@@ -139,6 +143,7 @@ jobs:
     - run: ./gradlew -Pquick=true javadoc
 
   check-runtime-deps:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

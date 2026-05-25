@@ -19,6 +19,7 @@
 name: Docs Build CI
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - docs/**
       - site/**
@@ -30,6 +31,7 @@ permissions:
 
 jobs:
   build-docs:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 15

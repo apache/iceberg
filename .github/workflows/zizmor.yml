@@ -23,12 +23,14 @@ on:
   push:
     branches: ["main"]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: ["**"]
 
 permissions: {}
 
 jobs:
   zizmor:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     name: Run zizmor 🌈
     runs-on: ubuntu-latest
     permissions: {}
