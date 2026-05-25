@@ -351,7 +351,7 @@ public class PartitionStatsHandler {
    * @param file the {@link ContentFile} from the manifest entry.
    * @param snapshot the snapshot corresponding to the live entry.
    */
-  private static void liveEntry(PartitionStatistics stats, ContentFile<?> file, Snapshot snapshot) {
+  public static void liveEntry(PartitionStatistics stats, ContentFile<?> file, Snapshot snapshot) {
     Preconditions.checkArgument(stats.specId() == file.specId(), "Spec IDs must match");
 
     switch (file.content()) {
@@ -402,7 +402,7 @@ public class PartitionStatsHandler {
    * @param stats partition statistics to be updated.
    * @param snapshot the snapshot corresponding to the deleted manifest entry.
    */
-  private static void deletedEntry(PartitionStatistics stats, Snapshot snapshot) {
+  public static void deletedEntry(PartitionStatistics stats, Snapshot snapshot) {
     if (snapshot != null) {
       updateSnapshotInfo(stats, snapshot.snapshotId(), snapshot.timestampMillis());
     }
@@ -415,7 +415,7 @@ public class PartitionStatsHandler {
    * @param stats partition statistics to be updated.
    * @param snapshot the snapshot corresponding to the deleted manifest entry.
    */
-  private static void deletedEntryForIncrementalCompute(
+  public static void deletedEntryForIncrementalCompute(
       PartitionStatistics stats, ContentFile<?> file, Snapshot snapshot) {
     Preconditions.checkArgument(stats.specId() == file.specId(), "Spec IDs must match");
 
@@ -465,8 +465,7 @@ public class PartitionStatsHandler {
    * @param targetStats partition statistics to be updated.
    * @param inputStats the partition statistics used as input.
    */
-  @VisibleForTesting
-  static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
+  public static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
     Preconditions.checkArgument(targetStats.specId() != null, "Invalid spec ID: null");
     Preconditions.checkArgument(
         targetStats.specId().equals(inputStats.specId()), "Spec IDs must match");
