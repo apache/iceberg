@@ -20,6 +20,7 @@ package org.apache.iceberg.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.LongPointData;
@@ -27,7 +28,9 @@ import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -179,6 +182,101 @@ public class TestOtelMetricsReporter {
     Collection<MetricData> metrics = metricReader.collectAllMetrics();
     assertSumValue(metrics, "iceberg.commit.data_files.added", 30);
     assertSumValue(metrics, "iceberg.commit.attempts", 3);
+  }
+
+  @Test
+  public void testSnapshotIdIsNotAMetricAttribute() {
+    ScanReport scanReport =
+        ImmutableScanReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(42L)
+            .filter(Expressions.alwaysTrue())
+            .schemaId(1)
+            .projectedFieldIds(ImmutableList.of(1))
+            .projectedFieldNames(ImmutableList.of("id"))
+            .scanMetrics(
+                ImmutableScanMetricsResult.builder()
+                    .resultDataFiles(CounterResult.of(Unit.COUNT, 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    reporter.report(scanReport);
+
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(43L)
+            .sequenceNumber(1L)
+            .operation("append")
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .attempts(CounterResult.of(Unit.COUNT, 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    reporter.report(commitReport);
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    Set<String> allAttributeKeys =
+        metrics.stream()
+            .flatMap(m -> m.getLongSumData().getPoints().stream())
+            .flatMap(p -> p.getAttributes().asMap().keySet().stream())
+            .map(AttributeKey::getKey)
+            .collect(Collectors.toSet());
+
+    assertThat(allAttributeKeys)
+        .as("metric attributes must stay bounded: snapshot.id is excluded by design")
+        .doesNotContain("iceberg.snapshot.id");
+
+    assertThat(allAttributeKeys)
+        .as("bounded attributes are present on the recorded data points")
+        .contains("iceberg.table.name", "iceberg.schema.id", "iceberg.operation");
+  }
+
+  @Test
+  public void testCombinedWithAnotherReporter() {
+    InMemoryMetricsReporter inMemory = new InMemoryMetricsReporter();
+    MetricsReporter combined = MetricsReporters.combine(reporter, inMemory);
+
+    ScanReport scanReport =
+        ImmutableScanReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(70L)
+            .filter(Expressions.alwaysTrue())
+            .schemaId(1)
+            .projectedFieldIds(ImmutableList.of(1))
+            .projectedFieldNames(ImmutableList.of("id"))
+            .scanMetrics(
+                ImmutableScanMetricsResult.builder()
+                    .resultDataFiles(CounterResult.of(Unit.COUNT, 7))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    combined.report(scanReport);
+
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(71L)
+            .sequenceNumber(1L)
+            .operation("append")
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .attempts(CounterResult.of(Unit.COUNT, 1))
+                    .addedRecords(CounterResult.of(Unit.COUNT, 123))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    combined.report(commitReport);
+
+    // OtelMetricsReporter side
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    assertSumValue(metrics, "iceberg.scan.result.data_files", 7);
+    assertSumValue(metrics, "iceberg.commit.records.added", 123);
+
+    // The other reporter side — InMemoryMetricsReporter remembers the most recent report only,
+    // so the commit report (reported last) is what we should see.
+    assertThat(inMemory.commitReport()).isSameAs(commitReport);
   }
 
   @Test

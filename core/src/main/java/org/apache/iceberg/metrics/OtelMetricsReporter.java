@@ -49,13 +49,28 @@ import org.slf4j.LoggerFactory;
  * <pre>{@code
  * metrics-reporter-impl=org.apache.iceberg.metrics.OtelMetricsReporter
  * }</pre>
+ *
+ * <h2>Cardinality</h2>
+ *
+ * Every emitted metric carries a bounded attribute set:
+ *
+ * <ul>
+ *   <li>Scan metrics: {@code iceberg.table.name}, {@code iceberg.schema.id}
+ *   <li>Commit metrics: {@code iceberg.table.name}, {@code iceberg.operation}
+ * </ul>
+ *
+ * <p>The snapshot id is deliberately <b>not</b> attached as a metric attribute. Snapshot ids are
+ * monotonically increasing and unique per commit, so including them would create a new time series
+ * for every commit and risk unbounded cardinality in any time-series backend (Prometheus,
+ * CloudWatch, Datadog, etc.). Per-snapshot detail is still available through other channels — the
+ * source {@link ScanReport} / {@link CommitReport} themselves, the catalog's snapshot history, and,
+ * if scan/commit tracing is enabled by the host, OpenTelemetry exemplars and trace spans.
  */
 public class OtelMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(OtelMetricsReporter.class);
   private static final String INSTRUMENTATION_NAME = "org.apache.iceberg";
 
   static final AttributeKey<String> ATTR_TABLE_NAME = AttributeKey.stringKey("iceberg.table.name");
-  static final AttributeKey<Long> ATTR_SNAPSHOT_ID = AttributeKey.longKey("iceberg.snapshot.id");
   static final AttributeKey<Long> ATTR_SCHEMA_ID = AttributeKey.longKey("iceberg.schema.id");
   static final AttributeKey<String> ATTR_OPERATION = AttributeKey.stringKey("iceberg.operation");
 
@@ -197,9 +212,7 @@ public class OtelMetricsReporter implements MetricsReporter {
   private void reportScan(ScanReport report) {
     Attributes attrs =
         Attributes.of(
-            ATTR_TABLE_NAME, report.tableName(),
-            ATTR_SNAPSHOT_ID, report.snapshotId(),
-            ATTR_SCHEMA_ID, (long) report.schemaId());
+            ATTR_TABLE_NAME, report.tableName(), ATTR_SCHEMA_ID, (long) report.schemaId());
 
     ScanMetricsResult metrics = report.scanMetrics();
     if (metrics == null) {
@@ -222,7 +235,6 @@ public class OtelMetricsReporter implements MetricsReporter {
     Attributes attrs =
         Attributes.of(
             ATTR_TABLE_NAME, report.tableName(),
-            ATTR_SNAPSHOT_ID, report.snapshotId(),
             ATTR_OPERATION, report.operation());
 
     CommitMetricsResult metrics = report.commitMetrics();
