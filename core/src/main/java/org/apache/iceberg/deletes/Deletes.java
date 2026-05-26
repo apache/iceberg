@@ -31,6 +31,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -46,8 +47,7 @@ import org.apache.iceberg.util.StructLikeSet;
 
 public class Deletes {
 
-  private static final Schema POSITION_DELETE_SCHEMA =
-      new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
+  private static final Schema POSITION_DELETE_SCHEMA = DeleteSchemaUtil.pathPosSchema();
 
   private static final Accessor<StructLike> FILENAME_ACCESSOR =
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_PATH.fieldId());
@@ -152,7 +152,7 @@ public class Deletes {
         CharSequence path = (CharSequence) FILENAME_ACCESSOR.get(records.peek());
         PositionDeleteIndex index =
             indexes.computeIfAbsent(path, key -> new BitmapPositionDeleteIndex(file));
-        PositionDeleteRangeConsumer.forEach(positionsForPath(records, path), index);
+        PositionDeleteRangeConsumer.forEach(drainPositionsForPath(records, path), index);
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
@@ -162,10 +162,11 @@ public class Deletes {
   }
 
   /**
-   * Yields positions from {@code records} while the next record's {@code file_path} matches {@code
-   * path}, advancing the iterator as a side effect.
+   * Drains positions from {@code records} while the next record's {@code file_path} matches {@code
+   * path}. The returned {@code Iterable} consumes {@code records} on iteration and stops as soon as
+   * a record with a different path is peeked; subsequent calls resume from that record.
    */
-  private static <T extends StructLike> Iterable<Long> positionsForPath(
+  private static <T extends StructLike> Iterable<Long> drainPositionsForPath(
       PeekingIterator<T> records, CharSequence path) {
     return () ->
         new Iterator<Long>() {

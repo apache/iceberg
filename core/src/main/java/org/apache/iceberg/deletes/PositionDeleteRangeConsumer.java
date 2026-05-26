@@ -18,14 +18,19 @@
  */
 package org.apache.iceberg.deletes;
 
+import java.util.Objects;
+
 /**
  * Coalesces consecutive position deletes into range inserts on a {@link PositionDeleteIndex}.
  *
- * <p>The consumer is agnostic to input sortedness: callers can stream any {@code Iterable} or
- * {@code long[]} of positions and the API flushes them onto the target {@link PositionDeleteIndex}
- * without requiring a sorted contract. Monotone runs become a single range insert, which touches
- * fewer bitmap pages than a per-position {@code target.delete(pos)} loop; non-monotone input still
- * produces a correct index via an internal per-position fallback.
+ * <p>Position delete files are spec-sorted, but this consumer accepts any input ordering and still
+ * produces a correct index: callers can stream any {@code Iterable} or {@code long[]} of positions
+ * through this API. Out-of-order input is handled by an internal per-position fallback.
+ *
+ * <p>The coalescing benefit scales with monotone runs in the input. Each ascending run is emitted
+ * as a single range insert, which touches fewer bitmap pages than a per-position {@code
+ * target.delete(pos)} loop. A small sniff window measures gap density at the start of the stream
+ * and switches to the per-position path when coalescing would no longer pay for the bookkeeping.
  *
  * <p>External callers see three operations: construct with a target index, feed positions via
  * {@link #acceptAll(long[], int, int)} (one or more calls), and {@link #flush()} when done.
@@ -33,6 +38,11 @@ package org.apache.iceberg.deletes;
  * <p><b>Note:</b> this class is tied to the V2 position delete file lifecycle. Format-version 3
  * deletion vectors arrive pre-bitmap via {@link PositionDeleteIndex#deserialize} and bypass this
  * class entirely; this class can retire once V2 position delete files are no longer read.
+ *
+ * <p><b>API note:</b> cross-module helper used directly by {@code VectorizedPositionDeleteReader}
+ * in the {@code iceberg-arrow} module; the constructor + {@link #acceptAll} + {@link #flush} shape
+ * is not yet a stable public API and may evolve as the Arrow stack lands. The static {@code
+ * forEach} overloads remain package-private since all callers live in this package.
  */
 public final class PositionDeleteRangeConsumer {
 
@@ -53,7 +63,11 @@ public final class PositionDeleteRangeConsumer {
   /** The number of positions to sniff for boundary density. */
   private static final int SNIFF_SIZE = 256;
 
-  /** The threshold for boundary density at which to switch to the bulk path, as a percentage. */
+  /**
+   * Gap-density threshold for the sniff window, as a percentage. If more than this fraction of
+   * adjacent pairs in the first {@link #SNIFF_SIZE} positions are gaps, the consumer escapes
+   * coalescing for the rest of the stream and routes positions through the per-position fallback.
+   */
   private static final int BOUNDARY_THRESHOLD_PERCENT = 30;
 
   private final PositionDeleteIndex target;
@@ -79,7 +93,8 @@ public final class PositionDeleteRangeConsumer {
    * pending run across calls and only emits it on the next gap or on {@link #flush()}.
    */
   public void acceptAll(long[] positions, int from, int to) {
-    if (from >= to) {
+    Objects.checkFromToIndex(from, to, positions.length);
+    if (from == to) {
       return;
     }
 
@@ -169,8 +184,13 @@ public final class PositionDeleteRangeConsumer {
     consumer.flush();
   }
 
-  // cardinality() is a default method that throws when the impl does not implement it; treat
-  // "unknown" as "use the batched path" so we never regress on bitmap-backed sources.
+  /**
+   * Returns {@code true} when {@code source} is small enough that the per-position drain wins over
+   * the batched path's setup cost. {@link UnsupportedOperationException} from {@link
+   * PositionDeleteIndex#cardinality()} is part of the contract here: implementations that don't
+   * report cardinality are treated as "size unknown" and routed through the batched path, so
+   * bitmap-backed sources never regress to per-position dispatch.
+   */
   private static boolean isSmallSource(PositionDeleteIndex source) {
     try {
       return source.cardinality() <= SMALL_SOURCE_THRESHOLD;
