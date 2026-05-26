@@ -810,7 +810,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
     | _optional_ | _required_ | _required_ | **`513 existing_rows_count`**       | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
     | _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**        | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
     | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>` **(see below)**  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
-    | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Implementation-specific key metadata for encryption |
+    | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Per-manifest encryption key metadata. See [Standard Key Metadata](#standard-key-metadata) for the interoperable format used by the standard encryption scheme. |
     |            |            | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment) |
 
 `field_summary` is a struct with the following fields:
@@ -1084,10 +1084,14 @@ The Avro schema for version 1 is a record with the following fields, in order:
 | Field name | Avro type | Required | Description |
 |---|---|---|---|
 | **`encryption_key`** | `bytes` | _required_ | The data encryption key (DEK) for this file. Must be 16, 24, or 32 bytes (corresponding to AES-128, AES-192, or AES-256). |
-| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for [AES GCM Stream](gcm-stream-spec.md) integrity protection. |
-| **`file_length`** | `long` | _optional_ | The plaintext file length before encryption. Used to detect truncation attacks (see [AES GCM Stream file length](gcm-stream-spec.md#file-length)). |
+| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for encryption integrity protection. For [AES GCM Stream](gcm-stream-spec.md) files, the prefix is combined with a block index to form the per-block AAD. For [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/), the prefix is passed as the `aad_file_unique` component. |
+| **`file_length`** | `long` | _optional_ | The plaintext file length before encryption. Required for [AES GCM Stream](gcm-stream-spec.md) encrypted files to detect truncation attacks (see [AES GCM Stream file length](gcm-stream-spec.md#file-length)). Not used for Parquet encrypted files (Parquet handles integrity internally). |
 
-The AAD prefix is combined with a 4-byte little-endian block index to form the AAD for each AES GCM Stream cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data).
+The usage of the `encryption_key` and `aad_prefix` fields depends on the file format:
+
+* **AES GCM Stream files** (manifest lists, manifests, and non-Parquet data files): The `encryption_key` is used directly as the AES-GCM key. The `aad_prefix` is combined with a 4-byte little-endian block index to form the AAD for each cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data). The `file_length` field stores the plaintext length for truncation detection.
+
+* **Parquet encrypted files**: The `encryption_key` and `aad_prefix` are provided to Parquet readers and writers, which delegate encryption to the [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/) format.
 
 ##### Encryption Key Hierarchy
 
