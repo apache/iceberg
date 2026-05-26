@@ -19,6 +19,7 @@
 package org.apache.iceberg.deletes;
 
 import java.util.Objects;
+import java.util.PrimitiveIterator;
 
 /**
  * Coalesces consecutive position deletes into range inserts on a {@link PositionDeleteIndex}.
@@ -136,7 +137,7 @@ public final class PositionDeleteRangeConsumer {
    * Drains a boxed {@code Iterable<Long>} into {@code target}, buffering into a primitive slice and
    * forwarding chunks to {@link #acceptAll(long[], int, int)}.
    */
-  public static void forEach(Iterable<Long> positions, PositionDeleteIndex target) {
+  static void forEach(Iterable<Long> positions, PositionDeleteIndex target) {
     PositionDeleteRangeConsumer consumer = new PositionDeleteRangeConsumer(target);
     long[] buffer = new long[FOREACH_BATCH_SIZE];
     int filled = 0;
@@ -154,12 +155,35 @@ public final class PositionDeleteRangeConsumer {
   }
 
   /**
+   * Drains a {@link PrimitiveIterator.OfLong} into {@code target}, buffering into a primitive slice
+   * and forwarding chunks to {@link #acceptAll(long[], int, int)}. Equivalent to {@link
+   * #forEach(Iterable, PositionDeleteIndex)} but avoids autoboxing each position, which matters
+   * when the caller is itself unboxing from a {@code StructLike} accessor.
+   */
+  static void forEach(PrimitiveIterator.OfLong positions, PositionDeleteIndex target) {
+    PositionDeleteRangeConsumer consumer = new PositionDeleteRangeConsumer(target);
+    long[] buffer = new long[FOREACH_BATCH_SIZE];
+    int filled = 0;
+    while (positions.hasNext()) {
+      buffer[filled++] = positions.nextLong();
+      if (filled == FOREACH_BATCH_SIZE) {
+        consumer.acceptAll(buffer, 0, FOREACH_BATCH_SIZE);
+        filled = 0;
+      }
+    }
+    if (filled > 0) {
+      consumer.acceptAll(buffer, 0, filled);
+    }
+    consumer.flush();
+  }
+
+  /**
    * Drains all positions from {@code source} into {@code target}, coalescing consecutive runs into
    * range inserts. Equivalent to {@code source.forEach(target::delete)} but cheaper for ascending
    * sources (such as {@code BitmapPositionDeleteIndex}); out-of-order sources still produce a
    * correct result via the per-position fallback.
    */
-  public static void forEach(PositionDeleteIndex source, PositionDeleteIndex target) {
+  static void forEach(PositionDeleteIndex source, PositionDeleteIndex target) {
     if (source.isEmpty()) {
       return;
     }

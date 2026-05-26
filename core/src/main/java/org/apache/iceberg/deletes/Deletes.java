@@ -20,8 +20,8 @@ package org.apache.iceberg.deletes;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Iterator;
 import java.util.List;
+import java.util.PrimitiveIterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -163,25 +163,25 @@ public class Deletes {
 
   /**
    * Drains positions from {@code records} while the next record's {@code file_path} matches {@code
-   * path}. The returned {@code Iterable} consumes {@code records} on iteration and stops as soon as
-   * a record with a different path is peeked; subsequent calls resume from that record.
+   * path}. The returned iterator consumes {@code records} on traversal and stops as soon as a
+   * record with a different path is peeked; subsequent calls resume from that record. Returning a
+   * primitive iterator keeps positions unboxed all the way into the consumer's slice buffer.
    */
-  private static <T extends StructLike> Iterable<Long> drainPositionsForPath(
+  private static <T extends StructLike> PrimitiveIterator.OfLong drainPositionsForPath(
       PeekingIterator<T> records, CharSequence path) {
-    return () ->
-        new Iterator<Long>() {
-          @Override
-          public boolean hasNext() {
-            return records.hasNext()
-                && !CharSequenceUtil.unequalPaths(
-                    path, (CharSequence) FILENAME_ACCESSOR.get(records.peek()));
-          }
+    return new PrimitiveIterator.OfLong() {
+      @Override
+      public boolean hasNext() {
+        return records.hasNext()
+            && !CharSequenceUtil.unequalPaths(
+                path, (CharSequence) FILENAME_ACCESSOR.get(records.peek()));
+      }
 
-          @Override
-          public Long next() {
-            return (Long) POSITION_ACCESSOR.get(records.next());
-          }
-        };
+      @Override
+      public long nextLong() {
+        return (long) POSITION_ACCESSOR.get(records.next());
+      }
+    };
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
