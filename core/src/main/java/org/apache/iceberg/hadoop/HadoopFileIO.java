@@ -37,7 +37,6 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
@@ -207,37 +206,12 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     return useBulkDelete;
   }
 
-  /**
-   * Delete files.
-   *
-   * <p>If the Hadoop bulk deletion API is enabled, this API is used through {@link BulkDeleter}.
-   * Otherwise, each file is deleted individually in the thread pool.
-   *
-   * @param pathsToDelete The paths to delete
-   * @throws BulkDeletionFailureException failure to delete one or more files.
-   * @throws IllegalStateException if bulk delete is enabled but the hadoop runtime does not support
-   *     it
-   */
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
     if (useBulkDeleteApi()) {
-      // bulk delete.
-      Preconditions.checkState(
-          BulkDeleter.apiAvailable(),
-          "Bulk delete has been enabled but is not present within the current hadoop library. "
-              + "Review the value of "
-              + BULK_DELETE_ENABLED);
-      // this call would trigger CNFE on spark 3.5; the probe above is to generate a more meaningful
-      // error message with instructions.
-      final int count =
-          new BulkDeleter(executorService(), getConf()).bulkDeleteFiles(pathsToDelete);
-      if (count != 0) {
-        throw new BulkDeletionFailureException(count);
-      }
+      HadoopBulkDelete.deleteFilesThroughHadoopApi(pathsToDelete, executorService(), getConf());
       return;
     }
-    // classic delete in which each file is deleted individually
-    // in a separate thread.
     AtomicInteger failureCount = new AtomicInteger(0);
     Tasks.foreach(pathsToDelete)
         .executeWith(executorService())
@@ -250,6 +224,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
               failureCount.incrementAndGet();
             })
         .run(this::deleteFile);
+
     if (failureCount.get() != 0) {
       throw new BulkDeletionFailureException(failureCount.get());
     }

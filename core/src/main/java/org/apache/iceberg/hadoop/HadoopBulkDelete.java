@@ -35,6 +35,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BulkDelete;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -47,9 +48,9 @@ import org.slf4j.LoggerFactory;
  * Contains references to the hadoop bulk delete API; It will not be available on hadoop 3.3.x
  * runtimes.
  */
-final class BulkDeleter {
+final class HadoopBulkDelete {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BulkDeleter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HadoopBulkDelete.class);
 
   /** Resource looked for as an availability probe: {@value}. */
   private static final String BULK_DELETE_CLASS = "org/apache/hadoop/fs/BulkDelete.class";
@@ -66,7 +67,7 @@ final class BulkDeleter {
    * @param executorService pool for executing bulk delete in parallel
    * @param conf hadoop configuration used to instantiate filesystems.
    */
-  BulkDeleter(ExecutorService executorService, Configuration conf) {
+  HadoopBulkDelete(ExecutorService executorService, Configuration conf) {
     this.executorService = executorService;
     this.conf = conf;
   }
@@ -77,7 +78,33 @@ final class BulkDeleter {
    * @return true if the bulk delete interface class is on the classpath.
    */
   public static boolean apiAvailable() {
-    return BulkDeleter.class.getClassLoader().getResource(BULK_DELETE_CLASS) != null;
+    return HadoopBulkDelete.class.getClassLoader().getResource(BULK_DELETE_CLASS) != null;
+  }
+
+  /**
+   * Execute {@code SupportsBulkOperations.deleteFiles(Iterable<String>)}, given a thread pool and a
+   * configuration to instantiate filesystems with.
+   *
+   * @param pathsToDelete paths to be deleted
+   * @param executorService executor service
+   * @param conf configuration.
+   * @throws BulkDeletionFailureException failure to delete one or more files.
+   * @throws IllegalStateException if the hadoop runtime does not support bulk delete.
+   */
+  static void deleteFilesThroughHadoopApi(
+      final Iterable<String> pathsToDelete,
+      final ExecutorService executorService,
+      final Configuration conf) {
+    final boolean available = apiAvailable();
+    Preconditions.checkState(
+        available,
+        "Bulk delete has been enabled but is not present within the current hadoop library. "
+            + "Review the value of "
+            + HadoopFileIO.BULK_DELETE_ENABLED);
+    final int count = new HadoopBulkDelete(executorService, conf).bulkDeleteFiles(pathsToDelete);
+    if (count != 0) {
+      throw new BulkDeletionFailureException(count);
+    }
   }
 
   /**
