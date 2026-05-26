@@ -23,8 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.LongConsumer;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.Resources;
 import org.junit.jupiter.api.Test;
@@ -93,6 +96,63 @@ public class TestBitmapPositionDeleteIndex {
     // output must be sorted in ascending order across containers
     List<Long> positions = collect(index1);
     assertThat(positions).containsExactly(pos1, pos2, pos3, pos4);
+  }
+
+  @Test
+  public void testMergeNonBitmapSourcePropagatesPositionsAndDeleteFiles() {
+    DeleteFile sourceFile = Mockito.mock(DeleteFile.class);
+    long pos1 = 10L; // Container 0
+    long pos2 = 1L << 33; // Container 1
+    long pos3 = pos2 + 1; // Container 1, consecutive run with pos2
+
+    BitmapPositionDeleteIndex target = new BitmapPositionDeleteIndex();
+    target.delete(5L);
+    PositionDeleteIndex nonBitmapSource =
+        new PositionDeleteIndex() {
+          @Override
+          public void delete(long position) {
+            throw new UnsupportedOperationException("test source is read-only");
+          }
+
+          @Override
+          public void delete(long posStart, long posEnd) {
+            throw new UnsupportedOperationException("test source is read-only");
+          }
+
+          @Override
+          public boolean isDeleted(long position) {
+            return position == pos1 || position == pos2 || position == pos3;
+          }
+
+          @Override
+          public boolean isEmpty() {
+            return false;
+          }
+
+          @Override
+          public void forEach(LongConsumer consumer) {
+            consumer.accept(pos1);
+            consumer.accept(pos2);
+            consumer.accept(pos3);
+          }
+
+          @Override
+          public long cardinality() {
+            return 3L;
+          }
+
+          @Override
+          public Collection<DeleteFile> deleteFiles() {
+            return ImmutableList.of(sourceFile);
+          }
+        };
+
+    target.merge(nonBitmapSource);
+
+    assertThat(collect(target)).containsExactly(5L, pos1, pos2, pos3);
+    assertThat(target.deleteFiles())
+        .as("non-bitmap merge should copy source deleteFiles into target")
+        .containsExactly(sourceFile);
   }
 
   @Test

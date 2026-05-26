@@ -19,22 +19,27 @@
 package org.apache.iceberg.deletes;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestDeletesToPositionIndexes {
 
   @Test
   public void emptyInputProducesEmptyMap() {
-    CharSequenceMap<PositionDeleteIndex> indexes =
-        Deletes.toPositionIndexes(CloseableIterable.withNoopClose(Lists.newArrayList()));
+    CharSequenceMap<PositionDeleteIndex> indexes = toIndexes(Lists.newArrayList());
     assertThat(indexes.keySet()).isEmpty();
     assertThat(indexes.get("file_a.parquet")).isNull();
   }
@@ -46,8 +51,7 @@ public class TestDeletesToPositionIndexes {
       deletes.add(Row.of("file_a.parquet", pos));
     }
 
-    CharSequenceMap<PositionDeleteIndex> indexes =
-        Deletes.toPositionIndexes(CloseableIterable.withNoopClose(deletes));
+    CharSequenceMap<PositionDeleteIndex> indexes = toIndexes(deletes);
 
     assertThat(indexes.keySet()).hasSize(1);
     PositionDeleteIndex index = indexes.get("file_a.parquet");
@@ -71,8 +75,7 @@ public class TestDeletesToPositionIndexes {
             Row.of("file_b.parquet", 9L),
             Row.of("file_c.parquet", 42L));
 
-    CharSequenceMap<PositionDeleteIndex> indexes =
-        Deletes.toPositionIndexes(CloseableIterable.withNoopClose(deletes));
+    CharSequenceMap<PositionDeleteIndex> indexes = toIndexes(deletes);
 
     assertThat(indexes.keySet()).hasSize(3);
 
@@ -109,8 +112,7 @@ public class TestDeletesToPositionIndexes {
             Row.of("file_a.parquet", 50L),
             Row.of("file_a.parquet", 51L));
 
-    CharSequenceMap<PositionDeleteIndex> indexes =
-        Deletes.toPositionIndexes(CloseableIterable.withNoopClose(deletes));
+    CharSequenceMap<PositionDeleteIndex> indexes = toIndexes(deletes);
 
     assertThat(indexes.keySet()).hasSize(2);
 
@@ -139,8 +141,7 @@ public class TestDeletesToPositionIndexes {
             Row.of("file_a.parquet", 2L),
             Row.of(new Utf8("file_a.parquet"), 3L));
 
-    CharSequenceMap<PositionDeleteIndex> indexes =
-        Deletes.toPositionIndexes(CloseableIterable.withNoopClose(deletes));
+    CharSequenceMap<PositionDeleteIndex> indexes = toIndexes(deletes);
 
     assertThat(indexes.keySet()).hasSize(1);
     PositionDeleteIndex index = indexes.get("file_a.parquet");
@@ -160,8 +161,7 @@ public class TestDeletesToPositionIndexes {
             Row.of("file_a.parquet", 256L),
             Row.of("file_a.parquet", 4096L));
 
-    CharSequenceMap<PositionDeleteIndex> indexes =
-        Deletes.toPositionIndexes(CloseableIterable.withNoopClose(deletes));
+    CharSequenceMap<PositionDeleteIndex> indexes = toIndexes(deletes);
 
     PositionDeleteIndex index = indexes.get("file_a.parquet");
     assertThat(index.isDeleted(0L)).isFalse();
@@ -171,5 +171,52 @@ public class TestDeletesToPositionIndexes {
     assertThat(index.isDeleted(256L)).isTrue();
     assertThat(index.isDeleted(4096L)).isTrue();
     assertThat(index.isDeleted(4097L)).isFalse();
+  }
+
+  @Test
+  public void deleteFilePropagatesToEachIndex() {
+    DeleteFile file = Mockito.mock(DeleteFile.class);
+    List<StructLike> deletes =
+        Lists.newArrayList(
+            Row.of("file_a.parquet", 0L),
+            Row.of("file_a.parquet", 1L),
+            Row.of("file_b.parquet", 5L));
+
+    CharSequenceMap<PositionDeleteIndex> indexes =
+        Deletes.toPositionIndexes(CloseableIterable.withNoopClose(deletes), file);
+
+    assertThat(indexes.keySet()).hasSize(2);
+    assertThat(indexes.get("file_a.parquet").deleteFiles())
+        .as("file_a should record its source delete file")
+        .containsExactly(file);
+    assertThat(indexes.get("file_b.parquet").deleteFiles())
+        .as("file_b should record its source delete file")
+        .containsExactly(file);
+  }
+
+  @Test
+  public void closeFailureSurfacesAsUncheckedIOException() {
+    List<StructLike> rows = Lists.newArrayList(Row.of("file_a.parquet", 0L));
+    CloseableIterable<StructLike> throwingOnClose =
+        new CloseableIterable<StructLike>() {
+          @Override
+          public void close() throws IOException {
+            throw new IOException("boom");
+          }
+
+          @Override
+          public CloseableIterator<StructLike> iterator() {
+            return CloseableIterator.withClose(rows.iterator());
+          }
+        };
+
+    assertThatThrownBy(() -> Deletes.toPositionIndexes(throwingOnClose))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("Failed to close position delete source")
+        .hasCauseInstanceOf(IOException.class);
+  }
+
+  private static CharSequenceMap<PositionDeleteIndex> toIndexes(Iterable<StructLike> rows) {
+    return Deletes.toPositionIndexes(CloseableIterable.withNoopClose(rows));
   }
 }
