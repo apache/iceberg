@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.deletes;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-
 /**
  * Coalesces consecutive position deletes into range inserts on a {@link PositionDeleteIndex}.
  *
@@ -30,9 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * produces a correct index via an internal per-position fallback.
  *
  * <p>External callers see three operations: construct with a target index, feed positions via
- * {@link #acceptAll(long[], int, int)} (one or more calls), and {@link #flush()} when done. The
- * sniff/escape state and the buffering policy used by the package-private {@code forEach} helpers
- * are internal and may change.
+ * {@link #acceptAll(long[], int, int)} (one or more calls), and {@link #flush()} when done.
  *
  * <p><b>Note:</b> this class is tied to the V2 position delete file lifecycle. Format-version 3
  * deletion vectors arrive pre-bitmap via {@link PositionDeleteIndex#deserialize} and bypass this
@@ -49,8 +45,8 @@ public final class PositionDeleteRangeConsumer {
 
   /**
    * Source-cardinality cutoff below which the batched path's setup cost (buffer allocation,
-   * consumer state, {@code Preconditions} checks) outweighs the per-position savings from
-   * coalescing. Sources at or below this size are drained directly via {@code target::delete}.
+   * consumer state) outweighs the per-position savings from coalescing. Sources at or below this
+   * size are drained directly via {@code target::delete}.
    */
   private static final int SMALL_SOURCE_THRESHOLD = 8;
 
@@ -74,7 +70,6 @@ public final class PositionDeleteRangeConsumer {
    * instance per target index.
    */
   public PositionDeleteRangeConsumer(PositionDeleteIndex target) {
-    Preconditions.checkArgument(target != null, "Invalid target index: null");
     this.target = target;
   }
 
@@ -84,8 +79,6 @@ public final class PositionDeleteRangeConsumer {
    * pending run across calls and only emits it on the next gap or on {@link #flush()}.
    */
   public void acceptAll(long[] positions, int from, int to) {
-    Preconditions.checkArgument(positions != null, "Invalid positions array: null");
-    Preconditions.checkPositionIndexes(from, to, positions.length);
     if (from >= to) {
       return;
     }
@@ -124,29 +117,9 @@ public final class PositionDeleteRangeConsumer {
     }
   }
 
-  // Per-element entry used internally by the package-private forEach helpers below and exercised
-  // directly by in-package tests. Not exposed to other modules: callers there should buffer into
-  // a long[] and use acceptAll, which keeps the state-machine dispatch out of the inner loop.
-  void accept(long pos) {
-    if (escaped) {
-      target.delete(pos);
-      return;
-    }
-    if (!hasRun) {
-      initRun(pos);
-      return;
-    }
-    coalesceSniff(pos);
-    if (processed == SNIFF_SIZE && shouldEscape()) {
-      enterEscape();
-    }
-  }
-
   /**
-   * Drains a boxed {@code Iterable<Long>} into {@code target}. Buffers into a small primitive slice
-   * and hands chunks to {@link #acceptAll(long[], int, int)}; keeps the sniff/escape state machine
-   * out of the inner loop. Package-private: external callers should construct the consumer directly
-   * and feed it via {@code acceptAll}.
+   * Drains a boxed {@code Iterable<Long>} into {@code target}, buffering into a primitive slice and
+   * forwarding chunks to {@link #acceptAll(long[], int, int)}.
    */
   public static void forEach(Iterable<Long> positions, PositionDeleteIndex target) {
     PositionDeleteRangeConsumer consumer = new PositionDeleteRangeConsumer(target);
@@ -166,12 +139,10 @@ public final class PositionDeleteRangeConsumer {
   }
 
   /**
-   * Drains all positions from {@code source} into {@code target} via the batched accumulator.
-   * Equivalent to {@code source.forEach(target::delete)} but coalesces consecutive runs into range
-   * inserts. Sources that emit in ascending order (such as {@code BitmapPositionDeleteIndex}, which
-   * iterates a Roaring bitmap) feed straight into the coalescing fast path; out-of-order sources
-   * still produce a correct result via the per-position fallback. Package-private: see the note on
-   * {@link #forEach(Iterable, PositionDeleteIndex)}.
+   * Drains all positions from {@code source} into {@code target}, coalescing consecutive runs into
+   * range inserts. Equivalent to {@code source.forEach(target::delete)} but cheaper for ascending
+   * sources (such as {@code BitmapPositionDeleteIndex}); out-of-order sources still produce a
+   * correct result via the per-position fallback.
    */
   public static void forEach(PositionDeleteIndex source, PositionDeleteIndex target) {
     if (source.isEmpty()) {

@@ -20,6 +20,7 @@ package org.apache.iceberg.deletes;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -32,10 +33,13 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.PeekingIterator;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.CharSequenceUtil;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
@@ -131,6 +135,8 @@ public class Deletes {
    *
    * <p>This method builds a position delete index for each referenced data file and does not filter
    * deletes. This can be useful when the entire delete file content is needed (e.g. caching).
+   * Adjacent same-path runs are coalesced via {@link PositionDeleteRangeConsumer#forEach(Iterable,
+   * PositionDeleteIndex)}.
    *
    * @param posDeletes position deletes
    * @param file the source delete file for the deletes
@@ -141,18 +147,40 @@ public class Deletes {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
-      for (T delete : deletes) {
-        CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
-        long position = (long) POSITION_ACCESSOR.get(delete);
+      PeekingIterator<T> records = Iterators.peekingIterator(deletes.iterator());
+      while (records.hasNext()) {
+        CharSequence path = (CharSequence) FILENAME_ACCESSOR.get(records.peek());
         PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
-        index.delete(position);
+            indexes.computeIfAbsent(path, key -> new BitmapPositionDeleteIndex(file));
+        PositionDeleteRangeConsumer.forEach(positionsForPath(records, path), index);
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
     }
 
     return indexes;
+  }
+
+  /**
+   * Yields positions from {@code records} while the next record's {@code file_path} matches {@code
+   * path}, advancing the iterator as a side effect.
+   */
+  private static <T extends StructLike> Iterable<Long> positionsForPath(
+      PeekingIterator<T> records, CharSequence path) {
+    return () ->
+        new Iterator<Long>() {
+          @Override
+          public boolean hasNext() {
+            return records.hasNext()
+                && !CharSequenceUtil.unequalPaths(
+                    path, (CharSequence) FILENAME_ACCESSOR.get(records.peek()));
+          }
+
+          @Override
+          public Long next() {
+            return (Long) POSITION_ACCESSOR.get(records.next());
+          }
+        };
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(

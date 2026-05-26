@@ -19,7 +19,6 @@
 package org.apache.iceberg.deletes;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -271,17 +270,10 @@ class TestPositionDeleteRangeConsumer {
   }
 
   @Test
-  void accumulatorRejectsNullTarget() {
-    assertThatThrownBy(() -> new PositionDeleteRangeConsumer(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid target index");
-  }
-
-  @Test
   void accumulatorEmitsSinglePositionOnFlush() {
     BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
     PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
-    acc.accept(42L);
+    feed(acc, 42L);
     acc.flush();
 
     assertThat(index.isDeleted(42L)).isTrue();
@@ -293,7 +285,7 @@ class TestPositionDeleteRangeConsumer {
     BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
     PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
     for (long pos = 10L; pos <= 14L; pos++) {
-      acc.accept(pos);
+      feed(acc, pos);
     }
     acc.flush();
 
@@ -306,10 +298,10 @@ class TestPositionDeleteRangeConsumer {
   void accumulatorBreaksRunOnGap() {
     BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
     PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
-    acc.accept(10L);
-    acc.accept(11L);
-    acc.accept(20L);
-    acc.accept(21L);
+    feed(acc, 10L);
+    feed(acc, 11L);
+    feed(acc, 20L);
+    feed(acc, 21L);
     acc.flush();
 
     assertThat(index.cardinality()).isEqualTo(4);
@@ -324,11 +316,11 @@ class TestPositionDeleteRangeConsumer {
     // its position is consecutive with the previous one.
     BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
     PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
-    acc.accept(10L);
-    acc.accept(11L);
+    feed(acc, 10L);
+    feed(acc, 11L);
     acc.flush();
-    acc.accept(12L);
-    acc.accept(13L);
+    feed(acc, 12L);
+    feed(acc, 13L);
     acc.flush();
 
     assertThat(index.cardinality()).isEqualTo(4);
@@ -340,7 +332,7 @@ class TestPositionDeleteRangeConsumer {
   void doubleFlushIsNoOp() {
     BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
     PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
-    acc.accept(7L);
+    feed(acc, 7L);
     acc.flush();
     acc.flush();
 
@@ -357,14 +349,14 @@ class TestPositionDeleteRangeConsumer {
     PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
     int sniff = 256;
     for (int i = 0; i < sniff; i++) {
-      acc.accept(i * 2L);
+      feed(acc, i * 2L);
     }
 
     // After the sniff window is full and >30% boundaries observed, the accumulator escapes.
     // Subsequent accepts go through the per-position path, and flush should be a no-op.
-    acc.accept(10_000L);
+    feed(acc, 10_000L);
     acc.flush();
-    acc.accept(10_001L);
+    feed(acc, 10_001L);
     acc.flush();
 
     assertThat(index.cardinality()).isEqualTo(sniff + 2);
@@ -373,28 +365,6 @@ class TestPositionDeleteRangeConsumer {
     }
     assertThat(index.isDeleted(10_000L)).isTrue();
     assertThat(index.isDeleted(10_001L)).isTrue();
-  }
-
-  @Test
-  void acceptAllRejectsNullArray() {
-    BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
-    PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
-    assertThatThrownBy(() -> acc.acceptAll(null, 0, 0))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid positions array");
-  }
-
-  @Test
-  void acceptAllValidatesIndexes() {
-    BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
-    PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
-    long[] positions = {1L, 2L, 3L};
-    assertThatThrownBy(() -> acc.acceptAll(positions, 0, 4))
-        .isInstanceOf(IndexOutOfBoundsException.class)
-        .hasMessageContaining("end index (4)");
-    assertThatThrownBy(() -> acc.acceptAll(positions, 2, 1))
-        .isInstanceOf(IndexOutOfBoundsException.class)
-        .hasMessageContaining("end index (1)");
   }
 
   @Test
@@ -481,13 +451,13 @@ class TestPositionDeleteRangeConsumer {
   }
 
   @Test
-  void acceptAllAndAcceptInterleaveCorrectly() {
+  void acceptAllPersistsStateAcrossMixedSliceSizes() {
     BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
     PositionDeleteRangeConsumer acc = new PositionDeleteRangeConsumer(index);
     acc.acceptAll(new long[] {10L, 11L}, 0, 2);
-    acc.accept(12L);
+    acc.acceptAll(new long[] {12L}, 0, 1);
     acc.acceptAll(new long[] {13L, 14L, 20L}, 0, 3);
-    acc.accept(21L);
+    acc.acceptAll(new long[] {21L}, 0, 1);
     acc.flush();
 
     assertThat(index.cardinality()).isEqualTo(7);
@@ -691,5 +661,12 @@ class TestPositionDeleteRangeConsumer {
 
   private static List<Long> asList(long... positions) {
     return Arrays.stream(positions).boxed().collect(Collectors.toList());
+  }
+
+  // Feed one position through the only production entry point. Tests previously called the
+  // removed per-element accept(long); routing through acceptAll keeps the per-position semantics
+  // intact (sniff window, escape decision, run extension) while exercising the real API.
+  private static void feed(PositionDeleteRangeConsumer acc, long pos) {
+    acc.acceptAll(new long[] {pos}, 0, 1);
   }
 }
