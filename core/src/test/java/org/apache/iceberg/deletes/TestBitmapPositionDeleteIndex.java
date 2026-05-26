@@ -77,6 +77,41 @@ public class TestBitmapPositionDeleteIndex {
   }
 
   @Test
+  public void testCreateReturnsEmptyMutableIndexWithoutProvenance() {
+    PositionDeleteIndex index = PositionDeleteIndex.create();
+    assertThat(index.isEmpty()).isTrue();
+    assertThat(index.cardinality()).isZero();
+    assertThat(index.deleteFiles()).isEmpty();
+
+    index.delete(5L);
+    index.delete(10L, 15L);
+    assertThat(index.isDeleted(5L)).isTrue();
+    assertThat(index.isDeleted(10L)).isTrue();
+    assertThat(index.isDeleted(14L)).isTrue();
+    assertThat(index.isDeleted(15L)).isFalse();
+    assertThat(index.cardinality()).isEqualTo(6L);
+  }
+
+  @Test
+  public void testCreateWithDeleteFileRecordsProvenance() {
+    DeleteFile source = mockDV(/* contentSize */ 0L, /* cardinality */ 0L);
+    PositionDeleteIndex index = PositionDeleteIndex.create(source);
+    assertThat(index.isEmpty()).isTrue();
+    assertThat(index.deleteFiles()).containsExactly(source);
+
+    index.delete(42L);
+    assertThat(index.isDeleted(42L)).isTrue();
+    assertThat(index.deleteFiles()).containsExactly(source);
+  }
+
+  @Test
+  public void testCreateWithNullDeleteFileHasNoProvenance() {
+    PositionDeleteIndex index = PositionDeleteIndex.create(null);
+    assertThat(index.isEmpty()).isTrue();
+    assertThat(index.deleteFiles()).isEmpty();
+  }
+
+  @Test
   public void testMergeBitmapIndexWithNonEmpty() {
     long pos1 = 10L; // Container 0 (high bits = 0)
     long pos2 = 1L << 33; // Container 1 (high bits = 1)

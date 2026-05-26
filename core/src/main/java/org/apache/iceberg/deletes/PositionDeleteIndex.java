@@ -113,8 +113,38 @@ public interface PositionDeleteIndex {
     return BitmapPositionDeleteIndex.deserialize(bytes, deleteFile);
   }
 
-  /** Returns an empty immutable position delete index. */
+  /**
+   * Returns an empty immutable position delete index.
+   *
+   * @see #create()
+   */
   static PositionDeleteIndex empty() {
     return EmptyPositionDeleteIndex.get();
+  }
+
+  /**
+   * Returns an empty mutable position delete index that supports {@link #delete(long)} and {@link
+   * #delete(long, long)}.
+   *
+   * <p>Unlike {@link #empty()}, the returned index is mutable. It is not safe for concurrent
+   * mutation by multiple threads. The index does not record provenance; positions added to it are
+   * not associated with any source delete file.
+   *
+   * @see #empty()
+   * @see #create(DeleteFile)
+   */
+  static PositionDeleteIndex create() {
+    return new BitmapPositionDeleteIndex();
+  }
+
+  /**
+   * Returns an empty mutable position delete index that records the given delete file as its
+   * source. The returned index is not safe for concurrent mutation by multiple threads.
+   *
+   * @param deleteFile the delete file the index is created for, may be {@code null}
+   * @see #create()
+   */
+  static PositionDeleteIndex create(DeleteFile deleteFile) {
+    return new BitmapPositionDeleteIndex(deleteFile);
   }
 }
