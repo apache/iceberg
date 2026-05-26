@@ -84,6 +84,7 @@ public class SparkFormatModels {
             StructType.class,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 VectorizedSparkOrcReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
+
     FormatModelRegistry.register(
         VortexFormatModel.create(
             InternalRow.class,

@@ -18,18 +18,37 @@
  */
 package org.apache.iceberg.data.vortex;
 
-import dev.vortex.api.Array;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.UUID;
+import org.apache.arrow.vector.BaseIntVector;
+import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.DateMilliVector;
+import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.ExtensionTypeVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.TimeMicroVector;
+import org.apache.arrow.vector.TimeNanoVector;
+import org.apache.arrow.vector.TimeStampVector;
+import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.vortex.VortexValueReader;
 
 public class GenericVortexReaders {
@@ -67,8 +86,16 @@ public class GenericVortexReaders {
     return BytesReader.INSTANCE;
   }
 
+  public static VortexValueReader<UUID> uuids() {
+    return UuidReader.INSTANCE;
+  }
+
   public static VortexValueReader<LocalDate> date(boolean isMillis) {
     return new DateReader(isMillis);
+  }
+
+  public static VortexValueReader<LocalTime> time(boolean nanosecond) {
+    return new TimeReader(nanosecond);
   }
 
   public static VortexValueReader<LocalDateTime> timestamp(boolean nanosecond) {
@@ -79,14 +106,13 @@ public class GenericVortexReaders {
     return new TimestampTzReader(timeZone, nanosecond);
   }
 
-  // Read a struct of record values instead.
   public static VortexValueReader<Record> struct(
       Types.StructType schema, List<VortexValueReader<?>> readers) {
     return new StructReader(schema, readers);
   }
 
   public static <T> VortexValueReader<List<T>> list(VortexValueReader<T> elementReader) {
-    return new ListReader(elementReader);
+    return new ListReader<>(elementReader);
   }
 
   private static class StructReader implements VortexValueReader<Record> {
@@ -99,12 +125,13 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public Record readNonNull(Array array, int row) {
+    public Record readNonNull(FieldVector vector, int row) {
+      StructVector struct = (StructVector) vector;
       GenericRecord record = GenericRecord.create(schema);
       for (int i = 0; i < readers.size(); i++) {
         VortexValueReader<?> reader = readers.get(i);
-        Array field = array.getField(i);
-        Object value = reader.read(field, row);
+        FieldVector child = (FieldVector) struct.getChildByOrdinal(i);
+        Object value = reader.read(child, row);
         record.set(i, value);
       }
       return record;
@@ -120,8 +147,7 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public List<T> readNonNull(Array array, int row) {
-      // TODO(aduffy): implement LIST reads in vortex-jni.
+    public List<T> readNonNull(FieldVector vector, int row) {
       throw new UnsupportedOperationException("Reading lists from Vortex not supported yet");
     }
   }
@@ -132,8 +158,8 @@ public class GenericVortexReaders {
     private BooleanReader() {}
 
     @Override
-    public Boolean readNonNull(Array array, int row) {
-      return array.getBool(row);
+    public Boolean readNonNull(FieldVector vector, int row) {
+      return ((BitVector) vector).get(row) != 0;
     }
   }
 
@@ -143,8 +169,8 @@ public class GenericVortexReaders {
     private IntegerReader() {}
 
     @Override
-    public Integer readNonNull(Array array, int row) {
-      return array.getInt(row);
+    public Integer readNonNull(FieldVector vector, int row) {
+      return (int) ((BaseIntVector) vector).getValueAsLong(row);
     }
   }
 
@@ -154,8 +180,8 @@ public class GenericVortexReaders {
     private LongReader() {}
 
     @Override
-    public Long readNonNull(Array array, int row) {
-      return array.getLong(row);
+    public Long readNonNull(FieldVector vector, int row) {
+      return ((BaseIntVector) vector).getValueAsLong(row);
     }
   }
 
@@ -165,8 +191,8 @@ public class GenericVortexReaders {
     private DecimalReader() {}
 
     @Override
-    public BigDecimal readNonNull(Array array, int row) {
-      return array.getBigDecimal(row);
+    public BigDecimal readNonNull(FieldVector vector, int row) {
+      return ((DecimalVector) vector).getObjectNotNull(row);
     }
   }
 
@@ -176,8 +202,8 @@ public class GenericVortexReaders {
     private FloatReader() {}
 
     @Override
-    public Float readNonNull(Array array, int row) {
-      return array.getFloat(row);
+    public Float readNonNull(FieldVector vector, int row) {
+      return ((Float4Vector) vector).get(row);
     }
   }
 
@@ -187,8 +213,8 @@ public class GenericVortexReaders {
     private DoubleReader() {}
 
     @Override
-    public Double readNonNull(Array array, int row) {
-      return array.getDouble(row);
+    public Double readNonNull(FieldVector vector, int row) {
+      return ((Float8Vector) vector).get(row);
     }
   }
 
@@ -198,8 +224,8 @@ public class GenericVortexReaders {
     private StringReader() {}
 
     @Override
-    public String readNonNull(Array array, int row) {
-      return array.getUTF8(row);
+    public String readNonNull(FieldVector vector, int row) {
+      return new String(((VarCharVector) vector).get(row), StandardCharsets.UTF_8);
     }
   }
 
@@ -209,9 +235,33 @@ public class GenericVortexReaders {
     private BytesReader() {}
 
     @Override
-    public byte[] readNonNull(Array array, int row) {
-      return array.getBinary(row);
+    public byte[] readNonNull(FieldVector vector, int row) {
+      return ((VarBinaryVector) vector).get(row);
     }
+  }
+
+  private static class UuidReader implements VortexValueReader<UUID> {
+    static final UuidReader INSTANCE = new UuidReader();
+
+    private UuidReader() {}
+
+    @Override
+    public UUID readNonNull(FieldVector vector, int row) {
+      return UUIDUtil.convert(uuidStorage(vector).get(row));
+    }
+  }
+
+  /**
+   * Returns the underlying {@link FixedSizeBinaryVector} for a UUID column. Vortex may emit either
+   * a registered extension vector (wrapping FixedSizeBinary) or the raw fixed-binary storage,
+   * depending on whether {@code arrow.uuid} is registered in the consumer's {@link
+   * org.apache.arrow.vector.types.pojo.ExtensionTypeRegistry}.
+   */
+  static FixedSizeBinaryVector uuidStorage(FieldVector vector) {
+    if (vector instanceof ExtensionTypeVector<?> ext) {
+      return (FixedSizeBinaryVector) ext.getUnderlyingVector();
+    }
+    return (FixedSizeBinaryVector) vector;
   }
 
   private static class DateReader implements VortexValueReader<LocalDate> {
@@ -222,12 +272,12 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public LocalDate readNonNull(Array array, int row) {
+    public LocalDate readNonNull(FieldVector vector, int row) {
       int days;
       if (isMillis) {
-        days = (int) Math.floorDiv(array.getLong(row), 86_400_000L);
+        days = (int) Math.floorDiv(((DateMilliVector) vector).get(row), 86_400_000L);
       } else {
-        days = array.getInt(row);
+        days = ((DateDayVector) vector).get(row);
       }
 
       return DateTimeUtil.dateFromDays(days);
@@ -242,12 +292,29 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public LocalDateTime readNonNull(Array array, int row) {
-      long measure = array.getLong(row);
+    public LocalDateTime readNonNull(FieldVector vector, int row) {
+      long measure = ((TimeStampVector) vector).get(row);
       if (nanosecond) {
         return DateTimeUtil.timestampFromNanos(measure);
       } else {
         return DateTimeUtil.timestampFromMicros(measure);
+      }
+    }
+  }
+
+  private static class TimeReader implements VortexValueReader<LocalTime> {
+    private final boolean nanosecond;
+
+    private TimeReader(boolean nanosecond) {
+      this.nanosecond = nanosecond;
+    }
+
+    @Override
+    public LocalTime readNonNull(FieldVector vector, int row) {
+      if (nanosecond) {
+        return LocalTime.ofNanoOfDay(((TimeNanoVector) vector).get(row));
+      } else {
+        return DateTimeUtil.timeFromMicros(((TimeMicroVector) vector).get(row));
       }
     }
   }
@@ -262,13 +329,13 @@ public class GenericVortexReaders {
     }
 
     @Override
-    public OffsetDateTime readNonNull(Array array, int row) {
-      long measure = array.getLong(row);
+    public OffsetDateTime readNonNull(FieldVector vector, int row) {
+      long measure = ((TimeStampVector) vector).get(row);
       long nanoAdjustment;
       if (nanosecond) {
         nanoAdjustment = measure;
       } else {
-        nanoAdjustment = Math.multiplyExact(1_000, measure);
+        nanoAdjustment = Math.multiplyExact(1_000L, measure);
       }
       return OffsetDateTime.ofInstant(Instant.EPOCH.plusNanos(nanoAdjustment), timeZone);
     }

@@ -18,54 +18,56 @@
  */
 package org.apache.iceberg.vortex;
 
-import dev.vortex.api.DType;
 import java.util.List;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+/**
+ * Walks a file's Arrow {@link Field} schema in parallel with the expected Iceberg {@link Type} so
+ * that visitors can build readers that bind a target Iceberg shape to the file's columns.
+ */
 public abstract class VortexSchemaWithTypeVisitor<T> {
-  public abstract T struct(
-      Types.StructType iStruct, List<DType> types, List<String> names, List<T> fields);
+  public abstract T struct(Types.StructType iStruct, List<Field> fields, List<T> children);
 
-  public abstract T list(Types.ListType iList, DType array, T element);
+  public abstract T list(Types.ListType iList, Field listField, T element);
 
-  public abstract T primitive(Type.PrimitiveType iPrimitive, DType primitive);
+  public abstract T primitive(Type.PrimitiveType iPrimitive, Field primField);
 
-  // What is the point of this??
   public static <T> T visit(
-      Schema expectedSchema, DType readVortexSchema, VortexSchemaWithTypeVisitor<T> visitor) {
-    return visit(expectedSchema.asStruct(), readVortexSchema, visitor);
+      Schema expectedSchema,
+      org.apache.arrow.vector.types.pojo.Schema fileSchema,
+      VortexSchemaWithTypeVisitor<T> visitor) {
+    return visitStruct(expectedSchema.asStruct(), fileSchema.getFields(), visitor);
   }
 
-  public static <T> T visit(Type iType, DType schema, VortexSchemaWithTypeVisitor<T> visitor) {
-    return switch (schema.getVariant()) {
-      case STRUCT -> visitStruct(iType != null ? iType.asStructType() : null, schema, visitor);
-      case LIST -> {
-        Types.ListType list = iType != null ? iType.asListType() : null;
-        yield visitor.list(
-            list,
-            schema,
-            visit(list != null ? list.elementType() : null, schema.getElementType(), visitor));
-      }
-      default -> visitor.primitive(iType != null ? iType.asPrimitiveType() : null, schema);
-    };
+  public static <T> T visit(Type iType, Field field, VortexSchemaWithTypeVisitor<T> visitor) {
+    ArrowType arrowType = field.getType();
+    if (arrowType instanceof ArrowType.Struct) {
+      return visitStruct(iType != null ? iType.asStructType() : null, field.getChildren(), visitor);
+    } else if (arrowType instanceof ArrowType.List
+        || arrowType instanceof ArrowType.LargeList
+        || arrowType instanceof ArrowType.FixedSizeList) {
+      Types.ListType list = iType != null ? iType.asListType() : null;
+      Field element = field.getChildren().get(0);
+      return visitor.list(
+          list, field, visit(list != null ? list.elementType() : null, element, visitor));
+    } else {
+      return visitor.primitive(iType != null ? iType.asPrimitiveType() : null, field);
+    }
   }
 
   private static <T> T visitStruct(
-      Types.StructType struct, DType record, VortexSchemaWithTypeVisitor<T> visitor) {
-    List<DType> fields = record.getFieldTypes();
-    List<String> names = record.getFieldNames();
-
+      Types.StructType struct, List<Field> fields, VortexSchemaWithTypeVisitor<T> visitor) {
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-    // TODO(aduffy): metadata in Vortex schemas to allow embedding the Iceberg field ID number?
-    //  For now we just use the field index, which might not be right when we have projections...
     for (int fieldId = 0; fieldId < fields.size(); fieldId++) {
-      DType field = fields.get(fieldId);
+      Field field = fields.get(fieldId);
       Types.NestedField iField = struct != null ? struct.field(fieldId) : null;
       results.add(visit(iField != null ? iField.type() : null, field, visitor));
     }
-    return visitor.struct(struct, fields, names, results);
+    return visitor.struct(struct, fields, results);
   }
 }

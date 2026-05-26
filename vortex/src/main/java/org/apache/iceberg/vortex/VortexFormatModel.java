@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.vortex;
 
-import dev.vortex.api.DType;
+import dev.vortex.api.Session;
 import dev.vortex.api.VortexWriter;
+import dev.vortex.arrow.ArrowAllocation;
+import dev.vortex.jni.NativeRuntime;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -27,10 +29,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.BaseFormatModel;
@@ -46,23 +50,25 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
 public class VortexFormatModel<D, S, R>
-    extends BaseFormatModel<D, S, VortexValueWriter<?>, R, DType> {
+    extends BaseFormatModel<D, S, VortexValueWriter<?>, R, Schema> {
   private final boolean isBatchReader;
 
   public interface ReaderFunction<R> {
     VortexRowReader<R> read(
-        org.apache.iceberg.Schema schema, DType fileSchema, Map<Integer, ?> idToConstant);
+        org.apache.iceberg.Schema schema, Schema fileArrowSchema, Map<Integer, ?> idToConstant);
   }
 
   public interface BatchReaderFunction<T> {
     VortexBatchReader<T> batchRead(
-        org.apache.iceberg.Schema icebergSchema, DType vortexSchema, Map<Integer, ?> idToConstant);
+        org.apache.iceberg.Schema icebergSchema,
+        Schema fileArrowSchema,
+        Map<Integer, ?> idToConstant);
   }
 
   public static <D, S> VortexFormatModel<D, S, VortexRowReader<?>> create(
       Class<D> type,
       Class<S> schemaType,
-      WriterFunction<VortexValueWriter<?>, S, DType> writerFunction,
+      WriterFunction<VortexValueWriter<?>, S, Schema> writerFunction,
       ReaderFunction<D> readerFunction) {
     return new VortexFormatModel<>(
         type,
@@ -76,7 +82,7 @@ public class VortexFormatModel<D, S, R>
   public static <D, S> VortexFormatModel<D, S, VortexBatchReader<?>> create(
       Class<D> type,
       Class<S> schemaType,
-      WriterFunction<VortexValueWriter<?>, S, DType> writerFunction,
+      WriterFunction<VortexValueWriter<?>, S, Schema> writerFunction,
       BatchReaderFunction<D> batchReaderFunction) {
     return new VortexFormatModel<>(
         type,
@@ -90,8 +96,8 @@ public class VortexFormatModel<D, S, R>
   private VortexFormatModel(
       Class<? extends D> type,
       Class<S> schemaType,
-      WriterFunction<VortexValueWriter<?>, S, DType> writerFunction,
-      BaseFormatModel.ReaderFunction<R, S, DType> readerFunction,
+      WriterFunction<VortexValueWriter<?>, S, Schema> writerFunction,
+      BaseFormatModel.ReaderFunction<R, S, Schema> readerFunction,
       boolean isBatchReader) {
     super(type, schemaType, writerFunction, readerFunction);
     this.isBatchReader = isBatchReader;
@@ -114,17 +120,18 @@ public class VortexFormatModel<D, S, R>
 
   private static class WriteBuilderWrapper<D, S> implements ModelWriteBuilder<D, S> {
     private final EncryptedOutputFile outputFile;
-    private final WriterFunction<VortexValueWriter<?>, S, DType> writerFunction;
+    private final WriterFunction<VortexValueWriter<?>, S, Schema> writerFunction;
     private org.apache.iceberg.Schema schema;
     private S engineSchema;
     private FileContent content;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private final Map<String, String> writerProperties = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newHashMap();
+    private int workerThreads = TableProperties.VORTEX_WORKER_THREADS_DEFAULT;
 
     private WriteBuilderWrapper(
         EncryptedOutputFile outputFile,
-        WriterFunction<VortexValueWriter<?>, S, DType> writerFunction) {
+        WriterFunction<VortexValueWriter<?>, S, Schema> writerFunction) {
       this.outputFile = outputFile;
       this.writerFunction = writerFunction;
     }
@@ -143,13 +150,17 @@ public class VortexFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> set(String property, String value) {
+      if (TableProperties.WRITE_VORTEX_WORKER_THREADS.equals(property)) {
+        workerThreads = Integer.parseInt(value);
+      }
+
       writerProperties.put(property, value);
       return this;
     }
 
     @Override
     public ModelWriteBuilder<D, S> setAll(Map<String, String> properties) {
-      writerProperties.putAll(properties);
+      properties.forEach(this::set);
       return this;
     }
 
@@ -209,23 +220,30 @@ public class VortexFormatModel<D, S, R>
     @SuppressWarnings("unchecked")
     private FileAppender<D> buildAppender(org.apache.iceberg.Schema writeSchema)
         throws IOException {
-      DType dtype = VortexSchemas.toDType(writeSchema);
       Schema arrowSchema = VortexSchemas.toArrowSchema(writeSchema);
 
       VortexValueWriter<D> valueWriter =
-          (VortexValueWriter<D>) writerFunction.write(writeSchema, dtype, engineSchema);
+          (VortexValueWriter<D>) writerFunction.write(writeSchema, arrowSchema, engineSchema);
 
       OutputFile rawOutputFile = outputFile.encryptingOutputFile();
       String uri = VortexFileUtil.resolveUri(rawOutputFile.location());
       Map<String, String> properties =
           Maps.newHashMap(VortexFileUtil.resolveOutputProperties(rawOutputFile));
+      properties.putAll(writerProperties);
       properties.putAll(metadata);
 
-      VortexWriter vortexWriter = VortexWriter.create(uri, dtype, properties);
+      // Apply worker-thread setting on this executor JVM before any Vortex native work begins.
+      NativeRuntime.setWorkerThreads(workerThreads);
+      BufferAllocator allocator = ArrowAllocation.rootAllocator();
+      Session session = Session.create();
+      VortexWriter vortexWriter =
+          VortexWriter.create(session, uri, arrowSchema, properties, allocator);
+
       return new VortexFileAppender<>(
           vortexWriter,
           valueWriter,
           arrowSchema,
+          allocator,
           VortexFileAppender.DEFAULT_BATCH_SIZE,
           rawOutputFile,
           writeSchema,
@@ -235,17 +253,18 @@ public class VortexFormatModel<D, S, R>
 
   private static class ReadBuilderWrapper<R, D, S> implements ReadBuilder<D, S> {
     private final InputFile inputFile;
-    private final BaseFormatModel.ReaderFunction<R, S, DType> readerFunction;
+    private final BaseFormatModel.ReaderFunction<R, S, Schema> readerFunction;
     private final boolean isBatchReader;
     private org.apache.iceberg.Schema schema;
     private S engineSchema;
     private Map<Integer, ?> idToConstant;
     private Optional<Expression> filterPredicate = Optional.empty();
     private long[] rowRange;
+    private int workerThreads = TableProperties.VORTEX_WORKER_THREADS_DEFAULT;
 
     private ReadBuilderWrapper(
         InputFile inputFile,
-        BaseFormatModel.ReaderFunction<R, S, DType> readerFunction,
+        BaseFormatModel.ReaderFunction<R, S, Schema> readerFunction,
         boolean isBatchReader) {
       this.inputFile = inputFile;
       this.readerFunction = readerFunction;
@@ -283,6 +302,9 @@ public class VortexFormatModel<D, S, R>
 
     @Override
     public ReadBuilder<D, S> set(String key, String value) {
+      if (TableProperties.READ_VORTEX_WORKER_THREADS.equals(key)) {
+        workerThreads = Integer.parseInt(value);
+      }
       return this;
     }
 
@@ -315,8 +337,8 @@ public class VortexFormatModel<D, S, R>
     @Override
     @SuppressWarnings("unchecked")
     public CloseableIterable<D> build() {
-      Function<DType, VortexRowReader<D>> readerFunc = null;
-      Function<DType, VortexBatchReader<D>> batchReaderFunc = null;
+      Function<Schema, VortexRowReader<D>> readerFunc = null;
+      Function<Schema, VortexBatchReader<D>> batchReaderFunc = null;
 
       if (isBatchReader) {
         batchReaderFunc =
@@ -340,7 +362,13 @@ public class VortexFormatModel<D, S, R>
       }
 
       return new VortexIterable<>(
-          inputFile, readSchema, filterPredicate, rowRange, readerFunc, batchReaderFunc);
+          inputFile,
+          readSchema,
+          filterPredicate,
+          rowRange,
+          readerFunc,
+          batchReaderFunc,
+          workerThreads);
     }
   }
 }

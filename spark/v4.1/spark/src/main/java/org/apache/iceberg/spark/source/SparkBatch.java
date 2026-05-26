@@ -187,9 +187,24 @@ class SparkBatch implements Batch {
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
   }
 
+  // conditions for using Vortex batch reads:
+  // - all tasks are of FileScanTask type and read only Vortex files
   private boolean useVortexBatchReads() {
-    // TODO(aduffy): do we ever want to not use this?
-    return true;
+    return taskGroups.stream().allMatch(this::supportsVortexBatchReads);
+  }
+
+  private boolean supportsVortexBatchReads(ScanTask task) {
+    if (task instanceof ScanTaskGroup) {
+      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+      return taskGroup.tasks().stream().allMatch(this::supportsVortexBatchReads);
+
+    } else if (task.isFileScanTask() && !task.isDataTask()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      return fileScanTask.file().format() == FileFormat.VORTEX;
+
+    } else {
+      return false;
+    }
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {

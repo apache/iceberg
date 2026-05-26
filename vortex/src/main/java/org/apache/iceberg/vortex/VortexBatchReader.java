@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.vortex;
 
-import dev.vortex.api.Array;
+import org.apache.arrow.vector.VectorSchemaRoot;
 
-/** Read a Vortex {@link Array} as a batch of type {@link T}. */
+/** Reads an Arrow {@link VectorSchemaRoot} batch as a value of type {@link T}. */
 public interface VortexBatchReader<T> {
-  T read(Array batch);
+  T read(VectorSchemaRoot batch);
 }

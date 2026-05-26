@@ -18,42 +18,67 @@
  */
 package org.apache.iceberg.data.vortex;
 
-import dev.vortex.api.Array;
-import dev.vortex.api.DType;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.DateUnit;
+import org.apache.arrow.vector.types.TimeUnit;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.VortexRowReader;
 import org.apache.iceberg.vortex.VortexSchemaWithTypeVisitor;
+import org.apache.iceberg.vortex.VortexSchemas;
 import org.apache.iceberg.vortex.VortexValueReader;
 
 public class GenericVortexReader implements VortexRowReader<Record> {
-  private final VortexValueReader<?> reader;
+  private final Types.StructType structType;
+  private final List<VortexValueReader<?>> fieldReaders;
 
   private GenericVortexReader(
-      Schema expectedSchema, DType readVortexSchema, Map<Integer, ?> idToConstant) {
-    this.reader =
-        VortexSchemaWithTypeVisitor.visit(
-            expectedSchema, readVortexSchema, new GenericReadBuilder(idToConstant));
-  }
-
-  public static VortexRowReader<Record> buildReader(Schema expectedSchema, DType fileSchema) {
-    return new GenericVortexReader(expectedSchema, fileSchema, Collections.emptyMap());
+      Schema expectedSchema,
+      org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
+      Map<Integer, ?> idToConstant) {
+    this.structType = expectedSchema.asStruct();
+    GenericReadBuilder builder = new GenericReadBuilder(idToConstant);
+    List<Field> fileFields = fileArrowSchema.getFields();
+    List<Types.NestedField> expectedFields = structType.fields();
+    this.fieldReaders = Lists.newArrayListWithExpectedSize(expectedFields.size());
+    for (int i = 0; i < expectedFields.size(); i++) {
+      Type icebergType = expectedFields.get(i).type();
+      Field arrowField = fileFields.get(i);
+      this.fieldReaders.add(VortexSchemaWithTypeVisitor.visit(icebergType, arrowField, builder));
+    }
   }
 
   public static VortexRowReader<Record> buildReader(
-      Schema expectedSchema, DType fileSchema, Map<Integer, ?> idToConstant) {
-    return new GenericVortexReader(expectedSchema, fileSchema, idToConstant);
+      Schema expectedSchema, org.apache.arrow.vector.types.pojo.Schema fileArrowSchema) {
+    return new GenericVortexReader(expectedSchema, fileArrowSchema, Collections.emptyMap());
+  }
+
+  public static VortexRowReader<Record> buildReader(
+      Schema expectedSchema,
+      org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
+      Map<Integer, ?> idToConstant) {
+    return new GenericVortexReader(expectedSchema, fileArrowSchema, idToConstant);
   }
 
   @Override
-  public Record read(Array batch, int row) {
-    return (Record) this.reader.read(batch, row);
+  public Record read(VectorSchemaRoot batch, int row) {
+    GenericRecord record = GenericRecord.create(structType);
+    for (int i = 0; i < fieldReaders.size(); i++) {
+      VortexValueReader<?> reader = fieldReaders.get(i);
+      FieldVector vector = batch.getVector(i);
+      record.set(i, reader.read(vector, row));
+    }
+    return record;
   }
 
   @SuppressWarnings("UnusedVariable")
@@ -61,77 +86,76 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     // TODO(aduffy): implement constant readers to fill in identity partition values
     private final Map<Integer, ?> idToConstant;
 
-    private GenericReadBuilder(Map<Integer, ?> idToConstant) {
+    GenericReadBuilder(Map<Integer, ?> idToConstant) {
       this.idToConstant = idToConstant;
     }
 
     @Override
     public VortexValueReader<?> struct(
-        Types.StructType iStruct,
-        List<DType> types,
-        List<String> names,
-        List<VortexValueReader<?>> fields) {
-      return GenericVortexReaders.struct(iStruct, fields);
+        Types.StructType iStruct, List<Field> fields, List<VortexValueReader<?>> children) {
+      return GenericVortexReaders.struct(iStruct, children);
     }
 
     @Override
     public VortexValueReader<?> list(
-        Types.ListType iList, DType array, VortexValueReader<?> element) {
-      // TODO(aduffy): implement list reader
+        Types.ListType iList, Field listField, VortexValueReader<?> element) {
       throw new UnsupportedOperationException("LIST TYPES!");
     }
 
     @Override
-    public VortexValueReader<?> primitive(Type.PrimitiveType iPrimitive, DType vortexType) {
-      switch (vortexType.getVariant()) {
-        case NULL:
-          throw new UnsupportedOperationException("Vortex Null type not supported");
-        case BOOL:
-          return GenericVortexReaders.bools();
-        case PRIMITIVE_U8:
-        case PRIMITIVE_I8:
-        case PRIMITIVE_U16:
-        case PRIMITIVE_I16:
-        case PRIMITIVE_U32:
-        case PRIMITIVE_I32:
-          // Types that promote to Iceberg INTEGER
-          return GenericVortexReaders.ints();
-        case PRIMITIVE_U64:
-        case PRIMITIVE_I64:
-          // Types that promote to Iceberg LONG
-          return GenericVortexReaders.longs();
-        case PRIMITIVE_F16:
-          throw new UnsupportedOperationException("Vortex F16 type not supported");
-        case PRIMITIVE_F32:
-          return GenericVortexReaders.floats();
-        case PRIMITIVE_F64:
-          return GenericVortexReaders.doubles();
-        case UTF8:
-          return GenericVortexReaders.strings();
-        case BINARY:
-          return GenericVortexReaders.bytes();
-        case EXTENSION:
-          // TODO(aduffy): implement TIME/DATE/TIMESTAMP support
-          if (vortexType.isDate()) {
-            boolean isMillis = vortexType.getTimeUnit() == DType.TimeUnit.MILLISECONDS;
-            return GenericVortexReaders.date(isMillis);
-          } else if (vortexType.isTimestamp()) {
-            Optional<String> timeZone = vortexType.getTimeZone();
-            boolean isNanosecond = vortexType.getTimeUnit() == DType.TimeUnit.NANOSECONDS;
-
-            if (timeZone.isEmpty()) {
-              return GenericVortexReaders.timestamp(isNanosecond);
-            } else {
-              return GenericVortexReaders.timestampTz(timeZone.get(), isNanosecond);
-            }
-          }
-          // TODO(aduffy): handle vortex.time extension type (not used by TPC-H data)
-
-          throw new UnsupportedOperationException("Unsupported Vortex Extension type in schema");
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported Vortex type: " + vortexType.getVariant());
+    public VortexValueReader<?> primitive(Type.PrimitiveType iPrimitive, Field primField) {
+      if ((iPrimitive != null && iPrimitive.typeId() == Type.TypeID.UUID)
+          || VortexSchemas.isUuidField(primField)) {
+        return GenericVortexReaders.uuids();
       }
+      ArrowType arrowType = primField.getType();
+      if (arrowType instanceof ArrowType.Int intType) {
+        return intType.getBitWidth() <= Integer.SIZE
+            ? GenericVortexReaders.ints()
+            : GenericVortexReaders.longs();
+      } else if (arrowType instanceof ArrowType.FloatingPoint fpType) {
+        return floatingPointReader(fpType);
+      } else if (arrowType instanceof ArrowType.Date dateType) {
+        return GenericVortexReaders.date(dateType.getUnit() == DateUnit.MILLISECOND);
+      } else if (arrowType instanceof ArrowType.Time timeType) {
+        return GenericVortexReaders.time(timeType.getUnit() == TimeUnit.NANOSECOND);
+      } else if (arrowType instanceof ArrowType.Timestamp tsType) {
+        return timestampReader(tsType);
+      }
+      return simpleReader(arrowType);
+    }
+
+    private static VortexValueReader<?> simpleReader(ArrowType arrowType) {
+      if (arrowType instanceof ArrowType.Bool) {
+        return GenericVortexReaders.bools();
+      } else if (arrowType instanceof ArrowType.Decimal) {
+        return GenericVortexReaders.decimals();
+      } else if (arrowType instanceof ArrowType.Utf8 || arrowType instanceof ArrowType.LargeUtf8) {
+        return GenericVortexReaders.strings();
+      } else if (arrowType instanceof ArrowType.Binary
+          || arrowType instanceof ArrowType.LargeBinary
+          || arrowType instanceof ArrowType.FixedSizeBinary) {
+        return GenericVortexReaders.bytes();
+      }
+      throw new UnsupportedOperationException(
+          "Unsupported Arrow type in Vortex read: " + arrowType);
+    }
+
+    private static VortexValueReader<?> floatingPointReader(ArrowType.FloatingPoint fpType) {
+      return switch (fpType.getPrecision()) {
+        case SINGLE -> GenericVortexReaders.floats();
+        case DOUBLE -> GenericVortexReaders.doubles();
+        case HALF ->
+            throw new UnsupportedOperationException("Half-precision floats are not supported");
+      };
+    }
+
+    private static VortexValueReader<?> timestampReader(ArrowType.Timestamp tsType) {
+      boolean isNano = tsType.getUnit() == TimeUnit.NANOSECOND;
+      if (tsType.getTimezone() == null) {
+        return GenericVortexReaders.timestamp(isNano);
+      }
+      return GenericVortexReaders.timestampTz(tsType.getTimezone(), isNano);
     }
   }
 }

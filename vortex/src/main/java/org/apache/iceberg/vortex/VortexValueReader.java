@@ -18,17 +18,17 @@
  */
 package org.apache.iceberg.vortex;
 
-import dev.vortex.api.Array;
+import org.apache.arrow.vector.FieldVector;
 
-/** Reads a {@link D} from a Vortex array. */
+/** Reads a {@link D} from an Arrow {@link FieldVector} at a row. */
 public interface VortexValueReader<D> {
-  default D read(Array array, int row) {
-    if (array.getNull(row)) {
+  default D read(FieldVector vector, int row) {
+    if (vector.isNull(row)) {
       return null;
     } else {
-      return readNonNull(array, row);
+      return readNonNull(vector, row);
     }
   }
 
-  D readNonNull(Array array, int row);
+  D readNonNull(FieldVector vector, int row);
 }

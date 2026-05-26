@@ -18,8 +18,9 @@
  */
 package org.apache.iceberg.vortex;
 
-import dev.vortex.api.Array;
+import org.apache.arrow.vector.VectorSchemaRoot;
 
+/** Reads a single row of type {@link T} from an Arrow {@link VectorSchemaRoot} batch. */
 public interface VortexRowReader<T> {
-  T read(Array batch, int row);
+  T read(VectorSchemaRoot batch, int row);
 }

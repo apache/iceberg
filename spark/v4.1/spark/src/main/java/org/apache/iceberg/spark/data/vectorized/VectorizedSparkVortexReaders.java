@@ -18,19 +18,16 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
-import dev.vortex.api.Array;
-import dev.vortex.api.DType;
-import dev.vortex.arrow.ArrowAllocation;
-import dev.vortex.relocated.org.apache.arrow.vector.VectorSchemaRoot;
-import dev.vortex.spark.read.VortexArrowColumnVector;
-import dev.vortex.spark.read.VortexColumnarBatch;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.vortex.VortexBatchReader;
+import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
@@ -38,7 +35,9 @@ public class VectorizedSparkVortexReaders {
   private VectorizedSparkVortexReaders() {}
 
   public static VortexBatchReader<ColumnarBatch> buildReader(
-      Schema icebergSchema, DType vortexSchema, Map<Integer, ?> idToConstant) {
+      Schema icebergSchema,
+      org.apache.arrow.vector.types.pojo.Schema vortexSchema,
+      Map<Integer, ?> idToConstant) {
     return new SchemaCachingBatchReader(icebergSchema, vortexSchema, idToConstant);
   }
 
@@ -47,20 +46,18 @@ public class VectorizedSparkVortexReaders {
     private final Map<Integer, ?> idToConstant;
     private final List<Integer> schemaMapping;
 
-    // Reusable vector schema root.
-    private VectorSchemaRoot root;
-
     SchemaCachingBatchReader(
-        Schema readerSchema, DType vortexSchema, Map<Integer, ?> idToConstant) {
+        Schema readerSchema,
+        org.apache.arrow.vector.types.pojo.Schema vortexSchema,
+        Map<Integer, ?> idToConstant) {
       this.readerSchema = readerSchema;
       this.idToConstant = idToConstant;
       this.schemaMapping = vortexSchemaMapping(readerSchema, vortexSchema);
     }
 
     @Override
-    public ColumnarBatch read(Array batch) {
-      this.root = batch.exportToArrow(ArrowAllocation.rootAllocator(), this.root);
-      int rowCount = this.root.getRowCount();
+    public ColumnarBatch read(VectorSchemaRoot batch) {
+      int rowCount = batch.getRowCount();
       Map<Integer, ColumnVector> vectors = Maps.newHashMap();
 
       for (Map.Entry<Integer, ?> entry : idToConstant.entrySet()) {
@@ -70,26 +67,24 @@ public class VectorizedSparkVortexReaders {
           continue;
         }
 
-        // Field IDs are 1-indexed in Iceberg.
         vectors.put(
-            fieldId,
-            new ConstantColumnVector(
-                readerSchema.findType(fieldId), (int) batch.getLen(), constant));
+            fieldId, new ConstantColumnVector(readerSchema.findType(fieldId), rowCount, constant));
       }
 
-      for (int i = 0; i < root.getFieldVectors().size(); i++) {
+      List<FieldVector> fieldVectors = batch.getFieldVectors();
+      for (int i = 0; i < fieldVectors.size(); i++) {
         int fieldId = schemaMapping.get(i);
-        vectors.put(fieldId, new VortexArrowColumnVector(root.getVector(i)));
+        vectors.put(fieldId, new ArrowColumnVector(fieldVectors.get(i)));
       }
 
-      return new VortexColumnarBatch(
-          batch, vectors.values().toArray(new ColumnVector[0]), rowCount);
+      return new ColumnarBatch(vectors.values().toArray(new ColumnVector[0]), rowCount);
     }
 
-    // Mapping from Vortex schema index to Iceberg Field ID.
-    static List<Integer> vortexSchemaMapping(Schema icebergSchema, DType vortexSchema) {
-      return vortexSchema.getFieldNames().stream()
-          .map(fieldName -> icebergSchema.findField(fieldName).fieldId())
+    // Mapping from Arrow Schema field index to Iceberg Field ID.
+    static List<Integer> vortexSchemaMapping(
+        Schema icebergSchema, org.apache.arrow.vector.types.pojo.Schema vortexSchema) {
+      return vortexSchema.getFields().stream()
+          .map(field -> icebergSchema.findField(field.getName()).fieldId())
           .collect(Collectors.toList());
     }
   }

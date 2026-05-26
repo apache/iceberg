@@ -980,7 +980,14 @@ project(':iceberg-vortex') {
     implementation(libs.vortex.jni) {
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
     }
-    implementation(libs.arrow.vector) {
+    // VortexFormatModel exposes Arrow types in its public API, so Arrow must be
+    // visible to consumers of iceberg-vortex.
+    api(libs.arrow.vector) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    implementation(libs.arrow.c.data) {
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'

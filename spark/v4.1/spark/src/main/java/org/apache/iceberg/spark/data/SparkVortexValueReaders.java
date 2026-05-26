@@ -18,10 +18,21 @@
  */
 package org.apache.iceberg.spark.data;
 
-import dev.vortex.api.Array;
-import dev.vortex.api.DType;
-import java.util.function.BiFunction;
+import java.nio.charset.StandardCharsets;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.DateMilliVector;
+import org.apache.arrow.vector.ExtensionTypeVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
+import org.apache.arrow.vector.TimeMicroVector;
+import org.apache.arrow.vector.TimeNanoVector;
+import org.apache.arrow.vector.TimeStampVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.types.TimeUnit;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.vortex.VortexValueReader;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -32,13 +43,23 @@ public class SparkVortexValueReaders {
     return UTF8Reader.INSTANCE;
   }
 
-  public static VortexValueReader<Integer> date(DType.TimeUnit timeUnit) {
-    return new DateReader(timeUnit);
+  public static VortexValueReader<Integer> date() {
+    return DateReader.INSTANCE;
   }
 
-  public static VortexValueReader<Long> timestamp(DType.TimeUnit timeUnit) {
-    // Spark timestamp has us precision
+  public static VortexValueReader<UTF8String> uuid() {
+    // Iceberg's UUID maps to Spark StringType; emit the canonical UUID string.
+    return UuidReader.INSTANCE;
+  }
+
+  public static VortexValueReader<Long> timestamp(TimeUnit timeUnit) {
+    // Spark timestamp has µs precision
     return new TimestampReader(timeUnit);
+  }
+
+  public static VortexValueReader<Long> time(TimeUnit timeUnit) {
+    // Spark's TimeType is stored as microseconds since midnight (Long).
+    return new TimeReader(timeUnit);
   }
 
   static class UTF8Reader implements VortexValueReader<UTF8String> {
@@ -47,74 +68,92 @@ public class SparkVortexValueReaders {
     private UTF8Reader() {}
 
     @Override
-    public UTF8String readNonNull(Array array, int row) {
-      // TODO(aduffy): do this zero-copy by getting Vortex to give us back the pointer + len
-      //  to the decompressed string.
-      String value = array.getUTF8(row);
-      return UTF8String.fromString(value);
+    public UTF8String readNonNull(FieldVector vector, int row) {
+      byte[] bytes = ((VarCharVector) vector).get(row);
+      return UTF8String.fromString(new String(bytes, StandardCharsets.UTF_8));
     }
   }
 
-  // Spark expects DateType as Integer number of days since UNIX epoch
-  static class DateReader implements VortexValueReader<Integer> {
-    private final BiFunction<Array, Integer, Integer> reader;
+  static class UuidReader implements VortexValueReader<UTF8String> {
+    static final UuidReader INSTANCE = new UuidReader();
 
-    private DateReader(DType.TimeUnit timeUnit) {
-      switch (timeUnit) {
-        case MILLISECONDS:
-          this.reader =
-              (array, row) -> {
-                long millis = array.getLong(row);
-                return DateTimeUtil.microsToDays(millis * 1000);
-              };
-          break;
-        case DAYS:
-          this.reader = Array::getInt;
-          break;
-        default:
-          throw new IllegalArgumentException("Unsupported time unit for DATE: " + timeUnit);
-      }
-    }
+    private UuidReader() {}
 
     @Override
-    public Integer readNonNull(Array array, int row) {
-      return this.reader.apply(array, row);
+    public UTF8String readNonNull(FieldVector vector, int row) {
+      FixedSizeBinaryVector storage =
+          vector instanceof ExtensionTypeVector<?> ext
+              ? (FixedSizeBinaryVector) ext.getUnderlyingVector()
+              : (FixedSizeBinaryVector) vector;
+      return UTF8String.fromString(UUIDUtil.convert(storage.get(row)).toString());
+    }
+  }
+
+  // Spark expects DateType as Integer number of days since UNIX epoch.
+  static class DateReader implements VortexValueReader<Integer> {
+    static final DateReader INSTANCE = new DateReader();
+
+    private DateReader() {}
+
+    @Override
+    public Integer readNonNull(FieldVector vector, int row) {
+      ArrowType arrowType = vector.getField().getType();
+      if (arrowType instanceof ArrowType.Date dateType
+          && dateType.getUnit() == org.apache.arrow.vector.types.DateUnit.MILLISECOND) {
+        long millis = ((DateMilliVector) vector).get(row);
+        return DateTimeUtil.microsToDays(millis * 1000L);
+      }
+      return ((DateDayVector) vector).get(row);
     }
   }
 
   static class TimestampReader implements VortexValueReader<Long> {
-    private final BiFunction<Array, Integer, Long> reader;
+    private final TimeUnit unit;
 
-    private TimestampReader(DType.TimeUnit vortexTimeUnit) {
-      switch (vortexTimeUnit) {
-        case NANOSECONDS:
-          // Round nanoseconds to microsecond
-          this.reader = (array, row) -> Math.floorDiv(array.getLong(row), 1_000L);
-          break;
-        case MICROSECONDS:
-          // Microseconds measurements
-          this.reader = Array::getLong;
-          break;
-        case MILLISECONDS:
-          // Milliseconds -> Microseconds
-          this.reader = (array, row) -> Math.multiplyExact(array.getLong(row), 1_000L);
-          break;
-        case SECONDS:
-          // Seconds -> Microseconds
-          this.reader = (array, row) -> Math.multiplyExact(array.getLong(row), 1_000_000L);
-          break;
-        case DAYS:
-          // Days -> Microseconds
-          this.reader = (array, row) -> Math.multiplyExact(array.getLong(row), 86_400_000_000L);
-          break;
-        default:
-          throw new IllegalStateException("Unexpected value: " + vortexTimeUnit);
-      }
+    private TimestampReader(TimeUnit unit) {
+      this.unit = unit;
     }
 
     @Override
-    public Long readNonNull(Array array, int row) {
-      return this.reader.apply(array, row);
+    public Long readNonNull(FieldVector vector, int row) {
+      long measure;
+      if (vector instanceof TimeStampVector ts) {
+        measure = ts.get(row);
+      } else {
+        measure = ((BigIntVector) vector).get(row);
+      }
+      return switch (unit) {
+        case NANOSECOND -> Math.floorDiv(measure, 1_000L);
+        case MICROSECOND -> measure;
+        case MILLISECOND -> Math.multiplyExact(measure, 1_000L);
+        case SECOND -> Math.multiplyExact(measure, 1_000_000L);
+      };
+    }
+  }
+
+  static class TimeReader implements VortexValueReader<Long> {
+    private final TimeUnit unit;
+
+    private TimeReader(TimeUnit unit) {
+      this.unit = unit;
+    }
+
+    @Override
+    public Long readNonNull(FieldVector vector, int row) {
+      long measure;
+      if (vector instanceof TimeMicroVector tm) {
+        measure = tm.get(row);
+      } else if (vector instanceof TimeNanoVector tn) {
+        measure = tn.get(row);
+      } else {
+        measure = ((BigIntVector) vector).get(row);
+      }
+      return switch (unit) {
+        case NANOSECOND -> Math.floorDiv(measure, 1_000L);
+        case MICROSECOND -> measure;
+        case MILLISECOND -> Math.multiplyExact(measure, 1_000L);
+        case SECOND -> Math.multiplyExact(measure, 1_000_000L);
+      };
     }
   }
 }

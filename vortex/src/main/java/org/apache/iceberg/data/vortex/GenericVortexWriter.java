@@ -29,12 +29,15 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.ExtensionTypeVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -51,6 +54,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.vortex.VortexValueWriter;
 
 /** Writes Iceberg generic {@link Record} objects to Arrow vectors for Vortex file output. */
@@ -143,6 +147,13 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
       case DATE:
         int epochDay = (int) ((LocalDate) value).toEpochDay();
         ((DateDayVector) vector).setSafe(rowIndex, epochDay);
+        break;
+      case UUID:
+        FixedSizeBinaryVector uuidStorage =
+            vector instanceof ExtensionTypeVector<?> ext
+                ? (FixedSizeBinaryVector) ext.getUnderlyingVector()
+                : (FixedSizeBinaryVector) vector;
+        uuidStorage.setSafe(rowIndex, UUIDUtil.convert((UUID) value));
         break;
       case TIME:
         long timeMicros = ((LocalTime) value).getLong(java.time.temporal.ChronoField.MICRO_OF_DAY);

@@ -19,13 +19,13 @@
 package org.apache.iceberg.vortex;
 
 import dev.vortex.api.VortexWriter;
-import java.io.ByteArrayOutputStream;
+import dev.vortex.arrow.ArrowAllocation;
 import java.io.IOException;
-import java.nio.channels.Channels;
+import org.apache.arrow.c.ArrowArray;
+import org.apache.arrow.c.ArrowSchema;
+import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -33,10 +33,11 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 
 /**
- * A {@link FileAppender} that writes data to Vortex files via Arrow IPC.
+ * A {@link FileAppender} that writes data to Vortex files via the Arrow C-data interface.
  *
- * <p>Rows are buffered in an Arrow {@link VectorSchemaRoot} and flushed as Arrow IPC stream batches
- * to the underlying {@link VortexWriter} when the batch reaches the configured size.
+ * <p>Rows are buffered in an Arrow {@link VectorSchemaRoot} and flushed to the underlying {@link
+ * VortexWriter} when the batch reaches the configured size, by exporting each batch through the
+ * Arrow C-data interface as a pair of {@code (array, schema)} pointers.
  */
 class VortexFileAppender<D> implements FileAppender<D> {
   static final int DEFAULT_BATCH_SIZE = 2048;
@@ -58,14 +59,19 @@ class VortexFileAppender<D> implements FileAppender<D> {
       VortexWriter writer,
       VortexValueWriter<D> valueWriter,
       Schema arrowSchema,
+      BufferAllocator allocator,
       int batchSize,
       OutputFile outputFile,
       org.apache.iceberg.Schema icebergSchema,
       MetricsConfig metricsConfig) {
     this.writer = writer;
     this.valueWriter = valueWriter;
-    this.allocator = new RootAllocator();
-    this.root = VectorSchemaRoot.create(arrowSchema, allocator);
+    // Use Vortex's shared root allocator: VortexWriter performs allocations against this
+    // and the native side manages lifetime via Cleaner references. Owning our own
+    // RootAllocator and closing it eagerly trips strict leak checks when Vortex retains
+    // small per-writer state.
+    this.allocator = allocator != null ? allocator : ArrowAllocation.rootAllocator();
+    this.root = VectorSchemaRoot.create(arrowSchema, this.allocator);
     this.batchSize = batchSize;
     this.outputFile = outputFile;
     this.icebergSchema = icebergSchema;
@@ -94,14 +100,10 @@ class VortexFileAppender<D> implements FileAppender<D> {
 
     root.setRowCount(currentBatchIndex);
 
-    try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-      try (ArrowStreamWriter streamWriter =
-          new ArrowStreamWriter(root, null, Channels.newChannel(baos))) {
-        streamWriter.start();
-        streamWriter.writeBatch();
-      }
-
-      writer.writeBatch(baos.toByteArray());
+    try (ArrowArray cArray = ArrowArray.allocateNew(allocator);
+        ArrowSchema cSchema = ArrowSchema.allocateNew(allocator)) {
+      Data.exportVectorSchemaRoot(allocator, root, null, cArray, cSchema);
+      writer.writeBatch(cArray.memoryAddress(), cSchema.memoryAddress());
     } catch (IOException e) {
       throw new org.apache.iceberg.exceptions.RuntimeIOException(e, "Failed to write Vortex batch");
     }
@@ -133,7 +135,8 @@ class VortexFileAppender<D> implements FileAppender<D> {
         writer.close();
       } finally {
         root.close();
-        allocator.close();
+        // Don't close `allocator`: it is Vortex's shared root allocator and is managed for
+        // the lifetime of the process.
         closed = true;
       }
     }

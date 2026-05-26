@@ -19,18 +19,8 @@
 package org.apache.iceberg.vortex;
 
 import dev.vortex.api.Expression;
-import dev.vortex.api.expressions.Binary;
-import dev.vortex.api.expressions.GetItem;
-import dev.vortex.api.expressions.Literal;
-import dev.vortex.api.expressions.Not;
-import dev.vortex.api.expressions.Root;
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import dev.vortex.api.Expression.BinaryOp;
 import java.util.Set;
-import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -38,7 +28,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 /**
  * Convert an Iceberg filter expression into a valid Vortex pruning predicate that can be pushed
@@ -47,8 +36,11 @@ import org.apache.iceberg.types.Types;
  * <p>Filters that cannot be translated will default to {@code ALWAYS_TRUE} to be skipped.
  */
 public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVisitor<Expression> {
-  private static final Expression ALWAYS_TRUE = Literal.bool(true);
-  private static final Expression ALWAYS_FALSE = Literal.bool(false);
+  static final Expression ALWAYS_TRUE = Expression.literal(true);
+  static final Expression ALWAYS_FALSE = Expression.literal(false);
+  // Sentinel distinct by reference from ALWAYS_TRUE/FALSE, used to mark sub-expressions that
+  // could not be translated to a Vortex expression.
+  static final Expression UNCONVERTIBLE = Expression.literal(true);
 
   private static final int SET_PREDICATE_LIMIT = 200;
   private static final boolean CASE_SENSITIVE = true;
@@ -62,7 +54,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   public static Expression convert(Schema schema, org.apache.iceberg.expressions.Expression expr) {
     org.apache.iceberg.expressions.Expression pushedNot = Expressions.rewriteNot(expr);
     Expression converted = ExpressionVisitors.visit(pushedNot, new ConvertFilterToVortex(schema));
-    if (converted == UnconvertibleExpr.INSTANCE) {
+    if (converted == UNCONVERTIBLE) {
       return ALWAYS_TRUE;
     } else {
       return converted;
@@ -81,39 +73,36 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
 
   @Override
   public Expression not(Expression child) {
-    // Simplify ALWAYS_TRUE and ALWAYS_FALSE directly so that
-    // they avoid any compute in Vortex.
     if (child == ALWAYS_TRUE) {
       return ALWAYS_FALSE;
     } else if (child == ALWAYS_FALSE) {
       return ALWAYS_TRUE;
-    } else if (child == UnconvertibleExpr.INSTANCE) {
-      // propagate convertibility
-      return UnconvertibleExpr.INSTANCE;
+    } else if (child == UNCONVERTIBLE) {
+      return UNCONVERTIBLE;
     } else {
-      return Not.of(child);
+      return Expression.not(child);
     }
   }
 
   @Override
   public Expression and(Expression leftResult, Expression rightResult) {
-    if (leftResult == UnconvertibleExpr.INSTANCE && rightResult == UnconvertibleExpr.INSTANCE) {
+    if (leftResult == UNCONVERTIBLE && rightResult == UNCONVERTIBLE) {
       return ALWAYS_TRUE;
-    } else if (leftResult == UnconvertibleExpr.INSTANCE) {
+    } else if (leftResult == UNCONVERTIBLE) {
       return rightResult;
-    } else if (rightResult == UnconvertibleExpr.INSTANCE) {
+    } else if (rightResult == UNCONVERTIBLE) {
       return leftResult;
     } else {
-      return Binary.and(leftResult, rightResult);
+      return Expression.and(leftResult, rightResult);
     }
   }
 
   @Override
   public Expression or(Expression leftResult, Expression rightResult) {
-    if (leftResult == UnconvertibleExpr.INSTANCE || rightResult == UnconvertibleExpr.INSTANCE) {
+    if (leftResult == UNCONVERTIBLE || rightResult == UNCONVERTIBLE) {
       return ALWAYS_TRUE;
     } else {
-      return Binary.or(leftResult, rightResult);
+      return Expression.or(leftResult, rightResult);
     }
   }
 
@@ -121,28 +110,31 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   public <T> Expression predicate(BoundPredicate<T> pred) {
     if (!(pred.term() instanceof BoundReference<T> term)) {
       throw new UnsupportedOperationException(
-          "Cannot convert non-reference to Parquet filter: " + pred.term());
+          "Cannot convert non-reference to Vortex filter: " + pred.term());
     }
 
+    String name = term.ref().field().name();
     if (pred.isLiteralPredicate()) {
       org.apache.iceberg.expressions.Literal<T> icebergLit = pred.asLiteralPredicate().literal();
-      Literal<?> vortexLit = toVortexLiteral(icebergLit, term.type());
-      // Term translates into a GetItem(Identity), i.e. get a field from the batch
-      GetItem vortexTerm = GetItem.of(Root.INSTANCE, term.ref().field().name());
+      Expression vortexLit = toVortexLiteral(icebergLit.value(), term.type());
+      if (vortexLit == UNCONVERTIBLE) {
+        return UNCONVERTIBLE;
+      }
+      Expression vortexTerm = Expression.column(name);
       return fromBinaryPredicate(pred.op(), vortexTerm, vortexLit);
     } else if (pred.isUnaryPredicate()) {
-      GetItem vortexTerm = GetItem.of(Root.INSTANCE, term.ref().field().name());
+      Expression vortexTerm = Expression.column(name);
       return fromUnaryPredicate(pred.op(), vortexTerm);
     } else if (pred.isSetPredicate()) {
       Set<T> literalSet = pred.asSetPredicate().literalSet();
       if (literalSet.size() > SET_PREDICATE_LIMIT) {
-        return UnconvertibleExpr.INSTANCE;
+        return UNCONVERTIBLE;
       }
 
-      GetItem vortexTerm = GetItem.of(Root.INSTANCE, term.ref().field().name());
+      Expression vortexTerm = Expression.column(name);
       return fromSetPredicate(pred.op(), vortexTerm, literalSet, term.type());
     } else {
-      return UnconvertibleExpr.INSTANCE;
+      return UNCONVERTIBLE;
     }
   }
 
@@ -156,203 +148,88 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     } else if (bound == Expressions.alwaysFalse()) {
       return ALWAYS_FALSE;
     }
-    return UnconvertibleExpr.INSTANCE;
+    return UNCONVERTIBLE;
   }
 
   private org.apache.iceberg.expressions.Expression bind(UnboundPredicate<?> pred) {
     return pred.bind(fileSchema.asStruct(), CASE_SENSITIVE);
   }
 
-  Literal<?> toVortexLiteral(org.apache.iceberg.expressions.Literal<?> literal, Type termType) {
-    switch (termType.typeId()) {
-      case BOOLEAN -> {
-        return Literal.bool((Boolean) literal.value());
-      }
-      case INTEGER -> {
-        return Literal.int32((Integer) literal.value());
-      }
-      case LONG -> {
-        return Literal.int64((Long) literal.value());
-      }
-      case FLOAT -> {
-        return Literal.float32((Float) literal.value());
-      }
-      case DOUBLE -> {
-        return Literal.float64((Double) literal.value());
-      }
-      case DECIMAL -> {
-        Types.DecimalType decimalType = (Types.DecimalType) termType;
-        return Literal.decimal(
-            (BigDecimal) literal.value(), decimalType.precision(), decimalType.scale());
-      }
-      case STRING -> {
-        CharSequence charSequence = (CharSequence) literal.value();
-        if (Objects.isNull(charSequence)) {
-          return Literal.string(null);
-        } else {
-          return Literal.string(charSequence.toString());
-        }
-      }
-      case BINARY -> {
-        ByteBuffer byteBuffer = (ByteBuffer) literal.value();
-        if (Objects.isNull(byteBuffer)) {
-          return Literal.bytes(null);
-        } else {
-          byte[] bytes = new byte[byteBuffer.remaining()];
-          byteBuffer.get(bytes);
-          return Literal.bytes(bytes);
-        }
-      }
-      case UUID -> {
-        UUID uuid = (UUID) literal.value();
-        if (Objects.isNull(uuid)) {
-          return Literal.string(null);
-        } else {
-          return Literal.string(uuid.toString());
-        }
-      }
-      case TIME -> {
-        return Literal.timeMicros((Long) literal.value());
-      }
-      case DATE -> {
-        return Literal.dateDays((Integer) literal.value());
-      }
-      case TIMESTAMP -> {
-        Types.TimestampType timestampType = (Types.TimestampType) termType;
-        if (timestampType.shouldAdjustToUTC()) {
-          throw new UnsupportedOperationException(
-              "Handling of timestamps with timezones not yet supported");
-        } else {
-          // Iceberg always stores timestamp in microseconds.
-          // TODO(aduffy): get the Vortex type so we know if we need to convert to different
-          // precision.
-          return Literal.timestampMicros((Long) literal.value(), Optional.empty());
-        }
-      }
-      default -> throw new UnsupportedOperationException("Unsupported Literal type: " + termType);
+  /**
+   * Convert an Iceberg value to a Vortex literal Expression. Returns {@link #UNCONVERTIBLE} if no
+   * matching Vortex literal type exists (binary, decimal, date, time, timestamp, uuid).
+   */
+  private Expression toVortexLiteral(Object value, Type termType) {
+    if (value == null) {
+      return UNCONVERTIBLE;
     }
+    return switch (termType.typeId()) {
+      case BOOLEAN -> Expression.literal((Boolean) value);
+      case INTEGER -> Expression.literal((Integer) value);
+      case LONG -> Expression.literal((Long) value);
+      case FLOAT -> Expression.literal((Float) value);
+      case DOUBLE -> Expression.literal((Double) value);
+      case STRING -> Expression.literal(((CharSequence) value).toString());
+      default -> UNCONVERTIBLE;
+    };
   }
 
-  // Always true is not a real binary op...
-  Expression fromBinaryPredicate(
+  private Expression fromBinaryPredicate(
       org.apache.iceberg.expressions.Expression.Operation op, Expression left, Expression right) {
-
-    if (left == UnconvertibleExpr.INSTANCE && right == UnconvertibleExpr.INSTANCE) {
-      return UnconvertibleExpr.INSTANCE;
-    } else if (left == UnconvertibleExpr.INSTANCE) {
-      return right;
-    }
-
     return switch (op) {
       case TRUE -> ALWAYS_TRUE;
       case FALSE -> ALWAYS_FALSE;
-      case LT -> Binary.lt(left, right);
-      case LT_EQ -> Binary.ltEq(left, right);
-      case GT -> Binary.gt(left, right);
-      case GT_EQ -> Binary.gtEq(left, right);
-      case EQ -> Binary.eq(left, right);
-      case NOT_EQ -> Binary.notEq(left, right);
-      case AND -> Binary.and(left, right);
-      case OR -> Binary.or(left, right);
-      default -> UnconvertibleExpr.INSTANCE;
+      case LT -> Expression.binary(BinaryOp.LT, left, right);
+      case LT_EQ -> Expression.binary(BinaryOp.LTE, left, right);
+      case GT -> Expression.binary(BinaryOp.GT, left, right);
+      case GT_EQ -> Expression.binary(BinaryOp.GTE, left, right);
+      case EQ -> Expression.binary(BinaryOp.EQ, left, right);
+      case NOT_EQ -> Expression.binary(BinaryOp.NOT_EQ, left, right);
+      case AND -> Expression.binary(BinaryOp.AND, left, right);
+      case OR -> Expression.binary(BinaryOp.OR, left, right);
+      default -> UNCONVERTIBLE;
     };
   }
 
-  Expression fromUnaryPredicate(
+  private Expression fromUnaryPredicate(
       org.apache.iceberg.expressions.Expression.Operation op, Expression child) {
-    switch (op) {
-      case TRUE -> {
-        return ALWAYS_TRUE;
-      }
-      case FALSE -> {
-        return ALWAYS_FALSE;
-      }
+    return switch (op) {
+      case TRUE -> ALWAYS_TRUE;
+      case FALSE -> ALWAYS_FALSE;
+      case IS_NULL -> Expression.isNull(child);
+      case NOT_NULL -> Expression.not(Expression.isNull(child));
       case NOT -> {
         if (child == ALWAYS_TRUE) {
-          return ALWAYS_FALSE;
+          yield ALWAYS_FALSE;
         } else if (child == ALWAYS_FALSE) {
-          return ALWAYS_TRUE;
+          yield ALWAYS_TRUE;
         } else {
-          return Not.of(child);
+          yield Expression.not(child);
         }
       }
-      default -> {
-        return ALWAYS_TRUE;
-      }
-    }
+      default -> UNCONVERTIBLE;
+    };
   }
 
-  <T> Expression fromSetPredicate(
+  private <T> Expression fromSetPredicate(
       org.apache.iceberg.expressions.Expression.Operation op,
-      GetItem term,
+      Expression term,
       Set<T> literalSet,
       Type termType) {
-    Expression[] eqExprs =
-        literalSet.stream()
-            .map(value -> (Expression) Binary.eq(term, toVortexValue(value, termType)))
-            .toArray(Expression[]::new);
+    Expression[] eqExprs = new Expression[literalSet.size()];
+    int idx = 0;
+    for (T value : literalSet) {
+      Expression vortexLit = toVortexLiteral(value, termType);
+      if (vortexLit == UNCONVERTIBLE) {
+        return UNCONVERTIBLE;
+      }
+      eqExprs[idx++] = Expression.binary(BinaryOp.EQ, term, vortexLit);
+    }
 
     return switch (op) {
-      case IN -> Binary.or(eqExprs[0], java.util.Arrays.copyOfRange(eqExprs, 1, eqExprs.length));
-      case NOT_IN ->
-          Not.of(Binary.or(eqExprs[0], java.util.Arrays.copyOfRange(eqExprs, 1, eqExprs.length)));
-      default -> UnconvertibleExpr.INSTANCE;
+      case IN -> eqExprs.length == 1 ? eqExprs[0] : Expression.or(eqExprs);
+      case NOT_IN -> Expression.not(eqExprs.length == 1 ? eqExprs[0] : Expression.or(eqExprs));
+      default -> UNCONVERTIBLE;
     };
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> Literal<?> toVortexValue(T value, Type termType) {
-    return switch (termType.typeId()) {
-      case BOOLEAN -> Literal.bool((Boolean) value);
-      case INTEGER -> Literal.int32((Integer) value);
-      case LONG -> Literal.int64((Long) value);
-      case FLOAT -> Literal.float32((Float) value);
-      case DOUBLE -> Literal.float64((Double) value);
-      case DECIMAL -> {
-        Types.DecimalType decimalType = (Types.DecimalType) termType;
-        yield Literal.decimal((BigDecimal) value, decimalType.precision(), decimalType.scale());
-      }
-      case STRING -> {
-        CharSequence charSequence = (CharSequence) value;
-        yield Literal.string(charSequence.toString());
-      }
-      case DATE -> Literal.dateDays((Integer) value);
-      case TIME -> Literal.timeMicros((Long) value);
-      case TIMESTAMP -> {
-        Types.TimestampType timestampType = (Types.TimestampType) termType;
-        if (timestampType.shouldAdjustToUTC()) {
-          throw new UnsupportedOperationException(
-              "Handling of timestamps with timezones not yet supported");
-        }
-        yield Literal.timestampMicros((Long) value, Optional.empty());
-      }
-      default ->
-          throw new UnsupportedOperationException(
-              "Unsupported type for set predicate: " + termType);
-    };
-  }
-
-  enum UnconvertibleExpr implements Expression {
-    INSTANCE;
-
-    @Override
-    public String id() {
-      return "unconvertible";
-    }
-
-    @Override
-    public List<Expression> children() {
-      return List.of();
-    }
-
-    @Override
-    public Optional<byte[]> metadata() {
-      return Optional.empty();
-    }
-
-    @Override
-    public <T> T accept(Visitor<T> visitor) {
-      return null;
-    }
   }
 }

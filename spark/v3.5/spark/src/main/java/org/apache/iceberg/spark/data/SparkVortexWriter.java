@@ -20,11 +20,14 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.ExtensionTypeVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -38,6 +41,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.vortex.VortexValueWriter;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -97,7 +101,6 @@ public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
         ((VarCharVector) vector).setSafe(rowIndex, str.getBytes());
         break;
       case BINARY:
-      case FIXED:
         byte[] bytes = row.getBinary(fieldIndex);
         ((VarBinaryVector) vector).setSafe(rowIndex, bytes);
         break;
@@ -110,6 +113,14 @@ public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
         break;
       case DATE:
         ((DateDayVector) vector).setSafe(rowIndex, row.getInt(fieldIndex));
+        break;
+      case UUID:
+        UUID uuid = UUID.fromString(row.getUTF8String(fieldIndex).toString());
+        FixedSizeBinaryVector uuidStorage =
+            vector instanceof ExtensionTypeVector<?> ext
+                ? (FixedSizeBinaryVector) ext.getUnderlyingVector()
+                : (FixedSizeBinaryVector) vector;
+        uuidStorage.setSafe(rowIndex, UUIDUtil.convert(uuid));
         break;
       case TIME:
         ((TimeMicroVector) vector).setSafe(rowIndex, row.getLong(fieldIndex));

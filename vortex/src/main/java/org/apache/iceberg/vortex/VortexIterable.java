@@ -18,18 +18,23 @@
  */
 package org.apache.iceberg.vortex;
 
-import dev.vortex.api.Array;
-import dev.vortex.api.ArrayIterator;
-import dev.vortex.api.DType;
-import dev.vortex.api.File;
-import dev.vortex.api.Files;
+import dev.vortex.api.DataSource;
+import dev.vortex.api.ImmutableScanOptions;
+import dev.vortex.api.Partition;
+import dev.vortex.api.Scan;
 import dev.vortex.api.ScanOptions;
+import dev.vortex.api.Session;
+import dev.vortex.arrow.ArrowAllocation;
+import dev.vortex.jni.NativeRuntime;
 import java.io.IOException;
-import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.function.Function;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableGroup;
@@ -48,137 +53,214 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   private final InputFile inputFile;
   private final Optional<Expression> filterPredicate;
   private final long[] rowRange;
-  private final Function<DType, VortexRowReader<T>> rowReaderFunc;
-  private final Function<DType, VortexBatchReader<T>> batchReaderFunction;
+  private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>>
+      rowReaderFunc;
+  private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>>
+      batchReaderFunction;
   private final List<String> projection;
+  private final int workerThreads;
 
   VortexIterable(
       InputFile inputFile,
       Schema icebergSchema,
       Optional<Expression> filterPredicate,
       long[] rowRange,
-      Function<DType, VortexRowReader<T>> readerFunction,
-      Function<DType, VortexBatchReader<T>> batchReaderFunction) {
+      Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>> readerFunction,
+      Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>> batchReaderFunction,
+      int workerThreads) {
     this.inputFile = inputFile;
-    // We have the file schema, we need to assign Iceberg IDs to the entire file schema
     this.projection = Lists.transform(icebergSchema.columns(), Types.NestedField::name);
     this.filterPredicate = filterPredicate;
     this.rowRange = rowRange;
     this.rowReaderFunc = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
+    this.workerThreads = workerThreads;
   }
 
   @Override
   public CloseableIterator<T> iterator() {
-    File vortexFile = newVortexFile(inputFile);
-
-    // Return the filtered scan, and then the projection, etc.
-    Optional<dev.vortex.api.Expression> scanPredicate =
-        filterPredicate.map(
-            icebergExpression -> {
-              Schema fileSchema = VortexSchemas.convert(vortexFile.getDType());
-              return ConvertFilterToVortex.convert(fileSchema, icebergExpression);
-            });
-
-    Optional<long[]> optRange = Optional.ofNullable(this.rowRange);
-
-    ArrayIterator batchStream =
-        vortexFile.newScan(
-            ScanOptions.builder()
-                .addAllColumns(projection)
-                .predicate(scanPredicate)
-                .rowRange(optRange)
-                .build());
-    Preconditions.checkNotNull(batchStream, "batchStream");
-
-    DType dtype = batchStream.getDataType();
-    CloseableIterator<Array> wrappedIterator =
-        new CloseableIterator<Array>() {
-          @Override
-          public void close() {
-            batchStream.close();
-            vortexFile.close();
-          }
-
-          @Override
-          public boolean hasNext() {
-            return batchStream.hasNext();
-          }
-
-          @Override
-          public Array next() {
-            return batchStream.next();
-          }
-        };
-
-    if (rowReaderFunc != null) {
-      VortexRowReader<T> rowFunction = rowReaderFunc.apply(dtype);
-      return new VortexRowIterator<>(wrappedIterator, rowFunction);
-    } else {
-      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(dtype);
-      return CloseableIterator.transform(wrappedIterator, batchTransform::read);
-    }
-  }
-
-  private static File newVortexFile(InputFile inputFile) {
     LOG.debug("opening Vortex file: {}", inputFile);
 
-    URI uriLocation = URI.create(VortexFileUtil.resolveUri(inputFile.location()));
+    // Apply the worker-thread setting on this executor JVM before any Vortex native work
+    // begins for this read.
+    NativeRuntime.setWorkerThreads(workerThreads);
+
+    Session session = Session.create();
+    String uri = VortexFileUtil.resolveUri(inputFile.location());
     Map<String, String> properties = VortexFileUtil.resolveInputProperties(inputFile);
-    return Files.open(uriLocation, properties);
-  }
+    DataSource dataSource = DataSource.open(session, uri, properties);
 
-  static class VortexRowIterator<T> extends CloseableGroup implements CloseableIterator<T> {
-    private final CloseableIterator<Array> stream;
-    private final VortexRowReader<T> rowReader;
+    BufferAllocator allocator = ArrowAllocation.rootAllocator();
+    org.apache.arrow.vector.types.pojo.Schema fileArrowSchema = dataSource.arrowSchema(allocator);
 
-    private Array currentBatch = null;
-    private int batchIndex = 0;
-    private int batchLen = 0;
+    Optional<dev.vortex.api.Expression> scanFilter =
+        filterPredicate.map(
+            icebergExpression -> {
+              Schema icebergFileSchema = VortexSchemas.convert(fileArrowSchema);
+              return ConvertFilterToVortex.convert(icebergFileSchema, icebergExpression);
+            });
 
-    VortexRowIterator(CloseableIterator<Array> stream, VortexRowReader<T> rowReader) {
-      this.stream = stream;
-      addCloseable(stream);
-      this.rowReader = rowReader;
-      if (stream.hasNext()) {
-        currentBatch = stream.next();
-        batchLen = (int) currentBatch.getLen();
-      }
+    String[] projectionNames = projection.toArray(new String[0]);
+    dev.vortex.api.Expression scanProjection =
+        dev.vortex.api.Expression.select(projectionNames, dev.vortex.api.Expression.root());
+
+    ImmutableScanOptions.Builder optionsBuilder = ScanOptions.builder().projection(scanProjection);
+    scanFilter.ifPresent(optionsBuilder::filter);
+    if (rowRange != null) {
+      optionsBuilder.rowRangeBegin(rowRange[0]).rowRangeEnd(rowRange[1]);
     }
 
-    @Override
-    public void close() throws IOException {
-      // Do not close the ArrayStream, it is closed by the parent.
-      currentBatch.close();
-      currentBatch = null;
+    Scan scan = dataSource.scan(optionsBuilder.build());
+    Preconditions.checkNotNull(scan, "scan");
+
+    PartitionBatchIterator batchIterator = new PartitionBatchIterator(scan, allocator);
+
+    if (rowReaderFunc != null) {
+      VortexRowReader<T> rowFunction = rowReaderFunc.apply(fileArrowSchema);
+      return new VortexRowIterator<>(batchIterator, rowFunction);
+    } else {
+      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(fileArrowSchema);
+      return new VortexBatchIterator<>(batchIterator, batchTransform);
+    }
+  }
+
+  /** Iterator that pulls Arrow {@link VectorSchemaRoot} batches across Vortex partitions. */
+  static class PartitionBatchIterator implements CloseableIterator<VectorSchemaRoot> {
+    private final Scan scan;
+    private final BufferAllocator allocator;
+    private ArrowReader currentReader;
+    private VectorSchemaRoot currentRoot;
+    private boolean hasPending = false;
+    private boolean exhausted = false;
+
+    PartitionBatchIterator(Scan scan, BufferAllocator allocator) {
+      this.scan = scan;
+      this.allocator = allocator;
     }
 
     @Override
     public boolean hasNext() {
-      // See if we need to fill a new batch first.
-      if (currentBatch == null || batchIndex == batchLen) {
-        advance();
+      if (hasPending) {
+        return true;
       }
+      if (exhausted) {
+        return false;
+      }
+      try {
+        while (true) {
+          if (currentReader == null) {
+            if (!scan.hasNext()) {
+              exhausted = true;
+              return false;
+            }
+            Partition partition = scan.next();
+            currentReader = partition.scanArrow(allocator);
+            currentRoot = currentReader.getVectorSchemaRoot();
+          }
+          if (currentReader.loadNextBatch()) {
+            hasPending = true;
+            return true;
+          } else {
+            currentReader.close();
+            currentReader = null;
+            currentRoot = null;
+          }
+        }
+      } catch (IOException e) {
+        throw new org.apache.iceberg.exceptions.RuntimeIOException(
+            e, "Failed to load next Vortex batch");
+      }
+    }
 
-      return currentBatch != null;
+    @Override
+    public VectorSchemaRoot next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+      hasPending = false;
+      return currentRoot;
+    }
+
+    @Override
+    public void close() throws IOException {
+      if (currentReader != null) {
+        currentReader.close();
+        currentReader = null;
+      }
+      // Don't close `allocator`: it is Vortex's shared root allocator.
+    }
+  }
+
+  static class VortexRowIterator<T> implements CloseableIterator<T> {
+    private final PartitionBatchIterator batches;
+    private final VortexRowReader<T> rowReader;
+
+    private VectorSchemaRoot currentBatch = null;
+    private int batchIndex = 0;
+    private int batchLen = 0;
+
+    VortexRowIterator(PartitionBatchIterator batches, VortexRowReader<T> rowReader) {
+      this.batches = batches;
+      this.rowReader = rowReader;
+    }
+
+    @Override
+    public void close() throws IOException {
+      batches.close();
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (currentBatch != null && batchIndex < batchLen) {
+        return true;
+      }
+      if (batches.hasNext()) {
+        currentBatch = batches.next();
+        batchIndex = 0;
+        batchLen = currentBatch.getRowCount();
+        if (batchLen > 0) {
+          return true;
+        }
+        return hasNext();
+      }
+      currentBatch = null;
+      batchLen = 0;
+      return false;
     }
 
     @Override
     public T next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
       T nextRow = rowReader.read(currentBatch, batchIndex);
       batchIndex++;
       return nextRow;
     }
+  }
 
-    private void advance() {
-      if (stream.hasNext()) {
-        currentBatch = stream.next();
-        batchIndex = 0;
-        batchLen = (int) currentBatch.getLen();
-      } else {
-        currentBatch = null;
-        batchLen = 0;
-      }
+  static class VortexBatchIterator<T> implements CloseableIterator<T> {
+    private final PartitionBatchIterator batches;
+    private final VortexBatchReader<T> batchReader;
+
+    VortexBatchIterator(PartitionBatchIterator batches, VortexBatchReader<T> batchReader) {
+      this.batches = batches;
+      this.batchReader = batchReader;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return batches.hasNext();
+    }
+
+    @Override
+    public T next() {
+      return batchReader.read(batches.next());
+    }
+
+    @Override
+    public void close() throws IOException {
+      batches.close();
     }
   }
 }
