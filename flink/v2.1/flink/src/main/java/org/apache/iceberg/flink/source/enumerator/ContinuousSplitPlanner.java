@@ -24,7 +24,15 @@ import org.apache.flink.annotation.Internal;
 /** This interface is introduced so that we can plug in different split planner for unit test */
 @Internal
 public interface ContinuousSplitPlanner extends Closeable {
-
   /** Discover the files appended between {@code lastPosition} and current table snapshot */
   ContinuousEnumerationResult planSplits(IcebergEnumeratorPosition lastPosition);
+
+  /**
+   * Low-watermark for reactive paging. When the assigner's pending-split count drops below this,
+   * the enumerator triggers an extra {@link #planSplits} call without waiting for the periodic
+   * monitor interval. Default returns {@code 0} (no reactive triggering — purely periodic).
+   */
+  default int recommendedLowWatermark() {
+    return 0;
+  }
 }

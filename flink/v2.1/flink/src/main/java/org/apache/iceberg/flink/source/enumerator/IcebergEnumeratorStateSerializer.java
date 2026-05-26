@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
 import java.util.Collection;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
@@ -35,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class IcebergEnumeratorStateSerializer
     implements SimpleVersionedSerializer<IcebergEnumeratorState> {
 
-  private static final int VERSION = 2;
+  private static final int VERSION = 3;
 
   private static final ThreadLocal<DataOutputSerializer> SERIALIZER_CACHE =
       ThreadLocal.withInitial(() -> new DataOutputSerializer(1024));
@@ -55,7 +56,7 @@ public class IcebergEnumeratorStateSerializer
 
   @Override
   public byte[] serialize(IcebergEnumeratorState enumState) throws IOException {
-    return serializeV2(enumState);
+    return serializeV3(enumState);
   }
 
   @Override
@@ -65,6 +66,8 @@ public class IcebergEnumeratorStateSerializer
         return deserializeV1(serialized);
       case 2:
         return deserializeV2(serialized);
+      case 3:
+        return deserializeV3(serialized);
       default:
         throw new IOException("Unknown version: " + version);
     }
@@ -111,6 +114,31 @@ public class IcebergEnumeratorStateSerializer
     int[] enumerationSplitCountHistory = deserializeEnumerationSplitCountHistory(in);
     return new IcebergEnumeratorState(
         enumeratorPosition, pendingSplits, enumerationSplitCountHistory);
+  }
+
+  @VisibleForTesting
+  byte[] serializeV3(IcebergEnumeratorState enumState) throws IOException {
+    DataOutputSerializer out = SERIALIZER_CACHE.get();
+    serializeEnumeratorPosition(out, enumState.lastEnumeratedPosition(), positionSerializer);
+    serializePendingSplits(out, enumState.pendingSplits(), splitSerializer);
+    serializeEnumerationSplitCountHistory(out, enumState.enumerationSplitCountHistory());
+    serializeLazyBulkScanCursor(out, enumState.lazyBulkScanCursor());
+    byte[] result = out.getCopyOfBuffer();
+    out.clear();
+    return result;
+  }
+
+  @VisibleForTesting
+  IcebergEnumeratorState deserializeV3(byte[] serialized) throws IOException {
+    DataInputDeserializer in = new DataInputDeserializer(serialized);
+    IcebergEnumeratorPosition enumeratorPosition =
+        deserializeEnumeratorPosition(in, positionSerializer);
+    Collection<IcebergSourceSplitState> pendingSplits =
+        deserializePendingSplits(in, splitSerializer);
+    int[] enumerationSplitCountHistory = deserializeEnumerationSplitCountHistory(in);
+    LazyBulkScanCursor lazyBulkScanCursor = deserializeLazyBulkScanCursor(in);
+    return new IcebergEnumeratorState(
+        enumeratorPosition, pendingSplits, enumerationSplitCountHistory, lazyBulkScanCursor);
   }
 
   private static void serializeEnumeratorPosition(
@@ -190,5 +218,27 @@ public class IcebergEnumeratorStateSerializer
     }
 
     return history;
+  }
+
+  private static void serializeLazyBulkScanCursor(
+      DataOutputSerializer out, @Nullable LazyBulkScanCursor cursor) throws IOException {
+    out.writeBoolean(cursor != null);
+    if (cursor != null) {
+      out.writeLong(cursor.bulkSnapshotId());
+      out.writeLong(cursor.combinedTasksEnumerated());
+      out.writeLong(cursor.rollingHash());
+    }
+  }
+
+  @Nullable
+  private static LazyBulkScanCursor deserializeLazyBulkScanCursor(DataInputDeserializer in)
+      throws IOException {
+    if (!in.readBoolean()) {
+      return null;
+    }
+    long snapshotId = in.readLong();
+    long combinedTasksEnumerated = in.readLong();
+    long rollingHash = in.readLong();
+    return new LazyBulkScanCursor(snapshotId, combinedTasksEnumerated, rollingHash);
   }
 }

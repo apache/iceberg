@@ -162,6 +162,15 @@ public class FlinkReadConf {
         .parse();
   }
 
+  public int lazyInitialBulkScanPageSize() {
+    return confParser
+        .intConf()
+        .option(FlinkReadOptions.LAZY_INITIAL_BULK_SCAN_PAGE_SIZE)
+        .flinkConfig(FlinkReadOptions.LAZY_INITIAL_BULK_SCAN_PAGE_SIZE_OPTION)
+        .defaultValue(FlinkReadOptions.LAZY_INITIAL_BULK_SCAN_PAGE_SIZE_OPTION.defaultValue())
+        .parse();
+  }
+
   public String nameMapping() {
     return confParser.stringConf().option(TableProperties.DEFAULT_NAME_MAPPING).parseOptional();
   }

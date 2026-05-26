@@ -19,15 +19,38 @@
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.util.Collection;
+import javax.annotation.Nullable;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class ContinuousEnumerationResult {
+
+  /**
+   * How a result wants the checkpointed lazy-bulk-scan cursor to change when the enumerator commits
+   * it.
+   */
+  enum CursorAction {
+    /** Leave the cursor untouched. Used by eager planners and incremental-phase pages. */
+    NONE,
+    /**
+     * Set the cursor to {@link ContinuousEnumerationResult#lazyBulkScanCursor()}. Mid-bulk page.
+     */
+    SET,
+    /** Clear the cursor. Final bulk page transitioning to incremental. */
+    CLEAR,
+  }
+
   private final Collection<IcebergSourceSplit> splits;
   private final IcebergEnumeratorPosition fromPosition;
   private final IcebergEnumeratorPosition toPosition;
+  private final CursorAction cursorAction;
+
+  @Nullable private final LazyBulkScanCursor lazyBulkScanCursor;
 
   /**
+   * Default constructor used by eager planners and tests. Produces a result with {@link
+   * CursorAction#NONE} — the checkpointed cursor is left alone.
+   *
    * @param splits should never be null. But it can be an empty collection
    * @param fromPosition can be null
    * @param toPosition should never be null. But it can have null snapshotId and snapshotTimestampMs
@@ -36,11 +59,49 @@ class ContinuousEnumerationResult {
       Collection<IcebergSourceSplit> splits,
       IcebergEnumeratorPosition fromPosition,
       IcebergEnumeratorPosition toPosition) {
+    this(splits, fromPosition, toPosition, CursorAction.NONE, null);
+  }
+
+  /**
+   * Mid-bulk page from {@link LazyContinuousSplitPlanner}. The enumerator commits the cursor
+   * atomically with the assigner update.
+   */
+  static ContinuousEnumerationResult forLazyBulkPage(
+      Collection<IcebergSourceSplit> splits,
+      IcebergEnumeratorPosition fromPosition,
+      IcebergEnumeratorPosition toPosition,
+      LazyBulkScanCursor lazyBulkScanCursor) {
+    Preconditions.checkArgument(
+        lazyBulkScanCursor != null, "Mid-bulk page must carry a non-null cursor");
+    return new ContinuousEnumerationResult(
+        splits, fromPosition, toPosition, CursorAction.SET, lazyBulkScanCursor);
+  }
+
+  /**
+   * Final bulk page from {@link LazyContinuousSplitPlanner}. The enumerator clears the cursor so
+   * subsequent checkpoints carry no mid-bulk state.
+   */
+  static ContinuousEnumerationResult forLazyBulkClear(
+      Collection<IcebergSourceSplit> splits,
+      IcebergEnumeratorPosition fromPosition,
+      IcebergEnumeratorPosition toPosition) {
+    return new ContinuousEnumerationResult(
+        splits, fromPosition, toPosition, CursorAction.CLEAR, null);
+  }
+
+  private ContinuousEnumerationResult(
+      Collection<IcebergSourceSplit> splits,
+      IcebergEnumeratorPosition fromPosition,
+      IcebergEnumeratorPosition toPosition,
+      CursorAction cursorAction,
+      @Nullable LazyBulkScanCursor lazyBulkScanCursor) {
     Preconditions.checkArgument(splits != null, "Invalid to splits collection: null");
     Preconditions.checkArgument(toPosition != null, "Invalid end position: null");
     this.splits = splits;
     this.fromPosition = fromPosition;
     this.toPosition = toPosition;
+    this.cursorAction = cursorAction;
+    this.lazyBulkScanCursor = lazyBulkScanCursor;
   }
 
   public Collection<IcebergSourceSplit> splits() {
@@ -53,5 +114,18 @@ class ContinuousEnumerationResult {
 
   public IcebergEnumeratorPosition toPosition() {
     return toPosition;
+  }
+
+  public CursorAction cursorAction() {
+    return cursorAction;
+  }
+
+  /**
+   * The cursor to commit when {@link #cursorAction()} is {@link CursorAction#SET}. Always {@code
+   * null} for {@link CursorAction#NONE} and {@link CursorAction#CLEAR}.
+   */
+  @Nullable
+  public LazyBulkScanCursor lazyBulkScanCursor() {
+    return lazyBulkScanCursor;
   }
 }

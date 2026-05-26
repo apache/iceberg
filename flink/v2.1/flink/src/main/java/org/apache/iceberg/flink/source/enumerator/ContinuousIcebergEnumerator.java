@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.connector.source.SourceEvent;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
@@ -58,10 +60,49 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   /** Track enumeration result history for split discovery throttling. */
   private final EnumerationHistory enumerationHistory;
 
+  /**
+   * Last lazy-bulk-scan cursor that was committed atomically with an assigner update. Updated only
+   * in {@link #processDiscoveredSplits} (event loop), read by {@link #snapshotState} (also event
+   * loop). Kept here rather than on the planner so the cursor advance is always atomic with the
+   * corresponding {@code assigner.onDiscoveredSplits} call — a checkpoint that races with
+   * planSplits cannot capture a cursor ahead of the assigner state.
+   */
+  @Nullable private LazyBulkScanCursor latestCommittedLazyBulkScanCursor;
+
   /** Count the consecutive failures and throw exception if the max allowed failres are reached */
   private transient int consecutiveFailures = 0;
 
   private final ElapsedTimeGauge elapsedSecondsSinceLastSplitDiscovery;
+
+  /**
+   * Single-flight latch preventing concurrent {@code planSplits} calls. Necessary because:
+   *
+   * <ol>
+   *   <li>Without it, the reactive watermark trigger and the periodic timer can dispatch
+   *       overlapping IO callables. Even though the planner's {@code synchronized planSplits}
+   *       serialises them inside its monitor, their handler queueing in the coordinator event loop
+   *       can race when the IO thread is preempted between {@code synchronized} exit and the
+   *       framework's handler dispatch.
+   *   <li>Out-of-order handler delivery would commit cursors out of order (regressing the
+   *       checkpoint-visible cursor below the actual iterator position) and could trigger silent
+   *       split loss when a final-bulk-page handler advances the position past sentinel before
+   *       earlier mid-bulk handlers' CAS checks run.
+   * </ol>
+   *
+   * <p>The handler that <em>acquired</em> the latch releases it. Handlers receiving the sentinel
+   * no-op result (because the latch was already held when their callable started) short-circuit
+   * without touching the flag.
+   */
+  private final AtomicBoolean planningInFlight = new AtomicBoolean(false);
+
+  /**
+   * Identity sentinel returned by {@link #discoverSplits} when the latch is already held. Compared
+   * by reference in {@link #processDiscoveredSplits} to short-circuit without advancing position,
+   * applying splits, or releasing the latch.
+   */
+  private static final ContinuousEnumerationResult LATCH_HELD_NOOP =
+      new ContinuousEnumerationResult(
+          Collections.emptyList(), null, IcebergEnumeratorPosition.empty());
 
   public ContinuousIcebergEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
@@ -85,6 +126,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     if (enumState != null) {
       this.enumeratorPosition.set(enumState.lastEnumeratedPosition());
       this.enumerationHistory.restore(enumState.enumerationSplitCountHistory());
+      this.latestCommittedLazyBulkScanCursor = enumState.lazyBulkScanCursor();
     }
   }
 
@@ -105,6 +147,27 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   }
 
   @Override
+  public void handleSourceEvent(int subtaskId, SourceEvent sourceEvent) {
+    super.handleSourceEvent(subtaskId, sourceEvent);
+    // Iceberg uses SplitRequestEvent (not the default handleSplitRequest path). After the
+    // parent has assigned a split to the reader, the assigner's pending count drops. If it's
+    // below the planner's low-watermark, fire an extra planSplits without waiting for the
+    // next monitorInterval tick.
+    int lowWatermark = splitPlanner.recommendedLowWatermark();
+    if (lowWatermark <= 0 || assigner.pendingSplitCount() >= lowWatermark) {
+      return;
+    }
+    // Pre-check the single-flight latch so N parallel readers don't dispatch N callAsync tasks
+    // when one is already running. The check is intentionally racy — the CAS inside
+    // discoverSplits is the actual gatekeeper — but it suppresses the common case of a burst
+    // of SplitRequestEvents arriving during a single in-flight plan.
+    if (planningInFlight.get()) {
+      return;
+    }
+    enumeratorContext.callAsync(this::discoverSplits, this::processDiscoveredSplits);
+  }
+
+  @Override
   protected boolean shouldWaitForMoreSplits() {
     return true;
   }
@@ -112,36 +175,85 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   @Override
   public IcebergEnumeratorState snapshotState(long checkpointId) {
     return new IcebergEnumeratorState(
-        enumeratorPosition.get(), assigner.state(), enumerationHistory.snapshot());
+        enumeratorPosition.get(),
+        assigner.state(),
+        enumerationHistory.snapshot(),
+        latestCommittedLazyBulkScanCursor);
+  }
+
+  /**
+   * Whether two enumerator positions are compatible for CAS-style result acceptance. Both bulk
+   * sentinels ({@code null} or a position with {@code snapshotId() == null}) are mutually
+   * compatible; otherwise strict {@link Objects#equals} applies. See the call site for why bulk
+   * sentinels are treated as equivalent.
+   */
+  private static boolean positionsCompatible(
+      @Nullable IcebergEnumeratorPosition left, @Nullable IcebergEnumeratorPosition right) {
+    // "Bulk sentinel" is null-or-empty: see IcebergEnumeratorPosition.isEmpty(), which returns
+    // true exactly when snapshotId() == null.
+    boolean leftBulkSentinel = (left == null || left.isEmpty());
+    boolean rightBulkSentinel = (right == null || right.isEmpty());
+    if (leftBulkSentinel && rightBulkSentinel) {
+      return true;
+    }
+    return Objects.equals(left, right);
   }
 
   /** This method is executed in an IO thread pool. */
   private ContinuousEnumerationResult discoverSplits() {
+    if (!planningInFlight.compareAndSet(false, true)) {
+      // Another planSplits call is in flight (callable already running or its handler not yet
+      // executed). Return the identity sentinel; the handler will see it and short-circuit
+      // without touching the latch.
+      return LATCH_HELD_NOOP;
+    }
+    // Latch release happens exclusively in processDiscoveredSplits' finally block. Releasing
+    // here on exception too would double-release: Flink still dispatches the handler with
+    // (result=null, error=e), and that handler's finally would clear the flag a second time,
+    // potentially clearing a concurrent caller's freshly-acquired latch.
     int pendingSplitCountFromAssigner = assigner.pendingSplitCount();
     if (enumerationHistory.shouldPauseSplitDiscovery(pendingSplitCountFromAssigner)) {
-      // If the assigner already has many pending splits, it is better to pause split discovery.
-      // Otherwise, eagerly discovering more splits will just increase assigner memory footprint
-      // and enumerator checkpoint state size.
+      // If the assigner already has many pending splits, it is better to pause split
+      // discovery. Otherwise, eagerly discovering more splits will just increase assigner
+      // memory footprint and enumerator checkpoint state size.
       LOG.info(
           "Pause split discovery as the assigner already has too many pending splits: {}",
           pendingSplitCountFromAssigner);
       return new ContinuousEnumerationResult(
           Collections.emptyList(), enumeratorPosition.get(), enumeratorPosition.get());
-    } else {
-      return splitPlanner.planSplits(enumeratorPosition.get());
     }
+    return splitPlanner.planSplits(enumeratorPosition.get());
   }
 
   /** This method is executed in a single coordinator thread. */
   private void processDiscoveredSplits(ContinuousEnumerationResult result, Throwable error) {
+    if (result == LATCH_HELD_NOOP) {
+      // Latched-out call; not the one holding the latch. Don't release, don't process.
+      return;
+    }
+    try {
+      processDiscoveredSplitsImpl(result, error);
+    } finally {
+      planningInFlight.set(false);
+    }
+  }
+
+  private void processDiscoveredSplitsImpl(ContinuousEnumerationResult result, Throwable error) {
     if (error == null) {
       consecutiveFailures = 0;
-      if (!Objects.equals(result.fromPosition(), enumeratorPosition.get())) {
+      if (!positionsCompatible(result.fromPosition(), enumeratorPosition.get())) {
         // Multiple discoverSplits() may be triggered with the same starting snapshot to the I/O
         // thread pool. E.g., the splitDiscoveryInterval is very short (like 10 ms in some unit
         // tests) or the thread pool is busy and multiple discovery actions are executed
         // concurrently. Discovery result should only be accepted if the starting position
         // matches the enumerator position (like compare-and-swap).
+        //
+        // During the lazy-mode bulk phase, fromPosition observed when the IO callable started
+        // can be null while enumeratorPosition has since advanced to empty() (or vice versa).
+        // Both are semantically "still in bulk" — bulk-sentinel positions. Treating them as
+        // equal is required to avoid dropping legitimate bulk pages on the floor (which would
+        // silently lose splits even though the planner's iterator has already advanced past
+        // them). Non-sentinel positions still require strict equality.
         LOG.info(
             "Skip {} discovered splits because the scan starting position doesn't match "
                 + "the current enumerator position: enumerator position = {}, scan starting position = {}",
@@ -173,6 +285,22 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
         // update the enumerator position even if there is no split discovered
         // or the toPosition is empty (e.g. for empty table).
         enumeratorPosition.set(result.toPosition());
+        // Commit the lazy-bulk cursor atomically with the assigner+position update.
+        //   SET   → adopt new cursor (mid-bulk page).
+        //   CLEAR → drop cursor (final bulk page).
+        //   NONE  → eager-mode / incremental-mode / throttle no-op; leave it alone.
+        switch (result.cursorAction()) {
+          case SET:
+            latestCommittedLazyBulkScanCursor = result.lazyBulkScanCursor();
+            break;
+          case CLEAR:
+            latestCommittedLazyBulkScanCursor = null;
+            break;
+          case NONE:
+          default:
+            // Leave cursor alone.
+            break;
+        }
         LOG.info("Update enumerator position to {}", result.toPosition());
       }
     } else {
