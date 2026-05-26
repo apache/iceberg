@@ -56,7 +56,10 @@ public class TestMicroBatchPlanningUtils extends CatalogTestBase {
   public void testUnpackedLimitsCompositeChoosesMinimum() {
     ReadLimit[] limits =
         new ReadLimit[] {
-          ReadLimit.maxRows(10), ReadLimit.maxRows(4), ReadLimit.maxFiles(8), ReadLimit.maxFiles(2)
+          ReadLimit.maxRows(4_000_000_000L),
+          ReadLimit.maxRows(3_000_000_000L),
+          ReadLimit.maxFiles(8),
+          ReadLimit.maxFiles(2)
         };
 
     ReadLimit composite = ReadLimit.compositeLimit(limits);
@@ -64,8 +67,17 @@ public class TestMicroBatchPlanningUtils extends CatalogTestBase {
     BaseSparkMicroBatchPlanner.UnpackedLimits unpacked =
         new BaseSparkMicroBatchPlanner.UnpackedLimits(composite);
 
-    assertThat(unpacked.getMaxRows()).isEqualTo(4);
+    assertThat(unpacked.getMaxRows()).isEqualTo(3_000_000_000L);
     assertThat(unpacked.getMaxFiles()).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testUnpackedLimitsDoNotApplyDefaultRowCap() {
+    BaseSparkMicroBatchPlanner.UnpackedLimits unpacked =
+        new BaseSparkMicroBatchPlanner.UnpackedLimits(ReadLimit.allAvailable());
+
+    assertThat(unpacked.getMaxRows()).isEqualTo(Long.MAX_VALUE);
+    assertThat(unpacked.getMaxFiles()).isEqualTo(Integer.MAX_VALUE);
   }
 
   @TestTemplate

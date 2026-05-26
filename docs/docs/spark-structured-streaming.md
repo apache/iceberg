@@ -40,7 +40,7 @@ val df = spark.readStream
 To control the size of micro-batches in the DataFrame API, Iceberg supports two read options:
 
 * `streaming-max-files-per-micro-batch` Maximum number of files to be processed in every micro-batch.
-* `streaming-max-rows-per-micro-batch` A "soft max" on the number of rows to be processed in every micro-batch. A batch will always include all the rows in the next unprocessed data file but additional files will not be included if doing so would exceed the soft max limit.
+* `streaming-max-rows-per-micro-batch` An optional, long-valued "soft max" on the number of rows to be processed in every micro-batch. A batch will always include all the rows in the next unprocessed data file but additional files will not be included if doing so would exceed the soft max limit. Large values can be used to let one streaming job process a substantial initial backlog before continuing with ongoing incremental micro-batches.
 
 If both options are set, the micro-batch size will be limited by whichever option is reached first.
 

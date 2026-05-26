@@ -92,4 +92,19 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
               .withMessageContaining("Split parallelism must be > 0");
         });
   }
+
+  @TestTemplate
+  public void testMaxRecordsPerMicroBatchAllowsLongValue() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long maxRecords = 3_000_000_000L;
+
+    SparkReadConf conf =
+        new SparkReadConf(
+            spark,
+            table,
+            ImmutableMap.of(
+                SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, String.valueOf(maxRecords)));
+
+    assertThat(conf.maxRecordsPerMicroBatch()).isEqualTo(maxRecords);
+  }
 }

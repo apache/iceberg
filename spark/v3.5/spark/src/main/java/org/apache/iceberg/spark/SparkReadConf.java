@@ -254,11 +254,11 @@ public class SparkReadConf {
         .parse();
   }
 
-  public int maxRecordsPerMicroBatch() {
+  public long maxRecordsPerMicroBatch() {
     return confParser
-        .intConf()
+        .longConf()
         .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)
-        .defaultValue(Integer.MAX_VALUE)
+        .defaultValue(Long.MAX_VALUE)
         .parse();
   }
 
