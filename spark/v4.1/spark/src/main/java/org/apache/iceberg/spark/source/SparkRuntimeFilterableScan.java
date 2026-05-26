@@ -195,6 +195,6 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
   }
 
   protected String runtimeFiltersDesc() {
-    return Spark3Util.describe(runtimeFilters);
+    return createOrderedExprString(runtimeFilters.stream());
   }
 }

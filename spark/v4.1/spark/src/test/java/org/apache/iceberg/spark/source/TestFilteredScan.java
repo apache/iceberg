@@ -65,14 +65,17 @@ import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.Not;
+import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.assertj.core.api.AbstractObjectAssert;
@@ -213,6 +216,56 @@ public class TestFilteredScan {
   }
 
   @TestTemplate
+  public void testSparkBatchScanEquality_Bug16563_nestedcase() {
+    // dynamic pruning runtime filters are always flatted And, so we need to test only for data
+    // filters here.
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+
+    // set spark.sql.caseSensitive to false
+    String caseSensitivityBeforeTest =
+        org.apache.iceberg.spark.source.TestFilteredScan.spark
+            .conf()
+            .get("spark.sql.caseSensitive");
+    org.apache.iceberg.spark.source.TestFilteredScan.spark
+        .conf()
+        .set("spark.sql.caseSensitive", "false");
+    try {
+      Filter f1 = GreaterThan.apply("ID", 10);
+      Filter f2 = LessThan.apply("data", "abc");
+      Filter f3 = LessThan.apply("ts", "2017-12-22T00:00:00+00:00");
+      Filter f4 = GreaterThan.apply("ID", 12);
+      Filter f5 = GreaterThan.apply("data", "fxrj");
+      Filter f6 = GreaterThan.apply("ID", 7);
+
+      Filter or1ScanOne = Or.apply(f1, f2);
+      Filter or1ScanTwo = Or.apply(f2, f1);
+
+      Filter or2ScanOne = Or.apply(And.apply(f3, f4), Or.apply(f5, f6));
+      Filter or2ScanTwo = Or.apply(Or.apply(f6, f5), And.apply(f4, f3));
+
+      SparkScanBuilder builder1 =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      pushFilters(builder1, or1ScanOne, or2ScanOne);
+
+      SparkScanBuilder builder2 =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      pushFilters(builder2, or2ScanTwo, or1ScanTwo);
+
+      Scan scan1 = builder1.build();
+      Scan scan2 = builder2.build();
+
+      assertThat(scan1).as("is be equal to ").isEqualTo(scan2);
+      assertThat(scan1.hashCode()).as("is same as").isEqualTo(scan2.hashCode());
+    } finally {
+      // return global conf to previous state
+      org.apache.iceberg.spark.source.TestFilteredScan.spark
+          .conf()
+          .set("spark.sql.caseSensitive", caseSensitivityBeforeTest);
+    }
+  }
+
+  @TestTemplate
   public void testUnpartitionedCaseInsensitiveIDFilters() {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
@@ -267,6 +320,55 @@ public class TestFilteredScan {
             unpartitioned.toString(),
             vectorized,
             "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+  }
+
+  @TestTemplate
+  public void testSparkBatchScanEquality_Bug16563() {
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+
+    // set spark.sql.caseSensitive to false
+    String caseSensitivityBeforeTest = TestFilteredScan.spark.conf().get("spark.sql.caseSensitive");
+    TestFilteredScan.spark.conf().set("spark.sql.caseSensitive", "false");
+    try {
+      Filter f1 = GreaterThan.apply("ID", 10);
+      Filter f2 = LessThan.apply("data", "abc");
+
+      SparkScanBuilder builder1 =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      pushFilters(builder1, f1, f2);
+
+      SparkScanBuilder builder2 =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      pushFilters(builder2, f2, f1);
+
+      Scan scan1 = builder1.build();
+      Scan scan2 = builder2.build();
+
+      assertThat(scan1).as("is be equal to ").isEqualTo(scan2);
+      assertThat(scan1.hashCode()).as("is same as").isEqualTo(scan2.hashCode());
+
+      Filter runtimeFilter1 = In.apply("ID", new Object[] {10, 12, 13});
+      Filter runtimeFilter2 = In.apply("data", new Object[] {"abc", "def", "cde"});
+
+      ((SparkRuntimeFilterableScan) scan1)
+          .filter(
+              Arrays.stream(new Filter[] {runtimeFilter1, runtimeFilter2})
+                  .map(Filter::toV2)
+                  .toArray(Predicate[]::new));
+
+      ((SparkRuntimeFilterableScan) scan2)
+          .filter(
+              Arrays.stream(new Filter[] {runtimeFilter2, runtimeFilter1})
+                  .map(Filter::toV2)
+                  .toArray(Predicate[]::new));
+
+      assertThat(scan1).as("is be equal to ").isEqualTo(scan2);
+      assertThat(scan1.hashCode()).as("is same as").isEqualTo(scan2.hashCode());
+    } finally {
+      // return global conf to previous state
+      TestFilteredScan.spark.conf().set("spark.sql.caseSensitive", caseSensitivityBeforeTest);
+    }
   }
 
   @TestTemplate

@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -92,8 +93,32 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     checkFilters(
         "dep = 'd1' AND salary > 100.03" /* query predicate */,
         "isnotnull(salary) AND (salary > 100.03)" /* Spark post scan filter */,
-        "dep IS NOT NULL, salary IS NOT NULL, dep = 'd1', salary > 100.03" /* Iceberg scan filters */,
+        /* Iceberg scan filters */
+        new String[] {"dep IS NOT NULL", "salary IS NOT NULL", "dep = 'd1'", "salary > 100.03"},
         ImmutableList.of(row(2, new BigDecimal("100.05"), "d1")));
+  }
+
+  @TestTemplate
+  public void testNoFilterPushdownForComplexExpression() {
+    sql(
+        "CREATE TABLE %s (id INT, salary INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (dep)",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (10, 50, 'd1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 25, 'd2')", tableName);
+    sql("INSERT INTO %s VALUES (3, 300, 'd3')", tableName);
+    sql("INSERT INTO %s VALUES (4, 400, 'd4')", tableName);
+    sql("INSERT INTO %s VALUES (5, 500, 'd5')", tableName);
+    sql("INSERT INTO %s VALUES (6, 600, null)", tableName);
+
+    checkFilters(
+        "log10(ifnull(id, 10)) = 1" /* query predicate */,
+        "LOG10(cast(coalesce(id, 10) as double)) = 1.0",
+        new String[] {} /* no Iceberg scan filters should be pushed */,
+        ImmutableList.of(row(10, 50, "d1")));
   }
 
   @TestTemplate
@@ -114,12 +139,12 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
     checkOnlyIcebergFilters(
         "dep IS NULL" /* query predicate */,
-        "dep IS NULL" /* Iceberg scan filters */,
+        new String[] {"dep IS NULL"} /* Iceberg scan filters */,
         ImmutableList.of(row(6, 600, null)));
 
     checkOnlyIcebergFilters(
         "dep IS NOT NULL" /* query predicate */,
-        "dep IS NOT NULL" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL"} /* Iceberg scan filters */,
         ImmutableList.of(
             row(1, 100, "d1"),
             row(2, 200, "d2"),
@@ -129,82 +154,88 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
     checkOnlyIcebergFilters(
         "dep = 'd3'" /* query predicate */,
-        "dep IS NOT NULL, dep = 'd3'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep = 'd3'"} /* Iceberg scan filters */,
         ImmutableList.of(row(3, 300, "d3")));
 
     checkOnlyIcebergFilters(
         "dep > 'd3'" /* query predicate */,
-        "dep IS NOT NULL, dep > 'd3'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep > 'd3'"} /* Iceberg scan filters */,
         ImmutableList.of(row(4, 400, "d4"), row(5, 500, "d5")));
 
     checkOnlyIcebergFilters(
         "dep >= 'd5'" /* query predicate */,
-        "dep IS NOT NULL, dep >= 'd5'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep >= 'd5'"} /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
 
     checkOnlyIcebergFilters(
         "dep < 'd2'" /* query predicate */,
-        "dep IS NOT NULL, dep < 'd2'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep < 'd2'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     checkOnlyIcebergFilters(
         "dep <= 'd2'" /* query predicate */,
-        "dep IS NOT NULL, dep <= 'd2'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep <= 'd2'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
 
     checkOnlyIcebergFilters(
         "dep <=> 'd3'" /* query predicate */,
-        "dep = 'd3'" /* Iceberg scan filters */,
+        new String[] {"dep = 'd3'"} /* Iceberg scan filters */,
         ImmutableList.of(row(3, 300, "d3")));
 
     checkOnlyIcebergFilters(
         "dep IN (null, 'd1')" /* query predicate */,
-        "dep IN ('d1')" /* Iceberg scan filters */,
+        new String[] {"dep IN ('d1')"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     checkOnlyIcebergFilters(
         "dep NOT IN ('d2', 'd4')" /* query predicate */,
-        "(dep IS NOT NULL AND dep NOT IN ('d2', 'd4'))" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep NOT IN ('d2', 'd4')"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(3, 300, "d3"), row(5, 500, "d5")));
 
     checkOnlyIcebergFilters(
         "dep = 'd1' AND dep IS NOT NULL" /* query predicate */,
-        "dep = 'd1', dep IS NOT NULL" /* Iceberg scan filters */,
+        new String[] {"dep = 'd1'", "dep IS NOT NULL"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     checkOnlyIcebergFilters(
         "dep = 'd1' OR dep = 'd2' OR dep = 'd3'" /* query predicate */,
-        "((dep = 'd1' OR dep = 'd2') OR dep = 'd3')" /* Iceberg scan filters */,
+        new String[] {"((dep = 'd1' OR dep = 'd2') OR dep = 'd3')"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2"), row(3, 300, "d3")));
 
     checkFilters(
         "dep = 'd1' AND id = 1" /* query predicate */,
         "isnotnull(id) AND (id = 1)" /* Spark post scan filter */,
-        "dep IS NOT NULL, id IS NOT NULL, dep = 'd1', id = 1" /* Iceberg scan filters */,
+        new String[] {
+          "dep IS NOT NULL", "id IS NOT NULL", "dep = 'd1'", "id = 1"
+        } /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     checkFilters(
         "dep = 'd2' OR id = 1" /* query predicate */,
         "(dep = d2) OR (id = 1)" /* Spark post scan filter */,
-        "(dep = 'd2' OR id = 1)" /* Iceberg scan filters */,
+        new String[] {"(dep = 'd2' OR id = 1)"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
 
     checkFilters(
         "dep LIKE 'd1%' AND id = 1" /* query predicate */,
         "isnotnull(id) AND (id = 1)" /* Spark post scan filter */,
-        "dep IS NOT NULL, id IS NOT NULL, dep LIKE 'd1%', id = 1" /* Iceberg scan filters */,
+        new String[] {
+          "dep IS NOT NULL", "id IS NOT NULL", "dep LIKE 'd1%'", "id = 1"
+        } /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     checkFilters(
         "dep NOT LIKE 'd5%' AND (id = 1 OR id = 5)" /* query predicate */,
         "(id = 1) OR (id = 5)" /* Spark post scan filter */,
-        "dep IS NOT NULL, NOT (dep LIKE 'd5%'), (id = 1 OR id = 5)" /* Iceberg scan filters */,
+        new String[] {
+          "dep IS NOT NULL", "NOT (dep LIKE 'd5%')", "(id = 1 OR id = 5)"
+        } /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     checkFilters(
         "dep LIKE '%d5' AND id IN (1, 5)" /* query predicate */,
         "EndsWith(dep, d5) AND id IN (1,5)" /* Spark post scan filter */,
-        "dep IS NOT NULL, id IN (1, 5)" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "id IN (1, 5)"} /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
   }
 
@@ -226,14 +257,14 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         () -> {
           checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
-              "t IS NULL" /* Iceberg scan filters */,
+              new String[] {"t IS NULL"} /* Iceberg scan filters */,
               ImmutableList.of(row(3, 300, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-06-30T02:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
           checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-06-30T02:00:00.000Z'" /* query predicate */,
-              "t IS NOT NULL, t < 1625018400000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625018400000000"} /* Iceberg scan filters */,
               ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-06-30T01:00:00.001Z' differ,
@@ -241,7 +272,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "t < TIMESTAMP '2021-06-30T01:00:00.001Z'" /* query predicate */,
               "t < 2021-06-30 01:00:00.001" /* Spark post scan filter */,
-              "t IS NOT NULL, t < 1625014800001000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625014800001000"} /* Iceberg scan filters */,
               ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
 
           // strict/inclusive projections for t <= TIMESTAMP '2021-06-30T01:00:00.000Z' differ,
@@ -249,7 +280,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "t <= TIMESTAMP '2021-06-30T01:00:00.000Z'" /* query predicate */,
               "t <= 2021-06-30 01:00:00" /* Spark post scan filter */,
-              "t IS NOT NULL, t <= 1625014800000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t <= 1625014800000000"} /* Iceberg scan filters */,
               ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.0Z"))));
         });
   }
@@ -273,14 +304,14 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         () -> {
           checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
-              "t IS NULL" /* Iceberg scan filters */,
+              new String[] {"t IS NULL"} /* Iceberg scan filters */,
               ImmutableList.of(row(4, 400, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-07-05T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
           checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-07-05T00:00:00.000Z'" /* query predicate */,
-              "t IS NOT NULL, t < 1625443200000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625443200000000"} /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-15T01:00:00.000Z")),
                   row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
@@ -290,7 +321,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
               "t < 2021-06-30 03:00:00" /* Spark post scan filter */,
-              "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625022000000000"} /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-15T01:00:00.000Z")),
                   row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
@@ -316,14 +347,14 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         () -> {
           checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
-              "t IS NULL" /* Iceberg scan filters */,
+              new String[] {"t IS NULL"} /* Iceberg scan filters */,
               ImmutableList.of(row(4, 400, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2021-07-01T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
           checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-07-01T00:00:00.000Z'" /* query predicate */,
-              "t IS NOT NULL, t < 1625097600000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625097600000000"} /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
                   row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
@@ -333,7 +364,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
               "t < 2021-06-30 03:00:00" /* Spark post scan filter */,
-              "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625022000000000"} /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
                   row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
@@ -359,14 +390,14 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         () -> {
           checkOnlyIcebergFilters(
               "t IS NULL" /* query predicate */,
-              "t IS NULL" /* Iceberg scan filters */,
+              new String[] {"t IS NULL"} /* Iceberg scan filters */,
               ImmutableList.of(row(3, 300, null)));
 
           // strict/inclusive projections for t < TIMESTAMP '2022-01-01T00:00:00.000Z' are equal,
           // so this filter selects entire partitions and can be pushed down completely
           checkOnlyIcebergFilters(
               "t < TIMESTAMP '2022-01-01T00:00:00.000Z'" /* query predicate */,
-              "t IS NOT NULL, t < 1640995200000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1640995200000000"} /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
                   row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
@@ -376,7 +407,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "t < TIMESTAMP '2021-06-30T03:00:00.000Z'" /* query predicate */,
               "t < 2021-06-30 03:00:00" /* Spark post scan filter */,
-              "t IS NOT NULL, t < 1625022000000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625022000000000"} /* Iceberg scan filters */,
               ImmutableList.of(
                   row(1, 100, timestamp("2021-06-30T01:00:00.000Z")),
                   row(2, 200, timestamp("2021-06-30T02:00:00.000Z"))));
@@ -398,7 +429,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     checkFilters(
         "dep = 'd1' AND id = 1" /* query predicate */,
         "id = 1" /* Spark post scan filter */,
-        "dep IS NOT NULL, id IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "id IS NOT NULL", "dep = 'd1'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
   }
 
@@ -417,13 +448,13 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
     checkOnlyIcebergFilters(
         "dep LIKE 'd%'" /* query predicate */,
-        "dep IS NOT NULL, dep LIKE 'd%'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep LIKE 'd%'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
 
     checkFilters(
         "dep = 'd1'" /* query predicate */,
         "dep = d1" /* Spark post scan filter */,
-        "dep IS NOT NULL" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
   }
 
@@ -441,7 +472,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     // the filter can be pushed completely because all specs include identity(dep)
     checkOnlyIcebergFilters(
         "dep = 'd1'" /* query predicate */,
-        "dep IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep = 'd1'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1", "sd1")));
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -453,7 +484,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     // the filter can be pushed completely because all specs include identity(dep)
     checkOnlyIcebergFilters(
         "dep = 'd1'" /* query predicate */,
-        "dep IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep = 'd1'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1", "sd1")));
 
     table.updateSpec().removeField("sub_dep").removeField("dep").commit();
@@ -464,7 +495,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     checkFilters(
         "dep = 'd1'" /* query predicate */,
         "isnotnull(dep) AND (dep = d1)" /* Spark post scan filter */,
-        "dep IS NOT NULL, dep = 'd1'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep = 'd1'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1", "sd1")));
   }
 
@@ -482,7 +513,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     // the filter can be pushed completely because the current spec supports it
     checkOnlyIcebergFilters(
         "dep LIKE 'd1%'" /* query predicate */,
-        "dep IS NOT NULL, dep LIKE 'd1%'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep LIKE 'd1%'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -497,7 +528,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     // the filter can be pushed completely because both specs support it
     checkOnlyIcebergFilters(
         "dep LIKE 'd%'" /* query predicate */,
-        "dep IS NOT NULL, dep LIKE 'd%'" /* Iceberg scan filters */,
+        new String[] {"dep IS NOT NULL", "dep LIKE 'd%'"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1"), row(2, 200, "d2")));
 
     // the filter can't be pushed completely because the second spec is truncate(dep, 1) and
@@ -505,7 +536,9 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     checkFilters(
         "dep LIKE 'd1%' AND id = 1" /* query predicate */,
         "(isnotnull(id) AND StartsWith(dep, d1)) AND (id = 1)" /* Spark post scan filter */,
-        "dep IS NOT NULL, id IS NOT NULL, dep LIKE 'd1%', id = 1" /* Iceberg scan filters */,
+        new String[] {
+          "dep IS NOT NULL", "id IS NOT NULL", "dep LIKE 'd1%'", "id = 1"
+        } /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100, "d1")));
   }
 
@@ -526,7 +559,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           // the filter can be pushed completely because the current spec supports it
           checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-07-01T00:00:00.000Z'" /* query predicate */,
-              "t IS NOT NULL, t < 1625097600000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1625097600000000"} /* Iceberg scan filters */,
               ImmutableList.of(row(1, 100, timestamp("2021-06-30T01:00:00.000Z"))));
 
           Table table = validationCatalog.loadTable(tableIdent);
@@ -541,7 +574,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           // the filter can be pushed completely because both specs support it
           checkOnlyIcebergFilters(
               "t < TIMESTAMP '2021-06-01T00:00:00.000Z'" /* query predicate */,
-              "t IS NOT NULL, t < 1622505600000000" /* Iceberg scan filters */,
+              new String[] {"t IS NOT NULL", "t < 1622505600000000"} /* Iceberg scan filters */,
               ImmutableList.of(row(2, 200, timestamp("2021-05-30T01:00:00.000Z"))));
         });
   }
@@ -560,28 +593,28 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
     checkOnlyIcebergFilters(
         "salary = 100.5" /* query predicate */,
-        "salary IS NOT NULL, salary = 100.5" /* Iceberg scan filters */,
+        new String[] {"salary IS NOT NULL", "salary = 100.5"} /* Iceberg scan filters */,
         ImmutableList.of(row(1, 100.5)));
 
     checkOnlyIcebergFilters(
         "salary = double('NaN')" /* query predicate */,
-        "salary IS NOT NULL, is_nan(salary)" /* Iceberg scan filters */,
+        new String[] {"salary IS NOT NULL", "is_nan(salary)"} /* Iceberg scan filters */,
         ImmutableList.of(row(2, Double.NaN)));
 
     checkOnlyIcebergFilters(
         "salary != double('NaN')" /* query predicate */,
-        "salary IS NOT NULL, NOT (is_nan(salary))" /* Iceberg scan filters */,
+        new String[] {"salary IS NOT NULL", "NOT (is_nan(salary))"} /* Iceberg scan filters */,
         ImmutableList.of(
             row(1, 100.5), row(3, Double.POSITIVE_INFINITY), row(4, Double.NEGATIVE_INFINITY)));
 
     checkOnlyIcebergFilters(
         "salary = double('infinity')" /* query predicate */,
-        "salary IS NOT NULL, salary = Infinity" /* Iceberg scan filters */,
+        new String[] {"salary IS NOT NULL", "salary = Infinity"} /* Iceberg scan filters */,
         ImmutableList.of(row(3, Double.POSITIVE_INFINITY)));
 
     checkOnlyIcebergFilters(
         "salary = double('-infinity')" /* query predicate */,
-        "salary IS NOT NULL, salary = -Infinity" /* Iceberg scan filters */,
+        new String[] {"salary IS NOT NULL", "salary = -Infinity"} /* Iceberg scan filters */,
         ImmutableList.of(row(4, Double.NEGATIVE_INFINITY)));
   }
 
@@ -607,7 +640,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "try_variant_get(data, '$.num', 'int') IS NOT NULL",
               "isnotnull(data) AND isnotnull(try_variant_get(data, $.num, IntegerType, false, Some(UTC)))",
-              "data IS NOT NULL",
+              new String[] {"data IS NOT NULL"},
               ImmutableList.of(
                   row(1L, toSparkVariantRow("foo", 25)),
                   row(2L, toSparkVariantRow("bar", 30)),
@@ -616,45 +649,44 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "try_variant_get(data, '$.num', 'int') IS NULL",
               "isnull(try_variant_get(data, $.num, IntegerType, false, Some(UTC)))",
-              "",
+              new String[] {""},
               ImmutableList.of(row(4L, null)));
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') > 30",
               "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) > 30)",
-              "data IS NOT NULL",
+              new String[] {"data IS NOT NULL"},
               ImmutableList.of(row(3L, toSparkVariantRow("baz", 35))));
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') = 30",
               "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 30)",
-              "data IS NOT NULL",
+              new String[] {"data IS NOT NULL"},
               ImmutableList.of(row(2L, toSparkVariantRow("bar", 30))));
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') IN (25, 35)",
               "try_variant_get(data, $.num, IntegerType, false, Some(UTC)) IN (25,35)",
-              "",
+              new String[] {""},
               ImmutableList.of(
                   row(1L, toSparkVariantRow("foo", 25)), row(3L, toSparkVariantRow("baz", 35))));
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') != 25",
               "isnotnull(data) AND NOT (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 25)",
-              "data IS NOT NULL",
+              new String[] {"data IS NOT NULL"},
               ImmutableList.of(
                   row(2L, toSparkVariantRow("bar", 30)), row(3L, toSparkVariantRow("baz", 35))));
         });
   }
 
   private void checkOnlyIcebergFilters(
-      String predicate, String icebergFilters, List<Object[]> expectedRows) {
-
+      String predicate, String[] icebergFilters, List<Object[]> expectedRows) {
     checkFilters(predicate, null, icebergFilters, expectedRows);
   }
 
   private void checkFilters(
-      String predicate, String sparkFilter, String icebergFilters, List<Object[]> expectedRows) {
+      String predicate, String sparkFilter, String[] icebergFilters, List<Object[]> expectedRows) {
 
     Action check =
         () -> {
@@ -674,9 +706,20 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
       assertThat(planAsString).as("Should be no post scan filter").doesNotContain("Filter (");
     }
 
-    assertThat(planAsString)
-        .as("Pushed filters must match")
-        .contains(", filters=" + icebergFilters + ",");
+    int startIndex = planAsString.indexOf("filters=");
+    int endIndex = planAsString.indexOf("runtimeFilters");
+    String filterStringFromPlan = planAsString.substring(startIndex, endIndex);
+    Arrays.stream(icebergFilters)
+        .forEach(
+            filter -> {
+              assertThat(filterStringFromPlan).as("Pushed filters must contain").contains(filter);
+            });
+    // This implies there should be no filter at all in Scan
+    if (icebergFilters.length == 0) {
+      assertThat(filterStringFromPlan.trim())
+          .as("Pushed filters must contain")
+          .isEqualTo("filters=,");
+    }
   }
 
   private Timestamp timestamp(String timestampAsString) {
