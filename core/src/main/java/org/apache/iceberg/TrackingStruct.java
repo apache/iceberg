@@ -349,7 +349,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
 
     Builder dvSnapshotId(long id) {
       Preconditions.checkState(
-          status != EntryStatus.DELETED, "Cannot set dv snapshot ID on a DELETED entry");
+          status != EntryStatus.DELETED, "Cannot set dv snapshot ID on DELETED entry");
       Preconditions.checkState(
           deletedPositions == null && replacedPositions == null,
           "Cannot set dv snapshot ID with manifest delete vector positions");
@@ -360,7 +360,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     // TODO: revisit when MODIFIED status is added; MDV setters will need to handle MODIFIED.
     Builder deletedPositions(ByteBuffer positions) {
       Preconditions.checkState(
-          status == EntryStatus.EXISTING, "Cannot set deleted positions on a %s entry", status);
+          status == EntryStatus.EXISTING, "Cannot set deleted positions on %s entry", status);
       Preconditions.checkState(
           dvSnapshotId == null, "Cannot set deleted positions with dv snapshot ID");
       this.deletedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
@@ -370,7 +370,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     // TODO: revisit when MODIFIED status is added; MDV setters will need to handle MODIFIED.
     Builder replacedPositions(ByteBuffer positions) {
       Preconditions.checkState(
-          status == EntryStatus.EXISTING, "Cannot set replaced positions on a %s entry", status);
+          status == EntryStatus.EXISTING, "Cannot set replaced positions on %s entry", status);
       Preconditions.checkState(
           dvSnapshotId == null, "Cannot set replaced positions with dv snapshot ID");
       this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;

@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.iceberg.types.Types;
@@ -192,40 +193,34 @@ class TestManifestInfoStruct {
     assertThat(deserialized.dvCardinality()).isEqualTo(1L);
   }
 
-  private static final List<Consumer<ManifestInfoStruct.Builder>> REQUIRED_SETTERS_BY_ORDINAL =
-      List.of(
-          b -> b.addedFilesCount(0),
-          b -> b.existingFilesCount(0),
-          b -> b.deletedFilesCount(0),
-          b -> b.replacedFilesCount(0),
-          b -> b.addedRowsCount(0L),
-          b -> b.existingRowsCount(0L),
-          b -> b.deletedRowsCount(0L),
-          b -> b.replacedRowsCount(0L),
-          b -> b.minSequenceNumber(0L));
+  // Keyed by the field name used in the "Missing required value: ..." build() error so each
+  // case has a single source of truth. No dependency on schema field order.
+  private static final Map<String, Consumer<ManifestInfoStruct.Builder>> REQUIRED_SETTERS =
+      Map.ofEntries(
+          Map.entry("added files count", b -> b.addedFilesCount(0)),
+          Map.entry("existing files count", b -> b.existingFilesCount(0)),
+          Map.entry("deleted files count", b -> b.deletedFilesCount(0)),
+          Map.entry("replaced files count", b -> b.replacedFilesCount(0)),
+          Map.entry("added rows count", b -> b.addedRowsCount(0L)),
+          Map.entry("existing rows count", b -> b.existingRowsCount(0L)),
+          Map.entry("deleted rows count", b -> b.deletedRowsCount(0L)),
+          Map.entry("replaced rows count", b -> b.replacedRowsCount(0L)),
+          Map.entry("min sequence number", b -> b.minSequenceNumber(0L)));
 
-  private static Stream<Arguments> missingRequiredFieldCases() {
-    return Stream.of(
-        Arguments.of(ADDED_FILES_COUNT_ORDINAL, "added files count"),
-        Arguments.of(EXISTING_FILES_COUNT_ORDINAL, "existing files count"),
-        Arguments.of(DELETED_FILES_COUNT_ORDINAL, "deleted files count"),
-        Arguments.of(REPLACED_FILES_COUNT_ORDINAL, "replaced files count"),
-        Arguments.of(ADDED_ROWS_COUNT_ORDINAL, "added rows count"),
-        Arguments.of(EXISTING_ROWS_COUNT_ORDINAL, "existing rows count"),
-        Arguments.of(DELETED_ROWS_COUNT_ORDINAL, "deleted rows count"),
-        Arguments.of(REPLACED_ROWS_COUNT_ORDINAL, "replaced rows count"),
-        Arguments.of(MIN_SEQUENCE_NUMBER_ORDINAL, "min sequence number"));
+  private static Stream<String> missingRequiredFieldCases() {
+    return REQUIRED_SETTERS.keySet().stream();
   }
 
   @ParameterizedTest
   @MethodSource("missingRequiredFieldCases")
-  void testBuilderMissingRequiredFields(int omittedOrdinal, String missingField) {
+  void testBuilderMissingRequiredFields(String missingField) {
     ManifestInfoStruct.Builder builder = ManifestInfoStruct.builder();
-    for (int i = 0; i < REQUIRED_SETTERS_BY_ORDINAL.size(); i++) {
-      if (i != omittedOrdinal) {
-        REQUIRED_SETTERS_BY_ORDINAL.get(i).accept(builder);
-      }
-    }
+    REQUIRED_SETTERS.forEach(
+        (name, setter) -> {
+          if (!name.equals(missingField)) {
+            setter.accept(builder);
+          }
+        });
 
     assertThatThrownBy(builder::build)
         .isInstanceOf(IllegalArgumentException.class)
@@ -358,7 +353,13 @@ class TestManifestInfoStruct {
             .build();
 
     assertThat(info.addedFilesCount()).isEqualTo(5);
+    assertThat(info.existingFilesCount()).isEqualTo(5);
+    assertThat(info.deletedFilesCount()).isEqualTo(5);
+    assertThat(info.replacedFilesCount()).isEqualTo(5);
     assertThat(info.addedRowsCount()).isEqualTo(0L);
+    assertThat(info.existingRowsCount()).isEqualTo(0L);
+    assertThat(info.deletedRowsCount()).isEqualTo(0L);
+    assertThat(info.replacedRowsCount()).isEqualTo(0L);
   }
 
   @Test

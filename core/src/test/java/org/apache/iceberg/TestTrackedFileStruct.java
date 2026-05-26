@@ -101,7 +101,7 @@ class TestTrackedFileStruct {
   void testReaderSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
-    TrackingStruct tracking = TrackingStruct.added(0L).build();
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
     tracking.set(MANIFEST_POS_ORDINAL, 7L);
 
