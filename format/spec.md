@@ -1084,12 +1084,18 @@ The Avro schema for version 1 is a record with the following fields, in order:
 | Field name | Avro type | Required | Description |
 |---|---|---|---|
 | **`encryption_key`** | `bytes` | _required_ | The data encryption key (DEK) for this file. Must be 16, 24, or 32 bytes (corresponding to AES-128, AES-192, or AES-256). |
-| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for encryption integrity protection. For [AES GCM Stream](gcm-stream-spec.md) files, the prefix is combined with a block index to form the per-block AAD. For [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/), the prefix is passed as the `aad_file_unique` component. |
+| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for encryption integrity protection. For [AES GCM Stream](gcm-stream-spec.md) files, the prefix is combined with a block index to form the per-block AAD. For [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/), the prefix is passed as the AAD prefix parameter, which is combined with a per-file random `aad_file_unique` to form the full file AAD. |
 | **`file_length`** | `long` | _optional_ | The encrypted file length in bytes. Required for [AES GCM Stream](gcm-stream-spec.md) encrypted files to detect truncation attacks (see [AES GCM Stream file length](gcm-stream-spec.md#file-length)). Not set for Parquet encrypted files. |
 
 The usage of the `encryption_key` and `aad_prefix` fields depends on the file format:
 
-* **AES GCM Stream files** (manifest lists, manifests, and non-Parquet data files): The `encryption_key` is used directly as the AES-GCM key. The `aad_prefix` is combined with a 4-byte little-endian block index to form the AAD for each cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data). The `file_length` field stores the encrypted file length for truncation detection.
+* **AES GCM Stream files**:
+  - Manifest lists
+  - Manifests
+  - Avro data files
+  - Puffin files
+
+  The `encryption_key` is used directly as the AES-GCM key. The `aad_prefix` is combined with a 4-byte little-endian block index to form the AAD for each cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data). The `file_length` field stores the encrypted file length for truncation detection.
 
 * **Parquet encrypted files**: The `encryption_key` and `aad_prefix` are provided to Parquet readers and writers, which delegate encryption to the [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/) format.
 
