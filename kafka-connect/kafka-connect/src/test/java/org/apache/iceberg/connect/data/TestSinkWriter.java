@@ -56,7 +56,8 @@ public class TestSinkWriter {
   private static final Namespace NAMESPACE = Namespace.of("db");
   private static final String TABLE_NAME = "tbl";
   private static final String TABLE2_NAME = "tbl2";
-  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(NAMESPACE, TABLE_NAME);
+  private static final TableIdentifier TABLE_IDENTIFIER =
+      TableIdentifier.of(NAMESPACE, TABLE_NAME);
   private static final TableIdentifier TABLE2_IDENTIFIER =
       TableIdentifier.of(NAMESPACE, TABLE2_NAME);
   private static final Schema SCHEMA =
@@ -245,7 +246,8 @@ public class TestSinkWriter {
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.tables())
         .thenReturn(
-            ImmutableList.of(TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+            ImmutableList.of(
+                TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
     Map<String, Object> value = ImmutableMap.of();
 
     // topic "src.tbl" should match table "db.tbl" (last segment = "tbl")
@@ -260,7 +262,8 @@ public class TestSinkWriter {
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.tables())
         .thenReturn(
-            ImmutableList.of(TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+            ImmutableList.of(
+                TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
     Map<String, Object> value = ImmutableMap.of();
 
     // topic "src.tbl2" should match table "db.tbl2" (last segment = "tbl2")
@@ -275,7 +278,8 @@ public class TestSinkWriter {
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.tables())
         .thenReturn(
-            ImmutableList.of(TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+            ImmutableList.of(
+                TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
     Map<String, Object> value = ImmutableMap.of();
 
     // topic "unmatched" does not match any table, should broadcast to all
