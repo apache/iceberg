@@ -1133,6 +1133,64 @@ public class TestTableMetadata {
         .hasMessageStartingWith("Cannot read unsupported version");
   }
 
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, 3})
+  public void testLocationRequiredBeforeV4(int formatVersion) {
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    null,
+                    ImmutableMap.of(),
+                    formatVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table location is required in format v%s", formatVersion);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, 3})
+  public void testParserRequiresLocationBeforeV4(int formatVersion) {
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            TEST_LOCATION,
+            ImmutableMap.of(),
+            formatVersion);
+    // drop the location field to simulate a v1-v3 metadata file that omits the required location
+    String withoutLocation =
+        TableMetadataParser.toJson(metadata)
+            .replaceFirst("\"location\"\\s*:\\s*\"[^\"]*\"\\s*,", "");
+
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(withoutLocation))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(LOCATION);
+  }
+
+  @Test
+  public void testLocationOptionalInV4() {
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            4);
+    assertThat(metadata.location()).isNull();
+
+    // location must be omitted from the serialized metadata, not written as a JSON null
+    String json = TableMetadataParser.toJson(metadata);
+    assertThat(json).doesNotContain("\"location\"");
+
+    // and the round trip must succeed with a null location
+    TableMetadata parsed = TableMetadataParser.fromJson(json);
+    assertThat(parsed.location()).isNull();
+  }
+
   @Test
   public void testParserV2PartitionSpecsValidation() throws Exception {
     String unsupportedVersion =
@@ -1311,7 +1369,7 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
     assertThat(meta.sortOrder().isUnsorted()).isTrue();
     assertThat(meta.replaceSortOrder(SortOrder.unsorted()))
         .as("Should detect identical unsorted order")
@@ -1326,7 +1384,7 @@ public class TestTableMetadata {
 
     TableMetadata sortedByX =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), order, TEST_LOCATION, ImmutableMap.of());
     assertThat(sortedByX.sortOrders()).hasSize(1);
     assertThat(sortedByX.sortOrder().orderId()).isEqualTo(1);
     assertThat(sortedByX.sortOrder().fields()).hasSize(1);
@@ -1363,7 +1421,7 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
     assertThat(meta.statisticsFiles()).as("Should default to no statistics files").isEmpty();
   }
 
@@ -1373,7 +1431,7 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
 
     TableMetadata withStatistics =
         TableMetadata.buildFrom(meta)
@@ -1411,7 +1469,7 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of()))
             .setStatistics(
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
@@ -1440,7 +1498,7 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
     assertThat(meta.partitionStatisticsFiles())
         .as("Should default to no partition statistics files")
         .isEmpty();
@@ -1452,7 +1510,7 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
 
     TableMetadata withPartitionStatistics =
         TableMetadata.buildFrom(meta)
@@ -1502,7 +1560,7 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of()))
             .setPartitionStatistics(
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(43)
@@ -1559,7 +1617,7 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
 
     Schema newSchema =
         new Schema(
@@ -1576,7 +1634,7 @@ public class TestTableMetadata {
         new Schema(0, Types.NestedField.required(1, "y", Types.LongType.get(), "comment"));
     TableMetadata freshTable =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
     assertThat(freshTable.currentSchemaId()).isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
     assertSameSchemaList(ImmutableList.of(schema), freshTable.schemas());
     assertThat(freshTable.schema().asStruct()).isEqualTo(schema.asStruct());
@@ -1644,7 +1702,7 @@ public class TestTableMetadata {
         TableMetadata.newTableMetadata(
             schema,
             PartitionSpec.unpartitioned(),
-            null,
+            TEST_LOCATION,
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
 
     assertThat(meta.formatVersion()).isEqualTo(2);
@@ -1730,7 +1788,7 @@ public class TestTableMetadata {
         TableMetadata.newTableMetadata(
             schema,
             PartitionSpec.unpartitioned(),
-            null,
+            TEST_LOCATION,
             ImmutableMap.of(
                 TableProperties.FORMAT_VERSION, String.valueOf(baseFormatVersion), "key", "val"));
 
@@ -1759,7 +1817,7 @@ public class TestTableMetadata {
         TableMetadata.newTableMetadata(
             schema,
             PartitionSpec.unpartitioned(),
-            null,
+            TEST_LOCATION,
             ImmutableMap.of(
                 TableProperties.FORMAT_VERSION, String.valueOf(baseFormatVersion), "key", "val"));
 
@@ -1964,7 +2022,10 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    TestBase.SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TEST_LOCATION,
+                    ImmutableMap.of()))
             .removeSpecs(Sets.newHashSet())
             .build();
 
@@ -1980,7 +2041,10 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    TestBase.SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TEST_LOCATION,
+                    ImmutableMap.of()))
             .removeSchemas(Sets.newHashSet())
             .build();
 
