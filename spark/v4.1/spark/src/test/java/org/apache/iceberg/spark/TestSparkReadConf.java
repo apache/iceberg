@@ -94,6 +94,32 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testMaxRecordsPerMicroBatchRetainsLegacyIntValue() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    int maxRecords = 1000;
+
+    SparkReadConf conf =
+        new SparkReadConf(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                ImmutableMap.of(
+                    SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
+                    String.valueOf(maxRecords))));
+
+    assertThat(conf.maxRecordsPerMicroBatch()).isEqualTo(maxRecords);
+  }
+
+  @TestTemplate
+  public void testMaxRecordsPerMicroBatchLongUsesUnlimitedDefault() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+
+    assertThat(conf.maxRecordsPerMicroBatch()).isEqualTo(Integer.MAX_VALUE);
+    assertThat(conf.maxRecordsPerMicroBatchLong()).isEqualTo(Long.MAX_VALUE);
+  }
+
+  @TestTemplate
   public void testMaxRecordsPerMicroBatchAllowsLongValue() {
     Table table = validationCatalog.loadTable(tableIdent);
     long maxRecords = 3_000_000_000L;
@@ -107,6 +133,6 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
                     SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH,
                     String.valueOf(maxRecords))));
 
-    assertThat(conf.maxRecordsPerMicroBatch()).isEqualTo(maxRecords);
+    assertThat(conf.maxRecordsPerMicroBatchLong()).isEqualTo(maxRecords);
   }
 }

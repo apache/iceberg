@@ -218,7 +218,20 @@ public class SparkReadConf {
         .parse();
   }
 
-  public long maxRecordsPerMicroBatch() {
+  /**
+   * @deprecated use {@link #maxRecordsPerMicroBatchLong()} instead. This method cannot represent
+   *     values greater than {@link Integer#MAX_VALUE}.
+   */
+  @Deprecated
+  public int maxRecordsPerMicroBatch() {
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)
+        .defaultValue(Integer.MAX_VALUE)
+        .parse();
+  }
+
+  public long maxRecordsPerMicroBatchLong() {
     return confParser
         .longConf()
         .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)

@@ -100,7 +100,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.splitOpenFileCost = readConf.splitOpenFileCost();
     this.fromTimestamp = readConf.streamFromTimestamp();
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
-    this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
+    this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatchLong();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
