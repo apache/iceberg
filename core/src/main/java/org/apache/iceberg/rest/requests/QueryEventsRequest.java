@@ -23,7 +23,6 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
-import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
 import org.apache.iceberg.rest.events.OperationType;
@@ -45,7 +44,7 @@ public interface QueryEventsRequest extends RESTRequest {
 
   List<CatalogObjectIdentifier> catalogObjectsByName();
 
-  List<CatalogObjectUuid> catalogObjectsById();
+  List<String> catalogObjectsByUuid();
 
   List<CatalogObjectType> objectTypes();
 

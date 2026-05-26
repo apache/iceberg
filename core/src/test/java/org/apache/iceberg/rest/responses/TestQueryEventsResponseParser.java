@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -64,14 +65,14 @@ public class TestQueryEventsResponseParser {
   }
 
   @Test
-  void testToJsonWithoutContinuationToken() {
-    QueryEventsResponse response =
-        ImmutableQueryEventsResponse.builder()
-            .highestProcessedTimestampMs(1L)
-            .events(List.of())
-            .build();
-    assertThat(QueryEventsResponseParser.toJson(response))
-        .isEqualTo("{\"highest-processed-timestamp-ms\":1,\"events\":[]}");
+  void testBuilderRequiresContinuationToken() {
+    assertThatIllegalStateException()
+        .isThrownBy(
+            () ->
+                ImmutableQueryEventsResponse.builder()
+                    .highestProcessedTimestampMs(1L)
+                    .events(List.of())
+                    .build());
   }
 
   @Test
@@ -135,21 +136,15 @@ public class TestQueryEventsResponseParser {
 
   @Test
   void testFromJsonWithMissingProperties() {
-    QueryEventsResponse missingContinuationTokenExpected =
-        ImmutableQueryEventsResponse.builder()
-            .highestProcessedTimestampMs(1L)
-            .events(List.of())
-            .build();
-    assertThat(
-            QueryEventsResponseParser.fromJson(
-                "{\"highest-processed-timestamp-ms\":1,\"events\":[]}"))
-        .isEqualTo(missingContinuationTokenExpected);
+    String missingContinuationToken = "{\"highest-processed-timestamp-ms\":1,\"events\":[]}";
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(missingContinuationToken));
 
-    String missingHighestProcessedTimestamp = "{\"events\":[]}";
+    String missingHighestProcessedTimestamp = "{\"continuation-token\":\"npt\",\"events\":[]}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsResponseParser.fromJson(missingHighestProcessedTimestamp));
 
-    String missingEvents = "{\"highest-processed-timestamp-ms\":1}";
+    String missingEvents = "{\"continuation-token\":\"npt\",\"highest-processed-timestamp-ms\":1}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsResponseParser.fromJson(missingEvents));
   }
@@ -162,15 +157,17 @@ public class TestQueryEventsResponseParser {
         .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidContinuationToken));
 
     String invalidHighestProcessed =
-        "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":\"x\",\"events\":[]}";
+        "{\"continuation-token\":\"npt\",\"highest-processed-timestamp-ms\":\"x\",\"events\":[]}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidHighestProcessed));
 
-    String invalidEvents = "{\"highest-processed-timestamp-ms\":1,\"events\":{}}";
+    String invalidEvents =
+        "{\"continuation-token\":\"npt\",\"highest-processed-timestamp-ms\":1,\"events\":{}}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidEvents));
 
-    String invalidEventsObject = "{\"highest-processed-timestamp-ms\":1,\"events\":[{}]}";
+    String invalidEventsObject =
+        "{\"continuation-token\":\"npt\",\"highest-processed-timestamp-ms\":1,\"events\":[{}]}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidEventsObject));
   }

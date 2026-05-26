@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
-import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.rest.events.OperationType;
 import org.junit.jupiter.api.Test;
@@ -46,8 +45,7 @@ public class TestQueryEventsRequestParser {
                 List.of(
                     CatalogObjectIdentifier.of(Namespace.of("a"), "b"),
                     CatalogObjectIdentifier.of(Namespace.empty(), "c")))
-            .catalogObjectsById(
-                List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
+            .catalogObjectsByUuid(List.of("uuid1"))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
             .build();
@@ -56,7 +54,7 @@ public class TestQueryEventsRequestParser {
         "{\"continuation-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
             + "\"operation-types\":[\"create-table\",\"drop-table\"],"
             + "\"catalog-objects-by-name\":[{\"namespace\":[\"a\"],\"name\":\"b\"},{\"namespace\":[],\"name\":\"c\"}],"
-            + "\"catalog-objects-by-id\":[{\"uuid\":\"uuid1\",\"type\":\"table\"}],"
+            + "\"catalog-objects-by-uuid\":[\"uuid1\"],"
             + "\"object-types\":[\"table\",\"namespace\"],"
             + "\"custom-filters\":{\"k1\":\"v1\"}}";
 
@@ -75,8 +73,7 @@ public class TestQueryEventsRequestParser {
                 List.of(
                     CatalogObjectIdentifier.of(Namespace.of("a"), "b"),
                     CatalogObjectIdentifier.of(Namespace.empty(), "c")))
-            .catalogObjectsById(
-                List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
+            .catalogObjectsByUuid(List.of("uuid1"))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
             .build();
@@ -94,10 +91,7 @@ public class TestQueryEventsRequestParser {
             + "    \"namespace\" : [ ],\n"
             + "    \"name\" : \"c\"\n"
             + "  } ],\n"
-            + "  \"catalog-objects-by-id\" : [ {\n"
-            + "    \"uuid\" : \"uuid1\",\n"
-            + "    \"type\" : \"table\"\n"
-            + "  } ],\n"
+            + "  \"catalog-objects-by-uuid\" : [ \"uuid1\" ],\n"
             + "  \"object-types\" : [ \"table\", \"namespace\" ],\n"
             + "  \"custom-filters\" : {\n"
             + "    \"k1\" : \"v1\"\n"
@@ -133,8 +127,7 @@ public class TestQueryEventsRequestParser {
                 List.of(
                     CatalogObjectIdentifier.of(Namespace.of("a"), "b"),
                     CatalogObjectIdentifier.of(Namespace.empty(), "c")))
-            .catalogObjectsById(
-                List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
+            .catalogObjectsByUuid(List.of("uuid1"))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1", "k2", "v2"))
             .build();
@@ -142,7 +135,7 @@ public class TestQueryEventsRequestParser {
         "{\"continuation-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
             + "\"operation-types\":[\"create-table\",\"drop-table\"],"
             + "\"catalog-objects-by-name\":[{\"namespace\":[\"a\"],\"name\":\"b\"},{\"namespace\":[],\"name\":\"c\"}],"
-            + "\"catalog-objects-by-id\":[{\"uuid\":\"uuid1\",\"type\":\"table\"}],"
+            + "\"catalog-objects-by-uuid\":[\"uuid1\"],"
             + "\"object-types\":[\"table\",\"namespace\"],"
             + "\"custom-filters\":{\"k1\":\"v1\",\"k2\":\"v2\"}}";
 
@@ -196,11 +189,11 @@ public class TestQueryEventsRequestParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectByName));
 
-    String invalidCatalogObjectsById = "{\"catalog-objects-by-id\":{}}";
+    String invalidCatalogObjectsByUuid = "{\"catalog-objects-by-uuid\":{}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectsById));
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectsByUuid));
 
-    String invalidCatalogObjectUuid = "{\"catalog-objects-by-id\":[{}]}";
+    String invalidCatalogObjectUuid = "{\"catalog-objects-by-uuid\":[{}]}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectUuid));
 

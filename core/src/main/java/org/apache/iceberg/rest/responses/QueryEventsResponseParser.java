@@ -48,9 +48,7 @@ public class QueryEventsResponseParser {
 
     gen.writeStartObject();
 
-    if (queryEventsResponse.continuationToken() != null) {
-      gen.writeStringField(CONTINUATION_TOKEN, queryEventsResponse.continuationToken());
-    }
+    gen.writeStringField(CONTINUATION_TOKEN, queryEventsResponse.continuationToken());
 
     gen.writeNumberField(
         HIGHEST_PROCESSED_TIMESTAMP_MS, queryEventsResponse.highestProcessedTimestampMs());
@@ -71,7 +69,7 @@ public class QueryEventsResponseParser {
   public static QueryEventsResponse fromJson(JsonNode json) {
     Preconditions.checkNotNull(json, "Cannot parse query events response from null object");
 
-    String continuationToken = JsonUtil.getStringOrNull(CONTINUATION_TOKEN, json);
+    String continuationToken = JsonUtil.getString(CONTINUATION_TOKEN, json);
     Long highestProcessedTimestampMs = JsonUtil.getLong(HIGHEST_PROCESSED_TIMESTAMP_MS, json);
     List<Event> events = JsonUtil.getObjectList(EVENTS, json, EventParser::fromJson);
 

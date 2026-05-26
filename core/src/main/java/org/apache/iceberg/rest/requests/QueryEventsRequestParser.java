@@ -25,8 +25,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectIdentifierParser;
 import org.apache.iceberg.catalog.CatalogObjectType;
-import org.apache.iceberg.catalog.CatalogObjectUuid;
-import org.apache.iceberg.catalog.CatalogObjectUuidParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.events.OperationType;
 import org.apache.iceberg.util.JsonUtil;
@@ -37,7 +35,7 @@ public class QueryEventsRequestParser {
   private static final String AFTER_TIMESTAMP_MS = "after-timestamp-ms";
   private static final String OPERATION_TYPES = "operation-types";
   private static final String CATALOG_OBJECTS_BY_NAME = "catalog-objects-by-name";
-  private static final String CATALOG_OBJECTS_BY_ID = "catalog-objects-by-id";
+  private static final String CATALOG_OBJECTS_BY_UUID = "catalog-objects-by-uuid";
   private static final String OBJECT_TYPES = "object-types";
   private static final String CUSTOM_FILTERS = "custom-filters";
 
@@ -89,11 +87,11 @@ public class QueryEventsRequestParser {
       gen.writeEndArray();
     }
 
-    if (!request.catalogObjectsById().isEmpty()) {
-      gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_ID);
+    if (!request.catalogObjectsByUuid().isEmpty()) {
+      gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_UUID);
 
-      for (CatalogObjectUuid catalogObjectUuid : request.catalogObjectsById()) {
-        CatalogObjectUuidParser.toJson(catalogObjectUuid, gen);
+      for (String uuid : request.catalogObjectsByUuid()) {
+        gen.writeString(uuid);
       }
 
       gen.writeEndArray();
@@ -150,9 +148,8 @@ public class QueryEventsRequestParser {
               CATALOG_OBJECTS_BY_NAME, json, CatalogObjectIdentifierParser::fromJson));
     }
 
-    if (json.has(CATALOG_OBJECTS_BY_ID)) {
-      builder.catalogObjectsById(
-          JsonUtil.getObjectList(CATALOG_OBJECTS_BY_ID, json, CatalogObjectUuidParser::fromJson));
+    if (json.has(CATALOG_OBJECTS_BY_UUID)) {
+      builder.catalogObjectsByUuid(JsonUtil.getStringList(CATALOG_OBJECTS_BY_UUID, json));
     }
 
     if (json.has(OBJECT_TYPES)) {
