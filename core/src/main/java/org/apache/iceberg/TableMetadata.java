@@ -321,8 +321,7 @@ public class TableMetadata implements Serializable {
     Preconditions.checkArgument(
         !locationOptional
             || location == null
-            || LocationUtil.hasScheme(location)
-            || location.startsWith("/"),
+            || LocationUtil.hasScheme(location),
         "Invalid table location in format v%s, must be absolute: %s",
         formatVersion,
         location);
