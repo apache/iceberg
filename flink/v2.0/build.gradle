@@ -226,7 +226,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   shadowJar {
     configurations = [project.configurations.runtimeClasspath]
 
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {

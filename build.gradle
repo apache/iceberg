@@ -271,7 +271,7 @@ subprojects {
       } else {
         events "failed"
       }
-      exceptionFormat "full"
+      exceptionFormat = "full"
     }
 
     systemProperty 'project.version', project.version
@@ -306,7 +306,7 @@ project(':iceberg-bundled-guava') {
   shadowJar {
     archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
@@ -471,7 +471,7 @@ project(':iceberg-data') {
   test {
     useJUnitPlatform()
     // Only for TestSplitScan as of Gradle 5.0+
-    maxHeapSize '1500m'
+    maxHeapSize = '1500m'
   }
 }
 
@@ -1168,7 +1168,7 @@ project(':iceberg-open-api') {
     archiveClassifier.set(null)
     configurations = [project.configurations.testFixturesRuntimeClasspath]
     from sourceSets.testFixtures.output
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the runtime Jar
     from(projectDir) {
