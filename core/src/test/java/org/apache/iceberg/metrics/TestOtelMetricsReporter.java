@@ -185,7 +185,7 @@ public class TestOtelMetricsReporter {
   }
 
   @Test
-  public void testSnapshotIdIsNotAMetricAttribute() {
+  public void testDefaultAttributeSet() {
     ScanReport scanReport =
         ImmutableScanReport.builder()
             .tableName("test_db.test_table")
@@ -225,12 +225,161 @@ public class TestOtelMetricsReporter {
             .collect(Collectors.toSet());
 
     assertThat(allAttributeKeys)
-        .as("metric attributes must stay bounded: snapshot.id is excluded by design")
+        .as("snapshot.id is excluded by design")
         .doesNotContain("iceberg.snapshot.id");
 
     assertThat(allAttributeKeys)
-        .as("bounded attributes are present on the recorded data points")
-        .contains("iceberg.table.name", "iceberg.schema.id", "iceberg.operation");
+        .as("schema.id is opt-in and not part of the default attribute set")
+        .doesNotContain("iceberg.schema.id");
+
+    assertThat(allAttributeKeys)
+        .as("default attributes are present on the recorded data points")
+        .contains("iceberg.table.name", "iceberg.operation");
+  }
+
+  @Test
+  public void testAttributesAllowlistOptInSchemaId() {
+    OpenTelemetrySdk openTelemetry =
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+    OtelMetricsReporter customReporter =
+        new OtelMetricsReporter(
+            openTelemetry,
+            ImmutableMap.of("iceberg.otel.metrics.attributes", "table-name,schema-id,operation"));
+
+    ScanReport scanReport =
+        ImmutableScanReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(80L)
+            .filter(Expressions.alwaysTrue())
+            .schemaId(7)
+            .projectedFieldIds(ImmutableList.of(1))
+            .projectedFieldNames(ImmutableList.of("id"))
+            .scanMetrics(
+                ImmutableScanMetricsResult.builder()
+                    .resultDataFiles(CounterResult.of(Unit.COUNT, 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    customReporter.report(scanReport);
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    Set<String> allAttributeKeys =
+        metrics.stream()
+            .flatMap(m -> m.getLongSumData().getPoints().stream())
+            .flatMap(p -> p.getAttributes().asMap().keySet().stream())
+            .map(AttributeKey::getKey)
+            .collect(Collectors.toSet());
+
+    assertThat(allAttributeKeys)
+        .as("schema.id is emitted when explicitly included in the allowlist")
+        .contains("iceberg.schema.id", "iceberg.table.name");
+  }
+
+  @Test
+  public void testAttributesAllowlistExcludesTableName() {
+    OpenTelemetrySdk openTelemetry =
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+    OtelMetricsReporter customReporter =
+        new OtelMetricsReporter(
+            openTelemetry, ImmutableMap.of("iceberg.otel.metrics.attributes", "operation"));
+
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(90L)
+            .sequenceNumber(1L)
+            .operation("append")
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .attempts(CounterResult.of(Unit.COUNT, 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    customReporter.report(commitReport);
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    Set<String> allAttributeKeys =
+        metrics.stream()
+            .flatMap(m -> m.getLongSumData().getPoints().stream())
+            .flatMap(p -> p.getAttributes().asMap().keySet().stream())
+            .map(AttributeKey::getKey)
+            .collect(Collectors.toSet());
+
+    assertThat(allAttributeKeys)
+        .as("table.name is omitted when not in the allowlist")
+        .doesNotContain("iceberg.table.name");
+    assertThat(allAttributeKeys)
+        .as("operation remains when in the allowlist")
+        .contains("iceberg.operation");
+  }
+
+  @Test
+  public void testAttributesAllowlistEmptyEmitsNoAttributes() {
+    OpenTelemetrySdk openTelemetry =
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+    OtelMetricsReporter customReporter =
+        new OtelMetricsReporter(
+            openTelemetry, ImmutableMap.of("iceberg.otel.metrics.attributes", ""));
+
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(95L)
+            .sequenceNumber(1L)
+            .operation("append")
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .attempts(CounterResult.of(Unit.COUNT, 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    customReporter.report(commitReport);
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    Set<String> allAttributeKeys =
+        metrics.stream()
+            .flatMap(m -> m.getLongSumData().getPoints().stream())
+            .flatMap(p -> p.getAttributes().asMap().keySet().stream())
+            .map(AttributeKey::getKey)
+            .collect(Collectors.toSet());
+
+    assertThat(allAttributeKeys).as("empty allowlist emits no attributes").isEmpty();
+  }
+
+  @Test
+  public void testAttributesAllowlistUnknownTokenIgnored() {
+    OpenTelemetrySdk openTelemetry =
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+    OtelMetricsReporter customReporter =
+        new OtelMetricsReporter(
+            openTelemetry,
+            ImmutableMap.of("iceberg.otel.metrics.attributes", "table-name, bogus , operation"));
+
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(99L)
+            .sequenceNumber(1L)
+            .operation("append")
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .attempts(CounterResult.of(Unit.COUNT, 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    customReporter.report(commitReport);
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    Set<String> allAttributeKeys =
+        metrics.stream()
+            .flatMap(m -> m.getLongSumData().getPoints().stream())
+            .flatMap(p -> p.getAttributes().asMap().keySet().stream())
+            .map(AttributeKey::getKey)
+            .collect(Collectors.toSet());
+
+    assertThat(allAttributeKeys)
+        .as("known names in the allowlist are honored; unknown tokens are silently ignored")
+        .containsExactlyInAnyOrder("iceberg.table.name", "iceberg.operation");
   }
 
   @Test
