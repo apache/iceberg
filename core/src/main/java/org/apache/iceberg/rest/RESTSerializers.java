@@ -78,6 +78,7 @@ import org.apache.iceberg.rest.responses.FetchScanTasksResponseParser;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
+import org.apache.iceberg.rest.responses.ImmutableUnregisterTableResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -89,6 +90,8 @@ import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponseParser;
 import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.apache.iceberg.rest.responses.RemoteSignResponseParser;
+import org.apache.iceberg.rest.responses.UnregisterTableResponse;
+import org.apache.iceberg.rest.responses.UnregisterTableResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
@@ -149,6 +152,12 @@ public class RESTSerializers {
         .addDeserializer(ConfigResponse.class, new ConfigResponseDeserializer<>())
         .addSerializer(LoadTableResponse.class, new LoadTableResponseSerializer<>())
         .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer<>())
+        .addSerializer(UnregisterTableResponse.class, new UnregisterTableResponseSerializer<>())
+        .addSerializer(
+            ImmutableUnregisterTableResponse.class, new UnregisterTableResponseSerializer<>())
+        .addDeserializer(UnregisterTableResponse.class, new UnregisterTableResponseDeserializer<>())
+        .addDeserializer(
+            ImmutableUnregisterTableResponse.class, new UnregisterTableResponseDeserializer<>())
         .addSerializer(PlanTableScanRequest.class, new PlanTableScanRequestSerializer<>())
         .addDeserializer(PlanTableScanRequest.class, new PlanTableScanRequestDeserializer<>())
         .addSerializer(FetchScanTasksRequest.class, new FetchScanTasksRequestSerializer<>())
@@ -505,6 +514,24 @@ public class RESTSerializers {
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       LoadTableResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class UnregisterTableResponseSerializer<T extends UnregisterTableResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      UnregisterTableResponseParser.toJson(response, gen);
+    }
+  }
+
+  static class UnregisterTableResponseDeserializer<T extends UnregisterTableResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) UnregisterTableResponseParser.fromJson(jsonNode);
     }
   }
 
