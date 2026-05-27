@@ -23,7 +23,7 @@ Project conventions, architecture, and coding patterns synthesized from 58,000+ 
 
 ## Security Model
 
-When assessing potential vulnerabilities or calibrating automated security findings, use the public security model in [`site/docs/security.md`](site/docs/security.md) as the authoritative description of Iceberg's security boundaries and non-boundaries.
+When assessing potential vulnerabilities or calibrating automated security findings, use [`SECURITY-THREAT-MODEL.md`](SECURITY-THREAT-MODEL.md) as the authoritative detailed description of Iceberg's security boundaries, trust assumptions, and non-boundaries.
 
 ## Architecture
 

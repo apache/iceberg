@@ -40,6 +40,8 @@ This includes robustness issues such as malformed-input crashes or memory exhaus
 Potential vulnerabilities that fall within this security model should be reported privately using the process above.
 Other bugs and hardening issues should be reported through the public issue tracker.
 
+For a more detailed threat model used for agent-assisted triage and scanner calibration, see the [Apache Iceberg Security Threat Model](https://github.com/apache/iceberg/blob/main/SECURITY-THREAT-MODEL.md).
+
 # Verifying Signed Releases
 
 Please refer to the instructions on the [Release Verification](https://www.apache.org/info/verification.html) page.
