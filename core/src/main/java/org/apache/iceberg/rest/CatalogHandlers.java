@@ -95,11 +95,13 @@ import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.ImmutableUnregisterTableResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -486,6 +488,27 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
+  }
+
+  public static UnregisterTableResponse unregisterTable(Catalog catalog, TableIdentifier ident) {
+    // capture the last metadata before dropping so it can be returned for re-registration
+    Table table = catalog.loadTable(ident);
+    if (!(table instanceof BaseTable)) {
+      throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+    }
+
+    TableMetadata metadata = ((BaseTable) table).operations().current();
+
+    // unregister without removing the underlying data and metadata files
+    boolean dropped = catalog.dropTable(ident, false /* do not purge */);
+    if (!dropped) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
+
+    return ImmutableUnregisterTableResponse.builder()
+        .metadataLocation(metadata.metadataFileLocation())
+        .metadata(metadata)
+        .build();
   }
 
   public static void purgeTable(Catalog catalog, TableIdentifier ident) {
