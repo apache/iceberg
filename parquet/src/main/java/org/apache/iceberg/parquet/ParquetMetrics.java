@@ -477,6 +477,11 @@ class ParquetMetrics {
           return typedResult;
         }
 
+        if (Iterables.isEmpty(valueResult)) {
+          // missing value stats invalidate typed bounds
+          return ImmutableList.of();
+        }
+
         ParquetVariantUtil.VariantMetrics valueMetrics = Iterables.getOnlyElement(valueResult);
         if (typedResult != null && valueMetrics.valueCount() == valueMetrics.nullCount()) {
           // all the variant-encoded values are null, so the typed stats can be used
