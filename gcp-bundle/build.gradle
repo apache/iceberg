@@ -44,7 +44,7 @@ project(":iceberg-gcp-bundle") {
 
   shadowJar {
     archiveClassifier.set(null)
-    zip64 true
+    zip64 = true
 
     // relocate GCP-specific versions
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.gcp.shaded.com.fasterxml.jackson'

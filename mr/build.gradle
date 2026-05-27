@@ -76,7 +76,7 @@ project(':iceberg-mr') {
 
   test {
     // testJoinTables / testScanTable
-    maxHeapSize '2500m'
+    maxHeapSize = '2500m'
   }
 }
 
