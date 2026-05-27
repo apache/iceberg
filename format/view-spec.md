@@ -198,9 +198,9 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 
 #### Freshness
 
-A materialized view is **fresh** when the storage table represents the result of the current view query (at the materialized view's current `view-version-id`) over the current state of its dependencies. A dependency is a resolved table, view or materialized view reference that is used to compute the materialized views' result.
+A materialized view is **fresh** when the storage table represents the result of the current view query (at the materialized view's current `view-version-id`) over the current state of its dependencies. Dependencies are any resolved relation referenced while evaluating the view query.
 
-The `refresh-state` summary on each storage-table snapshot records dependency state observed at refresh time. Producers populate it; consumers use it to assess freshness without re-executing the query. The spec does not mandate what producers record or how consumers assess freshness. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for strategies on how to store dependency state.
+The `refresh-state` summary on each storage-table snapshot records dependency state observed at refresh time. Producers populate it; consumers may use the state information to assess freshness without re-executing the query. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for strategies on how to store dependency state.
 
 A change to the materialized view's definition produces a new `view-version-id`; any storage-table snapshot recorded at a prior `view-version-id` is not fresh under the current definition.
 
@@ -211,9 +211,8 @@ Producers may selectively choose a subset of their dependencies to record — fo
 When writing the refresh state, producers:
 
 - **Must** record `view-version-id` and `refresh-start-timestamp-ms`.
+- **Should** include all distinct source states for the inputs they chose to track (diamond dependency pattern).
 - **May** leave `source-states` empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
-
-A snapshot whose refresh state violates a `Must` rule is invalid; consumers may treat it as if it had no `refresh-state`.
 
 ##### Consumer: Evaluating Refresh State
 
@@ -243,10 +242,10 @@ Source state records capture the state of objects referenced by a materialized v
 
 | Type    | Description |
 |---------|-------------|
-| `table` | An Iceberg table — either a base table in the dependency graph, or the storage table of an upstream materialized view |
+| `table` | An Iceberg table — either a source table in the dependency graph, or the storage table of an upstream materialized view |
 | `view`  | An Iceberg view in the dependency graph |
 
-An upstream materialized view may be recorded as a `table` entry referencing its storage table, a `view` entry referencing its view metadata, or both. When recorded as a `table` entry, its own dependencies are reached recursively through its `refresh-state`.
+An upstream materialized view may be recorded as a `view` entry referencing its view metadata and one ore more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
 
 #### Source table state
 
