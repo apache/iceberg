@@ -198,37 +198,36 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 
 #### Freshness
 
-A materialized view is **fresh** when the storage table represents the result of the current view query (at the materialized view's current `view-version-id`) over the current state of its dependencies. Dependencies are determined by parsing the SQL: base Iceberg tables, Iceberg views (whose own dependencies are transitively dependencies of the materialized view), and intermediate materialized views (treated as their storage tables, with their own freshness established recursively from their `refresh-state`).
+A materialized view is **fresh** when the storage table represents the result of the current view query (at the materialized view's current `view-version-id`) over the current state of its dependencies. A dependency is a resolved table, view or materialized view reference that is used to compute the materialized views' result.
+
+The `refresh-state` summary on each storage-table snapshot records dependency state observed at refresh time. Producers populate it; consumers use it to assess freshness without re-executing the query. The spec does not mandate what producers record or how consumers assess freshness. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for strategies on how to store dependency state.
 
 A change to the materialized view's definition produces a new `view-version-id`; any storage-table snapshot recorded at a prior `view-version-id` is not fresh under the current definition.
 
-The `refresh-state` summary on each storage-table snapshot records dependency state observed at refresh time. Producers populate it; consumers use it to assess freshness without re-executing the query. The spec does not mandate what producers record or how consumers assess. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for what counts as a dependency.
-
-##### Producer flexibility
+##### Producer: Recording Refresh State
 
 Producers may selectively choose a subset of their dependencies to record — for example, skipping non-Iceberg sources or recording an empty list.
 
 When writing the refresh state, producers:
 
 - **Must** record `view-version-id` and `refresh-start-timestamp-ms`.
-- **Must** include all distinct source states for the inputs they chose to track.
 - **May** leave `source-states` empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
 
 A snapshot whose refresh state violates a `Must` rule is invalid; consumers may treat it as if it had no `refresh-state`.
 
-##### Consumer options
+##### Consumer: Evaluating Refresh State
 
-Consumers may use any combination of the following to assess the storage table:
+Consumers may use any combination of the following to assess the freshness of the storage table:
 
 - **Recency policy.** Accept the storage table when `refresh-start-timestamp-ms` falls within a staleness window. A recency policy bounds data age but does not establish freshness.
-- **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for intermediate materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
+- **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for upstream materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
 - **Verify by parsing the view query.** Derive the dependency set from the SQL and confirm every dependency is covered by `source-states` and matches the current state. Treat any uncovered dependency as undetermined.
 
-If a consumer's assessment passes, it reads from the storage table; otherwise it evaluates the view query in place of the storage table.
+If a consumer's assessment passes, it reads from the storage table. If not, the consumer may fail the query, evaluate the view query directly, or apply another strategy.
 
 #### Refresh state
 
-The refresh state record captures the dependencies in the materialized view's dependency graph. Each dependency is recorded in `source-states` as either a `table` entry (a base table or an intermediate materialized view's storage table) or a `view` entry.
+The refresh state record captures the dependencies in the materialized view's dependency graph. Each dependency is recorded in `source-states` as either a `table` entry (a source table or an upstream materialized view's storage table) or a `view` entry.
 
 The refresh state has the following fields:
 
@@ -244,10 +243,10 @@ Source state records capture the state of objects referenced by a materialized v
 
 | Type    | Description |
 |---------|-------------|
-| `table` | An Iceberg table — either a base table in the dependency graph, or the storage table of an intermediate materialized view |
+| `table` | An Iceberg table — either a base table in the dependency graph, or the storage table of an upstream materialized view |
 | `view`  | An Iceberg view in the dependency graph |
 
-An intermediate materialized view must be recorded as a single `table` entry referencing its storage table; recording it as a `view` entry is not permitted. The intermediate materialized view's own dependencies are reached recursively through its `refresh-state`.
+An upstream materialized view may be recorded as a `table` entry referencing its storage table, a `view` entry referencing its view metadata, or both. When recorded as a `table` entry, its own dependencies are reached recursively through its `refresh-state`.
 
 #### Source table state
 
@@ -285,7 +284,7 @@ When processing a `CREATE MATERIALIZED VIEW` statement, query engines must:
 1. Create the storage table as a regular Iceberg table with any specified configurations (partitioning, sort order, compression, etc.).
 2. Create the materialized view metadata with a `storage-table` reference pointing to the created storage table.
 
-The storage table must exist and be accessible before the materialized view metadata is committed.
+The storage table must exist and be accessible before or at the time the materialized view metadata is committed.
 
 A storage table that has not yet been refreshed has no snapshots. After a refresh, even if the query result is empty, the storage table will contain a snapshot with the `refresh-state` property in its summary. Consumers can use the presence of a snapshot with `refresh-state` to distinguish a never-refreshed storage table from one that was refreshed with an empty result.
 
@@ -552,8 +551,8 @@ The following is an example of the `refresh-state` JSON value stored in the snap
 The dependencies of a materialized view are determined by parsing the view query:
 
 - **Base Iceberg tables** in the dependency graph are recorded by `snapshot-id`.
-- **Iceberg views** in the dependency graph are recorded by `version-id`. A view's own dependencies are transitively dependencies of the materialized view and appear as additional entries in `source-states`.
-- **Intermediate materialized views** in the dependency graph are treated as their storage tables and recorded by the storage table's `snapshot-id`. Their own freshness is established recursively from their `refresh-state`.
+- **Iceberg views** in the dependency graph are recorded by `version-id`. A view's own dependencies are transitive dependencies of the materialized view and appear as additional entries in `source-states`.
+- **Upstream materialized views** in the dependency graph are treated as their storage tables and recorded by the storage table's `snapshot-id`. Their own freshness is established recursively from their `refresh-state`.
 
 ### Example
 
@@ -565,7 +564,7 @@ The query under examination:
 - `D` (materialized view): `SELECT ... FROM H WHERE ...`
 - `E`, `F`, `G`, `H`: base Iceberg tables
 
-`A`'s dependencies are `B`, `C`, and `D`. `B` is a regular view; its own dependencies (`E` and `D`) are transitively dependencies of `A`. `C` and `D` are materialized views; they appear in `A`'s `source-states` as their storage tables.
+`A`'s direct dependencies are `B` and `C`. Because `B` is a regular view, its own dependencies (`E` and `D`) are transitively included in `A`'s `source-states`. `C` and `D` are upstream materialized views; they appear in `A`'s `source-states` as their storage tables.
 
 ```
 A [MV — being refreshed]
