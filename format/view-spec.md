@@ -198,15 +198,25 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 
 #### Freshness
 
-A materialized view is **fresh** when the storage table represents the result of the current view query (at the materialized view's current `view-version-id`) over the current state of its dependencies. Dependencies are any resolved relation referenced while evaluating the view query.
-
-The `refresh-state` summary on each storage-table snapshot records dependency state observed at refresh time. Producers populate it; consumers may use the state information to assess freshness without re-executing the query. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for strategies on how to store dependency state.
+A materialized view is **fresh** when the storage table represents the result of the current view query.
 
 A change to the materialized view's definition produces a new `view-version-id`; any storage-table snapshot recorded at a prior `view-version-id` is not fresh under the current definition.
 
+#### Refresh state
+
+The refresh state record captures the state of dependencies in the materialized view's dependency graph. A dependency is recorded in `source-states` as either a `table` entry (a source table or an upstream materialized view's storage table) and/or a `view` entry. Upstream materialized views can be stored as a `view` and a `table` entry.
+
+The refresh state has the following fields:
+
+| Requirement | Field name                   | Description |
+|-------------|------------------------------|-------------|
+| _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
+| _required_  | `source-states`              | A list of [source state](#source-state) records |
+| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
+
 ##### Producer: Recording Refresh State
 
-Producers may selectively choose a subset of their dependencies to record — for example, skipping non-Iceberg sources or recording an empty list.
+Producers may selectively choose a subset of their dependencies to record — for example, skipping non-Iceberg sources or recording an empty list. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for strategies on how to store dependency state.
 
 When writing the refresh state, producers:
 
@@ -223,18 +233,6 @@ Consumers may use any combination of the following to assess the freshness of th
 - **Verify by parsing the view query.** Derive the dependency set from the SQL and confirm every dependency is covered by `source-states` and matches the current state. Treat any uncovered dependency as undetermined.
 
 If a consumer's assessment passes, it reads from the storage table. If not, the consumer may fail the query, evaluate the view query directly, or apply another strategy.
-
-#### Refresh state
-
-The refresh state record captures the dependencies in the materialized view's dependency graph. Each dependency is recorded in `source-states` as either a `table` entry (a source table or an upstream materialized view's storage table) or a `view` entry.
-
-The refresh state has the following fields:
-
-| Requirement | Field name                   | Description |
-|-------------|------------------------------|-------------|
-| _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
-| _required_  | `source-states`              | A list of [source state](#source-state) records |
-| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 
 #### Source state
 
