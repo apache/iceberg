@@ -999,6 +999,10 @@ project(':iceberg-vortex') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+
     testImplementation libs.arrow.memory.netty
     testImplementation libs.hadoop3.common
     testRuntimeOnly 'com.google.protobuf:protobuf-java:4.33.5'

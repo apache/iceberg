@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.vortex;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -82,7 +83,7 @@ public class GenericVortexReaders {
     return StringReader.INSTANCE;
   }
 
-  public static VortexValueReader<byte[]> bytes() {
+  public static VortexValueReader<ByteBuffer> bytes() {
     return BytesReader.INSTANCE;
   }
 
@@ -229,14 +230,14 @@ public class GenericVortexReaders {
     }
   }
 
-  private static class BytesReader implements VortexValueReader<byte[]> {
+  private static class BytesReader implements VortexValueReader<ByteBuffer> {
     static final BytesReader INSTANCE = new BytesReader();
 
     private BytesReader() {}
 
     @Override
-    public byte[] readNonNull(FieldVector vector, int row) {
-      return ((VarBinaryVector) vector).get(row);
+    public ByteBuffer readNonNull(FieldVector vector, int row) {
+      return ByteBuffer.wrap(((VarBinaryVector) vector).get(row));
     }
   }
 

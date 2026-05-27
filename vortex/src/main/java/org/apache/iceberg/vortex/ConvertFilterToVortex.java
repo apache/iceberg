@@ -38,7 +38,8 @@ import org.apache.iceberg.types.Type;
 public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVisitor<Expression> {
   static final Expression ALWAYS_TRUE = Expression.literal(true);
   static final Expression ALWAYS_FALSE = Expression.literal(false);
-  // Sentinel distinct by reference from ALWAYS_TRUE/FALSE, used to mark sub-expressions that
+  // Sentinel distinct by reference from ALWAYS_TRUE/FALSE, used to mark
+  // sub-expressions that
   // could not be translated to a Vortex expression.
   static final Expression UNCONVERTIBLE = Expression.literal(true);
 
