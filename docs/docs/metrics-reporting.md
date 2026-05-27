@@ -140,6 +140,43 @@ Because the host owns the SDK, Iceberg has no reporter-specific catalog properti
 metrics-reporter-impl=org.apache.iceberg.metrics.OtelMetricsReporter
 ```
 
+#### Attribute set
+
+By default the reporter attaches the following attributes to every emitted metric point:
+
+| Metrics | Default attributes |
+|---|---|
+| Scan metrics (`iceberg.scan.*`) | `iceberg.table.name` |
+| Commit metrics (`iceberg.commit.*`) | `iceberg.table.name`, `iceberg.operation` |
+
+The attribute set is configurable via the `iceberg.otel.metrics.attributes` catalog property, which takes a comma-separated allowlist of attribute short names. Recognized names:
+
+- `table-name` — emits `iceberg.table.name`
+- `schema-id` — emits `iceberg.schema.id` (opt-in; useful for correlating scan performance with schema evolution)
+- `operation` — emits `iceberg.operation`
+
+Attributes whose short names are not listed are omitted from emitted metric points. To additionally include the schema id:
+
+```
+iceberg.otel.metrics.attributes=table-name,schema-id,operation
+```
+
+To omit `iceberg.table.name` entirely in deployments with a very large number of tables:
+
+```
+iceberg.otel.metrics.attributes=operation
+```
+
+To emit metrics with no attributes at all (single aggregate time series per metric):
+
+```
+iceberg.otel.metrics.attributes=
+```
+
+When the property is not set, the default attribute set above is used.
+
+The snapshot id is deliberately not exposed as a metric attribute because snapshot ids are monotonically increasing and unique per commit; including them would create a new time series for every commit and risk unbounded cardinality in any time-series backend.
+
 #### Packaging the exporter
 
 Pick one OTLP exporter (or any other OpenTelemetry exporter for your backend) and add it to the host's runtime classpath alongside the API and SDK. The OTLP/HTTP path works against any OpenTelemetry Collector or backend that accepts OTLP/HTTP; OTLP/gRPC is functionally equivalent over gRPC.
