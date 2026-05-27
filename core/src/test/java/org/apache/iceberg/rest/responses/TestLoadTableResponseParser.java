@@ -146,7 +146,7 @@ public class TestLoadTableResponseParser {
     TableMetadata metadata =
         TableMetadata.buildFromEmpty(formatVersion)
             .assignUUID(uuid)
-            .setLocation("location")
+            .setLocation("/location")
             .setCurrentSchema(
                 new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
             .addPartitionSpec(PartitionSpec.unpartitioned())
@@ -164,7 +164,7 @@ public class TestLoadTableResponseParser {
                 + "  \"metadata\" : {\n"
                 + "    \"format-version\" : %s,\n"
                 + "    \"table-uuid\" : \"386b9f01-002b-4d8c-b77f-42c3fd3b7c9b\",\n"
-                + "    \"location\" : \"location\",\n"
+                + "    \"location\" : \"/location\",\n"
                 + "    \"last-sequence-number\" : 0,\n"
                 + "    \"last-updated-ms\" : %d,\n"
                 + "    \"last-column-id\" : 1,\n"
