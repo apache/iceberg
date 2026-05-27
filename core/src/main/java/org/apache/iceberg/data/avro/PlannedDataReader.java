@@ -148,16 +148,25 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
             }
             return GenericReaders.timestamps();
 
+          case "local-timestamp-micros":
+            return GenericReaders.timestamps();
+
           case "timestamp-nanos":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzNanos();
             }
             return GenericReaders.timestampNanos();
 
+          case "local-timestamp-nanos":
+            return GenericReaders.timestampNanos();
+
           case "timestamp-millis":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzMillis();
             }
+            return GenericReaders.timestampMillis();
+
+          case "local-timestamp-millis":
             return GenericReaders.timestampMillis();
 
           case "decimal":
