@@ -28,6 +28,7 @@ import static org.mockito.Mockito.times;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -413,7 +414,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
-    assertThat(listManifestFiles(new File(table.location()))).hasSize(3);
+    assertThat(listManifestFiles(new File(URI.create(table.location())))).hasSize(3);
 
     // Retain last 2 snapshots, which means 1 is deleted.
     Transaction tx = table.newTransaction();
@@ -422,7 +423,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.snapshot(firstSnapshotId)).isNull();
-    assertThat(listManifestLists(new File(table.location()))).hasSize(2);
+    assertThat(listManifestLists(new File(URI.create(table.location())))).hasSize(2);
   }
 
   @TestTemplate

@@ -133,7 +133,8 @@ public class TestTables {
     }
 
     TableMetadata metadata =
-        newTableMetadata(schema, spec, sortOrder, temp.toString(), properties, formatVersion);
+        newTableMetadata(
+            schema, spec, sortOrder, temp.toURI().toString(), properties, formatVersion);
 
     if (metaTemp != null) {
       metadata =
@@ -164,7 +165,7 @@ public class TestTables {
     }
 
     TableMetadata metadata =
-        newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), 1);
+        newTableMetadata(schema, spec, sortOrder, temp.toURI().toString(), ImmutableMap.of(), 1);
 
     return Transactions.createTableTransaction(name, ops, metadata);
   }
@@ -206,7 +207,7 @@ public class TestTables {
       metadata = current.buildReplacement(schema, spec, sortOrder, current.location(), properties);
       return Transactions.replaceTableTransaction(name, ops, metadata);
     } else {
-      metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), properties);
+      metadata = newTableMetadata(schema, spec, sortOrder, temp.toURI().toString(), properties);
       return Transactions.createTableTransaction(name, ops, metadata);
     }
   }
