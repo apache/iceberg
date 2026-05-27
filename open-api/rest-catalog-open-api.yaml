@@ -2084,13 +2084,13 @@ components:
         - `scan-planning`: The client supports server-side scan planning.
 
 
-        Clients should include all capabilities they support. Servers must
-        treat this header as optional and must not fail if it is absent.
+        Clients SHOULD include all capabilities they support. Servers MUST
+        treat this header as optional and SHALL NOT reject the request if it is absent.
 
 
-        Client SDKs that support this header should set it statically and
+        Client SDKs that support this header SHOULD set it statically and
         include it on every request. Clients that do not yet support this
-        header statically can configure it via client side headers.
+        header statically MAY configure it via client side headers.
       required: false
       schema:
         type: string
