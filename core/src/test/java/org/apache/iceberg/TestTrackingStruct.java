@@ -208,17 +208,24 @@ class TestTrackingStruct {
 
   @Test
   void testAddedBuilder() {
-    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(43L).build();
+    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(42L).build();
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
-    assertThat(tracking.dvSnapshotId()).isEqualTo(43L);
+    assertThat(tracking.dvSnapshotId()).isEqualTo(42L);
     assertThat(tracking.deletedPositions()).isNull();
     assertThat(tracking.replacedPositions()).isNull();
     // sequence numbers and firstRowId remain null; populated by inheritance
     assertThat(tracking.dataSequenceNumber()).isNull();
     assertThat(tracking.fileSequenceNumber()).isNull();
     assertThat(tracking.firstRowId()).isNull();
+  }
+
+  @Test
+  void testAddedBuilderRejectsMismatchedDvSnapshotId() {
+    assertThatThrownBy(() -> TrackingStruct.added(42L).dvSnapshotId(43L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid DV snapshot ID for ADDED entry: 43 (must equal entry snapshot ID 42)");
   }
 
   @Test
@@ -294,7 +301,7 @@ class TestTrackingStruct {
 
     assertThatThrownBy(() -> TrackingStruct.deleted(source, 1L).dvSnapshotId(123L))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set dv snapshot ID on DELETED entry");
+        .hasMessage("Cannot set DV snapshot ID on DELETED entry");
 
     assertThatThrownBy(
             () ->
@@ -344,6 +351,13 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testDvSnapshotIdRejectedOnReplaced() {
+    assertThatThrownBy(() -> TrackingStruct.replaced(sourceTracking(), 1L).dvSnapshotId(123L))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot set DV snapshot ID on REPLACED entry");
+  }
+
+  @Test
   void testDvSnapshotIdAndMdvPositionsAreMutuallyExclusive() {
     // sourceTracking has dvSnapshotId=43, inherited by existing(source)
     assertThatThrownBy(
@@ -351,14 +365,14 @@ class TestTrackingStruct {
                 TrackingStruct.existing(sourceTracking())
                     .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set deleted positions with dv snapshot ID");
+        .hasMessage("Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
 
     assertThatThrownBy(
             () ->
                 TrackingStruct.existing(sourceTracking())
                     .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set replaced positions with dv snapshot ID");
+        .hasMessage("Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
 
     // Setting MDV positions first then dvSnapshotId is also rejected
     assertThatThrownBy(
@@ -367,7 +381,8 @@ class TestTrackingStruct {
                     .deletedPositions(ByteBuffer.wrap(new byte[] {1}))
                     .dvSnapshotId(123L))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set dv snapshot ID with manifest delete vector positions");
+        .hasMessage(
+            "Cannot set DV snapshot ID on a manifest entry (deleted/replaced positions are set)");
   }
 
   @Test
@@ -425,21 +440,22 @@ class TestTrackingStruct {
     Tracking replacedSource = sourceTrackingWithStatus(EntryStatus.REPLACED);
 
     assertThatThrownBy(() -> TrackingStruct.existing(deletedSource))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot transition from DELETED status");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid status transition: DELETED -> EXISTING (DELETED is terminal)");
 
     assertThatThrownBy(() -> TrackingStruct.deleted(replacedSource, 1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot transition from REPLACED status");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid status transition: REPLACED -> DELETED (REPLACED is terminal)");
   }
 
   @Test
-  void testRejectsSameStatusTransition() {
+  void testExistingToExistingIsAllowed() {
     Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
 
-    assertThatThrownBy(() -> TrackingStruct.existing(existingSource))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid status transition: EXISTING -> EXISTING");
+    TrackingStruct existing = TrackingStruct.existing(existingSource).build();
+
+    assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(existing.snapshotId()).isEqualTo(existingSource.snapshotId());
   }
 
   @Test
@@ -464,13 +480,13 @@ class TestTrackingStruct {
   @Test
   void testAddedWithDvSnapshotIdJavaSerializationRoundTrip()
       throws IOException, ClassNotFoundException {
-    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(99L).build();
+    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(42L).build();
 
     TrackingStruct deserialized = TestHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.snapshotId()).isEqualTo(42L);
-    assertThat(deserialized.dvSnapshotId()).isEqualTo(99L);
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(42L);
     assertThat(deserialized.deletedPositions()).isNull();
     assertThat(deserialized.replacedPositions()).isNull();
   }
@@ -494,13 +510,13 @@ class TestTrackingStruct {
 
   @Test
   void testAddedWithDvSnapshotIdKryoSerializationRoundTrip() throws IOException {
-    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(99L).build();
+    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(42L).build();
 
     TrackingStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.snapshotId()).isEqualTo(42L);
-    assertThat(deserialized.dvSnapshotId()).isEqualTo(99L);
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(42L);
     assertThat(deserialized.deletedPositions()).isNull();
     assertThat(deserialized.replacedPositions()).isNull();
   }
