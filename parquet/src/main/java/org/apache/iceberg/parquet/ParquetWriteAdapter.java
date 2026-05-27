@@ -26,6 +26,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.metadata.ParquetMetadataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
@@ -64,7 +65,12 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
     // Specifically, it lacks metrics not included in Parquet file's footer (e.g. NaN count)
     MessageType messageType = footer.getFileMetaData().getSchema();
     Schema schema = ParquetSchemaUtil.convert(messageType);
-    return ParquetMetrics.metrics(schema, messageType, metricsConfig, footer, Stream.empty());
+    return ParquetMetrics.metrics(
+        schema,
+        messageType,
+        metricsConfig,
+        ParquetMetadataUtil.fromHadoopMetadata(footer),
+        Stream.empty());
   }
 
   @Override
@@ -74,7 +80,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
 
   @Override
   public List<Long> splitOffsets() {
-    return ParquetUtil.getSplitOffsets(writer.getFooter());
+    return ParquetUtil.getSplitOffsets(footer);
   }
 
   @Override

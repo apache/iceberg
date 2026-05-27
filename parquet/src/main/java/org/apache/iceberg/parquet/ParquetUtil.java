@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.parquet.metadata.ParquetMetadataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -41,7 +42,6 @@ import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
-import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
@@ -61,10 +61,15 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
+    try (ParquetFileReaderFactory.ParquetFileReaderWrapper reader =
+        ParquetFileReaderFactory.open(
+            file, org.apache.parquet.ParquetReadOptions.builder().build())) {
+      return footerMetrics(reader.footer(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
+    } catch (Exception e) {
+      throw new RuntimeIOException(
+          new IOException(e), "Failed to read footer of file: %s", file.location());
     }
   }
 
@@ -78,6 +83,15 @@ public class ParquetUtil {
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
       NameMapping nameMapping) {
+    return footerMetrics(
+        ParquetMetadataUtil.fromHadoopMetadata(metadata), fieldMetrics, metricsConfig, nameMapping);
+  }
+
+  public static Metrics footerMetrics(
+      org.apache.iceberg.parquet.metadata.ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      NameMapping nameMapping) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
@@ -86,8 +100,8 @@ public class ParquetUtil {
   }
 
   private static MessageType getParquetTypeWithIds(
-      ParquetMetadata metadata, NameMapping nameMapping) {
-    MessageType type = metadata.getFileMetaData().getSchema();
+      org.apache.iceberg.parquet.metadata.ParquetMetadata metadata, NameMapping nameMapping) {
+    MessageType type = metadata.fileMetaData().schema();
 
     if (ParquetSchemaUtil.hasIds(type)) {
       return type;
