@@ -128,7 +128,7 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
             return ValueWriters.ints();
 
           case "timestamp-micros":
-            // Spark uses the same representation
+          case "local-timestamp-micros":
             return ValueWriters.longs();
 
           case "decimal":
