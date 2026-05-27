@@ -182,7 +182,6 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
 
   @TestTemplate
   public void testJoinsWithIdentityAndBucketOnStringColumn() throws NoSuchTableException {
-    // Regression test for GitHub issue #15349:
     // bucket transform on a String column produces Integer partition values,
     // but StructInternalRow.getUTF8StringInternal assumed CharSequence
     String createTableStmt =
@@ -209,6 +208,43 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
             + "INNER JOIN %s t2 "
             + "ON t1.id = t2.id AND t1.dep = t2.dep AND t1.user_id = t2.user_id "
             + "ORDER BY t1.id, t1.dep, t1.user_id",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testJoinsWithMultipleBucketPartitionsOnStringColumns() throws NoSuchTableException {
+    String createTableStmt =
+        "CREATE TABLE %s (id BIGINT, dep STRING, category STRING, user_id STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (dep, bucket(8, user_id), bucket(4, category))"
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
+    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, 'software', 'catA', 'user1'), "
+            + "(2, 'hr', 'catB', 'user2'), "
+            + "(3, 'software', 'catA', 'user3')",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, 'software', 'catA', 'user1'), "
+            + "(2, 'hr', 'catB', 'user2'), "
+            + "(4, 'software', 'catC', 'user4')",
+        tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT t1.id, t1.dep, t1.category, t1.user_id "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id AND t1.dep = t2.dep "
+            + "AND t1.user_id = t2.user_id AND t1.category = t2.category "
+            + "ORDER BY t1.id, t1.dep, t1.category, t1.user_id",
         tableName,
         tableName(OTHER_TABLE_NAME));
   }
