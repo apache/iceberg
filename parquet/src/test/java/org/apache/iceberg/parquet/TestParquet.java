@@ -64,6 +64,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.parquet.metadata.ParquetMetadataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -306,12 +307,15 @@ public class TestParquet {
 
     InputFile inputFile = Files.localInput(file);
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      org.apache.iceberg.parquet.metadata.ParquetMetadata nativeFooter =
+          ParquetMetadataUtil.fromHadoopMetadata(reader.getFooter());
+
       Metrics geometryMetrics =
           ParquetMetrics.metrics(
               geometrySchema,
               reader.getFooter().getFileMetaData().getSchema(),
               MetricsConfig.getDefault(),
-              reader.getFooter(),
+              nativeFooter,
               Stream.empty());
 
       Metrics geographyMetrics =
@@ -319,7 +323,7 @@ public class TestParquet {
               geographySchema,
               reader.getFooter().getFileMetaData().getSchema(),
               MetricsConfig.getDefault(),
-              reader.getFooter(),
+              nativeFooter,
               Stream.empty());
 
       assertThat(geometryMetrics.valueCounts()).containsEntry(1, 2L);
