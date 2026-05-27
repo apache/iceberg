@@ -19,11 +19,12 @@
 package org.apache.spark.sql.catalyst.expressions.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.rest.restrictions.Action;
+import org.apache.iceberg.functions.MaskAlphanum;
+import org.apache.iceberg.functions.MaskToFixedValue;
+import org.apache.iceberg.functions.ReplaceWithNull;
+import org.apache.iceberg.functions.Sha256Global;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -63,14 +64,14 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void prettyNameIsOpaque() {
-    SerializableFunction<?, ?> fn = new Action.MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<?, ?> fn = new MaskAlphanum(1).bind(Types.StringType.get());
     IcebergRestricted expr = restricted(str("anything"), fn);
     assertThat(expr.prettyName()).isEqualTo("iceberg_restricted");
   }
 
   @Test
   public void stringTypeConversionRoundTrip() {
-    SerializableFunction<?, ?> fn = new Action.MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<?, ?> fn = new MaskAlphanum(1).bind(Types.StringType.get());
     IcebergRestricted expr = restricted(str("prashant010696@gmail.com"), fn);
     Object result = expr.eval(InternalRow.empty());
     assertThat(result).isInstanceOf(UTF8String.class);
@@ -79,7 +80,7 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void binaryTypeConversionRoundTrip() {
-    SerializableFunction<?, ?> fn = new Action.Sha256Global(1).bind(Types.BinaryType.get());
+    SerializableFunction<?, ?> fn = new Sha256Global(1).bind(Types.BinaryType.get());
     IcebergRestricted expr =
         restricted(Literal.create(new byte[] {1, 2, 3}, BinaryType$.MODULE$), fn);
     Object result = expr.eval(InternalRow.empty());
@@ -89,7 +90,7 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void decimalTypeConversionRoundTrip() {
-    SerializableFunction<?, ?> fn = new Action.MaskToDefault(1).bind(Types.DecimalType.of(10, 2));
+    SerializableFunction<?, ?> fn = new MaskToFixedValue(1).bind(Types.DecimalType.of(10, 2));
     DecimalType sparkType = DecimalType.apply(10, 2);
     IcebergRestricted expr = restricted(Literal.create(Decimal.apply(1234, 10, 2), sparkType), fn);
     Object result = expr.eval(InternalRow.empty());
@@ -100,38 +101,28 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void nullInputReturnsNull() {
-    SerializableFunction<?, ?> fn = new Action.MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<?, ?> fn = new MaskAlphanum(1).bind(Types.StringType.get());
     IcebergRestricted expr = restricted(Literal.create(null, StringType$.MODULE$), fn);
     assertThat(expr.eval(InternalRow.empty())).isNull();
   }
 
   @Test
   public void replaceWithNullAlwaysReturnsNull() {
-    SerializableFunction<?, ?> fn = new Action.ReplaceWithNull(1).bind(Types.IntegerType.get());
+    SerializableFunction<?, ?> fn = new ReplaceWithNull(1).bind(Types.IntegerType.get());
     IcebergRestricted expr = restricted(Literal.create(42, DataTypes.IntegerType), fn);
     assertThat(expr.eval(InternalRow.empty())).isNull();
   }
 
   @Test
-  public void applyExpressionFailsOnEval() {
-    SerializableFunction<?, ?> fn =
-        new Action.ApplyExpression(1, Expressions.alwaysTrue()).bind(Types.StringType.get());
-    IcebergRestricted expr = restricted(str("any"), fn);
-    assertThatThrownBy(() -> expr.eval(InternalRow.empty()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("apply-expression");
-  }
-
-  @Test
-  public void maskToDefaultIntThroughSpark() {
-    SerializableFunction<?, ?> fn = new Action.MaskToDefault(1).bind(Types.IntegerType.get());
+  public void maskToFixedValueIntThroughSpark() {
+    SerializableFunction<?, ?> fn = new MaskToFixedValue(1).bind(Types.IntegerType.get());
     IcebergRestricted expr = restricted(Literal.create(42, DataTypes.IntegerType), fn);
-    assertThat(expr.eval(InternalRow.empty())).isEqualTo(999999999);
+    assertThat(expr.eval(InternalRow.empty())).isEqualTo(0);
   }
 
   @Test
   public void sha256GlobalStringThroughSpark() {
-    SerializableFunction<?, ?> fn = new Action.Sha256Global(1).bind(Types.StringType.get());
+    SerializableFunction<?, ?> fn = new Sha256Global(1).bind(Types.StringType.get());
     IcebergRestricted expr = restricted(str("hello"), fn);
     Object result = expr.eval(InternalRow.empty());
     assertThat(result).isInstanceOf(UTF8String.class);
@@ -156,7 +147,7 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void codegenStringMaskMatchesEval() {
-    SerializableFunction<?, ?> fn = new Action.MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<?, ?> fn = new MaskAlphanum(1).bind(Types.StringType.get());
     IcebergRestricted expr = restricted(str("prashant010696@gmail.com"), fn);
     InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
     assertThat(result.getUTF8String(0).toString()).isEqualTo("xxxxxxxxnnnnnn@xxxxx.xxx");
@@ -164,23 +155,23 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void codegenIntegerMaskMatchesEval() {
-    SerializableFunction<?, ?> fn = new Action.MaskToDefault(1).bind(Types.IntegerType.get());
+    SerializableFunction<?, ?> fn = new MaskToFixedValue(1).bind(Types.IntegerType.get());
     IcebergRestricted expr = restricted(Literal.create(42, DataTypes.IntegerType), fn);
     InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
-    assertThat(result.getInt(0)).isEqualTo(999999999);
+    assertThat(result.getInt(0)).isEqualTo(0);
   }
 
   @Test
   public void codegenLongMaskMatchesEval() {
-    SerializableFunction<?, ?> fn = new Action.MaskToDefault(1).bind(Types.LongType.get());
+    SerializableFunction<?, ?> fn = new MaskToFixedValue(1).bind(Types.LongType.get());
     IcebergRestricted expr = restricted(Literal.create(42L, DataTypes.LongType), fn);
     InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
-    assertThat(result.getLong(0)).isEqualTo(999999999L);
+    assertThat(result.getLong(0)).isEqualTo(0L);
   }
 
   @Test
   public void codegenBinaryMaskMatchesEval() {
-    SerializableFunction<?, ?> fn = new Action.Sha256Global(1).bind(Types.BinaryType.get());
+    SerializableFunction<?, ?> fn = new Sha256Global(1).bind(Types.BinaryType.get());
     IcebergRestricted expr =
         restricted(Literal.create(new byte[] {1, 2, 3}, BinaryType$.MODULE$), fn);
     InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
@@ -189,7 +180,7 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void codegenDecimalMaskMatchesEval() {
-    SerializableFunction<?, ?> fn = new Action.MaskToDefault(1).bind(Types.DecimalType.of(10, 2));
+    SerializableFunction<?, ?> fn = new MaskToFixedValue(1).bind(Types.DecimalType.of(10, 2));
     DecimalType sparkType = DecimalType.apply(10, 2);
     IcebergRestricted expr = restricted(Literal.create(Decimal.apply(1234, 10, 2), sparkType), fn);
     InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
@@ -205,7 +196,7 @@ public class TestIcebergRestrictionExpressions {
 
   @Test
   public void codegenNullInputReturnsNull() {
-    SerializableFunction<?, ?> fn = new Action.MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<?, ?> fn = new MaskAlphanum(1).bind(Types.StringType.get());
     IcebergRestricted expr = restricted(Literal.create(null, StringType$.MODULE$), fn);
     InternalRow result = codegenProjection(expr).apply(InternalRow.empty());
     assertThat(result.isNullAt(0)).isTrue();

@@ -3540,9 +3540,8 @@ components:
               (including unrecognized action types), the reader MUST fail rather than
               ignore or skip the action.
 
-            6. Each action defines the output type for its column. For all predefined
-              actions except apply-expression, the output type matches the input column
-              type. For apply-expression, the output type is determined by the expression.
+            6. Each action defines the output type for its column. The output type matches
+              the input column type for all predefined actions.
 
           type: array
           items:
@@ -3567,7 +3566,7 @@ components:
         propertyName: action
         mapping:
           mask-alphanum: '#/components/schemas/MaskAlphanum'
-          mask-to-default: '#/components/schemas/MaskToDefault'
+          mask-to-fixed-value: '#/components/schemas/MaskToFixedValue'
           replace-with-null: '#/components/schemas/ReplaceWithNull'
           show-first-4: '#/components/schemas/ShowFirst4'
           show-last-4: '#/components/schemas/ShowLast4'
@@ -3575,7 +3574,6 @@ components:
           truncate-to-month: '#/components/schemas/TruncateToMonth'
           sha-256-global: '#/components/schemas/Sha256Global'
           sha-256-query-local: '#/components/schemas/Sha256QueryLocal'
-          apply-expression: '#/components/schemas/ApplyExpression'
       type: object
       required:
         - action
@@ -3612,7 +3610,7 @@ components:
           type: string
           const: "mask-alphanum"
 
-    MaskToDefault:
+    MaskToFixedValue:
       description: >
         Replaces the column value with a predefined type-specific default that conceals
         the original data while preserving type compatibility. Engines MUST use exactly
@@ -3652,7 +3650,7 @@ components:
       properties:
         action:
           type: string
-          const: "mask-to-default"
+          const: "mask-to-fixed-value"
 
     ReplaceWithNull:
       description: >
@@ -3773,24 +3771,6 @@ components:
         action:
           type: string
           const: "sha-256-query-local"
-
-    ApplyExpression:
-      description: >
-        Replace the field with the result of an expression. Produce the original field name
-        with the expression result.
-
-        Applicable to: all data types
-      allOf:
-        - $ref: '#/components/schemas/Action'
-      required:
-        - action
-        - expression
-      properties:
-        action:
-          type: string
-          const: "apply-expression"
-        expression:
-          $ref: '#/components/schemas/Expression'
 
     LoadCredentialsResponse:
       type: object

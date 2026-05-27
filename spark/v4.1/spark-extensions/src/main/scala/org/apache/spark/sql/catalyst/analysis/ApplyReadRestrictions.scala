@@ -19,7 +19,9 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import java.security.SecureRandom
-import org.apache.iceberg.rest.restrictions.Action
+import org.apache.iceberg.functions.IcebergFunction
+import org.apache.iceberg.functions.MaskAlphanum
+import org.apache.iceberg.functions.SaltedFunction
 import org.apache.iceberg.rest.restrictions.ReadRestrictions
 import org.apache.iceberg.spark.functions.MaskAlphanumFunction
 import org.apache.iceberg.spark.source.SparkTable
@@ -53,7 +55,7 @@ import scala.jdk.CollectionConverters._
  * Required projections MUST be applied only after row filters are applied."). Masked column
  * outputs preserve the original `ExprId` so downstream references still resolve.
  *
- * Masking functions are bound via [[Action#bind]] which returns engine-agnostic
+ * Masking functions are bound via [[IcebergFunction#bind]] which returns engine-agnostic
  * [[org.apache.iceberg.util.SerializableFunction]]s. The Spark-side
  * [[IcebergRestricted]] expression handles type bridging (UTF8String, ByteBuffer, etc.).
  */
@@ -81,7 +83,7 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
     val table = relation.table.asInstanceOf[SparkTable]
     val icebergSchema = table.table().schema()
 
-    val actionByFieldId: Map[Int, Action[_, _]] =
+    val actionByFieldId: Map[Int, IcebergFunction[_, _]] =
       restrictions.columnProjections.asScala.iterator.map(a => a.fieldId -> a).toMap
 
     // The spec permits actions on any fieldId including nested fields, but this
@@ -145,22 +147,23 @@ case class ApplyReadRestrictions(spark: SparkSession) extends Rule[LogicalPlan] 
    */
   private def buildMaskExpression(
       attr: AttributeReference,
-      action: Action[_, _],
+      action: IcebergFunction[_, _],
       icebergType: org.apache.iceberg.types.Type,
       querySalt: Array[Byte]): Expression = action match {
-    case _: Action.MaskAlphanum =>
+    case _: MaskAlphanum =>
       val unbound = new MaskAlphanumFunction()
       val bound = unbound.bind(StructType(Array(StructField(attr.name, attr.dataType))))
       ApplyFunctionExpression(
         bound.asInstanceOf[org.apache.spark.sql.connector.catalog.functions.ScalarFunction[_]],
         Seq(attr))
+    case salted: SaltedFunction[_, _] =>
+      val boundFn = salted
+        .bind(icebergType, querySalt)
+        .asInstanceOf[SerializableFunction[Object, Object]]
+      IcebergRestricted(attr, boundFn)
     case _ =>
-      val actionSalt = action match {
-        case _: Action.Sha256QueryLocal => querySalt
-        case _ => null
-      }
       val boundFn = action
-        .bind(icebergType, actionSalt)
+        .bind(icebergType)
         .asInstanceOf[SerializableFunction[Object, Object]]
       IcebergRestricted(attr, boundFn)
   }
