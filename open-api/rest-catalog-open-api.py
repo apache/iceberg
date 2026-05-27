@@ -115,6 +115,7 @@ class CatalogObjectIdentifier(RootModel[list[str]]):
         ...,
         description='Reference to a catalog object (for example, table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.',
         examples=[['accounting', 'tax', 'paid']],
+        min_length=1,
     )
 
 
