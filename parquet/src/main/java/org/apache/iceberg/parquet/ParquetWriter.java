@@ -205,43 +205,30 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private void checkSize() {
     if (trackUncompressedSize) {
-      checkSizeUncompressed();
-    } else {
-      checkSizeCompressed();
-    }
-  }
-
-  private void checkSizeUncompressed() {
-    if (rowGroupUncompressedSize >= targetRowGroupSize) {
-      flushRowGroup(false);
-    } else if (recordCount >= nextCheckRecordCount) {
-      double avgRecordSize = ((double) rowGroupUncompressedSize) / recordCount;
-      if (rowGroupUncompressedSize > (targetRowGroupSize - 2 * avgRecordSize)) {
+      if (rowGroupUncompressedSize >= targetRowGroupSize) {
         flushRowGroup(false);
       } else {
-        long remainingSpace = targetRowGroupSize - rowGroupUncompressedSize;
-        long remainingRecords = (long) (remainingSpace / avgRecordSize);
-        this.nextCheckRecordCount =
-            recordCount + Math.min(remainingRecords / 2, props.getMaxRowCountForPageSizeCheck());
+        evaluateRowGroupSize(rowGroupUncompressedSize, false);
       }
+    } else {
+      evaluateRowGroupSize(writeStore.getBufferedSize(), true);
     }
   }
 
-  private void checkSizeCompressed() {
+  private void evaluateRowGroupSize(long currentSize, boolean useMinRecordCountFloor) {
     if (recordCount >= nextCheckRecordCount) {
-      long bufferedSize = writeStore.getBufferedSize();
-      double avgRecordSize = ((double) bufferedSize) / recordCount;
-
-      if (bufferedSize > (targetRowGroupSize - 2 * avgRecordSize)) {
+      double avgRecordSize = ((double) currentSize) / recordCount;
+      if (currentSize > (targetRowGroupSize - 2 * avgRecordSize)) {
         flushRowGroup(false);
       } else {
-        long remainingSpace = targetRowGroupSize - bufferedSize;
+        long remainingSpace = targetRowGroupSize - currentSize;
         long remainingRecords = (long) (remainingSpace / avgRecordSize);
+        long interval = remainingRecords / 2;
+        if (useMinRecordCountFloor) {
+          interval = Math.max(interval, props.getMinRowCountForPageSizeCheck());
+        }
         this.nextCheckRecordCount =
-            recordCount
-                + Math.min(
-                    Math.max(remainingRecords / 2, props.getMinRowCountForPageSizeCheck()),
-                    props.getMaxRowCountForPageSizeCheck());
+            recordCount + Math.min(interval, props.getMaxRowCountForPageSizeCheck());
       }
     }
   }

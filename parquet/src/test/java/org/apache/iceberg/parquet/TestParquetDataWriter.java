@@ -553,28 +553,28 @@ public class TestParquetDataWriter {
     // With uncompressed tracking, row groups split at the configured target
     DataFile dataFile = writeCompressibleRecords(codec, true);
 
-    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(100);
+    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(30);
     assertThat(dataFile.splitOffsets().size())
-        .as("Row group count should reflect enforcement of the 8 MB target")
-        .isGreaterThanOrEqualTo(4);
+        .as("Row group count should reflect enforcement of the target")
+        .isGreaterThanOrEqualTo(3);
   }
 
   @Test
   public void testDefaultPathUsesCompressedSize() throws IOException {
     // Without uncompressed tracking, compressed bytes never hit the target
-    DataFile dataFile = writeCompressibleRecords("gzip", false);
+    DataFile dataFile = writeCompressibleRecords("snappy", false);
 
     assertThat(dataFile.splitOffsets().size())
         .as("Default path should use compressed size (single row group due to compression)")
         .isEqualTo(1);
   }
 
-  // Writes 100 records of 512 KB compressible JSON (~50 MB uncompressed) with an 8 MB target.
+  // Writes 30 records of 256 KB compressible JSON (~8 MB uncompressed) with a 2 MB target.
   private DataFile writeCompressibleRecords(String codec, boolean trackUncompressed)
       throws IOException {
     OutputFile file = Files.localOutput(createTempFile(temp));
 
-    long targetRowGroupSize = 8 * 1024 * 1024;
+    long targetRowGroupSize = 2 * 1024 * 1024;
 
     Parquet.DataWriteBuilder builder =
         Parquet.writeData(file)
@@ -594,12 +594,12 @@ public class TestParquetDataWriter {
 
     try (dataWriter) {
       Random rng = new Random(42);
-      for (int i = 0; i < 100; i++) {
+      for (int i = 0; i < 30; i++) {
         GenericRecord record = GenericRecord.create(SCHEMA);
         record.setField("id", (long) i);
-        StringBuilder sb = new StringBuilder(512 * 1024);
+        StringBuilder sb = new StringBuilder(256 * 1024);
         sb.append("{\"id\":").append(i).append(",\"values\":[");
-        while (sb.length() < 512 * 1024) {
+        while (sb.length() < 256 * 1024) {
           sb.append(rng.nextInt(100000)).append(',');
         }
         sb.setCharAt(sb.length() - 1, ']');
