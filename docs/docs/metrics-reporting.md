@@ -147,6 +147,27 @@ public class InMemoryMetricsReporter implements MetricsReporter {
 
 The [catalog property](catalog-properties.md) `metrics-reporter-impl` allows registering a given [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) by specifying its fully-qualified class name, e.g. `metrics-reporter-impl=org.apache.iceberg.metrics.InMemoryMetricsReporter`.
 
+### Table-name filtering
+
+Reports forwarded to the configured `MetricsReporter` can be filtered by table name using two additional catalog properties. Both accept Java regular expressions matched against `ScanReport.tableName()` and `CommitReport.tableName()`:
+
+| Property | Effect |
+|---|---|
+| `metrics-reporter.table-name.include` | Forward only reports whose table name matches; drop the rest. |
+| `metrics-reporter.table-name.exclude` | Drop reports whose table name matches; forward the rest. |
+
+When both are set, `exclude` wins over `include` (an explicit deny overrides an include). When neither is set, behavior is identical to today (every report is forwarded, with no runtime overhead). Empty values are treated as not set to avoid accidentally silencing all metrics on misconfiguration.
+
+For example, to forward metrics only for tables in the `prod_db` namespace while still dropping any temporary tables under it:
+
+```
+metrics-reporter-impl=org.apache.iceberg.metrics.LoggingMetricsReporter
+metrics-reporter.table-name.include=prod_db\..*
+metrics-reporter.table-name.exclude=.*\.tmp_.*
+```
+
+The filter applies uniformly to all `MetricsReporter` implementations (`LoggingMetricsReporter`, `RESTMetricsReporter`, and custom user-supplied ones). Reports whose subtype does not expose a table name (i.e. anything other than `ScanReport` and `CommitReport`) are forwarded without filtering.
+
 ### Via the Java API during Scan planning
 
 Independently of the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) being registered at the catalog level via the `metrics-reporter-impl` property, it is also possible to supply additional reporters during scan planning as shown below:
