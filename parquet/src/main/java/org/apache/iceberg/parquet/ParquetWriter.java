@@ -30,6 +30,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.metadata.ParquetMetadataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -159,7 +160,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
     if (writer != null) {
       return ParquetMetrics.metrics(
-          schema, parquetSchema, metricsConfig, writer.getFooter(), model.metrics());
+          schema,
+          parquetSchema,
+          metricsConfig,
+          ParquetMetadataUtil.fromHadoopMetadata(writer.getFooter()),
+          model.metrics());
     }
     return EMPTY_METRICS;
   }
