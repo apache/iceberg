@@ -117,7 +117,6 @@ import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
-import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
@@ -134,6 +133,14 @@ public class Parquet {
   private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
 
   private Parquet() {}
+
+  public static final String PARQUET_CLIENT = "iceberg.parquet-client";
+  public static final ParquetClient PARQUET_CLIENT_DEFAULT = ParquetClient.HADOOP;
+
+  public enum ParquetClient {
+    NATIVE,
+    HADOOP,
+  }
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
       Sets.newHashSet(
@@ -1620,11 +1627,13 @@ public class Parquet {
                 .withDecryption(fileDecryptionProperties)
                 .build();
         MessageType type;
-        try (ParquetFileReader schemaReader =
-            ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
-          type = schemaReader.getFileMetaData().getSchema();
+        try (ParquetFileReaderFactory.ParquetFileReaderWrapper schemaReader =
+            ParquetFileReaderFactory.open(file, decryptOptions)) {
+          type = schemaReader.footer().fileMetaData().schema();
         } catch (IOException e) {
           throw new RuntimeIOException(e);
+        } catch (Exception e) {
+          throw new RuntimeIOException(new IOException("Failed to read Parquet schema", e));
         }
         Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder
@@ -1716,17 +1725,25 @@ public class Parquet {
       Map<String, String> metadata)
       throws IOException {
     OutputFile file = Files.localOutput(outputFile);
-    ParquetFileWriter writer =
-        new ParquetFileWriter(
-            ParquetIO.file(file),
-            ParquetSchemaUtil.convert(schema, "table"),
+    MessageType parquetSchema = ParquetSchemaUtil.convert(schema, "table");
+
+    try (ParquetFileWriterFactory.ParquetFileWriterWrapper writer =
+        ParquetFileWriterFactory.create(
+            file,
+            parquetSchema,
             ParquetFileWriter.Mode.CREATE,
             rowGroupSize,
-            0);
-    writer.start();
-    for (File inputFile : inputFiles) {
-      writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
+            0,
+            CompressionCodecName.UNCOMPRESSED)) {
+      writer.start();
+      for (File inputFile : inputFiles) {
+        writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
+      }
+      writer.end(metadata);
+    } catch (IOException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new IOException("Failed to concat Parquet files", e);
     }
-    writer.end(metadata);
   }
 }
