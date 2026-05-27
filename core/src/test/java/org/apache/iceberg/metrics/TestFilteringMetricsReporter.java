@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.regex.PatternSyntaxException;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -131,6 +132,28 @@ public class TestFilteringMetricsReporter {
   }
 
   @Test
+  public void loadMetricsReporterFiltersThroughUserConfiguredReporter() {
+    StaticCapturingReporter.REPORTS.clear();
+    MetricsReporter reporter =
+        CatalogUtil.loadMetricsReporter(
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_IMPL,
+                StaticCapturingReporter.class.getName(),
+                CatalogProperties.METRICS_REPORTER_TABLE_NAME_INCLUDE,
+                "prod_db\\..*"));
+
+    reporter.report(SCAN_PROD);
+    reporter.report(SCAN_DEV);
+    reporter.report(COMMIT_PROD);
+
+    assertThat(StaticCapturingReporter.REPORTS)
+        .as(
+            "Reports configured via metrics-reporter-impl receive only table names that pass the"
+                + " include filter")
+        .containsExactly(SCAN_PROD, COMMIT_PROD);
+  }
+
+  @Test
   public void closeIsDelegated() {
     CapturingMetricsReporter delegate = new CapturingMetricsReporter();
     MetricsReporter wrapped =
@@ -178,6 +201,20 @@ public class TestFilteringMetricsReporter {
     @Override
     public void close() {
       this.closed = true;
+    }
+  }
+
+  /**
+   * Public no-arg reporter usable via {@code metrics-reporter-impl}. Captured reports live on a
+   * static list so the test can inspect what reached the underlying reporter after CatalogUtil
+   * instantiated it via reflection.
+   */
+  public static class StaticCapturingReporter implements MetricsReporter {
+    static final List<MetricsReport> REPORTS = Lists.newCopyOnWriteArrayList();
+
+    @Override
+    public void report(MetricsReport report) {
+      REPORTS.add(report);
     }
   }
 }
