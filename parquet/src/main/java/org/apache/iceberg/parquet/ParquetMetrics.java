@@ -33,6 +33,9 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.metadata.BlockMetadata;
+import org.apache.iceberg.parquet.metadata.ColumnChunkMetadata;
+import org.apache.iceberg.parquet.metadata.ParquetMetadata;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -53,10 +56,7 @@ import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.column.statistics.Statistics;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
-import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -73,15 +73,14 @@ class ParquetMetrics {
       Stream<FieldMetrics<?>> fields) {
     long rowCount = 0L;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
-    Multimap<ColumnPath, ColumnChunkMetaData> columns =
+    Multimap<ColumnPath, ColumnChunkMetadata> columns =
         Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
-    for (BlockMetaData block : metadata.getBlocks()) {
-      rowCount += block.getRowCount();
-      for (ColumnChunkMetaData column : block.getColumns()) {
-        columns.put(column.getPath(), column);
+    for (BlockMetadata block : metadata.blocks()) {
+      rowCount += block.rowCount();
+      for (ColumnChunkMetadata column : block.columns()) {
+        columns.put(column.path(), column);
 
-        Type.ID id =
-            type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
+        Type.ID id = type.getColumnDescription(column.path().toArray()).getPrimitiveType().getId();
         if (null == id) {
           continue;
         }
@@ -89,7 +88,7 @@ class ParquetMetrics {
         int fieldId = id.intValue();
         MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
         if (mode != MetricsModes.None.get()) {
-          columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
+          columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.totalSize());
         }
       }
     }
@@ -153,13 +152,13 @@ class ParquetMetrics {
     private final Schema schema;
     private final MetricsConfig metricsConfig;
     private final Map<Integer, FieldMetrics<?>> metricsById;
-    private final Multimap<ColumnPath, ColumnChunkMetaData> columns;
+    private final Multimap<ColumnPath, ColumnChunkMetadata> columns;
 
     private MetricsVisitor(
         Schema schema,
         MetricsConfig metricsConfig,
         Map<Integer, FieldMetrics<?>> metricsById,
-        Multimap<ColumnPath, ColumnChunkMetaData> columns) {
+        Multimap<ColumnPath, ColumnChunkMetadata> columns) {
       this.schema = schema;
       this.metricsConfig = metricsConfig;
       this.metricsById = metricsById;
@@ -276,14 +275,14 @@ class ParquetMetrics {
       long valueCount = 0;
       long nullCount = 0;
 
-      for (ColumnChunkMetaData column : columns.get(path)) {
-        Statistics<?> stats = column.getStatistics();
+      for (ColumnChunkMetadata column : columns.get(path)) {
+        Statistics<?> stats = column.statistics();
         if (stats == null || stats.isEmpty()) {
           return null;
         }
 
         nullCount += stats.getNumNulls();
-        valueCount += column.getValueCount();
+        valueCount += column.valueCount();
       }
 
       return new FieldMetrics<>(fieldId, valueCount, nullCount);
@@ -305,14 +304,14 @@ class ParquetMetrics {
       T lowerBound = null;
       T upperBound = null;
 
-      for (ColumnChunkMetaData column : columns.get(path)) {
-        Statistics<?> stats = column.getStatistics();
+      for (ColumnChunkMetadata column : columns.get(path)) {
+        Statistics<?> stats = column.statistics();
         if (stats == null || stats.isEmpty()) {
           return null;
         }
 
         nullCount += stats.getNumNulls();
-        valueCount += column.getValueCount();
+        valueCount += column.valueCount();
 
         if (stats.hasNonNullValue()) {
           T chunkMin =
@@ -522,8 +521,8 @@ class ParquetMetrics {
         long valueCount = 0;
         long nullCount = 0;
 
-        for (ColumnChunkMetaData column : columns.get(path)) {
-          Statistics<?> stats = column.getStatistics();
+        for (ColumnChunkMetadata column : columns.get(path)) {
+          Statistics<?> stats = column.statistics();
           if (stats == null || stats.isEmpty()) {
             // the null count is unknown
             return null;
@@ -539,8 +538,8 @@ class ParquetMetrics {
             hasOnlyNullVariants = false;
           }
 
-          valueCount += column.getValueCount();
-          nullCount += hasOnlyNullVariants ? column.getValueCount() : stats.getNumNulls();
+          valueCount += column.valueCount();
+          nullCount += hasOnlyNullVariants ? column.valueCount() : stats.getNumNulls();
         }
 
         return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
@@ -562,14 +561,14 @@ class ParquetMetrics {
         T lowerBound = null;
         T upperBound = null;
 
-        for (ColumnChunkMetaData column : columns.get(path)) {
-          Statistics<?> stats = column.getStatistics();
+        for (ColumnChunkMetadata column : columns.get(path)) {
+          Statistics<?> stats = column.statistics();
           if (stats == null || stats.isEmpty()) {
             return null;
           }
 
           nullCount += stats.getNumNulls();
-          valueCount += column.getValueCount();
+          valueCount += column.valueCount();
 
           if (stats.hasNonNullValue()) {
             T chunkMin = ParquetVariantUtil.convertValue(variantType, scale, stats.genericGetMin());
