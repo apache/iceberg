@@ -61,6 +61,15 @@ public class CatalogObjectIdentifierParser {
         node != null && !node.isNull() && node.isArray(),
         "Cannot parse missing or non-array catalog object identifier: %s",
         node);
-    return CatalogObjectIdentifier.of(JsonUtil.getStringArray(node));
+    String[] levels = new String[node.size()];
+    for (int i = 0; i < node.size(); i++) {
+      JsonNode element = node.get(i);
+      Preconditions.checkArgument(
+          element.isTextual(),
+          "Cannot parse non-string element in catalog object identifier: %s",
+          element);
+      levels[i] = element.asText();
+    }
+    return CatalogObjectIdentifier.of(levels);
   }
 }

@@ -25,11 +25,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * A reference to a catalog object (table, view, or namespace) as an ordered list of hierarchical
- * levels.
+ * A reference to a catalog object as an ordered list of hierarchical levels (for example, a table,
+ * view, or namespace). The kind of object is determined by context — the endpoint or a companion
+ * type discriminator — not by the identifier structure alone.
  *
- * <p>The object kind is determined by context (e.g. the endpoint or a companion type
- * discriminator), not by the identifier structure alone.
+ * <p>Mirrors {@link Namespace} structurally; the distinct name signals "any object within a
+ * catalog" and avoids confusion with a future top-level catalog name.
  */
 public class CatalogObjectIdentifier {
   private static final Joiner DOT = Joiner.on('.');

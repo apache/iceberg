@@ -84,4 +84,19 @@ public class TestCatalogObjectIdentifierParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create catalog object identifier with no levels");
   }
+
+  @Test
+  public void fromJsonRejectsNonStringElement() {
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[null]"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse non-string element in catalog object identifier: null");
+
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[1]"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse non-string element in catalog object identifier: 1");
+
+    assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[\"a\", null, \"b\"]"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse non-string element in catalog object identifier: null");
+  }
 }

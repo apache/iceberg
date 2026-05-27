@@ -26,11 +26,14 @@ import org.junit.jupiter.api.Test;
 public class TestCatalogObjectIdentifier {
 
   @Test
-  public void withNullAndEmpty() {
+  public void withNullArray() {
     assertThatThrownBy(() -> CatalogObjectIdentifier.of((String[]) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create catalog object identifier from null array");
+  }
 
+  @Test
+  public void withEmptyLevels() {
     assertThatThrownBy(CatalogObjectIdentifier::of)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create catalog object identifier with no levels");
@@ -50,12 +53,29 @@ public class TestCatalogObjectIdentifier {
   }
 
   @Test
+  public void levelOutOfBounds() {
+    CatalogObjectIdentifier identifier = CatalogObjectIdentifier.of("a", "b");
+    assertThatThrownBy(() -> identifier.level(2))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThatThrownBy(() -> identifier.level(-1))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+  }
+
+  @Test
   public void equalsAndHashCode() {
     CatalogObjectIdentifier first = CatalogObjectIdentifier.of("accounting", "tax", "paid");
     CatalogObjectIdentifier second = CatalogObjectIdentifier.of("accounting", "tax", "paid");
     CatalogObjectIdentifier different = CatalogObjectIdentifier.of("accounting", "tax");
 
     assertThat(first).isEqualTo(second).hasSameHashCodeAs(second).isNotEqualTo(different);
+  }
+
+  @Test
+  public void notEqualToNullOrOtherType() {
+    CatalogObjectIdentifier identifier = CatalogObjectIdentifier.of("accounting", "tax", "paid");
+    assertThat(identifier).isNotEqualTo(null);
+    assertThat(identifier).isNotEqualTo("accounting.tax.paid");
+    assertThat(identifier).isNotEqualTo(Namespace.of("accounting", "tax", "paid"));
   }
 
   @Test
