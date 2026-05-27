@@ -34,6 +34,25 @@ public class CatalogProperties {
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
   /**
+   * Java regex applied to {@code tableName()} of {@link org.apache.iceberg.metrics.ScanReport} and
+   * {@link org.apache.iceberg.metrics.CommitReport}. When set, only reports whose table name
+   * matches the pattern are forwarded to the configured {@link
+   * org.apache.iceberg.metrics.MetricsReporter}. Empty values are treated as not set.
+   */
+  public static final String METRICS_REPORTER_TABLE_NAME_INCLUDE =
+      "metrics-reporter.table-name.include";
+
+  /**
+   * Java regex applied to {@code tableName()} of {@link org.apache.iceberg.metrics.ScanReport} and
+   * {@link org.apache.iceberg.metrics.CommitReport}. When set, reports whose table name matches the
+   * pattern are dropped before reaching the configured {@link
+   * org.apache.iceberg.metrics.MetricsReporter}. When both include and exclude are set, exclude
+   * wins. Empty values are treated as not set.
+   */
+  public static final String METRICS_REPORTER_TABLE_NAME_EXCLUDE =
+      "metrics-reporter.table-name.exclude";
+
+  /**
    * Controls whether the catalog will cache table entries upon load.
    *
    * <p>If {@link #CACHE_EXPIRATION_INTERVAL_MS} is set to zero, this value will be ignored and the
