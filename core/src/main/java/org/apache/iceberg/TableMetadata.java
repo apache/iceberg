@@ -313,10 +313,16 @@ public class TableMetadata implements Serializable {
         SUPPORTED_TABLE_FORMAT_VERSION);
     Preconditions.checkArgument(
         formatVersion == 1 || uuid != null, "UUID is required in format v%s", formatVersion);
+    boolean locationOptional = formatVersion >= MIN_FORMAT_VERSION_OPTIONAL_LOCATION;
     Preconditions.checkArgument(
-        formatVersion >= MIN_FORMAT_VERSION_OPTIONAL_LOCATION || location != null,
+        locationOptional || location != null,
         "Table location is required in format v%s",
         formatVersion);
+    Preconditions.checkArgument(
+        !locationOptional || location == null || LocationUtil.hasScheme(location),
+        "Invalid table location in format v%s, must be absolute: %s",
+        formatVersion,
+        location);
     Preconditions.checkArgument(
         formatVersion > 1 || lastSequenceNumber == 0,
         "Sequence number must be 0 in v1: %s",

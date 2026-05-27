@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.entry;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -1151,7 +1152,7 @@ public class TestTableMetadata {
 
   @ParameterizedTest
   @ValueSource(ints = {1, 2, 3})
-  public void testParserRequiresLocationBeforeV4(int formatVersion) {
+  public void testParserRequiresLocationBeforeV4(int formatVersion) throws Exception {
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
             TEST_SCHEMA,
@@ -1161,9 +1162,9 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             formatVersion);
     // drop the location field to simulate a v1-v3 metadata file that omits the required location
-    String withoutLocation =
-        TableMetadataParser.toJson(metadata)
-            .replaceFirst("\"location\"\\s*:\\s*\"[^\"]*\"\\s*,", "");
+    ObjectNode node = (ObjectNode) JsonUtil.mapper().readTree(TableMetadataParser.toJson(metadata));
+    node.remove(LOCATION);
+    String withoutLocation = JsonUtil.mapper().writeValueAsString(node);
 
     assertThatThrownBy(() -> TableMetadataParser.fromJson(withoutLocation))
         .isInstanceOf(IllegalArgumentException.class)
@@ -1189,6 +1190,21 @@ public class TestTableMetadata {
     // and the round trip must succeed with a null location
     TableMetadata parsed = TableMetadataParser.fromJson(json);
     assertThat(parsed.location()).isNull();
+  }
+
+  @Test
+  public void testV4LocationMustBeAbsolute() {
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    "relative/path",
+                    ImmutableMap.of(),
+                    4))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table location in format v4, must be absolute: relative/path");
   }
 
   @Test
