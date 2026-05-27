@@ -96,8 +96,8 @@ or another catalog implementation. Regardless of how it is implemented, it
 should not expose secrets to unintended principals or leak credential-bearing
 state across unintended boundaries.
 
-Many reported issues assume a malicious catalog or metastore, which Iceberg
-generally treats as outside its primary security boundary.
+Iceberg assumes a trusted catalog or metastore, which is outside its primary
+security boundary.
 
 ### REST catalog server
 
