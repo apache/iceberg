@@ -2326,6 +2326,7 @@ components:
       type: array
       items:
         type: string
+      minItems: 1
       example: [ "accounting", "tax", "paid" ]
 
     PrimitiveType:
