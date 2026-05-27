@@ -33,15 +33,22 @@ import static org.mockserver.model.HttpResponse.response;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -586,6 +593,110 @@ public class TestHTTPClient {
 
     // No exception should be thrown, and the second request should succeed
     doExecuteRequest(method, path, loadTableRequestBody, errorHandler, headers -> {});
+  }
+
+  @Test
+  public void testRetriesTransientResponseBodyFailure() throws Exception {
+    Item expected = new Item(0L, "load table");
+    AtomicInteger connections = new AtomicInteger();
+    List<byte[]> responses =
+        List.of(malformedChunkedResponse(), validJsonResponse(MAPPER.writeValueAsString(expected)));
+
+    try (ServerSocket server = startServer(responses, connections);
+        HTTPClient client = clientFor(server)) {
+      Item response =
+          client.get(
+              "v1/namespaces/ns/tables/table",
+              ImmutableMap.of(),
+              Item.class,
+              ImmutableMap.of(),
+              error -> {},
+              headers -> {});
+      assertThat(response).isEqualTo(expected);
+    }
+
+    // The idempotent GET fails reading the body on the first connection and is retried on a fresh
+    // connection, so the server is hit exactly twice.
+    assertThat(connections).hasValue(2);
+  }
+
+  private static HTTPClient clientFor(ServerSocket server) {
+    return HTTPClient.builder(ImmutableMap.of())
+        .uri(String.format("http://127.0.0.1:%d", server.getLocalPort()))
+        .withAuthSession(AuthSession.EMPTY)
+        .build();
+  }
+
+  /**
+   * Starts a daemon HTTP server on an ephemeral port that replies to each accepted connection with
+   * the next scripted raw response, then returns the (caller-closed) server socket. Used to
+   * reproduce wire-level faults (such as a malformed chunked body) that MockServer cannot emit.
+   */
+  private static ServerSocket startServer(List<byte[]> responses, AtomicInteger connections)
+      throws IOException {
+    ServerSocket server = new ServerSocket(0);
+    Thread serverThread =
+        new Thread(() -> responses.forEach(response -> reply(server, response, connections)));
+    serverThread.setDaemon(true);
+    serverThread.start();
+    return server;
+  }
+
+  private static void reply(ServerSocket server, byte[] response, AtomicInteger connections) {
+    try (Socket socket = server.accept()) {
+      connections.incrementAndGet();
+      drainRequest(socket.getInputStream());
+      socket.getOutputStream().write(response);
+    } catch (IOException e) {
+      // The server socket was closed after the test finished, or the client hung up; nothing to do.
+    }
+  }
+
+  /** Consumes a bodyless HTTP request by reading up to the end of the request headers. */
+  private static void drainRequest(InputStream in) throws IOException {
+    int[] tail = {0, 0, 0, 0};
+    int next;
+    while ((next = in.read()) != -1) {
+      tail[0] = tail[1];
+      tail[1] = tail[2];
+      tail[2] = tail[3];
+      tail[3] = next;
+      if (tail[0] == '\r' && tail[1] == '\n' && tail[2] == '\r' && tail[3] == '\n') {
+        break;
+      }
+    }
+  }
+
+  /**
+   * A 200 response whose chunked body is not terminated by a CRLF, which the client decodes into a
+   * {@code MalformedChunkCodingException} while reading the body — the transient wire fault
+   * reported in iceberg#15030.
+   */
+  private static byte[] malformedChunkedResponse() {
+    String raw =
+        "HTTP/1.1 200 OK\r\n"
+            + "Content-Type: application/json\r\n"
+            + "Transfer-Encoding: chunked\r\n"
+            + "\r\n"
+            + "5\r\nhelloXX";
+    return raw.getBytes(StandardCharsets.US_ASCII);
+  }
+
+  private static byte[] validJsonResponse(String json) {
+    byte[] body = json.getBytes(StandardCharsets.UTF_8);
+    byte[] head =
+        ("HTTP/1.1 200 OK\r\n"
+                + "Content-Type: application/json\r\n"
+                + "Content-Length: "
+                + body.length
+                + "\r\n"
+                + "Connection: close\r\n"
+                + "\r\n")
+            .getBytes(StandardCharsets.US_ASCII);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    out.writeBytes(head);
+    out.writeBytes(body);
+    return out.toByteArray();
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
