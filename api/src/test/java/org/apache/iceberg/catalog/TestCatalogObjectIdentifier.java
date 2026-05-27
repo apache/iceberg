@@ -56,9 +56,11 @@ public class TestCatalogObjectIdentifier {
   public void levelOutOfBounds() {
     CatalogObjectIdentifier identifier = CatalogObjectIdentifier.of("a", "b");
     assertThatThrownBy(() -> identifier.level(2))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("Index 2 out of bounds");
     assertThatThrownBy(() -> identifier.level(-1))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("Index -1 out of bounds");
   }
 
   @Test
