@@ -1485,9 +1485,9 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`decimal(P,S)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": minBytesRequired(P),`<br />&nbsp;&nbsp;`"logicalType": "decimal",`<br />&nbsp;&nbsp;`"precision": P,`<br />&nbsp;&nbsp;`"scale": S }`|Stored as fixed using the minimum number of bytes for the given precision.|
 |**`date`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "date" }`|Stores days from 1970-01-01.|
 |**`time`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "time-micros" }`|Stores microseconds from midnight.|
-|**`timestamp`**      | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }` | Stores microseconds from 1970-01-01 00:00:00.000000. [1]            |
+|**`timestamp`**      | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "local-timestamp-micros" }`                                     | Stores microseconds from 1970-01-01 00:00:00.000000. [1]            |
 |**`timestamptz`**    | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`  | Stores microseconds from 1970-01-01 00:00:00.000000 UTC. [1]        |
-|**`timestamp_ns`**   | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-nanos",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }`  | Stores nanoseconds from 1970-01-01 00:00:00.000000000. [1], [2]     |
+|**`timestamp_ns`**   | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "local-timestamp-nanos" }`                                      | Stores nanoseconds from 1970-01-01 00:00:00.000000000. [1], [2]     |
 |**`timestamptz_ns`** | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-nanos",`<br />&nbsp;&nbsp;`"adjust-to-utc": true }`   | Stores nanoseconds from 1970-01-01 00:00:00.000000000 UTC. [1], [2] |
 |**`string`**|`string`||
 |**`uuid`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": 16,`<br />&nbsp;&nbsp;`"logicalType": "uuid" }`||
@@ -1502,7 +1502,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 
 Notes:
 
-1. Avro type annotation `adjust-to-utc` is an Iceberg convention; default value is `false` if not present.
+1. Non-zone timestamp types are written using Avro's `local-timestamp-{micros,nanos}` logical types. Zone-adjusted timestamp types are written using `timestamp-{micros,nanos}` with `adjust-to-utc: true`. Readers must also accept legacy files that encode non-zone timestamps as `timestamp-{micros,nanos}` with `adjust-to-utc: false`.
 2. Avro logical type `timestamp-nanos` is an Iceberg convention; the Avro specification does not define this type.
 
 **Field IDs**
