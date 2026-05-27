@@ -39,6 +39,7 @@ import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.schema.MessageType;
 
 public class ParquetVariantReaders {
   private ParquetVariantReaders() {}
@@ -62,8 +63,15 @@ public class ParquetVariantReaders {
         (ParquetValueReader<VariantMetadata>) metadata, (VariantValueReader) value);
   }
 
+  @Deprecated
   public static ParquetValueReader<VariantMetadata> metadata(ColumnDescriptor desc) {
     return new VariantMetadataReader(desc);
+  }
+
+  public static ParquetValueReader<VariantMetadata> metadata(
+      MessageType schema, ColumnDescriptor desc) {
+    int definitionLevel = schema.getMaxDefinitionLevel(desc.getPath()) - 1;
+    return new VariantMetadataReader(desc, definitionLevel);
   }
 
   public static VariantValueReader serialized(ColumnDescriptor desc) {
@@ -143,12 +151,25 @@ public class ParquetVariantReaders {
   }
 
   private static class VariantMetadataReader extends PrimitiveReader<VariantMetadata> {
+    private final int definitionLevel;
+
     private VariantMetadataReader(ColumnDescriptor desc) {
       super(desc);
+      this.definitionLevel = Integer.MIN_VALUE;
+    }
+
+    private VariantMetadataReader(ColumnDescriptor desc, int definitionLevel) {
+      super(desc);
+      this.definitionLevel = definitionLevel;
     }
 
     @Override
     public VariantMetadata read(VariantMetadata reuse) {
+      if (definitionLevel != Integer.MIN_VALUE
+          && column.currentDefinitionLevel() <= definitionLevel) {
+        return null;
+      }
+
       return Variants.metadata(readBinary(column));
     }
   }
