@@ -272,7 +272,10 @@ public class JsonUtil {
     ArrayNode arrayNode = (ArrayNode) node;
     String[] arr = new String[arrayNode.size()];
     for (int i = 0; i < arr.length; i++) {
-      arr[i] = arrayNode.get(i).asText();
+      JsonNode element = arrayNode.get(i);
+      Preconditions.checkArgument(
+          element.isTextual(), "Cannot parse string from non-text value: %s", element);
+      arr[i] = element.asText();
     }
     return arr;
   }
