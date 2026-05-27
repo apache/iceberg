@@ -221,8 +221,7 @@ class TestMonitorSource extends OperatorTestBase {
     try {
       clientWithSavepoint = env.executeAsync("Table Change Source test with savepoint");
 
-      // Restoring from a savepoint on a busy cluster may take longer than the default 5s poll
-      assertThat(resultWithSavepoint.poll(Duration.ofSeconds(30L))).isEqualTo(EMPTY_EVENT);
+      assertThat(resultWithSavepoint.poll(Duration.ofSeconds(5L))).isEqualTo(EMPTY_EVENT);
     } finally {
       closeJobClient(clientWithSavepoint, null);
     }
