@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -415,6 +416,170 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
             firstSnapshot.timestampMillis(),
             firstSnapshot.snapshotId(),
             null));
+  }
+
+  @Test
+  public void testFilterNullThrows() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_filter_null"),
+            "scan_filter_null",
+            SCHEMA,
+            SPEC,
+            2,
+            fileFormatProperty);
+
+    assertThatThrownBy(() -> testTable.newPartitionStatisticsScan().filter(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Filter expression cannot be null");
+  }
+
+  @Test
+  public void testFilterAlwaysTrueReturnsAll() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_filter_always_true"),
+            "scan_filter_always_true",
+            SCHEMA,
+            SPEC,
+            2,
+            fileFormatProperty);
+
+    DataFile dataFile1 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile dataFile2 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("bar", "B"));
+    testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    PartitionStatisticsFile statsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statsFile).commit();
+
+    List<PartitionStatistics> result;
+    try (CloseableIterable<PartitionStatistics> it =
+        testTable.newPartitionStatisticsScan().filter(Expressions.alwaysTrue()).scan()) {
+      result = Lists.newArrayList(it);
+    }
+
+    assertThat(result).hasSize(2);
+  }
+
+  @Test
+  public void testFilterAlwaysFalseReturnsEmpty() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_filter_always_false"),
+            "scan_filter_always_false",
+            SCHEMA,
+            SPEC,
+            2,
+            fileFormatProperty);
+
+    DataFile dataFile1 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    testTable.newAppend().appendFile(dataFile1).commit();
+
+    PartitionStatisticsFile statsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statsFile).commit();
+
+    List<PartitionStatistics> result;
+    try (CloseableIterable<PartitionStatistics> it =
+        testTable.newPartitionStatisticsScan().filter(Expressions.alwaysFalse()).scan()) {
+      result = Lists.newArrayList(it);
+    }
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  public void testFilterByDataFileCount() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_filter_by_count"),
+            "scan_filter_by_count",
+            SCHEMA,
+            SPEC,
+            2,
+            fileFormatProperty);
+
+    DataFile fooFile1 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile fooFile2 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile barFile =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("bar", "B"));
+
+    // foo/A gets 2 files, bar/B gets 1 file
+    testTable.newAppend().appendFile(fooFile1).commit();
+    testTable.newAppend().appendFile(fooFile2).commit();
+    testTable.newAppend().appendFile(barFile).commit();
+
+    PartitionStatisticsFile statsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statsFile).commit();
+
+    // Filter: only partitions with more than 1 data file
+    List<PartitionStatistics> result;
+    try (CloseableIterable<PartitionStatistics> it =
+        testTable
+            .newPartitionStatisticsScan()
+            .filter(Expressions.greaterThan("data_file_count", 1))
+            .scan()) {
+      result = Lists.newArrayList(it);
+    }
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).dataFileCount()).isEqualTo(2);
+  }
+
+  @Test
+  public void testFilterColumnNotInProjectionIsStillApplied() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_filter_with_project"),
+            "scan_filter_with_project",
+            SCHEMA,
+            SPEC,
+            2,
+            fileFormatProperty);
+
+    DataFile fooFile1 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile fooFile2 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile barFile =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("bar", "B"));
+
+    testTable.newAppend().appendFile(fooFile1).commit();
+    testTable.newAppend().appendFile(fooFile2).commit();
+    testTable.newAppend().appendFile(barFile).commit();
+
+    PartitionStatisticsFile statsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statsFile).commit();
+
+    // Project only data_record_count but filter on data_file_count (not in projection).
+    // The scan must still apply the filter correctly.
+    Schema projection =
+        new Schema(
+            PartitionStatistics.DATA_RECORD_COUNT);
+
+    List<PartitionStatistics> result;
+    try (CloseableIterable<PartitionStatistics> it =
+        testTable
+            .newPartitionStatisticsScan()
+            .project(projection)
+            .filter(Expressions.greaterThan("data_file_count", 1))
+            .scan()) {
+      result = Lists.newArrayList(it);
+    }
+
+    assertThat(result).hasSize(1);
   }
 
   private static void computeAndValidatePartitionStats(

@@ -87,6 +87,7 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -1306,6 +1307,14 @@ public class Parquet {
 
     public ReadBuilder filter(Expression newFilter) {
       this.filter = newFilter;
+      return this;
+    }
+
+    @Override
+    public ReadBuilder withFilterHint(Expression newFilter) {
+      this.filter = this.filter == null
+          ? newFilter
+          : Expressions.and(this.filter, newFilter);
       return this;
     }
 

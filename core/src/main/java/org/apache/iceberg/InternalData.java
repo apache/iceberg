@@ -25,6 +25,8 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.InternalReader;
 import org.apache.iceberg.avro.InternalWriter;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -86,13 +88,27 @@ public class InternalData {
   }
 
   public static ReadBuilder read(FileFormat format, InputFile file) {
+    return read(format, file, Expressions.alwaysTrue());
+  }
+
+  /**
+   * Returns a {@link ReadBuilder} configured with the given filter hint. The hint is passed to the
+   * format reader as a best-effort optimization (e.g. Parquet row-group skipping); callers must
+   * still apply a residual filter for correctness. Use {@link #read(FileFormat, InputFile)} when
+   * no filter hint is needed.
+   */
+  public static ReadBuilder read(FileFormat format, InputFile file, Expression filterHint) {
     Function<InputFile, ReadBuilder> readBuilder = READ_BUILDERS.get(format);
-    if (readBuilder != null) {
-      return readBuilder.apply(file);
+    if (readBuilder == null) {
+      throw new UnsupportedOperationException(
+          "Cannot read using unregistered internal data format: " + format);
     }
 
-    throw new UnsupportedOperationException(
-        "Cannot read using unregistered internal data format: " + format);
+    ReadBuilder builder = readBuilder.apply(file);
+    if (filterHint != Expressions.alwaysTrue()) {
+      builder.withFilterHint(filterHint);
+    }
+    return builder;
   }
 
   public interface WriteBuilder {
@@ -164,6 +180,16 @@ public class InternalData {
   public interface ReadBuilder {
     /** Set the projection schema. */
     ReadBuilder project(Schema projectedSchema);
+
+    /**
+     * Hints to the reader about a filter expression. Implementations may use this to skip data
+     * they can prove will not match, but are not required to. Correctness must always be ensured
+     * by the caller through residual filtering. Parquet uses this for row-group skipping; Avro
+     * ignores it.
+     */
+    default ReadBuilder withFilterHint(Expression filter) {
+      return this;
+    }
 
     /** Read only the split that is {@code length} bytes starting at {@code start}. */
     ReadBuilder split(long newStart, long newLength);
