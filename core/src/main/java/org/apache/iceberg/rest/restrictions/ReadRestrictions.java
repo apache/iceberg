@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.functions.IcebergFunction;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
@@ -37,17 +38,17 @@ public class ReadRestrictions implements Serializable {
   private static final ReadRestrictions EMPTY = new ReadRestrictions(null, ImmutableList.of());
 
   private final Expression rowFilter;
-  private final List<Action<?, ?>> columnProjections;
+  private final List<IcebergFunction<?, ?>> columnProjections;
   private final Set<Integer> maskedFieldIds;
 
-  private ReadRestrictions(Expression rowFilter, List<Action<?, ?>> columnProjections) {
+  private ReadRestrictions(Expression rowFilter, List<IcebergFunction<?, ?>> columnProjections) {
     this.rowFilter = rowFilter;
     this.columnProjections = ImmutableList.copyOf(columnProjections);
     this.maskedFieldIds =
         this.columnProjections.isEmpty()
             ? ImmutableSet.of()
             : this.columnProjections.stream()
-                .map(Action::fieldId)
+                .map(IcebergFunction::fieldId)
                 .collect(ImmutableSet.toImmutableSet());
   }
 
@@ -55,8 +56,10 @@ public class ReadRestrictions implements Serializable {
     return EMPTY;
   }
 
-  public static ReadRestrictions of(Expression rowFilter, List<Action<?, ?>> columnProjections) {
-    List<Action<?, ?>> actions = columnProjections == null ? ImmutableList.of() : columnProjections;
+  public static ReadRestrictions of(
+      Expression rowFilter, List<IcebergFunction<?, ?>> columnProjections) {
+    List<IcebergFunction<?, ?>> actions =
+        columnProjections == null ? ImmutableList.of() : columnProjections;
     if (rowFilter == null && actions.isEmpty()) {
       return EMPTY;
     }
@@ -67,7 +70,7 @@ public class ReadRestrictions implements Serializable {
     return rowFilter;
   }
 
-  public List<Action<?, ?>> columnProjections() {
+  public List<IcebergFunction<?, ?>> columnProjections() {
     return columnProjections;
   }
 

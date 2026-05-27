@@ -26,11 +26,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.functions.MaskAlphanum;
+import org.apache.iceberg.functions.ShowLast4;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.rest.restrictions.Action;
 import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,7 @@ public class TestReadRestrictionsApplier {
                 TEMPLATE.copy(ImmutableMap.of("id", 2L, "email", "bob123@example.com"))));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new Action.MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
 
     List<Record> result =
         Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
@@ -87,8 +88,7 @@ public class TestReadRestrictionsApplier {
                         "id", 42L, "email", "alice@example.com", "ssn", "123-45-6789"))));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(
-            null, ImmutableList.of(new Action.MaskAlphanum(2), new Action.ShowLast4(3)));
+        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2), new ShowLast4(3)));
 
     List<Record> result =
         Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
@@ -104,7 +104,7 @@ public class TestReadRestrictionsApplier {
         CloseableIterable.withNoopClose(ImmutableList.of(TEMPLATE.copy(ImmutableMap.of("id", 1L))));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new Action.MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
 
     List<Record> result =
         Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
@@ -118,7 +118,7 @@ public class TestReadRestrictionsApplier {
         CloseableIterable.withNoopClose(ImmutableList.of(TEMPLATE.copy()));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new Action.MaskAlphanum(999)));
+        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(999)));
 
     assertThatThrownBy(() -> ReadRestrictionsApplier.apply(input, restrictions, SCHEMA))
         .isInstanceOf(IllegalStateException.class)
@@ -137,7 +137,7 @@ public class TestReadRestrictionsApplier {
         CloseableIterable.withNoopClose(ImmutableList.of(GenericRecord.create(nested)));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new Action.MaskAlphanum(3)));
+        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(3)));
 
     assertThatThrownBy(() -> ReadRestrictionsApplier.apply(input, restrictions, nested))
         .isInstanceOf(IllegalStateException.class)
@@ -175,8 +175,7 @@ public class TestReadRestrictionsApplier {
 
     ReadRestrictions restrictions =
         ReadRestrictions.of(
-            Expressions.equal("email", "keep@example.com"),
-            ImmutableList.of(new Action.MaskAlphanum(2)));
+            Expressions.equal("email", "keep@example.com"), ImmutableList.of(new MaskAlphanum(2)));
 
     List<Record> result =
         Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));

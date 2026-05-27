@@ -25,9 +25,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.functions.IcebergFunction;
+import org.apache.iceberg.functions.SaltedFunction;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.restrictions.Action;
 import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
@@ -79,7 +80,7 @@ class ReadRestrictionsApplier {
   }
 
   private static CloseableIterable<Record> maskColumns(
-      CloseableIterable<Record> records, List<Action<?, ?>> actions, Schema projection) {
+      CloseableIterable<Record> records, List<IcebergFunction<?, ?>> actions, Schema projection) {
     if (actions.isEmpty()) {
       return records;
     }
@@ -90,13 +91,13 @@ class ReadRestrictionsApplier {
 
   @SuppressWarnings("unchecked")
   private static Map<String, SerializableFunction<Object, Object>> bindMasks(
-      List<Action<?, ?>> actions, Schema projection) {
+      List<IcebergFunction<?, ?>> actions, Schema projection) {
     ImmutableMap.Builder<String, SerializableFunction<Object, Object>> builder =
         ImmutableMap.builder();
     byte[] querySalt = null;
     List<Types.NestedField> topLevelFields = projection.asStruct().fields();
 
-    for (Action<?, ?> action : actions) {
+    for (IcebergFunction<?, ?> action : actions) {
       int fieldId = action.fieldId();
       Types.NestedField field = findTopLevel(topLevelFields, fieldId);
       if (field == null) {
@@ -117,20 +118,18 @@ class ReadRestrictionsApplier {
                 + "')");
       }
 
-      byte[] salt = null;
-      if (action instanceof Action.Sha256QueryLocal) {
+      SerializableFunction<Object, Object> bound;
+      if (action instanceof SaltedFunction) {
         if (querySalt == null) {
           querySalt = new byte[SALT_LENGTH];
           RANDOM.nextBytes(querySalt);
         }
-        salt = querySalt;
+        bound =
+            (SerializableFunction<Object, Object>)
+                ((SaltedFunction<?, ?>) action).bind(field.type(), querySalt);
+      } else {
+        bound = (SerializableFunction<Object, Object>) action.bind(field.type());
       }
-
-      // All masks are erased to Object at runtime; Action<?, ?>.bind(Type, byte[]) returns a
-      // SerializableFunction with wildcard params, so cast to the uniform Object->Object shape
-      // the applier uses downstream.
-      SerializableFunction<Object, Object> bound =
-          (SerializableFunction<Object, Object>) action.bind(field.type(), salt);
       builder.put(field.name(), bound);
     }
 

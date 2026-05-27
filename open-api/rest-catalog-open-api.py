@@ -608,7 +608,7 @@ class MaskAlphanum(Action):
     action: Literal['mask-alphanum'] = 'mask-alphanum'
 
 
-class MaskToDefault(Action):
+class MaskToFixedValue(Action):
     """
     Replaces the column value with a predefined type-specific default that conceals the original data while preserving type compatibility. Engines MUST use exactly the values listed below to ensure consistency across implementations.
     Default values by type: - boolean: false - int: 999999999 - long: 999999999 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2)) - string: "XXXXXXXX" - date: 9999-12-31 - time: 00:00:00 - timestamp: 9999-12-31T00:00:00 - timestamptz: 9999-12-31T00:00:00+00:00 - timestamp_ns: 2261-12-31T00:00:00.000000000 - timestamptz_ns: 2261-12-31T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {"masked": true} - geometry: POINT EMPTY - geography: POINT EMPTY - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
@@ -617,7 +617,7 @@ class MaskToDefault(Action):
 
     """
 
-    action: Literal['mask-to-default'] = 'mask-to-default'
+    action: Literal['mask-to-fixed-value'] = 'mask-to-fixed-value'
 
 
 class ReplaceWithNull(Action):
@@ -1604,7 +1604,7 @@ class ReadRestrictions(BaseModel):
     required_column_projections: (
         list[
             MaskAlphanum
-            | MaskToDefault
+            | MaskToFixedValue
             | ReplaceWithNull
             | ShowFirst4
             | ShowLast4
@@ -1612,30 +1612,18 @@ class ReadRestrictions(BaseModel):
             | TruncateToMonth
             | Sha256Global
             | Sha256QueryLocal
-            | ApplyExpression
         ]
         | None
     ) = Field(
         None,
         alias='required-column-projections',
-        description="A list of columns that require specific actions to be applied when reading.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action before returning values for that column.\n\n2. The reader MUST replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader MUST\n  return the masked value as cc in the query output.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader\n  (including unrecognized action types), the reader MUST fail rather than\n  ignore or skip the action.\n\n6. Each action defines the output type for its column. For all predefined\n  actions except apply-expression, the output type matches the input column\n  type. For apply-expression, the output type is determined by the expression.\n",
+        description="A list of columns that require specific actions to be applied when reading.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action before returning values for that column.\n\n2. The reader MUST replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader MUST\n  return the masked value as cc in the query output.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader\n  (including unrecognized action types), the reader MUST fail rather than\n  ignore or skip the action.\n\n6. Each action defines the output type for its column. The output type matches\n  the input column type for all predefined actions.\n",
     )
     required_row_filter: Expression | None = Field(
         None,
         alias='required-row-filter',
         description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. A reader MUST discard any row for which the filter evaluates to false or null, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
     )
-
-
-class ApplyExpression(Action):
-    """
-    Replace the field with the result of an expression. Produce the original field name with the expression result.
-    Applicable to: all data types
-
-    """
-
-    action: Literal['apply-expression']
-    expression: Expression
 
 
 class LoadTableResult(BaseModel):
@@ -2051,7 +2039,7 @@ TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
 ReadRestrictions.model_rebuild()
-ApplyExpression.model_rebuild()
+
 ScanTasks.model_rebuild()
 CommitTableRequest.model_rebuild()
 CommitViewRequest.model_rebuild()

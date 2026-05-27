@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
+import org.apache.iceberg.functions.IcebergFunction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
@@ -56,7 +57,7 @@ public class ReadRestrictionsParser {
 
     if (!restrictions.columnProjections().isEmpty()) {
       generator.writeArrayFieldStart(REQUIRED_COLUMN_PROJECTIONS);
-      for (Action action : restrictions.columnProjections()) {
+      for (IcebergFunction<?, ?> action : restrictions.columnProjections()) {
         ActionParser.toJson(action, generator);
       }
       generator.writeEndArray();
@@ -81,7 +82,7 @@ public class ReadRestrictionsParser {
       rowFilter = ExpressionParser.fromJson(node.get(REQUIRED_ROW_FILTER));
     }
 
-    List<Action<?, ?>> actions = Lists.newArrayList();
+    List<IcebergFunction<?, ?>> actions = Lists.newArrayList();
     if (node.hasNonNull(REQUIRED_COLUMN_PROJECTIONS)) {
       JsonNode array = node.get(REQUIRED_COLUMN_PROJECTIONS);
       Preconditions.checkArgument(
