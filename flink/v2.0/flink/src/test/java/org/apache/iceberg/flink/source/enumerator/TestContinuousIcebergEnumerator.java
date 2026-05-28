@@ -390,8 +390,7 @@ public class TestContinuousIcebergEnumerator {
     enumeratorContext.triggerAllActions();
 
     // Verify that the enumerator processed splits (basic sanity)
-    Collection<IcebergSourceSplitState> pendingSplits =
-        enumerator.snapshotState(1).pendingSplits();
+    Collection<IcebergSourceSplitState> pendingSplits = enumerator.snapshotState(1).pendingSplits();
     assertThat(pendingSplits).hasSize(1);
   }
 

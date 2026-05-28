@@ -555,16 +555,13 @@ public class TestIcebergSourceContinuous {
 
   private static void assertThatIcebergEnumeratorMetricsExist() {
     // Verify scan planning metrics (registered on the "IcebergSourceEnumerator" subgroup)
-    Optional<MetricGroup> scanMetricsGroup =
-        METRIC_REPORTER.findGroup("IcebergSourceEnumerator");
+    Optional<MetricGroup> scanMetricsGroup = METRIC_REPORTER.findGroup("IcebergSourceEnumerator");
     assertThat(scanMetricsGroup).isPresent();
     assertThat(
             METRIC_REPORTER.getMetricsByGroup(scanMetricsGroup.get()).keySet().stream()
                 .map(name -> scanMetricsGroup.get().getMetricIdentifier(name)))
+        .anySatisfy(fullMetricName -> assertThat(fullMetricName).contains("resultDataFiles"))
         .anySatisfy(
-            fullMetricName -> assertThat(fullMetricName).contains("resultDataFiles"))
-        .anySatisfy(
-            fullMetricName ->
-                assertThat(fullMetricName).contains("lastScanPlanningDurationMs"));
+            fullMetricName -> assertThat(fullMetricName).contains("lastScanPlanningDurationMs"));
   }
 }

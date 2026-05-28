@@ -748,8 +748,7 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(initialResult.scanReport().scanMetrics()).isNotNull();
     assertThat(initialResult.scanReport().scanMetrics().totalDataManifests().value())
         .isGreaterThan(0);
-    assertThat(initialResult.scanReport().scanMetrics().resultDataFiles().value())
-        .isGreaterThan(0);
+    assertThat(initialResult.scanReport().scanMetrics().resultDataFiles().value()).isGreaterThan(0);
     assertThat(initialResult.scanReport().scanMetrics().totalPlanningDuration()).isNotNull();
     assertThat(
             initialResult
@@ -777,8 +776,7 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(initialResult.scanReport()).isNotNull();
 
     // Append new data so incremental scan has something to discover
-    List<Record> batch =
-        RandomGenericData.generate(TABLE_RESOURCE.table().schema(), 2, 100L);
+    List<Record> batch = RandomGenericData.generate(TABLE_RESOURCE.table().schema(), 2, 100L);
     DataFile dataFile = dataAppender.writeFile(null, batch);
     dataAppender.appendToTable(dataFile);
 
