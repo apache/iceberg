@@ -63,6 +63,24 @@ public class TestFileMetadata {
   }
 
   @Test
+  public void dvBuilderRejectsContentSizeAtIntegerMax() {
+    assertThatThrownBy(
+            () ->
+                FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+                    .ofPositionDeletes()
+                    .withFormat(FileFormat.PUFFIN)
+                    .withPath("/tmp/dv.puffin")
+                    .withFileSizeInBytes(10)
+                    .withRecordCount(1)
+                    .withReferencedDataFile("/tmp/data.parquet")
+                    .withContentOffset(0L)
+                    .withContentSizeInBytes(Integer.MAX_VALUE)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("less than 2GB");
+  }
+
+  @Test
   public void dvBuilderAcceptsValidOffsetAndSize() {
     DeleteFile dv =
         FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
