@@ -280,6 +280,10 @@ public class JsonUtil {
     return arr;
   }
 
+  public static String[] getStringArray(String property, JsonNode node) {
+    return getStringList(property, node).toArray(new String[0]);
+  }
+
   public static List<String> getStringList(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing list: %s", property);
     return ImmutableList.<String>builder()

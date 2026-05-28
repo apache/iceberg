@@ -451,6 +451,33 @@ public class TestJsonUtil {
   }
 
   @Test
+  public void getStringArrayWithProperty() throws JsonProcessingException {
+    assertThatThrownBy(() -> JsonUtil.getStringArray("items", JsonUtil.mapper().readTree("{}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing list: items");
+
+    assertThatThrownBy(
+            () -> JsonUtil.getStringArray("items", JsonUtil.mapper().readTree("{\"items\": null}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getStringArray(
+                    "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", 45]}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string from non-text value in items: 45");
+
+    assertThat(
+            JsonUtil.getStringArray(
+                "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", \"45\"]}")))
+        .containsExactly("23", "45");
+
+    assertThat(JsonUtil.getStringArray("items", JsonUtil.mapper().readTree("{\"items\": []}")))
+        .isEmpty();
+  }
+
+  @Test
   public void getStringList() throws JsonProcessingException {
     assertThatThrownBy(() -> JsonUtil.getStringList("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
