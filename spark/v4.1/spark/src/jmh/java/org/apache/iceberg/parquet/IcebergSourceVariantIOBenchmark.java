@@ -123,7 +123,7 @@ import org.slf4j.LoggerFactory;
  *       -PjmhOutputPath=build/reports/benchmark/iceberg-source-variant-io-benchmark-result.txt
  * </code>
  */
-@Fork(0)
+@Fork(1)
 @Warmup(iterations = 5)
 @Measurement(iterations = 5)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -170,7 +170,7 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
       "variant_get(nested, '$.varcategory', 'int')";
 
   /** Get the ID field from inside the variant: {@value}. */
-  private static final String VARIANT_GET_NESTED_ID = "variant_get(nested, '$.varid', 'int')";
+  private static final String VARIANT_GET_NESTED_ID = "variant_get(nested, '$.varid', 'bigint')";
 
   /** Equality check. Pulled out to allow experimentation with set membershop vs. equals. */
   public static final String EQUALITY_CHECK = " = 1";
@@ -507,8 +507,11 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   /** selecting on 1, but using a pair of ranges to locate. Two scans needed */
   @Benchmark
   public void filterVarcatProjectVarIDRanged(Blackhole blackhole) {
-    select(blackhole, VARIANT_GET_NESTED_ID,
-        VARIANT_GET_NESTED_CATEGORY + " > 0 and " + VARIANT_GET_NESTED_CATEGORY + " < 2", true);
+    select(
+        blackhole,
+        VARIANT_GET_NESTED_ID,
+        VARIANT_GET_NESTED_CATEGORY + " > 0 and " + VARIANT_GET_NESTED_CATEGORY + " < 2",
+        true);
   }
 
   /**
@@ -899,34 +902,14 @@ public class IcebergSourceVariantIOBenchmark extends IcebergSourceBenchmark {
   }
 
   /** Log the parquet metrics invocations. */
-  private void logRowGroupFiltering() {
-    final long scans = ParquetMetricsRowGroupFilter.variantPredicatesShreddedMetricsEvaluated();
-    final long skipped = ParquetMetricsRowGroupFilter.variantPredicatesShreddedSkipped();
-    LOG.info("Scanned {} shredded metrics, skipped {} row groups", scans, skipped);
-  }
+  private void logRowGroupFiltering() {}
 
   /** Reset the metrics counter. */
-  private void resetMetricsCounter() {
-    /*
-    ParquetMetricsRowGroupFilter.resetShreddedMetricsCounters();
-    */
-  }
+  private void resetMetricsCounter() {}
 
   /**
    * On shredded tables, assert that shredded field were scanned for filtering operations. Log the
    * count at info.
    */
-  private void expectFilteringOfShreddedFields() {
-    /*
-      if (isShredded()) {
-        final long scans = ParquetMetricsRowGroupFilter.variantPredicatesShreddedMetricsEvaluated();
-        final long skipped = ParquetMetricsRowGroupFilter.variantPredicatesShreddedSkipped();
-        LOG.info("Scanned {} shredded metrics, skipped {} row groups", scans, skipped);
-        assertThat(scans)
-            .describedAs("Number of times rowgroup metrics of shredded fields were scanned")
-            .isGreaterThan(0);
-        assertThat(skipped).describedAs("rowgroups skipped").isGreaterThan(0);
-      }
-    */
-  }
+  private void expectFilteringOfShreddedFields() {}
 }
