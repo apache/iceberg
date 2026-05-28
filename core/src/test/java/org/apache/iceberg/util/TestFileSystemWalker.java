@@ -22,14 +22,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -301,6 +308,36 @@ public class TestFileSystemWalker {
         .hasMessageContaining("Can not create a Path from a null string");
   }
 
+  /**
+   * Validates that listDirRecursivelyWithHadoop normalizes the path by adding a trailing slash
+   * before listing. This is important for proper credential scoping with cloud storage.
+   */
+  @Test
+  public void testListDirRecursivelyWithHadoopNormalizesPath() {
+    AtomicReference<org.apache.hadoop.fs.Path> capturedPath = new AtomicReference<>();
+    Configuration conf = new Configuration();
+    conf.setClass("fs.tracking.impl", TrackingFileSystem.class, FileSystem.class);
+    TrackingFileSystem.setCapturedPath(capturedPath);
+
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
+
+    // Use path WITHOUT trailing slash
+    FileSystemWalker.listDirRecursivelyWithHadoop(
+        "tracking://bucket/table",
+        specs,
+        fileStatus -> true,
+        conf,
+        Integer.MAX_VALUE,
+        Integer.MAX_VALUE,
+        remainingDirs::add,
+        foundFiles::add);
+
+    // Verify the path passed to FileSystem.listStatus ends with /
+    assertThat(capturedPath.get()).isNotNull();
+    assertThat(capturedPath.get().toString()).endsWith("/");
+  }
+
   private static List<String> listWithMockFileIO(String baseDir, FileInfo... entries) {
     SupportsPrefixOperations mockIO = new StaticPrefixFileIO(ImmutableList.copyOf(entries));
     List<String> foundFiles = Lists.newArrayList();
@@ -338,6 +375,91 @@ public class TestFileSystemWalker {
 
     @Override
     public void deleteFile(String path) {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  /**
+   * A FileSystem implementation that captures the path passed to listStatus for verification.
+   */
+  public static class TrackingFileSystem extends FileSystem {
+    private static AtomicReference<org.apache.hadoop.fs.Path> capturedPath;
+
+    public static void setCapturedPath(AtomicReference<org.apache.hadoop.fs.Path> ref) {
+      capturedPath = ref;
+    }
+
+    @Override
+    public URI getUri() {
+      return URI.create("tracking:///");
+    }
+
+    @Override
+    public FSDataInputStream open(org.apache.hadoop.fs.Path path, int bufferSize) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FSDataOutputStream create(
+        org.apache.hadoop.fs.Path path,
+        FsPermission permission,
+        boolean overwrite,
+        int bufferSize,
+        short replication,
+        long blockSize,
+        org.apache.hadoop.util.Progressable progress) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FSDataOutputStream append(org.apache.hadoop.fs.Path path, int bufferSize,
+        org.apache.hadoop.util.Progressable progress) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean rename(org.apache.hadoop.fs.Path src, org.apache.hadoop.fs.Path dst) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean delete(org.apache.hadoop.fs.Path path, boolean recursive) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FileStatus[] listStatus(org.apache.hadoop.fs.Path path) {
+      if (capturedPath != null) {
+        capturedPath.set(path);
+      }
+      return new FileStatus[0];
+    }
+
+    @Override
+    public FileStatus[] listStatus(org.apache.hadoop.fs.Path path, PathFilter filter) {
+      if (capturedPath != null) {
+        capturedPath.set(path);
+      }
+      return new FileStatus[0];
+    }
+
+    @Override
+    public void setWorkingDirectory(org.apache.hadoop.fs.Path newDir) {
+      // no-op
+    }
+
+    @Override
+    public org.apache.hadoop.fs.Path getWorkingDirectory() {
+      return new org.apache.hadoop.fs.Path("/");
+    }
+
+    @Override
+    public boolean mkdirs(org.apache.hadoop.fs.Path path, FsPermission permission) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FileStatus getFileStatus(org.apache.hadoop.fs.Path path) {
       throw new UnsupportedOperationException();
     }
   }

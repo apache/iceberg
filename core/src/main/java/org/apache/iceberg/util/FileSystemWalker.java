@@ -112,13 +112,20 @@ public class FileSystemWalker {
       Consumer<String> directoryConsumer,
       Consumer<String> fileConsumer) {
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
+
     if (maxDepth <= 0) {
       directoryConsumer.accept(dir);
       return;
     }
 
+    // Ensure trailing slash for consistent path handling and proper credential scoping
+    String normalizedDir = dir;
+    if (!dir.endsWith("/")) {
+      normalizedDir = dir + "/";
+    }
+
     try {
-      Path path = new Path(dir);
+      Path path = new Path(normalizedDir);
       FileSystem fs = path.getFileSystem(conf);
       List<String> subDirs = Lists.newArrayList();
 
