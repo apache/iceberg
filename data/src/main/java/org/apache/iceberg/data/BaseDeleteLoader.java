@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.apache.iceberg.DVUtil;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -264,7 +265,7 @@ public class BaseDeleteLoader implements DeleteLoader {
   }
 
   private void validateDV(DeleteFile dv, CharSequence filePath) {
-    ContentFileUtil.validateDV(dv);
+    DVUtil.validateDV(dv);
     Preconditions.checkArgument(
         filePath.toString().equals(dv.referencedDataFile()),
         "DV is expected to reference %s, not %s",

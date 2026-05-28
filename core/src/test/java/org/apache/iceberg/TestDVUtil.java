@@ -16,22 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.util;
+package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.apache.iceberg.DeleteFile;
 import org.junit.jupiter.api.Test;
 
-public class TestContentFileUtil {
+public class TestDVUtil {
 
   @Test
   public void validateDVRejectsNullOffset() {
     DeleteFile dv = dv(null, 10L);
-    assertThatThrownBy(() -> ContentFileUtil.validateDV(dv))
+    assertThatThrownBy(() -> DVUtil.validateDV(dv))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("offset cannot be null");
   }
@@ -39,7 +38,7 @@ public class TestContentFileUtil {
   @Test
   public void validateDVRejectsNullLength() {
     DeleteFile dv = dv(0L, null);
-    assertThatThrownBy(() -> ContentFileUtil.validateDV(dv))
+    assertThatThrownBy(() -> DVUtil.validateDV(dv))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("length cannot be null");
   }
@@ -47,7 +46,7 @@ public class TestContentFileUtil {
   @Test
   public void validateDVRejectsNegativeOffset() {
     DeleteFile dv = dv(-1L, 10L);
-    assertThatThrownBy(() -> ContentFileUtil.validateDV(dv))
+    assertThatThrownBy(() -> DVUtil.validateDV(dv))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("offset must be non-negative");
   }
@@ -55,15 +54,23 @@ public class TestContentFileUtil {
   @Test
   public void validateDVRejectsNegativeLength() {
     DeleteFile dv = dv(0L, -1L);
-    assertThatThrownBy(() -> ContentFileUtil.validateDV(dv))
+    assertThatThrownBy(() -> DVUtil.validateDV(dv))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("length must be non-negative");
   }
 
   @Test
+  public void validateDVRejectsLengthEqualToIntegerMax() {
+    DeleteFile dv = dv(0L, (long) Integer.MAX_VALUE);
+    assertThatThrownBy(() -> DVUtil.validateDV(dv))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Can't read DV larger than 2GB");
+  }
+
+  @Test
   public void validateDVRejectsLengthAboveIntegerMax() {
     DeleteFile dv = dv(0L, (long) Integer.MAX_VALUE + 1);
-    assertThatThrownBy(() -> ContentFileUtil.validateDV(dv))
+    assertThatThrownBy(() -> DVUtil.validateDV(dv))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Can't read DV larger than 2GB");
   }
@@ -71,19 +78,19 @@ public class TestContentFileUtil {
   @Test
   public void validateDVAcceptsZero() {
     DeleteFile dv = dv(0L, 0L);
-    assertThatCode(() -> ContentFileUtil.validateDV(dv)).doesNotThrowAnyException();
+    assertThatCode(() -> DVUtil.validateDV(dv)).doesNotThrowAnyException();
   }
 
   @Test
   public void validateDVAcceptsTypicalValues() {
     DeleteFile dv = dv(4L, 4096L);
-    assertThatCode(() -> ContentFileUtil.validateDV(dv)).doesNotThrowAnyException();
+    assertThatCode(() -> DVUtil.validateDV(dv)).doesNotThrowAnyException();
   }
 
   @Test
   public void validateDVAcceptsMaximumLength() {
-    DeleteFile dv = dv(0L, (long) Integer.MAX_VALUE);
-    assertThatCode(() -> ContentFileUtil.validateDV(dv)).doesNotThrowAnyException();
+    DeleteFile dv = dv(0L, (long) Integer.MAX_VALUE - 1);
+    assertThatCode(() -> DVUtil.validateDV(dv)).doesNotThrowAnyException();
   }
 
   private static DeleteFile dv(Long offset, Long length) {

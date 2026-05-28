@@ -156,27 +156,6 @@ public class ContentFileUtil {
         deleteFile.referencedDataFile());
   }
 
-  /**
-   * Validates that the deletion-vector offset and length on a {@link DeleteFile} are well-formed
-   * before they are consumed by a reader. Hostile or corrupted manifest metadata may otherwise
-   * trigger a {@link NegativeArraySizeException}, an invalid seek, or a multi-gigabyte allocation
-   * when the DV blob is read.
-   */
-  public static void validateDV(DeleteFile dv) {
-    Preconditions.checkArgument(
-        dv.contentOffset() != null, "Invalid DV, offset cannot be null: %s", dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentSizeInBytes() != null, "Invalid DV, length cannot be null: %s", dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentOffset() >= 0, "Invalid DV, offset must be non-negative: %s", dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentSizeInBytes() >= 0, "Invalid DV, length must be non-negative: %s", dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentSizeInBytes() <= Integer.MAX_VALUE,
-        "Can't read DV larger than 2GB: %s",
-        dv.contentSizeInBytes());
-  }
-
   private static Metrics metricsWithoutPathBounds(DeleteFile file) {
     Map<Integer, ByteBuffer> lowerBounds =
         file.lowerBounds() == null ? null : Maps.newHashMap(file.lowerBounds());
