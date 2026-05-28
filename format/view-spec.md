@@ -200,7 +200,7 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 
 A materialized view is **fresh** when the storage table represents the result of the current view query.
 
-A change to the materialized view's definition produces a new `view-version-id`; any storage-table snapshot recorded at a prior `view-version-id` is not fresh under the current definition.
+A change to the materialized view's definition produces a new `view-version-id`; any storage-table snapshot recorded at a prior `view-version-id` is not fresh and should not be consumed until refreshed.
 
 #### Refresh state
 
