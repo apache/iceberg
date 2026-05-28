@@ -21,6 +21,13 @@ package org.apache.iceberg.data;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import static org.apache.iceberg.TestBase.SCHEMA;
+import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_CASE_SENSITIVE;
+import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_COLUMN_LEVEL_METRICS;
+import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_COLUMN_METRICS_TRUNCATE_BINARY;
+import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_FILTER;
+import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_READER_DEFAULT;
+import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_REUSE_CONTAINERS;
+import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_SPLIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -28,9 +35,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -40,14 +45,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.IntStream;
-import org.apache.avro.file.DataFileStream;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.io.DatumWriter;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -62,8 +59,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestTables;
-import org.apache.iceberg.avro.AvroTestHelpers;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -83,15 +78,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.orc.ORCSchemaUtil;
-import org.apache.iceberg.orc.OrcRowWriter;
-import org.apache.iceberg.orc.OrcWritingTestUtils;
-import org.apache.iceberg.orc.TestORCSchemaUtil;
-import org.apache.iceberg.parquet.ParquetFileTestUtils;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -99,14 +87,6 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.orc.OrcFile;
-import org.apache.orc.Reader;
-import org.apache.orc.TypeDescription;
-import org.apache.orc.Writer;
-import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.apache.parquet.avro.AvroParquetWriter;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -132,8 +112,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
-  private static final FileFormat[] FILE_FORMATS =
-      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+  private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
@@ -142,29 +121,6 @@ public abstract class BaseFormatModelTests<T> {
                   Arrays.stream(DataGenerators.ALL)
                       .map(generator -> Arguments.of(format, generator)))
           .toList();
-
-  static final String FEATURE_FILTER = "filter";
-  static final String FEATURE_CASE_SENSITIVE = "caseSensitive";
-  static final String FEATURE_SPLIT = "split";
-  static final String FEATURE_READER_DEFAULT = "readerDefault";
-  static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
-  static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
-  static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
-
-  private static final Map<FileFormat, String[]> MISSING_FEATURES =
-      Map.of(
-          FileFormat.AVRO,
-          new String[] {
-            FEATURE_FILTER,
-            FEATURE_CASE_SENSITIVE,
-            FEATURE_SPLIT,
-            FEATURE_COLUMN_LEVEL_METRICS,
-            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY
-          },
-          FileFormat.ORC,
-          new String[] {
-            FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_READER_DEFAULT
-          });
 
   private InMemoryFileIO fileIO;
   private EncryptedOutputFile encryptedFile;
@@ -1722,14 +1678,13 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private static void assumeSupports(FileFormat fileFormat, String feature) {
-    assumeThat(MISSING_FEATURES.getOrDefault(fileFormat, new String[] {})).doesNotContain(feature);
+    assumeThat(supportsFeature(fileFormat, feature)).isTrue();
   }
 
   /**
    * Returns whether the given file format supports the specified feature.
    *
-   * <p>The check is based on {@link #MISSING_FEATURES}. Features not listed as missing for a format
-   * are treated as supported.
+   * <p>The check is based on {@link FileFormatTestSupport#supportsFeature(String)}.
    *
    * <p>Prefer this method over {@link #assumeSupports(FileFormat, String)} when only part of a test
    * should be skipped conditionally. Unlike {@code assumeSupports}, this method does not abort the
@@ -1741,8 +1696,7 @@ public abstract class BaseFormatModelTests<T> {
    * @return {@code true} if the feature is supported by the format; {@code false} otherwise
    */
   private static boolean supportsFeature(FileFormat fileFormat, String feature) {
-    String[] missing = MISSING_FEATURES.getOrDefault(fileFormat, new String[] {});
-    return !Arrays.asList(missing).contains(feature);
+    return FileFormatTestSupport.forFormat(fileFormat).supportsFeature(feature);
   }
 
   private DataFile writeRecordsForSplit(FileFormat fileFormat, Schema schema, List<Record> records)
@@ -1775,13 +1729,7 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private static String splitSizeProperty(FileFormat fileFormat) {
-    return switch (fileFormat) {
-      case PARQUET -> TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-      case ORC -> TableProperties.ORC_STRIPE_SIZE_BYTES;
-      default ->
-          throw new UnsupportedOperationException(
-              "No split size property defined for format: " + fileFormat);
-    };
+    return FileFormatTestSupport.forFormat(fileFormat).splitSizeProperty();
   }
 
   private static void assertCounts(
@@ -2123,102 +2071,8 @@ public abstract class BaseFormatModelTests<T> {
 
   private void writeRecordsWithoutFieldIds(
       FileFormat fileFormat, Schema schema, List<Record> records) throws IOException {
-    switch (fileFormat) {
-      case PARQUET -> writeParquetWithoutFieldIds(schema, records);
-      case AVRO -> writeAvroWithoutFieldIds(schema, records);
-      case ORC -> writeOrcWithoutFieldIds(schema, records);
-      default -> throw new UnsupportedOperationException("Unsupported file format: " + fileFormat);
-    }
-  }
-
-  private void writeAvroWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-    DatumWriter<GenericData.Record> datumWriter = new GenericDatumWriter<>(avroSchemaWithoutIds);
-    try (OutputStream out = outputFile.create();
-        DataFileWriter<GenericData.Record> writer = new DataFileWriter<>(datumWriter)) {
-      writer.create(avroSchemaWithoutIds, out);
-      for (Record record : records) {
-        GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
-        for (Types.NestedField field : schema.columns()) {
-          avroRecord.put(field.name(), record.getField(field.name()));
-        }
-
-        writer.append(avroRecord);
-      }
-    }
-
-    try (DataFileStream<GenericData.Record> reader =
-        new DataFileStream<>(outputFile.toInputFile().newStream(), new GenericDatumReader<>())) {
-      assertThat(AvroTestHelpers.hasIds(reader.getSchema())).isFalse();
-    }
-  }
-
-  private void writeParquetWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-
-    try (ParquetWriter<GenericData.Record> writer =
-        AvroParquetWriter.<GenericData.Record>builder(ParquetFileTestUtils.file(outputFile))
-            .withDataModel(GenericData.get())
-            .withSchema(avroSchemaWithoutIds)
-            .withConf(new Configuration())
-            .build()) {
-      for (Record record : records) {
-        GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
-        for (Types.NestedField field : schema.columns()) {
-          avroRecord.put(field.name(), record.getField(field.name()));
-        }
-
-        writer.write(avroRecord);
-      }
-    }
-
-    try (ParquetFileReader reader =
-        ParquetFileReader.open(ParquetFileTestUtils.file(outputFile.toInputFile()))) {
-      assertThat(ParquetSchemaUtil.hasIds(reader.getFooter().getFileMetaData().getSchema()))
-          .isFalse();
-    }
-  }
-
-  private void writeOrcWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    TypeDescription typeWithIds = ORCSchemaUtil.convert(schema);
-    TypeDescription typeWithoutIds = TestORCSchemaUtil.removeIds(typeWithIds);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-    Path hadoopPath = new Path(outputFile.location());
-
-    Configuration conf = new Configuration();
-    OrcFile.WriterOptions options =
-        OrcFile.writerOptions(conf)
-            .useUTCTimestamp(true)
-            .setSchema(typeWithoutIds)
-            .fileSystem(OrcWritingTestUtils.outputFileSystem(outputFile));
-
-    OrcRowWriter<Record> rowWriter = GenericOrcWriter.buildWriter(schema, typeWithIds);
-
-    try (Writer orcWriter = OrcFile.createWriter(hadoopPath, options)) {
-      VectorizedRowBatch batch = typeWithoutIds.createRowBatch();
-      for (Record record : records) {
-        rowWriter.write(record, batch);
-        if (batch.size == batch.getMaxSize()) {
-          orcWriter.addRowBatch(batch);
-          batch.reset();
-        }
-      }
-
-      if (batch.size > 0) {
-        orcWriter.addRowBatch(batch);
-        batch.reset();
-      }
-    }
-
-    InputFile inputFile = outputFile.toInputFile();
-    try (Reader reader = newOrcReader(inputFile, conf)) {
-      assertThat(TestORCSchemaUtil.hasIds(reader.getSchema())).isFalse();
-    }
+    FileFormatTestSupport.forFormat(fileFormat)
+        .writeRecordsWithoutFieldIds(encryptedFile.encryptingOutputFile(), schema, records);
   }
 
   private void runTypePromotionCheck(
@@ -2293,103 +2147,26 @@ public abstract class BaseFormatModelTests<T> {
     return dataFile;
   }
 
-  private static Reader newOrcReader(InputFile inputFile, Configuration conf) throws IOException {
-    Path hadoopPath = new Path(inputFile.location());
-    OrcFile.ReaderOptions readerOptions =
-        OrcFile.readerOptions(conf)
-            .useUTCTimestamp(true)
-            .filesystem(OrcWritingTestUtils.inputFileSystem(inputFile))
-            .maxLength(inputFile.getLength());
-
-    return OrcFile.createReader(hadoopPath, readerOptions);
-  }
-
   private static String compressionProperty(FileFormat fileFormat) {
-    return switch (fileFormat) {
-      case AVRO -> TableProperties.AVRO_COMPRESSION;
-      case PARQUET -> TableProperties.PARQUET_COMPRESSION;
-      case ORC -> TableProperties.ORC_COMPRESSION;
-      default ->
-          throw new UnsupportedOperationException(
-              "No compression property defined for format: " + fileFormat);
-    };
+    return FileFormatTestSupport.forFormat(fileFormat).compressionProperty();
   }
 
   private static String compressionValue(FileFormat fileFormat) {
-    return switch (fileFormat) {
-      case AVRO, PARQUET -> "uncompressed";
-      case ORC -> "none";
-      default ->
-          throw new UnsupportedOperationException(
-              "No compression value defined for format: " + fileFormat);
-    };
+    return FileFormatTestSupport.forFormat(fileFormat).compressionValue();
   }
 
   private static String expectedCompressionCodec(FileFormat fileFormat) {
-    return switch (fileFormat) {
-      case AVRO -> "null";
-      case PARQUET -> "UNCOMPRESSED";
-      case ORC -> "NONE";
-      default ->
-          throw new UnsupportedOperationException(
-              "No expected compression codec defined for format: " + fileFormat);
-    };
+    return FileFormatTestSupport.forFormat(fileFormat).expectedCompressionCodec();
   }
 
   private String actualCompressionCodec(FileFormat fileFormat) throws IOException {
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-
-    return switch (fileFormat) {
-      case AVRO -> avroMetadataValue(inputFile, "avro.codec");
-      case PARQUET -> parquetCompressionCodec(inputFile);
-      case ORC -> orcCompressionCodec(inputFile);
-      default -> throw new UnsupportedOperationException("Unsupported file format: " + fileFormat);
-    };
-  }
-
-  private static String orcCompressionCodec(InputFile inputFile) throws IOException {
-    try (Reader reader = newOrcReader(inputFile, new Configuration())) {
-      return reader.getCompressionKind().name();
-    }
-  }
-
-  private static String avroMetadataValue(InputFile inputFile, String key) throws IOException {
-    try (DataFileStream<GenericData.Record> reader =
-        new DataFileStream<>(inputFile.newStream(), new GenericDatumReader<>())) {
-      return reader.getMetaString(key);
-    }
-  }
-
-  private static String parquetCompressionCodec(InputFile inputFile) throws IOException {
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetFileTestUtils.file(inputFile))) {
-      return reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name();
-    }
+    return FileFormatTestSupport.forFormat(fileFormat)
+        .actualCompressionCodec(encryptedFile.encryptingOutputFile().toInputFile());
   }
 
   private String fileMetadataValue(FileFormat fileFormat, String key) throws IOException {
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-
-    return switch (fileFormat) {
-      case AVRO -> avroMetadataValue(inputFile, key);
-      case PARQUET -> parquetMetadataValue(inputFile, key);
-      case ORC -> orcMetadataValue(inputFile, key);
-      default -> throw new UnsupportedOperationException("Unsupported file format: " + fileFormat);
-    };
-  }
-
-  private static String parquetMetadataValue(InputFile inputFile, String key) throws IOException {
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetFileTestUtils.file(inputFile))) {
-      return reader.getFooter().getFileMetaData().getKeyValueMetaData().get(key);
-    }
-  }
-
-  private static String orcMetadataValue(InputFile inputFile, String key) throws IOException {
-    try (Reader reader = newOrcReader(inputFile, new Configuration())) {
-      ByteBuffer metadataValue = reader.getMetadataValue(key).duplicate();
-      byte[] bytes = new byte[metadataValue.remaining()];
-      metadataValue.get(bytes);
-      return new String(bytes, StandardCharsets.UTF_8);
-    }
+    return FileFormatTestSupport.forFormat(fileFormat)
+        .metadataValue(encryptedFile.encryptingOutputFile().toInputFile(), key);
   }
 
   @FunctionalInterface
