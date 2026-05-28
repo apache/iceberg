@@ -270,6 +270,10 @@ public class FileMetadata {
             "Content size must be non-negative for DV: %s",
             contentSizeInBytes);
         Preconditions.checkArgument(
+            contentSizeInBytes < Integer.MAX_VALUE,
+            "Content size must be less than 2GB for DV: %s",
+            contentSizeInBytes);
+        Preconditions.checkArgument(
             referencedDataFile != null, "Referenced data file is required for DV");
       } else {
         Preconditions.checkArgument(contentOffset == null, "Content offset can only be set for DV");

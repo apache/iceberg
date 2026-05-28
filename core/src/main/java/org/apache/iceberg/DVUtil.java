@@ -44,7 +44,7 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 
-class DVUtil {
+public class DVUtil {
   private DVUtil() {}
 
   static PositionDeleteIndex readDV(DeleteFile deleteFile, FileIO fileIO) {
@@ -52,7 +52,7 @@ class DVUtil {
         ContentFileUtil.isDV(deleteFile),
         "Cannot read, not a deletion vector: %s",
         deleteFile.location());
-    ContentFileUtil.validateDV(deleteFile);
+    validateDV(deleteFile);
     InputFile inputFile = fileIO.newInputFile(deleteFile);
     long offset = deleteFile.contentOffset();
     int length = deleteFile.contentSizeInBytes().intValue();
@@ -63,6 +63,35 @@ class DVUtil {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  /**
+   * Validates that the deletion-vector offset and length on a {@link DeleteFile} are well-formed
+   * before they are consumed by a reader. Hostile or corrupted manifest metadata may otherwise
+   * trigger a {@link NegativeArraySizeException}, an invalid seek, or a multi-gigabyte allocation
+   * when the DV blob is read.
+   */
+  public static void validateDV(DeleteFile dv) {
+    Preconditions.checkArgument(
+        dv.contentOffset() != null,
+        "Invalid DV, offset cannot be null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() != null,
+        "Invalid DV, length cannot be null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentOffset() >= 0,
+        "Invalid DV, offset must be non-negative: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() >= 0,
+        "Invalid DV, length must be non-negative: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() < Integer.MAX_VALUE,
+        "Can't read DV larger than 2GB: %s",
+        dv.contentSizeInBytes());
   }
 
   /**
