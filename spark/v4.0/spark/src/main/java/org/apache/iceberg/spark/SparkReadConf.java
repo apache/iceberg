@@ -41,7 +41,7 @@ import org.apache.spark.sql.SparkSession;
  * <ol>
  *   <li>Read options
  *   <li>Table-scoped session configuration (e.g. {@code
- *       spark.sql.iceberg.split-size.<catalog>.<database>.<table>})
+ *       spark.sql.iceberg.split-size.catalog.database.table})
  *   <li>Global session configuration (e.g. {@code spark.sql.iceberg.split-size})
  *   <li>Table metadata
  * </ol>
