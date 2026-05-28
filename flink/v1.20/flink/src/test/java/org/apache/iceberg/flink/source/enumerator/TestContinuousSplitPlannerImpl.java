@@ -731,4 +731,65 @@ public class TestContinuousSplitPlannerImpl {
       this.split = split;
     }
   }
+
+  @Test
+  public void testScanReportPopulatedInTableScanResult() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    assertThat(initialResult.scanReport()).isNotNull();
+    assertThat(initialResult.scanReport().scanMetrics()).isNotNull();
+    assertThat(initialResult.scanReport().scanMetrics().totalDataManifests().value())
+        .isGreaterThan(0);
+    assertThat(initialResult.scanReport().scanMetrics().resultDataFiles().value())
+        .isGreaterThan(0);
+    assertThat(initialResult.scanReport().scanMetrics().totalPlanningDuration()).isNotNull();
+    assertThat(
+            initialResult
+                .scanReport()
+                .scanMetrics()
+                .totalPlanningDuration()
+                .totalDuration()
+                .toMillis())
+        .isGreaterThanOrEqualTo(0);
+  }
+
+  @Test
+  public void testScanReportPopulatedInIncrementalResult() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    // Initial plan does a table scan
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    assertThat(initialResult.scanReport()).isNotNull();
+
+    // Append new data so incremental scan has something to discover
+    List<Record> batch =
+        RandomGenericData.generate(TABLE_RESOURCE.table().schema(), 2, 100L);
+    DataFile dataFile = dataAppender.writeFile(null, batch);
+    dataAppender.appendToTable(dataFile);
+
+    // Incremental scan should discover the new snapshot and produce a scan report
+    ContinuousEnumerationResult incrementalResult =
+        splitPlanner.planSplits(initialResult.toPosition());
+    assertThat(incrementalResult.scanReport()).isNotNull();
+    assertThat(incrementalResult.scanReport().scanMetrics()).isNotNull();
+    assertThat(incrementalResult.scanReport().scanMetrics().totalDataManifests().value())
+        .isGreaterThan(0);
+    assertThat(incrementalResult.scanReport().scanMetrics().resultDataFiles().value())
+        .isGreaterThan(0);
+  }
 }

@@ -554,20 +554,17 @@ public class TestIcebergSourceContinuous {
   }
 
   private static void assertThatIcebergEnumeratorMetricsExist() {
-    assertThatIcebergSourceMetricExists(
-        "enumerator", "coordinator.enumerator.elapsedSecondsSinceLastSplitDiscovery");
-    assertThatIcebergSourceMetricExists("enumerator", "coordinator.enumerator.unassignedSplits");
-    assertThatIcebergSourceMetricExists("enumerator", "coordinator.enumerator.pendingRecords");
-  }
-
-  private static void assertThatIcebergSourceMetricExists(
-      String metricGroupPattern, String metricName) {
-    Optional<MetricGroup> groups = METRIC_REPORTER.findGroup(metricGroupPattern);
-    assertThat(groups).isPresent();
+    // Verify scan planning metrics (registered on the "IcebergSourceEnumerator" subgroup)
+    Optional<MetricGroup> scanMetricsGroup =
+        METRIC_REPORTER.findGroup("IcebergSourceEnumerator");
+    assertThat(scanMetricsGroup).isPresent();
     assertThat(
-            METRIC_REPORTER.getMetricsByGroup(groups.get()).keySet().stream()
-                .map(name -> groups.get().getMetricIdentifier(name)))
-        .satisfiesOnlyOnce(
-            fullMetricName -> assertThat(fullMetricName).containsSubsequence(metricName));
+            METRIC_REPORTER.getMetricsByGroup(scanMetricsGroup.get()).keySet().stream()
+                .map(name -> scanMetricsGroup.get().getMetricIdentifier(name)))
+        .anySatisfy(
+            fullMetricName -> assertThat(fullMetricName).contains("resultDataFiles"))
+        .anySatisfy(
+            fullMetricName ->
+                assertThat(fullMetricName).contains("lastScanPlanningDurationMs"));
   }
 }

@@ -62,13 +62,15 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   private transient int consecutiveFailures = 0;
 
   private final ElapsedTimeGauge elapsedSecondsSinceLastSplitDiscovery;
+  private final IcebergSourceEnumeratorMetrics enumeratorMetrics;
 
   public ContinuousIcebergEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
       SplitAssigner assigner,
       ScanContext scanContext,
       ContinuousSplitPlanner splitPlanner,
-      @Nullable IcebergEnumeratorState enumState) {
+      @Nullable IcebergEnumeratorState enumState,
+      String tableName) {
     super(enumeratorContext, assigner);
 
     this.enumeratorContext = enumeratorContext;
@@ -78,6 +80,8 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     this.enumeratorPosition = new AtomicReference<>();
     this.enumerationHistory = new EnumerationHistory(ENUMERATION_SPLIT_COUNT_HISTORY_SIZE);
     this.elapsedSecondsSinceLastSplitDiscovery = new ElapsedTimeGauge(TimeUnit.SECONDS);
+    this.enumeratorMetrics =
+        new IcebergSourceEnumeratorMetrics(enumeratorContext.metricGroup(), tableName);
     this.enumeratorContext
         .metricGroup()
         .gauge("elapsedSecondsSinceLastSplitDiscovery", elapsedSecondsSinceLastSplitDiscovery);
@@ -150,6 +154,9 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
             result.fromPosition());
       } else {
         elapsedSecondsSinceLastSplitDiscovery.refreshLastRecordedTime();
+        if (result.scanReport() != null && result.scanReport().scanMetrics() != null) {
+          enumeratorMetrics.updateWithScanMetrics(result.scanReport().scanMetrics());
+        }
         // Sometimes, enumeration may yield no splits for a few reasons.
         // - upstream paused or delayed streaming writes to the Iceberg table.
         // - enumeration frequency is higher than the upstream write frequency.

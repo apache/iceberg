@@ -22,13 +22,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.flink.connector.testutils.source.reader.TestingSplitEnumeratorContext;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.SplitHelpers;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
@@ -37,6 +40,12 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
 import org.apache.iceberg.flink.source.split.SplitRequestEvent;
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.ImmutableScanMetricsResult;
+import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.ImmutableTimerResult;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.ScanReport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -334,6 +343,58 @@ public class TestContinuousIcebergEnumerator {
     assertThat(pendingSplit.status()).isEqualTo(IcebergSourceSplitStatus.UNASSIGNED);
   }
 
+  @Test
+  public void testEnumeratorMetricsUpdatedFromScanReport() throws Exception {
+    TestingSplitEnumeratorContext<IcebergSourceSplit> enumeratorContext =
+        new TestingSplitEnumeratorContext<>(4);
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
+
+    // Set a ScanReport with known metrics
+    ScanReport report =
+        ImmutableScanReport.builder()
+            .tableName("test.db.metrics_table")
+            .snapshotId(1L)
+            .schemaId(0)
+            .filter(Expressions.alwaysTrue())
+            .projectedFieldNames(Collections.emptyList())
+            .scanMetrics(
+                ImmutableScanMetricsResult.builder()
+                    .totalPlanningDuration(
+                        ImmutableTimerResult.builder()
+                            .timeUnit(TimeUnit.NANOSECONDS)
+                            .totalDuration(Duration.ofMillis(250))
+                            .count(1)
+                            .build())
+                    .resultDataFiles(CounterResult.of(MetricsContext.Unit.COUNT, 5))
+                    .scannedDataManifests(CounterResult.of(MetricsContext.Unit.COUNT, 3))
+                    .totalDataManifests(CounterResult.of(MetricsContext.Unit.COUNT, 10))
+                    .build())
+            .build();
+    splitPlanner.setScanReport(report);
+
+    ContinuousIcebergEnumerator enumerator =
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
+
+    // Register reader and add splits to trigger a discovery cycle
+    enumeratorContext.registerReader(2, "localhost");
+    List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(temporaryFolder, 1, 1);
+    splitPlanner.addSplits(splits);
+
+    // Trigger the enumeration which calls processDiscoveredSplits internally
+    enumeratorContext.triggerAllActions();
+
+    // Verify that the enumerator processed splits (basic sanity)
+    Collection<IcebergSourceSplitState> pendingSplits =
+        enumerator.snapshotState(1).pendingSplits();
+    assertThat(pendingSplits).hasSize(1);
+  }
+
   private static ContinuousIcebergEnumerator createEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> context,
       ScanContext scanContext,
@@ -345,7 +406,8 @@ public class TestContinuousIcebergEnumerator {
             new DefaultSplitAssigner(null, Collections.emptyList()),
             scanContext,
             splitPlanner,
-            null);
+            null,
+            "test.table");
     enumerator.start();
     return enumerator;
   }

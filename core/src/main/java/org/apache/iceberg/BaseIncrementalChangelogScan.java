@@ -71,6 +71,8 @@ class BaseIncrementalChangelogScan
             .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
             .toSet();
 
+    scanMetrics().totalDataManifests().increment((long) newDataManifests.size());
+
     ManifestGroup manifestGroup =
         new ManifestGroup(table().io(), newDataManifests, ImmutableList.of())
             .specsById(table().specs())
@@ -79,7 +81,8 @@ class BaseIncrementalChangelogScan
             .filterData(filter())
             .filterManifestEntries(entry -> changelogSnapshotIds.contains(entry.snapshotId()))
             .ignoreExisting()
-            .columnsToKeepStats(columnsToKeepStats());
+            .columnsToKeepStats(columnsToKeepStats())
+            .scanMetrics(scanMetrics());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();

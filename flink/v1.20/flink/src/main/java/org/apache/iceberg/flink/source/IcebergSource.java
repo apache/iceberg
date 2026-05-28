@@ -221,7 +221,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ContinuousSplitPlanner splitPlanner =
           new ContinuousSplitPlannerImpl(tableLoader, scanContext, planningThreadName());
       return new ContinuousIcebergEnumerator(
-          enumContext, assigner, scanContext, splitPlanner, enumState);
+          enumContext, assigner, scanContext, splitPlanner, enumState, tableName);
     } else {
       if (enumState == null) {
         // Only do scan planning if nothing is restored from checkpoint state

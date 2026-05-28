@@ -32,6 +32,8 @@ import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -131,15 +133,19 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       ScanContext incrementalScan =
           scanContext.copyWithAppendsBetween(
               lastPosition.snapshotId(), toSnapshotInclusive.snapshotId());
+      InMemoryMetricsReporter metricsReporter = new InMemoryMetricsReporter();
       List<IcebergSourceSplit> splits =
-          FlinkSplitPlanner.planIcebergSourceSplits(table, incrementalScan, workerPool);
+          FlinkSplitPlanner.planIcebergSourceSplits(
+              table, incrementalScan, workerPool, metricsReporter);
+      ScanReport scanReport = metricsReporter.scanReport();
+      metricsReporter.close();
       LOG.info(
           "Discovered {} splits from incremental scan: "
               + "from snapshot (exclusive) is {}, to snapshot (inclusive) is {}",
           splits.size(),
           lastPosition,
           newPosition);
-      return new ContinuousEnumerationResult(splits, lastPosition, newPosition);
+      return new ContinuousEnumerationResult(splits, lastPosition, newPosition, scanReport);
     }
   }
 
@@ -166,13 +172,20 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
         startSnapshot.snapshotId(),
         scanContext.streamingStartingStrategy());
     List<IcebergSourceSplit> splits = Collections.emptyList();
+    ScanReport scanReport = null;
     IcebergEnumeratorPosition toPosition;
     if (scanContext.streamingStartingStrategy()
         == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
       // do a batch table scan first
+      InMemoryMetricsReporter metricsReporter = new InMemoryMetricsReporter();
       splits =
           FlinkSplitPlanner.planIcebergSourceSplits(
-              table, scanContext.copyWithSnapshotId(startSnapshot.snapshotId()), workerPool);
+              table,
+              scanContext.copyWithSnapshotId(startSnapshot.snapshotId()),
+              workerPool,
+              metricsReporter);
+      scanReport = metricsReporter.scanReport();
+      metricsReporter.close();
       LOG.info(
           "Discovered {} splits from initial batch table scan with snapshot Id {}",
           splits.size(),
@@ -207,7 +220,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
           startSnapshot.timestampMillis());
     }
 
-    return new ContinuousEnumerationResult(splits, null, toPosition);
+    return new ContinuousEnumerationResult(splits, null, toPosition, scanReport);
   }
 
   /**
