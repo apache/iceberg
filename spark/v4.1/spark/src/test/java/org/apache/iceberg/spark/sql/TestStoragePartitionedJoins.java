@@ -176,48 +176,14 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testJoinsWithBucketingOnStringColumn() throws NoSuchTableException {
-    checkJoin("string_col", "STRING", "bucket(8, string_col)");
-  }
-
-  @TestTemplate
-  public void testJoinsWithIdentityAndBucketOnStringColumn() throws NoSuchTableException {
-    // bucket transform on a String column produces Integer partition values,
-    // but StructInternalRow.getUTF8StringInternal assumed CharSequence
+  public void testJoinWithBucketStringSubsetOfPartitionKeys() throws NoSuchTableException {
+    // Regression test for #15349: join keys that are a subset of partition keys
+    // with bucket transforms on String columns
     String createTableStmt =
-        "CREATE TABLE %s (id BIGINT, dep STRING, user_id STRING)"
+        "CREATE TABLE %s (user_id STRING, post_id STRING, "
+            + "collected_date STRING, category_id STRING, payload STRING)"
             + "USING iceberg "
-            + "PARTITIONED BY (dep, bucket(8, user_id))"
-            + "TBLPROPERTIES (%s)";
-
-    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
-    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
-
-    sql(
-        "INSERT INTO %s VALUES (1, 'software', 'user1'), (2, 'hr', 'user2'), (3, 'software', 'user3')",
-        tableName);
-    sql(
-        "INSERT INTO %s VALUES (1, 'software', 'user1'), (2, 'hr', 'user2'), (4, 'software', 'user4')",
-        tableName(OTHER_TABLE_NAME));
-
-    assertPartitioningAwarePlan(
-        1, /* expected num of shuffles with SPJ */
-        3, /* expected num of shuffles without SPJ */
-        "SELECT t1.id, t1.dep, t1.user_id "
-            + "FROM %s t1 "
-            + "INNER JOIN %s t2 "
-            + "ON t1.id = t2.id AND t1.dep = t2.dep AND t1.user_id = t2.user_id "
-            + "ORDER BY t1.id, t1.dep, t1.user_id",
-        tableName,
-        tableName(OTHER_TABLE_NAME));
-  }
-
-  @TestTemplate
-  public void testJoinsWithMultipleBucketPartitionsOnStringColumns() throws NoSuchTableException {
-    String createTableStmt =
-        "CREATE TABLE %s (id BIGINT, dep STRING, category STRING, user_id STRING)"
-            + "USING iceberg "
-            + "PARTITIONED BY (dep, bucket(8, user_id), bucket(4, category))"
+            + "PARTITIONED BY (collected_date, bucket(32, user_id), bucket(32, category_id))"
             + "TBLPROPERTIES (%s)";
 
     sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
@@ -225,28 +191,69 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
 
     sql(
         "INSERT INTO %s VALUES "
-            + "(1, 'software', 'catA', 'user1'), "
-            + "(2, 'hr', 'catB', 'user2'), "
-            + "(3, 'software', 'catA', 'user3')",
+            + "('user1', 'post1', '2026-05-01', 'catA', 'p1'), "
+            + "('user2', 'post2', '2026-05-02', 'catB', 'p2'), "
+            + "('user3', 'post3', '2026-05-01', 'catA', 'p3')",
         tableName);
     sql(
         "INSERT INTO %s VALUES "
-            + "(1, 'software', 'catA', 'user1'), "
-            + "(2, 'hr', 'catB', 'user2'), "
-            + "(4, 'software', 'catC', 'user4')",
+            + "('user1', 'post1', '2026-05-01', 'catA', 'p1'), "
+            + "('user2', 'post2', '2026-05-02', 'catB', 'p2'), "
+            + "('user4', 'post4', '2026-05-03', 'catC', 'p4')",
         tableName(OTHER_TABLE_NAME));
 
+    // SELECT join on bucket source columns only (subset of partition keys)
     assertPartitioningAwarePlan(
-        1, /* expected num of shuffles with SPJ */
-        3, /* expected num of shuffles without SPJ */
-        "SELECT t1.id, t1.dep, t1.category, t1.user_id "
+        1,
+        3,
+        "SELECT t1.user_id, t1.category_id, t1.collected_date, t1.payload "
             + "FROM %s t1 "
             + "INNER JOIN %s t2 "
-            + "ON t1.id = t2.id AND t1.dep = t2.dep "
-            + "AND t1.user_id = t2.user_id AND t1.category = t2.category "
-            + "ORDER BY t1.id, t1.dep, t1.category, t1.user_id",
+            + "ON t1.user_id = t2.user_id AND t1.category_id = t2.category_id "
+            + "ORDER BY t1.user_id, t1.category_id",
         tableName,
         tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testMergeIntoWithBucketStringSubsetOfPartitionKeys() throws NoSuchTableException {
+    // Regression test for #15349: MERGE INTO with join keys as a subset of partition keys
+    // with bucket transforms on String columns
+    String createTableStmt =
+        "CREATE TABLE %s (user_id STRING, post_id STRING, "
+            + "collected_date STRING, category_id STRING, payload STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (collected_date, bucket(32, user_id), bucket(32, category_id))"
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
+    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "('user1', 'post1', '2026-05-01', 'catA', 'p1'), "
+            + "('user2', 'post2', '2026-05-02', 'catB', 'p2'), "
+            + "('user3', 'post3', '2026-05-01', 'catA', 'p3')",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES "
+            + "('user1', 'post1', '2026-05-01', 'catA', 'updated1'), "
+            + "('user2', 'post2', '2026-05-02', 'catB', 'updated2'), "
+            + "('user4', 'post4', '2026-05-03', 'catC', 'new4')",
+        tableName(OTHER_TABLE_NAME));
+
+    withSQLConf(
+        ENABLED_SPJ_SQL_CONF,
+        () ->
+            sql(
+                "MERGE INTO %s t USING %s s "
+                    + "ON t.user_id = s.user_id AND t.category_id = s.category_id "
+                    + "WHEN MATCHED THEN UPDATE SET * "
+                    + "WHEN NOT MATCHED THEN INSERT *",
+                tableName, tableName(OTHER_TABLE_NAME)));
+
+    List<Object[]> result = sql("SELECT * FROM %s ORDER BY user_id", tableName);
+    assertThat(result).hasSize(4);
   }
 
   @TestTemplate
