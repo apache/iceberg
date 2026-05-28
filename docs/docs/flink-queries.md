@@ -71,7 +71,7 @@ Here is the SQL setting to opt in or out of the
 
 ```sql
 -- Opt out the FLIP-27 source.
--- Default is false for Flink 1.19 and below, and true for Flink 1.20 and above.
+-- Default is true for all supported Flink versions.
 SET table.exec.iceberg.use-flip27-source = false;
 ```
 
