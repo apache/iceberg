@@ -2061,10 +2061,12 @@ components:
 
       required: false
       schema:
-        type: string
-        enum:
-          - vended-credentials
-          - remote-signing
+        type: array
+        items:
+          type: string
+          enum:
+            - vended-credentials
+            - remote-signing
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
