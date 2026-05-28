@@ -204,14 +204,14 @@ A change to the materialized view's definition produces a new `view-version-id`;
 
 #### Refresh state
 
-The refresh state record captures the state of dependencies in the materialized view's dependency graph. A dependency is recorded in `source-states` as either a `table` entry (a source table or an upstream materialized view's storage table) and/or a `view` entry. Upstream materialized views can be stored as a `view` and a `table` entry.
+The refresh state record captures the state of dependencies that the producer chose to track from the materialized view's dependency graph. A dependency is recorded in `source-states` as either a `table` entry (a source table or an upstream materialized view's storage table) and/or a `view` entry. Upstream materialized views can be stored as a `view` and a `table` entry.
 
 The refresh state has the following fields:
 
 | Requirement | Field name                   | Description |
 |-------------|------------------------------|-------------|
 | _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
-| _required_  | `source-states`              | A list of [source state](#source-state) records |
+| _required_  | `source-states`              | A list of [source state](#source-state) records capturing the dependencies the producer chose to track; may be empty |
 | _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 
 ##### Producer: Recording Refresh State
@@ -543,48 +543,121 @@ The following is an example of the `refresh-state` JSON value stored in the snap
 }
 ```
 
-## Appendix B: What counts as a dependency
+## Appendix B: Example strategies for selecting dependencies
 
-The dependencies of a materialized view are determined by parsing the view query:
+Producers may select different sets of dependencies to record in the refresh state. The strategies below illustrate common choices against the same shared query.
 
-- **Base Iceberg tables** in the dependency graph are recorded by `snapshot-id`.
-- **Iceberg views** in the dependency graph are recorded by `version-id`. A view's own dependencies are transitive dependencies of the materialized view and appear as additional entries in `source-states`.
-- **Upstream materialized views** in the dependency graph are treated as their storage tables and recorded by the storage table's `snapshot-id`. Their own freshness is established recursively from their `refresh-state`.
-
-### Example
-
-The query under examination:
+### Shared query
 
 - `A` (the materialized view being refreshed): `SELECT ... FROM B JOIN C ON ...`
 - `B` (regular view): `SELECT ... FROM E JOIN D ON ...`
-- `C` (materialized view): `SELECT ... FROM F JOIN G ON ...`
-- `D` (materialized view): `SELECT ... FROM H WHERE ...`
+- `C` (regular view or materialized view, varies by strategy): `SELECT ... FROM F JOIN G ON ...`
+- `D` (regular view or materialized view, varies by strategy): `SELECT ... FROM H WHERE ...`
 - `E`, `F`, `G`, `H`: base Iceberg tables
 
-`A`'s direct dependencies are `B` and `C`. Because `B` is a regular view, its own dependencies (`E` and `D`) are transitively included in `A`'s `source-states`. `C` and `D` are upstream materialized views; they appear in `A`'s `source-states` as their storage tables.
+### Strategy 1: Track all nested tables and views (no nested MVs)
+
+The view query reads only base tables and regular views. The refresh state tracks snapshot IDs of all deeply nested base tables and version IDs of all views traversed. Reuse of the storage table is sensitive to changes in any of them.
+
+`C` and `D` are regular views.
 
 ```
 A [MV — being refreshed]
-├── B [VIEW]                            <-- recorded in A: version-id
-│   ├── E [TABLE]                       <-- recorded in A: snapshot-id
-│   └── D [MV]                          <-- recorded in A: storage-table snapshot-id
+├── B [VIEW]                            <-- recorded in A: version-id: 5
+│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
+│   └── D [VIEW]                        <-- recorded in A: version-id: 9
+│       └── H [TABLE]                   <-- recorded in A: snapshot-id: 104
+└── C [VIEW]                            <-- recorded in A: version-id: 7
+    ├── F [TABLE]                       <-- recorded in A: snapshot-id: 102
+    └── G [TABLE]                       <-- recorded in A: snapshot-id: 103
+```
+
+### Strategy 2: Treat nested materialized views as tables
+
+Same as Strategy 1, but the query reads from materialized views. The producer stops at each MV boundary and records the MV's storage table snapshot ID. No expansion beyond the MV.
+
+`C` and `D` are materialized views, treated as tables.
+
+```
+A [MV — being refreshed]
+├── B [VIEW]                            <-- recorded in A: version-id: 5
+│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
+│   └── D [MV]                          <-- recorded in A: storage-table snapshot-id: 14
 │       ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
 │       └── H [TABLE]                   (D's dependency; verified via D's refresh-state)
-└── C [MV]                              <-- recorded in A: storage-table snapshot-id
+└── C [MV]                              <-- recorded in A: storage-table snapshot-id: 12
     ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
     ├── F [TABLE]                       (C's dependency; verified via C's refresh-state)
     └── G [TABLE]                       (C's dependency; verified via C's refresh-state)
 ```
 
-`A`'s `source-states`:
+`F`, `G`, and `H` do not appear in `A`'s `source-states`; they belong to `C` and `D`'s dependency graphs.
 
-| type    | name          | recorded id        |
-|---------|---------------|--------------------|
-| `view`  | `B`           | `version-id: 5`    |
-| `table` | `E`           | `snapshot-id: 101` |
-| `table` | `C` (storage) | `snapshot-id: 12`  |
-| `table` | `D` (storage) | `snapshot-id: 14`  |
+### Strategy 3: Treat nested materialized views as views
 
-`F`, `G`, and `H` do not appear in `A`'s `source-states` directly; they belong to `C` and `D`'s dependency sets and are reached recursively through `C` and `D`'s refresh states.
+Same as Strategy 1, but the query reads from materialized views. The producer treats each materialized view as a regular view: expand through the MV's view definition and record the underlying tables and views. The MV's storage table snapshot ID is **not** recorded.
 
-A consumer establishes `A`'s freshness by checking each entry in `source-states` against the current catalog state. For `C` and `D`, the consumer compares the recorded storage-table snapshot to the current snapshot, then recurses into their `refresh-state` to verify each is itself fresh.
+`C` and `D` are materialized views, treated as views (expanded).
+
+```
+A [MV — being refreshed]
+├── B [VIEW]                            <-- recorded in A: version-id: 5
+│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
+│   └── D [MV — expanded as view]       <-- recorded in A: version-id: 9
+│       └── H [TABLE]                   <-- recorded in A: snapshot-id: 104
+└── C [MV — expanded as view]           <-- recorded in A: version-id: 7
+    ├── F [TABLE]                       <-- recorded in A: snapshot-id: 102
+    └── G [TABLE]                       <-- recorded in A: snapshot-id: 103
+```
+
+The recorded shape matches Strategy 1. The difference is semantic: `C` and `D` are materialized views whose view definitions were expanded; their storage tables are not part of the recorded state.
+
+### Strategy 4: Track only view versions
+
+The producer treats the storage table as reusable as long as the view definitions in the dependency chain are unchanged. Underlying table changes do not affect freshness. Only view version IDs are recorded.
+
+`C` and `D` are regular views.
+
+```
+A [MV — being refreshed]
+├── B [VIEW]                            <-- recorded in A: version-id: 5
+│   ├── E [TABLE]                       (not recorded)
+│   └── D [VIEW]                        <-- recorded in A: version-id: 9
+│       └── H [TABLE]                   (not recorded)
+└── C [VIEW]                            <-- recorded in A: version-id: 7
+    ├── F [TABLE]                       (not recorded)
+    └── G [TABLE]                       (not recorded)
+```
+
+Snapshots of `E`, `F`, `G`, `H` are not recorded. Reuse is sensitive to view-definition changes but insensitive to data changes in the underlying tables.
+
+### Strategy 5: Empty refresh state (recency only)
+
+The producer leaves `source-states` empty and relies entirely on `refresh-start-timestamp-ms`. Consumers reuse the storage table based on a recency policy alone.
+
+`A`'s refresh state:
+
+```json
+{
+  "view-version-id": 1,
+  "refresh-start-timestamp-ms": 1573518435000,
+  "source-states": []
+}
+```
+
+### Strategy 6: Skip non-Iceberg dependencies
+
+The producer records only Iceberg sources and omits non-Iceberg dependencies entirely. Useful when the view query reads from a mix of Iceberg and non-Iceberg sources and the producer chooses to track only the Iceberg side.
+
+Assume the query reads from base Iceberg tables `E`, `F`, `G`, `H` and an additional non-Iceberg table `N`.
+
+```
+A [MV — being refreshed]
+├── E [TABLE]                           <-- recorded in A: snapshot-id: 101
+├── F [TABLE]                           <-- recorded in A: snapshot-id: 102
+├── G [TABLE]                           <-- recorded in A: snapshot-id: 103
+├── H [TABLE]                           <-- recorded in A: snapshot-id: 104
+└── N [NON-ICEBERG TABLE]               (omitted; not tracked)
+```
+
+`N` is omitted. Consumers cannot verify `N`'s state from the refresh state alone.
