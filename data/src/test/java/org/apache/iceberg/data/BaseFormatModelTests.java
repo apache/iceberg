@@ -205,6 +205,18 @@ public abstract class BaseFormatModelTests<T> {
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
+  /** Write with engine type T without explicit engineSchema, read with Generic Record */
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  void testDataWriterEngineWriteWithoutEngineSchema(
+      FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
+    Schema schema = dataGenerator.schema();
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+  }
+
   /** Write with Generic Record, read with engine type T */
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
@@ -1614,7 +1626,7 @@ public abstract class BaseFormatModelTests<T> {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Already exists");
 
-    genericRecords = dataGenerator.generateRecords();
+    genericRecords = dataGenerator.generateRecords(20);
     writeEngineRecords(fileFormat, schema, convertToEngineRecords(genericRecords, schema), true);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
