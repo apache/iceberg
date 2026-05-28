@@ -424,12 +424,12 @@ class TestTableMaintenance extends OperatorTestBase {
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       String name = TASKS[id];
-      return trigger
-          .map(new DummyMaintenanceTask(success))
-          .name(name)
-          .uid(uidSuffix() + "-test-mapper-" + name + "-" + id)
-          .slotSharingGroup(slotSharingGroup())
-          .forceNonParallel();
+      return setSlotSharingGroup(
+          trigger
+              .map(new DummyMaintenanceTask(success))
+              .name(name)
+              .uid(uidSuffix() + "-test-mapper-" + name + "-" + id)
+              .forceNonParallel());
     }
   }
 

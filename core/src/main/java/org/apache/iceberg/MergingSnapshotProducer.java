@@ -1250,7 +1250,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     @Override
     protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
-      return MergingSnapshotProducer.this.newManifestReader(manifest);
+      return newManifestReader(manifest, true);
+    }
+
+    @Override
+    protected ManifestReader<DataFile> newManifestReader(
+        ManifestFile manifest, boolean isCommitted) {
+      return ManifestFiles.read(manifest, ops().io(), ops().current().specsById(), isCommitted);
     }
   }
 

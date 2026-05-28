@@ -42,6 +42,7 @@ on:
     - '.github/workflows/labeler.yml'
     - '.github/workflows/license-check.yml'
     - '.github/workflows/open-api.yml'
+    - '.github/workflows/pr-title-check.yml'
     - '.github/workflows/publish-snapshot.yml'
     - '.github/workflows/recurring-jmh-benchmarks.yml'
     - '.github/workflows/site-ci.yml'
@@ -74,17 +75,21 @@ concurrency:
 jobs:
   spark-tests:
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     strategy:
-      max-parallel: 15
+      # 20 is the Apache infra policy ceiling (https://infra.apache.org/github-actions-policy.html).
+      # Keep matrix <= 20 jobs; exceeding it queues a second wave and slows CI.
+      max-parallel: 20
       matrix:
         jvm: [17, 21]
-        spark: ['3.4', '3.5', '4.0', '4.1']
+        spark: ['3.5', '4.0', '4.1']
         scala: ['2.12', '2.13']
+        # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
+        # so they run as concurrent jobs rather than serially in one job.
+        tests: [core, extensions]
         exclude:
           # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
           # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
-          - jvm: 21
-            spark: '3.4'
           - spark: '4.0'
             scala: '2.12'
           - spark: '4.1'
@@ -100,19 +105,23 @@ jobs:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
-      - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
-          tool-cache: false
+          # Read-only: java-ci's build-checks (17) is the global canonical writer.
+          cache-read-only: true
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: |
+      - name: Run tests
+        run: |
+          if [[ "${{ matrix.tests }}" == "core" ]]; then
+            projects=":iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          else
+            projects=":iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          fi
           ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DflinkVersions= -DkafkaVersions= \
-            :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check \
-            :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check \
-            :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check \
-            -Pquick=true -x javadoc
+            $projects -Pquick=true -x javadoc -DtestParallelism=auto
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: test logs
+          name: test logs (${{ matrix.jvm }}, ${{ matrix.spark }}, ${{ matrix.scala }}, ${{ matrix.tests }})
+          retention-days: 7
           path: |
             **/build/testlogs

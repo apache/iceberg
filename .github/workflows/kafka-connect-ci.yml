@@ -40,6 +40,7 @@ on:
     - '.github/workflows/labeler.yml'
     - '.github/workflows/license-check.yml'
     - '.github/workflows/open-api.yml'
+    - '.github/workflows/pr-title-check.yml'
     - '.github/workflows/publish-snapshot.yml'
     - '.github/workflows/recurring-jmh-benchmarks.yml'
     - '.github/workflows/site-ci.yml'
@@ -90,6 +91,9 @@ jobs:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
     - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+      with:
+        # Read-only: java-ci's build-checks (17) is the global canonical writer.
+        cache-read-only: true
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: |
         ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \

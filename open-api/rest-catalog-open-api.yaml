@@ -1217,6 +1217,56 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/unregister:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Unregister a table without removing its data or metadata files
+      operationId: unregisterTable
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      description:
+        Unregister a table from the catalog. This is the opposite of
+        `registerTable`. The table no longer exists in the catalog, but the
+        underlying data and metadata files are left in place so that the table
+        can be registered in another catalog.
+
+
+        On success, this returns the table's last metadata location and the
+        corresponding table metadata. This table metadata must include all
+        commits that happened before the unregister operation. All attempted
+        commits after the unregister operation in this catalog must fail.
+      responses:
+        200:
+          $ref: '#/components/responses/UnregisterTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to unregister does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToUnregisterDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -2266,6 +2316,17 @@ components:
         name:
           type: string
           nullable: false
+
+    CatalogObjectIdentifier:
+      description:
+        Reference to a catalog object (for example, table, view, or namespace) as
+        an ordered list of hierarchical levels.
+        The object kind is determined by context (e.g. the endpoint or a
+        companion type discriminator), not by the identifier structure alone.
+      type: array
+      items:
+        type: string
+      example: [ "accounting", "tax", "paid" ]
 
     PrimitiveType:
       type: string
@@ -3781,6 +3842,23 @@ components:
           type: boolean
           default: false
 
+    UnregisterTableResult:
+      description:
+        Last metadata location and the corresponding table metadata for the
+        table that was successfully unregistered and is no longer tracked by
+        the catalog.
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+          description:
+            The last metadata location for the table at the time it was unregistered.
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
+
     CreateViewRequest:
       type: object
       required:
@@ -5047,6 +5125,13 @@ components:
       headers:
         etag:
           $ref: '#/components/parameters/etag'
+
+    UnregisterTableResponse:
+      description: Response when a table is successfully unregistered.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnregisterTableResult'
 
     LoadViewResponse:
       description: View metadata result when loading a view

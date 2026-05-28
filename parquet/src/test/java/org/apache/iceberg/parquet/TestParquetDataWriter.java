@@ -26,6 +26,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -370,7 +372,7 @@ public class TestParquetDataWriter {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema),
             testAnalyzer,
-            record -> record);
+            (Function<Void, UnaryOperator<Record>>) unused -> record -> record);
 
     try (FileAppender<Record> appender =
         model
@@ -401,7 +403,7 @@ public class TestParquetDataWriter {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema),
             null,
-            null);
+            (Function<Void, UnaryOperator<Record>>) null);
 
     try (FileAppender<Record> appender =
         model
@@ -471,7 +473,7 @@ public class TestParquetDataWriter {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema),
             analyzer,
-            record1 -> record1);
+            (Function<Void, UnaryOperator<Record>>) unused -> record1 -> record1);
 
     try (FileAppender<Record> appender =
         model
