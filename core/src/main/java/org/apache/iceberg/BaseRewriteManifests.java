@@ -180,7 +180,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       keepActiveManifests(currentManifests);
     }
 
-    prepareRewrittenAddedManifests();
+  if (rewrittenAddedManifests.isEmpty() && !pendingAddedManifests.isEmpty()) {                                                                                                                                                                                                                                                                                                                                                               
+    ManifestFile[] copied = new ManifestFile[pendingAddedManifests.size()];                                                                                                                                                                                                                                                                                                                                                                  
+    Tasks.range(copied.length)                                                                                                                                                                                                                                                                                                                                                                                 
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())                                                                                                                                                                                                                                                                                                                                                                                                     
+        .run(index -> copied[index] = copyManifest(pendingAddedManifests.get(index)));                                                                                                                                                                                                                                                                                                                                                       
+    Collections.addAll(rewrittenAddedManifests, copied);                                                                                                                                                                                                                                                                                                                                                                               
+  }                                                     
     validateFilesCounts();
 
     Iterable<ManifestFile> newManifestsWithMetadata =
