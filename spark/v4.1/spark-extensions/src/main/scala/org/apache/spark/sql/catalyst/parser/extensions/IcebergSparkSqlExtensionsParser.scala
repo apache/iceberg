@@ -33,6 +33,7 @@ import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.parser.ParameterContext
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
@@ -122,6 +123,22 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
         .asInstanceOf[LogicalPlan]
     } else {
       RewriteViewCommands(SparkSession.active).apply(delegate.parsePlan(sqlText))
+    }
+  }
+
+  /**
+   * Parse a string to a LogicalPlan, binding the given parameters.
+   */
+  override def parsePlanWithParameters(
+      sqlText: String,
+      parameterContext: ParameterContext): LogicalPlan = {
+    val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
+    if (isIcebergCommand(sqlTextAfterSubstitution)) {
+      parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }
+        .asInstanceOf[LogicalPlan]
+    } else {
+      RewriteViewCommands(SparkSession.active)
+        .apply(delegate.parsePlanWithParameters(sqlText, parameterContext))
     }
   }
 
