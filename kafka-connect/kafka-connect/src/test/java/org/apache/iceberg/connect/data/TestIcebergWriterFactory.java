@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -41,7 +42,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -95,5 +100,41 @@ public class TestIcebergWriterFactory {
     assertThat(capturedArguments.get(0)).isEqualTo(Namespace.of("foo1"));
     assertThat(capturedArguments.get(1)).isEqualTo(Namespace.of("foo1", "foo2"));
     assertThat(capturedArguments.get(2)).isEqualTo(Namespace.of("foo1", "foo2", "foo3"));
+  }
+
+  // schema-force-optional=true with id-columns configured: Kafka field is required but the config
+  // flag forces every Iceberg field optional, so the combination is rejected at the connector
+  // layer.
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testAutoCreateTableRejectsIdColumnsWithSchemaForceOptional() {
+    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(SupportsNamespaces.class));
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.partitionBy()).thenReturn(ImmutableList.of());
+    when(tableConfig.idColumns()).thenReturn(ImmutableList.of("id"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateProps()).thenReturn(ImmutableMap.of());
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+    when(config.schemaForceOptional()).thenReturn(true);
+
+    org.apache.kafka.connect.data.Schema valueSchema =
+        SchemaBuilder.struct()
+            .field("id", org.apache.kafka.connect.data.Schema.INT64_SCHEMA)
+            .build();
+
+    SinkRecord record = mock(SinkRecord.class);
+    when(record.valueSchema()).thenReturn(valueSchema);
+    when(record.value()).thenReturn(new Struct(valueSchema).put("id", 1L));
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+
+    assertThatThrownBy(() -> factory.autoCreateTable("foo.bar", record))
+        .isInstanceOf(DataException.class)
+        .hasMessageContaining("schema-force-optional")
+        .hasMessageContaining("id-columns")
+        .hasMessageContaining("foo.bar");
   }
 }
