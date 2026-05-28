@@ -422,6 +422,71 @@ class TestDynamicCommitter {
   }
 
   @Test
+  void testCommitsLandInCheckpointOrderAcrossJobIds() throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    boolean overwriteMode = false;
+    int workerPoolSize = 1;
+    String sinkId = "sinkId";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
+    DynamicCommitter committer =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            workerPoolSize,
+            sinkId,
+            committerMetrics);
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    TableKey tableKey = new TableKey(TABLE1, "branch");
+    final String oldJobId = JobID.generate().toHexString();
+    final String newJobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int oldCheckpointId = 1;
+    final int newCheckpointId = 2;
+
+    byte[][] oldManifests =
+        aggregator.writeToManifests(tableKey.tableName(), WRITE_RESULT_BY_SPEC, oldCheckpointId);
+    byte[][] newManifests =
+        aggregator.writeToManifests(tableKey.tableName(), WRITE_RESULT_BY_SPEC_2, newCheckpointId);
+
+    CommitRequest<DynamicCommittable> oldRequest =
+        new MockCommitRequest<>(
+            new DynamicCommittable(tableKey, oldManifests, oldJobId, operatorId, oldCheckpointId));
+    CommitRequest<DynamicCommittable> newRequest =
+        new MockCommitRequest<>(
+            new DynamicCommittable(tableKey, newManifests, newJobId, operatorId, newCheckpointId));
+
+    // Hand the requests in reversed order; the committer must still land them in checkpointId
+    // order on the snapshot chain.
+    committer.commit(Lists.newArrayList(newRequest, oldRequest));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+
+    Snapshot first = Iterables.get(table.snapshots(), 0);
+    assertThat(first.summary())
+        .containsEntry("flink.job-id", oldJobId)
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(oldCheckpointId))
+        .containsEntry("flink.operator-id", operatorId);
+
+    Snapshot second = Iterables.get(table.snapshots(), 1);
+    assertThat(second.summary())
+        .containsEntry("flink.job-id", newJobId)
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(newCheckpointId))
+        .containsEntry("flink.operator-id", operatorId);
+    assertThat(second.parentId()).isEqualTo(first.snapshotId());
+  }
+
+  @Test
   void testCommitDeleteInDifferentFormatVersion() throws Exception {
     Table table1 = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table1.snapshots()).isEmpty();
