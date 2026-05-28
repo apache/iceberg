@@ -68,6 +68,46 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testSplitSizeSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "42"),
+        () -> {
+          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+          assertThat(conf.splitSizeOption()).isEqualTo(42L);
+          assertThat(conf.splitSize()).isEqualTo(42L);
+        });
+  }
+
+  @TestTemplate
+  public void testSplitSizeTableScopedSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String tableScopedSplitSize = SparkSQLProperties.SPLIT_SIZE + "." + table.name();
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "42", tableScopedSplitSize, "24"),
+        () -> {
+          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+          assertThat(conf.splitSizeOption()).isEqualTo(24L);
+          assertThat(conf.splitSize()).isEqualTo(24L);
+        });
+  }
+
+  @TestTemplate
+  public void testSplitSizeReadOptionOverridesTableScopedSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String tableScopedSplitSize = SparkSQLProperties.SPLIT_SIZE + "." + table.name();
+    withSQLConf(
+        ImmutableMap.of(tableScopedSplitSize, "24"),
+        () -> {
+          CaseInsensitiveStringMap options =
+              new CaseInsensitiveStringMap(ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, "42"));
+          SparkReadConf conf = new SparkReadConf(spark, table, options);
+          assertThat(conf.splitSizeOption()).isEqualTo(42L);
+          assertThat(conf.splitSize()).isEqualTo(42L);
+        });
+  }
+
+  @TestTemplate
   public void testSplitParallelismRejectsZero() {
     Table table = validationCatalog.loadTable(tableIdent);
     withSQLConf(
