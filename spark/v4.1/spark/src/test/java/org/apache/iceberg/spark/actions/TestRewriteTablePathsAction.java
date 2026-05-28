@@ -645,6 +645,74 @@ public class TestRewriteTablePathsAction extends TestBase {
         .isEqualTo(1);
   }
 
+  // Regression test: when the same position delete file is referenced from manifests in different
+  // snapshots, each manifest is rewritten by a separate Spark task. Without per-task staging path
+  // isolation those tasks would collide on a shared path, either failing or recording an
+  // inconsistent file_size_in_bytes in one of the rewritten manifests.
+  @TestTemplate
+  public void testSharedDeleteFileSizeAcrossManifests() throws Exception {
+    assumeThat(formatVersion)
+        .as("Format versions 3+ use DVs with different validation rules")
+        .isEqualTo(2);
+
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithSharedDelete"),
+            1,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    DataFile dataFile =
+        tableWithPosDeletes
+            .currentSnapshot()
+            .addedDataFiles(tableWithPosDeletes.io())
+            .iterator()
+            .next();
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(Pair.of(dataFile.location(), 0L));
+    File deleteFile =
+        new File(
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(deleteFile.toURI().toString()),
+                deletes,
+                formatVersion)
+            .first();
+
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    List<ManifestFile> deleteManifests =
+        targetTable.currentSnapshot().deleteManifests(targetTable.io());
+    assertThat(deleteManifests)
+        .as("Expected the shared delete file to be referenced by multiple manifests")
+        .hasSizeGreaterThanOrEqualTo(2);
+    for (ManifestFile manifest : deleteManifests) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
+  }
+
   // Regression test: rewriting delete file paths changes the file size (since the
   // embedded data file paths may differ in length), but file_size_in_bytes in the rewritten
   // manifest was not updated. Readers that use file_size_in_bytes to elide a stat() call may
