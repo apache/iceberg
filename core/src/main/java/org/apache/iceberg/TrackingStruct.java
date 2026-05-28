@@ -284,11 +284,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("status", status)
-        .add("snapshot_id", snapshotId == null ? "null" : snapshotId)
-        .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
-        .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
-        .add("dv_snapshot_id", dvSnapshotId == null ? "null" : dvSnapshotId)
-        .add("first_row_id", firstRowId == null ? "null" : firstRowId)
+        .add("snapshot_id", snapshotId)
+        .add("data_sequence_number", dataSequenceNumber)
+        .add("file_sequence_number", fileSequenceNumber)
+        .add("dv_snapshot_id", dvSnapshotId)
+        .add("first_row_id", firstRowId)
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
         .toString();

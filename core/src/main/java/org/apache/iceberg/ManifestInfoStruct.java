@@ -252,7 +252,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         .add("replaced_rows_count", replacedRowsCount)
         .add("min_sequence_number", minSequenceNumber)
         .add("dv", dv == null ? "null" : "(binary)")
-        .add("dv_cardinality", dvCardinality == null ? "null" : dvCardinality)
+        .add("dv_cardinality", dvCardinality)
         .toString();
   }
 

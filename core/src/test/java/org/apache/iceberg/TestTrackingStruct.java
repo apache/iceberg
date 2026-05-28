@@ -395,6 +395,19 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testExistingToTerminalTransitions() {
+    Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
+
+    Tracking deleted = existingSource.asDeleted(999L);
+    assertThat(deleted.status()).isEqualTo(EntryStatus.DELETED);
+    assertThat(deleted.snapshotId()).isEqualTo(999L);
+
+    Tracking replaced = existingSource.asReplaced(999L);
+    assertThat(replaced.status()).isEqualTo(EntryStatus.REPLACED);
+    assertThat(replaced.snapshotId()).isEqualTo(999L);
+  }
+
+  @Test
   void testProjectedStructLike() {
     // project only snapshot_id (field ID 1) and first_row_id (field ID 142)
     Types.StructType projection = Types.StructType.of(Tracking.SNAPSHOT_ID, Tracking.FIRST_ROW_ID);

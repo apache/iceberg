@@ -88,7 +88,7 @@ class TrackingBuilder {
     Preconditions.checkState(
         dvSnapshotId == null,
         "Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
-    this.deletedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
+    this.deletedPositions = ByteBuffers.toByteArray(positions);
     return this;
   }
 
@@ -100,7 +100,7 @@ class TrackingBuilder {
     Preconditions.checkState(
         dvSnapshotId == null,
         "Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
-    this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
+    this.replacedPositions = ByteBuffers.toByteArray(positions);
     return this;
   }
 
