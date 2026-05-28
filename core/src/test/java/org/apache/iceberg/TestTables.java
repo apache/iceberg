@@ -390,7 +390,8 @@ public class TestTables {
 
     @Override
     public void deleteFile(String path) {
-      if (!new File(path).delete()) {
+      String localPath = path.startsWith("file:") ? path.replaceFirst("file:", "") : path;
+      if (!new File(localPath).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
     }

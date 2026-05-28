@@ -738,7 +738,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .isEqualTo(false);
     Table table =
         TABLES.create(
-            SCHEMA, PartitionSpec.unpartitioned(), properties, tableDir.getAbsolutePath());
+            SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -749,7 +749,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .write()
         .format("iceberg")
         .mode("append")
-        .save(tableDir.getAbsolutePath());
+        .save(tableLocation);
 
     List<String> validFiles =
         spark

@@ -1222,8 +1222,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
 
-    assertThat(new File(statsFileLocation1)).doesNotExist();
-    assertThat(new File(statsFileLocation2)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
+    assertThat(new File(URI.create(statsFileLocation2))).exists();
   }
 
   @TestTemplate
@@ -1260,7 +1260,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    assertThat(new File(statsFileLocation1)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).exists();
   }
 
   @TestTemplate
@@ -1291,8 +1291,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
 
-    assertThat(new File(statsFileLocation1)).doesNotExist();
-    assertThat(new File(statsFileLocation2)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).doesNotExist();
+    assertThat(new File(URI.create(statsFileLocation2))).exists();
   }
 
   @TestTemplate
@@ -1326,7 +1326,7 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should contain only the statistics file of snapshot2")
         .isEqualTo(Lists.newArrayList(statisticsFile2.snapshotId()));
     // the reused stats file should exist.
-    assertThat(new File(statsFileLocation1)).exists();
+    assertThat(new File(URI.create(statsFileLocation1))).exists();
   }
 
   @TestTemplate
