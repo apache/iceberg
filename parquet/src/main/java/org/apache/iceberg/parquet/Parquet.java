@@ -135,7 +135,7 @@ public class Parquet {
   private Parquet() {}
 
   public static final String PARQUET_CLIENT = "iceberg.parquet-client";
-  public static final ParquetClient PARQUET_CLIENT_DEFAULT = ParquetClient.HADOOP;
+  public static final ParquetClient PARQUET_CLIENT_DEFAULT = ParquetClient.NATIVE;
 
   public enum ParquetClient {
     NATIVE,
