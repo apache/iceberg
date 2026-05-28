@@ -4447,7 +4447,8 @@ components:
         format-version:
           type: integer
           description: UDF specification format version (must be 1).
-          enum: [1]
+          minimum: 1
+          maximum: 1
         definitions:
           type: array
           description: List of function definition entities.
@@ -4508,7 +4509,7 @@ components:
           description: Identifier of the current version for this definition.
         function-type:
           type: string
-          description: Function type.
+          description: Function type. When set to "udtf", "return-type" must be a struct describing the output schema.
           enum: ["udf", "udtf"]
         doc:
           type: string
@@ -5608,8 +5609,8 @@ components:
       summary: A non-empty list of function identifiers
       value: {
         "identifiers": [
-          { "namespace": ["analytics"], "name": "add_one" },
-          { "namespace": ["analytics"], "name": "to_celsius" }
+          ["analytics", "add_one"],
+          ["analytics", "to_celsius"]
         ]
       }
 

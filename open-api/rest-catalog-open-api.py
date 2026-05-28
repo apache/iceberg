@@ -1724,10 +1724,12 @@ class FunctionMetadata(BaseModel):
         alias='function-uuid',
         description='A UUID that identifies this UDF, generated once at creation.',
     )
-    format_version: Literal[1] = Field(
+    format_version: int = Field(
         ...,
         alias='format-version',
         description='UDF specification format version (must be 1).',
+        ge=1,
+        le=1,
     )
     definitions: list[FunctionDefinition] = Field(
         ..., description='List of function definition entities.'
@@ -1773,7 +1775,9 @@ class FunctionDefinition(BaseModel):
         description='Identifier of the current version for this definition.',
     )
     function_type: Literal['udf', 'udtf'] = Field(
-        ..., alias='function-type', description='Function type.'
+        ...,
+        alias='function-type',
+        description='Function type. When set to "udtf", "return-type" must be a struct describing the output schema.',
     )
     doc: str | None = Field(None, description='Documentation string.')
 
