@@ -180,15 +180,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
       keepActiveManifests(currentManifests);
     }
 
-  if (rewrittenAddedManifests.isEmpty() && !pendingAddedManifests.isEmpty()) {                                                                                                                                                                                                                                                                                                                                                               
-    ManifestFile[] copied = new ManifestFile[pendingAddedManifests.size()];                                                                                                                                                                                                                                                                                                                                                                  
-    Tasks.range(copied.length)                                                                                                                                                                                                                                                                                                                                                                                 
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(workerPool())                                                                                                                                                                                                                                                                                                                                                                                                     
-        .run(index -> copied[index] = copyManifest(pendingAddedManifests.get(index)));                                                                                                                                                                                                                                                                                                                                                       
-    Collections.addAll(rewrittenAddedManifests, copied);                                                                                                                                                                                                                                                                                                                                                                               
-  }                                                     
+    if (rewrittenAddedManifests.isEmpty() && !pendingAddedManifests.isEmpty()) {
+      ManifestFile[] copiedManifests = new ManifestFile[pendingAddedManifests.size()];
+      Tasks.range(copiedManifests.length)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(workerPool())
+          .run(index -> copiedManifests[index] = copyManifest(pendingAddedManifests.get(index)));
+      Collections.addAll(rewrittenAddedManifests, copiedManifests);
+    }
     validateFilesCounts();
 
     Iterable<ManifestFile> newManifestsWithMetadata =
@@ -202,20 +202,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     apply.addAll(keptManifests);
 
     return apply;
-  }
-
-  private void prepareRewrittenAddedManifests() {
-    if (pendingAddedManifests.isEmpty() || !rewrittenAddedManifests.isEmpty()) {
-      return;
-    }
-
-    ManifestFile[] copiedManifests = new ManifestFile[pendingAddedManifests.size()];
-    Tasks.range(copiedManifests.length)
-        .executeWith(workerPool())
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .run(index -> copiedManifests[index] = copyManifest(pendingAddedManifests.get(index)));
-    Collections.addAll(rewrittenAddedManifests, copiedManifests);
   }
 
   @Override
