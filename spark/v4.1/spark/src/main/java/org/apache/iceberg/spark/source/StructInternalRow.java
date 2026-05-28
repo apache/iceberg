@@ -180,8 +180,8 @@ class StructInternalRow extends InternalRow {
   }
 
   private UTF8String getUTF8StringInternal(int ordinal) {
-    Object value = struct.get(ordinal, Object.class);
-    return UTF8String.fromString(value.toString());
+    CharSequence seq = struct.get(ordinal, CharSequence.class);
+    return UTF8String.fromString(seq.toString());
   }
 
   @Override
