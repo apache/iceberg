@@ -42,7 +42,7 @@ class TestTrackedFileStruct {
   @Test
   void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking = TrackingStruct.added(42L).build();
+    Tracking tracking = TrackingStruct.added(42L).build();
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")
@@ -101,7 +101,7 @@ class TestTrackedFileStruct {
   void testReaderSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
-    TrackingStruct tracking = TrackingStruct.added(42L).build();
+    TrackingStruct tracking = new TrackingStruct();
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
     tracking.set(MANIFEST_POS_ORDINAL, 7L);
 
@@ -331,7 +331,8 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking = TrackingStruct.added(42L).build();
+    TrackingStruct tracking =
+        new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null);
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(MANIFEST_POS_ORDINAL, 3L);
 

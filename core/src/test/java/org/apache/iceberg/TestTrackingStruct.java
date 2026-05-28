@@ -70,13 +70,13 @@ class TestTrackingStruct {
 
   @Test
   void testCopy() {
-    TrackingStruct tracking =
-        TrackingStruct.existing(manifestSourceTracking())
+    Tracking tracking =
+        TrackingStruct.builder(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
             .replacedPositions(ByteBuffer.wrap(new byte[] {3, 4}))
             .build();
 
-    TrackingStruct copy = tracking.copy();
+    Tracking copy = tracking.copy();
 
     assertThat(copy.status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(copy.snapshotId()).isEqualTo(tracking.snapshotId());
@@ -208,7 +208,7 @@ class TestTrackingStruct {
 
   @Test
   void testAddedBuilder() {
-    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(42L).build();
+    Tracking tracking = TrackingStruct.added(42L).dvUpdated().build();
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
@@ -222,17 +222,10 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testAddedBuilderRejectsMismatchedDvSnapshotId() {
-    assertThatThrownBy(() -> TrackingStruct.added(42L).dvSnapshotId(43L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV snapshot ID for ADDED entry: 43 (must equal entry snapshot ID 42)");
-  }
-
-  @Test
   void testExistingBuilderPreservesSourceFields() {
     Tracking source = sourceTracking();
 
-    TrackingStruct existing = TrackingStruct.existing(source).build();
+    Tracking existing = TrackingStruct.builder(source, 1L).build();
 
     assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(existing.snapshotId()).isEqualTo(source.snapshotId());
@@ -243,10 +236,10 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testDeletedBuilderUpdatesSnapshotIdAndPreservesRest() {
+  void testDeleteUpdatesSnapshotIdAndPreservesRest() {
     Tracking source = sourceTracking();
 
-    TrackingStruct deleted = TrackingStruct.deleted(source, 999L).build();
+    Tracking deleted = source.asDeleted(999L);
 
     assertThat(deleted.status()).isEqualTo(EntryStatus.DELETED);
     assertThat(deleted.snapshotId()).isEqualTo(999L);
@@ -257,10 +250,10 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testReplacedBuilderUpdatesSnapshotIdAndPreservesRest() {
+  void testReplaceUpdatesSnapshotIdAndPreservesRest() {
     Tracking source = sourceTracking();
 
-    TrackingStruct replaced = TrackingStruct.replaced(source, 999L).build();
+    Tracking replaced = source.asReplaced(999L);
 
     assertThat(replaced.status()).isEqualTo(EntryStatus.REPLACED);
     assertThat(replaced.snapshotId()).isEqualTo(999L);
@@ -276,46 +269,23 @@ class TestTrackingStruct {
     source.set(DELETED_POSITIONS_ORDINAL, ByteBuffer.wrap(new byte[] {1, 2}));
     source.set(REPLACED_POSITIONS_ORDINAL, ByteBuffer.wrap(new byte[] {3, 4}));
 
-    TrackingStruct existing = TrackingStruct.existing(source).build();
+    Tracking existing = TrackingStruct.builder(source, 1L).build();
     assertThat(existing.deletedPositions()).isNull();
     assertThat(existing.replacedPositions()).isNull();
 
-    TrackingStruct deleted = TrackingStruct.deleted(source, 999L).build();
+    Tracking deleted = source.asDeleted(999L);
     assertThat(deleted.deletedPositions()).isNull();
     assertThat(deleted.replacedPositions()).isNull();
 
-    TrackingStruct replaced = TrackingStruct.replaced(source, 999L).build();
+    Tracking replaced = source.asReplaced(999L);
     assertThat(replaced.deletedPositions()).isNull();
     assertThat(replaced.replacedPositions()).isNull();
   }
 
   @Test
   void testExistingBuilderAllowsDvMutation() {
-    TrackingStruct existing = TrackingStruct.existing(sourceTracking()).dvSnapshotId(999L).build();
+    Tracking existing = TrackingStruct.builder(sourceTracking(), 999L).dvUpdated().build();
     assertThat(existing.dvSnapshotId()).isEqualTo(999L);
-  }
-
-  @Test
-  void testDeletedBuilderRejectsMutators() {
-    Tracking source = sourceTracking();
-
-    assertThatThrownBy(() -> TrackingStruct.deleted(source, 1L).dvSnapshotId(123L))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set DV snapshot ID on DELETED entry");
-
-    assertThatThrownBy(
-            () ->
-                TrackingStruct.deleted(source, 1L)
-                    .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set deleted positions on DELETED entry");
-
-    assertThatThrownBy(
-            () ->
-                TrackingStruct.deleted(source, 1L)
-                    .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set replaced positions on DELETED entry");
   }
 
   @Test
@@ -332,70 +302,36 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testMdvMutatorsRejectedOnReplaced() {
-    Tracking source = sourceTracking();
-
-    assertThatThrownBy(
-            () ->
-                TrackingStruct.replaced(source, 1L)
-                    .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set deleted positions on REPLACED entry");
-
-    assertThatThrownBy(
-            () ->
-                TrackingStruct.replaced(source, 1L)
-                    .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set replaced positions on REPLACED entry");
-  }
-
-  @Test
-  void testDvSnapshotIdRejectedOnReplaced() {
-    assertThatThrownBy(() -> TrackingStruct.replaced(sourceTracking(), 1L).dvSnapshotId(123L))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set DV snapshot ID on REPLACED entry");
-  }
-
-  @Test
   void testDvSnapshotIdAndMdvPositionsAreMutuallyExclusive() {
     // sourceTracking has dvSnapshotId=43, inherited by existing(source)
     assertThatThrownBy(
             () ->
-                TrackingStruct.existing(sourceTracking())
+                TrackingStruct.builder(sourceTracking(), 1L)
                     .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
 
     assertThatThrownBy(
             () ->
-                TrackingStruct.existing(sourceTracking())
+                TrackingStruct.builder(sourceTracking(), 1L)
                     .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
 
-    // Setting MDV positions first then dvSnapshotId is also rejected
+    // Setting MDV positions first then dvUpdated is also rejected
     assertThatThrownBy(
             () ->
-                TrackingStruct.existing(manifestSourceTracking())
+                TrackingStruct.builder(manifestSourceTracking(), 1L)
                     .deletedPositions(ByteBuffer.wrap(new byte[] {1}))
-                    .dvSnapshotId(123L))
+                    .dvUpdated())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Cannot set DV snapshot ID on a manifest entry (deleted/replaced positions are set)");
+            "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
   }
 
   @Test
   void testBuilderRejectsNullSource() {
-    assertThatThrownBy(() -> TrackingStruct.existing(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid source tracking: null");
-
-    assertThatThrownBy(() -> TrackingStruct.deleted(null, 1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid source tracking: null");
-
-    assertThatThrownBy(() -> TrackingStruct.replaced(null, 1L))
+    assertThatThrownBy(() -> TrackingStruct.builder(null, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid source tracking: null");
   }
@@ -404,15 +340,15 @@ class TestTrackingStruct {
   void testSourceBuildersRejectSourceWithoutSequenceNumbers() {
     Tracking missingBoth = TrackingStruct.added(42L).build();
 
-    assertThatThrownBy(() -> TrackingStruct.existing(missingBoth))
+    assertThatThrownBy(() -> TrackingStruct.builder(missingBoth, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: data sequence number is null");
 
-    assertThatThrownBy(() -> TrackingStruct.deleted(missingBoth, 1L))
+    assertThatThrownBy(() -> missingBoth.asDeleted(1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: data sequence number is null");
 
-    assertThatThrownBy(() -> TrackingStruct.replaced(missingBoth, 1L))
+    assertThatThrownBy(() -> missingBoth.asReplaced(1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: data sequence number is null");
 
@@ -421,15 +357,15 @@ class TestTrackingStruct {
     missingFileSeq.set(SNAPSHOT_ID_ORDINAL, 42L);
     missingFileSeq.set(DATA_SEQUENCE_NUMBER_ORDINAL, 10L);
 
-    assertThatThrownBy(() -> TrackingStruct.existing(missingFileSeq))
+    assertThatThrownBy(() -> TrackingStruct.builder(missingFileSeq, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: file sequence number is null");
 
-    assertThatThrownBy(() -> TrackingStruct.deleted(missingFileSeq, 1L))
+    assertThatThrownBy(() -> missingFileSeq.asDeleted(1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: file sequence number is null");
 
-    assertThatThrownBy(() -> TrackingStruct.replaced(missingFileSeq, 1L))
+    assertThatThrownBy(() -> missingFileSeq.asReplaced(1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: file sequence number is null");
   }
@@ -439,11 +375,11 @@ class TestTrackingStruct {
     Tracking deletedSource = sourceTrackingWithStatus(EntryStatus.DELETED);
     Tracking replacedSource = sourceTrackingWithStatus(EntryStatus.REPLACED);
 
-    assertThatThrownBy(() -> TrackingStruct.existing(deletedSource))
+    assertThatThrownBy(() -> TrackingStruct.builder(deletedSource, 1L))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Invalid status transition: DELETED -> EXISTING (DELETED is terminal)");
 
-    assertThatThrownBy(() -> TrackingStruct.deleted(replacedSource, 1L))
+    assertThatThrownBy(() -> replacedSource.asDeleted(1L))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Invalid status transition: REPLACED -> DELETED (REPLACED is terminal)");
   }
@@ -452,7 +388,7 @@ class TestTrackingStruct {
   void testExistingToExistingIsAllowed() {
     Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
 
-    TrackingStruct existing = TrackingStruct.existing(existingSource).build();
+    Tracking existing = TrackingStruct.builder(existingSource, 1L).build();
 
     assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(existing.snapshotId()).isEqualTo(existingSource.snapshotId());
@@ -480,9 +416,9 @@ class TestTrackingStruct {
   @Test
   void testAddedWithDvSnapshotIdJavaSerializationRoundTrip()
       throws IOException, ClassNotFoundException {
-    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(42L).build();
+    Tracking tracking = TrackingStruct.added(42L).dvUpdated().build();
 
-    TrackingStruct deserialized = TestHelpers.roundTripSerialize(tracking);
+    Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.snapshotId()).isEqualTo(42L);
@@ -494,13 +430,13 @@ class TestTrackingStruct {
   @Test
   void testExistingWithMdvPositionsJavaSerializationRoundTrip()
       throws IOException, ClassNotFoundException {
-    TrackingStruct tracking =
-        TrackingStruct.existing(manifestSourceTracking())
+    Tracking tracking =
+        TrackingStruct.builder(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
             .replacedPositions(ByteBuffer.wrap(new byte[] {3, 4}))
             .build();
 
-    TrackingStruct deserialized = TestHelpers.roundTripSerialize(tracking);
+    Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(deserialized.dvSnapshotId()).isNull();
@@ -510,9 +446,9 @@ class TestTrackingStruct {
 
   @Test
   void testAddedWithDvSnapshotIdKryoSerializationRoundTrip() throws IOException {
-    TrackingStruct tracking = TrackingStruct.added(42L).dvSnapshotId(42L).build();
+    Tracking tracking = TrackingStruct.added(42L).dvUpdated().build();
 
-    TrackingStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
+    Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(deserialized.snapshotId()).isEqualTo(42L);
@@ -523,13 +459,13 @@ class TestTrackingStruct {
 
   @Test
   void testExistingWithMdvPositionsKryoSerializationRoundTrip() throws IOException {
-    TrackingStruct tracking =
-        TrackingStruct.existing(manifestSourceTracking())
+    Tracking tracking =
+        TrackingStruct.builder(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
             .replacedPositions(ByteBuffer.wrap(new byte[] {3, 4}))
             .build();
 
-    TrackingStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
+    Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(deserialized.dvSnapshotId()).isNull();
