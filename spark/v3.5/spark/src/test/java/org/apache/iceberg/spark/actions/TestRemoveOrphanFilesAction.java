@@ -736,20 +736,14 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assumeThat(usePrefixListing)
         .as("Should not test both prefix listing and Hadoop file listing (redundant)")
         .isEqualTo(false);
-    Table table =
-        TABLES.create(
-            SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
 
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     List<String> validFiles =
         spark
