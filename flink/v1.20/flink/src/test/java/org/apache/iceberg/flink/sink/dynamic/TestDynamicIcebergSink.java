@@ -35,12 +35,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
+import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.client.JobExecutionException;
@@ -77,6 +79,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
+import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -85,6 +88,7 @@ import org.apache.iceberg.flink.sink.dynamic.TestDynamicCommitter.CommitHook;
 import org.apache.iceberg.flink.sink.dynamic.TestDynamicCommitter.FailBeforeAndAfterCommit;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -121,6 +125,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     PartitionSpec partitionSpec;
     boolean upsertMode;
     Set<String> equalityFields;
+    int writeParallelism;
 
     private DynamicIcebergDataImpl(
         Schema schemaProvided, String tableName, String branch, PartitionSpec partitionSpec) {
@@ -132,7 +137,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           partitionSpec,
           false,
           Collections.emptySet(),
-          false);
+          false,
+          10);
     }
 
     private DynamicIcebergDataImpl(
@@ -149,7 +155,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           partitionSpec,
           false,
           Collections.emptySet(),
-          false);
+          false,
+          10);
     }
 
     private DynamicIcebergDataImpl(
@@ -168,7 +175,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           partitionSpec,
           upsertMode,
           equalityFields,
-          isDuplicate);
+          isDuplicate,
+          10);
     }
 
     private DynamicIcebergDataImpl(
@@ -179,7 +187,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         PartitionSpec partitionSpec,
         boolean upsertMode,
         Set<String> equalityFields,
-        boolean isDuplicate) {
+        boolean isDuplicate,
+        int writeParallelism) {
       this.rowProvided = randomRow(schemaProvided, isDuplicate ? seed : ++seed);
       this.rowExpected = isDuplicate ? null : rowProvided;
       this.schemaProvided = schemaProvided;
@@ -189,6 +198,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       this.partitionSpec = partitionSpec;
       this.upsertMode = upsertMode;
       this.equalityFields = equalityFields;
+      this.writeParallelism = writeParallelism;
     }
   }
 
@@ -208,7 +218,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               converter(schema).toInternal(row.rowProvided),
               spec,
               spec.isPartitioned() ? DistributionMode.HASH : DistributionMode.NONE,
-              10);
+              row.writeParallelism);
       dynamicRecord.setUpsertMode(row.upsertMode);
       dynamicRecord.setEqualityFields(row.equalityFields);
       out.collect(dynamicRecord);
@@ -319,6 +329,67 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testSlotSharingGroup() {
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(Collections.emptyList(), TypeInformation.of(new TypeHint<>() {}));
+
+    // Slot sharing group resource specs are registered on the env by name and referenced from
+    // operators via the String overload of .slotSharingGroup(...). We verify the effect by reading
+    // back the resource profile from the resulting job graph vertices.
+    String shuffleSinkSsgName = "shuffle-sink-ssg";
+    MemorySize shuffleSinkMemorySize = new MemorySize(123);
+    env.registerSlotSharingGroup(
+        SlotSharingGroup.newBuilder(shuffleSinkSsgName)
+            .setCpuCores(123)
+            .setTaskHeapMemory(shuffleSinkMemorySize)
+            .build());
+
+    String generatorSsgName = "generator-ssg";
+    MemorySize generatorMemorySize = new MemorySize(456);
+    env.registerSlotSharingGroup(
+        SlotSharingGroup.newBuilder(generatorSsgName)
+            .setCpuCores(456)
+            .setTaskHeapMemory(generatorMemorySize)
+            .build());
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new ForwardGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .immediateTableUpdate(false)
+        .shuffleSinkSlotSharingGroup(shuffleSinkSsgName)
+        .generatorSlotSharingGroup(generatorSsgName)
+        .append();
+
+    List<JobVertex> vertices =
+        StreamSupport.stream(env.getStreamGraph().getJobGraph().getVertices().spliterator(), false)
+            .toList();
+
+    boolean shufflingWriterSSGApplied =
+        vertices.stream()
+            .filter(vertex -> vertex.getName() != null && vertex.getName().contains("Sink: Writer"))
+            .anyMatch(
+                vertex ->
+                    vertex
+                        .getSlotSharingGroup()
+                        .getResourceProfile()
+                        .getTaskHeapMemory()
+                        .equals(shuffleSinkMemorySize));
+    boolean generatorSSGApplied =
+        vertices.stream()
+            .filter(vertex -> vertex.getName() != null && vertex.getName().contains("generator"))
+            .anyMatch(
+                vertex ->
+                    vertex
+                        .getSlotSharingGroup()
+                        .getResourceProfile()
+                        .getTaskHeapMemory()
+                        .equals(generatorMemorySize));
+
+    assertThat(shufflingWriterSSGApplied).isTrue();
+    assertThat(generatorSSGApplied).isTrue();
+  }
+
+  @Test
   void testForwardWrite() throws Exception {
     runForwardWriteTest(new ForwardGenerator());
   }
@@ -367,6 +438,19 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     env.execute();
 
     verifyResults(rows);
+  }
+
+  @Test
+  void testWriteWithNullBranch() throws Exception {
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t1", null, PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t1", null, PartitionSpec.unpartitioned()));
+
+    runTest(
+        rows, this.env, false, 1, ImmutableMap.of(FlinkWriteOptions.BRANCH.key(), "test-branch"));
   }
 
   @Test
@@ -1357,6 +1441,35 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(generatorParallelism).isEqualTo(source.getParallelism());
   }
 
+  @Test
+  void testFallBackParallelismFromConfig() throws Exception {
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned(),
+                false,
+                Collections.emptySet(),
+                false,
+                -1),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned(),
+                false,
+                Collections.emptySet(),
+                false,
+                0));
+
+    runTest(
+        rows, this.env, true, 2, ImmutableMap.of(FlinkWriteOptions.WRITE_PARALLELISM.key(), "1"));
+  }
+
   private Set<String> createSinkAndReturnUIds(String uidPrefix) {
     StreamExecutionEnvironment streamEnv = StreamExecutionEnvironment.getExecutionEnvironment();
 
@@ -1465,6 +1578,18 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     verifyResults(dynamicData);
   }
 
+  private void runTest(
+      List<DynamicIcebergDataImpl> dynamicData,
+      StreamExecutionEnvironment env,
+      boolean immediateUpdate,
+      int parallelism,
+      Map<String, String> writeProperties)
+      throws Exception {
+    executeDynamicSink(
+        dynamicData, env, immediateUpdate, parallelism, null, false, writeProperties);
+    verifyResults(dynamicData, writeProperties);
+  }
+
   private void executeDynamicSink(
       List<DynamicIcebergDataImpl> dynamicData,
       StreamExecutionEnvironment env,
@@ -1472,7 +1597,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       int parallelism,
       @Nullable CommitHook commitHook)
       throws Exception {
-    executeDynamicSink(dynamicData, env, immediateUpdate, parallelism, commitHook, false);
+    executeDynamicSink(
+        dynamicData, env, immediateUpdate, parallelism, commitHook, false, Maps.newHashMap());
   }
 
   private void executeDynamicSink(
@@ -1482,6 +1608,19 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       int parallelism,
       @Nullable CommitHook commitHook,
       boolean overwrite)
+      throws Exception {
+    executeDynamicSink(
+        dynamicData, env, immediateUpdate, parallelism, commitHook, overwrite, Maps.newHashMap());
+  }
+
+  private void executeDynamicSink(
+      List<DynamicIcebergDataImpl> dynamicData,
+      StreamExecutionEnvironment env,
+      boolean immediateUpdate,
+      int parallelism,
+      @Nullable CommitHook commitHook,
+      boolean overwrite,
+      Map<String, String> writeProperties)
       throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.fromData(dynamicData, TypeInformation.of(new TypeHint<>() {}));
@@ -1496,6 +1635,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .immediateTableUpdate(immediateUpdate)
           .setSnapshotProperty("commit.retry.num-retries", "0")
           .overwrite(overwrite)
+          .setAll(writeProperties)
           .append();
     } else {
       DynamicIcebergSink.forInput(dataStream)
@@ -1504,6 +1644,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
           .overwrite(overwrite)
+          .setAll(writeProperties)
           .append();
     }
 
@@ -1530,7 +1671,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           "uidPrefix",
           writeProperties,
           flinkConfig,
-          100,
           forwardWriteResults);
     }
   }
@@ -1547,7 +1687,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         String uidPrefix,
         Map<String, String> writeProperties,
         Configuration flinkConfig,
-        int cacheMaximumSize,
         DataStream<CommittableMessage<DynamicWriteResult>> forwardWritten) {
       super(
           catalogLoader,
@@ -1555,7 +1694,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           uidPrefix,
           writeProperties,
           flinkConfig,
-          cacheMaximumSize,
+          100,
           forwardWritten);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
@@ -1575,6 +1714,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   private void verifyResults(List<DynamicIcebergDataImpl> dynamicData) throws IOException {
+    verifyResults(dynamicData, Maps.newHashMap());
+  }
+
+  private void verifyResults(
+      List<DynamicIcebergDataImpl> dynamicData, Map<String, String> writeProperties)
+      throws IOException {
     // Calculate the expected result
     Map<Tuple2<String, String>, List<RowData>> expectedData = Maps.newHashMap();
     Map<String, Schema> expectedSchema = Maps.newHashMap();
@@ -1588,9 +1733,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     dynamicData.forEach(
         r -> {
+          String branch =
+              MoreObjects.firstNonNull(
+                  r.branch, writeProperties.get(FlinkWriteOptions.BRANCH.key()));
           List<RowData> data =
               expectedData.computeIfAbsent(
-                  Tuple2.of(r.tableName, r.branch), unused -> Lists.newArrayList());
+                  Tuple2.of(r.tableName, branch), unused -> Lists.newArrayList());
           data.addAll(
               convertToRowData(expectedSchema.get(r.tableName), ImmutableList.of(r.rowExpected)));
         });

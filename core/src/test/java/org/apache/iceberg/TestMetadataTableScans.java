@@ -522,6 +522,23 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testPartitionsTableReusesPartitionDataSchema() {
+    preparePartitionedTable();
+
+    Table partitionsTable = new PartitionsTable(table);
+    StaticTableScan scan = (StaticTableScan) partitionsTable.newScan();
+    List<org.apache.avro.Schema> partitionSchemas = Lists.newArrayList();
+
+    for (PartitionsTable.Partition partition : PartitionsTable.partitions(table, scan)) {
+      partitionSchemas.add(partition.partitionData().getSchema());
+    }
+
+    assertThat(partitionSchemas).hasSizeGreaterThanOrEqualTo(2);
+    org.apache.avro.Schema expectedSchema = partitionSchemas.get(0);
+    assertThat(partitionSchemas).allSatisfy(schema -> assertThat(schema).isSameAs(expectedSchema));
+  }
+
+  @TestTemplate
   public void testPartitionsTableScanNoStats() {
     table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
 

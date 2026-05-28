@@ -106,6 +106,18 @@ class TableIdentifier(BaseModel):
     name: str
 
 
+class CatalogObjectIdentifier(RootModel[list[str]]):
+    """
+    Reference to a catalog object (for example, table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.
+    """
+
+    root: list[str] = Field(
+        ...,
+        description='Reference to a catalog object (for example, table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.',
+        examples=[['accounting', 'tax', 'paid']],
+    )
+
+
 class PrimitiveType(RootModel[str]):
     root: str = Field(..., examples=[['long', 'string', 'fixed[16]', 'decimal(10,2)']])
 
@@ -1561,6 +1573,19 @@ class CreateTableRequest(BaseModel):
     write_order: SortOrder | None = Field(None, alias='write-order')
     stage_create: bool | None = Field(None, alias='stage-create')
     properties: dict[str, str] | None = None
+
+
+class UnregisterTableResult(BaseModel):
+    """
+    Last metadata location and the corresponding table metadata for the table that was successfully unregistered and is no longer tracked by the catalog.
+    """
+
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='The last metadata location for the table at the time it was unregistered.',
+    )
+    metadata: TableMetadata
 
 
 class CreateViewRequest(BaseModel):

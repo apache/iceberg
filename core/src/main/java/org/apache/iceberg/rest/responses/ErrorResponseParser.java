@@ -46,17 +46,18 @@ public class ErrorResponseParser {
   public static void toJson(ErrorResponse errorResponse, JsonGenerator generator)
       throws IOException {
     generator.writeStartObject();
+    writeError(errorResponse, generator);
+    generator.writeEndObject();
+  }
 
+  static void writeError(ErrorResponse errorResponse, JsonGenerator generator) throws IOException {
     generator.writeObjectFieldStart(ERROR);
-
     generator.writeStringField(MESSAGE, errorResponse.message());
     generator.writeStringField(TYPE, errorResponse.type());
     generator.writeNumberField(CODE, errorResponse.code());
     if (errorResponse.stack() != null) {
       JsonUtil.writeStringArray(STACK, errorResponse.stack(), generator);
     }
-
-    generator.writeEndObject();
 
     generator.writeEndObject();
   }

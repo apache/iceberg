@@ -269,6 +269,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+    this.closeables.addCloseable(reporter);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(
@@ -1338,7 +1339,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 queryParams.build(),
                 ConfigResponse.class,
                 RESTUtil.configHeaders(properties),
-                ErrorHandlers.defaultErrorHandler());
+                ErrorHandlers.configErrorHandler());
     configResponse.validate();
     return configResponse;
   }
