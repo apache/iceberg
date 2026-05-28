@@ -226,7 +226,7 @@ When writing the refresh state, producers:
 
 ##### Consumer: Evaluating Refresh State
 
-Consumers may use any combination of the following to assess the freshness of the storage table:
+Consumers may use any combination of the following to assess the state of dependencies used to produce the storage table.
 
 - **Recency policy.** Accept the storage table when `refresh-start-timestamp-ms` falls within a staleness window. A recency policy bounds data age but does not establish freshness.
 - **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for upstream materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
