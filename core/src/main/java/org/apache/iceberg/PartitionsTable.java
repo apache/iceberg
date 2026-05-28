@@ -166,7 +166,8 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.lastUpdatedSnapshotId);
   }
 
-  private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
+  @VisibleForTesting
+  static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
     PartitionData partitionDataTemplate = new PartitionData(partitionType);
 
@@ -293,6 +294,11 @@ public class PartitionsTable extends BaseMetadataTable {
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
+    }
+
+    @VisibleForTesting
+    PartitionData partitionData() {
+      return partitionData;
     }
 
     void update(ContentFile<?> file, Snapshot snapshot) {
