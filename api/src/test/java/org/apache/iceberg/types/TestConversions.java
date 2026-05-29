@@ -26,6 +26,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
 import org.apache.iceberg.types.Types.DateType;
@@ -33,6 +34,8 @@ import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.FixedType;
 import org.apache.iceberg.types.Types.FloatType;
+import org.apache.iceberg.types.Types.GeographyType;
+import org.apache.iceberg.types.Types.GeometryType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
@@ -189,6 +192,70 @@ public class TestConversions {
     assertConversion(new BigDecimal("0.011"), DecimalType.of(10, 3), new byte[] {11});
     assertThat(Literal.of(new BigDecimal("0.011")).toByteBuffer().array())
         .isEqualTo(new byte[] {11});
+  }
+
+  @Test
+  public void testByteBufferConversionsForGeometry() {
+    // geometry and geography lower/upper bounds are points encoded as an x:y:z:m concatenation
+    // of 8-byte little-endian IEEE 754 doubles. x and y are mandatory; the encoding is x:y when
+    // both z and m are unset, x:y:z when only m is unset, and x:y:NaN:m when only z is unset.
+
+    // x=10.0 -> 0, 0, 0, 0, 0, 0, 36, 64 (little-endian IEEE 754)
+    // y=13.0 -> 0, 0, 0, 0, 0, 0, 42, 64
+    // z=15.0 -> 0, 0, 0, 0, 0, 0, 46, 64
+    // m=20.0 -> 0, 0, 0, 0, 0, 0, 52, 64
+    // NaN    -> 0, 0, 0, 0, 0, 0, -8, 127
+
+    byte[] xyBytes = new byte[] {0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 42, 64};
+    byte[] xyzBytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64,
+          0, 0, 0, 0, 0, 0, 42, 64,
+          0, 0, 0, 0, 0, 0, 46, 64
+        };
+    byte[] xymBytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64,
+          0, 0, 0, 0, 0, 0, 42, 64,
+          0, 0, 0, 0, 0, 0, -8, 127,
+          0, 0, 0, 0, 0, 0, 52, 64
+        };
+    byte[] xyzmBytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64,
+          0, 0, 0, 0, 0, 0, 42, 64,
+          0, 0, 0, 0, 0, 0, 46, 64,
+          0, 0, 0, 0, 0, 0, 52, 64
+        };
+
+    assertConversion(GeospatialBound.createXY(10.0, 13.0), GeometryType.crs84(), xyBytes);
+    assertConversion(GeospatialBound.createXYZ(10.0, 13.0, 15.0), GeometryType.crs84(), xyzBytes);
+    assertConversion(GeospatialBound.createXYM(10.0, 13.0, 20.0), GeometryType.crs84(), xymBytes);
+    assertConversion(
+        GeospatialBound.createXYZM(10.0, 13.0, 15.0, 20.0), GeometryType.crs84(), xyzmBytes);
+
+    assertConversion(GeospatialBound.createXY(10.0, 13.0), GeographyType.crs84(), xyBytes);
+    assertConversion(GeospatialBound.createXYZ(10.0, 13.0, 15.0), GeographyType.crs84(), xyzBytes);
+    assertConversion(GeospatialBound.createXYM(10.0, 13.0, 20.0), GeographyType.crs84(), xymBytes);
+    assertConversion(
+        GeospatialBound.createXYZM(10.0, 13.0, 15.0, 20.0), GeographyType.crs84(), xyzmBytes);
+
+    // a non-default CRS must not change the binary encoding
+    assertConversion(GeospatialBound.createXY(10.0, 13.0), GeometryType.of("EPSG:3857"), xyBytes);
+  }
+
+  @Test
+  public void testNullByteBufferConversionsForGeometry() {
+    // Null is handled by the shared guards in toByteBuffer / fromByteBuffer before the type
+    // switch, so this does not exercise the GEOMETRY / GEOGRAPHY arms (those are covered by
+    // testByteBufferConversionsForGeometry). It pins the null contract for geo types so a future
+    // change to the guards cannot silently alter null handling.
+    assertThat(Conversions.toByteBuffer(GeometryType.crs84(), null)).isNull();
+    assertThat(Conversions.toByteBuffer(GeographyType.crs84(), null)).isNull();
+    GeospatialBound geometryBound = Conversions.fromByteBuffer(GeometryType.crs84(), null);
+    GeospatialBound geographyBound = Conversions.fromByteBuffer(GeographyType.crs84(), null);
+    assertThat(geometryBound).isNull();
+    assertThat(geographyBound).isNull();
   }
 
   private <T> void assertConversion(T value, Type type, byte[] expectedBinary) {
