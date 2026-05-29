@@ -372,10 +372,12 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
-    if (readConf.preserveDataOrdering() && readConf.preserveDataGrouping()) {
-      // Disable splitting tasks into multiple groups when we need to preserve ordering.
-      // This prevents multiple InputPartitions with the same partitionKey, which would
-      // cause Spark to suppress outputOrdering.
+    // Disable splitting tasks into multiple groups when we need to preserve ordering.
+    // This prevents multiple InputPartitions with the same partitionKey, which would
+    // cause Spark to suppress outputOrdering.
+    if (readConf.preserveDataOrdering()
+        && readConf.preserveDataGrouping()
+        && table.sortOrder().isSorted()) {
       return Long.MAX_VALUE;
     }
 

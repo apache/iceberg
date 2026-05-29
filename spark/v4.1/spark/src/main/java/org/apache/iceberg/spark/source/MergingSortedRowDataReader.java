@@ -45,13 +45,13 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.ProjectingInternalRow;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.PartitionReader;
-import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.collection.JavaConverters;
 
 /**
  * A {@link PartitionReader} that reads multiple sorted files and merges them into a single sorted
@@ -71,9 +71,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private final CloseableIterator<InternalRow> mergedIterator;
   private final List<RowDataReader> fileReaders;
   // non-null only when sort key columns were added to the read schema beyond what Spark projected
-  private final int[] outputPositions;
-  private final DataType[] outputDataTypes;
-  private final Object[] outputValues; // reused per row to avoid per-row allocation
+  private final ProjectingInternalRow projectingRow;
   private InternalRow current;
 
   MergingSortedRowDataReader(SparkInputPartition partition) {
@@ -98,9 +96,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     // Augment the projected schema with any sort key columns Spark did not request so that
     // SortOrderComparators can access every sort key field during the merge.
     Schema mergeReadSchema = mergeReadSchema(projection, sortOrder, table);
-    this.outputPositions = buildOutputPositions(projection, mergeReadSchema);
-    this.outputDataTypes = buildOutputDataTypes(projection, outputPositions);
-    this.outputValues = outputPositions != null ? new Object[outputPositions.length] : null;
+    this.projectingRow = buildProjectingRow(projection, mergeReadSchema);
 
     this.resources = new CloseableGroup();
     this.fileReaders =
@@ -172,14 +168,11 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     }
 
     InternalRow merged = mergedIterator.next();
-    if (outputPositions == null) {
+    if (projectingRow == null) {
       this.current = merged;
     } else {
-      // Strip the extra sort key columns that were added for comparison purposes.
-      for (int i = 0; i < outputPositions.length; i++) {
-        outputValues[i] = merged.get(outputPositions[i], outputDataTypes[i]);
-      }
-      this.current = new GenericInternalRow(outputValues);
+      projectingRow.project(merged);
+      this.current = projectingRow;
     }
 
     return true;
@@ -225,19 +218,33 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   }
 
   /**
-   * Returns the Spark {@link DataType}s for each column in {@code projection}, or {@code null} when
-   * {@code outputPositions} is {@code null} (no extra columns were added, no projection needed).
+   * Returns a {@link ProjectingInternalRow} that remaps columns from the wider merge schema back to
+   * the requested projection, or {@code null} if no extra columns were added.
    */
-  private static DataType[] buildOutputDataTypes(Schema projection, int[] outputPositions) {
-    if (outputPositions == null) {
+  private static ProjectingInternalRow buildProjectingRow(Schema projection, Schema mergeSchema) {
+    if (projection.columns().size() == mergeSchema.columns().size()) {
       return null;
     }
-    StructType sparkSchema = SparkSchemaUtil.convert(projection);
-    DataType[] dataTypes = new DataType[sparkSchema.fields().length];
-    for (int i = 0; i < sparkSchema.fields().length; i++) {
-      dataTypes[i] = sparkSchema.fields()[i].dataType();
+
+    List<Types.NestedField> mergeColumns = mergeSchema.columns();
+    List<Object> positions = Lists.newArrayListWithCapacity(projection.columns().size());
+
+    for (int i = 0; i < projection.columns().size(); i++) {
+      int fieldId = projection.columns().get(i).fieldId();
+      boolean found = false;
+      for (int j = 0; j < mergeColumns.size(); j++) {
+        if (mergeColumns.get(j).fieldId() == fieldId) {
+          positions.add(j);
+          found = true;
+          break;
+        }
+      }
+      Preconditions.checkState(
+          found, "Projection field id=%s not found in merge read schema — this is a bug", fieldId);
     }
-    return dataTypes;
+
+    StructType sparkSchema = SparkSchemaUtil.convert(projection);
+    return new ProjectingInternalRow(sparkSchema, JavaConverters.asScala(positions).toIndexedSeq());
   }
 
   /**
@@ -264,35 +271,5 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     }
 
     return TypeUtil.join(projection, new Schema(missingFields));
-  }
-
-  /**
-   * Returns an array mapping each output column (in {@code projection} order) to its position in
-   * {@code mergeSchema}, or {@code null} if the two schemas are identical (no extra columns were
-   * added and no projection is needed).
-   */
-  private static int[] buildOutputPositions(Schema projection, Schema mergeSchema) {
-    if (projection.columns().size() == mergeSchema.columns().size()) {
-      return null;
-    }
-
-    List<Types.NestedField> mergeColumns = mergeSchema.columns();
-    int[] positions = new int[projection.columns().size()];
-
-    for (int i = 0; i < projection.columns().size(); i++) {
-      int fieldId = projection.columns().get(i).fieldId();
-      boolean found = false;
-      for (int j = 0; j < mergeColumns.size(); j++) {
-        if (mergeColumns.get(j).fieldId() == fieldId) {
-          positions[i] = j;
-          found = true;
-          break;
-        }
-      }
-      Preconditions.checkState(
-          found, "Projection field id=%s not found in merge read schema — this is a bug", fieldId);
-    }
-
-    return positions;
   }
 }
