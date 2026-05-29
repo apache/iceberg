@@ -56,4 +56,18 @@ public class TestOrcPartitionStatisticsScan extends PartitionStatisticsScanTestB
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot write using unregistered internal data format: ORC");
   }
+
+  @Override
+  public void testProjectStatFields() throws Exception {
+    assertThatThrownBy(super::testProjectStatFields)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write using unregistered internal data format: ORC");
+  }
+
+  @Override
+  public void testProjectIgnoresUnknownField() throws Exception {
+    assertThatThrownBy(super::testProjectIgnoresUnknownField)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write using unregistered internal data format: ORC");
+  }
 }
