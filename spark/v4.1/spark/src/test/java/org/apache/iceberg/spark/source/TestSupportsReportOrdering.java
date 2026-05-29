@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new SimpleRecord(7, "g"), new SimpleRecord(8, "h")));
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     Dataset<Row> result =
         spark.sql(String.format("SELECT id, data FROM %s ORDER BY id", tableName));
@@ -127,6 +129,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new SimpleRecord(1, "e"), new SimpleRecord(3, "f")));
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     Dataset<Row> result =
         spark.sql(String.format("SELECT id, data FROM %s ORDER BY id, data", tableName));
@@ -209,6 +212,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new SimpleRecord(6, "f"), new SimpleRecord(4, "d")));
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     Dataset<Row> result = spark.sql(String.format("SELECT id FROM %s ORDER BY id DESC", tableName));
     List<Object[]> rows = rowsToJava(result.collectAsList());
@@ -229,6 +233,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new ThreeColumnRecord(2, "b", "B"), new ThreeColumnRecord(3, "c", "B")));
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     Dataset<Row> result =
         spark.sql(String.format("SELECT c3, c1, c2 FROM %s ORDER BY c3, c1", tableName));
@@ -254,6 +259,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
     spark.createDataFrame(batch, SimpleRecord.class).coalesce(1).writeTo(tableName).append();
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     Dataset<Row> result = spark.sql(String.format("SELECT * FROM %s", tableName));
     List<Object[]> rows = rowsToJava(result.collectAsList());
@@ -281,6 +287,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new ThreeColumnRecord(6, "f", "P2"), new ThreeColumnRecord(8, "h", "P2")));
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     Dataset<Row> p1Result =
         spark.sql(String.format("SELECT c1, c2 FROM %s WHERE c3 = 'P1' ORDER BY c1", tableName));
@@ -316,7 +323,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void testOrderingNotReportedWhenGroupingDisabled() throws NoSuchTableException {
+  void testOrderingFailsWhenGroupingDisabled() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -332,7 +339,6 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new ThreeColumnRecord(1, "a", "P1"), new ThreeColumnRecord(3, "c", "P1")),
         ImmutableList.of(new ThreeColumnRecord(2, "b", "P1"), new ThreeColumnRecord(4, "d", "P1")));
 
-    // Ordering enabled but grouping explicitly disabled — outputOrdering() must return empty
     withSQLConf(
         ImmutableMap.of(
             SparkSQLProperties.PRESERVE_DATA_ORDERING,
@@ -343,12 +349,13 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
             "-1",
             "spark.sql.adaptive.enabled",
             "false"),
-        () -> {
-          SparkPlan plan =
-              executeAndKeepPlan(String.format("SELECT c1, c2 FROM %s ORDER BY c1", tableName));
-          List<SortExec> sorts = collectPlans(plan, SortExec.class);
-          assertThat(sorts).isNotEmpty();
-        });
+        () ->
+            assertThatThrownBy(
+                    () ->
+                        spark
+                            .sql(String.format("SELECT c1, c2 FROM %s ORDER BY c1", tableName))
+                            .collectAsList())
+                .hasMessageContaining("Cannot preserve data ordering without data grouping"));
   }
 
   @TestTemplate
@@ -359,6 +366,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
     spark.createDataFrame(batch, SimpleRecord.class).coalesce(1).writeTo(tableName).append();
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     Dataset<Row> result = spark.sql(String.format("SELECT * FROM %s", tableName));
     List<Object[]> rows = rowsToJava(result.collectAsList());
@@ -379,6 +387,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ImmutableList.of(new SimpleRecord(2, "b"), new SimpleRecord(4, "d")));
 
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_ORDERING, "true");
+    spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
 
     SparkPlan plan =
         executeAndKeepPlan(String.format("SELECT id, data FROM %s ORDER BY id", tableName));
