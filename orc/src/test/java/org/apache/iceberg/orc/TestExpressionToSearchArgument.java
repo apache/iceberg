@@ -139,6 +139,37 @@ public class TestExpressionToSearchArgument {
   }
 
   @Test
+  public void testTimestampNanoTypes() {
+    OffsetDateTime epoch = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+    OffsetDateTime tsTzNsPredicate = OffsetDateTime.parse("2019-10-02T00:47:28.207366Z");
+    OffsetDateTime tsNsPredicate = OffsetDateTime.parse("1968-01-16T13:07:59.048625Z");
+
+    Schema schema =
+        new Schema(
+            required(1, "tsTzNs", Types.TimestampNanoType.withZone()),
+            required(2, "tsNs", Types.TimestampNanoType.withoutZone()));
+
+    Expression expr =
+        and(
+            equal("tsTzNs", ChronoUnit.MICROS.between(epoch, tsTzNsPredicate)),
+            equal("tsNs", ChronoUnit.MICROS.between(epoch, tsNsPredicate)));
+    Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
+
+    // timestamp_ns / timestamptz_ns push down as ORC TIMESTAMP predicates; ORC's java.sql.Timestamp
+    // carries nanosecond precision, so the bound is exact.
+    SearchArgument expected =
+        SearchArgumentFactory.newBuilder()
+            .startAnd()
+            .equals("`tsTzNs`", Type.TIMESTAMP, Timestamp.from(tsTzNsPredicate.toInstant()))
+            .equals("`tsNs`", Type.TIMESTAMP, Timestamp.from(tsNsPredicate.toInstant()))
+            .end()
+            .build();
+    SearchArgument actual =
+        ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+    assertThat(actual.toString()).isEqualTo(expected.toString());
+  }
+
+  @Test
   public void testTimezoneSensitiveTypes() {
     TimeZone currentTz = TimeZone.getDefault();
     try {
