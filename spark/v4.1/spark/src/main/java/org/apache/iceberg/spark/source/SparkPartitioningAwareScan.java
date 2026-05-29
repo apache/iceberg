@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
@@ -96,6 +97,13 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
     this.preserveDataOrdering = readConf.preserveDataOrdering();
+
+    if (preserveDataOrdering && !preserveDataGrouping) {
+      throw new ValidationException(
+          "Cannot preserve data ordering without data grouping. Set %s to true or disable %s.",
+          SparkSQLProperties.PRESERVE_DATA_GROUPING,
+          SparkSQLProperties.PRESERVE_DATA_ORDERING);
+    }
 
     if (scan == null) {
       this.specs = Collections.emptySet();
