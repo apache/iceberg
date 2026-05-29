@@ -43,11 +43,13 @@ import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
@@ -59,9 +61,11 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.variants.Variant;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -88,6 +92,44 @@ public class TestParquet {
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       assertThat(reader.getRowGroups()).hasSize(2);
     }
+  }
+
+  @Test
+  public void testReadOptionsHonorHadoopVectoredIoConfiguration() {
+    Configuration conf = new Configuration();
+    conf.setBoolean(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, false);
+    InputFile inputFile =
+        HadoopInputFile.fromLocation(temp.resolve("data.parquet").toString(), 1, conf);
+
+    ParquetReadOptions options =
+        Parquet.buildReadOptions(inputFile, Collections.emptyMap(), null, null, null);
+
+    assertThat(options.useHadoopVectoredIo()).isFalse();
+  }
+
+  @Test
+  public void testReadOptionsHonorVectoredIoReadProperty() {
+    InputFile inputFile = localInput(temp.resolve("data.parquet").toFile());
+
+    ParquetReadOptions options =
+        Parquet.buildReadOptions(
+            inputFile,
+            ImmutableMap.of(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false"),
+            null,
+            null,
+            null);
+
+    assertThat(options.useHadoopVectoredIo()).isFalse();
+  }
+
+  @Test
+  public void testReadOptionsDefaultToHadoopVectoredIoEnabled() {
+    InputFile inputFile = localInput(temp.resolve("data.parquet").toFile());
+
+    ParquetReadOptions options =
+        Parquet.buildReadOptions(inputFile, Collections.emptyMap(), null, null, null);
+
+    assertThat(options.useHadoopVectoredIo()).isTrue();
   }
 
   @Test

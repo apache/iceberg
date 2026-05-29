@@ -30,6 +30,7 @@ import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
@@ -41,6 +42,26 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table,
+        fileIO,
+        taskGroup,
+        tableSchema,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors,
+        ImmutableMap.of());
+  }
+
+  BaseRowReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<T> taskGroup,
+      Schema tableSchema,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors,
+      Map<String, String> parquetReadProperties) {
     super(
         table,
         fileIO,
@@ -48,7 +69,8 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         tableSchema,
         expectedSchema,
         caseSensitive,
-        cacheDeleteFilesOnExecutors);
+        cacheDeleteFilesOnExecutors,
+        parquetReadProperties);
   }
 
   protected CloseableIterable<InternalRow> newIterable(
@@ -61,6 +83,10 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Map<Integer, ?> idToConstant) {
     ReadBuilder<InternalRow, ?> reader =
         FormatModelRegistry.readBuilder(format, InternalRow.class, file);
+    if (format == FileFormat.PARQUET) {
+      reader.setAll(parquetReadProperties());
+    }
+
     return reader
         .project(projection)
         .idToConstant(idToConstant)

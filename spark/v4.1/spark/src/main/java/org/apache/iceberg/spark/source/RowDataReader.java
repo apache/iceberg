@@ -31,6 +31,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -52,7 +53,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
         partition.taskGroup(),
         partition.projection(),
         partition.isCaseSensitive(),
-        partition.cacheDeleteFilesOnExecutors());
+        partition.cacheDeleteFilesOnExecutors(),
+        partition.parquetReadProperties());
   }
 
   RowDataReader(
@@ -62,8 +64,33 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table,
+        fileIO,
+        taskGroup,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors,
+        ImmutableMap.of());
+  }
 
-    super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+  RowDataReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<FileScanTask> taskGroup,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors,
+      Map<String, String> parquetReadProperties) {
+
+    super(
+        table,
+        fileIO,
+        taskGroup,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors,
+        parquetReadProperties);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());

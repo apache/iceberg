@@ -98,6 +98,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -116,6 +117,7 @@ import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -1459,32 +1461,8 @@ public class Parquet {
       if (batchedReaderFunc != null
           || batchedReaderFuncWithSchema != null
           || readerFunction != null) {
-        ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
-          // remove read properties already set that may conflict with this read
-          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
-          for (String property : READ_PROPERTIES_TO_REMOVE) {
-            conf.unset(property);
-          }
-          optionsBuilder = HadoopReadOptions.builder(conf);
-        } else {
-          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
-        }
-
-        for (Map.Entry<String, String> entry : properties.entrySet()) {
-          optionsBuilder.set(entry.getKey(), entry.getValue());
-        }
-
-        if (start != null) {
-          optionsBuilder.withRange(start, start + length);
-        }
-
-        if (fileDecryptionProperties != null) {
-          optionsBuilder.withDecryption(fileDecryptionProperties);
-        }
-
-        optionsBuilder.withUseHadoopVectoredIo(true);
-        ParquetReadOptions options = optionsBuilder.build();
+        ParquetReadOptions options =
+            buildReadOptions(file, properties, start, length, fileDecryptionProperties);
 
         NameMapping mapping;
         if (nameMapping != null) {
@@ -1593,6 +1571,53 @@ public class Parquet {
 
       return new ParquetIterable<>(builder);
     }
+  }
+
+  @VisibleForTesting
+  static ParquetReadOptions buildReadOptions(
+      InputFile file,
+      Map<String, String> properties,
+      Long start,
+      Long length,
+      FileDecryptionProperties fileDecryptionProperties) {
+    ParquetReadOptions.Builder optionsBuilder;
+    HadoopInputFile hadoopInputFile = null;
+    if (HadoopInputFile.class.isInstance(file)) {
+      hadoopInputFile = HadoopInputFile.class.cast(file);
+    }
+
+    if (hadoopInputFile != null) {
+      // remove read properties already set that may conflict with this read
+      Configuration conf = new Configuration(hadoopInputFile.getConf());
+      for (String property : READ_PROPERTIES_TO_REMOVE) {
+        conf.unset(property);
+      }
+      optionsBuilder = HadoopReadOptions.builder(conf);
+    } else {
+      optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
+    }
+
+    for (Map.Entry<String, String> entry : properties.entrySet()) {
+      optionsBuilder.set(entry.getKey(), entry.getValue());
+    }
+
+    if (start != null) {
+      optionsBuilder.withRange(start, start + length);
+    }
+
+    if (fileDecryptionProperties != null) {
+      optionsBuilder.withDecryption(fileDecryptionProperties);
+    }
+
+    if (properties.containsKey(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED)) {
+      optionsBuilder.withUseHadoopVectoredIo(
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED,
+              ParquetInputFormat.HADOOP_VECTORED_IO_DEFAULT));
+    }
+
+    return optionsBuilder.build();
   }
 
   private static class ParquetReadBuilder<T> extends ParquetReader.Builder<T> {

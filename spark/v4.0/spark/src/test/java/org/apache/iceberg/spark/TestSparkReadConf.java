@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
@@ -91,5 +92,52 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
               .isThrownBy(conf::splitParallelism)
               .withMessageContaining("Split parallelism must be > 0");
         });
+  }
+
+  @TestTemplate
+  public void testParquetReadPropertiesFromReadOptions() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkReadConf conf =
+        new SparkReadConf(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                ImmutableMap.of(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false")));
+
+    assertThat(conf.parquetReadProperties())
+        .containsEntry(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false");
+  }
+
+  @TestTemplate
+  public void testParquetReadPropertiesFromHadoopConfiguration() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    spark
+        .sparkContext()
+        .hadoopConfiguration()
+        .set(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false");
+
+    try {
+      SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+
+      assertThat(conf.parquetReadProperties())
+          .containsEntry(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false");
+    } finally {
+      spark
+          .sparkContext()
+          .hadoopConfiguration()
+          .unset(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED);
+    }
+  }
+
+  @TestTemplate
+  public void testParquetReadPropertiesFromTableProperties() {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='false')",
+        tableName, ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED);
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+
+    assertThat(conf.parquetReadProperties())
+        .containsEntry(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false");
   }
 }
