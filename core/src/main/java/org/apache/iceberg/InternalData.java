@@ -65,9 +65,10 @@ public class InternalData {
 
       registerParquet.invoke();
 
-    } catch (NoSuchMethodException e) {
+    } catch (NoSuchMethodException | NoClassDefFoundError | ExceptionInInitializerError e) {
       // failing to load Parquet is normal and does not require a stack trace
-      LOG.info("Unable to register Parquet for metadata files: {}", e.getMessage());
+      String message = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+      LOG.info("Unable to register Parquet for metadata files: {}", message);
     }
   }
 

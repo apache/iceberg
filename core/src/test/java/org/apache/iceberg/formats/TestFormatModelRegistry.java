@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.formats;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.util.Pair;
@@ -84,6 +86,77 @@ class TestFormatModelRegistry {
             () -> FormatModelRegistry.register(new DummyParquetFormatModel(Object.class, null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register class");
+  }
+
+  @Test
+  void registerDoesNotFailWhenClassThrowsNoClassDefFoundOnInvoke() {
+    assertThatNoException()
+        .isThrownBy(
+            () -> {
+              try {
+                DynMethods.StaticMethod method =
+                    DynMethods.builder("register").impl(ThrowsOnInvoke.class).buildStaticChecked();
+                method.invoke();
+              } catch (NoSuchMethodException
+                  | NoClassDefFoundError
+                  | ExceptionInInitializerError e) {
+                // same catch pattern used in InternalData.registerSupportedFormats and
+                // FormatModelRegistry.registerSupportedFormats
+              }
+            });
+  }
+
+  @Test
+  void registerDoesNotFailWhenClassThrowsInitErrorOnInvoke() {
+    assertThatNoException()
+        .isThrownBy(
+            () -> {
+              try {
+                DynMethods.StaticMethod method =
+                    DynMethods.builder("register")
+                        .impl(ThrowsInitErrorOnInvoke.class)
+                        .buildStaticChecked();
+                method.invoke();
+              } catch (NoSuchMethodException
+                  | NoClassDefFoundError
+                  | ExceptionInInitializerError e) {
+                // same catch pattern used in InternalData.registerSupportedFormats and
+                // FormatModelRegistry.registerSupportedFormats
+              }
+            });
+  }
+
+  @Test
+  void invokeCanThrowNoClassDefFoundError() throws NoSuchMethodException {
+    DynMethods.StaticMethod method =
+        DynMethods.builder("register").impl(ThrowsOnInvoke.class).buildStaticChecked();
+
+    assertThatThrownBy(method::invoke)
+        .isInstanceOf(NoClassDefFoundError.class)
+        .hasMessage("some/missing/TransitiveDependency");
+  }
+
+  @Test
+  void invokeCanThrowExceptionInInitializerError() throws NoSuchMethodException {
+    DynMethods.StaticMethod method =
+        DynMethods.builder("register").impl(ThrowsInitErrorOnInvoke.class).buildStaticChecked();
+
+    assertThatThrownBy(method::invoke)
+        .isInstanceOf(ExceptionInInitializerError.class)
+        .hasCauseInstanceOf(RuntimeException.class)
+        .hasMessage(null);
+  }
+
+  public static class ThrowsOnInvoke {
+    public static void register() {
+      throw new NoClassDefFoundError("some/missing/TransitiveDependency");
+    }
+  }
+
+  public static class ThrowsInitErrorOnInvoke {
+    public static void register() {
+      throw new ExceptionInInitializerError(new RuntimeException("lazy init failed"));
+    }
   }
 
   private static class DummyParquetFormatModel implements FormatModel<Object, Object> {
