@@ -40,6 +40,7 @@ import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,14 +125,20 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
     String uniqueAppIdentifier = APP_IDENTIFIER + "_" + uniqueId;
     String userAgentSuffix = IcebergBuild.fullVersion() + " " + uniqueAppIdentifier;
+    // Copy the caller-provided map so initialize does not mutate it (the caller may pass an
+    // immutable map) when adding the JDBC driver identifiers below.
+    Map<String, String> effectiveProperties = Maps.newHashMap(properties);
     // Populate application identifier in jdbc client
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
+    effectiveProperties.put(
+        JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
     // Adds application identifier to the user agent header of the JDBC requests.
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_USER_AGENT_SUFFIX_PROPERTY, userAgentSuffix);
+    effectiveProperties.put(
+        JdbcCatalog.PROPERTY_PREFIX + JDBC_USER_AGENT_SUFFIX_PROPERTY, userAgentSuffix);
 
-    JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
+    JdbcClientPool connectionPool = new JdbcClientPool(uri, effectiveProperties);
 
-    initialize(name, new JdbcSnowflakeClient(connectionPool), new FileIOFactory(), properties);
+    initialize(
+        name, new JdbcSnowflakeClient(connectionPool), new FileIOFactory(), effectiveProperties);
   }
 
   /**
