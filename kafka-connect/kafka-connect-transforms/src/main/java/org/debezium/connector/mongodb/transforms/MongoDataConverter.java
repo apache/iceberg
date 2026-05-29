@@ -236,13 +236,13 @@ public class MongoDataConverter {
       long temp = arrValue.asInt64().getValue();
       list.add(temp);
     } else if (arrValue.getBsonType() == BsonType.DATE_TIME && valueType == BsonType.DATE_TIME) {
-      Date temp = new Date(arrValue.asInt64().getValue());
+      Date temp = new Date(arrValue.asDateTime().getValue());
       list.add(temp);
     } else if (arrValue.getBsonType() == BsonType.DECIMAL128 && valueType == BsonType.DECIMAL128) {
       String temp = arrValue.asDecimal128().getValue().toString();
       list.add(temp);
     } else if (arrValue.getBsonType() == BsonType.TIMESTAMP && valueType == BsonType.TIMESTAMP) {
-      Date temp = new Date(1000L * arrValue.asInt32().getValue());
+      Date temp = new Date(1000L * arrValue.asTimestamp().getTime());
       list.add(temp);
     } else if (arrValue.getBsonType() == BsonType.BOOLEAN && valueType == BsonType.BOOLEAN) {
       boolean temp = arrValue.asBoolean().getValue();

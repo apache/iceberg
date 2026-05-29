@@ -22,11 +22,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
 import java.util.Map.Entry;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.bson.BsonArray;
+import org.bson.BsonDateTime;
 import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.BsonTimestamp;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -388,5 +394,61 @@ public class TestMongoArrayConverter {
         .isEqualTo(
             "Struct{" + "_id=1," + "a1=Struct{" + "_0=Struct{a=1}," + "_1=Struct{a=c}" + "}" + "}");
     // @formatter:on
+  }
+
+  @Test
+  @SuppressWarnings("JavaUtilDate")
+  public void shouldConvertArrayOfTimestamps() {
+    final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
+    final BsonDocument val =
+        new BsonDocument()
+            .append("_id", new BsonInt32(1))
+            .append(
+                "ts",
+                new BsonArray(Arrays.asList(new BsonTimestamp(60, 1), new BsonTimestamp(120, 1))));
+
+    final SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("array");
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.addFieldSchema(entry, schemaBuilder);
+    }
+    final Schema finalSchema = schemaBuilder.build();
+    final Struct struct = new Struct(finalSchema);
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.convertRecord(entry, finalSchema, struct);
+    }
+
+    // BsonTimestamp.getTime() returns the seconds component; the scalar path multiplies by 1000
+    List<?> tsValues = (List<?>) struct.get("ts");
+    assertThat(tsValues).hasSize(2);
+    assertThat(tsValues.get(0)).isEqualTo(new Date(60_000L));
+    assertThat(tsValues.get(1)).isEqualTo(new Date(120_000L));
+  }
+
+  @Test
+  @SuppressWarnings("JavaUtilDate")
+  public void shouldConvertArrayOfDateTimes() {
+    final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
+    final BsonDocument val =
+        new BsonDocument()
+            .append("_id", new BsonInt32(1))
+            .append(
+                "dt",
+                new BsonArray(Arrays.asList(new BsonDateTime(1_000L), new BsonDateTime(2_000L))));
+
+    final SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("array");
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.addFieldSchema(entry, schemaBuilder);
+    }
+    final Schema finalSchema = schemaBuilder.build();
+    final Struct struct = new Struct(finalSchema);
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.convertRecord(entry, finalSchema, struct);
+    }
+
+    // BsonDateTime.getValue() is epoch millis; the scalar path uses it directly
+    List<?> dtValues = (List<?>) struct.get("dt");
+    assertThat(dtValues).hasSize(2);
+    assertThat(dtValues.get(0)).isEqualTo(new Date(1_000L));
+    assertThat(dtValues.get(1)).isEqualTo(new Date(2_000L));
   }
 }
