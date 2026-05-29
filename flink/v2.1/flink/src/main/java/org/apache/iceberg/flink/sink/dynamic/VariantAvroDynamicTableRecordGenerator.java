@@ -149,9 +149,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     String columnName = column.key();
     Preconditions.checkArgument(
         rowType.getFieldIndex(columnName) != -1 || writeProperties().containsKey(columnName),
-        "Invalid %s: null. Either pass column %s in Row or set %s in table options",
-        columnName,
-        columnName,
+        "Invalid %s: null. Either pass the column in Row or set it in table options.",
         columnName);
   }
 
