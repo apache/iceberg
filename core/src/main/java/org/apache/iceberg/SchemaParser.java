@@ -23,8 +23,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
@@ -197,7 +199,12 @@ public class SchemaParser {
 
   private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
     if (json.has(defaultField)) {
-      Object value = SingleValueParser.fromJson(type, json.get(defaultField));
+      JsonNode defaultValue = json.get(defaultField);
+      if (type.isStructType() && !defaultValue.isNull()) {
+        return structDefaultFromJson(type, defaultValue);
+      }
+
+      Object value = SingleValueParser.fromJson(type, defaultValue);
       if (type instanceof Types.TimestampNanoType) {
         // Call Expressions.nanos instead of Expressions.lit to prevent overflow
         // https://github.com/apache/iceberg/issues/13160
@@ -208,6 +215,17 @@ public class SchemaParser {
     }
 
     return null;
+  }
+
+  private static Literal<?> structDefaultFromJson(Type type, JsonNode defaultValue) {
+    Preconditions.checkArgument(
+        defaultValue.isObject(), "Cannot parse default as a %s value: %s", type, defaultValue);
+    Preconditions.checkArgument(
+        defaultValue.size() == 0,
+        "Cannot parse default as a %s value: %s, non-null struct defaults must be empty",
+        type,
+        defaultValue);
+    return StructDefaultLiteral.get();
   }
 
   private static Types.NestedField.Builder fieldBuilder(boolean isRequired, String name) {
@@ -301,5 +319,51 @@ public class SchemaParser {
 
   public static Schema fromJson(String json) {
     return SCHEMA_CACHE.get(json, jsonKey -> JsonUtil.parse(json, SchemaParser::fromJson));
+  }
+
+  private static class StructDefaultLiteral implements Literal<StructLike> {
+    private static final StructDefaultLiteral INSTANCE = new StructDefaultLiteral();
+
+    private StructDefaultLiteral() {}
+
+    private static StructDefaultLiteral get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public StructLike value() {
+      return EmptyStructLike.get();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      if (type.isStructType()) {
+        return (Literal<T>) this;
+      }
+
+      return null;
+    }
+
+    @Override
+    public Comparator<StructLike> comparator() {
+      throw new UnsupportedOperationException("Struct defaults do not support comparison");
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      return other instanceof StructDefaultLiteral structDefaultLiteral
+          && Objects.equals(value(), structDefaultLiteral.value());
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(value());
+    }
+
+    @Override
+    public String toString() {
+      return value().toString();
+    }
   }
 }

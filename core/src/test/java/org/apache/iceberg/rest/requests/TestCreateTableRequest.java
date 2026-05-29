@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -167,6 +168,32 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
 
     assertEquals(
         deserialize(jsonOnlyRequiredFieldsMissingDefaults), reqOnlyRequiredFieldsMissingDefaults);
+  }
+
+  @Test
+  public void testDeserializeStructDefaultValues() throws JsonProcessingException {
+    String json =
+        "{\"stage-create\":true,\"name\":\"tbl\",\"schema\":{\"type\":\"struct\",\"fields\":["
+            + "{\"name\":\"col\",\"id\":1,\"type\":{\"type\":\"struct\",\"fields\":["
+            + "{\"name\":\"a\",\"id\":2,\"type\":\"string\",\"required\":false,"
+            + "\"initial-default\":\"test\",\"write-default\":\"test\"},"
+            + "{\"name\":\"b\",\"id\":3,\"type\":\"int\",\"required\":false}]},"
+            + "\"required\":false,\"initial-default\":{},\"write-default\":{}},"
+            + "{\"name\":\"col2\",\"id\":4,\"type\":\"int\",\"required\":false}],"
+            + "\"schema-id\":0},\"partition-spec\":{\"spec-id\":0,\"type\":\"struct\","
+            + "\"fields\":[]},\"write-order\":{\"order-id\":0,\"fields\":[]},"
+            + "\"properties\":{\"format-version\":\"3\"}}";
+
+    CreateTableRequest request = deserialize(json);
+    Schema schema = request.schema();
+    Types.NestedField col = schema.findField("col");
+    Types.StructType colType = col.type().asStructType();
+
+    assertThat(col.initialDefault()).isInstanceOf(StructLike.class);
+    assertThat(col.writeDefault()).isInstanceOf(StructLike.class);
+    assertThat(colType.field("a").initialDefault()).isEqualTo("test");
+    assertThat(colType.field("a").writeDefault()).isEqualTo("test");
+    assertThat(request.stageCreate()).isTrue();
   }
 
   @Test
