@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.apache.iceberg.rest.RESTCatalogProperties.REST_CATALOG_PURGE;
+import static org.apache.iceberg.spark.SparkCatalogProperties.REST_CATALOG_PURGE;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,7 +47,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Tests for the REST catalog purge delegation feature in {@link SparkCatalog}.
  *
- * <p>Verifies that {@link org.apache.iceberg.rest.RESTCatalogProperties#REST_CATALOG_PURGE}
+ * <p>Verifies that {@link SparkCatalogProperties#REST_CATALOG_PURGE}
  * controls whether Spark delegates DROP TABLE PURGE to the REST catalog or performs client-side
  * file deletion.
  */
@@ -59,22 +60,22 @@ public class TestRestDropPurgeTable extends TestBase {
 
   @TempDir private File tableDir;
 
-  private RESTCatalog restCatalogSpy;
+  private RESTCatalog restCatalogMock;
 
   private SparkCatalog createCatalog(boolean catalogPurge) {
     Table table =
         new HadoopTables(new Configuration())
             .create(SCHEMA, PartitionSpec.unpartitioned(), tableDir.getAbsolutePath());
 
-    restCatalogSpy = mock(RESTCatalog.class);
-    when(restCatalogSpy.loadTable(any())).thenReturn(table);
-    when(restCatalogSpy.dropTable(any(), anyBoolean())).thenReturn(true);
+    restCatalogMock = mock(RESTCatalog.class);
+    when(restCatalogMock.loadTable(any())).thenReturn(table);
+    when(restCatalogMock.dropTable(any(), anyBoolean())).thenReturn(true);
 
     SparkCatalog catalog =
         new SparkCatalog() {
           @Override
           protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
-            return restCatalogSpy;
+            return restCatalogMock;
           }
         };
     catalog.initialize(
@@ -88,14 +89,14 @@ public class TestRestDropPurgeTable extends TestBase {
   void purgeTableDelegatesToCatalogWhenEnabled() {
     SparkCatalog catalog = createCatalog(true);
     catalog.purgeTable(SPARK_ID);
-    verify(restCatalogSpy).dropTable(any(), eq(true));
+    verify(restCatalogMock).dropTable(any(), eq(true));
   }
 
   @Test
   void purgeTableDoesClientSidePurgeWhenDisabled() {
     SparkCatalog catalog = createCatalog(false);
     catalog.purgeTable(SPARK_ID);
-    verify(restCatalogSpy).dropTable(any(), eq(false));
+    verify(restCatalogMock).dropTable(any(), eq(false));
   }
 
   @Test
@@ -114,5 +115,42 @@ public class TestRestDropPurgeTable extends TestBase {
                     new CaseInsensitiveStringMap(ImmutableMap.of(REST_CATALOG_PURGE, "true"))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(REST_CATALOG_PURGE);
+  }
+
+  @Test
+  void purgeTableDelegatesToCatalogWhenEnabledViaSessionCatalog() {
+    Table table =
+        new HadoopTables(new Configuration())
+            .create(SCHEMA, PartitionSpec.unpartitioned(), tableDir.getAbsolutePath());
+
+    RESTCatalog sessionRestCatalogMock = mock(RESTCatalog.class);
+    when(sessionRestCatalogMock.loadTable(any())).thenReturn(table);
+    when(sessionRestCatalogMock.dropTable(any(), anyBoolean())).thenReturn(true);
+
+    SparkSessionCatalog<?> sessionCatalog =
+        new SparkSessionCatalog<>() {
+          @Override
+          protected TableCatalog buildSparkCatalog(
+              String name, CaseInsensitiveStringMap options) {
+            SparkCatalog sparkCatalog =
+                new SparkCatalog() {
+                  @Override
+                  protected Catalog buildIcebergCatalog(
+                      String catalogName, CaseInsensitiveStringMap catalogOptions) {
+                    return sessionRestCatalogMock;
+                  }
+                };
+            sparkCatalog.initialize(name, options);
+            return sparkCatalog;
+          }
+        };
+
+    sessionCatalog.initialize(
+        "spark_catalog",
+        new CaseInsensitiveStringMap(ImmutableMap.of(REST_CATALOG_PURGE, "true")));
+
+    sessionCatalog.purgeTable(SPARK_ID);
+
+    verify(sessionRestCatalogMock).dropTable(any(), eq(true));
   }
 }

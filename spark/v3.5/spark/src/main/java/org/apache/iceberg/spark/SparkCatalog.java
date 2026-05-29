@@ -61,7 +61,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalog;
-import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
@@ -370,7 +369,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropTable(Identifier ident) {
-    return catalogDropTable(ident, false);
+    return catalogDropTable(ident);
   }
 
   @Override
@@ -385,15 +384,15 @@ public class SparkCatalog extends BaseCatalog {
 
       if (isRestCatalog && !isPathIdentifier(ident)) {
         if (restCatalogPurge) {
-          return catalogDropTable(ident, true);
+          return icebergCatalog.dropTable(buildIdentifier(ident), true);
         } else {
           LOG.warn(
               "Set '{}' to true to use the REST Catalog's capabilities to purge the table.",
-              RESTCatalogProperties.REST_CATALOG_PURGE);
+              SparkCatalogProperties.REST_CATALOG_PURGE);
         }
       }
 
-      boolean dropped = catalogDropTable(ident, false);
+      boolean dropped = catalogDropTable(ident);
 
       if (dropped) {
         // check whether the metadata file exists because HadoopCatalog/HadoopTables
@@ -411,11 +410,11 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private boolean catalogDropTable(Identifier ident, boolean purge) {
+  private boolean catalogDropTable(Identifier ident) {
     if (isPathIdentifier(ident)) {
-      return tables.dropTable(((PathIdentifier) ident).location(), purge);
+      return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
     } else {
-      return icebergCatalog.dropTable(buildIdentifier(ident), purge);
+      return icebergCatalog.dropTable(buildIdentifier(ident), false /* don't purge data */);
     }
   }
 
@@ -786,8 +785,8 @@ public class SparkCatalog extends BaseCatalog {
     this.restCatalogPurge =
         PropertyUtil.propertyAsBoolean(
             options,
-            RESTCatalogProperties.REST_CATALOG_PURGE,
-            RESTCatalogProperties.REST_CATALOG_PURGE_DEFAULT);
+            SparkCatalogProperties.REST_CATALOG_PURGE,
+            SparkCatalogProperties.REST_CATALOG_PURGE_DEFAULT);
 
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
@@ -801,7 +800,7 @@ public class SparkCatalog extends BaseCatalog {
     Preconditions.checkArgument(
         !restCatalogPurge || isRestCatalog,
         "Cannot enable '%s': the configured catalog is not a REST catalog",
-        RESTCatalogProperties.REST_CATALOG_PURGE);
+        SparkCatalogProperties.REST_CATALOG_PURGE);
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();

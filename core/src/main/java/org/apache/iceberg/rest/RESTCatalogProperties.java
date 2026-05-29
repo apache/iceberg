@@ -55,19 +55,6 @@ public final class RESTCatalogProperties {
   public static final String TABLE_CACHE_MAX_ENTRIES = "rest-table-cache.max-entries";
   public static final int TABLE_CACHE_MAX_ENTRIES_DEFAULT = 100;
 
-  /**
-   * Controls whether engines using a REST Catalog should delegate DROP TABLE PURGE requests to the
-   * catalog instead of performing client-side file deletion.
-   *
-   * <p>When enabled, the engine sends the purge request to the REST catalog, allowing the catalog
-   * to handle deletion.
-   *
-   * <p>Defaults to false for backward compatibility.
-   */
-  public static final String REST_CATALOG_PURGE = "rest.catalog-purge";
-
-  public static final boolean REST_CATALOG_PURGE_DEFAULT = false;
-
   public enum SnapshotMode {
     ALL,
     REFS
