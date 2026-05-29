@@ -64,7 +64,7 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
    * Use a particular executor to write manifests during commit with the specified parallelism. The
    * default worker pool will be used by default.
    *
-   * <p>The parallelism parameter controls how many manifest writers are used, which determines the
+   * <p>The parallelism parameter controls how many manifest writers are used, which informs the
    * number of manifest files produced. The executor provides the threads for parallel execution.
    *
    * @param executorService the provided executor

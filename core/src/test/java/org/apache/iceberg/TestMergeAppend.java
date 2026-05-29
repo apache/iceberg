@@ -378,11 +378,8 @@ public class TestMergeAppend extends TestBase {
 
   @TestTemplate
   public void testAppendWithWriteManifestsExecutor() {
-    assertThat(listManifestFiles()).isEmpty();
+    assertEmptyTable();
 
-    TableMetadata base = readMetadata();
-    assertThat(base.currentSnapshot()).isNull();
-    assertThat(base.lastSequenceNumber()).isEqualTo(0);
     AtomicInteger commitThreadsIndex = new AtomicInteger(0);
     Snapshot snapshot =
         commit(
@@ -391,30 +388,28 @@ public class TestMergeAppend extends TestBase {
                 .newAppend()
                 .appendFile(FILE_A)
                 .appendFile(FILE_B)
-                .writeManifestsWith(
-                    Executors.newFixedThreadPool(
-                        1,
-                        runnable -> {
-                          Thread thread = new Thread(runnable);
-                          thread.setName("commit-" + commitThreadsIndex.getAndIncrement());
-                          thread.setDaemon(true);
-                          return thread;
-                        }),
-                    1),
+                .writeManifestsWith(newNamedExecutor("commit", commitThreadsIndex), 1),
             branch);
     assertThat(commitThreadsIndex.get())
         .as("Thread should be created in provided commit pool")
         .isGreaterThan(0);
+
     assertThat(snapshot).isNotNull();
+    assertThat(snapshot.allManifests(table.io())).hasSize(1);
+    long snapshotId = snapshot.snapshotId();
+    validateManifest(
+        snapshot.allManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(snapshotId, snapshotId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
   }
 
   @TestTemplate
   public void testAppendWithSeparateScanAndWriteExecutors() {
-    assertThat(listManifestFiles()).isEmpty();
+    assertEmptyTable();
 
-    TableMetadata base = readMetadata();
-    assertThat(base.currentSnapshot()).isNull();
-    assertThat(base.lastSequenceNumber()).isEqualTo(0);
     AtomicInteger scanThreadsIndex = new AtomicInteger(0);
     AtomicInteger commitThreadsIndex = new AtomicInteger(0);
     Snapshot snapshot =
@@ -424,25 +419,8 @@ public class TestMergeAppend extends TestBase {
                 .newAppend()
                 .appendFile(FILE_A)
                 .appendFile(FILE_B)
-                .scanManifestsWith(
-                    Executors.newFixedThreadPool(
-                        1,
-                        runnable -> {
-                          Thread thread = new Thread(runnable);
-                          thread.setName("scan-" + scanThreadsIndex.getAndIncrement());
-                          thread.setDaemon(true);
-                          return thread;
-                        }))
-                .writeManifestsWith(
-                    Executors.newFixedThreadPool(
-                        1,
-                        runnable -> {
-                          Thread thread = new Thread(runnable);
-                          thread.setName("commit-" + commitThreadsIndex.getAndIncrement());
-                          thread.setDaemon(true);
-                          return thread;
-                        }),
-                    1),
+                .scanManifestsWith(newNamedExecutor("scan", scanThreadsIndex))
+                .writeManifestsWith(newNamedExecutor("commit", commitThreadsIndex), 1),
             branch);
     assertThat(scanThreadsIndex.get())
         .as("Thread should be created in provided scan pool")
@@ -450,7 +428,17 @@ public class TestMergeAppend extends TestBase {
     assertThat(commitThreadsIndex.get())
         .as("Thread should be created in provided commit pool")
         .isGreaterThan(0);
+
     assertThat(snapshot).isNotNull();
+    assertThat(snapshot.allManifests(table.io())).hasSize(1);
+    long snapshotId = snapshot.snapshotId();
+    validateManifest(
+        snapshot.allManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(snapshotId, snapshotId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
   }
 
   @TestTemplate
