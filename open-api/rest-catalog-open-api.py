@@ -993,20 +993,10 @@ class PrimitiveTypeValue(
     )
 
 
-class StructDefaultValue(RootModel[dict[str, object]]):
+class StructDefaultValue(BaseModel):
     """
     Empty object marker for a non-null struct default. Nested field defaults are stored on the struct's fields.
     """
-
-    root: dict[str, object] = Field(..., max_length=0)
-
-
-class DefaultValue(RootModel[PrimitiveTypeValue | StructDefaultValue]):
-    """
-    A schema field default value. Primitive fields use primitive type values. Struct fields use an empty object (`{}`) to represent a non-null default that applies nested field defaults.
-    """
-
-    root: PrimitiveTypeValue | StructDefaultValue
 
 
 class FileFormat(RootModel[Literal['avro', 'orc', 'parquet', 'puffin']]):
@@ -1169,6 +1159,13 @@ class ValueMap(BaseModel):
     )
     values: list[PrimitiveTypeValue] | None = Field(
         None, description="List of primitive type values, matched to 'keys' by index"
+    )
+
+
+class DefaultValue(RootModel[PrimitiveTypeValue | StructDefaultValue]):
+    root: PrimitiveTypeValue | StructDefaultValue = Field(
+        ...,
+        description='A schema field default value. Primitive fields use primitive type values. Struct fields use an empty object (`{}`) to represent a non-null default that applies nested field defaults.',
     )
 
 
