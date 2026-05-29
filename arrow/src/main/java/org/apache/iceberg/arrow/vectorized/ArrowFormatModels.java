@@ -26,6 +26,7 @@ import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.PositionDeleteIndexReader;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.ParquetFormatModel;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceMap;
 
 public class ArrowFormatModels {
@@ -55,6 +56,11 @@ public class ArrowFormatModels {
     @Override
     public PositionDeleteIndex read(
         InputFile file, CharSequence dataLocation, DeleteFile deleteFile) {
+      // The SPI requires a non-null filter. VectorizedPositionDeleteReader#read also accepts
+      // null as "no filter / union all rows", but that mode is intentionally a direct-API
+      // optimization (e.g. for single-data-file delete files); SPI callers must pick a path
+      // explicitly via readAll(...) instead.
+      Preconditions.checkArgument(dataLocation != null, "Invalid data location: null");
       return VectorizedPositionDeleteReader.read(file, dataLocation, deleteFile);
     }
 

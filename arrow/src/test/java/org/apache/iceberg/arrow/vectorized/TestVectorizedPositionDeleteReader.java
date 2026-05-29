@@ -185,19 +185,23 @@ public class TestVectorizedPositionDeleteReader {
     assertThat(index.isEmpty())
         .as("filter for unknown data file path should yield an empty index")
         .isTrue();
-    assertThat(index.cardinality()).as("empty index cardinality").isEqualTo(0L);
   }
 
   @Test
-  void surfacesIOFailuresWithFileLocation() throws IOException {
-    // An unreadable file must not silently produce an empty index; verify a recognizable
-    // Parquet-side message propagates to the caller.
+  void surfacesParquetReadFailures() throws IOException {
+    // An unreadable file must not silently produce an empty index. The actual exception from
+    // parquet-mr (a RuntimeException with "not a Parquet file" in the message) is not an
+    // IOException, so it propagates unchanged through the reader's catch (IOException) block.
+    // This is fine -- the parquet-side message is distinctive enough for diagnosis. We
+    // additionally assert it's not an IllegalArgumentException so a regression in our own
+    // precondition checks does not silently satisfy this test.
     File invalid = newDeleteFile("not-parquet.bin");
     java.nio.file.Files.write(invalid.toPath(), new byte[] {0, 1, 2, 3}, StandardOpenOption.CREATE);
 
     assertThatThrownBy(
             () -> VectorizedPositionDeleteReader.read(Files.localInput(invalid), FILE_A, null))
         .isInstanceOf(RuntimeException.class)
+        .isNotInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("not a Parquet file");
   }
 
@@ -219,8 +223,25 @@ public class TestVectorizedPositionDeleteReader {
 
     CharSequenceMap<PositionDeleteIndex> grouped =
         reader.get().readAll(Files.localInput(deleteFile), null);
-    assertThat(grouped).hasSize(1);
+    assertThat(grouped).as("one entry per data file path").hasSize(1);
     assertThat(grouped.get(FILE_A).cardinality()).as("grouped cardinality").isEqualTo(3L);
+  }
+
+  @Test
+  void registeredReaderRejectsNullDataLocation() throws IOException {
+    // The PositionDeleteIndexReader SPI requires a non-null data file path. The direct
+    // VectorizedPositionDeleteReader#read API accepts null as "no filter / union all rows",
+    // but that mode is intentionally not exposed through the registry-based dispatch path.
+    Optional<PositionDeleteIndexReader> reader =
+        FormatModelRegistry.positionDeleteIndexReader(FileFormat.PARQUET);
+    assertThat(reader).as("Arrow reader registered").isPresent();
+
+    File deleteFile = newDeleteFile("reject-null-data-location.parquet");
+    writeDeletesForFile(deleteFile, FILE_A, ImmutableList.of(1L, 2L));
+
+    assertThatThrownBy(() -> reader.get().read(Files.localInput(deleteFile), null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid data location");
   }
 
   @Test
@@ -266,13 +287,15 @@ public class TestVectorizedPositionDeleteReader {
     CharSequenceMap<PositionDeleteIndex> indexes =
         VectorizedPositionDeleteReader.readAllByDataFile(Files.localInput(deleteFile), null);
 
-    assertThat(indexes).hasSize(2);
+    assertThat(indexes).as("one entry per data file path").hasSize(2);
     assertThat(indexes.get(FILE_A).cardinality()).as("FILE_A cardinality").isEqualTo(aCount);
     assertThat(indexes.get(FILE_B).cardinality()).as("FILE_B cardinality").isEqualTo(bCount);
-    assertThat(indexes.get(FILE_A).isDeleted(0L)).isTrue();
-    assertThat(indexes.get(FILE_A).isDeleted(aCount - 1L)).isTrue();
-    assertThat(indexes.get(FILE_A).isDeleted((long) aCount)).isFalse();
-    assertThat(indexes.get(FILE_B).isDeleted(bCount - 1L)).isTrue();
+    assertThat(indexes.get(FILE_A).isDeleted(0L)).as("FILE_A: first position").isTrue();
+    assertThat(indexes.get(FILE_A).isDeleted(aCount - 1L)).as("FILE_A: last position").isTrue();
+    assertThat(indexes.get(FILE_A).isDeleted((long) aCount))
+        .as("FILE_A: one past last must not be deleted")
+        .isFalse();
+    assertThat(indexes.get(FILE_B).isDeleted(bCount - 1L)).as("FILE_B: last position").isTrue();
   }
 
   @Test
@@ -280,6 +303,102 @@ public class TestVectorizedPositionDeleteReader {
     assertThatThrownBy(() -> VectorizedPositionDeleteReader.readAllByDataFile(null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid input file");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, -1, Integer.MIN_VALUE})
+  void readAllByDataFileRejectsNonPositiveBatchSize(int batchSize) throws IOException {
+    File deleteFile = newDeleteFile("readall-rejects-batch-size-" + batchSize + ".parquet");
+    writeDeletesForFile(deleteFile, FILE_A, ImmutableList.of(0L));
+
+    assertThatThrownBy(
+            () ->
+                VectorizedPositionDeleteReader.readAllByDataFile(
+                    Files.localInput(deleteFile), null, batchSize))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid batch size");
+  }
+
+  @Test
+  void readAllByDataFileSurfacesParquetReadFailures() throws IOException {
+    File invalid = newDeleteFile("readall-not-parquet.bin");
+    java.nio.file.Files.write(invalid.toPath(), new byte[] {0, 1, 2, 3}, StandardOpenOption.CREATE);
+
+    assertThatThrownBy(
+            () -> VectorizedPositionDeleteReader.readAllByDataFile(Files.localInput(invalid), null))
+        .isInstanceOf(RuntimeException.class)
+        .isNotInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a Parquet file");
+  }
+
+  @Test
+  void readAllByDataFileHandlesDictionaryEncodedPaths() throws IOException {
+    // Many rows over two distinct paths force Parquet to encode file_path with RLE_DICTIONARY.
+    // The grouped path uses endOfPathRun's length+first-byte fast filter against the dictionary-
+    // decoded bytes; this test pins that grouping still produces the correct per-path indexes.
+    File deleteFile = newDeleteFile("readall-dict-encoded.parquet");
+    int rowsPerFile = 4_096;
+    List<Long> aPositions = Lists.newArrayListWithExpectedSize(rowsPerFile);
+    List<Long> bPositions = Lists.newArrayListWithExpectedSize(rowsPerFile);
+    for (long i = 0; i < rowsPerFile; i++) {
+      aPositions.add(i);
+      bPositions.add(i + rowsPerFile);
+    }
+    writeDeletesForTwoFiles(deleteFile, aPositions, bPositions);
+
+    CharSequenceMap<PositionDeleteIndex> indexes =
+        VectorizedPositionDeleteReader.readAllByDataFile(Files.localInput(deleteFile), null);
+
+    assertThat(indexes).as("one entry per data file path").hasSize(2);
+    assertThat(indexes.get(FILE_A).cardinality())
+        .as("FILE_A cardinality with dictionary-encoded path")
+        .isEqualTo(rowsPerFile);
+    assertThat(indexes.get(FILE_B).cardinality())
+        .as("FILE_B cardinality with dictionary-encoded path")
+        .isEqualTo(rowsPerFile);
+    assertAllPositionsDeleted(indexes.get(FILE_A), aPositions, "FILE_A (dict-encoded grouped)");
+    assertAllPositionsDeleted(indexes.get(FILE_B), bPositions, "FILE_B (dict-encoded grouped)");
+  }
+
+  @Test
+  void readAllByDataFileHonorsExplicitBatchSize() throws IOException {
+    // Pin appendGroupedByPath's batch-boundary handling: cross-batch coalescing within each path
+    // and a path transition that lands inside an Arrow batch must produce the same per-path
+    // indexes regardless of batch size. At SMALL_BATCH_SIZE the FILE_A -> FILE_B transition
+    // falls inside a batch (1_000 is not a multiple of 64), exercising endOfPathRun across the
+    // boundary.
+    File deleteFile = newDeleteFile("readall-small-batches.parquet");
+    int aCount = 1_000;
+    int bCount = 500;
+    List<Long> aPositions = Lists.newArrayListWithExpectedSize(aCount);
+    List<Long> bPositions = Lists.newArrayListWithExpectedSize(bCount);
+    for (long i = 0; i < aCount; i++) {
+      aPositions.add(i);
+    }
+    for (long i = 0; i < bCount; i++) {
+      bPositions.add(i);
+    }
+    writeDeletesForTwoFiles(deleteFile, aPositions, bPositions);
+
+    CharSequenceMap<PositionDeleteIndex> small =
+        VectorizedPositionDeleteReader.readAllByDataFile(
+            Files.localInput(deleteFile), null, SMALL_BATCH_SIZE);
+    CharSequenceMap<PositionDeleteIndex> big =
+        VectorizedPositionDeleteReader.readAllByDataFile(
+            Files.localInput(deleteFile), null, VectorizedPositionDeleteReader.DEFAULT_BATCH_SIZE);
+
+    assertThat(small).as("small-batch: one entry per data file path").hasSize(2);
+    assertThat(big).as("default-batch: one entry per data file path").hasSize(2);
+    assertThat(small.get(FILE_A).cardinality())
+        .as("FILE_A cardinality should not depend on batch size")
+        .isEqualTo(big.get(FILE_A).cardinality())
+        .isEqualTo(aCount);
+    assertThat(small.get(FILE_B).cardinality())
+        .as("FILE_B cardinality should not depend on batch size")
+        .isEqualTo(big.get(FILE_B).cardinality())
+        .isEqualTo(bCount);
+    assertAllPositionsDeleted(small.get(FILE_A), aPositions, "FILE_A (small batches)");
+    assertAllPositionsDeleted(small.get(FILE_B), bPositions, "FILE_B (small batches)");
   }
 
   @Test

@@ -205,32 +205,32 @@ public class BaseDeleteLoader implements DeleteLoader {
   }
 
   private CharSequenceMap<PositionDeleteIndex> readPosDeletes(DeleteFile deleteFile) {
-    Optional<PositionDeleteIndexReader> fastReader =
-        FormatModelRegistry.positionDeleteIndexReader(deleteFile.format());
+    Optional<PositionDeleteIndexReader> fastReader = fastReaderFor(deleteFile);
     if (fastReader.isPresent()) {
       LOG.trace("Reading position delete file {} via {}", deleteFile.location(), fastReader.get());
-      InputFile inputFile = loadInputFile.apply(deleteFile);
-      return fastReader.get().readAll(inputFile, deleteFile);
+      return fastReader.get().readAll(loadInputFile.apply(deleteFile), deleteFile);
     }
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA);
     return Deletes.toPositionIndexes(deletes, deleteFile);
   }
 
   private PositionDeleteIndex readPosDeletes(DeleteFile deleteFile, CharSequence filePath) {
-    Optional<PositionDeleteIndexReader> fastReader =
-        FormatModelRegistry.positionDeleteIndexReader(deleteFile.format());
+    Optional<PositionDeleteIndexReader> fastReader = fastReaderFor(deleteFile);
     if (fastReader.isPresent()) {
       LOG.trace(
           "Reading position delete file {} for {} via {}",
           deleteFile.location(),
           filePath,
           fastReader.get());
-      InputFile inputFile = loadInputFile.apply(deleteFile);
-      return fastReader.get().read(inputFile, filePath, deleteFile);
+      return fastReader.get().read(loadInputFile.apply(deleteFile), filePath, deleteFile);
     }
     Expression filter = Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath);
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA, filter);
     return Deletes.toPositionIndex(filePath, deletes, deleteFile);
+  }
+
+  private static Optional<PositionDeleteIndexReader> fastReaderFor(DeleteFile deleteFile) {
+    return FormatModelRegistry.positionDeleteIndexReader(deleteFile.format());
   }
 
   private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, Schema projection) {

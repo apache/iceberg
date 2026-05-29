@@ -26,6 +26,7 @@ import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -132,9 +133,72 @@ public class TestBaseDeleteLoaderFastPath {
     assertThat(result.cardinality())
         .as("fallback must read the same positions written to the file")
         .isEqualTo(3L);
-    assertThat(result.isDeleted(1L)).isTrue();
-    assertThat(result.isDeleted(2L)).isTrue();
-    assertThat(result.isDeleted(3L)).isTrue();
+    assertThat(result.isDeleted(1L)).as("position 1 should be deleted").isTrue();
+    assertThat(result.isDeleted(2L)).as("position 2 should be deleted").isTrue();
+    assertThat(result.isDeleted(3L)).as("position 3 should be deleted").isTrue();
+  }
+
+  @Test
+  void delegatesToRegisteredFastReaderReadAllWhenCachingEnabled() throws IOException {
+    // When canCache() is true the loader goes through getOrReadPosDeletes -> readPosDeletes
+    // (without filePath), which dispatches to PositionDeleteIndexReader#readAll. This is the
+    // path Spark's CachingDeleteLoader uses; a regression in readAll wiring would otherwise
+    // be invisible at the loader layer (the existing delegatesToRegisteredFastReader stub
+    // throws from readAll).
+    File rawFile = writePositionDeleteFile("readall-caching.parquet");
+    DeleteFile metadata = parquetPositionDeleteMetadata(rawFile, 3L);
+
+    AtomicInteger readAllInvocations = new AtomicInteger();
+    AtomicInteger readInvocations = new AtomicInteger();
+    PositionDeleteIndexReader stub =
+        new PositionDeleteIndexReader() {
+          @Override
+          public PositionDeleteIndex read(
+              InputFile file, CharSequence dataLocation, DeleteFile deleteFile) {
+            readInvocations.incrementAndGet();
+            throw new UnsupportedOperationException("filtered read should not be called");
+          }
+
+          @Override
+          public CharSequenceMap<PositionDeleteIndex> readAll(
+              InputFile file, DeleteFile deleteFile) {
+            readAllInvocations.incrementAndGet();
+            CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
+            PositionDeleteIndex index = PositionDeleteIndex.create(deleteFile);
+            index.delete(7L);
+            index.delete(8L);
+            indexes.put(DATA_FILE_A, index);
+            return indexes;
+          }
+        };
+
+    FormatModelRegistry.registerPositionDeleteIndexReader(FileFormat.PARQUET, stub);
+
+    BaseDeleteLoader loader =
+        new BaseDeleteLoader(deleteFile -> Files.localInput(rawFile)) {
+          @Override
+          protected boolean canCache(long size) {
+            return true;
+          }
+
+          @Override
+          protected <V> V getOrLoad(String key, Supplier<V> valueSupplier, long valueSize) {
+            // Caching is exercised by canCache() returning true; the actual cache backing
+            // is not under test, so we just invoke the supplier once and return the value.
+            return valueSupplier.get();
+          }
+        };
+
+    PositionDeleteIndex result =
+        loader.loadPositionDeletes(ImmutableList.of(metadata), DATA_FILE_A);
+
+    assertThat(readAllInvocations).as("caching path must dispatch to readAll").hasValue(1);
+    assertThat(readInvocations)
+        .as("filtered read must not be called on the caching path")
+        .hasValue(0);
+    assertThat(result.cardinality()).as("returned cardinality").isEqualTo(2L);
+    assertThat(result.isDeleted(7L)).as("position 7 should be deleted").isTrue();
+    assertThat(result.isDeleted(8L)).as("position 8 should be deleted").isTrue();
   }
 
   private File writePositionDeleteFile(String name) throws IOException {

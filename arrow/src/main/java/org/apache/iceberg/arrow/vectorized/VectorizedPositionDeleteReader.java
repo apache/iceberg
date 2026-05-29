@@ -182,11 +182,13 @@ public final class VectorizedPositionDeleteReader {
    * Reads a position delete file and returns one {@link PositionDeleteIndex} per data file path
    * referenced by the delete file.
    *
-   * <p>Position delete files are required to be sorted by {@code (file_path, pos)} ascending, so
-   * rows for the same data file path arrive in contiguous runs. The reader exploits this by
-   * tracking the active path's bytes between rows and only finalizing the run on a path change, but
-   * it also handles unsorted files correctly by looking up an existing entry in the result map
-   * before creating a new one.
+   * <p>This reader assumes the Iceberg v2 spec sort order: rows ordered by {@code (file_path, pos)}
+   * ascending. Under that contract, rows for the same data file path arrive in one contiguous run,
+   * which the reader exploits to track the active path's bytes between rows and finalize the run
+   * only on a path change. Behavior on files that do not honor this sort order is undefined --
+   * positions may be misattributed across paths and the resulting indexes will silently be wrong.
+   * Engines that ingest position delete files written outside Iceberg should validate sort order
+   * upstream.
    *
    * <p>Each returned index is mutable and is not safe for concurrent mutation by multiple threads.
    *
@@ -289,14 +291,13 @@ public final class VectorizedPositionDeleteReader {
 
   /**
    * Coalescing append for the multi-data-file case: rows are grouped by {@code file_path} into
-   * separate {@link PositionDeleteIndex} instances. Position delete files are required to be sorted
-   * by {@code (file_path, pos)}, so paths arrive in contiguous runs; the active path's bytes are
-   * tracked and a run is finalized only on a path change. If a previously seen path reappears (an
-   * unsorted file), the existing index is reused so positions are not lost.
+   * separate {@link PositionDeleteIndex} instances. Assumes the input is sorted per the Iceberg v2
+   * spec ({@code (file_path, pos)} ascending), so each path's rows arrive in one contiguous run;
+   * the active path's bytes are tracked and a run is finalized only on a path change.
    *
    * <p>To avoid a 50+-byte comparison per row in the common single-data-file case, the inner loop
    * uses a length-plus-first-byte fast filter via {@link #endOfPathRun}: only when the cheap check
-   * suggests a transition do we materialize the new path bytes and verify with a full comparison.
+   * suggests a transition do we materialize the new path bytes and look up the target index.
    */
   @SuppressWarnings("CollectionUndefinedEquality")
   private static void appendGroupedByPath(
@@ -352,15 +353,16 @@ public final class VectorizedPositionDeleteReader {
   /**
    * Finds the smallest row index {@code i} in {@code [start + 1, rows]} for which the {@code
    * file_path} differs from {@code currentPath}, or returns {@code rows} if no such row exists. The
-   * caller must guarantee that {@code currentPath} matches row {@code start}.
+   * caller must guarantee that {@code currentPath} matches row {@code start} and that the input is
+   * sorted per the Iceberg v2 spec ({@code (file_path, pos)} ascending).
    *
-   * <p>For each row, the cheap filter checks (a) non-null, (b) the same value length, and (c) the
-   * same first byte. Rows that pass all three are presumed to share the path with row {@code start}
-   * (which holds for sorted position-delete files since two adjacent paths cannot share both length
-   * and leading byte without being equal in their span). The run length is verified by a full
-   * byte-for-byte comparison of the last row in the candidate run; if it disagrees, the method
-   * falls back to a full per-row comparison so unsorted files still produce a correct grouping.
-   * Empty paths skip the first-byte check.
+   * <p>The hot inner loop uses a cheap filter that checks (a) non-null, (b) the same value length,
+   * and (c) the same first byte. Rows that pass all three are presumed to share the path with row
+   * {@code start}. Multiple sorted paths in the same batch may share length and leading byte (for
+   * instance {@code .../file-a.parquet} vs {@code .../file-b.parquet}), so when the cheap filter
+   * accepts every remaining row we confirm with a full comparison of the last row; if that
+   * disagrees we re-scan with full per-row comparisons to find the actual sorted boundary. Empty
+   * paths skip the first-byte check.
    */
   private static int endOfPathRun(
       VarCharVector pathVec, ArrowBuf dataBuf, int start, int rows, byte[] currentPath) {
@@ -388,13 +390,11 @@ public final class VectorizedPositionDeleteReader {
       cursor++;
     }
 
-    // Fast filter accepted every row. Confirm by verifying the last row's full path.
+    // Cheap filter accepted every remaining row. Verify by matching the last row's full path; if
+    // it doesn't actually equal currentPath, rescan with full comparisons to find the boundary.
     if (matches(pathVec, dataBuf, rows - 1, currentPath)) {
       return rows;
     }
-
-    // Same length and first byte but a divergent middle byte (rare, possible only for unsorted
-    // files). Re-scan with full byte comparisons to find the actual boundary.
     for (int j = start + 1; j < rows; j++) {
       if (!matches(pathVec, dataBuf, j, currentPath)) {
         return j;
