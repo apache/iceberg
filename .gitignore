@@ -66,6 +66,7 @@ metastore_db/
 
 # Spark/metastore files
 spark-warehouse/
+warehouse/
 derby.log
 
 # jenv
