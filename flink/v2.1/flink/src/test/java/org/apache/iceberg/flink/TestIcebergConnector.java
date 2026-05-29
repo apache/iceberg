@@ -441,9 +441,11 @@ public class TestIcebergConnector extends TestBase {
 
     // Insert data with database and table information
     sql(
-        "INSERT INTO %s VALUES "
-            + "(PARSE_JSON('{\"id\": 1, \"name\": \"AAA\"}'), '%s', '%s', '%s', '%s', 'main', 1), "
-            + "(PARSE_JSON('{\"id\": 2, \"name\": \"BBB\"}'), '%s', '%s', '%s', '%s', 'main', 1)",
+        """
+        INSERT INTO %s VALUES \
+        (PARSE_JSON('{"id": 1, "name": "AAA"}'), '%s', '%s', '%s', '%s', 'main', 1), \
+        (PARSE_JSON('{"id": 2, "name": "BBB"}'), '%s', '%s', '%s', '%s', 'main', 1)\
+        """,
         TABLE_NAME + "_dynamic",
         databaseName(),
         tableName(),
