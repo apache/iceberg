@@ -101,8 +101,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     if (preserveDataOrdering && !preserveDataGrouping) {
       throw new ValidationException(
           "Cannot preserve data ordering without data grouping. Set %s to true or disable %s.",
-          SparkSQLProperties.PRESERVE_DATA_GROUPING,
-          SparkSQLProperties.PRESERVE_DATA_ORDERING);
+          SparkSQLProperties.PRESERVE_DATA_GROUPING, SparkSQLProperties.PRESERVE_DATA_ORDERING);
     }
 
     if (scan == null) {
