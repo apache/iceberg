@@ -47,9 +47,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Tests for the REST catalog purge delegation feature in {@link SparkCatalog}.
  *
- * <p>Verifies that {@link SparkCatalogProperties#REST_CATALOG_PURGE}
- * controls whether Spark delegates DROP TABLE PURGE to the REST catalog or performs client-side
- * file deletion.
+ * <p>Verifies that {@link SparkCatalogProperties#REST_CATALOG_PURGE} controls whether Spark
+ * delegates DROP TABLE PURGE to the REST catalog or performs client-side file deletion.
  */
 public class TestRestDropPurgeTable extends TestBase {
 
@@ -127,11 +126,10 @@ public class TestRestDropPurgeTable extends TestBase {
     when(sessionRestCatalogMock.loadTable(any())).thenReturn(table);
     when(sessionRestCatalogMock.dropTable(any(), anyBoolean())).thenReturn(true);
 
-    SparkSessionCatalog<?> sessionCatalog =
-        new SparkSessionCatalog<>() {
+    SparkSessionCatalog<SparkCatalog> sessionCatalog =
+        new SparkSessionCatalog<SparkCatalog>() {
           @Override
-          protected TableCatalog buildSparkCatalog(
-              String name, CaseInsensitiveStringMap options) {
+          protected TableCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
             SparkCatalog sparkCatalog =
                 new SparkCatalog() {
                   @Override
@@ -146,8 +144,7 @@ public class TestRestDropPurgeTable extends TestBase {
         };
 
     sessionCatalog.initialize(
-        "spark_catalog",
-        new CaseInsensitiveStringMap(ImmutableMap.of(REST_CATALOG_PURGE, "true")));
+        "spark_catalog", new CaseInsensitiveStringMap(ImmutableMap.of(REST_CATALOG_PURGE, "true")));
 
     sessionCatalog.purgeTable(SPARK_ID);
 
