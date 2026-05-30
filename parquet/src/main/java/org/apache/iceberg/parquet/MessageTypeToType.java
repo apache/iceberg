@@ -254,6 +254,11 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
       return Optional.of(Types.BinaryType.get());
     }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidType) {
+      return Optional.of(Types.UUIDType.get());
+    }
   }
 
   private void addAlias(String name, int fieldId) {

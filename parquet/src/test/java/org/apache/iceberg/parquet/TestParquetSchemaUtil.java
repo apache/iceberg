@@ -161,6 +161,22 @@ public class TestParquetSchemaUtil {
   }
 
   @Test
+  public void testConvertUuidLogicalType() {
+    MessageType messageType =
+        org.apache.parquet.schema.Types.buildMessage()
+            .optional(PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .id(1)
+            .named("uuid_col")
+            .named("test");
+
+    Schema actualSchema = ParquetSchemaUtil.convert(messageType);
+
+    assertThat(actualSchema.findType(1)).isEqualTo(Types.UUIDType.get());
+  }
+
+  @Test
   public void testSchemaConversionWithoutAssigningIds() {
     MessageType messageType =
         new MessageType(
