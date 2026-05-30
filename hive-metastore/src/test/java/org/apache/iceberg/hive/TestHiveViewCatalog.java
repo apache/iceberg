@@ -101,6 +101,30 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
+  public void newViewSetsCurrentHmsLastAccessTime() throws Exception {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    TableIdentifier identifier = TableIdentifier.of(ns, "create_time_view");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ns);
+    }
+
+    int beforeSeconds = (int) (System.currentTimeMillis() / 1000);
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("hive", "select * from hivedb.tbl")
+        .create();
+    int afterSeconds = (int) (System.currentTimeMillis() / 1000);
+
+    // Same overflow as for tables: newHMSView computes lastAccessTime with a cast-before-divide
+    // that wraps to a 1970-era value. Assert the HMS view's lastAccessTime is the current second.
+    Table hmsView = HIVE_METASTORE_EXTENSION.metastoreClient().getTable(dbName, identifier.name());
+    assertThat(hmsView.getLastAccessTime()).isBetween(beforeSeconds, afterSeconds);
+  }
+
+  @Test
   public void testHiveViewAndIcebergViewWithSameName() throws TException, IOException {
     String dbName = "hivedb";
     Namespace ns = Namespace.of(dbName);
