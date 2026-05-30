@@ -217,9 +217,7 @@ public class TestReplaceTableSafety {
   @Test
   public void createOrReplaceNewTableSucceeds() {
     Transaction createOrReplace =
-        catalog
-            .buildTable(TableIdentifier.of(NS, "new_tbl"), SCHEMA)
-            .createOrReplaceTransaction();
+        catalog.buildTable(TableIdentifier.of(NS, "new_tbl"), SCHEMA).createOrReplaceTransaction();
     createOrReplace.newFastAppend().appendFile(FILE_A).commit();
     createOrReplace.commitTransaction();
 
@@ -248,10 +246,7 @@ public class TestReplaceTableSafety {
 
   @Test
   public void replaceV3TableVsConcurrentAppendFails() {
-    catalog
-        .buildTable(TABLE, SCHEMA)
-        .withProperty(TableProperties.FORMAT_VERSION, "3")
-        .create();
+    catalog.buildTable(TABLE, SCHEMA).withProperty(TableProperties.FORMAT_VERSION, "3").create();
 
     Table table = catalog.loadTable(TABLE);
     table.newFastAppend().appendFile(FILE_A).commit();

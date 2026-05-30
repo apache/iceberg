@@ -131,8 +131,7 @@ public class TestUpdateRequirements {
 
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceTable(
-            metadata,
-            ImmutableList.of(new MetadataUpdate.AddSchema(new Schema())));
+            metadata, ImmutableList.of(new MetadataUpdate.AddSchema(new Schema())));
 
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
         .isInstanceOf(CommitFailedException.class)
@@ -145,15 +144,13 @@ public class TestUpdateRequirements {
     when(metadata.currentSchemaId()).thenReturn(schemaId);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceTable(
-            metadata,
-            ImmutableList.of(new MetadataUpdate.SetCurrentSchema(schemaId)));
+            metadata, ImmutableList.of(new MetadataUpdate.SetCurrentSchema(schemaId)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
         .hasSize(2)
         .hasOnlyElementsOfTypes(
-            UpdateRequirement.AssertTableUUID.class,
-            UpdateRequirement.AssertCurrentSchemaID.class);
+            UpdateRequirement.AssertTableUUID.class, UpdateRequirement.AssertCurrentSchemaID.class);
   }
 
   @Test
@@ -174,13 +171,12 @@ public class TestUpdateRequirements {
   }
 
   @Test
-  public void replaceTableAddSortOrderProducesDefaultSortOrderRequirement() {
+  public void replaceTableSetDefaultSortOrderProducesDefaultSortOrderRequirement() {
     int sortOrderId = 5;
     when(metadata.defaultSortOrderId()).thenReturn(sortOrderId);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceTable(
-            metadata,
-            ImmutableList.of(new MetadataUpdate.AddSortOrder(SortOrder.unsorted())));
+            metadata, ImmutableList.of(new MetadataUpdate.SetDefaultSortOrder(sortOrderId)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
