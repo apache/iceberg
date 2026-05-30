@@ -47,6 +47,7 @@ import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -587,12 +588,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       int bitWidth = intLogicalType.getBitWidth();
 
       if (bitWidth == 8 || bitWidth == 16 || bitWidth == 32) {
-        // Iceberg has no unsigned integer type. Reading UINT32 into a 32-bit signed value would
-        // silently produce negative results for inputs above Integer.MAX_VALUE. UINT8 and UINT16
-        // both fit losslessly in a signed int32 and are allowed, matching the policy in
-        // BaseParquetReaders for the non-vectorized path.
-        Preconditions.checkArgument(
-            intLogicalType.isSigned() || bitWidth < 32, "Cannot read UINT32 as an int value");
+        // Iceberg has no unsigned integer type. UINT8 and UINT16 fit losslessly in a signed int32
+        // and are always allowed. UINT32 is only allowed when the Iceberg field expects a long
+        // (the existing IntAccessor widens int to long on read, matching the non-vectorized
+        // IntAsLongReader). Reading UINT32 into a 32-bit signed value would silently produce
+        // negative results for inputs above Integer.MAX_VALUE, so it is rejected.
+        if (bitWidth == 32 && !intLogicalType.isSigned()) {
+          Preconditions.checkArgument(
+              icebergField.type().typeId() == Type.TypeID.LONG,
+              "Cannot read UINT32 as an int value");
+        }
         Field intField =
             new Field(
                 icebergField.name(),

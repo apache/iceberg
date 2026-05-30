@@ -436,6 +436,31 @@ public class TestArrowReader {
     assertThat(totalRows).isEqualTo(1);
   }
 
+  @Test
+  public void testUnsignedInt32ColumnPromotedToLong() throws Exception {
+    Schema schema = new Schema(Types.NestedField.optional(1, "col", Types.LongType.get()));
+    int value = 100;
+    Table table =
+        createSingleRowUnsignedIntTable(schema, PrimitiveType.PrimitiveTypeName.INT32, 32, value);
+
+    int totalRows = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        FieldVector vector = batch.column(0).getArrowVector();
+        assertThat(vector)
+            .as("UINT32 should be stored in an IntVector matching the physical Parquet type")
+            .isInstanceOf(IntVector.class);
+        assertThat(batch.column(0).getLong(0))
+            .as("UINT32 value should widen to long through the accessor")
+            .isEqualTo((long) value);
+        totalRows += batch.numRows();
+      }
+    }
+
+    assertThat(totalRows).isEqualTo(1);
+  }
+
   /**
    * Tests that the vectorized reader correctly handles int-to-long type promotion when the Parquet
    * file has an INT(32, true) logical type annotation. This reproduces a bug where reading a file
