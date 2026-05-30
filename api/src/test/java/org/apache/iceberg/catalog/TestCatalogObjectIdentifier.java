@@ -34,9 +34,10 @@ public class TestCatalogObjectIdentifier {
 
   @Test
   public void withEmptyLevels() {
-    assertThatThrownBy(CatalogObjectIdentifier::of)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create catalog object identifier with no levels");
+    CatalogObjectIdentifier identifier = CatalogObjectIdentifier.of();
+    assertThat(identifier.levels()).isEmpty();
+    assertThat(identifier.length()).isZero();
+    assertThat(identifier).hasToString("");
   }
 
   @Test
