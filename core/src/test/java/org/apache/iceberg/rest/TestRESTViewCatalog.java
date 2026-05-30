@@ -468,7 +468,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     catalog.loadView(viewIdent, viewChain);
 
-    // The test adapter uses %2E as the namespace separator, sent verbatim on the wire
+    // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
         .execute(
             matches(
@@ -542,7 +542,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     catalog.loadView(viewIdent, viewChain);
 
     // verify the GET request includes comma-separated referenced-by chain
-    // The test adapter uses %2E as the namespace separator, sent verbatim on the wire
+    // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
         .execute(
             matches(

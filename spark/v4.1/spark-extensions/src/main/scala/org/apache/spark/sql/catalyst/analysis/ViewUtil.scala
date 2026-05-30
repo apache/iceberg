@@ -94,6 +94,22 @@ object ViewUtil {
   }
 
   /**
+   * Qualify identifier parts against a catalog/namespace prefix. A single-part identifier becomes
+   * `catalogAndNamespace :+ part`; a multi-part identifier whose head isn't a registered catalog
+   * is prefixed with the catalog; otherwise it's returned as-is.
+   */
+  def qualifyParts(
+      parts: Seq[String],
+      catalogAndNamespace: Seq[String],
+      isCatalog: String => Boolean): Seq[String] = {
+    parts match {
+      case Seq(name) => catalogAndNamespace :+ name
+      case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
+      case _ => parts
+    }
+  }
+
+  /**
    * Build or extend the view chain by appending the current view's fully qualified identifier.
    *
    * @param nameParts the current view's identifier parts (may be 1, 2, or 3+ parts)
@@ -106,15 +122,7 @@ object ViewUtil {
       viewCatalogAndNamespace: Seq[String],
       existingChain: Seq[Seq[String]],
       isCatalog: String => Boolean): Seq[Seq[String]] = {
-    val currentViewParts = nameParts match {
-      case Seq(name) =>
-        viewCatalogAndNamespace :+ name
-      case parts if !isCatalog(parts.head) =>
-        viewCatalogAndNamespace.head +: parts
-      case parts =>
-        parts
-    }
-    existingChain :+ currentViewParts
+    existingChain :+ qualifyParts(nameParts, viewCatalogAndNamespace, isCatalog)
   }
 
   /**

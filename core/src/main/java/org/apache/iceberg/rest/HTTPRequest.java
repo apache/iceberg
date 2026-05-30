@@ -69,9 +69,8 @@ public interface HTTPRequest {
       String referencedBy = null;
       for (Map.Entry<String, String> entry : queryParameters().entrySet()) {
         if (RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER.equals(entry.getKey())) {
-          // referenced-by is already in wire form (URL-encoded levels/names joined by the
-          // URL-encoded separator, entries joined by a literal comma). Append it verbatim so
-          // URIBuilder doesn't re-encode the comma chain delimiter.
+          // URIBuilder.addParameter would re-encode the comma chain delimiter, breaking the spec
+          // wire form. Append this value verbatim instead.
           referencedBy = entry.getValue();
         } else {
           builder.addParameter(entry.getKey(), entry.getValue());

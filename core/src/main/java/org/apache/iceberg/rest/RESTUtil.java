@@ -417,11 +417,11 @@ public class RESTUtil {
   /**
    * Encode a view identifier chain as a referenced-by query parameter.
    *
-   * <p>The returned value is the wire-form: each level and the view name are URL-encoded, joined
-   * by the (URL-encoded) namespace separator, and entries are joined by a literal comma matching
-   * the {@code referenced-by} OpenAPI definition. The HTTP layer must pass this value through
-   * verbatim (no further URL-encoding) so the comma chain delimiter and {@code %1F} separators
-   * survive on the wire.
+   * <p>The returned value is the wire-form: each level and the view name are URL-encoded, joined by
+   * the (URL-encoded) namespace separator, and entries are joined by a literal comma matching the
+   * {@code referenced-by} OpenAPI definition. The HTTP layer must pass this value through verbatim
+   * (no further URL-encoding) so the comma chain delimiter and {@code %1F} separators survive on
+   * the wire.
    *
    * @param referencedBy ordered list of view identifiers from outermost to innermost
    * @param namespaceSeparator the URL-encoded namespace separator (e.g. {@code %1F})

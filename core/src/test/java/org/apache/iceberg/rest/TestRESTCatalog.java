@@ -4030,7 +4030,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog.loadTable(tableIdent, viewChain);
 
-    // The test adapter uses %2E as the namespace separator, sent verbatim on the wire
+    // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
         .execute(
             matches(
@@ -4097,7 +4097,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog.loadTable(tableIdent, viewChain);
 
-    // The test adapter uses %2E as the namespace separator, sent verbatim on the wire
+    // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
         .execute(
             matches(
