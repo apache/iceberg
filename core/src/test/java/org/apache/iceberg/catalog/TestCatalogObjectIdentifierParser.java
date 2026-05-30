@@ -70,12 +70,11 @@ public class TestCatalogObjectIdentifierParser {
 
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing or non-array catalog object identifier: {}");
+        .hasMessage("Cannot parse string array from non-array: {}");
 
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("\"accounting.tax\""))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot parse missing or non-array catalog object identifier: \"accounting.tax\"");
+        .hasMessage("Cannot parse string array from non-array: \"accounting.tax\"");
   }
 
   @Test
@@ -89,14 +88,14 @@ public class TestCatalogObjectIdentifierParser {
   public void fromJsonRejectsNonStringElement() {
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[null]"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse non-string element in catalog object identifier: null");
+        .hasMessage("Cannot parse string from non-text value: null");
 
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[1]"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse non-string element in catalog object identifier: 1");
+        .hasMessage("Cannot parse string from non-text value: 1");
 
     assertThatThrownBy(() -> CatalogObjectIdentifierParser.fromJson("[\"a\", null, \"b\"]"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse non-string element in catalog object identifier: null");
+        .hasMessage("Cannot parse string from non-text value: null");
   }
 }
