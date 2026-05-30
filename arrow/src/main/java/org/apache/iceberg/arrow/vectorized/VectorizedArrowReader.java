@@ -598,6 +598,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
               icebergField.type().typeId() == Type.TypeID.LONG,
               "Cannot read UINT32 as an int value");
         }
+
         Field intField =
             new Field(
                 icebergField.name(),
