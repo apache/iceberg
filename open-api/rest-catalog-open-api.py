@@ -1575,6 +1575,19 @@ class CreateTableRequest(BaseModel):
     properties: dict[str, str] | None = None
 
 
+class UnregisterTableResult(BaseModel):
+    """
+    Last metadata location and the corresponding table metadata for the table that was successfully unregistered and is no longer tracked by the catalog.
+    """
+
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='The last metadata location for the table at the time it was unregistered.',
+    )
+    metadata: TableMetadata
+
+
 class CreateViewRequest(BaseModel):
     name: str
     location: str | None = None

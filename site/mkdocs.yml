@@ -47,6 +47,10 @@ theme:
     - content.code.copy
     - content.code.annotate
 
+hooks:
+  # Symlinks docs/<version>/ to docs/latest/ so both URLs resolve.
+  - hooks/version_alias.py
+
 plugins:
   - search
   - blog:
