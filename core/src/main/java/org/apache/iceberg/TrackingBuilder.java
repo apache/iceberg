@@ -47,13 +47,7 @@ class TrackingBuilder {
     this.replacedPositions = null;
   }
 
-  /**
-   * Constructs a builder derived from {@code source} at the current snapshot.
-   *
-   * <p>Without MODIFIED, output status is always EXISTING and {@code currentSnapshotId} is used
-   * only for {@link #dvUpdated()} stamping. When MODIFIED lands, status will be derived from the
-   * source, snapshot equality, and which mutation methods are called.
-   */
+  /** Constructs a builder derived from {@code source} at the current snapshot. */
   // TODO: when MODIFIED is added, derive status from source + currentSnapshotId + mutations.
   TrackingBuilder(Tracking source, long currentSnapshotId) {
     validateSource(source);

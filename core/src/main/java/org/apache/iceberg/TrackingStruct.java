@@ -259,12 +259,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     return new TrackingBuilder(snapshotId);
   }
 
-  /**
-   * Creates a builder for a tracking row derived from {@code source} at the current snapshot.
-   *
-   * <p>Without MODIFIED status, this produces an EXISTING row. Once MODIFIED lands, the status will
-   * be auto-derived from the source, the snapshot, and which mutation methods are called.
-   */
+  /** Creates a builder for a tracking row derived from {@code source} at the current snapshot. */
   // TODO: when MODIFIED is added, derive status from source + currentSnapshotId + mutations.
   static TrackingBuilder builder(Tracking source, long currentSnapshotId) {
     return new TrackingBuilder(source, currentSnapshotId);
