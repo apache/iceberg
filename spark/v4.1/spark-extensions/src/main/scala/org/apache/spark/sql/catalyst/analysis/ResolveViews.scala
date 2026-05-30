@@ -47,9 +47,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
-  private lazy val referencedByEnabled: Boolean =
-    spark.conf.get("spark.sql.iceberg.referenced-by-enabled", "false").toBoolean
-
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u @ UnresolvedRelation(nameParts, _, _)
         if catalogManager.v1SessionCatalog.isTempView(nameParts) =>
@@ -90,7 +87,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           // and recursively resolve with the accumulated chain.
           ViewUtil
             .loadView(catalog, tableIdent, referencedBy)
-            .map(view => createViewRelation(tableParts, view, Some(viewChain)))
+            .map(view => createViewRelation(tableParts, view, viewChain))
             .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
       }
 
@@ -137,18 +134,14 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   private def createViewRelation(
       nameParts: Seq[String],
       view: View,
-      existingChain: Option[Seq[Seq[String]]] = None): LogicalPlan = {
+      existingChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
 
     // Apply any necessary rewrites to preserve correct resolution
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
 
-    val viewChain = ViewUtil.buildViewChain(
-      referencedByEnabled,
-      nameParts,
-      viewCatalogAndNamespace,
-      existingChain,
-      isCatalog)
+    val viewChain =
+      ViewUtil.buildViewChain(nameParts, viewCatalogAndNamespace, existingChain, isCatalog)
 
     val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, viewChain)
 
@@ -180,7 +173,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   private def rewriteIdentifiers(
       plan: LogicalPlan,
       catalogAndNamespace: Seq[String],
-      viewChain: Option[Seq[Seq[String]]] = None): LogicalPlan = {
+      viewChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
     // Rewrite unresolved functions and relations
     qualifyTableIdentifiers(
       qualifyFunctionIdentifiers(CTESubstitution.apply(plan), catalogAndNamespace),
@@ -207,38 +200,23 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   private def qualifyTableIdentifiers(
       child: LogicalPlan,
       catalogAndNamespace: Seq[String],
-      viewChain: Option[Seq[Seq[String]]]): LogicalPlan = {
+      viewChain: Seq[Seq[String]]): LogicalPlan = {
     child transform {
-      case u @ UnresolvedRelation(parts, options, isStreaming) =>
+      case UnresolvedRelation(parts, options, isStreaming) =>
         val qualifiedTableId = qualifyParts(parts, catalogAndNamespace)
-
-        viewChain match {
-          case Some(chain) =>
-            UnResolvedRelationFromView(qualifiedTableId, chain, options, isStreaming)
-          case _ =>
-            u.copy(multipartIdentifier = qualifiedTableId)
-        }
+        UnResolvedRelationFromView(qualifiedTableId, viewChain, options, isStreaming)
       case RelationTimeTravel(
-            u @ UnresolvedRelation(parts, options, isStreaming),
+            UnresolvedRelation(parts, options, isStreaming),
             timestampOpt,
             versionOpt) =>
         val qualifiedTableId = qualifyParts(parts, catalogAndNamespace)
-
-        viewChain match {
-          case Some(chain) =>
-            UnResolvedRelationFromView(
-              qualifiedTableId,
-              chain,
-              options,
-              isStreaming,
-              timeTravelVersion = versionOpt,
-              timeTravelTimestamp = timestampOpt)
-          case _ =>
-            RelationTimeTravel(
-              u.copy(multipartIdentifier = qualifiedTableId),
-              timestampOpt,
-              versionOpt)
-        }
+        UnResolvedRelationFromView(
+          qualifiedTableId,
+          viewChain,
+          options,
+          isStreaming,
+          timeTravelVersion = versionOpt,
+          timeTravelTimestamp = timestampOpt)
       case other =>
         other.transformExpressions { case subquery: SubqueryExpression =>
           subquery.withNewPlan(

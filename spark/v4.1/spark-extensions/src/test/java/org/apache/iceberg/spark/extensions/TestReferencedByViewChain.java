@@ -128,7 +128,6 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
                 ContextTrackingCatalog.class.getName())
             .config("spark.sql.catalog." + CATALOG_NAME + ".default-namespace", "default")
             .config("spark.sql.catalog." + CATALOG_NAME + ".cache-enabled", "false")
-            .config("spark.sql.iceberg.referenced-by-enabled", "true")
             .config("spark.sql.defaultCatalog", CATALOG_NAME)
             .getOrCreate();
 

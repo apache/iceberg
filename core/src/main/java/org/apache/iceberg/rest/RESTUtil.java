@@ -417,8 +417,14 @@ public class RESTUtil {
   /**
    * Encode a view identifier chain as a referenced-by query parameter.
    *
+   * <p>The returned value is the wire-form: each level and the view name are URL-encoded, joined
+   * by the (URL-encoded) namespace separator, and entries are joined by a literal comma matching
+   * the {@code referenced-by} OpenAPI definition. The HTTP layer must pass this value through
+   * verbatim (no further URL-encoding) so the comma chain delimiter and {@code %1F} separators
+   * survive on the wire.
+   *
    * @param referencedBy ordered list of view identifiers from outermost to innermost
-   * @param namespaceSeparator the separator to use between namespace levels and name
+   * @param namespaceSeparator the URL-encoded namespace separator (e.g. {@code %1F})
    * @return a map with the referenced-by query parameter, or an empty map if no chain is present
    */
   public static Map<String, String> referencedByToQueryParam(
@@ -427,7 +433,7 @@ public class RESTUtil {
       return Map.of();
     }
 
-    List<String> encoded =
+    List<String> entries =
         referencedBy.stream()
             .map(
                 ident ->
@@ -437,6 +443,6 @@ public class RESTUtil {
             .collect(Collectors.toList());
 
     return ImmutableMap.of(
-        RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, Joiner.on(",").join(encoded));
+        RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, Joiner.on(",").join(entries));
   }
 }

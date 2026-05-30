@@ -120,7 +120,7 @@ public class TestReferencedByQueryParam {
 
     Map<String, String> result = catalog.referencedByToQueryParam(chain);
 
-    // Comma in view name should be encoded as %2C
+    // Comma in view name is URL-encoded as %2C so the chain split on bare comma still works
     assertThat(result)
         .containsEntry(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%1Fview%2Cname");
   }
@@ -144,7 +144,8 @@ public class TestReferencedByQueryParam {
 
     Map<String, String> result = catalog.referencedByToQueryParam(chain);
 
-    // Spaces encode to + and / encodes to %2F in URL encoding
+    // Levels and name are URL-encoded (spaces -> +, / -> %2F) and joined by the URL-encoded
+    // separator; the value is then sent verbatim on the wire
     assertThat(result)
         .containsEntry(
             RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns+with+spaces%1Fview%2Fname");
@@ -156,7 +157,7 @@ public class TestReferencedByQueryParam {
 
     restCatalog.loadTable(TABLE_IDENT, viewChain);
 
-    // The test adapter uses %2E as the namespace separator
+    // The test adapter uses %2E as the namespace separator, sent verbatim on the wire
     Mockito.verify(adapter)
         .execute(
             matches(
@@ -197,7 +198,7 @@ public class TestReferencedByQueryParam {
 
     restCatalog.loadTable(TABLE_IDENT, viewChain);
 
-    // The test adapter uses %2E as the namespace separator
+    // The test adapter uses %2E as the namespace separator, sent verbatim on the wire
     Mockito.verify(adapter)
         .execute(
             matches(
