@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
@@ -83,23 +84,13 @@ public class AvroFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public String compressionProperty() {
-    return TableProperties.AVRO_COMPRESSION;
+  public Map<String, String> testPropertyToSet() {
+    return Map.of(TableProperties.AVRO_COMPRESSION, "uncompressed");
   }
 
   @Override
-  public String compressionValue() {
-    return "uncompressed";
-  }
-
-  @Override
-  public String expectedCompressionCodec() {
-    return "null";
-  }
-
-  @Override
-  public String actualCompressionCodec(InputFile inputFile) throws IOException {
-    return avroMetadataValue(inputFile, "avro.codec");
+  public boolean checkTestProperty(InputFile inputFile) throws IOException {
+    return "null".equals(avroMetadataValue(inputFile, "avro.codec"));
   }
 
   @Override

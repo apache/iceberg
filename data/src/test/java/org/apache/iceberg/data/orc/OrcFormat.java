@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
@@ -98,24 +99,14 @@ public class OrcFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public String compressionProperty() {
-    return TableProperties.ORC_COMPRESSION;
+  public Map<String, String> testPropertyToSet() {
+    return Map.of(TableProperties.ORC_COMPRESSION, "none");
   }
 
   @Override
-  public String compressionValue() {
-    return "none";
-  }
-
-  @Override
-  public String expectedCompressionCodec() {
-    return "NONE";
-  }
-
-  @Override
-  public String actualCompressionCodec(InputFile inputFile) throws IOException {
+  public boolean checkTestProperty(InputFile inputFile) throws IOException {
     try (Reader reader = newOrcReader(inputFile, new Configuration())) {
-      return reader.getCompressionKind().name();
+      return "NONE".equals(reader.getCompressionKind().name());
     }
   }
 

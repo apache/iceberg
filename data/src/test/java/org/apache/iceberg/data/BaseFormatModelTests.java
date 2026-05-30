@@ -1592,10 +1592,8 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterSet(FileFormat fileFormat) throws IOException {
     writeAndAssertDataWriterWithConfig(
         fileFormat,
-        (writerBuilder, format) ->
-            writerBuilder.set(compressionProperty(format), compressionValue(format)),
-        format ->
-            assertThat(actualCompressionCodec(format)).isEqualTo(expectedCompressionCodec(format)));
+        (writerBuilder, format) -> testPropertyToSet(format).forEach(writerBuilder::set),
+        format -> assertThat(checkTestProperty(format)).isTrue());
   }
 
   @ParameterizedTest
@@ -1603,10 +1601,8 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterSetAll(FileFormat fileFormat) throws IOException {
     writeAndAssertDataWriterWithConfig(
         fileFormat,
-        (writerBuilder, format) ->
-            writerBuilder.setAll(Map.of(compressionProperty(format), compressionValue(format))),
-        format ->
-            assertThat(actualCompressionCodec(format)).isEqualTo(expectedCompressionCodec(format)));
+        (writerBuilder, format) -> writerBuilder.setAll(testPropertyToSet(format)),
+        format -> assertThat(checkTestProperty(format)).isTrue());
   }
 
   @ParameterizedTest
@@ -2147,21 +2143,13 @@ public abstract class BaseFormatModelTests<T> {
     return dataFile;
   }
 
-  private static String compressionProperty(FileFormat fileFormat) {
-    return FileFormatTestSupport.forFormat(fileFormat).compressionProperty();
+  private static Map<String, String> testPropertyToSet(FileFormat fileFormat) {
+    return FileFormatTestSupport.forFormat(fileFormat).testPropertyToSet();
   }
 
-  private static String compressionValue(FileFormat fileFormat) {
-    return FileFormatTestSupport.forFormat(fileFormat).compressionValue();
-  }
-
-  private static String expectedCompressionCodec(FileFormat fileFormat) {
-    return FileFormatTestSupport.forFormat(fileFormat).expectedCompressionCodec();
-  }
-
-  private String actualCompressionCodec(FileFormat fileFormat) throws IOException {
+  private boolean checkTestProperty(FileFormat fileFormat) throws IOException {
     return FileFormatTestSupport.forFormat(fileFormat)
-        .actualCompressionCodec(encryptedFile.encryptingOutputFile().toInputFile());
+        .checkTestProperty(encryptedFile.encryptingOutputFile().toInputFile());
   }
 
   private String fileMetadataValue(FileFormat fileFormat, String key) throws IOException {

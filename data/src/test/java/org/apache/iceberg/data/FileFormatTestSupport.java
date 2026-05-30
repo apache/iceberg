@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.avro.AvroFormat;
@@ -55,20 +56,14 @@ public interface FileFormatTestSupport {
 
   FileFormat format();
 
-  default boolean supportsFeature(String feature) {
-    return true;
-  }
+  boolean supportsFeature(String feature);
 
   void writeRecordsWithoutFieldIds(OutputFile outputFile, Schema schema, List<Record> records)
       throws IOException;
 
-  String compressionProperty();
+  Map<String, String> testPropertyToSet();
 
-  String compressionValue();
-
-  String expectedCompressionCodec();
-
-  String actualCompressionCodec(InputFile inputFile) throws IOException;
+  boolean checkTestProperty(InputFile inputFile) throws IOException;
 
   String metadataValue(InputFile inputFile, String key) throws IOException;
 

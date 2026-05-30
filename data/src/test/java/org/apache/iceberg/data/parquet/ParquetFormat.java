@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
@@ -43,6 +44,11 @@ public class ParquetFormat implements FileFormatTestSupport {
   @Override
   public FileFormat format() {
     return FileFormat.PARQUET;
+  }
+
+  @Override
+  public boolean supportsFeature(String feature) {
+    return true;
   }
 
   @Override
@@ -74,24 +80,15 @@ public class ParquetFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public String compressionProperty() {
-    return TableProperties.PARQUET_COMPRESSION;
+  public Map<String, String> testPropertyToSet() {
+    return Map.of(TableProperties.PARQUET_COMPRESSION, "uncompressed");
   }
 
   @Override
-  public String compressionValue() {
-    return "uncompressed";
-  }
-
-  @Override
-  public String expectedCompressionCodec() {
-    return "UNCOMPRESSED";
-  }
-
-  @Override
-  public String actualCompressionCodec(InputFile inputFile) throws IOException {
+  public boolean checkTestProperty(InputFile inputFile) throws IOException {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetFileTestUtils.file(inputFile))) {
-      return reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name();
+      return "UNCOMPRESSED"
+          .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
     }
   }
 
