@@ -258,17 +258,19 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     @Override
     protected DeleteLoader newDeleteLoader() {
+      Map<String, String> readProperties = parquetReadProperties();
       if (cacheDeleteFilesOnExecutors) {
-        return new CachingDeleteLoader(this::loadInputFile);
+        return new CachingDeleteLoader(this::loadInputFile, readProperties);
       }
-      return new BaseDeleteLoader(this::loadInputFile);
+      return new BaseDeleteLoader(this::loadInputFile, readProperties);
     }
 
     private class CachingDeleteLoader extends BaseDeleteLoader {
       private final SparkExecutorCache cache;
 
-      CachingDeleteLoader(Function<DeleteFile, InputFile> loadInputFile) {
-        super(loadInputFile);
+      CachingDeleteLoader(
+          Function<DeleteFile, InputFile> loadInputFile, Map<String, String> readProperties) {
+        super(loadInputFile, readProperties);
         this.cache = SparkExecutorCache.getOrCreate();
       }
 

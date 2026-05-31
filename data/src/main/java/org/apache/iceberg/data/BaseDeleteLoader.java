@@ -20,6 +20,8 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -60,15 +62,29 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private final Function<DeleteFile, InputFile> loadInputFile;
   private final ExecutorService workerPool;
+  private final Map<String, String> readProperties;
 
   public BaseDeleteLoader(Function<DeleteFile, InputFile> loadInputFile) {
     this(loadInputFile, ThreadPools.getDeleteWorkerPool());
   }
 
   public BaseDeleteLoader(
+      Function<DeleteFile, InputFile> loadInputFile, Map<String, String> readProperties) {
+    this(loadInputFile, ThreadPools.getDeleteWorkerPool(), readProperties);
+  }
+
+  public BaseDeleteLoader(
       Function<DeleteFile, InputFile> loadInputFile, ExecutorService workerPool) {
+    this(loadInputFile, workerPool, Collections.emptyMap());
+  }
+
+  public BaseDeleteLoader(
+      Function<DeleteFile, InputFile> loadInputFile,
+      ExecutorService workerPool,
+      Map<String, String> readProperties) {
     this.loadInputFile = loadInputFile;
     this.workerPool = workerPool;
+    this.readProperties = readProperties;
   }
 
   /**
@@ -226,6 +242,10 @@ public class BaseDeleteLoader implements DeleteLoader {
 
     ReadBuilder<Record, ?> builder =
         FormatModelRegistry.readBuilder(format, Record.class, inputFile);
+    if (format == FileFormat.PARQUET && !readProperties.isEmpty()) {
+      builder.setAll(readProperties);
+    }
+
     return builder.project(projection).reuseContainers().filter(filter).build();
   }
 
