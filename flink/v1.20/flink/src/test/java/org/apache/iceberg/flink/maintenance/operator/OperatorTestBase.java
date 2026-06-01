@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
@@ -35,7 +36,6 @@ import org.apache.flink.core.execution.SavepointFormatType;
 import org.apache.flink.runtime.jobgraph.SavepointConfigOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
@@ -374,13 +374,17 @@ public class OperatorTestBase {
     Configuration conf = new Configuration();
     if (jobClient != null) {
       if (savepointDir != null) {
-        // Stop with savepoint
-        jobClient.stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL);
-        // Wait until the savepoint is created and the job has been stopped
-        Awaitility.await().until(() -> savepointDir.listFiles(File::isDirectory).length == 1);
-        conf.set(
-            SavepointConfigOptions.SAVEPOINT_PATH,
-            savepointDir.listFiles(File::isDirectory)[0].getAbsolutePath());
+        // Stop with a savepoint; get() blocks until it is fully written and returns its path, so
+        // that a job restoring from it does not race the savepoint completion
+        try {
+          conf.set(
+              SavepointConfigOptions.SAVEPOINT_PATH,
+              jobClient
+                  .stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL)
+                  .get());
+        } catch (InterruptedException | ExecutionException e) {
+          throw new RuntimeException(e);
+        }
       } else {
         jobClient.cancel();
       }
@@ -416,15 +420,17 @@ public class OperatorTestBase {
   }
 
   protected static void checkSlotSharingGroupsAreSet(StreamExecutionEnvironment env, String name) {
-    String nameToCheck = name != null ? name : StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
-
     env.getTransformations().stream()
         .filter(
             t -> !(t instanceof SinkTransformation) && !(t.getName().equals(IGNORED_OPERATOR_NAME)))
         .forEach(
             t -> {
-              assertThat(t.getSlotSharingGroup()).isPresent();
-              assertThat(t.getSlotSharingGroup().get().getName()).isEqualTo(nameToCheck);
+              if (name == null) {
+                assertThat(t.getSlotSharingGroup()).isNotPresent();
+              } else {
+                assertThat(t.getSlotSharingGroup()).isPresent();
+                assertThat(t.getSlotSharingGroup().get().getName()).isEqualTo(name);
+              }
             });
   }
 
