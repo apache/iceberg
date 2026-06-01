@@ -557,7 +557,7 @@ Producers may select different sets of dependencies to record in the refresh sta
 
 ### Strategy 1: Track all nested tables and views (no nested MVs)
 
-The view query reads only base tables and regular views. The refresh state tracks snapshot IDs of all deeply nested base tables and version IDs of all views traversed. Reuse of the storage table is sensitive to changes in any of them.
+The refresh query reads only base tables and regular views. The refresh state tracks snapshot IDs of all deeply nested base tables and version IDs of all views traversed. Reuse of the storage table is sensitive to changes in any of them.
 
 `C` and `D` are regular views.
 
@@ -574,7 +574,7 @@ A [MV — being refreshed]
 
 ### Strategy 2: Treat nested materialized views as tables
 
-Same as Strategy 1, but the query reads from materialized views. The producer stops at each MV boundary and records the MV's storage table snapshot ID. No expansion beyond the MV.
+Same as Strategy 1, but the query reads from materialized views. The producer stops at each MV boundary and records the MV's storage table snapshot ID and view version ID. No expansion beyond the MV.
 
 `C` and `D` are materialized views, treated as tables.
 
@@ -582,10 +582,10 @@ Same as Strategy 1, but the query reads from materialized views. The producer st
 A [MV — being refreshed]
 ├── B [VIEW]                            <-- recorded in A: version-id: 5
 │   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
-│   └── D [MV]                          <-- recorded in A: storage-table snapshot-id: 14
+│   └── D [MV]                          <-- recorded in A: storage-table snapshot-id: 14, version-id: 9
 │       ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
 │       └── H [TABLE]                   (D's dependency; verified via D's refresh-state)
-└── C [MV]                              <-- recorded in A: storage-table snapshot-id: 12
+└── C [MV]                              <-- recorded in A: storage-table snapshot-id: 12, version-id: 7
     ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
     ├── F [TABLE]                       (C's dependency; verified via C's refresh-state)
     └── G [TABLE]                       (C's dependency; verified via C's refresh-state)
@@ -660,4 +660,4 @@ A [MV — being refreshed]
 └── N [NON-ICEBERG TABLE]               (omitted; not tracked)
 ```
 
-`N` is omitted. Consumers cannot verify `N`'s state from the refresh state alone.
+`N` is omitted. Consumers cannot verify `N`'s state from the refresh state alone, but know that the data queried from `N` cannot be older than `refresh-start-timestamp-ms`.
