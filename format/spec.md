@@ -85,7 +85,7 @@ Table state is maintained in metadata files. All changes to table state create a
 
 Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all files in its manifests. Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Data manifests and delete manifests can track files with any subset of a table and are not associated with partitions.
 
-In V1-V3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. In V4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, delete files, and other data and delete manifests in a unified structure.
+In V1-V3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. In V4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, delete files, and other data and delete manifests in a unified structure. Data file entries may include colocated deletion vectors and column files.
 
 ### Optimistic Concurrency
 
@@ -144,8 +144,8 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
-* **Manifest list** -- (V1-V3 only) A file that lists manifest files; one per snapshot.
-* **Root Manifest** -- (V4+) A manifest that can reference data files, delete files, and other data and delete manifests; one per snapshot. Replaces manifest lists in V4.
+* **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
+* **Root Manifest** -- (v4+) A manifest that can reference data files, delete files, and other data and delete manifests; one per snapshot. Replaces manifest lists in v4.
 * **Data manifest** -- A file that lists data files; a subset of a snapshot.
 * **Delete manifest** -- A file that lists delete files; a subset of a snapshot.
 * **Data file** -- A file that contains rows of a table.
@@ -546,7 +546,7 @@ Note that:
 
 ### Partitioning
 
-Data files are stored in manifests with partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. In V1-V3, manifests store data files from any partition, as long as the partition spec is the same for the data files. In V4, manifests can store data files from different partition specs because partition values are stored as column statistics.
+Data files are stored in manifests with partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. In V1-V3, manifests store data files from any partition, as long as the partition spec is the same for the data files. In V4, the partition tuple schema for data files must be the union schema of all historical partition specs.
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
@@ -661,7 +661,7 @@ A manifest may store either data files or delete files, but not both because man
 **Partition Spec Binding:**
 
 - V1-V3: A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec. The partition spec of each manifest is used to transform predicates on the table’s data rows into predicates on partition values during job planning.
-- V4: Manifests are not bound to a single partition spec. Files with different partition specs can coexist in the same manifest because partition values are stored in column statistics using source column IDs rather than in a partition-spec-specific struct. The `partition-spec-id` in manifest metadata is tracked for informational purposes but does not constrain the contents.
+- V4: Manifests are not bound to a single partition spec.
 
 #### Manifest File Format
 
@@ -683,15 +683,14 @@ In V1-V3, a manifest file must store the partition spec and other metadata as pr
     | Write      | Read       | Key                 | Value                                                                                                                                       |
     |------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
     | _optional_ | _optional_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
-    | _optional_ | _optional_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string                                                                             |
     | _optional_ | _optional_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
-    | _optional_ | _optional_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
+    | _optional_ | _optional_ | `content`           | Type of content files tracked by the manifest: "data" or "equality-deletes"                                                                 |
 
 The schema of a manifest file is defined by the `manifest_entry` struct (V1-V3) or `content_entry` struct (V4), described in the following section.
 
 #### Entries in Manifests
 
-In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, entries are called content entries and are described by the `content_entry` struct. The V4 `data_file` struct fields are flattened directly into the content entry, and tracking fields are grouped into a nested `tracking` struct.
+In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, entries are called content entries and are described by the `content_entry` struct. In V4, `data_file` struct fields are flattened directly into the content entry, and tracking fields are grouped into a nested `tracking` struct.
 
 === "v1 - v3"
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
@@ -726,10 +725,8 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 134 | **`content_type`** | `int` (0: DATA, 2: EQUALITY DELETES, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | *required* | Type of content stored in the entry. Content types 3 and 4 are only valid in root manifests. |
     | 157 | **`writer_format_version`** | `int` (0: PRE-V4, 1: V4) | *required* | *required* | Writer format version. V4 writers must produce `writer_format_version` 1. |
     | 100 | **`location`** | `string` | *required* | *required* | Location of the file or manifest. |
-    | 158 | **`column_files`** | `list<column_file>` | *optional* | *optional* | Column update files associated with this entry. |
     | 101 | **`file_format`** | `string` | *required* | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
     | 147 | **`tracking`** | `tracking` struct | *required* | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
-    | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | *optional* | Row-level deletion vector for a data file. |
     | 141 | **`spec_id`** | `int` | *optional* | *optional* | ID of the partition spec used to write this manifest or data file. |
     | 140 | **`sort_order_id`** | `int` | *optional* | *optional* | ID representing sort order for this file. |
     | 103 | **`record_count`** | `long` | *required* | *required* | Number of records in this file. |
@@ -739,10 +736,12 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 131 | **`key_metadata`** | `binary` | *optional* | *optional* | Implementation-specific key metadata for encryption. |
     | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data file. Must be sorted ascending. |
     | 135 | **`equality_ids`** | `list<136: int>` | *optional* | *optional* | Field ids for row equality in equality delete files. |
+    | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | *optional* | Row-level deletion vector for a data file. |
+    | 158 | **`column_files`** | `list<column_file>` | *optional* | *optional* | Column update files associated with this entry. |
 
-    Value 1 (POSITION_DELETES) no longer applies in entries because deletion vector metadata is colocated with data files (`content_type` 0).
+    Value 1 (POSITION_DELETES) is not used in v4. Writers must not produce `content_type` 1.
 
-    Leaf data manifests may only contain entries with `content_type` 0 (DATA); leaf delete manifests may only contain entries with `content_type` 2 (EQUALITY DELETES).
+    V4 leaf data manifests must only contain entries with `content_type` 0 (DATA); V4 leaf delete manifests must only contain entries with `content_type` 2 (EQUALITY DELETES). A root manifest may reference V1-V3 manifests; V1-V3 leaf manifest references must have `writer_format_version` set to 0.
 
     The following constraints apply based on `content_type`:
 
@@ -751,7 +750,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     - `equality_ids` must be set when `content_type` is 2; must be null otherwise.
     - `column_files` must be null when `content_type` is not 0 or 3.
     - `sort_order_id` must be null when `content_type` is not 0.
-    - `deleted_positions` and `replaced_positions` must be null when `content_type` is not 3 or 4.
+    - `tracking.deleted_positions` and `tracking.replaced_positions` must be null when `content_type` is not 3 or 4.
 
     **`tracking` struct (field 147)**
 
@@ -1050,6 +1049,20 @@ A snapshot consists of the following fields:
     |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
+
+=== "v4"
+    | v4         | Field                        | Description |
+    | ---------- |------------------------------|-------------|
+    | _required_ | **`snapshot-id`**            | A unique long ID |
+    | _optional_ | **`parent-snapshot-id`**     | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent |
+    | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table |
+    | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection |
+    | _required_ | **`root-manifest`**          | The location of the root manifest for this snapshot |
+    | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below) |
+    | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
+    | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
+    | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
+    | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the root manifest key metadata |
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
