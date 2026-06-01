@@ -134,6 +134,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
       parameterContext: ParameterContext): LogicalPlan = {
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
+      // Iceberg DDL grammars do not accept parameter markers (`?` / `:name`), so the
+      // parameterContext is intentionally not propagated on this path.
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }
         .asInstanceOf[LogicalPlan]
     } else {
