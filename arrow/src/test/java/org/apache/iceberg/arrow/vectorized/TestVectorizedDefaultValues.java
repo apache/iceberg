@@ -44,25 +44,7 @@ import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Vectorized-read tests focused on Iceberg field defaults. The reader has two paths that interact
- * with defaults:
- *
- * <ul>
- *   <li>column missing from the Parquet file → defaults are applied via a {@code
- *       ConstantVectorReader} in {@code VectorizedReaderBuilder};
- *   <li>column present in the Parquet file → defaults are not consumed for value reads, but they
- *       were historically copied through {@code VectorizedArrowReader#getPhysicalType} when the
- *       reader rewrote the field to its underlying physical type. For decimal columns, that copy
- *       failed because {@code DecimalLiteral.to(IntegerType | LongType | FixedType)} returns {@code
- *       null}, which trips {@code Preconditions.checkArgument} in {@code NestedField#castDefault}.
- * </ul>
- *
- * <p>These tests exercise the second path. The bug only surfaces when the column is not
- * dictionary-encoded — with dictionary encoding {@code allocateDictEncodedVector} is used and
- * {@code getPhysicalType} is bypassed. So the parquet file is written with dictionary encoding
- * disabled.
- */
+/** Vectorized-read tests focused on Iceberg field defaults. */
 public class TestVectorizedDefaultValues {
 
   @TempDir private File tempDir;
@@ -106,7 +88,7 @@ public class TestVectorizedDefaultValues {
       rec.setField("id", i);
       rec.setField("int_backed", new BigDecimal("12.34"));
       rec.setField("long_backed", new BigDecimal("1234567890.12"));
-      rec.setField("fixed_backed", new BigDecimal("1234567890123456789.12"));
+      rec.setField("fixed_backed", new BigDecimal("9876543210.99"));
       records.add(rec);
     }
 
@@ -133,6 +115,22 @@ public class TestVectorizedDefaultValues {
     try (VectorizedTableScanIterable reader =
         new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
       for (ColumnarBatch batch : reader) {
+        ColumnVector idColumn = batch.column(0);
+        ColumnVector intBackedColumn = batch.column(1);
+        ColumnVector longBackedColumn = batch.column(2);
+        ColumnVector fixedBackedColumn = batch.column(3);
+
+        for (int i = 0; i < batch.numRows(); i++) {
+          GenericRecord expected = records.get(rowsRead + i);
+          assertThat(idColumn.getLong(i)).isEqualTo(expected.getField("id"));
+          assertThat(intBackedColumn.getDecimal(i, 5, 2))
+              .isEqualTo(expected.getField("int_backed"));
+          assertThat(longBackedColumn.getDecimal(i, 15, 2))
+              .isEqualTo(expected.getField("long_backed"));
+          assertThat(fixedBackedColumn.getDecimal(i, 25, 2))
+              .isEqualTo(expected.getField("fixed_backed"));
+        }
+
         rowsRead += batch.numRows();
       }
     }
