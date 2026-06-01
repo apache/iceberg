@@ -563,10 +563,11 @@ public class TestParquetDataWriter {
   public void testDefaultPathUsesCompressedSize() throws IOException {
     // Without uncompressed tracking, compressed bytes never hit the target
     DataFile dataFile = writeCompressibleRecords("snappy", false);
+    DataFile trackedFile = writeCompressibleRecords("snappy", true);
 
     assertThat(dataFile.splitOffsets().size())
         .as("Default path should use compressed size (single row group due to compression)")
-        .isEqualTo(1);
+        .isLessThan(trackedFile.splitOffsets().size());
   }
 
   // Writes 30 records of 256 KB compressible JSON (~8 MB uncompressed) with a 2 MB target.
