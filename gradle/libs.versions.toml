@@ -88,7 +88,7 @@ slf4j = "2.0.18"
 snowflake-jdbc = "3.28.0"
 spark35 = "3.5.8"
 spark40 = "4.0.2"
-spark41 = "4.1.1"
+spark41 = "4.1.2"
 sqlite-jdbc = "3.53.1.0"
 testcontainers = "2.0.5"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
