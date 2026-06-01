@@ -224,7 +224,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
               failureCount.incrementAndGet();
             })
         .run(this::deleteFile);
-
     if (failureCount.get() != 0) {
       throw new BulkDeletionFailureException(failureCount.get());
     }
