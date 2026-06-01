@@ -19,41 +19,50 @@
 package org.apache.iceberg.mumbling;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.junit.jupiter.api.Test;
 
 class TestMumblingBitmap {
 
-  // ---------------------------------------------------------------------------
-  // Empty bitmap (0 containers)
-  // ---------------------------------------------------------------------------
   @Test
   void testEmptyBitmap() {
-    MumblingBitmap bitmap = bitmap(new int[0]);
+    MumblingBitmap bitmap = bitmap();
+    assertThat(bitmap.cardinality()).isEqualTo(0);
+
+    // all positions beyond the bitmap range are false
     assertThat(bitmap.isSet(0)).isFalse();
     assertThat(bitmap.isSet(255)).isFalse();
     assertThat(bitmap.isSet(256)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Single empty sparse container (descriptor = 0, no container bytes)
-  // ---------------------------------------------------------------------------
+  @Test
+  void testInvalidPosition() {
+    MumblingBitmap bitmap = bitmap();
+    assertThat(bitmap.cardinality()).isEqualTo(0);
+    assertThat(bitmap.isSet(0)).isFalse();
+    assertThatThrownBy(() -> bitmap.isSet(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid bit position: -1 < 0");
+  }
+
   @Test
   void testEmptySparseContainer() {
     MumblingBitmap bitmap = bitmap(sparse());
+    assertThat(bitmap.cardinality()).isEqualTo(0);
     assertThat(bitmap.isSet(0)).isFalse();
     assertThat(bitmap.isSet(100)).isFalse();
     assertThat(bitmap.isSet(255)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Single sparse container with specific positions
-  // ---------------------------------------------------------------------------
   @Test
   void testSparseContainerSetPositions() {
     MumblingBitmap bitmap = bitmap(sparse(0, 5, 100, 255));
+    assertThat(bitmap.cardinality()).isEqualTo(4);
+
     assertThat(bitmap.isSet(0)).isTrue();
     assertThat(bitmap.isSet(5)).isTrue();
     assertThat(bitmap.isSet(100)).isTrue();
@@ -65,56 +74,44 @@ class TestMumblingBitmap {
     assertThat(bitmap.isSet(99)).isFalse();
     assertThat(bitmap.isSet(101)).isFalse();
     assertThat(bitmap.isSet(254)).isFalse();
+    assertThat(bitmap.isSet(256)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Full sparse container (31 positions, the maximum)
-  // ---------------------------------------------------------------------------
   @Test
-  void testMaxSparseContainer() {
+  void testFullSparseContainer() {
     int[] positions = new int[31];
     for (int i = 0; i < 31; i += 1) {
       positions[i] = i * 8; // 0, 8, 16, ..., 240
     }
+
     MumblingBitmap bitmap = bitmap(sparse(positions));
+    assertThat(bitmap.cardinality()).isEqualTo(31);
+
     for (int p : positions) {
       assertThat(bitmap.isSet(p)).isTrue();
     }
+
     assertThat(bitmap.isSet(1)).isFalse();
     assertThat(bitmap.isSet(7)).isFalse();
     assertThat(bitmap.isSet(255)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Dense container: all bits set (32 bytes of 0xFF)
-  // ---------------------------------------------------------------------------
   @Test
-  void testDenseContainerAllSet() {
+  void testFullDenseContainer() {
     byte[] container = new byte[32];
     Arrays.fill(container, (byte) 0xFF);
+
     MumblingBitmap bitmap = bitmap(dense(container));
+    assertThat(bitmap.cardinality()).isEqualTo(256);
+
     for (int i = 0; i < 256; i += 1) {
       assertThat(bitmap.isSet(i)).isTrue();
     }
+
+    assertThat(bitmap.isSet(256)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Dense container: no bits set (32 bytes of 0x00)
-  // ---------------------------------------------------------------------------
-  @Test
-  void testDenseContainerNoneSet() {
-    byte[] container = new byte[32];
-    MumblingBitmap bitmap = bitmap(dense(container));
-    for (int i = 0; i < 256; i += 1) {
-      assertThat(bitmap.isSet(i)).isFalse();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Dense container spec examples
-  // ---------------------------------------------------------------------------
-
-  // `FF FF FF FF 00 ... 00` → positions 0-31
+  // Example 1: positions 0-31: `FF FF FF FF 00 ... 00`
   @Test
   void testDenseSpecExample1() {
     byte[] container = new byte[32];
@@ -123,15 +120,17 @@ class TestMumblingBitmap {
     container[2] = (byte) 0xFF;
     container[3] = (byte) 0xFF;
     MumblingBitmap bitmap = bitmap(dense(container));
+    assertThat(bitmap.cardinality()).isEqualTo(32);
+
     for (int i = 0; i <= 31; i += 1) {
       assertThat(bitmap.isSet(i)).isTrue();
     }
+
     assertThat(bitmap.isSet(32)).isFalse();
     assertThat(bitmap.isSet(255)).isFalse();
   }
 
-  // `FF FF FF FF A0 00 ... 00` → positions 0-32
-  // 0xA0 = 10100000: MSB (pos 32) is set, pos 33 is not
+  // Example 2: positions 0-32: `FF FF FF FF 80 00 ... 00`
   @Test
   void testDenseSpecExample2() {
     byte[] container = new byte[32];
@@ -139,16 +138,20 @@ class TestMumblingBitmap {
     container[1] = (byte) 0xFF;
     container[2] = (byte) 0xFF;
     container[3] = (byte) 0xFF;
-    container[4] = (byte) 0xA0;
+    container[4] = (byte) 0x80;
+
     MumblingBitmap bitmap = bitmap(dense(container));
+    assertThat(bitmap.cardinality()).isEqualTo(33);
+
     for (int i = 0; i <= 32; i += 1) {
       assertThat(bitmap.isSet(i)).isTrue();
     }
+
     assertThat(bitmap.isSet(33)).isFalse();
     assertThat(bitmap.isSet(255)).isFalse();
   }
 
-  // `FF FF 00 ... 00 FF FF` → positions 0-15, 240-255
+  // Example 3: positions 0-15 and 240-255: `FF FF 00 ... 00 FF FF`
   @Test
   void testDenseSpecExample3() {
     byte[] container = new byte[32];
@@ -156,7 +159,10 @@ class TestMumblingBitmap {
     container[1] = (byte) 0xFF;
     container[30] = (byte) 0xFF;
     container[31] = (byte) 0xFF;
+
     MumblingBitmap bitmap = bitmap(dense(container));
+    assertThat(bitmap.cardinality()).isEqualTo(32);
+
     for (int i = 0; i <= 15; i += 1) {
       assertThat(bitmap.isSet(i)).isTrue();
     }
@@ -165,85 +171,67 @@ class TestMumblingBitmap {
     }
     assertThat(bitmap.isSet(16)).isFalse();
     assertThat(bitmap.isSet(239)).isFalse();
+    assertThat(bitmap.isSet(256)).isFalse();
   }
 
-  // `AA AA ... AA AA` → even positions: 0, 2, 4, ...
-  // 0xAA = 10101010: MSB-first gives positions 0, 2, 4, 6 set per byte
+  // Example 4: even positions 0, 2, 4, ...: `AA AA ... AA AA`
   @Test
   void testDenseSpecExample4() {
     byte[] container = new byte[32];
     Arrays.fill(container, (byte) 0xAA);
+
     MumblingBitmap bitmap = bitmap(dense(container));
+    assertThat(bitmap.cardinality()).isEqualTo(128);
+
     for (int i = 0; i < 256; i += 1) {
       assertThat(bitmap.isSet(i)).isEqualTo(i % 2 == 0);
     }
+
+    assertThat(bitmap.isSet(256)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Multiple containers: positions in different containers
-  // Container 0 (pos 0–255): sparse {5}
-  // Container 1 (pos 256–511): sparse {10} → global position 266
-  // Container 2 (pos 512–767): empty sparse
-  // ---------------------------------------------------------------------------
   @Test
   void testMultipleContainers() {
-    MumblingBitmap bitmap =
-        bitmap(
-            new ContainerSpec[] {
-              sparse(5), sparse(10), sparse()
-            });
+    MumblingBitmap bitmap = bitmap(sparse(5), sparse(), sparse(10));
+    assertThat(bitmap.cardinality()).isEqualTo(2);
 
     assertThat(bitmap.isSet(5)).isTrue(); // container 0, pos 5
-    assertThat(bitmap.isSet(266)).isTrue(); // container 1, pos 10
-    assertThat(bitmap.isSet(512)).isFalse(); // container 2, empty
+    assertThat(bitmap.isSet(256)).isFalse(); // container 1
+    assertThat(bitmap.isSet(522)).isTrue(); // container 2, pos 10
+
+    assertThat(bitmap.isSet(512)).isFalse();
     assertThat(bitmap.isSet(4)).isFalse();
     assertThat(bitmap.isSet(265)).isFalse();
     assertThat(bitmap.isSet(267)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Mixed sparse and dense containers
-  // Container 0: dense with byte 0 = 0xFF (positions 0–7 set)
-  // Container 1: sparse {0} (global position 256)
-  // ---------------------------------------------------------------------------
   @Test
   void testMixedSparseAndDense() {
     byte[] denseContainer = new byte[32];
     denseContainer[0] = (byte) 0xFF;
-    MumblingBitmap bitmap =
-        bitmap(
-            new ContainerSpec[] {
-              dense(denseContainer), sparse(0)
-            });
+    denseContainer[1] = (byte) 0xFF;
+    denseContainer[2] = (byte) 0xFF;
+    denseContainer[3] = (byte) 0xFF;
 
-    for (int i = 0; i < 8; i += 1) {
+    MumblingBitmap bitmap = bitmap(dense(denseContainer), sparse(1));
+    assertThat(bitmap.cardinality()).isEqualTo(33);
+
+    for (int i = 0; i < 32; i += 1) {
       assertThat(bitmap.isSet(i)).isTrue();
     }
-    assertThat(bitmap.isSet(8)).isFalse();
-    assertThat(bitmap.isSet(256)).isTrue(); // container 1, pos 0
-    assertThat(bitmap.isSet(257)).isFalse();
-  }
+    assertThat(bitmap.isSet(32)).isFalse();
 
-  // ---------------------------------------------------------------------------
-  // Position beyond container count is always unset
-  // ---------------------------------------------------------------------------
-  @Test
-  void testPositionBeyondContainerCount() {
-    MumblingBitmap bitmap = bitmap(sparse(5));
-    // Only container 0 exists; container 1 (pos 256+) does not
     assertThat(bitmap.isSet(256)).isFalse();
-    assertThat(bitmap.isSet(511)).isFalse();
+    assertThat(bitmap.isSet(257)).isTrue(); // container 1, pos 1
+    assertThat(bitmap.isSet(258)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Buffer with non-zero initial position
-  // ---------------------------------------------------------------------------
   @Test
   void testBufferWithOffset() {
     // Prepend 4 bytes of garbage before the actual bitmap data
-    ByteBuffer raw = build(new ContainerSpec[] {sparse(42)});
-    byte[] rawBytes = new byte[raw.remaining()];
-    raw.get(rawBytes);
+    ByteBuffer buffer = build(sparse(42));
+    byte[] rawBytes = new byte[buffer.remaining()];
+    buffer.get(rawBytes);
 
     ByteBuffer padded = ByteBuffer.allocate(4 + rawBytes.length);
     padded.position(4);
@@ -251,102 +239,115 @@ class TestMumblingBitmap {
     padded.position(4); // position the buffer at the start of bitmap data
 
     MumblingBitmap bitmap = new MumblingBitmap(padded);
+    assertThat(bitmap.cardinality()).isEqualTo(1);
+
+    assertThat(bitmap.isSet(41)).isFalse();
     assertThat(bitmap.isSet(42)).isTrue();
     assertThat(bitmap.isSet(43)).isFalse();
   }
 
-  // ---------------------------------------------------------------------------
-  // Lazy init: calling isSet multiple times produces consistent results
-  // ---------------------------------------------------------------------------
-  @Test
-  void testLazyInitConsistency() {
-    MumblingBitmap bitmap = bitmap(sparse(1, 2, 3));
-    for (int trial = 0; trial < 3; trial += 1) {
-      assertThat(bitmap.isSet(1)).isTrue();
-      assertThat(bitmap.isSet(2)).isTrue();
-      assertThat(bitmap.isSet(3)).isTrue();
-      assertThat(bitmap.isSet(0)).isFalse();
-      assertThat(bitmap.isSet(4)).isFalse();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  /** Descriptor + bytes for a sparse container. */
-  private static ContainerSpec sparse(int... positions) {
+  private static Container sparse(int... positions) {
     byte[] bytes = new byte[positions.length];
     for (int i = 0; i < positions.length; i += 1) {
+      if (i > 0) {
+        Preconditions.checkArgument(
+            positions[i] < 256, "Invalid position in container: %s", positions[i]);
+        Preconditions.checkArgument(
+            positions[i] > positions[i - 1],
+            "Invalid sparse container: pos %s=%s >= pos %s=%s",
+            i - 1,
+            positions[i - 1],
+            i,
+            positions[i]);
+      }
+
       bytes[i] = (byte) positions[i];
     }
-    return new ContainerSpec(positions.length, bytes);
+
+    return new Container(bytes);
   }
 
   /** Descriptor + bytes for a dense container. */
-  private static ContainerSpec dense(byte[] container) {
-    if (container.length != 32) {
-      throw new IllegalArgumentException("Dense container must be 32 bytes");
-    }
-    return new ContainerSpec(32, container);
+  private static Container dense(byte[] container) {
+    Preconditions.checkArgument(container.length == 32, "Dense container must be 32 bytes");
+    return new Container(container);
   }
 
-  private static class ContainerSpec {
-    final int descriptor;
-    final byte[] bytes;
+  private static class Container {
+    private final byte[] bytes;
+    private final int descriptor;
+    private final int cardinality;
 
-    ContainerSpec(int descriptor, byte[] bytes) {
-      this.descriptor = descriptor;
+    Container(byte[] bytes) {
       this.bytes = bytes;
+      this.descriptor = bytes.length;
+      this.cardinality = cardinality(bytes);
+    }
+
+    private static int cardinality(byte[] bytes) {
+      if (bytes.length < 32) {
+        return bytes.length;
+      } else if (bytes.length == 32) {
+        int setBits = 0;
+        for (byte b : bytes) {
+          setBits += Integer.bitCount(b & 0xFF);
+        }
+
+        Preconditions.checkArgument(
+            setBits > 31, "Invalid dense container: %s values should be sparse", setBits);
+
+        return setBits;
+      } else {
+        throw new IllegalArgumentException("Invalid container: longer than 32 bytes");
+      }
     }
   }
 
-  /** Builds a bitmap with a single container. */
-  private static MumblingBitmap bitmap(ContainerSpec spec) {
-    return new MumblingBitmap(build(new ContainerSpec[] {spec}));
+  private static MumblingBitmap bitmap(Container... containers) {
+    return new MumblingBitmap(build(containers));
   }
 
-  /** Builds a bitmap with no containers. */
-  private static MumblingBitmap bitmap(int[] ignored) {
-    return new MumblingBitmap(build(new ContainerSpec[0]));
-  }
+  private static ByteBuffer build(Container... containers) {
+    Preconditions.checkArgument(
+        containers.length <= 8192, "Invalid container count (max 8192): %s", containers.length);
 
-  /** Builds a bitmap with multiple containers. */
-  private static MumblingBitmap bitmap(ContainerSpec[] specs) {
-    return new MumblingBitmap(build(specs));
-  }
-
-  private static ByteBuffer build(ContainerSpec[] specs) {
-    int[] descriptors = new int[specs.length];
-    for (int i = 0; i < specs.length; i += 1) {
-      descriptors[i] = specs[i].descriptor;
+    int[] descriptors = new int[containers.length];
+    int cardinality = 0;
+    int sizeEstimate = 6;
+    for (int i = 0; i < containers.length; i += 1) {
+      descriptors[i] = containers[i].descriptor;
+      cardinality += containers[i].cardinality;
+      sizeEstimate += containers[i].bytes.length;
     }
 
-    ByteBuffer encodedDescriptors =
-        specs.length > 0 ? PFOREncoding.encode(descriptors, specs.length) : ByteBuffer.allocate(0);
+    Preconditions.checkArgument(
+        cardinality <= 2_097_152, "Invalid cardinality (max 2,097,152): %s", cardinality);
 
-    int totalContainerBytes = 0;
-    for (ContainerSpec spec : specs) {
-      totalContainerBytes += spec.bytes.length;
+    sizeEstimate += PFOREncoding.estimateEncodedSize(containers.length);
+    ByteBuffer buf = ByteBuffer.allocate(sizeEstimate);
+
+    // header: version (1 byte), cardinality (3 bytes LE), container count (2 bytes LE)
+    buf.put(0, (byte) 1);
+    buf.put(1, (byte) (cardinality & 0xFF));
+    buf.put(2, (byte) ((cardinality >>> 8) & 0xFF));
+    buf.put(3, (byte) ((cardinality >>> 16) & 0xFF));
+    buf.put(4, (byte) (containers.length & 0xFF));
+    buf.put(5, (byte) ((containers.length >>> 8) & 0xFF));
+
+    // write encoded descriptors
+    int descriptorArraySize =
+        PFOREncoding.encode(descriptors, 0, buf, buf.position() + 6, descriptors.length);
+
+    // copy container bytes into the array
+    int containerOffset = 6 + descriptorArraySize;
+    for (Container spec : containers) {
+      buf.put(containerOffset, spec.bytes);
+      containerOffset += spec.bytes.length;
     }
 
-    int totalSize = 6 + encodedDescriptors.remaining() + totalContainerBytes;
-    ByteBuffer buf = ByteBuffer.allocate(totalSize);
+    // the offset after the last container is the length
+    buf.limit(containerOffset);
 
-    // Header: version (1 byte), cardinality (3 bytes LE), container count (2 bytes LE)
-    buf.put((byte) 1);
-    buf.put((byte) 0);
-    buf.put((byte) 0);
-    buf.put((byte) 0);
-    buf.put((byte) (specs.length & 0xFF));
-    buf.put((byte) ((specs.length >>> 8) & 0xFF));
-
-    buf.put(encodedDescriptors);
-    for (ContainerSpec spec : specs) {
-      buf.put(spec.bytes);
-    }
-
-    buf.flip();
     return buf;
   }
 }
