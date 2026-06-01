@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -268,7 +267,6 @@ public class TestRewriteTablePathUtil extends TestBase {
     RewriteTablePathUtil.RewriteResult<DeleteFile> deleteFileRewriteResult =
         RewriteTablePathUtil.rewriteDeleteManifest(
             manifest,
-            Set.of(1000L),
             Files.localOutput(
                 FileFormat.AVRO.addExtension(
                     temp.resolve("junit" + System.nanoTime()).toFile().toString())),
