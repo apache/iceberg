@@ -19,6 +19,7 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import me.lemire.integercompression.FastPFOR128;
 import me.lemire.integercompression.IntWrapper;
@@ -62,10 +63,6 @@ import org.openjdk.jmh.infra.Blackhole;
 @Timeout(time = 5, timeUnit = TimeUnit.MINUTES)
 public class PFOREncodingBenchmark {
 
-  // Fixed seeds for reproducibility
-  private static final long DESCRIPTOR_SEED = 0x5a5a5a5a5a5a5a5aL;
-  private static final long UNIFORM_SEED = 0xa1b2c3d4e5f60708L;
-
   // Iceberg PFOR input arrays
   private int[] descriptorValues;
   private int[] uniformValues;
@@ -77,6 +74,9 @@ public class PFOREncodingBenchmark {
   // Reusable encode buffer (avoids allocation in the encode hot path)
   private ByteBuffer encodeBuffer;
 
+  // Reusable decode output (avoids allocation in the decode hot path)
+  private int[] decodeOutput;
+
   // JavaFastPFOR compressed arrays (pre-encoded for decode benchmarks)
   private int[] descriptorFastPFOREncoded;
   private int[] uniformFastPFOREncoded;
@@ -86,18 +86,23 @@ public class PFOREncodingBenchmark {
 
   @Setup
   public void setupBenchmark() {
+    Random random = new Random(1938745);
+
     // 256-value descriptor-like data: mostly [0,31] with ~5% [0,255] outliers
-    descriptorValues = PFOREncodingTestUtils.sparse(256, DESCRIPTOR_SEED, 5);
+    descriptorValues = PFORRandomData.exceptions(random, 256, 0.5f);
 
     // 256-value uniform byte data
-    uniformValues = PFOREncodingTestUtils.uniform(256, UNIFORM_SEED, 255);
+    uniformValues = PFORRandomData.uniform(random, 256, 255);
 
     // Reusable encode buffer: worst-case for a single 256-value chunk
     encodeBuffer = ByteBuffer.allocate(3 + 256);
 
+    // Reusable decode output: one entry per value in a chunk
+    decodeOutput = new int[256];
+
     // Pre-encode for decode benchmarks
-    descriptorEncoded = PFOREncoding.encode(descriptorValues);
-    uniformEncoded = PFOREncoding.encode(uniformValues);
+    descriptorEncoded = PFOREncoding.encode(descriptorValues, descriptorValues.length);
+    uniformEncoded = PFOREncoding.encode(uniformValues, uniformValues.length);
 
     // Pre-encode with JavaFastPFOR for decode benchmarks
     FastPFOR128 codec = new FastPFOR128();
@@ -115,13 +120,17 @@ public class PFOREncodingBenchmark {
   @Benchmark
   @Threads(1)
   public void encodeDescriptorIceberg(Blackhole blackhole) {
-    blackhole.consume(PFOREncoding.encode(descriptorValues, descriptorValues.length, encodeBuffer));
+    blackhole.consume(
+        PFOREncoding.encode(
+            descriptorValues, 0, encodeBuffer, encodeBuffer.position(), descriptorValues.length));
   }
 
   @Benchmark
   @Threads(1)
   public void decodeDescriptorIceberg(Blackhole blackhole) {
-    blackhole.consume(PFOREncoding.decode(descriptorEncoded, descriptorValues.length));
+    PFOREncoding.decode(
+        descriptorEncoded, descriptorEncoded.position(), decodeOutput, 0, descriptorValues.length);
+    blackhole.consume(decodeOutput);
   }
 
   // ---------------------------------------------------------------------------
@@ -131,13 +140,17 @@ public class PFOREncodingBenchmark {
   @Benchmark
   @Threads(1)
   public void encodeUniformIceberg(Blackhole blackhole) {
-    blackhole.consume(PFOREncoding.encode(uniformValues, uniformValues.length, encodeBuffer));
+    blackhole.consume(
+        PFOREncoding.encode(
+            uniformValues, 0, encodeBuffer, encodeBuffer.position(), uniformValues.length));
   }
 
   @Benchmark
   @Threads(1)
   public void decodeUniformIceberg(Blackhole blackhole) {
-    blackhole.consume(PFOREncoding.decode(uniformEncoded, uniformValues.length));
+    PFOREncoding.decode(
+        uniformEncoded, uniformEncoded.position(), decodeOutput, 0, uniformValues.length);
+    blackhole.consume(decodeOutput);
   }
 
   // ---------------------------------------------------------------------------
@@ -155,7 +168,7 @@ public class PFOREncodingBenchmark {
   @Threads(1)
   public void decodeDescriptorFastPFOR(Blackhole blackhole) {
     FastPFOR128 codec = new FastPFOR128();
-    blackhole.consume(fastPFORDecode(codec, descriptorFastPFOREncoded, descriptorValues.length));
+    blackhole.consume(fastPFORDecode(codec, descriptorFastPFOREncoded, fastPFOROutputBuffer));
   }
 
   // ---------------------------------------------------------------------------
@@ -173,7 +186,7 @@ public class PFOREncodingBenchmark {
   @Threads(1)
   public void decodeUniformFastPFOR(Blackhole blackhole) {
     FastPFOR128 codec = new FastPFOR128();
-    blackhole.consume(fastPFORDecode(codec, uniformFastPFOREncoded, uniformValues.length));
+    blackhole.consume(fastPFORDecode(codec, uniformFastPFOREncoded, fastPFOROutputBuffer));
   }
 
   // ---------------------------------------------------------------------------
@@ -190,8 +203,7 @@ public class PFOREncodingBenchmark {
     return result;
   }
 
-  private static int[] fastPFORDecode(FastPFOR128 codec, int[] encoded, int count) {
-    int[] output = new int[count];
+  private static int[] fastPFORDecode(FastPFOR128 codec, int[] encoded, int[] output) {
     IntWrapper inPos = new IntWrapper(0);
     IntWrapper outPos = new IntWrapper(0);
     codec.uncompress(encoded, inPos, encoded.length, output, outPos);

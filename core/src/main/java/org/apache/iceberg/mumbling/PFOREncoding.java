@@ -19,303 +19,339 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
+import org.apache.curator.shaded.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Pair;
 
 /**
- * PFOR (Patched Frame of Reference) encoding for arrays of unsigned byte values.
+ * Patched Frame of Reference (PFOR) encoding for arrays of unsigned byte values.
  *
  * <p>Implements the encoding described in Appendix A of the Mumbling bitmap specification. The
  * input array is split into 256-value chunks (the last chunk may be shorter). Each chunk is
- * independently compressed.
+ * independently encoded using 4 configuration values:
+ *
+ * <ul>
+ *   <li>{@code b1}: number of bits stored in the primary array for every normalized value
+ *   <li>{@code b2}: number of bits stored per exception value (normalized value of &gt; b1 bits)
+ *   <li>{@code e}: number of exceptions with more than b1 bits
+ *   <li>{@code m}: chunk-local minimum value, subtracted from all values to normalize
+ * </ul>
  *
  * <p>Each chunk is stored as:
  *
  * <ul>
- *   <li>3-byte header: {@code b1|b2} (low/high nibbles of byte 0), {@code e} (byte 1), {@code m}
- *       (byte 2)
- *   <li>Primary array: {@code ceil(n * b1 / 8)} bytes — the low {@code b1} bits of every value,
- *       packed MSB-first
- *   <li>Exception offsets: {@code e} bytes — the chunk-relative position of each exception value
- *   <li>Exception values: {@code ceil(e * b2 / 8)} bytes — bits {@code [b1, b1+b2)} of each
- *       exception, packed MSB-first
+ *   <li>3-byte header: {@code b1|b2} primary and exception bit widths (byte 0), {@code e} exception
+ *       count (byte 1), {@code m} normalization base value (byte 2)
+ *   <li>Primary array: the low {@code b1} bits of every normalized value, packed MSB-first ({@code
+ *       b1 * n} bits, padded to a byte)
+ *   <li>Exception offsets: chunk-relative positions of exception values ({@code e} bytes)
+ *   <li>Exception values: the high {@code b2} bits of every exception value, packed MSB-first
+ *       ({@code e * b2} bits, padded to a byte.
  * </ul>
- *
- * <p>During encoding, the chunk minimum {@code m} is subtracted from every value. During decoding,
- * {@code m} is added back. When {@code b1 = 8}, no exceptions are produced and {@code m} is stored
- * as 0 (original values are written directly). Bit packing and unpacking is delegated to {@link
- * BitPacking}.
  */
 class PFOREncoding {
   private static final int CHUNK_SIZE = 256;
-  private static final int DENSE_DESCRIPTOR_BIT = 0x20;
-  private static final int SPARSE_LENGTH_MASK = 0x1F;
-  private static final int DENSE_CONTAINER_BYTES = 32;
 
   private PFOREncoding() {}
 
   /**
-   * Encodes an array of unsigned byte values (each in {@code [0, 255]}) using PFOR encoding.
+   * Encodes {@code count} values from an array of unsigned byte values.
    *
    * @param values unsigned byte values to encode
-   * @return a newly allocated buffer
+   * @param count number of values to encode
+   * @return a {@link ByteBuffer} of the encoded values with position and limit set for reading
    */
-  static ByteBuffer encode(int[] values) {
-    return encode(values, values.length, null);
+  static ByteBuffer encode(int[] values, int count) {
+    ByteBuffer out = ByteBuffer.allocate(estimateEncodedSize(count));
+    int bytesWritten = encode(values, 0, out, out.position(), count);
+    return out.slice(0, bytesWritten);
   }
 
   /**
-   * Encodes an array of unsigned byte values (each in {@code [0, 255]}) using PFOR encoding.
+   * Encode {@code count} unsigned byte values from {@code values} into a buffer.
    *
-   * <p>If {@code buffer} has sufficient capacity its backing storage is reused; otherwise a new
-   * buffer is allocated. {@code buffer}'s position and limit are never modified. The returned
-   * buffer is always a slice with position=0 and limit=encoded length.
+   * <p>The buffer's position and limit are not modified.
    *
    * @param values unsigned byte values to encode
-   * @param length number of values to encode
-   * @return a slice of {@code buffer} if capacity was sufficient, otherwise a slice of a newly
-   *     allocated buffer
+   * @param valueOffset starting offset of values to encode
+   * @param out buffer to write encoded values to
+   * @param outOffset starting offset in the output bufferß
+   * @param count number of values to encode
+   * @return the number of bytes written to the buffer
    */
-  static ByteBuffer encode(int[] values, int length) {
-    return encode(values, length, null);
-  }
+  static int encode(int[] values, int valueOffset, ByteBuffer out, int outOffset, int count) {
+    // check the buffer's position and limit are compatible with outOffset and count
+    Preconditions.checkArgument(
+        outOffset >= out.position(),
+        "Cannot encode starting at %s to buffer with position %s",
+        outOffset,
+        out.position());
+    Preconditions.checkArgument(
+        estimateEncodedSize(count) <= out.limit() - outOffset,
+        "Cannot encode %s values to buffer with %s remaining space",
+        count,
+        out.remaining());
 
-  /**
-   * Encodes the first {@code length} unsigned byte values (each in {@code [0, 255]}) from {@code
-   * values} using PFOR encoding.
-   *
-   * <p>If {@code buffer} has sufficient capacity its backing storage is reused; otherwise a new
-   * buffer is allocated. {@code buffer}'s position and limit are never modified. The returned
-   * buffer is always a slice with position=0 and limit=encoded length.
-   *
-   * @param values unsigned byte values to encode
-   * @param length number of values to encode
-   * @param buffer candidate buffer whose storage may be reused
-   * @return a slice of {@code buffer} if capacity was sufficient, otherwise a slice of a newly
-   *     allocated buffer
-   */
-  static ByteBuffer encode(int[] values, int length, ByteBuffer buffer) {
-    int numChunks = ceilDiv(length, CHUNK_SIZE);
-    // Worst-case per chunk is b1=8: 3-byte header + 1 byte per value. Any other b1 chosen by the
-    // encoder costs <= n bytes of data (otherwise b1=8 would have been selected instead).
-    int maxSize = 3 * numChunks + length;
-    ByteBuffer out =
-        buffer != null && buffer.capacity() >= maxSize ? buffer : ByteBuffer.allocate(maxSize);
-    int pos = 0;
-    int offset = 0;
-    while (offset < length) {
-      int chunkLength = Math.min(CHUNK_SIZE, length - offset);
-      pos += encodeChunk(values, offset, chunkLength, out, pos);
-      offset += chunkLength;
+    int bytesWritten = 0;
+    int currentOffset = valueOffset;
+
+    while (currentOffset < count) {
+      int chunkLength = Math.min(CHUNK_SIZE, count - currentOffset);
+      bytesWritten +=
+          encodeChunk(values, currentOffset, out, outOffset + bytesWritten, chunkLength);
+      currentOffset += chunkLength;
     }
 
-    return out.slice(0, pos);
+    return bytesWritten;
   }
 
   /**
-   * Decodes PFOR-encoded bytes back to unsigned byte values. Reads from {@code encoded.position()}
-   * using absolute indexing; the buffer's position is not modified.
+   * Decode to produce unsigned byte values.
+   *
+   * <p>Decodes starting at {@code encoded.position()} and does not modify the input buffer.
    *
    * @param encoded PFOR-encoded ByteBuffer produced by {@link #encode}
    * @param count total number of values to decode
    * @return decoded unsigned byte values
    */
   static int[] decode(ByteBuffer encoded, int count) {
-    if (count == 0) {
-      return new int[0];
-    }
-
-    int[] output = new int[count];
-    int pos = encoded.position();
-    int start = 0;
-    while (start < count) {
-      int length = Math.min(CHUNK_SIZE, count - start);
-      pos += decodeChunk(encoded, pos, output, start, length);
-      start += length;
-    }
-
-    return output;
+    int[] out = new int[count];
+    decode(encoded, encoded.position(), out, 0, count);
+    return out;
   }
 
   /**
-   * Encodes a container offset array as PFOR-encoded container lengths.
+   * Decode {@code count} unsigned bytes from a buffer into {@code out}.
    *
-   * <p>{@code offsets} must have {@code count + 1} entries. The length of container {@code i} is
-   * {@code offsets[i + 1] - offsets[i]} and is used as the descriptor value to encode.
+   * <p>This does not modify the input buffer.
    *
-   * @param offsets container offset array with {@code count + 1} entries
-   * @param count number of containers
-   * @return PFOR-encoded descriptor bytes
+   * @param encoded a buffer containing encoded data
+   * @param offset starting offset of encoded values
+   * @param out an output value array
+   * @param outOffset starting offset in the output array
+   * @param count number of values to decode
+   * @return the number of bytes read from the encoded buffer
    */
-  static ByteBuffer encodeOffsets(int[] offsets, int count) {
-    int[] lengths = new int[count];
-    for (int i = 0; i < count; i += 1) {
-      lengths[i] = offsets[i + 1] - offsets[i];
+  static int decode(ByteBuffer encoded, int offset, int[] out, int outOffset, int count) {
+    Preconditions.checkArgument(
+        offset >= encoded.position(),
+        "Cannot decode starting at %s from buffer with position %s",
+        offset,
+        encoded.position());
+
+    int bytesRead = 0;
+    int valuesRead = 0;
+
+    while (valuesRead < count) {
+      int chunkSize = Math.min(CHUNK_SIZE, count - valuesRead);
+      bytesRead += decodeChunk(encoded, offset + bytesRead, out, outOffset + valuesRead, chunkSize);
+      valuesRead += chunkSize;
     }
 
-    return encode(lengths, count);
+    return bytesRead;
   }
 
   /**
-   * Decodes PFOR-encoded descriptor bytes directly into a container offset array.
+   * Encode one chunk into {@code out} starting at absolute position {@code outPos}.
    *
-   * <p>Reads from {@code encoded.position()} without modifying the buffer's position. Each decoded
-   * descriptor value is treated as a container length and accumulated into {@code offsets} as a
-   * prefix sum starting at 0. The caller is responsible for adjusting the resulting relative
-   * offsets to absolute positions.
-   *
-   * <p>{@code offsets} must have {@code count + 1} entries. On return, {@code offsets[i]} is the
-   * cumulative byte length of containers {@code 0..i-1} and {@code offsets[count]} is the total
-   * byte length of all containers.
-   *
-   * @param encoded PFOR-encoded descriptor bytes
-   * @param count number of containers (descriptors) to decode
-   * @param offsets array to fill; must have length &gt;= count + 1
-   * @return number of bytes consumed from {@code encoded}
+   * @param values array containing source values to encode
+   * @param valueOffset starting index of values to encode
+   * @param out an output {@link ByteBuffer}
+   * @param outOffset starting index for output in the out buffer
+   * @param count number of values to encode
+   * @return the number of bytes written to the output buffer
    */
-  static int decodeOffsets(ByteBuffer encoded, int count, int[] offsets) {
-    if (count == 0) {
-      offsets[0] = 0;
-      return 0;
-    }
+  private static int encodeChunk(
+      int[] values, int valueOffset, ByteBuffer out, int outOffset, int count) {
+    Preconditions.checkArgument(count >= 0, "Invalid value count to encode: %s", count);
+    Preconditions.checkArgument(
+        valueOffset + count <= values.length,
+        "Cannot encode %s values starting at %s from int[%s]: not enough values",
+        count,
+        valueOffset,
+        values.length);
 
-    int[] chunk = new int[Math.min(CHUNK_SIZE, count)];
-    int pos = encoded.position();
-    int containerIdx = 0;
-    int cumulative = 0;
-    while (containerIdx < count) {
-      int chunkLen = Math.min(CHUNK_SIZE, count - containerIdx);
-      pos += decodeChunk(encoded, pos, chunk, 0, chunkLen);
-      for (int i = 0; i < chunkLen; i += 1) {
-        offsets[containerIdx + i] = cumulative;
-        int descriptor = chunk[i];
-        cumulative += (descriptor & DENSE_DESCRIPTOR_BIT) != 0 ? DENSE_CONTAINER_BYTES : (descriptor & SPARSE_LENGTH_MASK);
-      }
+    // find base=min(values) for normalization
+    int base = min(values, valueOffset, count);
 
-      containerIdx += chunkLen;
-    }
-    offsets[count] = cumulative;
-
-    return pos - encoded.position();
-  }
-
-  /**
-   * Encodes one chunk into {@code out} starting at absolute position {@code outPos}. Returns the
-   * number of bytes written.
-   */
-  private static int encodeChunk(int[] values, int start, int length, ByteBuffer out, int outPos) {
-    // Step 1: find base=min(values) for normalization
-    int base = min(values, start, length);
-
-    // Step 2: normalize by subtracting base
-    int[] normalized = new int[length];
+    // normalize by subtracting base
+    int[] normalized = new int[count];
     int setBits = 0;
-    for (int i = 0; i < length; i += 1) {
-      normalized[i] = values[start + i] - base;
-      setBits |= normalized[i];
+    int normalizedSetBits = 0;
+    for (int i = 0; i < count; i += 1) {
+      setBits |= values[valueOffset + i];
+      normalized[i] = values[valueOffset + i] - base;
+      normalizedSetBits |= normalized[i];
     }
 
-    // Step 3: find the maximum bit width needed for normalized values
-    int maxWidth = width(setBits);
+    Preconditions.checkArgument(
+        width(setBits) <= 8,
+        "Cannot encode values wider than 8 bits: %s bits needed",
+        width(setBits));
 
-    // Step 4: choose b1 to minimize total encoded data size (excluding 3-byte header)
-    Pair<Integer, Integer> widthAndExcCount = chooseBitWidth(normalized, length, maxWidth);
+    // Choose b1 to minimize total encoded data size (excluding 3-byte header)
+    int maxWidth = width(normalizedSetBits);
+    Pair<Integer, Integer> widthAndExcCount = chooseBitWidth(normalized, count, maxWidth);
     int b1 = widthAndExcCount.first();
     int b2 = maxWidth - b1;
     int excCount = widthAndExcCount.second();
-    int primaryBytes = ceilDiv(length * b1, 8);
-    int excValueBytes = ceilDiv(excCount * b2, 8);
 
-    // Special case: b1=8 means store original values as raw bytes with a constant header.
-    // b2, e, and m should be 0, so the header is always 0x08 0x00 0x00.
+    // check that there is enough space in the buffer for the encoded data
+    int requiredSize = encodedSize(count, b1, b2, excCount);
+    Preconditions.checkArgument(
+        outOffset + requiredSize <= out.remaining(),
+        "Cannot decode %s values from buffer with %s remaining bytes",
+        requiredSize,
+        out.remaining());
+
+    // Special case: b1=8 means store original values as raw bytes with b2, e, and m set to 0.
     if (b1 == 8) {
-      out.put(outPos, (byte) 0x08);
-      out.put(outPos + 1, (byte) 0);
-      out.put(outPos + 2, (byte) 0);
-      return copyBytes(values, start, length, out, outPos + 3) - outPos;
+      writeHeader(out, outOffset, b1, 0 /* b2 */, 0 /* excCount */, 0 /* m */);
+      return 3 + BitPacking.packBits(8, values, valueOffset, out, outOffset + 3, count);
     }
 
-    // Header: b1 in low nibble, b2 in high nibble, then e, then m
+    int bytesWritten = writeHeader(out, outOffset, b1, b2, excCount, base);
 
-    out.put(outPos, (byte) ((b2 << 4) | b1));
-    out.put(outPos + 1, (byte) excCount);
-    out.put(outPos + 2, (byte) base);
-    int pos = outPos + 3;
+    // Primary array: low b1 bits of every value
+    bytesWritten += BitPacking.packBits(b1, normalized, 0, out, outOffset + bytesWritten, count);
 
-    // Primary array: low b1 bits of every value, packed MSB-first
-    if (b1 > 0) {
-      BitPacking.packBits(normalized, 0, length, out, pos, b1);
-      pos += primaryBytes;
-    }
+    // b2 is the bit width of exception values: (maxWidth - b1) bits of each exception
+    if (excCount > 0) {
+      int[] excOffsets = new int[excCount];
+      int[] excValues = new int[excCount];
 
-    // b2 is the bit width of exception values: bits [b1, b1+b2) of each exception
-    if (maxWidth > b1) {
-      int[] exceptionOffsets = new int[length];
-      int[] exceptionValues = new int[length];
-
-      // Step 5: collect exceptions (values that do not fit in b1 bits)
+      // Collect exceptions (values that do not fit in b1 bits)
       int excIndex = 0;
       int threshold = 1 << b1;
-      for (int i = 0; i < length; i += 1) {
+      for (int i = 0; i < count; i += 1) {
         if (normalized[i] >= threshold) {
-          exceptionOffsets[excIndex] = i;
-          exceptionValues[excIndex] = normalized[i] >> b1;
+          excOffsets[excIndex] = i;
+          excValues[excIndex] = normalized[i] >>> b1;
           excIndex += 1;
         }
       }
 
       // Exception offsets (one byte per exception)
-      pos = copyBytes(exceptionOffsets, 0, excCount, out, pos);
+      bytesWritten +=
+          BitPacking.packBits(8, excOffsets, 0, out, outOffset + bytesWritten, excCount);
 
-      // Exception values: bits [b1, b1+b2) of each exception, packed MSB-first
-      if (b2 > 0 && excCount > 0) {
-        if (b2 == 8) {
-          copyBytes(exceptionValues, 0, excCount, out, pos);
-        } else {
-          BitPacking.packBits(exceptionValues, 0, excCount, out, pos, b2);
-        }
-        pos += excValueBytes;
-      }
+      // Exception values: remaining high b2 bits of each exception
+      bytesWritten +=
+          BitPacking.packBits(b2, excValues, 0, out, outOffset + bytesWritten, excCount);
     }
 
-    return pos - outPos;
+    return bytesWritten;
   }
 
   /**
-   * Chooses the primary bit width {@code b1} that minimizes total encoded chunk size.
+   * Decode one chunk of encoded data, writing decoded values into an output array.
    *
-   * <p>For each candidate {@code b} from 0 to 8, computes:
+   * @param data buffer containing source data to decode
+   * @param dataOffset starting index in the buffer to decode
+   * @param out an output {@link ByteBuffer}
+   * @param outOffset starting index for output in the out buffer
+   * @param count number of values to decode
+   * @return the number of bytes read from {@code data}
+   */
+  private static int decodeChunk(
+      ByteBuffer data, int dataOffset, int[] out, int outOffset, int count) {
+    Preconditions.checkArgument(count >= 0, "Invalid value count to decode: %s", count);
+    Preconditions.checkArgument(
+        outOffset + count <= out.length,
+        "Cannot decode %s values starting at %s into int[%s]: not enough space",
+        count,
+        out.length,
+        outOffset);
+
+    int b1 = data.get(dataOffset) & 0x0F;
+    int b2 = (data.get(dataOffset) >>> 4) & 0x0F;
+    int excCount = data.get(dataOffset + 1) & 0xFF;
+    int base = data.get(dataOffset + 2) & 0xFF;
+    int bytesRead = 3;
+
+    // after reading the header, check that the full chunk is present
+    int expectedSize = encodedSize(count, b1, b2, excCount);
+    Preconditions.checkArgument(
+        dataOffset + expectedSize <= data.limit(),
+        "Cannot decode %s values from buffer with %s remaining bytes",
+        expectedSize,
+        data.limit() - dataOffset);
+
+    // Read primary array: low b1 bits of each value
+    bytesRead += BitPacking.unpackBits(b1, data, dataOffset + bytesRead, out, outOffset, count);
+
+    // Read exceptions and update output values
+    if (excCount > 0) {
+      int[] excOffsets = new int[excCount];
+      int[] excValues = new int[excCount];
+      int excListOffset = dataOffset + bytesRead;
+      int excDataOffset = dataOffset + bytesRead + excCount;
+
+      // Read exception indexes
+      bytesRead += BitPacking.unpackBits(8, data, excListOffset, excOffsets, 0, excCount);
+
+      // Read exception values and patch the primary values
+      bytesRead += BitPacking.unpackBits(b2, data, excDataOffset, excValues, 0, excCount);
+
+      // Update output values
+      for (int i = 0; i < excCount; i += 1) {
+        out[outOffset + excOffsets[i]] |= excValues[i] << b1;
+      }
+    }
+
+    // Add back the chunk minimum
+    for (int i = 0; i < count; i += 1) {
+      out[outOffset + i] += base;
+    }
+
+    return bytesRead;
+  }
+
+  private static int writeHeader(
+      ByteBuffer out, int outOffset, int b1, int b2, int excCount, int base) {
+    // Header: b1 in low nibble, b2 in high nibble, then e, then m
+    out.put(outOffset, (byte) ((b2 << 4) | (b1 & 0b1111)));
+    out.put(outOffset + 1, (byte) excCount);
+    out.put(outOffset + 2, (byte) base);
+
+    return 3;
+  }
+
+  /**
+   * Choose the primary bit width {@code b1} that minimizes total encoded chunk size.
    *
-   * <ul>
-   *   <li>{@code e}: number of values needing more than {@code b} bits
-   *   <li>{@code b2 = maxWidth - b}: bits needed for exception remainders
-   *   <li>total size = {@code ceil(n * b / 8) + e + ceil(e * b2 / 8)}
-   * </ul>
+   * <p>This produces the width that results in the smallest total size and the number of exceptions
+   * for that width.
    *
-   * Returns the {@code b} with minimum total size, preferring smaller {@code b} on ties.
+   * <p>Larger width is preferred on ties to reduce the number of exceptions.
+   *
+   * @param normalized value array to encode, after normalization
+   * @param length number of values in the array to encode
+   * @param maxWidth the largest bit width of normalized values
+   * @return a {@link Pair} of the chosen width and number of exceptions for that width
    */
   private static Pair<Integer, Integer> chooseBitWidth(int[] normalized, int length, int maxWidth) {
     int bestWidth = 0;
     int bestSize = Integer.MAX_VALUE;
     int bestExcCount = 0;
 
-    for (int b = 0; b <= maxWidth; b += 1) {
-      int e = 0;
-      if (b < 8) {
-        int threshold = 1 << b;
+    for (int candidateWidth = 0; candidateWidth <= maxWidth; candidateWidth += 1) {
+      int excCount = 0;
+      if (candidateWidth < 8) {
+        int threshold = 1 << candidateWidth;
         for (int i = 0; i < length; i += 1) {
           if (normalized[i] >= threshold) {
-            e += 1;
+            excCount += 1;
           }
         }
       }
 
-      int b2 = maxWidth - b;
-      int size = ceilDiv(length * b, 8) + e + ceilDiv(e * b2, 8);
+      int b2 = maxWidth - candidateWidth;
+      int size = byteWidth(length * candidateWidth) + excCount + byteWidth(excCount * b2);
 
-      if (size < bestSize) {
+      if (size <= bestSize) {
         bestSize = size;
-        bestWidth = b;
-        bestExcCount = e;
+        bestWidth = candidateWidth;
+        bestExcCount = excCount;
       }
     }
 
@@ -323,78 +359,18 @@ class PFOREncoding {
   }
 
   /**
-   * Decodes one chunk of PFOR-encoded data, writing decoded values into {@code output[start,
-   * start+length)}.
+   * Return the lowest byte value from the array slice [start, start + length).
    *
-   * @return the number of bytes read from {@code data}
+   * <p>If length is < 1, the result will be larger than Byte.MAX_VALUE.
+   *
+   * @param values array of values
+   * @param start starting index
+   * @param length number of values to check
+   * @return the min of the values in the array slice
    */
-  private static int decodeChunk(ByteBuffer data, int pos, int[] output, int start, int length) {
-    int b1 = data.get(pos) & 0x0F;
-    int b2 = (data.get(pos) >> 4) & 0x0F;
-    int excCount = data.get(pos + 1) & 0xFF;
-    int base = data.get(pos + 2) & 0xFF;
-    int cursor = pos + 3;
-
-    // Special case: b1=8 means raw bytes; e is always 0
-    if (b1 == 8) {
-      for (int i = 0; i < length; i += 1) {
-        output[start + i] = (data.get(cursor + i) & 0xFF) + base;
-      }
-      return cursor + length - pos;
-    }
-
-    // Read primary array: low b1 bits of each value
-    int[] values = new int[length];
-    if (b1 > 0) {
-      BitPacking.unpackBits(data, cursor, values, length, b1);
-      cursor += ceilDiv(length * b1, 8);
-    }
-
-    // Read exception offsets
-    int[] offsets = new int[excCount];
-    for (int i = 0; i < excCount; i += 1) {
-      offsets[i] = data.get(cursor) & 0xFF;
-      cursor += 1;
-    }
-
-    // Read exception values and patch the primary values
-    if (b2 > 0 && excCount > 0) {
-      int[] excValues = new int[excCount];
-      if (b2 == 8) {
-        for (int i = 0; i < excCount; i += 1) {
-          excValues[i] = data.get(cursor + i) & 0xFF;
-        }
-      } else {
-        BitPacking.unpackBits(data, cursor, excValues, excCount, b2);
-      }
-      cursor += ceilDiv(excCount * b2, 8);
-
-      for (int i = 0; i < excCount; i += 1) {
-        values[offsets[i]] |= excValues[i] << b1;
-      }
-    }
-
-    // Add back the chunk minimum
-    for (int i = 0; i < length; i += 1) {
-      output[start + i] = values[i] + base;
-    }
-
-    return cursor - pos;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Utilities
-  // ---------------------------------------------------------------------------
-
-  private static int copyBytes(int[] src, int srcStart, int count, ByteBuffer out, int outPos) {
-    for (int i = 0; i < count; i += 1) {
-      out.put(outPos + i, (byte) src[srcStart + i]);
-    }
-    return outPos + count;
-  }
-
   private static int min(int[] values, int start, int length) {
-    int min = 255;
+    // Use min > Byte.MAX_VALUE to signal no min (length < 1)
+    int min = 256;
     for (int i = start; i < start + length; i += 1) {
       if (values[i] < min) {
         min = values[i];
@@ -404,12 +380,29 @@ class PFOREncoding {
     return min;
   }
 
+  /** Returns the number of bytes required in the worst case to encode {@code valueCount} values. */
+  static int estimateEncodedSize(int valueCount) {
+    // Worst-case per chunk is b1=8: 3-byte header + 1 byte per value. Any other b1 chosen by the
+    // encoder costs <= n bytes of data (otherwise b1=8 would have been selected instead).
+    int numChunks = ceilDiv(valueCount, CHUNK_SIZE);
+    return 3 * numChunks + valueCount;
+  }
+
+  /** Returns the number of bytes required to encode a chunk of values. */
+  private static int encodedSize(int count, int b1, int b2, int excCount) {
+    return 3 + byteWidth(b1 * count) + excCount + byteWidth(b2 * excCount);
+  }
+
   /** Returns the number of bits required to represent {@code v} (0 for v=0). */
   static int width(int value) {
     return 32 - Integer.numberOfLeadingZeros(value);
   }
 
-  static int ceilDiv(int a, int b) {
+  private static int byteWidth(int bits) {
+    return ceilDiv(bits, 8);
+  }
+
+  private static int ceilDiv(int a, int b) {
     return (a + b - 1) / b;
   }
 }
