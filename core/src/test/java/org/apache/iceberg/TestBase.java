@@ -35,6 +35,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
@@ -296,6 +299,29 @@ public class TestBase {
 
   public TableMetadata readMetadata() {
     return TestTables.readMetadata("test");
+  }
+
+  protected void assertEmptyTable() {
+    assertThat(listManifestFiles()).isEmpty();
+    TableMetadata base = readMetadata();
+    assertThat(base.currentSnapshot()).isNull();
+    assertThat(base.lastSequenceNumber()).isEqualTo(0);
+  }
+
+  protected static ExecutorService newNamedExecutor(String prefix, AtomicInteger counter) {
+    return newNamedExecutor(prefix, counter, 1);
+  }
+
+  protected static ExecutorService newNamedExecutor(
+      String prefix, AtomicInteger counter, int nThreads) {
+    return Executors.newFixedThreadPool(
+        nThreads,
+        runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName(prefix + "-" + counter.getAndIncrement());
+          thread.setDaemon(true);
+          return thread;
+        });
   }
 
   static FileFormat manifestFormat(int version) {
