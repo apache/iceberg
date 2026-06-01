@@ -680,11 +680,11 @@ In V1-V3, a manifest file must store the partition spec and other metadata as pr
     |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
 === "v4"
-    | Write      | Read       | Key                 | Value                                                                                                                                       |
-    |------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-    | _optional_ | _optional_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
-    | _optional_ | _optional_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
-    | _optional_ | _optional_ | `content`           | Type of content files tracked by the manifest: "data" or "equality-deletes"                                                                 |
+    | Requirement | Key                 | Value                                                                                                                                       |
+    |-------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+    | _optional_  | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
+    | _optional_  | `format-version`    | Table format version number of the manifest as a string                                                                                     |
+    | _optional_  | `content`           | Type of content files tracked by the manifest: "data" or "equality-deletes"                                                                 |
 
 The schema of a manifest file is defined by the `manifest_entry` struct (V1-V3) or `content_entry` struct (V4), described in the following section.
 
@@ -723,7 +723,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | Field id | Name | Type | Write | Read | Description |
     |----------|------|------|-------|------|-------------|
     | 134 | **`content_type`** | `int` (0: DATA, 2: EQUALITY DELETES, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | *required* | Type of content stored in the entry. Content types 3 and 4 are only valid in root manifests. |
-    | 157 | **`writer_format_version`** | `int` (0: PRE-V4, 1: V4) | *required* | *required* | Writer format version. V4 writers must produce `writer_format_version` 1. |
+    | 157 | **`writer_format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | *required* | Writer format version. V4 writers must produce `writer_format_version` 4. |
     | 100 | **`location`** | `string` | *required* | *required* | Location of the file or manifest. |
     | 101 | **`file_format`** | `string` | *required* | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
     | 147 | **`tracking`** | `tracking` struct | *required* | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
