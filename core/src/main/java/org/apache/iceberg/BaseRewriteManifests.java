@@ -84,6 +84,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   @Override
+  public RewriteManifests toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   protected String operation() {
     return DataOperations.REPLACE;
   }
@@ -168,10 +174,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops().io());
+    List<ManifestFile> currentManifests =
+        snapshot != null ? snapshot.allManifests(ops().io()) : Collections.emptyList();
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
-    validateDeletedManifests(currentManifestSet, base.currentSnapshot().snapshotId());
+    validateDeletedManifests(currentManifestSet, snapshot != null ? snapshot.snapshotId() : -1L);
 
     if (requiresRewrite(currentManifestSet)) {
       performRewrite(currentManifests);
