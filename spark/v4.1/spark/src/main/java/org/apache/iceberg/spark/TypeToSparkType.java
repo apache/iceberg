@@ -34,6 +34,8 @@ import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.DecimalType$;
 import org.apache.spark.sql.types.DoubleType$;
 import org.apache.spark.sql.types.FloatType$;
+import org.apache.spark.sql.types.GeographyType$;
+import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.MapType$;
@@ -145,6 +147,15 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
         return BinaryType$.MODULE$;
       case BINARY:
         return BinaryType$.MODULE$;
+      case GEOMETRY:
+        Types.GeometryType geometry = (Types.GeometryType) primitive;
+        return GeometryType$.MODULE$.apply(geometry.crs());
+      case GEOGRAPHY:
+        // Spark currently only supports the SPHERICAL edge interpolation algorithm. The Iceberg
+        // edge algorithm is preserved on the Iceberg type and applied during predicate evaluation;
+        // it is not propagated to Spark to avoid runtime mismatches.
+        Types.GeographyType geography = (Types.GeographyType) primitive;
+        return GeographyType$.MODULE$.apply(geography.crs());
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());

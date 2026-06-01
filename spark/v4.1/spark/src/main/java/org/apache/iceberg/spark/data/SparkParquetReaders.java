@@ -41,6 +41,7 @@ import org.apache.iceberg.parquet.ParquetVariantReaders.DelegatingValueReader;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VariantReaderBuilder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -63,6 +64,8 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.internal.types.CartesianSpatialReferenceSystemMapper;
+import org.apache.spark.sql.internal.types.GeographicSpatialReferenceSystemMapper;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.CalendarInterval;
@@ -292,6 +295,10 @@ public class SparkParquetReaders {
         case BINARY:
           if (expected != null && expected.typeId() == TypeID.UUID) {
             return new UUIDReader(desc);
+          } else if (expected != null && expected.typeId() == TypeID.GEOMETRY) {
+            return new GeometryReader(desc, ((Types.GeometryType) expected).crs());
+          } else if (expected != null && expected.typeId() == TypeID.GEOGRAPHY) {
+            return new GeographyReader(desc, ((Types.GeographyType) expected).crs());
           }
           return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
@@ -399,6 +406,50 @@ public class SparkParquetReaders {
     public UTF8String read(UTF8String ignored) {
       return UTF8String.fromString(UUIDUtil.convert(column.nextBinary().toByteBuffer()).toString());
     }
+  }
+
+  private static class GeometryReader extends PrimitiveReader<GeometryVal> {
+    private final int srid;
+
+    GeometryReader(ColumnDescriptor desc, String crs) {
+      super(desc);
+      Integer mapped = CartesianSpatialReferenceSystemMapper.getSrid(crs);
+      Preconditions.checkArgument(
+          mapped != null, "Cannot map CRS to a Spark cartesian SRID: %s", crs);
+      this.srid = mapped;
+    }
+
+    @Override
+    public GeometryVal read(GeometryVal ignored) {
+      // The Parquet column stores pure WKB. Spark's internal GEOMETRY value is a 4-byte
+      // little-endian SRID header followed by the WKB body, so prepend the SRID derived from the
+      // column's CRS before wrapping as a GeometryVal.
+      return GeometryVal.fromBytes(prependSrid(srid, column.nextBinary().getBytes()));
+    }
+  }
+
+  private static class GeographyReader extends PrimitiveReader<GeographyVal> {
+    private final int srid;
+
+    GeographyReader(ColumnDescriptor desc, String crs) {
+      super(desc);
+      Integer mapped = GeographicSpatialReferenceSystemMapper.getSrid(crs);
+      Preconditions.checkArgument(
+          mapped != null, "Cannot map CRS to a Spark geographic SRID: %s", crs);
+      this.srid = mapped;
+    }
+
+    @Override
+    public GeographyVal read(GeographyVal ignored) {
+      return GeographyVal.fromBytes(prependSrid(srid, column.nextBinary().getBytes()));
+    }
+  }
+
+  private static byte[] prependSrid(int srid, byte[] wkb) {
+    byte[] bytes = new byte[Integer.BYTES + wkb.length];
+    ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(srid);
+    System.arraycopy(wkb, 0, bytes, Integer.BYTES, wkb.length);
+    return bytes;
   }
 
   private static class ArrayReader<E> extends RepeatedReader<ArrayData, ReusableArrayData, E> {

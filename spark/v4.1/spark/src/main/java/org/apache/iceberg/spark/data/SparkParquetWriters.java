@@ -71,6 +71,8 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
+import org.apache.spark.unsafe.types.GeographyVal;
+import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -206,6 +208,18 @@ public class SparkParquetWriters {
       public Optional<ParquetValueWriter<?>> visit(
           LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
         return Optional.of(uuids(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueWriter<?>> visit(
+          LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+        return Optional.of(new GeometryWriter(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueWriter<?>> visit(
+          LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+        return Optional.of(new GeographyWriter(desc));
       }
 
       @Override
@@ -470,6 +484,37 @@ public class SparkParquetWriters {
     @Override
     public void write(int repetitionLevel, byte[] bytes) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(bytes));
+    }
+  }
+
+  private static class GeometryWriter extends PrimitiveWriter<GeometryVal> {
+    GeometryWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, GeometryVal value) {
+      // Spark stores GEOMETRY internally as a 4-byte little-endian SRID header followed by the
+      // WKB body. The Parquet/Iceberg representation is pure WKB, so skip the SRID header. The
+      // CRS is preserved on the column's GeometryLogicalTypeAnnotation, not per-row.
+      byte[] bytes = value.getBytes();
+      column.writeBinary(
+          repetitionLevel,
+          Binary.fromConstantByteArray(bytes, Integer.BYTES, bytes.length - Integer.BYTES));
+    }
+  }
+
+  private static class GeographyWriter extends PrimitiveWriter<GeographyVal> {
+    GeographyWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, GeographyVal value) {
+      byte[] bytes = value.getBytes();
+      column.writeBinary(
+          repetitionLevel,
+          Binary.fromConstantByteArray(bytes, Integer.BYTES, bytes.length - Integer.BYTES));
     }
   }
 

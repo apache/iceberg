@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -29,9 +30,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.parquet.column.schema.EdgeInterpolationAlgorithm;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -246,6 +249,28 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     @Override
     public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
       return Optional.of(Types.BinaryType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      String crs = geometryType.getCrs();
+      return Optional.of(crs == null ? Types.GeometryType.crs84() : Types.GeometryType.of(crs));
+    }
+
+    @Override
+    public Optional<Type> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      String crs = geographyType.getCrs();
+      EdgeInterpolationAlgorithm algorithm = geographyType.getAlgorithm();
+      EdgeAlgorithm icebergAlgorithm =
+          algorithm == null
+              ? null
+              : EdgeAlgorithm.valueOf(algorithm.name().toUpperCase(Locale.ROOT));
+      if (crs == null && icebergAlgorithm == null) {
+        return Optional.of(Types.GeographyType.crs84());
+      }
+
+      return Optional.of(Types.GeographyType.of(crs, icebergAlgorithm));
     }
   }
 
