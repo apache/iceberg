@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Locale;
 import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
@@ -122,6 +123,18 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
+        case 400:
+          // Some REST catalog implementations (e.g., Databricks Unity Catalog) return HTTP 400
+          // with a commit-conflict message instead of the spec-mandated 409. Treat such responses
+          // as CommitFailedException so the standard retry-with-refresh loop can handle them.
+          // Responses that indicate a genuinely malformed request (no commit-related message) still
+          // fall through to the default 400 handler which raises BadRequestException.
+          if (error.message() != null
+              && error.message().toLowerCase(Locale.ROOT).contains("commit")
+              && error.message().toLowerCase(Locale.ROOT).contains("validation failed")) {
+            throw new CommitFailedException("Commit failed: %s", error.message());
+          }
+          break;
         case 404:
           throw new NoSuchTableException("%s", error.message());
         case 409:
