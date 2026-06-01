@@ -1078,16 +1078,106 @@ public class TestRewriteManifests extends TestBase {
   }
 
   @TestTemplate
-  public void testRewriteManifestsOnBranchUnsupported() {
+  public void testRewriteManifestsOnBranch() throws IOException {
+    String branch = "branch";
 
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch(branch, mainSnapshotId).commit();
 
+    // append a second file only on the branch so the branch diverges from main
+    table.newFastAppend().appendFile(FILE_B).toBranch(branch).commit();
+    long branchAppendId = table.snapshot(branch).snapshotId();
+
+    assertThat(table.snapshot(branch).allManifests(table.io())).hasSize(2);
+
+    // cluster by a constant combines the branch's manifests into one
+    table.rewriteManifests().clusterBy(file -> "").toBranch(branch).commit();
+
+    // main must be untouched: same snapshot, same single manifest with only FILE_A
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
+    List<ManifestFile> mainManifests = table.currentSnapshot().allManifests(table.io());
+    assertThat(mainManifests).hasSize(1);
+    validateManifestEntries(
+        mainManifests.get(0),
+        ids(mainSnapshotId),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.ADDED));
+
+    // the branch reflects the rewrite over its own (diverged) manifests, including FILE_B
+    List<ManifestFile> branchManifests = table.snapshot(branch).allManifests(table.io());
+    assertThat(branchManifests).hasSize(1);
+
+    // get the file order correct
+    List<DataFile> files;
+    List<Long> ids;
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(branchManifests.get(0), table.io(), table.specs())) {
+      if (reader.iterator().next().location().equals(FILE_A.location())) {
+        files = Arrays.asList(FILE_A, FILE_B);
+        ids = Arrays.asList(mainSnapshotId, branchAppendId);
+      } else {
+        files = Arrays.asList(FILE_B, FILE_A);
+        ids = Arrays.asList(branchAppendId, mainSnapshotId);
+      }
+    }
+
+    validateManifestEntries(
+        branchManifests.get(0),
+        ids.iterator(),
+        files.iterator(),
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsCreatesBranchIfNeeded() {
+    String branch = "newBranch";
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+
+    // the branch does not exist yet; rewriting to it forks the branch from main
+    table.rewriteManifests().clusterBy(file -> "").toBranch(branch).commit();
+
+    // main must be untouched
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
-    assertThatThrownBy(() -> table.rewriteManifests().toBranch("someBranch").commit())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits");
+    // the branch was created, forked from main, with main's manifests rewritten onto it
+    SnapshotRef branchRef = table.ops().current().ref(branch);
+    assertThat(branchRef).isNotNull();
+    assertThat(branchRef.isBranch()).isTrue();
+
+    Snapshot branchSnapshot = table.snapshot(branch);
+    assertThat(branchSnapshot.snapshotId()).isNotEqualTo(mainSnapshotId);
+    assertThat(branchSnapshot.parentId()).isEqualTo(mainSnapshotId);
+    assertThat(branchSnapshot.operation()).isEqualTo(DataOperations.REPLACE);
+
+    List<ManifestFile> branchManifests = branchSnapshot.allManifests(table.io());
+    assertThat(branchManifests).hasSize(1);
+    validateManifestEntries(
+        branchManifests.get(0),
+        ids(mainSnapshotId),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsToBranchRejectsNullBranch() {
+    assertThatThrownBy(() -> table.rewriteManifests().toBranch(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid branch name: null");
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsToBranchRejectsTag() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag("tag1", snapshotId).commit();
+
+    assertThatThrownBy(() -> table.rewriteManifests().toBranch("tag1"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("tag1 is a tag, not a branch. Tags cannot be targets for producing snapshots");
   }
 
   @TestTemplate
