@@ -19,14 +19,13 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -48,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -183,62 +183,38 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   @Override
   public Collection<DynamicWriteResult> prepareCommit() throws IOException {
-    Map<WriteTarget, CompletableFuture<WriteResult>> futures = Maps.newLinkedHashMap();
-    for (Map.Entry<WriteTarget, TaskWriter<RowData>> entry : writers.entrySet()) {
-      futures.put(entry.getKey(), flushAsync(entry.getKey(), entry.getValue()));
-    }
-
+    List<Map.Entry<WriteTarget, TaskWriter<RowData>>> pending =
+        Lists.newArrayList(writers.entrySet());
     writers.clear();
 
-    try {
-      CompletableFuture.allOf(futures.values().toArray(CompletableFuture[]::new)).join();
-    } catch (CompletionException e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof UncheckedIOException uncheckedIOException) {
-        throw uncheckedIOException.getCause();
-      } else {
-        throw new IOException(cause);
-      }
-    }
+    Queue<DynamicWriteResult> results = new ConcurrentLinkedQueue<>();
+    Tasks.foreach(pending)
+        .throwFailureWhenFinished()
+        .noRetry()
+        .executeWith(flushExecutor)
+        .run(entry -> results.add(flush(entry.getKey(), entry.getValue())), IOException.class);
 
-    List<DynamicWriteResult> result = Lists.newArrayList();
-    for (Map.Entry<WriteTarget, CompletableFuture<WriteResult>> entry : futures.entrySet()) {
-      WriteTarget writeTarget = entry.getKey();
-      WriteResult writeResult = entry.getValue().join();
-      result.add(
-          new DynamicWriteResult(
-              new TableKey(writeTarget.tableName(), writeTarget.branch()),
-              writeTarget.specId(),
-              writeResult));
-    }
-
-    return result;
+    return Lists.newArrayList(results);
   }
 
-  private CompletableFuture<WriteResult> flushAsync(
-      WriteTarget writeTarget, TaskWriter<RowData> writer) {
-    return CompletableFuture.supplyAsync(
-        () -> {
-          try {
-            long startNano = System.nanoTime();
-            WriteResult writeResult = writer.complete();
-            metrics.updateFlushResult(writeTarget.tableName(), writeResult);
-            metrics.flushDuration(
-                writeTarget.tableName(),
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
-            LOG.debug(
-                "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
-                writeTarget.tableName(),
-                subTaskId,
-                attemptId,
-                writeResult.dataFiles().length,
-                writeResult.deleteFiles().length);
-            return writeResult;
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        },
-        flushExecutor);
+  private DynamicWriteResult flush(WriteTarget writeTarget, TaskWriter<RowData> writer)
+      throws IOException {
+    long startNano = System.nanoTime();
+    WriteResult writeResult = writer.complete();
+    metrics.updateFlushResult(writeTarget.tableName(), writeResult);
+    metrics.flushDuration(
+        writeTarget.tableName(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
+    LOG.debug(
+        "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
+        writeTarget.tableName(),
+        subTaskId,
+        attemptId,
+        writeResult.dataFiles().length,
+        writeResult.deleteFiles().length);
+    return new DynamicWriteResult(
+        new TableKey(writeTarget.tableName(), writeTarget.branch()),
+        writeTarget.specId(),
+        writeResult);
   }
 
   private static Set<Integer> getEqualityFields(Table table, Set<Integer> equalityFieldIds) {
