@@ -86,7 +86,7 @@ A Mumbling bitmap consists of 3 sections:
 * Descriptor array
 * Containers
 
-Throughout the foramt, integers are unsigned and stored as little endian.
+Throughout the format, integers are unsigned and stored as little endian.
 
 
 ### Header
