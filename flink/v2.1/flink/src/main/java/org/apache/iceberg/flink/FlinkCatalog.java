@@ -45,6 +45,7 @@ import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.FunctionNotExistException;
+import org.apache.flink.table.catalog.exceptions.PartitionNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
@@ -70,6 +71,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.util.FlinkAlterTableUtil;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
@@ -80,6 +82,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -724,8 +729,84 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void dropPartition(
       ObjectPath tablePath, CatalogPartitionSpec partitionSpec, boolean ignoreIfNotExists)
-      throws CatalogException {
-    throw new UnsupportedOperationException();
+      throws PartitionNotExistException, CatalogException {
+    Table icebergTable;
+    try {
+      icebergTable = loadIcebergTable(tablePath);
+    } catch (TableNotExistException e) {
+      if (ignoreIfNotExists) {
+        return;
+      }
+      throw new PartitionNotExistException(getName(), tablePath, partitionSpec, e);
+    }
+
+    if (icebergTable.spec().isUnpartitioned()) {
+      if (ignoreIfNotExists) {
+        return;
+      }
+      throw new PartitionNotExistException(getName(), tablePath, partitionSpec);
+    }
+
+    org.apache.iceberg.expressions.Expression filter =
+        buildPartitionRowFilter(icebergTable, partitionSpec);
+
+    if (!ignoreIfNotExists && !partitionHasFiles(icebergTable, filter, tablePath)) {
+      throw new PartitionNotExistException(getName(), tablePath, partitionSpec);
+    }
+
+    icebergTable.newDelete().deleteFromRowFilter(filter).commit();
+  }
+
+  /**
+   * Build a row filter from a Flink partition spec. The filter is the conjunction of {@code col =
+   * value} predicates over the table's partition source columns. {@link
+   * org.apache.iceberg.DeleteFiles#deleteFromRowFilter(org.apache.iceberg.expressions.Expression)}
+   * applies a strict-projection check so that only files whose every row matches are dropped, which
+   * makes this safe across non-identity transforms and partition-spec evolution.
+   */
+  private static org.apache.iceberg.expressions.Expression buildPartitionRowFilter(
+      Table table, CatalogPartitionSpec partitionSpec) {
+    Schema schema = table.schema();
+    Set<String> expectedColumns = expectedPartitionColumns(table.spec(), schema);
+    Map<String, String> values = partitionSpec.getPartitionSpec();
+
+    Preconditions.checkArgument(
+        values.keySet().equals(expectedColumns),
+        "DROP PARTITION requires values for partition columns %s but got %s",
+        expectedColumns,
+        values.keySet());
+
+    org.apache.iceberg.expressions.Expression filter = Expressions.alwaysTrue();
+    for (Map.Entry<String, String> entry : values.entrySet()) {
+      Types.NestedField field = schema.findField(entry.getKey());
+      Object icebergValue = Conversions.fromPartitionString(field.type(), entry.getValue());
+      org.apache.iceberg.expressions.Expression predicate =
+          (icebergValue == null)
+              ? Expressions.isNull(entry.getKey())
+              : Expressions.equal(entry.getKey(), icebergValue);
+      filter = Expressions.and(filter, predicate);
+    }
+    return filter;
+  }
+
+  private static Set<String> expectedPartitionColumns(PartitionSpec spec, Schema schema) {
+    Set<String> columns = Sets.newLinkedHashSet();
+    for (PartitionField field : spec.fields()) {
+      if (!field.transform().equals(Transforms.alwaysNull())) {
+        columns.add(schema.findColumnName(field.sourceId()));
+      }
+    }
+    return columns;
+  }
+
+  private static boolean partitionHasFiles(
+      Table table, org.apache.iceberg.expressions.Expression filter, ObjectPath tablePath) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().filter(filter).planFiles()) {
+      return tasks.iterator().hasNext();
+    } catch (IOException e) {
+      throw new CatalogException(
+          String.format("Failed to check partition existence for table %s", tablePath), e);
+    }
   }
 
   @Override
