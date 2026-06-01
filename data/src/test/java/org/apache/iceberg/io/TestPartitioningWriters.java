@@ -100,6 +100,9 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testClusteredDataWriterMultiplePartitions() throws IOException {
+    assumeThat(fileFormat)
+        .as("Vortex does not yet inject partition values supplied via idToConstant")
+        .isNotEqualTo(FileFormat.VORTEX);
     table.updateSpec().addField(Expressions.ref("data")).commit();
 
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
@@ -549,6 +552,9 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testFanoutDataWriterMultiplePartitions() throws IOException {
+    assumeThat(fileFormat)
+        .as("Vortex does not yet inject partition values supplied via idToConstant")
+        .isNotEqualTo(FileFormat.VORTEX);
     table.updateSpec().addField(Expressions.ref("data")).commit();
 
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());

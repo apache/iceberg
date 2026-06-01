@@ -24,7 +24,6 @@ import dev.vortex.api.Partition;
 import dev.vortex.api.Scan;
 import dev.vortex.api.ScanOptions;
 import dev.vortex.api.Session;
-import dev.vortex.arrow.ArrowAllocation;
 import dev.vortex.jni.NativeRuntime;
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +33,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableGroup;
@@ -90,13 +88,18 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     Map<String, String> properties = VortexFileUtil.resolveInputProperties(inputFile);
     DataSource dataSource = DataSource.open(session, uri, properties);
 
-    BufferAllocator allocator = ArrowAllocation.rootAllocator();
-    org.apache.arrow.vector.types.pojo.Schema fileArrowSchema = dataSource.arrowSchema(allocator);
+    dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator =
+        VortexArrowBridge.vortexAllocator();
+    BufferAllocator allocator = VortexArrowBridge.arrowAllocator();
+    dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Schema vortexArrowSchema =
+        dataSource.arrowSchema(vortexAllocator);
+    org.apache.arrow.vector.types.pojo.Schema fileArrowSchema =
+        VortexSchemas.toArrowSchema(vortexArrowSchema);
 
     Optional<dev.vortex.api.Expression> scanFilter =
         filterPredicate.map(
             icebergExpression -> {
-              Schema icebergFileSchema = VortexSchemas.convert(fileArrowSchema);
+              Schema icebergFileSchema = VortexSchemas.convert(vortexArrowSchema);
               return ConvertFilterToVortex.convert(icebergFileSchema, icebergExpression);
             });
 
@@ -113,7 +116,8 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     Scan scan = dataSource.scan(optionsBuilder.build());
     Preconditions.checkNotNull(scan, "scan");
 
-    PartitionBatchIterator batchIterator = new PartitionBatchIterator(scan, allocator);
+    PartitionBatchIterator batchIterator =
+        new PartitionBatchIterator(scan, vortexAllocator, allocator);
 
     if (rowReaderFunc != null) {
       VortexRowReader<T> rowFunction = rowReaderFunc.apply(fileArrowSchema);
@@ -127,14 +131,19 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   /** Iterator that pulls Arrow {@link VectorSchemaRoot} batches across Vortex partitions. */
   static class PartitionBatchIterator implements CloseableIterator<VectorSchemaRoot> {
     private final Scan scan;
+    private final dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator;
     private final BufferAllocator allocator;
-    private ArrowReader currentReader;
+    private dev.vortex.relocated.org.apache.arrow.vector.ipc.ArrowReader currentReader;
     private VectorSchemaRoot currentRoot;
     private boolean hasPending = false;
     private boolean exhausted = false;
 
-    PartitionBatchIterator(Scan scan, BufferAllocator allocator) {
+    PartitionBatchIterator(
+        Scan scan,
+        dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator,
+        BufferAllocator allocator) {
       this.scan = scan;
+      this.vortexAllocator = vortexAllocator;
       this.allocator = allocator;
     }
 
@@ -147,6 +156,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
         return false;
       }
       try {
+        closeCurrentRoot();
         while (true) {
           if (currentReader == null) {
             if (!scan.hasNext()) {
@@ -154,10 +164,12 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
               return false;
             }
             Partition partition = scan.next();
-            currentReader = partition.scanArrow(allocator);
-            currentRoot = currentReader.getVectorSchemaRoot();
+            currentReader = partition.scanArrow(vortexAllocator);
           }
           if (currentReader.loadNextBatch()) {
+            currentRoot =
+                VortexArrowBridge.importVortexRoot(
+                    currentReader.getVectorSchemaRoot(), vortexAllocator, allocator);
             hasPending = true;
             return true;
           } else {
@@ -183,11 +195,19 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
     @Override
     public void close() throws IOException {
+      closeCurrentRoot();
       if (currentReader != null) {
         currentReader.close();
         currentReader = null;
       }
-      // Don't close `allocator`: it is Vortex's shared root allocator.
+      // Don't close shared allocators; they are managed for the lifetime of the process.
+    }
+
+    private void closeCurrentRoot() {
+      if (currentRoot != null) {
+        currentRoot.close();
+        currentRoot = null;
+      }
     }
   }
 

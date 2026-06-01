@@ -20,7 +20,6 @@ package org.apache.iceberg.vortex;
 
 import dev.vortex.api.Session;
 import dev.vortex.api.VortexWriter;
-import dev.vortex.arrow.ArrowAllocation;
 import dev.vortex.jni.NativeRuntime;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -221,6 +220,8 @@ public class VortexFormatModel<D, S, R>
     private FileAppender<D> buildAppender(org.apache.iceberg.Schema writeSchema)
         throws IOException {
       Schema arrowSchema = VortexSchemas.toArrowSchema(writeSchema);
+      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Schema vortexSchema =
+          VortexSchemas.toVortexArrowSchema(writeSchema);
 
       VortexValueWriter<D> valueWriter =
           (VortexValueWriter<D>) writerFunction.write(writeSchema, arrowSchema, engineSchema);
@@ -234,10 +235,12 @@ public class VortexFormatModel<D, S, R>
 
       // Apply worker-thread setting on this executor JVM before any Vortex native work begins.
       NativeRuntime.setWorkerThreads(workerThreads);
-      BufferAllocator allocator = ArrowAllocation.rootAllocator();
+      BufferAllocator allocator = VortexArrowBridge.arrowAllocator();
+      dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator =
+          VortexArrowBridge.vortexAllocator();
       Session session = Session.create();
       VortexWriter vortexWriter =
-          VortexWriter.create(session, uri, arrowSchema, properties, allocator);
+          VortexWriter.create(session, uri, vortexSchema, properties, vortexAllocator);
 
       return new VortexFileAppender<>(
           vortexWriter,

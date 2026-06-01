@@ -58,6 +58,7 @@ public final class FormatModelRegistry {
       ImmutableList.of(
           "org.apache.iceberg.data.GenericFormatModels",
           "org.apache.iceberg.arrow.vectorized.ArrowFormatModels",
+          "org.apache.iceberg.vortex.VortexFormatModels",
           "org.apache.iceberg.flink.data.FlinkFormatModels",
           "org.apache.iceberg.spark.source.SparkFormatModels");
 

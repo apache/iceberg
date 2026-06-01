@@ -287,6 +287,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testPositionDeleteWriterWithRow() throws IOException {
+    assumeThat(fileFormat)
+        .as("Vortex does not support position deletes")
+        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), table.schema());
 
     // write a data file

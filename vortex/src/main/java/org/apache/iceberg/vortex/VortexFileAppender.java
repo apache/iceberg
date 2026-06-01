@@ -19,7 +19,6 @@
 package org.apache.iceberg.vortex;
 
 import dev.vortex.api.VortexWriter;
-import dev.vortex.arrow.ArrowAllocation;
 import java.io.IOException;
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
@@ -66,11 +65,7 @@ class VortexFileAppender<D> implements FileAppender<D> {
       MetricsConfig metricsConfig) {
     this.writer = writer;
     this.valueWriter = valueWriter;
-    // Use Vortex's shared root allocator: VortexWriter performs allocations against this
-    // and the native side manages lifetime via Cleaner references. Owning our own
-    // RootAllocator and closing it eagerly trips strict leak checks when Vortex retains
-    // small per-writer state.
-    this.allocator = allocator != null ? allocator : ArrowAllocation.rootAllocator();
+    this.allocator = allocator != null ? allocator : VortexArrowBridge.arrowAllocator();
     this.root = VectorSchemaRoot.create(arrowSchema, this.allocator);
     this.batchSize = batchSize;
     this.outputFile = outputFile;
@@ -135,8 +130,7 @@ class VortexFileAppender<D> implements FileAppender<D> {
         writer.close();
       } finally {
         root.close();
-        // Don't close `allocator`: it is Vortex's shared root allocator and is managed for
-        // the lifetime of the process.
+        // Don't close `allocator`: it is shared for the lifetime of the process.
         closed = true;
       }
     }

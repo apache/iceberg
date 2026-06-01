@@ -436,15 +436,10 @@ project(':iceberg-data') {
     implementation project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
-    compileOnly project(':iceberg-vortex')
     compileOnly(libs.hadoop3.common) {
       exclude group: 'commons-beanutils'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    }
-
-    implementation(libs.vortex.jni) {
-      exclude group: 'com.google.protobuf', module: 'protobuf-java'
     }
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
@@ -473,6 +468,7 @@ project(':iceberg-data') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation(testFixtures(project(':iceberg-parquet')))
+    testRuntimeOnly project(':iceberg-vortex')
   }
 
   test {
@@ -977,9 +973,11 @@ project(':iceberg-vortex') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
-    implementation(libs.vortex.jni) {
-      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+    // Compile against the shaded artifact so Vortex APIs use relocated Arrow signatures.
+    compileOnly("${libs.vortex.jni.get().module}:${libs.vortex.jni.get().version}:all") {
+      transitive = false
     }
+    runtimeOnly("${libs.vortex.jni.get().module}:${libs.vortex.jni.get().version}:all")
     // VortexFormatModel exposes Arrow types in its public API, so Arrow must be
     // visible to consumers of iceberg-vortex.
     api(libs.arrow.vector) {
@@ -992,6 +990,12 @@ project(':iceberg-vortex') {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+    implementation(libs.arrow.memory.netty) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    runtimeOnly libs.netty.buffer
 
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value

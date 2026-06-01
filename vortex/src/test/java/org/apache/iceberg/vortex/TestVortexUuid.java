@@ -53,6 +53,20 @@ public class TestVortexUuid {
   }
 
   @Test
+  public void testRelocatedArrowUuidExtensionMapsBackToIcebergUuid() {
+    dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Schema vortexSchema =
+        VortexSchemas.toVortexArrowSchema(SCHEMA);
+    dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field uuidField =
+        vortexSchema.findField("uid");
+
+    assertThat(VortexSchemas.isUuidField(uuidField)).isTrue();
+    assertThat(VortexSchemas.convert(vortexSchema).findType("uid")).isEqualTo(Types.UUIDType.get());
+    assertThat(
+            VortexSchemas.isUuidField(VortexSchemas.toArrowSchema(vortexSchema).findField("uid")))
+        .isTrue();
+  }
+
+  @Test
   public void testWriteAndReadUuidRoundTrip() {
     UUID uuid1 = UUID.fromString("00000000-0000-0000-0000-000000000001");
     UUID uuid2 = UUID.fromString("11111111-2222-3333-4444-555555555555");
@@ -68,7 +82,8 @@ public class TestVortexUuid {
       root.setRowCount(2);
 
       // Read back using the GenericVortexReader's primitive dispatch through GenericVortexReaders.
-      VortexRowReader<Record> reader = GenericVortexReader.buildReader(SCHEMA, arrowSchema);
+      VortexRowReader<Record> reader =
+          GenericVortexReader.buildReader(SCHEMA, VortexSchemas.toArrowSchema(SCHEMA));
       Record row0 = reader.read(root, 0);
       Record row1 = reader.read(root, 1);
 
