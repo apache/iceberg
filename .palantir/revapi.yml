@@ -565,14 +565,30 @@ acceptedBreaks:
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME"
       justification: "Removed deprecated functionality for partition stats"
     - code: "java.method.removed"
+      old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.ManifestFile>\
+        \ org.apache.iceberg.RewriteTablePathUtil::rewriteManifestList(org.apache.iceberg.Snapshot,\
+        \ org.apache.iceberg.io.FileIO, org.apache.iceberg.TableMetadata, java.util.Set<java.lang.String>,\
+        \ java.lang.String, java.lang.String, java.lang.String, java.lang.String)"
+      justification: "Support multiple source-target prefix mappings in RewriteTablePath"
+    - code: "java.method.removed"
       old: "method org.apache.iceberg.Schema org.apache.iceberg.PartitionStatsHandler::schema(org.apache.iceberg.types.Types.StructType,\
         \ int)"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.RewriteTablePathUtil::replacePaths(org.apache.iceberg.TableMetadata,\
+        \ java.lang.String, java.lang.String)"
+      justification: "Support multiple source-target prefix mappings in RewriteTablePath"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.PartitionStats>\
         \ org.apache.iceberg.PartitionStatsHandler::readPartitionStatsFile(org.apache.iceberg.Schema,\
         \ org.apache.iceberg.io.InputFile)"
       justification: "Removed deprecated functionality for partition stats"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.RewriteTablePathUtil::rewritePositionDeleteFile(org.apache.iceberg.DeleteFile,\
+        \ org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, org.apache.iceberg.PartitionSpec,\
+        \ java.lang.String, java.lang.String, org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter)\
+        \ throws java.io.IOException"
+      justification: "Support multiple source-target prefix mappings in RewriteTablePath"
   "1.2.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.field.constantValueChanged"
