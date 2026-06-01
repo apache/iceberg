@@ -23,9 +23,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -304,5 +309,44 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
         .hasMessage(
             "Cannot create an Iceberg table from a bucketed source table: "
                 + "4 buckets, bucket columns: [id]");
+  }
+
+  @TestTemplate
+  public void testMigrateIgnoreMissingFiles() throws IOException {
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", tableName);
+
+    // Remove one partition's directory while leaving the catalog entry intact to simulate a
+    // concurrent deletion racing with the migration.
+    deleteDirectory(Paths.get(location, "id=1"));
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.migrate(table => '%s', ignore_missing_files => true)",
+            catalogName, tableName);
+    assertThat(result).as("Should have imported only the surviving partition").isEqualTo(1L);
+
+    assertEquals(
+        "Migrated table should only contain rows from the surviving partition",
+        ImmutableList.of(row("b", 2L)),
+        sql("SELECT * FROM %s", tableName));
+  }
+
+  private static void deleteDirectory(Path dir) throws IOException {
+    try (Stream<Path> walk = Files.walk(dir)) {
+      walk.sorted(Comparator.reverseOrder())
+          .forEach(
+              p -> {
+                try {
+                  Files.delete(p);
+                } catch (IOException e) {
+                  throw new UncheckedIOException(e);
+                }
+              });
+    }
   }
 }
