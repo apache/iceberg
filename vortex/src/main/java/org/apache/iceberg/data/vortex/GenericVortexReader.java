@@ -99,7 +99,7 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     @Override
     public VortexValueReader<?> list(
         Types.ListType iList, Field listField, VortexValueReader<?> element) {
-      throw new UnsupportedOperationException("LIST TYPES!");
+      return GenericVortexReaders.list(element);
     }
 
     @Override

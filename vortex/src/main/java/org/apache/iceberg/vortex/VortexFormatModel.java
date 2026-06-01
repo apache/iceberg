@@ -296,7 +296,7 @@ public class VortexFormatModel<D, S, R>
 
     @Override
     public ReadBuilder<D, S> filter(Expression filter) {
-      this.filterPredicate = Optional.of(filter);
+      this.filterPredicate = Optional.ofNullable(filter);
       return this;
     }
 

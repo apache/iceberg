@@ -113,11 +113,8 @@ public class TestGenericVortex extends DataTestBase {
     assumeThat(
             TypeUtil.find(
                 schema,
-                type ->
-                    type.typeId() == Type.TypeID.LIST
-                        || type.typeId() == Type.TypeID.MAP
-                        || type.typeId() == Type.TypeID.FIXED))
-        .as("Vortex does not yet support lists, maps, or variants")
+                type -> type.typeId() == Type.TypeID.MAP || type.typeId() == Type.TypeID.FIXED))
+        .as("Vortex does not yet support maps or fixed")
         .isNull();
   }
 

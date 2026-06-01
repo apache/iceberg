@@ -29,6 +29,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -44,6 +45,7 @@ import org.apache.arrow.vector.TimeNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -139,7 +141,6 @@ public class GenericVortexReaders {
     }
   }
 
-  @SuppressWarnings("UnusedVariable")
   private static class ListReader<T> implements VortexValueReader<List<T>> {
     private final VortexValueReader<T> elementReader;
 
@@ -149,7 +150,13 @@ public class GenericVortexReaders {
 
     @Override
     public List<T> readNonNull(FieldVector vector, int row) {
-      throw new UnsupportedOperationException("Reading lists from Vortex not supported yet");
+      ListVector listVector = (ListVector) vector;
+      int start = listVector.getElementStartIndex(row);
+      int end = listVector.getElementEndIndex(row);
+      FieldVector elementVector = listVector.getDataVector();
+      return IntStream.range(start, end)
+          .mapToObj(i -> elementReader.read(elementVector, i))
+          .toList();
     }
   }
 

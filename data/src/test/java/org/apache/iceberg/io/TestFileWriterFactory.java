@@ -49,6 +49,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -73,7 +74,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
         new Object[] {2, FileFormat.PARQUET, false},
         new Object[] {2, FileFormat.PARQUET, true},
         new Object[] {2, FileFormat.ORC, false},
-        new Object[] {2, FileFormat.ORC, true});
+        new Object[] {2, FileFormat.ORC, true},
+        new Object[] {2, FileFormat.VORTEX, false},
+        new Object[] {2, FileFormat.VORTEX, true});
   }
 
   private static final String PARTITION_VALUE = "aaa";
@@ -162,6 +165,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @TestTemplate
   public void testEqualityDeleteWriterWithMultipleSpecs() throws IOException {
     assumeThat(partitioned).isFalse();
+    // Mixed-spec scans supply partition values via idToConstant, which the Vortex generic reader
+    // does not yet inject (no constant readers — see GenericVortexReader TODO).
+    assumeThat(fileFormat).isNotEqualTo(FileFormat.VORTEX);
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
@@ -217,6 +223,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testPositionDeleteWriter() throws IOException {
+    assumeThat(fileFormat)
+        .as("Vortex does not support position deletes")
+        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // write a data file
@@ -355,6 +364,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testPositionDeleteWriterMultipleDataFiles() throws IOException {
+    assumeThat(fileFormat)
+        .as("Vortex does not support position deletes")
+        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // write two data files
@@ -501,6 +513,16 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
             ORC.read(inputFile)
                 .project(schema)
                 .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+                .build()) {
+
+          return ImmutableList.copyOf(records);
+        }
+
+      case VORTEX:
+        try (CloseableIterable<Record> records =
+            FormatModelRegistry.<Record, Schema>readBuilder(
+                    FileFormat.VORTEX, Record.class, inputFile)
+                .project(schema)
                 .build()) {
 
           return ImmutableList.copyOf(records);

@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,7 +50,9 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
         new Object[] {2, FileFormat.PARQUET, false},
         new Object[] {2, FileFormat.PARQUET, true},
         new Object[] {2, FileFormat.ORC, false},
-        new Object[] {2, FileFormat.ORC, true});
+        new Object[] {2, FileFormat.ORC, true},
+        new Object[] {2, FileFormat.VORTEX, false},
+        new Object[] {2, FileFormat.VORTEX, true});
   }
 
   private static final int FILE_SIZE_CHECK_ROWS_DIVISOR = 1000;
@@ -172,6 +175,9 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testRollingPositionDeleteWriterNoRecords() throws IOException {
+    assumeThat(fileFormat)
+        .as("Vortex does not support position deletes")
+        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingPositionDeleteWriter<T> writer =
         new RollingPositionDeleteWriter<>(
@@ -190,6 +196,9 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testRollingPositionDeleteWriterSplitDeletes() throws IOException {
+    assumeThat(fileFormat)
+        .as("Vortex does not support position deletes")
+        .isNotEqualTo(FileFormat.VORTEX);
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingPositionDeleteWriter<T> writer =
         new RollingPositionDeleteWriter<>(

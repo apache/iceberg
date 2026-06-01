@@ -49,6 +49,7 @@ import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
@@ -131,16 +132,21 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
         ((VarCharVector) vector).setSafe(rowIndex, strBytes);
         break;
       case BINARY:
-      case FIXED:
-        byte[] bytes;
+        byte[] binaryBytes;
         if (value instanceof ByteBuffer) {
-          bytes = ByteBuffers.toByteArray((ByteBuffer) value);
+          binaryBytes = ByteBuffers.toByteArray((ByteBuffer) value);
         } else {
-          bytes = (byte[]) value;
+          binaryBytes = (byte[]) value;
         }
 
-        ((VarBinaryVector) vector).setSafe(rowIndex, bytes);
+        ((VarBinaryVector) vector).setSafe(rowIndex, binaryBytes);
         break;
+      case FIXED:
+        // FIXED maps to Arrow FixedSizeBinaryVector, not VarBinaryVector. Until the writer is
+        // updated to use FixedSizeBinaryVector and validate the byte length, refuse the write
+        // rather than failing with a cryptic ClassCastException at runtime.
+        throw new UnsupportedOperationException(
+            "Writing Iceberg FIXED columns to Vortex is not yet supported");
       case DECIMAL:
         ((DecimalVector) vector).setSafe(rowIndex, (BigDecimal) value);
         break;
@@ -180,6 +186,24 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
           ((TimeStampNanoVector) vector).setSafe(rowIndex, localEpochNanos);
         }
 
+        break;
+      case LIST:
+        Types.ListType listType = (Types.ListType) type;
+        org.apache.iceberg.types.Type elementType = listType.elementType();
+        ListVector listVector = (ListVector) vector;
+        FieldVector elementVector = listVector.getDataVector();
+        List<?> elements = (List<?>) value;
+        int elementStart = listVector.startNewValue(rowIndex);
+        for (int i = 0; i < elements.size(); i++) {
+          Object elementValue = elements.get(i);
+          int elementIdx = elementStart + i;
+          if (elementValue == null) {
+            elementVector.setNull(elementIdx);
+          } else {
+            writeValue(elementVector, elementType, elementValue, elementIdx);
+          }
+        }
+        listVector.endValue(rowIndex, elements.size());
         break;
       default:
         throw new UnsupportedOperationException(
@@ -229,6 +253,10 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
               v -> ChronoUnit.NANOS.between(LOCAL_EPOCH, (LocalDateTime) v));
         }
       default:
+        if (field.type().isNestedType()) {
+          // Lists, maps, and structs have no natural ordering — track counts only.
+          return new ColumnMetricsTracker<>(field.fieldId(), null);
+        }
         return new ColumnMetricsTracker<>(field.fieldId(), (Comparator) Comparator.naturalOrder());
     }
   }
@@ -271,6 +299,9 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
     @SuppressWarnings("unchecked")
     void addValue(Object value) {
       valueCount++;
+      if (comparator == null) {
+        return;
+      }
       T typedValue = converter != null ? converter.apply(value) : (T) value;
       if (min == null || comparator.compare(typedValue, min) < 0) {
         min = typedValue;
