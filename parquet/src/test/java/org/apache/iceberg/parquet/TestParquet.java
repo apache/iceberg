@@ -417,7 +417,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
 
-    File file = writeNanoRecords(schema, records, "ts-nano");
+    File file = writeNanoRecords(schema, records);
 
     // Boundary at 500 ns: only ids 3 (750 ns), 4 (1500 ns), 5 (3000 ns) qualify.
     List<Long> ids =
@@ -455,7 +455,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
 
-    File file = writeNanoRecords(schema, records, "ts-tz-nano");
+    File file = writeNanoRecords(schema, records);
 
     // Boundary == 2024-01-01T00:00:00.000000500Z, expressed in +04:00. id2 is that same instant
     // (written in +05:00); a strict greaterThan excludes it, leaving ids 3/4/5.
@@ -464,10 +464,8 @@ public class TestParquet {
     assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
   }
 
-  private File writeNanoRecords(Schema schema, List<Record> records, String prefix)
-      throws IOException {
-    File file = temp.resolve(prefix + ".parquet").toFile();
-    assertThat(file.delete() || !file.exists()).isTrue();
+  private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
+    File file = createTempFile(temp);
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))
             .schema(schema)
@@ -477,6 +475,7 @@ public class TestParquet {
         appender.add(record);
       }
     }
+
     return file;
   }
 
@@ -490,6 +489,7 @@ public class TestParquet {
         ids.add((Long) record.get("id"));
       }
     }
+
     return ids;
   }
 }

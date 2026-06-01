@@ -504,8 +504,7 @@ public class TestParquetSchemaUtil {
   @Test
   public void testTimestampNanoConversionPreservesUnit() {
     // INT64 + TIMESTAMP(NANOS) must round-trip back to Iceberg as timestamp_ns, not micros. A
-    // micros
-    // field is included to confirm the unit branch leaves the existing mapping untouched.
+    // micros field is included to confirm the unit branch leaves the existing mapping untouched.
     MessageType messageType =
         org.apache.parquet.schema.Types.buildMessage()
             .required(PrimitiveTypeName.INT64)
