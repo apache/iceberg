@@ -515,8 +515,11 @@ public class TableMetadataParser {
 
       snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
       Iterator<JsonNode> iterator = snapshotArray.elements();
+      // relative paths are a v4+ feature; pre-v4 paths are absolute and must not be resolved
+      String snapshotBaseLocation =
+          formatVersion >= TableMetadata.MIN_FORMAT_VERSION_RELATIVE_PATHS ? location : null;
       while (iterator.hasNext()) {
-        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+        snapshots.add(SnapshotParser.fromJson(iterator.next(), snapshotBaseLocation));
       }
     } else {
       snapshots = ImmutableList.of();

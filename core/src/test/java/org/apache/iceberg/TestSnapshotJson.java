@@ -28,6 +28,7 @@ import java.util.List;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -222,6 +223,56 @@ public class TestSnapshotJson {
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
     assertThat(snapshot.firstRowId()).isNull();
+  }
+
+  @Test
+  public void testRelativeManifestListResolvedAgainstTableLocation() {
+    String json = snapshotJsonWithManifestList("metadata/snap-1.avro");
+    Snapshot snapshot =
+        JsonUtil.parse(json, node -> SnapshotParser.fromJson(node, "s3://bucket/db/table"));
+
+    assertThat(snapshot.manifestListLocation())
+        .isEqualTo("s3://bucket/db/table/metadata/snap-1.avro");
+  }
+
+  @Test
+  public void testAbsoluteManifestListNotResolved() {
+    String absolute = "gs://other-bucket/metadata/snap-1.avro";
+    String json = snapshotJsonWithManifestList(absolute);
+    Snapshot snapshot =
+        JsonUtil.parse(json, node -> SnapshotParser.fromJson(node, "s3://bucket/db/table"));
+
+    assertThat(snapshot.manifestListLocation()).isEqualTo(absolute);
+  }
+
+  @Test
+  public void testRelativeManifestListResolutionNormalizesTrailingSlash() {
+    String json = snapshotJsonWithManifestList("metadata/snap-1.avro");
+    Snapshot snapshot =
+        JsonUtil.parse(json, node -> SnapshotParser.fromJson(node, "s3://bucket/db/table/"));
+
+    assertThat(snapshot.manifestListLocation())
+        .isEqualTo("s3://bucket/db/table/metadata/snap-1.avro");
+  }
+
+  @Test
+  public void testManifestListNotResolvedWithoutTableLocation() {
+    String json = snapshotJsonWithManifestList("metadata/snap-1.avro");
+    Snapshot snapshot = SnapshotParser.fromJson(json);
+
+    assertThat(snapshot.manifestListLocation()).isEqualTo("metadata/snap-1.avro");
+  }
+
+  private static String snapshotJsonWithManifestList(String manifestList) {
+    return String.format(
+        "{\n"
+            + "  \"snapshot-id\" : 2,\n"
+            + "  \"timestamp-ms\" : 1234567890,\n"
+            + "  \"summary\" : { \"operation\" : \"append\" },\n"
+            + "  \"manifest-list\" : \"%s\",\n"
+            + "  \"schema-id\" : 0\n"
+            + "}",
+        manifestList);
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)

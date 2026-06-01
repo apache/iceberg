@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,6 +123,17 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(JsonNode node) {
+    return fromJson(node, null);
+  }
+
+  /**
+   * Parses a snapshot, resolving a relative {@code manifest-list} against {@code tableLocation}.
+   *
+   * <p>Relative locations are only valid in v4+ metadata, so callers pass {@code null} for older
+   * versions or when no table location is available (e.g. {@link #fromJson(String)}). Absolute
+   * paths are returned unchanged.
+   */
+  static Snapshot fromJson(JsonNode node, String tableLocation) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -187,7 +199,7 @@ public class SnapshotParser {
           operation,
           summary,
           schemaId,
-          manifestList,
+          resolveManifestList(manifestList, tableLocation),
           firstRowId,
           addedRows,
           keyId);
@@ -209,6 +221,16 @@ public class SnapshotParser {
 
   public static Snapshot fromJson(String json) {
     return JsonUtil.parse(json, SnapshotParser::fromJson);
+  }
+
+  private static String resolveManifestList(String manifestList, String tableLocation) {
+    if (tableLocation == null) {
+      return manifestList;
+    }
+
+    // strip the trailing separator so the base matches TableMetadata.location()
+    return LocationUtil.resolveLocation(
+        LocationUtil.stripTrailingSlash(tableLocation), manifestList);
   }
 
   /**

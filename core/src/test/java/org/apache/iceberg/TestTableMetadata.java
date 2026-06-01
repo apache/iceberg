@@ -1193,6 +1193,15 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testV4RelativeManifestListResolvedAgainstTableLocation() throws Exception {
+    String json = readTableMetadataInputFile("TableMetadataV4RelativeManifestList.json");
+    TableMetadata metadata = TableMetadataParser.fromJson(json);
+
+    assertThat(metadata.currentSnapshot().manifestListLocation())
+        .isEqualTo("s3://bucket/test/location/metadata/snap-3055729675574597004.avro");
+  }
+
+  @Test
   public void testV4LocationMustBeAbsolute() {
     assertThatThrownBy(
             () ->
@@ -1944,7 +1953,8 @@ public class TestTableMetadata {
               new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));
     }
 
-    return localInput(manifestList).location();
+    // qualify with a scheme so v4 treats it as absolute rather than relative to the table location
+    return "file:" + localInput(manifestList).location();
   }
 
   @Test
