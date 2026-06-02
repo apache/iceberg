@@ -69,11 +69,6 @@ public class BaseDeleteLoader implements DeleteLoader {
   }
 
   public BaseDeleteLoader(
-      Function<DeleteFile, InputFile> loadInputFile, Map<String, String> readProperties) {
-    this(loadInputFile, ThreadPools.getDeleteWorkerPool(), readProperties);
-  }
-
-  public BaseDeleteLoader(
       Function<DeleteFile, InputFile> loadInputFile, ExecutorService workerPool) {
     this(loadInputFile, workerPool, Collections.emptyMap());
   }

@@ -54,6 +54,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -262,7 +263,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       if (cacheDeleteFilesOnExecutors) {
         return new CachingDeleteLoader(this::loadInputFile, readProperties);
       }
-      return new BaseDeleteLoader(this::loadInputFile, readProperties);
+      return new BaseDeleteLoader(
+          this::loadInputFile, ThreadPools.getDeleteWorkerPool(), readProperties);
     }
 
     private class CachingDeleteLoader extends BaseDeleteLoader {
@@ -270,7 +272,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
       CachingDeleteLoader(
           Function<DeleteFile, InputFile> loadInputFile, Map<String, String> readProperties) {
-        super(loadInputFile, readProperties);
+        super(loadInputFile, ThreadPools.getDeleteWorkerPool(), readProperties);
         this.cache = SparkExecutorCache.getOrCreate();
       }
 

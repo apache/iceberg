@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -90,6 +91,7 @@ public class TestBaseDeleteLoader {
     BaseDeleteLoader deleteLoader =
         new BaseDeleteLoader(
             file -> table.io().newInputFile(file.location()),
+            ThreadPools.getDeleteWorkerPool(),
             ImmutableMap.of(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false"));
 
     PositionDeleteIndex index =
