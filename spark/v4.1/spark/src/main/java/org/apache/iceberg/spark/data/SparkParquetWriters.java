@@ -244,7 +244,7 @@ public class SparkParquetWriters {
       public Optional<ParquetValueWriter<?>> visit(
           LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
         if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-          return Optional.of(ParquetValueWriters.longs(desc));
+          return Optional.of(new TimeMicrosWriter(desc));
         }
         return Optional.empty();
       }
@@ -348,6 +348,18 @@ public class SparkParquetWriters {
 
   private static PrimitiveWriter<byte[]> byteArrays(ColumnDescriptor desc) {
     return new ByteArrayWriter(desc);
+  }
+
+  private static class TimeMicrosWriter extends PrimitiveWriter<Long> {
+    private TimeMicrosWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Long value) {
+      // Spark stores time as nanoseconds from midnight, but Iceberg stores it as microseconds
+      column.write(repetitionLevel, value / 1000);
+    }
   }
 
   private static class UTF8StringWriter extends PrimitiveWriter<UTF8String> {
