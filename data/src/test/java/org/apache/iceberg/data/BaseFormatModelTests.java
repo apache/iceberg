@@ -21,13 +21,6 @@ package org.apache.iceberg.data;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import static org.apache.iceberg.TestBase.SCHEMA;
-import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_CASE_SENSITIVE;
-import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_COLUMN_LEVEL_METRICS;
-import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_COLUMN_METRICS_TRUNCATE_BINARY;
-import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_FILTER;
-import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_READER_DEFAULT;
-import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_REUSE_CONTAINERS;
-import static org.apache.iceberg.data.FileFormatTestSupport.FEATURE_SPLIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -121,6 +114,29 @@ public abstract class BaseFormatModelTests<T> {
                   Arrays.stream(DataGenerators.ALL)
                       .map(generator -> Arguments.of(format, generator)))
           .toList();
+
+  static final String FEATURE_FILTER = "filter";
+  static final String FEATURE_CASE_SENSITIVE = "caseSensitive";
+  static final String FEATURE_SPLIT = "split";
+  static final String FEATURE_READER_DEFAULT = "readerDefault";
+  static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
+  static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
+  static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
+
+  private static final Map<FileFormat, String[]> MISSING_FEATURES =
+      Map.of(
+          FileFormat.AVRO,
+          new String[] {
+            FEATURE_FILTER,
+            FEATURE_CASE_SENSITIVE,
+            FEATURE_SPLIT,
+            FEATURE_COLUMN_LEVEL_METRICS,
+            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY
+          },
+          FileFormat.ORC,
+          new String[] {
+            FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_READER_DEFAULT
+          });
 
   private InMemoryFileIO fileIO;
   private EncryptedOutputFile encryptedFile;
@@ -1583,7 +1599,8 @@ public abstract class BaseFormatModelTests<T> {
         .hasMessageContaining("Already exists");
 
     genericRecords = dataGenerator.generateRecords(20);
-    writeEngineRecords(fileFormat, schema, convertToEngineRecords(genericRecords, schema), true);
+    writeEngineRecords(
+        fileFormat, schema, convertToEngineRecords(genericRecords, schema), true /* overwrite */);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
@@ -1674,13 +1691,14 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private static void assumeSupports(FileFormat fileFormat, String feature) {
-    assumeThat(supportsFeature(fileFormat, feature)).isTrue();
+    assumeThat(MISSING_FEATURES.getOrDefault(fileFormat, new String[] {})).doesNotContain(feature);
   }
 
   /**
    * Returns whether the given file format supports the specified feature.
    *
-   * <p>The check is based on {@link FileFormatTestSupport#supportsFeature(String)}.
+   * <p>The check is based on {@link #MISSING_FEATURES}. Features not listed as missing for a format
+   * are treated as supported.
    *
    * <p>Prefer this method over {@link #assumeSupports(FileFormat, String)} when only part of a test
    * should be skipped conditionally. Unlike {@code assumeSupports}, this method does not abort the
@@ -1692,7 +1710,8 @@ public abstract class BaseFormatModelTests<T> {
    * @return {@code true} if the feature is supported by the format; {@code false} otherwise
    */
   private static boolean supportsFeature(FileFormat fileFormat, String feature) {
-    return FileFormatTestSupport.forFormat(fileFormat).supportsFeature(feature);
+    String[] missing = MISSING_FEATURES.getOrDefault(fileFormat, new String[] {});
+    return !Arrays.asList(missing).contains(feature);
   }
 
   private DataFile writeRecordsForSplit(FileFormat fileFormat, Schema schema, List<Record> records)

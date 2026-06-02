@@ -51,17 +51,6 @@ public class OrcFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public boolean supportsFeature(String feature) {
-    return switch (feature) {
-      case FEATURE_REUSE_CONTAINERS,
-              FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
-              FEATURE_READER_DEFAULT ->
-          false;
-      default -> true;
-    };
-  }
-
-  @Override
   public void writeRecordsWithoutFieldIds(
       OutputFile outputFile, Schema schema, List<Record> records) throws IOException {
     TypeDescription typeWithIds = ORCSchemaUtil.convert(schema);

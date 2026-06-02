@@ -47,19 +47,6 @@ public class AvroFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public boolean supportsFeature(String feature) {
-    return switch (feature) {
-      case FEATURE_FILTER,
-              FEATURE_CASE_SENSITIVE,
-              FEATURE_SPLIT,
-              FEATURE_COLUMN_LEVEL_METRICS,
-              FEATURE_COLUMN_METRICS_TRUNCATE_BINARY ->
-          false;
-      default -> true;
-    };
-  }
-
-  @Override
   public void writeRecordsWithoutFieldIds(
       OutputFile outputFile, Schema schema, List<Record> records) throws IOException {
     org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
@@ -85,29 +72,25 @@ public class AvroFormat implements FileFormatTestSupport {
 
   @Override
   public Map<String, String> testPropertyToSet() {
-    return Map.of(TableProperties.AVRO_COMPRESSION, "uncompressed");
+    return Map.of(TableProperties.AVRO_COMPRESSION, "snappy");
   }
 
   @Override
   public boolean checkTestProperty(InputFile inputFile) throws IOException {
-    return "null".equals(avroMetadataValue(inputFile, "avro.codec"));
+    return "snappy".equals(metadataValue(inputFile, "avro.codec"));
   }
 
   @Override
   public String metadataValue(InputFile inputFile, String key) throws IOException {
-    return avroMetadataValue(inputFile, key);
+    try (DataFileStream<GenericData.Record> reader =
+        new DataFileStream<>(inputFile.newStream(), new GenericDatumReader<>())) {
+      return reader.getMetaString(key);
+    }
   }
 
   @Override
   public String splitSizeProperty() {
     throw new UnsupportedOperationException(
         "No split size property defined for format: " + format());
-  }
-
-  private static String avroMetadataValue(InputFile inputFile, String key) throws IOException {
-    try (DataFileStream<GenericData.Record> reader =
-        new DataFileStream<>(inputFile.newStream(), new GenericDatumReader<>())) {
-      return reader.getMetaString(key);
-    }
   }
 }

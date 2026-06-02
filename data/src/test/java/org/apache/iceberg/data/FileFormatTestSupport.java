@@ -32,14 +32,6 @@ import org.apache.iceberg.io.OutputFile;
 
 public interface FileFormatTestSupport {
 
-  String FEATURE_FILTER = "filter";
-  String FEATURE_CASE_SENSITIVE = "caseSensitive";
-  String FEATURE_SPLIT = "split";
-  String FEATURE_READER_DEFAULT = "readerDefault";
-  String FEATURE_REUSE_CONTAINERS = "reuseContainers";
-  String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
-  String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
-
   FileFormatTestSupport[] ALL =
       new FileFormatTestSupport[] {new AvroFormat(), new OrcFormat(), new ParquetFormat()};
 
@@ -55,8 +47,6 @@ public interface FileFormatTestSupport {
   }
 
   FileFormat format();
-
-  boolean supportsFeature(String feature);
 
   void writeRecordsWithoutFieldIds(OutputFile outputFile, Schema schema, List<Record> records)
       throws IOException;

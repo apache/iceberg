@@ -47,11 +47,6 @@ public class ParquetFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public boolean supportsFeature(String feature) {
-    return true;
-  }
-
-  @Override
   public void writeRecordsWithoutFieldIds(
       OutputFile outputFile, Schema schema, List<Record> records) throws IOException {
     org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
