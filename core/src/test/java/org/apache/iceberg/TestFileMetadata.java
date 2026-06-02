@@ -28,71 +28,28 @@ public class TestFileMetadata {
 
   @Test
   public void dvBuilderRejectsNegativeContentOffset() {
-    assertThatThrownBy(
-            () ->
-                FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-                    .ofPositionDeletes()
-                    .withFormat(FileFormat.PUFFIN)
-                    .withPath("/tmp/dv.puffin")
-                    .withFileSizeInBytes(10)
-                    .withRecordCount(1)
-                    .withReferencedDataFile("/tmp/data.parquet")
-                    .withContentOffset(-1L)
-                    .withContentSizeInBytes(10L)
-                    .build())
+    assertThatThrownBy(() -> validDvBuilder().withContentOffset(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Content offset must be non-negative for DV");
   }
 
   @Test
   public void dvBuilderRejectsNegativeContentSize() {
-    assertThatThrownBy(
-            () ->
-                FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-                    .ofPositionDeletes()
-                    .withFormat(FileFormat.PUFFIN)
-                    .withPath("/tmp/dv.puffin")
-                    .withFileSizeInBytes(10)
-                    .withRecordCount(1)
-                    .withReferencedDataFile("/tmp/data.parquet")
-                    .withContentOffset(0L)
-                    .withContentSizeInBytes(-1L)
-                    .build())
+    assertThatThrownBy(() -> validDvBuilder().withContentSizeInBytes(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Content size must be non-negative for DV");
   }
 
   @Test
   public void dvBuilderRejectsContentSizeAtIntegerMax() {
-    assertThatThrownBy(
-            () ->
-                FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-                    .ofPositionDeletes()
-                    .withFormat(FileFormat.PUFFIN)
-                    .withPath("/tmp/dv.puffin")
-                    .withFileSizeInBytes(10)
-                    .withRecordCount(1)
-                    .withReferencedDataFile("/tmp/data.parquet")
-                    .withContentOffset(0L)
-                    .withContentSizeInBytes(Integer.MAX_VALUE)
-                    .build())
+    assertThatThrownBy(() -> validDvBuilder().withContentSizeInBytes(Integer.MAX_VALUE).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("less than 2GB");
   }
 
   @Test
   public void dvBuilderAcceptsValidOffsetAndSize() {
-    DeleteFile dv =
-        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-            .ofPositionDeletes()
-            .withFormat(FileFormat.PUFFIN)
-            .withPath("/tmp/dv.puffin")
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .withReferencedDataFile("/tmp/data.parquet")
-            .withContentOffset(4L)
-            .withContentSizeInBytes(4096L)
-            .build();
+    DeleteFile dv = validDvBuilder().withContentOffset(4L).withContentSizeInBytes(4096L).build();
 
     assertThat(dv.contentOffset()).isEqualTo(4L);
     assertThat(dv.contentSizeInBytes()).isEqualTo(4096L);
@@ -101,18 +58,18 @@ public class TestFileMetadata {
 
   @Test
   public void dvBuilderAcceptsZeroOffsetAndSize() {
-    assertThatCode(
-            () ->
-                FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-                    .ofPositionDeletes()
-                    .withFormat(FileFormat.PUFFIN)
-                    .withPath("/tmp/dv.puffin")
-                    .withFileSizeInBytes(10)
-                    .withRecordCount(1)
-                    .withReferencedDataFile("/tmp/data.parquet")
-                    .withContentOffset(0L)
-                    .withContentSizeInBytes(0L)
-                    .build())
-        .doesNotThrowAnyException();
+    assertThatCode(() -> validDvBuilder().build()).doesNotThrowAnyException();
+  }
+
+  private static FileMetadata.Builder validDvBuilder() {
+    return FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+        .ofPositionDeletes()
+        .withFormat(FileFormat.PUFFIN)
+        .withPath("/tmp/dv.puffin")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withReferencedDataFile("/tmp/data.parquet")
+        .withContentOffset(0L)
+        .withContentSizeInBytes(0L);
   }
 }
