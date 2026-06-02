@@ -339,7 +339,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
 
     Builder dvCardinality(long cardinality) {
       Preconditions.checkArgument(
-          cardinality > 0, "Invalid DV cardinality: %s (must be positive)", cardinality);
+          cardinality >= 0, "Invalid DV cardinality: %s (must be >= 0)", cardinality);
       this.dvCardinality = cardinality;
       return this;
     }

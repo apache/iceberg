@@ -37,10 +37,10 @@ class TrackingBuilder {
   /**
    * Creates a builder for a newly added file.
    *
-   * @param snapshotId the snapshot ID in which the new tracking instance will be committed
+   * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
    */
-  static TrackingBuilder added(long snapshotId) {
-    return new TrackingBuilder(snapshotId);
+  static TrackingBuilder added(long newSnapshotId) {
+    return new TrackingBuilder(newSnapshotId);
   }
 
   /**
@@ -73,10 +73,10 @@ class TrackingBuilder {
     return terminal(EntryStatus.REPLACED, source, newSnapshotId);
   }
 
-  private TrackingBuilder(long snapshotId) {
+  private TrackingBuilder(long newSnapshotId) {
     this.status = EntryStatus.ADDED;
-    this.snapshotId = snapshotId;
-    this.newSnapshotId = snapshotId;
+    this.snapshotId = newSnapshotId;
+    this.newSnapshotId = newSnapshotId;
     this.dataSequenceNumber = null;
     this.fileSequenceNumber = null;
     this.firstRowId = null;

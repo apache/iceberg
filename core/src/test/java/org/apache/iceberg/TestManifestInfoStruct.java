@@ -377,10 +377,10 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void testBuilderRejectsNonPositiveDvCardinality() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().dvCardinality(0L))
+  void testBuilderRejectsNegativeDvCardinality() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().dvCardinality(-1L))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV cardinality: 0 (must be positive)");
+        .hasMessage("Invalid DV cardinality: -1 (must be >= 0)");
   }
 
   @Test
