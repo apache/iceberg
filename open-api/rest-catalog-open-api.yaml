@@ -2062,15 +2062,15 @@ components:
       name: X-Iceberg-Client-Capabilities
       in: header
       description: >
-        This header is a forward-compatibility hint, not a security mechanism.
-        Clients can trivially spoof its value; servers MUST NOT base trust or
-        authorization decisions on it.
-
-
         Optional signal from the client declaring the set of capabilities that
         the client SDK supports, as a comma-separated list. This header is
         sent on every request. The server may use this information to tailor
         its responses.
+
+
+        This header is a forward-compatibility hint, not a security mechanism.
+        Clients can trivially spoof its value; servers MUST NOT base trust or
+        authorization decisions on it.
 
 
         Defined capability values:
