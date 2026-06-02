@@ -62,6 +62,12 @@ final class HadoopBulkDelete {
   private final Configuration conf;
 
   /**
+   * Test method to mark as unavailable without having to play games with static method mocking that
+   * don't work reliably.
+   */
+  private static boolean unavailable = false;
+
+  /**
    * Constructor.
    *
    * @param executorService pool for executing bulk delete in parallel
@@ -73,12 +79,23 @@ final class HadoopBulkDelete {
   }
 
   /**
+   * Declare the API is unavailable or restore it.
+   *
+   * @param flag unavailability flag: true if the API is not found.
+   */
+  @VisibleForTesting
+  static void markApiUnavailable(boolean flag) {
+    unavailable = flag;
+  }
+
+  /**
    * Is the bulk delete API available?
    *
    * @return true if the bulk delete interface class is on the classpath.
    */
   public static boolean apiAvailable() {
-    return HadoopBulkDelete.class.getClassLoader().getResource(BULK_DELETE_CLASS) != null;
+    return !unavailable
+        && HadoopBulkDelete.class.getClassLoader().getResource(BULK_DELETE_CLASS) != null;
   }
 
   /**
@@ -365,20 +382,48 @@ final class HadoopBulkDelete {
     }
   }
 
-  /**
-   * A failure to delete a single path.
-   *
-   * @param path path which couldn't be deleted
-   * @param errorText error text
-   */
+  /** A failure to delete a single path. */
   @VisibleForTesting
-  record DeleteFailure(Path path, String errorText) {}
+  static class DeleteFailure {
+    private final Path path;
+    private final String errorText;
 
-  /**
-   * The outcome of a batch delete.
-   *
-   * @param failures a list of failures and their error strings.
-   */
+    /**
+     * Delete failure.
+     *
+     * @param path path which couldn't be deleted
+     * @param errorText error text
+     */
+    DeleteFailure(Path path, String errorText) {
+      this.path = path;
+      this.errorText = errorText;
+    }
+
+    public String errorText() {
+      return errorText;
+    }
+
+    public Path path() {
+      return path;
+    }
+  }
+
+  /** The outcome of a bulk delete. */
   @VisibleForTesting
-  record Outcome(List<DeleteFailure> failures) {}
+  static class Outcome {
+    private final List<DeleteFailure> failures;
+
+    /**
+     * Record the outcome of a bulk delete.
+     *
+     * @param failures a list of failures and their error strings.
+     */
+    Outcome(final List<DeleteFailure> failures) {
+      this.failures = failures;
+    }
+
+    public List<DeleteFailure> failures() {
+      return failures;
+    }
+  }
 }

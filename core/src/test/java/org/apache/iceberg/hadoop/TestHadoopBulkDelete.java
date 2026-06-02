@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 import static org.apache.iceberg.hadoop.HadoopFileIO.BULK_DELETE_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mockStatic;
 
 import java.io.File;
 import java.io.IOException;
@@ -48,7 +47,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.MockedStatic;
 
 /**
  * Tests of {@link HadoopBulkDelete}; based off {@link TestHadoopFileIO} with some helper methods
@@ -65,6 +63,7 @@ public class TestHadoopBulkDelete {
   @BeforeEach
   public void before() throws Exception {
     resetFileIOBinding(true);
+    HadoopBulkDelete.markApiUnavailable(false);
   }
 
   /**
@@ -113,13 +112,11 @@ public class TestHadoopBulkDelete {
    */
   @Test
   public void testCatalogUtilWhenBulkDeleteUnavailable() {
-    try (MockedStatic<HadoopBulkDelete> mocked = mockStatic(HadoopBulkDelete.class)) {
-      mocked.when(HadoopBulkDelete::apiAvailable).thenReturn(false);
-      List<Path> filesCreated = createRandomFiles(new Path(tempDir.toURI()), 10);
-      CatalogUtil.deleteFiles(
-          hadoopFileIO, filesCreated.stream().map(Path::toString).toList(), "uncommitted");
-      assertPathsExist(filesCreated);
-    }
+    markBulkDeleteApiAsUnavailable();
+    List<Path> filesCreated = createRandomFiles(new Path(tempDir.toURI()), 10);
+    CatalogUtil.deleteFiles(
+        hadoopFileIO, filesCreated.stream().map(Path::toString).toList(), "uncommitted");
+    assertPathsExist(filesCreated);
   }
 
   /**
@@ -162,13 +159,11 @@ public class TestHadoopBulkDelete {
    */
   @Test
   public void testDeleteFailureWhenBulkDeleteUnavailable() {
-    try (MockedStatic<HadoopBulkDelete> mocked = mockStatic(HadoopBulkDelete.class)) {
-      mocked.when(HadoopBulkDelete::apiAvailable).thenReturn(false);
-      assertThat(HadoopBulkDelete.apiAvailable()).isFalse();
-      assertThatThrownBy(() -> hadoopFileIO.deleteFiles(List.of(tempDir.toURI().toString())))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining(BULK_DELETE_ENABLED);
-    }
+    resetFileIOBinding(true);
+    markBulkDeleteApiAsUnavailable();
+    assertThatThrownBy(() -> hadoopFileIO.deleteFiles(List.of(tempDir.toURI().toString())))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(BULK_DELETE_ENABLED);
   }
 
   /**
@@ -199,18 +194,23 @@ public class TestHadoopBulkDelete {
 
   /**
    * With bulk delete disabled, deleteFiles() still works when bulk delete is not available This
-   * tests the classic invocation path of Spark 3.x.
+   * tests the classic invocation path of Spark 3.x. This test correctly triggers an exception on
    */
   @Test
   public void testDeleteFilesWithHadoopBulkDeleteNotAvailable() {
     resetFileIOBinding(false);
-    try (MockedStatic<HadoopBulkDelete> mocked = mockStatic(HadoopBulkDelete.class)) {
-      mocked.when(HadoopBulkDelete::apiAvailable).thenReturn(false);
-      Path parent = new Path(tempDir.toURI());
-      List<Path> filesCreated = createRandomFiles(parent, 5);
-      hadoopFileIO.deleteFiles(filesCreated.stream().map(Path::toString).toList());
-      assertPathsDoNotExist(filesCreated);
-    }
+    markBulkDeleteApiAsUnavailable();
+    Path parent = new Path(tempDir.toURI());
+    List<Path> filesCreated = createRandomFiles(parent, 5);
+    hadoopFileIO.deleteFiles(filesCreated.stream().map(Path::toString).toList());
+    assertPathsDoNotExist(filesCreated);
+  }
+
+  private static void markBulkDeleteApiAsUnavailable() {
+    HadoopBulkDelete.markApiUnavailable(true);
+    assertThat(HadoopBulkDelete.apiAvailable())
+        .describedAs("Mocking must make HadoopBulkDelete.apiAvailable() return false")
+        .isFalse();
   }
 
   /**
