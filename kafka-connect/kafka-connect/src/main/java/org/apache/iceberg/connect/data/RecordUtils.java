@@ -47,10 +47,14 @@ import org.apache.kafka.connect.data.Struct;
 
 class RecordUtils {
 
-  @SuppressWarnings("unchecked")
   static Object extractFromRecordValue(
       Object recordValue, String fieldName, IcebergSinkConfig config) {
-    List<String> fields = Splitter.on('.').splitToList(fieldName);
+    return extractFromRecordValue(recordValue, Splitter.on('.').splitToList(fieldName), config);
+  }
+
+  @SuppressWarnings("unchecked")
+  static Object extractFromRecordValue(
+      Object recordValue, List<String> fields, IcebergSinkConfig config) {
     if (recordValue instanceof Struct) {
       return valueFromStruct((Struct) recordValue, fields, config.replaceNullWithDefault());
     } else if (recordValue instanceof Map) {
