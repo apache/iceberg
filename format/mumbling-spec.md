@@ -141,8 +141,7 @@ value.
 ### Containers
 
 The containers section consists of concatenated containers. Each container
-stores a 256 bit region of the bitmap. The number of containers is limited to
-65,536 to fit into an unsigned 16-bit integer.
+stores a 256 bit region of the bitmap.
 
 Positions in the bitmap are split into the first 16 bits that identify the
 container and the last 8 bits that identify the corresponding position within
@@ -215,7 +214,7 @@ as determined by container descriptors.
 
 ```
 let descriptor: u8 = descriptors[container_index]
-let offset: u16 = offsets[container_index]
+let offset: usize = offsets[container_index]
 ```
 
 The corresponding position within a container is the least significant 8 bits
