@@ -376,6 +376,61 @@ public class TestS3FileIO {
                     && fi.createdAtMillis() < Instant.now().minusSeconds(30).toEpochMilli());
   }
 
+  @Test
+  public void testListPrefixNormalizesTrailingSlashForGeneralPurposeBucket() {
+    S3Client localMockedClient = mock(S3Client.class);
+
+    List<S3Object> s3Objects =
+        Arrays.asList(
+            S3Object.builder()
+                .key("warehouse/ns/table/data/file1.parquet")
+                .size(1024L)
+                .lastModified(Instant.now())
+                .build());
+
+    ListObjectsV2Response response = ListObjectsV2Response.builder().contents(s3Objects).build();
+    ListObjectsV2Iterable mockedResponse = mock(ListObjectsV2Iterable.class);
+    Mockito.when(mockedResponse.stream()).thenReturn(Stream.of(response));
+
+    // Expect the request to have a trailing slash even though we pass a prefix without one
+    Mockito.when(
+            localMockedClient.listObjectsV2Paginator(
+                ListObjectsV2Request.builder()
+                    .prefix("warehouse/ns/table/")
+                    .bucket(S3_GENERAL_PURPOSE_BUCKET)
+                    .build()))
+        .thenReturn(mockedResponse);
+
+    S3FileIO localS3FileIo = new S3FileIO(() -> localMockedClient);
+    localS3FileIo.initialize(properties);
+
+    // Call listPrefix WITHOUT trailing slash
+    List<FileInfo> fileInfoList =
+        StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(
+                    localS3FileIo.listPrefix("s3://bucket/warehouse/ns/table").iterator(),
+                    Spliterator.ORDERED),
+                false)
+            .collect(Collectors.toList());
+
+    assertThat(fileInfoList).hasSize(1);
+    assertThat(fileInfoList.get(0).location()).endsWith("file1.parquet");
+  }
+
+  @Test
+  public void testListPrefixDoesNotMatchSiblingPaths() {
+    // Create objects under two tables with similar name prefixes
+    String tablePrefix = "s3://bucket/warehouse/ns/table/";
+    String siblingPrefix = "s3://bucket/warehouse/ns/table_sibling/";
+
+    createRandomObjects(tablePrefix, 3);
+    createRandomObjects(siblingPrefix, 2);
+
+    // listPrefix with "table" (no trailing slash) should only return the 3 objects under "table/"
+    assertThat(Streams.stream(s3FileIO.listPrefix("s3://bucket/warehouse/ns/table")).count())
+        .isEqualTo(3);
+  }
+
   /**
    * Ignoring because the test is flaky, failing with 500s from S3Mock. Coverage of prefix delete
    * exists through integration tests.
