@@ -28,17 +28,55 @@ class TrackingBuilder {
   private final Long dataSequenceNumber;
   private final Long fileSequenceNumber;
   private final Long firstRowId;
-  // Snapshot used to stamp dv_snapshot_id when dvUpdated() is called.
-  private final long currentSnapshotId;
+  // ID of the snapshot in which the new Tracking instance will be committed.
+  private final long newSnapshotId;
   private Long dvSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
 
-  /** Constructs a builder for a fresh ADDED entry in the given snapshot. */
-  TrackingBuilder(long snapshotId) {
+  /**
+   * Creates a builder for a newly added file.
+   *
+   * @param snapshotId the snapshot ID in which the new tracking instance will be committed
+   */
+  static TrackingBuilder added(long snapshotId) {
+    return new TrackingBuilder(snapshotId);
+  }
+
+  /**
+   * Creates a builder for a tracking row derived from {@code source}.
+   *
+   * @param source source tracking from a manifest entry
+   * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   */
+  static TrackingBuilder builder(Tracking source, long newSnapshotId) {
+    return new TrackingBuilder(source, newSnapshotId);
+  }
+
+  /**
+   * Returns a DELETED tracking row derived from {@code source}.
+   *
+   * @param source source tracking from a manifest entry
+   * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   */
+  static Tracking delete(Tracking source, long newSnapshotId) {
+    return terminal(EntryStatus.DELETED, source, newSnapshotId);
+  }
+
+  /**
+   * Returns a REPLACED tracking row derived from {@code source}.
+   *
+   * @param source source tracking from a manifest entry
+   * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
+   */
+  static Tracking replace(Tracking source, long newSnapshotId) {
+    return terminal(EntryStatus.REPLACED, source, newSnapshotId);
+  }
+
+  private TrackingBuilder(long snapshotId) {
     this.status = EntryStatus.ADDED;
     this.snapshotId = snapshotId;
-    this.currentSnapshotId = snapshotId;
+    this.newSnapshotId = snapshotId;
     this.dataSequenceNumber = null;
     this.fileSequenceNumber = null;
     this.firstRowId = null;
@@ -47,14 +85,12 @@ class TrackingBuilder {
     this.replacedPositions = null;
   }
 
-  /** Constructs a builder derived from {@code source} at the current snapshot. */
-  // TODO: when MODIFIED is added, derive status from source + currentSnapshotId + mutations.
-  TrackingBuilder(Tracking source, long currentSnapshotId) {
+  private TrackingBuilder(Tracking source, long newSnapshotId) {
     validateSource(source);
     checkStatus(source.status(), EntryStatus.EXISTING);
     this.status = EntryStatus.EXISTING;
     this.snapshotId = source.snapshotId();
-    this.currentSnapshotId = currentSnapshotId;
+    this.newSnapshotId = newSnapshotId;
     this.dataSequenceNumber = source.dataSequenceNumber();
     this.fileSequenceNumber = source.fileSequenceNumber();
     this.firstRowId = source.firstRowId();
@@ -63,18 +99,16 @@ class TrackingBuilder {
     this.replacedPositions = null;
   }
 
-  /** Stamps {@code dv_snapshot_id} with the builder's current snapshot. */
-  // TODO: revisit when MODIFIED status is added; this should also flip the status to MODIFIED.
+  /** Indicates that the DV has been updated for the new Tracking. */
   TrackingBuilder dvUpdated() {
     // DV applies to data files; deleted/replaced positions apply to manifest files
     Preconditions.checkState(
         deletedPositions == null && replacedPositions == null,
         "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
-    this.dvSnapshotId = currentSnapshotId;
+    this.dvSnapshotId = newSnapshotId;
     return this;
   }
 
-  // TODO: revisit when MODIFIED status is added; MDV setters will need to handle MODIFIED.
   TrackingBuilder deletedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status == EntryStatus.EXISTING, "Cannot set deleted positions on %s entry", status);
@@ -86,7 +120,6 @@ class TrackingBuilder {
     return this;
   }
 
-  // TODO: revisit when MODIFIED status is added; MDV setters will need to handle MODIFIED.
   TrackingBuilder replacedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status == EntryStatus.EXISTING, "Cannot set replaced positions on %s entry", status);
@@ -110,13 +143,12 @@ class TrackingBuilder {
         replacedPositions);
   }
 
-  /** Returns a terminal (DELETED or REPLACED) tracking row derived from {@code source}. */
-  static Tracking terminal(EntryStatus to, Tracking source, long currentSnapshotId) {
+  private static Tracking terminal(EntryStatus to, Tracking source, long newSnapshotId) {
     validateSource(source);
     checkStatus(source.status(), to);
     return new TrackingStruct(
         to,
-        currentSnapshotId,
+        newSnapshotId,
         source.dataSequenceNumber(),
         source.fileSequenceNumber(),
         source.dvSnapshotId(),
@@ -135,28 +167,13 @@ class TrackingBuilder {
         "Invalid tracking source: file sequence number is null");
   }
 
-  // TODO: extend allowed transitions once MODIFIED status is added.
   private static void checkStatus(EntryStatus from, EntryStatus to) {
     Preconditions.checkState(from != null, "Invalid tracking source: status is null");
-    switch (from) {
-      case ADDED:
-        Preconditions.checkState(
-            to == EntryStatus.EXISTING || to == EntryStatus.DELETED || to == EntryStatus.REPLACED,
-            "Invalid status transition: ADDED -> %s (ADDED is the starting status)",
-            to);
-        break;
-      case EXISTING:
-        Preconditions.checkState(
-            to == EntryStatus.EXISTING || to == EntryStatus.DELETED || to == EntryStatus.REPLACED,
-            "Invalid status transition: EXISTING -> %s",
-            to);
-        break;
-      case DELETED:
-      case REPLACED:
-        throw new IllegalStateException(
-            String.format("Invalid status transition: %s -> %s (%s is terminal)", from, to, from));
-      default:
-        throw new IllegalStateException(String.format("Unknown source status: %s", from));
-    }
+    Preconditions.checkState(
+        from != EntryStatus.DELETED && from != EntryStatus.REPLACED,
+        "Cannot revive non-live entry with status %s",
+        from);
+    Preconditions.checkState(
+        to != EntryStatus.ADDED, "Cannot transition to ADDED: ADDED is the starting status");
   }
 }

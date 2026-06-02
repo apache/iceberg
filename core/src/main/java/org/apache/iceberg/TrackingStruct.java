@@ -254,27 +254,6 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
   }
 
-  /** Creates a builder for a newly added file in the given snapshot. */
-  static TrackingBuilder added(long snapshotId) {
-    return new TrackingBuilder(snapshotId);
-  }
-
-  /** Creates a builder for a tracking row derived from {@code source} at the current snapshot. */
-  // TODO: when MODIFIED is added, derive status from source + currentSnapshotId + mutations.
-  static TrackingBuilder builder(Tracking source, long currentSnapshotId) {
-    return new TrackingBuilder(source, currentSnapshotId);
-  }
-
-  @Override
-  public Tracking asDeleted(long currentSnapshotId) {
-    return TrackingBuilder.terminal(EntryStatus.DELETED, this, currentSnapshotId);
-  }
-
-  @Override
-  public Tracking asReplaced(long currentSnapshotId) {
-    return TrackingBuilder.terminal(EntryStatus.REPLACED, this, currentSnapshotId);
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)

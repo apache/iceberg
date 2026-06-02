@@ -115,10 +115,4 @@ interface Tracking {
 
   /** Copies this tracking information. */
   Tracking copy();
-
-  /** Returns a DELETED tracking row derived from this one in the given snapshot. */
-  Tracking asDeleted(long currentSnapshotId);
-
-  /** Returns a REPLACED tracking row derived from this one in the given snapshot. */
-  Tracking asReplaced(long currentSnapshotId);
 }

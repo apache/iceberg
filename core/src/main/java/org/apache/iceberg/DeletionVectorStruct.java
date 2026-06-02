@@ -165,7 +165,7 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
 
     Builder cardinality(long dvCardinality) {
       Preconditions.checkArgument(
-          dvCardinality > 0, "Invalid cardinality: %s (must be positive)", dvCardinality);
+          dvCardinality >= 0, "Invalid cardinality: %s (must be >= 0)", dvCardinality);
       this.cardinality = dvCardinality;
       return this;
     }

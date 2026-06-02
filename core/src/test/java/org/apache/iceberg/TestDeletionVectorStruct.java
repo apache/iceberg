@@ -157,9 +157,9 @@ class TestDeletionVectorStruct {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid size in bytes: -1 (must be >= 0)");
 
-    assertThatThrownBy(() -> DeletionVectorStruct.builder().cardinality(0))
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().cardinality(-1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid cardinality: 0 (must be positive)");
+        .hasMessage("Invalid cardinality: -1 (must be >= 0)");
   }
 
   @Test

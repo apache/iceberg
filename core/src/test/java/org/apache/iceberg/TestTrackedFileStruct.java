@@ -42,7 +42,7 @@ class TestTrackedFileStruct {
   @Test
   void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
-    Tracking tracking = TrackingStruct.added(42L).build();
+    Tracking tracking = TrackingBuilder.added(42L).build();
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")

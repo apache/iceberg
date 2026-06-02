@@ -74,7 +74,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.dvCardinality = toCopy.dvCardinality;
   }
 
-  private ManifestInfoStruct(
+  ManifestInfoStruct(
       int addedFilesCount,
       int existingFilesCount,
       int deletedFilesCount,
