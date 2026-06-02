@@ -817,7 +817,7 @@ class ListNamespacesResponse(BaseModel):
     namespaces: list[Namespace] | None = None
 
 
-class FunctionSqlRepresentation(BaseModel):
+class FunctionSQLRepresentation(BaseModel):
     type: Literal['sql']
     dialect: str = Field(
         ..., description='SQL dialect identifier (e.g., "spark", "trino").'
@@ -1157,8 +1157,8 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
-class FunctionRepresentation(RootModel[FunctionSqlRepresentation]):
-    root: FunctionSqlRepresentation = Field(
+class FunctionRepresentation(RootModel[FunctionSQLRepresentation]):
+    root: FunctionSQLRepresentation = Field(
         ..., description='UDF implementation representation.'
     )
 

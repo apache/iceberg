@@ -674,7 +674,6 @@ paths:
       description:
         Load a function from the catalog.
 
-        The response contains function metadata.
         All overloaded definitions are included in a single response.
 
       operationId: loadFunction
@@ -4637,9 +4636,9 @@ components:
     FunctionRepresentation:
       description: UDF implementation representation.
       oneOf:
-        - $ref: '#/components/schemas/FunctionSqlRepresentation'
+        - $ref: '#/components/schemas/FunctionSQLRepresentation'
 
-    FunctionSqlRepresentation:
+    FunctionSQLRepresentation:
       type: object
       required:
         - type
