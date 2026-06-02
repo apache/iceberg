@@ -331,10 +331,10 @@ public class S3FileIO
     PrefixedS3Client client = clientForStoragePath(prefix);
 
     S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
-    if (uri.useS3DirectoryBucket()
-        && client.s3FileIOProperties().isS3DirectoryBucketListPrefixAsDirectory()) {
-      uri = uri.toDirectoryPath();
-    }
+    // Always normalize the prefix to end with "/" to prevent matching sibling prefixes.
+    // Without this, prefix "warehouse/ns/table" would also match "warehouse/ns/table_other/...".
+    // This is also required for STS session policies that scope ListBucket to "<key>/*".
+    uri = uri.toDirectoryPath();
 
     S3URI s3uri = uri;
     ListObjectsV2Request request =
