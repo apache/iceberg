@@ -481,6 +481,33 @@ public abstract class DeleteFileIndexTestBase<
   }
 
   @TestTemplate
+  public void testGlobalEqDeleteWithSpecIdCollision() {
+    // PartitionSpec.unpartitioned() has specId 0, but does not reserve it so we must handle
+    // a collision where SpecId 0 is a partitioned spec.
+    assertThat(SPEC.specId()).isEqualTo(PartitionSpec.unpartitioned().specId());
+
+    // Global equality delete written with PartitionSpec.unpartitioned() (specId = 0)
+    DeleteFile globalEqDelete =
+        withDataSequenceNumber(4, unpartitionedEqDeletes(PartitionSpec.unpartitioned()));
+
+    // specsById contains only the partitioned SPEC at ID 0, simulating a table that was created
+    // with a partitioned spec as its first (and only) spec. PartitionSpec.unpartitioned() is not
+    // in the table's spec history, but shares specId = 0 with the table's partitioned spec.
+    DeleteFileIndex index =
+        DeleteFileIndex.builderFor(Arrays.asList(globalEqDelete))
+            .specsById(ImmutableMap.of(SPEC.specId(), SPEC))
+            .build();
+
+    assertThat(index.hasEqualityDeletes()).isTrue();
+
+    // Global equality delete must apply to FILE_A (a partitioned data file)
+    assertThat(index.forDataFile(0, FILE_A))
+        .as(
+            "Global equality delete should apply to partitioned data file regardless of spec ID collision")
+        .hasSize(1);
+  }
+
+  @TestTemplate
   public void testPartitionedTableSequenceNumbers() {
     table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_EQ_1).addDeletes(fileADeletes()).commit();
 
