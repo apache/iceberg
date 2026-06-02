@@ -143,6 +143,7 @@ class ParquetFilters {
         case LONG:
         case TIME:
         case TIMESTAMP:
+        case TIMESTAMP_NANO:
           return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
         case FLOAT:
           return pred(op, FilterApi.floatColumn(path), getParquetPrimitive(lit));
