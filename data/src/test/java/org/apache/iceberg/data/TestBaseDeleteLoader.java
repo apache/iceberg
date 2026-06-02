@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.parquet.hadoop.ParquetInputFormat;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,6 +55,11 @@ public class TestBaseDeleteLoader {
       PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
 
   @TempDir private File tableDir;
+
+  @AfterEach
+  public void cleanup() {
+    TestTables.clearTables();
+  }
 
   @Test
   public void testLoadParquetPositionDeletesWithReadProperties() throws IOException {
