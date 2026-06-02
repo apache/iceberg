@@ -70,6 +70,9 @@ public class DVUtil {
    * before they are consumed by a reader. Hostile or corrupted manifest metadata may otherwise
    * trigger a {@link NegativeArraySizeException}, an invalid seek, or a multi-gigabyte allocation
    * when the DV blob is read.
+   *
+   * @throws IllegalArgumentException if the offset or length is null or negative, or the length is
+   *     not less than 2GB
    */
   public static void validateDV(DeleteFile dv) {
     Preconditions.checkArgument(
