@@ -582,7 +582,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Configuration conf = new Configuration();
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
-    Path testFilePath = new Path(testFile.getAbsolutePath());
+    Path testFilePath = new Path(testFile.toURI());
 
     // Write a Parquet file with more than one row group
     ParquetFileWriter parquetFileWriter =
@@ -714,11 +714,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             recordWithStatus.copy("id", 201, "data", "i", "status", "INACTIVE"),
             recordWithStatus.copy("id", 202, "data", "j", "status", "ACTIVE"));
     DataFile dataFileWithStatus =
-        FileHelpers.writeDataFile(
-            table,
-            Files.localOutput(temp.resolve("junit-v2-" + System.nanoTime()).toFile()),
-            TestHelpers.Row.of(0),
-            recordsWithStatus);
+        FileHelpers.writeDataFile(table, localOutput(), TestHelpers.Row.of(0), recordsWithStatus);
     table.newAppend().appendFile(dataFileWithStatus).commit();
 
     // issue equality delete on `status` column
@@ -766,11 +762,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       data.add(record.copy("id", i, "a", i * 10, "b", i * 100));
     }
 
-    DataFile dataFile =
-        FileHelpers.writeDataFile(
-            eqTestTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            data);
+    DataFile dataFile = FileHelpers.writeDataFile(eqTestTable, localOutput(), data);
     eqTestTable.newAppend().appendFile(dataFile).commit();
 
     Schema deleteSchema =

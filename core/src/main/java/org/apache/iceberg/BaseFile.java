@@ -280,6 +280,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.manifestLocation = manifestLocation;
   }
 
+  void setLocation(String location) {
+    this.filePath = location;
+  }
+
   @Override
   public Long fileSequenceNumber() {
     return fileSequenceNumber;

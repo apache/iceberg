@@ -73,28 +73,28 @@ public class TestDeleteReachableFilesAction extends TestBase {
 
   static final DataFile FILE_A =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-a.parquet")
+          .withPath("file:/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
           .withPartition(TestHelpers.Row.of(0))
           .withRecordCount(1)
           .build();
   static final DataFile FILE_B =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-b.parquet")
+          .withPath("file:/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
           .withPartition(TestHelpers.Row.of(1))
           .withRecordCount(1)
           .build();
   static final DataFile FILE_C =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-c.parquet")
+          .withPath("file:/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
           .withPartition(TestHelpers.Row.of(2))
           .withRecordCount(1)
           .build();
   static final DataFile FILE_D =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-d.parquet")
+          .withPath("file:/path/to/data-d.parquet")
           .withFileSizeInBytes(10)
           .withPartition(TestHelpers.Row.of(3))
           .withRecordCount(1)
@@ -102,7 +102,7 @@ public class TestDeleteReachableFilesAction extends TestBase {
   static final DeleteFile FILE_A_POS_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
-          .withPath("/path/to/data-a-pos-deletes.parquet")
+          .withPath("file:/path/to/data-a-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartition(TestHelpers.Row.of(0))
           .withRecordCount(1)
@@ -110,7 +110,7 @@ public class TestDeleteReachableFilesAction extends TestBase {
   static final DeleteFile FILE_A_EQ_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes()
-          .withPath("/path/to/data-a-eq-deletes.parquet")
+          .withPath("file:/path/to/data-a-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartition(TestHelpers.Row.of(0))
           .withRecordCount(1)

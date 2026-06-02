@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.LocationUtil;
 
 class InheritableMetadataFactory {
 
@@ -34,11 +35,16 @@ class InheritableMetadataFactory {
     Preconditions.checkArgument(
         manifest.snapshotId() != null,
         "Cannot read from ManifestFile with null (unassigned) snapshot ID");
+    String baseLocation =
+        manifest instanceof GenericManifestFile
+            ? ((GenericManifestFile) manifest).baseLocation()
+            : null;
     return new BaseInheritableMetadata(
         manifest.partitionSpecId(),
         manifest.snapshotId(),
         manifest.sequenceNumber(),
-        manifest.path());
+        manifest.path(),
+        baseLocation);
   }
 
   /** Returns {@link InheritableMetadata} for rewriting a manifest before it is committed. */
@@ -51,13 +57,19 @@ class InheritableMetadataFactory {
     private final long snapshotId;
     private final long sequenceNumber;
     private final String manifestLocation;
+    private final String baseLocation;
 
     private BaseInheritableMetadata(
-        int specId, long snapshotId, long sequenceNumber, String manifestLocation) {
+        int specId,
+        long snapshotId,
+        long sequenceNumber,
+        String manifestLocation,
+        String baseLocation) {
       this.specId = specId;
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
       this.manifestLocation = manifestLocation;
+      this.baseLocation = baseLocation;
     }
 
     @Override
@@ -86,6 +98,9 @@ class InheritableMetadataFactory {
         file.setDataSequenceNumber(manifestEntry.dataSequenceNumber());
         file.setFileSequenceNumber(manifestEntry.fileSequenceNumber());
         file.setManifestLocation(manifestLocation);
+        if (baseLocation != null && file.path() != null) {
+          file.setLocation(LocationUtil.resolveLocation(baseLocation, file.location()));
+        }
       }
 
       return manifestEntry;

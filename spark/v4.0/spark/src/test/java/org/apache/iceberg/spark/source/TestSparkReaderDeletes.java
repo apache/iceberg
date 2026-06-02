@@ -580,7 +580,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Configuration conf = new Configuration();
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
-    Path testFilePath = new Path(testFile.getAbsolutePath());
+    Path testFilePath = new Path(testFile.toURI());
 
     // Write a Parquet file with more than one row group
     ParquetFileWriter parquetFileWriter =

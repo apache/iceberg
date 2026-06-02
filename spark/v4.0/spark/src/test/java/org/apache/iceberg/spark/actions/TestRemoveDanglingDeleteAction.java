@@ -70,56 +70,56 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
   static final DataFile FILE_A =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-a.parquet")
+          .withPath("file:/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=a") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_A2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-a2.parquet")
+          .withPath("file:/path/to/data-a2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=a") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_B =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-b.parquet")
+          .withPath("file:/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=b") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_B2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-b2.parquet")
+          .withPath("file:/path/to/data-b2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=b") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_C =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-c.parquet")
+          .withPath("file:/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=c") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_C2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-c2.parquet")
+          .withPath("file:/path/to/data-c2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=c") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_D =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-d.parquet")
+          .withPath("file:/path/to/data-d.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=d") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_D2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-d.parquet")
+          .withPath("file:/path/to/data-d.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=d") // easy way to set partition data for now
           .withRecordCount(1)
@@ -127,7 +127,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_A_POS_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
-          .withPath("/path/to/data-a-pos-deletes.parquet")
+          .withPath("file:/path/to/data-a-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=a") // easy way to set partition data for now
           .withRecordCount(1)
@@ -135,7 +135,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_A2_POS_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
-          .withPath("/path/to/data-a2-pos-deletes.parquet")
+          .withPath("file:/path/to/data-a2-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=a") // easy way to set partition data for now
           .withRecordCount(1)
@@ -143,7 +143,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_A_EQ_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes()
-          .withPath("/path/to/data-a-eq-deletes.parquet")
+          .withPath("file:/path/to/data-a-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=a") // easy way to set partition data for now
           .withRecordCount(1)
@@ -151,7 +151,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_A2_EQ_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes()
-          .withPath("/path/to/data-a2-eq-deletes.parquet")
+          .withPath("file:/path/to/data-a2-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=a") // easy way to set partition data for now
           .withRecordCount(1)
@@ -159,7 +159,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_B_POS_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
-          .withPath("/path/to/data-b-pos-deletes.parquet")
+          .withPath("file:/path/to/data-b-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=b") // easy way to set partition data for now
           .withRecordCount(1)
@@ -167,7 +167,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_B2_POS_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
-          .withPath("/path/to/data-b2-pos-deletes.parquet")
+          .withPath("file:/path/to/data-b2-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=b") // easy way to set partition data for now
           .withRecordCount(1)
@@ -175,7 +175,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_B_EQ_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes()
-          .withPath("/path/to/data-b-eq-deletes.parquet")
+          .withPath("file:/path/to/data-b-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=b") // easy way to set partition data for now
           .withRecordCount(1)
@@ -183,7 +183,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   static final DeleteFile FILE_B2_EQ_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes()
-          .withPath("/path/to/data-b2-eq-deletes.parquet")
+          .withPath("file:/path/to/data-b2-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=b") // easy way to set partition data for now
           .withRecordCount(1)
@@ -191,21 +191,21 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
   static final DataFile FILE_UNPARTITIONED =
       DataFiles.builder(PartitionSpec.unpartitioned())
-          .withPath("/path/to/data-unpartitioned.parquet")
+          .withPath("file:/path/to/data-unpartitioned.parquet")
           .withFileSizeInBytes(10)
           .withRecordCount(1)
           .build();
   static final DeleteFile FILE_UNPARTITIONED_POS_DELETE =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofEqualityDeletes()
-          .withPath("/path/to/data-unpartitioned-pos-deletes.parquet")
+          .withPath("file:/path/to/data-unpartitioned-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withRecordCount(1)
           .build();
   static final DeleteFile FILE_UNPARTITIONED_EQ_DELETE =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofEqualityDeletes()
-          .withPath("/path/to/data-unpartitioned-eq-deletes.parquet")
+          .withPath("file:/path/to/data-unpartitioned-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withRecordCount(1)
           .build();

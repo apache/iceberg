@@ -83,28 +83,28 @@ public class TestExpireSnapshotsAction extends TestBase {
 
   static final DataFile FILE_A =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-a.parquet")
+          .withPath("file:/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_B =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-b.parquet")
+          .withPath("file:/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=1") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_C =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-c.parquet")
+          .withPath("file:/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=2") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
   static final DataFile FILE_D =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-d.parquet")
+          .withPath("file:/path/to/data-d.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=3") // easy way to set partition data for now
           .withRecordCount(1)
@@ -112,7 +112,7 @@ public class TestExpireSnapshotsAction extends TestBase {
   static final DeleteFile FILE_A_POS_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
-          .withPath("/path/to/data-a-pos-deletes.parquet")
+          .withPath("file:/path/to/data-a-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=0") // easy way to set partition data for now
           .withRecordCount(1)
@@ -120,7 +120,7 @@ public class TestExpireSnapshotsAction extends TestBase {
   static final DeleteFile FILE_A_EQ_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes()
-          .withPath("/path/to/data-a-eq-deletes.parquet")
+          .withPath("file:/path/to/data-a-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=0") // easy way to set partition data for now
           .withRecordCount(1)
@@ -1270,7 +1270,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     for (int i = 0; i < dataFilesExpired; i++) {
       DataFile df =
           DataFiles.builder(SPEC)
-              .withPath(String.format("/path/to/data-expired-%d.parquet", i))
+              .withPath(String.format("file:/path/to/data-expired-%d.parquet", i))
               .withFileSizeInBytes(10)
               .withPartitionPath("c1=1")
               .withRecordCount(1)
@@ -1290,7 +1290,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     for (int i = 0; i < dataFilesRetained; i++) {
       DataFile df =
           DataFiles.builder(SPEC)
-              .withPath(String.format("/path/to/data-retained-%d.parquet", i))
+              .withPath(String.format("file:/path/to/data-retained-%d.parquet", i))
               .withFileSizeInBytes(10)
               .withPartitionPath("c1=1")
               .withRecordCount(1)
@@ -1389,7 +1389,7 @@ public class TestExpireSnapshotsAction extends TestBase {
 
     DataFile fileInNewSpec =
         DataFiles.builder(table.spec())
-            .withPath("/path/to/data-in-new-spec.parquet")
+            .withPath("file:/path/to/data-in-new-spec.parquet")
             .withFileSizeInBytes(10)
             .withPartitionPath("c1=1/extra_col=11")
             .withRecordCount(1)

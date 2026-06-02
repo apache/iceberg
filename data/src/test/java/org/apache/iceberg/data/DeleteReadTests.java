@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -39,6 +40,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -121,12 +125,7 @@ public abstract class DeleteReadTests {
     records.add(record.copy("id", 121, "data", "f"));
     records.add(record.copy("id", 122, "data", "g"));
 
-    this.dataFile =
-        FileHelpers.writeDataFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            records);
+    this.dataFile = FileHelpers.writeDataFile(table, localOutput(), Row.of(0), records);
 
     table.newAppend().appendFile(dataFile).commit();
   }
@@ -135,6 +134,34 @@ public abstract class DeleteReadTests {
   public void cleanup() throws IOException {
     dropTable("test");
     dropTable("test2");
+  }
+
+  // v4 resolves scheme-less paths against the table location, so files written outside the table
+  // must report absolute file: URIs to avoid being treated as relative on read
+  protected OutputFile localOutput() {
+    File file = temp.resolve("junit" + System.nanoTime()).toFile();
+    OutputFile delegate = Files.localOutput(file);
+    return new OutputFile() {
+      @Override
+      public PositionOutputStream create() {
+        return delegate.create();
+      }
+
+      @Override
+      public PositionOutputStream createOrOverwrite() {
+        return delegate.createOrOverwrite();
+      }
+
+      @Override
+      public String location() {
+        return file.toURI().toString();
+      }
+
+      @Override
+      public InputFile toInputFile() {
+        return delegate.toInputFile();
+      }
+    };
   }
 
   protected void initDateTable() throws IOException {
@@ -155,31 +182,31 @@ public abstract class DeleteReadTests {
     DataFile dataFile1 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
             dateRecords.subList(0, 1));
     DataFile dataFile2 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
             dateRecords.subList(1, 2));
     DataFile dataFile3 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
             dateRecords.subList(2, 3));
     DataFile dataFile4 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-04"))),
             dateRecords.subList(3, 4));
     DataFile dataFile5 =
         FileHelpers.writeDataFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-05"))),
             dateRecords.subList(4, 5));
 
@@ -238,12 +265,7 @@ public abstract class DeleteReadTests {
             );
 
     DeleteFile eqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            dataDeletes,
-            deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
@@ -269,21 +291,21 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes1 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))),
             dataDeletes.subList(0, 1),
             deleteRowSchema);
     DeleteFile eqDeletes2 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))),
             dataDeletes.subList(1, 2),
             deleteRowSchema);
     DeleteFile eqDeletes3 =
         FileHelpers.writeDeleteFile(
             dateTable,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))),
             dataDeletes.subList(2, 3),
             deleteRowSchema);
@@ -315,12 +337,7 @@ public abstract class DeleteReadTests {
             );
 
     DeleteFile eqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            dataDeletes,
-            deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
@@ -346,12 +363,7 @@ public abstract class DeleteReadTests {
     GenericRecord record = GenericRecord.create(table.schema());
     records.add(record.copy("id", 144, "data", "a"));
 
-    this.dataFile =
-        FileHelpers.writeDataFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            records);
+    this.dataFile = FileHelpers.writeDataFile(table, localOutput(), Row.of(0), records);
 
     // At this point, the table has two data files, with 7 and 8 rows respectively, of which all but
     // one are in duplicate.
@@ -367,12 +379,7 @@ public abstract class DeleteReadTests {
             );
 
     DeleteFile eqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            dataDeletes,
-            deleteRowSchema);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), dataDeletes, deleteRowSchema);
 
     // At this point, 3 rows in the first data file and 4 rows in the second data file are deleted.
     table.newRowDelta().addDeletes(eqDeletes).commit();
@@ -394,12 +401,7 @@ public abstract class DeleteReadTests {
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            deletes,
-            formatVersion);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), deletes, formatVersion);
 
     table
         .newRowDelta()
@@ -427,12 +429,7 @@ public abstract class DeleteReadTests {
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            deletes,
-            formatVersion);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), deletes, formatVersion);
 
     table
         .newRowDelta()
@@ -443,12 +440,7 @@ public abstract class DeleteReadTests {
     deletes = Lists.newArrayList(Pair.of(dataFile.location(), 6L)); // id = 122
 
     posDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            deletes,
-            formatVersion);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), deletes, formatVersion);
 
     table
         .newRowDelta()
@@ -475,12 +467,7 @@ public abstract class DeleteReadTests {
             );
 
     DeleteFile eqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            dataDeletes,
-            dataSchema);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), dataDeletes, dataSchema);
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
@@ -489,12 +476,7 @@ public abstract class DeleteReadTests {
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            deletes,
-            formatVersion);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), deletes, formatVersion);
 
     table
         .newRowDelta()
@@ -522,12 +504,7 @@ public abstract class DeleteReadTests {
             );
 
     DeleteFile dataEqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            dataDeletes,
-            dataSchema);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), dataDeletes, dataSchema);
 
     Schema idSchema = table.schema().select("id");
     Record idDelete = GenericRecord.create(idSchema);
@@ -538,12 +515,7 @@ public abstract class DeleteReadTests {
             );
 
     DeleteFile idEqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            idDeletes,
-            idSchema);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), idDeletes, idSchema);
 
     table.newRowDelta().addDeletes(dataEqDeletes).addDeletes(idEqDeletes).commit();
 
@@ -564,7 +536,7 @@ public abstract class DeleteReadTests {
     DataFile dataFileWithNull =
         FileHelpers.writeDataFile(
             table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(0),
             Lists.newArrayList(record.copy("id", 131, "data", null)));
 
@@ -579,12 +551,7 @@ public abstract class DeleteReadTests {
             );
 
     DeleteFile eqDeletes =
-        FileHelpers.writeDeleteFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            dataDeletes,
-            dataSchema);
+        FileHelpers.writeDeleteFile(table, localOutput(), Row.of(0), dataDeletes, dataSchema);
 
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
@@ -639,7 +606,7 @@ public abstract class DeleteReadTests {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            localOutput(),
             Row.of(0),
             equalityDeletes,
             equalityDeletes.get(0).struct().asSchema());
@@ -670,11 +637,7 @@ public abstract class DeleteReadTests {
                   structRecord)));
     }
     DataFile binaryDataFile =
-        FileHelpers.writeDataFile(
-            table,
-            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
-            Row.of(0),
-            recordsWithOptionalColumns);
+        FileHelpers.writeDataFile(table, localOutput(), Row.of(0), recordsWithOptionalColumns);
 
     table.newAppend().appendFile(binaryDataFile).commit();
     records.addAll(recordsWithOptionalColumns);
