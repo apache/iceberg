@@ -39,6 +39,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 
 public class ParquetFormat implements FileFormatTestSupport {
   @Override
@@ -78,16 +80,30 @@ public class ParquetFormat implements FileFormatTestSupport {
   public Map<String, String> testPropertiesToSet() {
     return Map.of(
         TableProperties.PARQUET_COMPRESSION,
-        "uncompressed",
-        TableProperties.PARQUET_COMPRESSION_LEVEL,
-        "1");
+        "gzip",
+        TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX + "col_a",
+        "false");
   }
 
   @Override
   public boolean checkTestProperties(InputFile inputFile) throws IOException {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetFileTestUtils.file(inputFile))) {
-      return "UNCOMPRESSED"
-          .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
+      boolean compressionMatches =
+          "GZIP"
+              .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
+      boolean foundColA = false;
+      boolean colAStatsDisabled = true;
+
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          if ("col_a".equals(column.getPath().toDotString())) {
+            foundColA = true;
+            colAStatsDisabled &= column.getStatistics().isEmpty();
+          }
+        }
+      }
+
+      return compressionMatches && foundColA && colAStatsDisabled;
     }
   }
 
