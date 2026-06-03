@@ -95,21 +95,18 @@ public class ParquetFormat implements FileFormatTestSupport {
           "GZIP"
               .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
 
-      return compressionMatches && hasExpectedDataPages(reader, "col_a", 2, 5);
+      return compressionMatches && hasExpectedDataPages(reader, 2, 5);
     }
   }
 
   private boolean hasExpectedDataPages(
-      ParquetFileReader reader, String columnName, int expectedPageCount, int expectedRowsPerPage)
-      throws IOException {
+      ParquetFileReader reader, int expectedPageCount, int expectedRowsPerPage) throws IOException {
     int pageCount = 0;
     PageReadStore rowGroup;
 
     while ((rowGroup = reader.readNextRowGroup()) != null) {
       PageReader pageReader =
-          rowGroup.getPageReader(
-              reader.getFileMetaData().getSchema().getColumnDescription(new String[] {columnName}));
-
+          rowGroup.getPageReader(reader.getFileMetaData().getSchema().getColumns().get(0));
       DataPage page;
       while ((page = pageReader.readPage()) != null) {
         pageCount += 1;
