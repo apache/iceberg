@@ -93,7 +93,7 @@ final class HadoopBulkDelete {
    *
    * @return true if the bulk delete interface class is on the classpath.
    */
-  public static boolean apiAvailable() {
+  static boolean apiAvailable() {
     return !unavailable
         && HadoopBulkDelete.class.getClassLoader().getResource(BULK_DELETE_CLASS) != null;
   }
@@ -108,7 +108,7 @@ final class HadoopBulkDelete {
    * @throws BulkDeletionFailureException failure to delete one or more files.
    * @throws IllegalStateException if the hadoop runtime does not support bulk delete.
    */
-  static void deleteFilesThroughHadoopApi(
+  static void deleteFiles(
       final Iterable<String> pathsToDelete,
       final ExecutorService executorService,
       final Configuration conf) {
@@ -139,7 +139,7 @@ final class HadoopBulkDelete {
    * @throws UncheckedIOException if an IOE was raised in the invoked methods.
    * @throws RuntimeException if interrupted while waiting for deletions to complete.
    */
-  public int bulkDeleteFiles(Iterable<String> pathnames) {
+  int bulkDeleteFiles(Iterable<String> pathnames) {
 
     LOG.debug("Using bulk delete operation to delete files");
 
@@ -297,11 +297,11 @@ final class HadoopBulkDelete {
           deletedFiles.size() <= pageSize, "Number of queued items to delete exceeds page size");
     }
 
-    public Path fsRoot() {
+    Path fsRoot() {
       return fsRoot;
     }
 
-    public BulkDelete bulkDelete() {
+    BulkDelete bulkDelete() {
       return bulkDelete;
     }
 
@@ -310,7 +310,7 @@ final class HadoopBulkDelete {
      *
      * @return the ongoing list being built up.
      */
-    public Set<Path> deletedFiles() {
+    Set<Path> deletedFiles() {
       return deletedFiles;
     }
 
@@ -399,11 +399,11 @@ final class HadoopBulkDelete {
       this.errorText = errorText;
     }
 
-    public String errorText() {
+    String errorText() {
       return errorText;
     }
 
-    public Path path() {
+    Path path() {
       return path;
     }
   }
@@ -422,7 +422,7 @@ final class HadoopBulkDelete {
       this.failures = failures;
     }
 
-    public List<DeleteFailure> failures() {
+    List<DeleteFailure> failures() {
       return failures;
     }
   }

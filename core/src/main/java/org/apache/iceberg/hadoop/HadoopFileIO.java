@@ -199,7 +199,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    * @return true if the Bulkdeleter should be used.
    */
   @VisibleForTesting
-  boolean useBulkDeleteApi() {
+  boolean useHadoopBulkDelete() {
     if (useBulkDelete == null) {
       useBulkDelete = conf().getBoolean(BULK_DELETE_ENABLED, DEFAULT_BULK_DELETE_ENABLED);
     }
@@ -208,8 +208,8 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    if (useBulkDeleteApi()) {
-      HadoopBulkDelete.deleteFilesThroughHadoopApi(pathsToDelete, executorService(), getConf());
+    if (useHadoopBulkDelete()) {
+      HadoopBulkDelete.deleteFiles(pathsToDelete, executorService(), getConf());
       return;
     }
     AtomicInteger failureCount = new AtomicInteger(0);

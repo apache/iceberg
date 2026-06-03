@@ -130,7 +130,7 @@ public class TestHadoopBulkDelete {
   public void testDeleteFilesErrorHandling(boolean bulkDelete) {
     resetFileIOBinding(bulkDelete);
     hadoopFileIO = new HadoopFileIO(fs.getConf());
-    assertThat(hadoopFileIO.useBulkDeleteApi())
+    assertThat(hadoopFileIO.useHadoopBulkDelete())
         .describedAs("Bulk Delete API use")
         .isEqualTo(bulkDelete);
     Path parent = new Path(tempDir.toURI());
