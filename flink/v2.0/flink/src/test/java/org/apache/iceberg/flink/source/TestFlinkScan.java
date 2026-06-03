@@ -468,6 +468,16 @@ public abstract class TestFlinkScan {
   }
 
   @TestTemplate
+  public void testUuidFiltersWithLegacySignedParquetMetrics() throws Exception {
+    UuidFlinkScanTestHelpers.testUuidFiltersWithLegacySignedParquetMetrics(this);
+  }
+
+  @TestTemplate
+  public void testUuidFiltersWithUnsignedParquetMetrics() throws Exception {
+    UuidFlinkScanTestHelpers.testUuidFiltersWithUnsignedParquetMetrics(this);
+  }
+
+  @TestTemplate
   public void testPartitionTypes() throws Exception {
     Schema typesSchema =
         new Schema(

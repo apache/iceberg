@@ -89,6 +89,21 @@ public class TestExpressionUtil {
 
   private static final Types.StructType NESTED_EXTRACT_STRUCT = NESTED_EXTRACT_SCHEMA.asStruct();
 
+  private static final Schema UUID_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "uuid_col", Types.UUIDType.get()));
+
+  private static final Schema OPTIONAL_UUID_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "uuid_col", Types.UUIDType.get()));
+
+  private static final UUID UUID_20 = UUID.fromString("20000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_40 = UUID.fromString("40000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_80 = UUID.fromString("80000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_FF = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+
   @Test
   public void testUnchangedUnaryPredicates() {
     for (Expression unary :
@@ -1552,7 +1567,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testToSignedUUIDLiteralTransformsEqPredicate() {
-    UUID testUuid = UUID.randomUUID();
+    UUID testUuid = UUID_20;
     Expression original = Expressions.equal("uuid_col", testUuid);
 
     // Verify the original literal uses unsigned comparator (useSignedComparator = false)
@@ -1577,7 +1592,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testToSignedUUIDLiteralTransformsLtPredicate() {
-    UUID testUuid = UUID.randomUUID();
+    UUID testUuid = UUID_40;
     Expression original = Expressions.lessThan("uuid_col", testUuid);
 
     // Verify the original literal uses unsigned comparator (useSignedComparator = false)
@@ -1600,7 +1615,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testToSignedUUIDLiteralTransformsGtPredicate() {
-    UUID testUuid = UUID.randomUUID();
+    UUID testUuid = UUID_80;
     Expression original = Expressions.greaterThan("uuid_col", testUuid);
 
     // Verify the original literal uses unsigned comparator (useSignedComparator = false)
@@ -1623,8 +1638,8 @@ public class TestExpressionUtil {
 
   @Test
   public void testToSignedUUIDLiteralTransformsInPredicate() {
-    UUID uuid1 = UUID.randomUUID();
-    UUID uuid2 = UUID.randomUUID();
+    UUID uuid1 = UUID_20;
+    UUID uuid2 = UUID_FF;
     Expression original = Expressions.in("uuid_col", uuid1, uuid2);
 
     // Verify the original literals use unsigned comparator (useSignedComparator = false)
@@ -1659,7 +1674,7 @@ public class TestExpressionUtil {
 
   @Test
   public void testToSignedUUIDLiteralTransformsCompoundExpression() {
-    UUID testUuid = UUID.randomUUID();
+    UUID testUuid = UUID_FF;
     Expression original =
         Expressions.and(
             Expressions.equal("id", 42L), Expressions.greaterThan("uuid_col", testUuid));
@@ -1692,5 +1707,57 @@ public class TestExpressionUtil {
         .isInstanceOf(Literals.UUIDLiteral.class)
         .extracting("useSignedComparator")
         .isEqualTo(true);
+  }
+
+  @Test
+  public void testHasBoundUUIDBoundsPredicateWithUUIDLiteral() {
+    UUID uuid = UUID_40;
+
+    assertThat(
+            ExpressionUtil.hasBoundUUIDBoundsPredicate(
+                UUID_SCHEMA, Expressions.lessThanOrEqual("uuid_col", uuid), true))
+        .as("Should detect UUID bounds predicates after binding")
+        .isTrue();
+  }
+
+  @Test
+  public void testHasBoundUUIDBoundsPredicateWithStringLiteral() {
+    UUID uuid = UUID_80;
+
+    assertThat(
+            ExpressionUtil.hasBoundUUIDBoundsPredicate(
+                UUID_SCHEMA, Expressions.lessThanOrEqual("uuid_col", uuid.toString()), true))
+        .as("Should detect UUID bounds predicates whose literals are coerced during binding")
+        .isTrue();
+  }
+
+  @Test
+  public void testHasBoundUUIDBoundsPredicateForNonUUIDColumn() {
+    UUID uuid = UUID_FF;
+
+    assertThat(
+            ExpressionUtil.hasBoundUUIDBoundsPredicate(
+                UUID_SCHEMA, Expressions.equal("id", 1), true))
+        .as("Should ignore non-UUID predicates")
+        .isFalse();
+    assertThat(
+            ExpressionUtil.hasBoundUUIDBoundsPredicate(
+                SCHEMA, Expressions.equal("data", uuid.toString()), true))
+        .as("Should not treat a UUID-shaped string as UUID without a UUID column")
+        .isFalse();
+  }
+
+  @Test
+  public void testHasBoundUUIDBoundsPredicateIgnoresNullPredicates() {
+    assertThat(
+            ExpressionUtil.hasBoundUUIDBoundsPredicate(
+                OPTIONAL_UUID_SCHEMA, Expressions.isNull("uuid_col"), true))
+        .as("Should ignore UUID predicates that use null counts instead of bounds")
+        .isFalse();
+    assertThat(
+            ExpressionUtil.hasBoundUUIDBoundsPredicate(
+                OPTIONAL_UUID_SCHEMA, Expressions.notNull("uuid_col"), true))
+        .as("Should ignore UUID predicates that use null counts instead of bounds")
+        .isFalse();
   }
 }
