@@ -281,4 +281,51 @@ public class TestRewriteTablePathUtil extends TestBase {
 
     assertThat(deleteFileRewriteResult.toRewrite()).hasSize(2);
   }
+
+  @TestTemplate
+  public void testDeletedPositionDeleteEntriesAreNotRewritten() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2")
+        .isGreaterThanOrEqualTo(2);
+
+    String sourcePrefix = "/path/to/";
+    String stagingDir = "/staging/";
+    String targetPrefix = "/path/new/";
+    long snapshotId = 1000L;
+
+    DeleteFile oldPositionDeletes =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/old-data-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    ManifestFile manifest =
+        writeManifest(
+            snapshotId,
+            manifestEntry(ManifestEntry.Status.DELETED, snapshotId, oldPositionDeletes),
+            manifestEntry(ManifestEntry.Status.ADDED, snapshotId, FILE_A_DELETES));
+
+    RewriteTablePathUtil.RewriteResult<DeleteFile> deleteFileRewriteResult =
+        RewriteTablePathUtil.rewriteDeleteManifest(
+            manifest,
+            Set.of(snapshotId),
+            Files.localOutput(
+                FileFormat.AVRO.addExtension(
+                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            table.io(),
+            formatVersion,
+            table.specs(),
+            sourcePrefix,
+            targetPrefix,
+            stagingDir);
+
+    assertThat(deleteFileRewriteResult.toRewrite())
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+    assertThat(deleteFileRewriteResult.copyPlan()).hasSize(1);
+  }
 }

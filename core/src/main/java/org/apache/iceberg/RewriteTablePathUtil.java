@@ -464,8 +464,8 @@ public class RewriteTablePathUtil {
                   Pair.of(
                       stagingPath(file.location(), sourcePrefix, stagingLocation),
                       posDeleteFile.location()));
+          result.toRewrite().add(file.copy());
         }
-        result.toRewrite().add(file.copy());
         return result;
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
