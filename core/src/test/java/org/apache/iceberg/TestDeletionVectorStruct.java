@@ -88,6 +88,26 @@ class TestDeletionVectorStruct {
   }
 
   @Test
+  void testInternalSetIgnoresUnknownOrdinal() {
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(100L)
+            .sizeInBytes(512L)
+            .cardinality(42L)
+            .build();
+
+    // unknown ordinals from a newer format version are silently ignored
+    dv.internalSet(99, "value from a newer format");
+
+    // every field is unchanged
+    assertThat(dv.location()).isEqualTo("s3://bucket/data/dv.puffin");
+    assertThat(dv.offset()).isEqualTo(100L);
+    assertThat(dv.sizeInBytes()).isEqualTo(512L);
+    assertThat(dv.cardinality()).isEqualTo(42L);
+  }
+
+  @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()

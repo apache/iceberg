@@ -49,7 +49,7 @@ class TrackingBuilder {
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
    */
-  static TrackingBuilder builder(Tracking source, long newSnapshotId) {
+  static TrackingBuilder from(Tracking source, long newSnapshotId) {
     return new TrackingBuilder(source, newSnapshotId);
   }
 

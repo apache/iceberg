@@ -120,6 +120,40 @@ class TestManifestInfoStruct {
   }
 
   @Test
+  void testInternalSetIgnoresUnknownOrdinal() {
+    ManifestInfoStruct info =
+        ManifestInfoStruct.builder()
+            .addedFilesCount(10)
+            .existingFilesCount(20)
+            .deletedFilesCount(3)
+            .replacedFilesCount(2)
+            .addedRowsCount(1000L)
+            .existingRowsCount(2000L)
+            .deletedRowsCount(300L)
+            .replacedRowsCount(200L)
+            .minSequenceNumber(5L)
+            .dv(ByteBuffer.wrap(new byte[] {0xF}))
+            .dvCardinality(1L)
+            .build();
+
+    // unknown ordinals from a newer format version are silently ignored
+    info.internalSet(99, "value from a newer format");
+
+    // every field is unchanged
+    assertThat(info.addedFilesCount()).isEqualTo(10);
+    assertThat(info.existingFilesCount()).isEqualTo(20);
+    assertThat(info.deletedFilesCount()).isEqualTo(3);
+    assertThat(info.replacedFilesCount()).isEqualTo(2);
+    assertThat(info.addedRowsCount()).isEqualTo(1000L);
+    assertThat(info.existingRowsCount()).isEqualTo(2000L);
+    assertThat(info.deletedRowsCount()).isEqualTo(300L);
+    assertThat(info.replacedRowsCount()).isEqualTo(200L);
+    assertThat(info.minSequenceNumber()).isEqualTo(5L);
+    assertThat(info.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
+    assertThat(info.dvCardinality()).isEqualTo(1L);
+  }
+
+  @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()

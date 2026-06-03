@@ -331,8 +331,7 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking =
-        new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null);
+    TrackingStruct tracking = (TrackingStruct) TrackingBuilder.added(42L).build();
     tracking.setManifestLocation("s3://bucket/manifest.avro");
     tracking.set(MANIFEST_POS_ORDINAL, 3L);
 
