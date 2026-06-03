@@ -974,8 +974,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      VectorHolder metadataHolder = metadataReader.read(null, numValsToRead);
-      VectorHolder valueHolder = valueReader.read(null, numValsToRead);
+      VectorHolder reuseMetadata = null;
+      VectorHolder reuseValue = null;
+      if (reuse instanceof VectorHolder.VariantVectorHolder) {
+        VectorHolder.VariantVectorHolder variantReuse = (VectorHolder.VariantVectorHolder) reuse;
+        reuseMetadata = variantReuse.metadataHolder();
+        reuseValue = variantReuse.valueHolder();
+      }
+      VectorHolder metadataHolder = metadataReader.read(reuseMetadata, numValsToRead);
+      VectorHolder valueHolder = valueReader.read(reuseValue, numValsToRead);
       return new VectorHolder.VariantVectorHolder(
           icebergField(), numValsToRead, metadataHolder, valueHolder);
     }

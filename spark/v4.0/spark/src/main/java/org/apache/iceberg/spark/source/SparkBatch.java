@@ -38,6 +38,7 @@ import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.Batch;
@@ -174,8 +175,10 @@ class SparkBatch implements Batch {
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
     if (field.type().isVariantType()) {
-      String shredEnabled = table.properties().get(TableProperties.PARQUET_SHRED_VARIANTS);
-      return !"true".equalsIgnoreCase(shredEnabled);
+      return !PropertyUtil.propertyAsBoolean(
+          table.properties(),
+          TableProperties.PARQUET_SHRED_VARIANTS,
+          TableProperties.PARQUET_SHRED_VARIANTS_DEFAULT);
     }
 
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
