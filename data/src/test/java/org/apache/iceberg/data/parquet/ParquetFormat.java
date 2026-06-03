@@ -37,10 +37,11 @@ import org.apache.iceberg.parquet.ParquetFileTestUtils;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.column.page.DataPage;
+import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
-import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 
 public class ParquetFormat implements FileFormatTestSupport {
   @Override
@@ -81,8 +82,10 @@ public class ParquetFormat implements FileFormatTestSupport {
     return Map.of(
         TableProperties.PARQUET_COMPRESSION,
         "gzip",
-        TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX + "col_a",
-        "false");
+        TableProperties.PARQUET_PAGE_ROW_LIMIT,
+        "5",
+        TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT,
+        "1");
   }
 
   @Override
@@ -91,20 +94,33 @@ public class ParquetFormat implements FileFormatTestSupport {
       boolean compressionMatches =
           "GZIP"
               .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
-      boolean foundColA = false;
-      boolean colAStatsDisabled = true;
 
-      for (BlockMetaData block : reader.getFooter().getBlocks()) {
-        for (ColumnChunkMetaData column : block.getColumns()) {
-          if ("col_a".equals(column.getPath().toDotString())) {
-            foundColA = true;
-            colAStatsDisabled &= column.getStatistics().isEmpty();
-          }
+      return compressionMatches && hasExpectedDataPages(reader, "col_a", 2, 5);
+    }
+  }
+
+  private boolean hasExpectedDataPages(
+      ParquetFileReader reader, String columnName, int expectedPageCount, int expectedRowsPerPage)
+      throws IOException {
+    int pageCount = 0;
+    PageReadStore rowGroup;
+
+    while ((rowGroup = reader.readNextRowGroup()) != null) {
+      PageReader pageReader =
+          rowGroup.getPageReader(
+              reader.getFileMetaData().getSchema().getColumnDescription(new String[] {columnName}));
+
+      DataPage page;
+      while ((page = pageReader.readPage()) != null) {
+        pageCount += 1;
+
+        if (page.getValueCount() != expectedRowsPerPage) {
+          return false;
         }
       }
-
-      return compressionMatches && foundColA && colAStatsDisabled;
     }
+
+    return pageCount == expectedPageCount;
   }
 
   @Override

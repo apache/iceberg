@@ -72,6 +72,10 @@ public class AvroFormat implements FileFormatTestSupport {
 
   @Override
   public Map<String, String> testPropertiesToSet() {
+    // Avro currently has only two configurable writer properties: compression codec and
+    // compression level. The compression level cannot be verified from file metadata, so this
+    // test sets the compression codec as the second property and verifies it to confirm that the
+    // multi-property setAll path takes effect.
     return Map.of(
         TableProperties.AVRO_COMPRESSION_LEVEL, "1", TableProperties.AVRO_COMPRESSION, "snappy");
   }
