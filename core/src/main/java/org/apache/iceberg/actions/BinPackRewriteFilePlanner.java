@@ -286,7 +286,7 @@ public class BinPackRewriteFilePlanner
     return deleteRatio >= deleteRatioThreshold;
   }
 
-  private StructLikeMap<List<List<FileScanTask>>> planFileGroups() {
+  protected TableScan buildTableScan() {
     TableScan scan =
         table().newScan().filter(filter).caseSensitive(caseSensitive).ignoreResiduals();
 
@@ -294,7 +294,11 @@ public class BinPackRewriteFilePlanner
       scan = scan.useSnapshot(snapshotId);
     }
 
-    CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
+    return scan;
+  }
+
+  private StructLikeMap<List<List<FileScanTask>>> planFileGroups() {
+    CloseableIterable<FileScanTask> fileScanTasks = buildTableScan().planFiles();
 
     try {
       Types.StructType partitionType = table().spec().partitionType();
