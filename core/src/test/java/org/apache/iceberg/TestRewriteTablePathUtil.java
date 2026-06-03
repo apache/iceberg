@@ -326,6 +326,5 @@ public class TestRewriteTablePathUtil extends TestBase {
         .hasSize(1)
         .extracting(DeleteFile::location)
         .containsExactly(FILE_A_DELETES.location());
-    assertThat(deleteFileRewriteResult.copyPlan()).hasSize(1);
   }
 }

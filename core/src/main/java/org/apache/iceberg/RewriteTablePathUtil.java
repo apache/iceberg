@@ -454,7 +454,7 @@ public class RewriteTablePathUtil {
       case POSITION_DELETES:
         DeleteFile posDeleteFile = newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, posDeleteFile);
-        // keep the following entries in metadata but exclude them from copyPlan
+        // keep the following entries in metadata but exclude them from copyPlan and toRewrite
         // 1) deleted position delete files
         // 2) entries not changed by snapshotIds
         if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
