@@ -71,12 +71,13 @@ public class AvroFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public Map<String, String> testPropertyToSet() {
-    return Map.of(TableProperties.AVRO_COMPRESSION, "snappy");
+  public Map<String, String> testPropertiesToSet() {
+    return Map.of(
+        TableProperties.AVRO_COMPRESSION_LEVEL, "1", TableProperties.AVRO_COMPRESSION, "snappy");
   }
 
   @Override
-  public boolean checkTestProperty(InputFile inputFile) throws IOException {
+  public boolean checkTestProperties(InputFile inputFile) throws IOException {
     return "snappy".equals(metadataValue(inputFile, "avro.codec"));
   }
 

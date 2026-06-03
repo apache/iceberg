@@ -51,9 +51,9 @@ public interface FileFormatTestSupport {
   void writeRecordsWithoutFieldIds(OutputFile outputFile, Schema schema, List<Record> records)
       throws IOException;
 
-  Map<String, String> testPropertyToSet();
+  Map<String, String> testPropertiesToSet();
 
-  boolean checkTestProperty(InputFile inputFile) throws IOException;
+  boolean checkTestProperties(InputFile inputFile) throws IOException;
 
   String metadataValue(InputFile inputFile, String key) throws IOException;
 

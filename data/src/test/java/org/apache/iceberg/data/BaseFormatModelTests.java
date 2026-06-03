@@ -1565,7 +1565,9 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = dataGenerator.generateRecords();
 
     // Write the file WITHOUT Iceberg field IDs (as an external writer would).
-    writeRecordsWithoutFieldIds(fileFormat, icebergSchema, genericRecords);
+    FileFormatTestSupport.forFormat(fileFormat)
+        .writeRecordsWithoutFieldIds(
+            encryptedFile.encryptingOutputFile(), icebergSchema, genericRecords);
 
     NameMapping nameMapping = MappingUtil.create(icebergSchema);
 
@@ -1594,10 +1596,6 @@ public abstract class BaseFormatModelTests<T> {
     writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
 
-    assertThatThrownBy(() -> writeEngineRecords(fileFormat, schema, engineRecords))
-        .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining("Already exists");
-
     genericRecords = dataGenerator.generateRecords(20);
     writeEngineRecords(
         fileFormat, schema, convertToEngineRecords(genericRecords, schema), true /* overwrite */);
@@ -1606,11 +1604,28 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testDataWriterOverwriteNone(FileFormat fileFormat) throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+
+    assertThatThrownBy(() -> writeEngineRecords(fileFormat, schema, engineRecords))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Already exists");
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testDataWriterSet(FileFormat fileFormat) throws IOException {
     writeAndAssertDataWriterWithConfig(
         fileFormat,
-        (writerBuilder, format) -> testPropertyToSet(format).forEach(writerBuilder::set),
-        format -> assertThat(checkTestProperty(format)).isTrue());
+        (writerBuilder, format) -> testPropertiesToSet(format).forEach(writerBuilder::set),
+        format -> assertThat(checkTestProperties(format)).isTrue());
   }
 
   @ParameterizedTest
@@ -1618,8 +1633,8 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterSetAll(FileFormat fileFormat) throws IOException {
     writeAndAssertDataWriterWithConfig(
         fileFormat,
-        (writerBuilder, format) -> writerBuilder.setAll(testPropertyToSet(format)),
-        format -> assertThat(checkTestProperty(format)).isTrue());
+        (writerBuilder, format) -> writerBuilder.setAll(testPropertiesToSet(format)),
+        format -> assertThat(checkTestProperties(format)).isTrue());
   }
 
   @ParameterizedTest
@@ -1637,9 +1652,13 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterMetaMap(FileFormat fileFormat) throws IOException {
     writeAndAssertDataWriterWithConfig(
         fileFormat,
-        (writerBuilder, format) -> writerBuilder.meta(Map.of("tck.meta.key", "tck-meta-value")),
-        format ->
-            assertThat(fileMetadataValue(format, "tck.meta.key")).isEqualTo("tck-meta-value"));
+        (writerBuilder, format) ->
+            writerBuilder.meta(
+                Map.of("tck.meta.key", "tck-meta-value", "tck.meta.key2", "tck-meta-value2")),
+        format -> {
+          assertThat(fileMetadataValue(format, "tck.meta.key")).isEqualTo("tck-meta-value");
+          assertThat(fileMetadataValue(format, "tck.meta.key2")).isEqualTo("tck-meta-value2");
+        });
   }
 
   private void readAndAssertGenericRecords(
@@ -1717,7 +1736,7 @@ public abstract class BaseFormatModelTests<T> {
   private DataFile writeRecordsForSplit(FileFormat fileFormat, Schema schema, List<Record> records)
       throws IOException {
 
-    String splitSizeProperty = splitSizeProperty(fileFormat);
+    String splitSizeProperty = FileFormatTestSupport.forFormat(fileFormat).splitSizeProperty();
     DataWriter<Record> writer =
         FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile)
             .schema(schema)
@@ -1741,10 +1760,6 @@ public abstract class BaseFormatModelTests<T> {
 
     assertThat(dataFile.format()).isEqualTo(fileFormat);
     return dataFile;
-  }
-
-  private static String splitSizeProperty(FileFormat fileFormat) {
-    return FileFormatTestSupport.forFormat(fileFormat).splitSizeProperty();
   }
 
   private static void assertCounts(
@@ -2084,12 +2099,6 @@ public abstract class BaseFormatModelTests<T> {
     return result;
   }
 
-  private void writeRecordsWithoutFieldIds(
-      FileFormat fileFormat, Schema schema, List<Record> records) throws IOException {
-    FileFormatTestSupport.forFormat(fileFormat)
-        .writeRecordsWithoutFieldIds(encryptedFile.encryptingOutputFile(), schema, records);
-  }
-
   private void runTypePromotionCheck(
       FileFormat fileFormat, Type fromType, Type toType, Function<Object, Object> promoteValue)
       throws IOException {
@@ -2134,7 +2143,7 @@ public abstract class BaseFormatModelTests<T> {
 
   private DataFile writeEngineRecords(FileFormat fileFormat, Schema schema, List<T> records)
       throws IOException {
-    return writeEngineRecords(fileFormat, schema, records, false);
+    return writeEngineRecords(fileFormat, schema, records, false /* overwrite */);
   }
 
   private DataFile writeEngineRecords(
@@ -2162,13 +2171,13 @@ public abstract class BaseFormatModelTests<T> {
     return dataFile;
   }
 
-  private static Map<String, String> testPropertyToSet(FileFormat fileFormat) {
-    return FileFormatTestSupport.forFormat(fileFormat).testPropertyToSet();
+  private static Map<String, String> testPropertiesToSet(FileFormat fileFormat) {
+    return FileFormatTestSupport.forFormat(fileFormat).testPropertiesToSet();
   }
 
-  private boolean checkTestProperty(FileFormat fileFormat) throws IOException {
+  private boolean checkTestProperties(FileFormat fileFormat) throws IOException {
     return FileFormatTestSupport.forFormat(fileFormat)
-        .checkTestProperty(encryptedFile.encryptingOutputFile().toInputFile());
+        .checkTestProperties(encryptedFile.encryptingOutputFile().toInputFile());
   }
 
   private String fileMetadataValue(FileFormat fileFormat, String key) throws IOException {

@@ -75,12 +75,16 @@ public class ParquetFormat implements FileFormatTestSupport {
   }
 
   @Override
-  public Map<String, String> testPropertyToSet() {
-    return Map.of(TableProperties.PARQUET_COMPRESSION, "uncompressed");
+  public Map<String, String> testPropertiesToSet() {
+    return Map.of(
+        TableProperties.PARQUET_COMPRESSION,
+        "uncompressed",
+        TableProperties.PARQUET_COMPRESSION_LEVEL,
+        "1");
   }
 
   @Override
-  public boolean checkTestProperty(InputFile inputFile) throws IOException {
+  public boolean checkTestProperties(InputFile inputFile) throws IOException {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetFileTestUtils.file(inputFile))) {
       return "UNCOMPRESSED"
           .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
