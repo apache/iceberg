@@ -59,7 +59,7 @@ class TrackingBuilder {
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
    */
-  static Tracking delete(Tracking source, long newSnapshotId) {
+  static Tracking deleted(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.DELETED, source, newSnapshotId);
   }
 
@@ -69,7 +69,7 @@ class TrackingBuilder {
    * @param source source tracking from a manifest entry
    * @param newSnapshotId the snapshot ID in which the new tracking instance will be committed
    */
-  static Tracking replace(Tracking source, long newSnapshotId) {
+  static Tracking replaced(Tracking source, long newSnapshotId) {
     return terminal(EntryStatus.REPLACED, source, newSnapshotId);
   }
 
@@ -87,7 +87,7 @@ class TrackingBuilder {
 
   private TrackingBuilder(Tracking source, long newSnapshotId) {
     validateSource(source);
-    checkStatus(source.status(), EntryStatus.EXISTING);
+    validateStatusTransition(source.status(), EntryStatus.EXISTING);
     this.status = EntryStatus.EXISTING;
     this.snapshotId = source.snapshotId();
     this.newSnapshotId = newSnapshotId;
@@ -145,7 +145,7 @@ class TrackingBuilder {
 
   private static Tracking terminal(EntryStatus to, Tracking source, long newSnapshotId) {
     validateSource(source);
-    checkStatus(source.status(), to);
+    validateStatusTransition(source.status(), to);
     return new TrackingStruct(
         to,
         newSnapshotId,
@@ -167,7 +167,7 @@ class TrackingBuilder {
         "Invalid tracking source: file sequence number is null");
   }
 
-  private static void checkStatus(EntryStatus from, EntryStatus to) {
+  private static void validateStatusTransition(EntryStatus from, EntryStatus to) {
     Preconditions.checkState(from != null, "Invalid tracking source: status is null");
     Preconditions.checkState(
         from != EntryStatus.DELETED && from != EntryStatus.REPLACED,

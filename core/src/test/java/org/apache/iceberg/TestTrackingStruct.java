@@ -239,7 +239,7 @@ class TestTrackingStruct {
   void testDeleteUpdatesSnapshotIdAndPreservesRest() {
     Tracking source = sourceTracking();
 
-    Tracking deleted = TrackingBuilder.delete(source, 999L);
+    Tracking deleted = TrackingBuilder.deleted(source, 999L);
 
     assertThat(deleted.status()).isEqualTo(EntryStatus.DELETED);
     assertThat(deleted.snapshotId()).isEqualTo(999L);
@@ -253,7 +253,7 @@ class TestTrackingStruct {
   void testReplaceUpdatesSnapshotIdAndPreservesRest() {
     Tracking source = sourceTracking();
 
-    Tracking replaced = TrackingBuilder.replace(source, 999L);
+    Tracking replaced = TrackingBuilder.replaced(source, 999L);
 
     assertThat(replaced.status()).isEqualTo(EntryStatus.REPLACED);
     assertThat(replaced.snapshotId()).isEqualTo(999L);
@@ -273,11 +273,11 @@ class TestTrackingStruct {
     assertThat(existing.deletedPositions()).isNull();
     assertThat(existing.replacedPositions()).isNull();
 
-    Tracking deleted = TrackingBuilder.delete(source, 999L);
+    Tracking deleted = TrackingBuilder.deleted(source, 999L);
     assertThat(deleted.deletedPositions()).isNull();
     assertThat(deleted.replacedPositions()).isNull();
 
-    Tracking replaced = TrackingBuilder.replace(source, 999L);
+    Tracking replaced = TrackingBuilder.replaced(source, 999L);
     assertThat(replaced.deletedPositions()).isNull();
     assertThat(replaced.replacedPositions()).isNull();
   }
@@ -344,11 +344,11 @@ class TestTrackingStruct {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: data sequence number is null");
 
-    assertThatThrownBy(() -> TrackingBuilder.delete(missingBoth, 1L))
+    assertThatThrownBy(() -> TrackingBuilder.deleted(missingBoth, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: data sequence number is null");
 
-    assertThatThrownBy(() -> TrackingBuilder.replace(missingBoth, 1L))
+    assertThatThrownBy(() -> TrackingBuilder.replaced(missingBoth, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: data sequence number is null");
 
@@ -361,11 +361,11 @@ class TestTrackingStruct {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: file sequence number is null");
 
-    assertThatThrownBy(() -> TrackingBuilder.delete(missingFileSeq, 1L))
+    assertThatThrownBy(() -> TrackingBuilder.deleted(missingFileSeq, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: file sequence number is null");
 
-    assertThatThrownBy(() -> TrackingBuilder.replace(missingFileSeq, 1L))
+    assertThatThrownBy(() -> TrackingBuilder.replaced(missingFileSeq, 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid tracking source: file sequence number is null");
   }
@@ -379,7 +379,7 @@ class TestTrackingStruct {
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot revive non-live entry with status DELETED");
 
-    assertThatThrownBy(() -> TrackingBuilder.delete(replacedSource, 1L))
+    assertThatThrownBy(() -> TrackingBuilder.deleted(replacedSource, 1L))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot revive non-live entry with status REPLACED");
   }
@@ -398,11 +398,11 @@ class TestTrackingStruct {
   void testExistingToTerminalTransitions() {
     Tracking existingSource = sourceTrackingWithStatus(EntryStatus.EXISTING);
 
-    Tracking deleted = TrackingBuilder.delete(existingSource, 999L);
+    Tracking deleted = TrackingBuilder.deleted(existingSource, 999L);
     assertThat(deleted.status()).isEqualTo(EntryStatus.DELETED);
     assertThat(deleted.snapshotId()).isEqualTo(999L);
 
-    Tracking replaced = TrackingBuilder.replace(existingSource, 999L);
+    Tracking replaced = TrackingBuilder.replaced(existingSource, 999L);
     assertThat(replaced.status()).isEqualTo(EntryStatus.REPLACED);
     assertThat(replaced.snapshotId()).isEqualTo(999L);
   }
