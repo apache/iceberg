@@ -51,6 +51,8 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -165,6 +167,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
+  private KeyManagementClient keyManagementClient = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
@@ -215,6 +218,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     // build the final configuration and set up the catalog's auth
     Map<String, String> mergedProps = config.merge(props);
+
+    if (mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
+        || mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
+      this.keyManagementClient = EncryptionUtil.createKmsClient(mergedProps);
+      this.closeables.addCloseable(this.keyManagementClient);
+    }
 
     // Enable Idempotency-Key header for mutation endpoints if the server advertises support
     if (config.idempotencyKeyLifetime() != null) {
@@ -643,8 +652,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private void trackFileIO(RESTTableOperations ops) {
-    if (io != ops.io()) {
-      fileIOTracker.track(ops);
+    TableOperations trackingOps = ops.rawFileIOTrackingOps();
+    if (io != trackingOps.io()) {
+      fileIOTracker.track(trackingOps);
     }
   }
 
@@ -1245,7 +1255,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
-        restClient, path, readHeaders, mutationHeaderSupplier, fileIO, current, supportedEndpoints);
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        current,
+        supportedEndpoints,
+        keyManagementClient);
   }
 
   /**
@@ -1287,7 +1304,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         updateType,
         createChanges,
         current,
-        supportedEndpoints);
+        supportedEndpoints,
+        keyManagementClient);
   }
 
   /**

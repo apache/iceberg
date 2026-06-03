@@ -69,6 +69,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -79,6 +80,10 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -2696,6 +2701,106 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void testEncryptedCreateTransactionAddsEncryptionKeys() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        catalog(
+            adapter,
+            ImmutableMap.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    TableIdentifier encryptedTable = TableIdentifier.of(TABLE.namespace(), "encrypted_table");
+    Transaction createTableTransaction =
+        catalog
+            .buildTable(encryptedTable, SCHEMA)
+            .withProperty(TableProperties.FORMAT_VERSION, "3")
+            .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+            .createTransaction();
+
+    createTableTransaction.newAppend().appendFile(FILE_A).commit();
+    createTableTransaction.commitTransaction();
+
+    EncryptionManager encryption = catalog.loadTable(encryptedTable).encryption();
+    assertThat(encryption).isInstanceOf(StandardEncryptionManager.class);
+    assertThat(EncryptionUtil.encryptionKeys(encryption)).isNotEmpty();
+
+    Optional<UpdateTableRequest> commitRequest =
+        allRequests(adapter).stream()
+            .filter(
+                req ->
+                    req.method() == HTTPMethod.POST
+                        && req.path().equals(RESOURCE_PATHS.table(encryptedTable))
+                        && req.body() instanceof UpdateTableRequest)
+            .map(req -> (UpdateTableRequest) req.body())
+            .filter(
+                request ->
+                    request.updates().stream()
+                        .anyMatch(MetadataUpdate.AddSnapshot.class::isInstance))
+            .findFirst();
+
+    assertThat(commitRequest)
+        .hasValueSatisfying(
+            request ->
+                assertThat(request.updates())
+                    .anySatisfy(
+                        update ->
+                            assertThat(update)
+                                .isInstanceOf(MetadataUpdate.AddEncryptionKey.class)));
+  }
+
+  @Test
+  public void testEncryptedCreateTransactionRequiresKmsClient() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    TableIdentifier encryptedTable =
+        TableIdentifier.of(TABLE.namespace(), "encrypted_table_without_kms");
+    Transaction createTableTransaction =
+        catalog
+            .buildTable(encryptedTable, SCHEMA)
+            .withProperty(TableProperties.FORMAT_VERSION, "3")
+            .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+            .createTransaction();
+
+    assertThatThrownBy(() -> createTableTransaction.newAppend().appendFile(FILE_A).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "missing catalog property encryption.kms-type or encryption.kms-impl");
+  }
+
+  @Test
+  public void testEncryptedTableLoadDoesNotRequireKmsClient() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    TableIdentifier encryptedTable = TableIdentifier.of(TABLE.namespace(), "encrypted_load");
+    catalog
+        .buildTable(encryptedTable, SCHEMA)
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+        .create();
+
+    Table loaded = catalog.loadTable(encryptedTable);
+    assertThat(loaded.properties())
+        .containsEntry(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1);
+    assertThatThrownBy(loaded::encryption)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "missing catalog property encryption.kms-type or encryption.kms-impl");
+  }
+
+  @Test
   public void testNoCleanupOnCreate503() {
     RESTCatalogAdapter adapter =
         Mockito.spy(
@@ -3983,12 +4088,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
+    return catalog(adapter, ImmutableMap.of());
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter, Map<String, String> additionalProperties) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize(
         "test",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
+            .putAll(additionalProperties)
+            .buildKeepingLast());
     return catalog;
   }
 

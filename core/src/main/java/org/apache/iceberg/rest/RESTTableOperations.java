@@ -24,6 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.SnapshotRef;
@@ -32,17 +34,25 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
+import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 
 class RESTTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
@@ -58,11 +68,18 @@ class RESTTableOperations implements TableOperations {
   private final Supplier<Map<String, String>> readHeaders;
   private final Supplier<Map<String, String>> mutationHeaders;
   private final FileIO io;
+  private final KeyManagementClient keyManagementClient;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
+  private EncryptionManager encryptionManager;
+  private EncryptingFileIO encryptingFileIO;
+  private TableOperations rawFileIOTrackingOps;
+  private String tableKeyId;
+  private int encryptionDekLength;
+  private List<EncryptedKey> encryptedKeys = Lists.newArrayList();
 
   RESTTableOperations(
       RESTClient client,
@@ -80,7 +97,29 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        null);
+  }
+
+  RESTTableOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO io,
+      TableMetadata current,
+      Set<Endpoint> endpoints,
+      KeyManagementClient keyManagementClient) {
+    this(
+        client,
+        path,
+        headers,
+        headers,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints,
+        keyManagementClient);
   }
 
   RESTTableOperations(
@@ -92,7 +131,7 @@ class RESTTableOperations implements TableOperations {
       List<MetadataUpdate> createChanges,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, headers, io, updateType, createChanges, current, endpoints);
+    this(client, path, headers, headers, io, updateType, createChanges, current, endpoints, null);
   }
 
   RESTTableOperations(
@@ -112,7 +151,30 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        null);
+  }
+
+  RESTTableOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaders,
+      FileIO io,
+      TableMetadata current,
+      Set<Endpoint> endpoints,
+      KeyManagementClient keyManagementClient) {
+    this(
+        client,
+        path,
+        readHeaders,
+        mutationHeaders,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints,
+        keyManagementClient);
   }
 
   RESTTableOperations(
@@ -125,11 +187,36 @@ class RESTTableOperations implements TableOperations {
       List<MetadataUpdate> createChanges,
       TableMetadata current,
       Set<Endpoint> endpoints) {
+    this(
+        client,
+        path,
+        readHeaders,
+        mutationHeaders,
+        io,
+        updateType,
+        createChanges,
+        current,
+        endpoints,
+        null);
+  }
+
+  RESTTableOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaders,
+      FileIO io,
+      UpdateType updateType,
+      List<MetadataUpdate> createChanges,
+      TableMetadata current,
+      Set<Endpoint> endpoints,
+      KeyManagementClient keyManagementClient) {
     this.client = client;
     this.path = path;
     this.readHeaders = readHeaders;
     this.mutationHeaders = mutationHeaders;
     this.io = io;
+    this.keyManagementClient = keyManagementClient;
     this.updateType = updateType;
     this.createChanges = createChanges;
     this.replaceBase = current;
@@ -159,6 +246,9 @@ class RESTTableOperations implements TableOperations {
     Consumer<ErrorResponse> errorHandler;
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
+    validateEncryptionProperties(base, metadata);
+    TableMetadata tableMetadata = withEncryptionKeys(metadata);
+
     switch (updateType) {
       case CREATE:
         Preconditions.checkState(
@@ -166,7 +256,7 @@ class RESTTableOperations implements TableOperations {
         updates =
             ImmutableList.<MetadataUpdate>builder()
                 .addAll(createChanges)
-                .addAll(metadata.changes())
+                .addAll(tableMetadata.changes())
                 .build();
         requirements = UpdateRequirements.forCreateTable(updates);
         errorHandler = ErrorHandlers.createTableErrorHandler();
@@ -177,7 +267,7 @@ class RESTTableOperations implements TableOperations {
         updates =
             ImmutableList.<MetadataUpdate>builder()
                 .addAll(createChanges)
-                .addAll(metadata.changes())
+                .addAll(tableMetadata.changes())
                 .build();
         // use the original replace base metadata because the transaction will refresh
         requirements = UpdateRequirements.forReplaceTable(replaceBase, updates);
@@ -186,7 +276,7 @@ class RESTTableOperations implements TableOperations {
 
       case SIMPLE:
         Preconditions.checkState(base != null, "Invalid base metadata: null");
-        updates = metadata.changes();
+        updates = tableMetadata.changes();
         requirements = UpdateRequirements.forUpdateTable(base, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
         break;
@@ -245,7 +335,162 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
+    return io(current());
+  }
+
+  private FileIO rawFileIO() {
     return io;
+  }
+
+  TableOperations rawFileIOTrackingOps() {
+    if (rawFileIOTrackingOps == null) {
+      rawFileIOTrackingOps =
+          new TableOperations() {
+            @Override
+            public TableMetadata current() {
+              return RESTTableOperations.this.current();
+            }
+
+            @Override
+            public TableMetadata refresh() {
+              return RESTTableOperations.this.refresh();
+            }
+
+            @Override
+            public void commit(TableMetadata base, TableMetadata metadata) {
+              RESTTableOperations.this.commit(base, metadata);
+            }
+
+            @Override
+            public FileIO io() {
+              return RESTTableOperations.this.rawFileIO();
+            }
+
+            @Override
+            public String metadataFileLocation(String fileName) {
+              return RESTTableOperations.this.metadataFileLocation(fileName);
+            }
+
+            @Override
+            public LocationProvider locationProvider() {
+              return RESTTableOperations.this.locationProvider();
+            }
+          };
+    }
+
+    return rawFileIOTrackingOps;
+  }
+
+  private FileIO io(TableMetadata metadata) {
+    if (!isEncrypted(metadata)) {
+      return io;
+    }
+
+    if (encryptingFileIO == null) {
+      encryptingFileIO = EncryptingFileIO.combine(io, encryption(metadata));
+    }
+
+    return encryptingFileIO;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    return encryption(current());
+  }
+
+  private EncryptionManager encryption(TableMetadata metadata) {
+    if (metadata != null) {
+      encryptionPropsFromMetadata(metadata.properties());
+      if (tableKeyId != null && encryptedKeys.isEmpty()) {
+        encryptedKeys = Lists.newArrayList(metadata.encryptionKeys());
+      }
+    }
+
+    if (tableKeyId != null) {
+      Preconditions.checkArgument(
+          keyManagementClient != null,
+          "Cannot create encryption manager, missing catalog property %s or %s",
+          CatalogProperties.ENCRYPTION_KMS_TYPE,
+          CatalogProperties.ENCRYPTION_KMS_IMPL);
+
+      if (encryptionManager == null) {
+        Map<String, String> encryptionProperties =
+            ImmutableMap.of(
+                TableProperties.ENCRYPTION_TABLE_KEY,
+                tableKeyId,
+                TableProperties.ENCRYPTION_DEK_LENGTH,
+                String.valueOf(encryptionDekLength));
+
+        encryptionManager =
+            EncryptionUtil.createEncryptionManager(
+                encryptedKeys, encryptionProperties, keyManagementClient);
+      }
+
+      return encryptionManager;
+    }
+
+    return PlaintextEncryptionManager.instance();
+  }
+
+  private TableMetadata withEncryptionKeys(TableMetadata metadata) {
+    EncryptionManager encrManager = encryption(metadata);
+    if (encrManager instanceof StandardEncryptionManager) {
+      TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
+      for (Map.Entry<String, EncryptedKey> entry :
+          EncryptionUtil.encryptionKeys(encrManager).entrySet()) {
+        builder.addEncryptionKey(entry.getValue());
+      }
+
+      return builder.build();
+    }
+
+    return metadata;
+  }
+
+  private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
+    if (tableKeyId == null) {
+      tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+    }
+
+    if (tableKeyId != null && encryptionDekLength <= 0) {
+      encryptionDekLength =
+          PropertyUtil.propertyAsInt(
+              tableProperties,
+              TableProperties.ENCRYPTION_DEK_LENGTH,
+              TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+    }
+  }
+
+  private static boolean isEncrypted(TableMetadata metadata) {
+    return metadata != null
+        && metadata.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY);
+  }
+
+  private static void validateEncryptionProperties(TableMetadata base, TableMetadata metadata) {
+    if (base != null) {
+      Set<String> removedProps =
+          base.properties().keySet().stream()
+              .filter(key -> !metadata.properties().containsKey(key))
+              .collect(Collectors.toSet());
+
+      Preconditions.checkArgument(
+          !removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY),
+          "Cannot remove key ID from an encrypted table");
+
+      Preconditions.checkArgument(
+          Objects.equals(
+              base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
+              metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY)),
+          "Cannot modify key ID of an encrypted table");
+    }
+  }
+
+  private void resetEncryption() {
+    this.encryptionManager = null;
+    this.encryptingFileIO = null;
+    this.tableKeyId = null;
+    this.encryptionDekLength = 0;
+    this.encryptedKeys = Lists.newArrayList();
   }
 
   private static Long expectedSnapshotIdIfSnapshotAddOnly(List<MetadataUpdate> updates) {
@@ -292,6 +537,7 @@ class RESTTableOperations implements TableOperations {
     if (current == null
         || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
       this.current = checkUUID(current, response.tableMetadata());
+      resetEncryption();
     }
 
     return current;
@@ -362,12 +608,12 @@ class RESTTableOperations implements TableOperations {
 
       @Override
       public FileIO io() {
-        return RESTTableOperations.this.io();
+        return RESTTableOperations.this.io(uncommittedMetadata);
       }
 
       @Override
       public EncryptionManager encryption() {
-        return RESTTableOperations.this.encryption();
+        return RESTTableOperations.this.encryption(uncommittedMetadata);
       }
 
       @Override
