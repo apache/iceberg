@@ -38,14 +38,11 @@ import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcWritingTestUtils;
 import org.apache.iceberg.orc.TestORCSchemaUtil;
+import org.apache.orc.OrcConf;
 import org.apache.orc.OrcFile;
-import org.apache.orc.OrcProto;
 import org.apache.orc.Reader;
-import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
-import org.apache.orc.impl.OrcIndex;
-import org.apache.orc.impl.RecordReaderImpl;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class OrcFormat implements FileFormatTestSupport {
@@ -94,17 +91,14 @@ public class OrcFormat implements FileFormatTestSupport {
   @Override
   public Map<String, String> testPropertiesToSet() {
     return Map.of(
-        TableProperties.ORC_COMPRESSION,
-        "snappy",
-        TableProperties.ORC_BLOOM_FILTER_COLUMNS,
-        "col_a");
+        TableProperties.ORC_COMPRESSION, "snappy", OrcConf.ROW_INDEX_STRIDE.getAttribute(), "8192");
   }
 
   @Override
   public boolean checkTestProperties(InputFile inputFile) throws IOException {
     try (Reader reader = newOrcReader(inputFile, new Configuration())) {
       return "SNAPPY".equals(reader.getCompressionKind().name())
-          && hasBloomFilter(inputFile, "col_a");
+          && reader.getRowIndexStride() == 8192;
     }
   }
 
@@ -132,27 +126,5 @@ public class OrcFormat implements FileFormatTestSupport {
             .maxLength(inputFile.getLength());
 
     return OrcFile.createReader(hadoopPath, readerOptions);
-  }
-
-  private static boolean hasBloomFilter(InputFile inputFile, String columnName) throws IOException {
-    try (Reader reader = newOrcReader(inputFile, new Configuration());
-        RecordReader rows = reader.rows()) {
-      if (!(rows instanceof RecordReaderImpl)) {
-        throw new IllegalStateException(
-            "Expected RecordReaderImpl to access row index, but got: " + rows.getClass().getName());
-      }
-
-      TypeDescription column = reader.getSchema().findSubtype(columnName);
-      int columnId = column.getId();
-      boolean[] readColumns = new boolean[reader.getSchema().getMaximumId() + 1];
-      readColumns[columnId] = true;
-
-      OrcIndex indices = ((RecordReaderImpl) rows).readRowIndex(0, null, readColumns);
-      OrcProto.BloomFilterIndex[] bloomFilterIndex = indices.getBloomFilterIndex();
-      return bloomFilterIndex != null
-          && columnId < bloomFilterIndex.length
-          && bloomFilterIndex[columnId] != null
-          && bloomFilterIndex[columnId].getBloomFilterCount() > 0;
-    }
   }
 }
