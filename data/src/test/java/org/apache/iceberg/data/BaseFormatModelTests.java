@@ -1604,7 +1604,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  void testDataWriterOverwriteNone(FileFormat fileFormat) throws IOException {
+  void testDataWriterNoOverwriteFailsIfFileExists(FileFormat fileFormat) throws IOException {
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
