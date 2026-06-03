@@ -119,8 +119,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
-  public MigrateTableSparkAction ignoreMissingFiles(boolean ignore) {
-    this.ignoreMissingFiles = ignore;
+  public MigrateTableSparkAction ignoreMissingFiles() {
+    this.ignoreMissingFiles = true;
     return this;
   }
 

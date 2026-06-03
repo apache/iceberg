@@ -22,15 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -312,17 +310,17 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testMigrateIgnoreMissingFiles() throws IOException {
-    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
-    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
-        tableName, location);
-    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", tableName);
+  public void testMigrateMissingFilesFailByDefault() throws IOException {
+    createPartitionedTableWithMissingFiles();
 
-    // Remove one partition's directory while leaving the catalog entry intact to simulate a
-    // concurrent deletion racing with the migration.
-    deleteDirectory(Paths.get(location, "id=1"));
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate('%s')", catalogName, tableName))
+        .as("Migrate should fail by default when source files are missing")
+        .hasRootCauseInstanceOf(FileNotFoundException.class);
+  }
+
+  @TestTemplate
+  public void testMigrateIgnoreMissingFiles() throws IOException {
+    createPartitionedTableWithMissingFiles();
 
     Object result =
         scalarSql(
@@ -336,17 +334,16 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
   }
 
-  private static void deleteDirectory(Path dir) throws IOException {
-    try (Stream<Path> walk = Files.walk(dir)) {
-      walk.sorted(Comparator.reverseOrder())
-          .forEach(
-              p -> {
-                try {
-                  Files.delete(p);
-                } catch (IOException e) {
-                  throw new UncheckedIOException(e);
-                }
-              });
-    }
+  private void createPartitionedTableWithMissingFiles() throws IOException {
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", tableName);
+
+    // Remove one partition's directory while leaving the catalog entry intact to simulate a
+    // concurrent deletion racing with the migration.
+    FileUtils.deleteDirectory(new File(location, "id=1"));
   }
 }

@@ -124,10 +124,9 @@ class MigrateTableProcedure extends BaseProcedure {
           migrateTableSparkAction.executeWith(SparkTableUtil.migrationService(parallelism));
     }
 
-    if (input.isProvided(IGNORE_MISSING_FILES_PARAM)) {
-      migrateTableSparkAction =
-          migrateTableSparkAction.ignoreMissingFiles(
-              input.asBoolean(IGNORE_MISSING_FILES_PARAM, false));
+    boolean ignoreMissingFiles = input.asBoolean(IGNORE_MISSING_FILES_PARAM, false);
+    if (ignoreMissingFiles) {
+      migrateTableSparkAction = migrateTableSparkAction.ignoreMissingFiles();
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();

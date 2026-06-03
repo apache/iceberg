@@ -73,14 +73,14 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   }
 
   /**
-   * Sets whether to ignore {@link java.io.FileNotFoundException} when listing source data files.
-   * When set to {@code true}, partitions whose files have been deleted concurrently are skipped
-   * with a warning instead of failing the migration. The default is {@code false}.
+   * Enables ignoring {@link java.io.FileNotFoundException} when listing source data files. When
+   * enabled, source data files that have disappeared (for example, because a partition directory
+   * was removed by concurrent cleanup) are skipped with a warning instead of failing the migration.
+   * The default is to fail.
    *
-   * @param ignore whether to ignore missing source files
    * @return this for method chaining
    */
-  default MigrateTable ignoreMissingFiles(boolean ignore) {
+  default MigrateTable ignoreMissingFiles() {
     throw new UnsupportedOperationException("Ignoring missing files is not supported");
   }
 
