@@ -39,17 +39,7 @@ public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
   }
 
   @Override
-  protected boolean supportsTimestampNano() {
-    return false;
-  }
-
-  @Override
   protected boolean supportsVariant() {
-    return false;
-  }
-
-  @Override
-  protected boolean supportsUnknown() {
     return false;
   }
 

@@ -80,6 +80,9 @@ public class InternalRowConverter {
       case STRING -> UTF8String.fromString((String) value);
       case UUID -> UTF8String.fromString(value.toString());
       case FIXED, BINARY -> {
+        if (value instanceof byte[] bytes) {
+          yield bytes;
+        }
         ByteBuffer buffer = (ByteBuffer) value;
         yield Arrays.copyOfRange(
             buffer.array(),

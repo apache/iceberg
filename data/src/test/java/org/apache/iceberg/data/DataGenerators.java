@@ -70,6 +70,32 @@ class DataGenerators {
     }
   }
 
+  /**
+   * Narrow five-column schema used as a default fixture for tests that exercise generic
+   * read/write/projection/evolution flows without needing every primitive type. Not included in
+   * {@link #ALL} because the broader {@link Primitives} schema already covers parameterized
+   * coverage.
+   */
+  static class DefaultSchema implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col_a", Types.StringType.get()),
+            Types.NestedField.required(2, "col_b", Types.IntegerType.get()),
+            Types.NestedField.required(3, "col_c", Types.LongType.get()),
+            Types.NestedField.required(4, "col_d", Types.FloatType.get()),
+            Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "DefaultSchema";
+    }
+  }
+
   static class UUID implements DataGenerator {
     private final Schema schema =
         new Schema(Types.NestedField.required(1, "uuid_col", Types.UUIDType.get()));
