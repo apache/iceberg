@@ -21,9 +21,13 @@ package org.apache.iceberg.transforms;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Locale;
@@ -40,12 +44,21 @@ class TransformUtil {
     return String.format(Locale.ROOT, "%04d", EPOCH_YEAR + yearOrdinal);
   }
 
+  static int parseHumanYear(String value) {
+    return Integer.parseInt(value) - EPOCH_YEAR;
+  }
+
   static String humanMonth(int monthOrdinal) {
     return String.format(
         Locale.ROOT,
         "%04d-%02d",
         EPOCH_YEAR + Math.floorDiv(monthOrdinal, 12),
         1 + Math.floorMod(monthOrdinal, 12));
+  }
+
+  static int parseHumanMonth(String value) {
+    YearMonth ym = YearMonth.parse(value);
+    return (ym.getYear() - EPOCH_YEAR) * 12 + (ym.getMonthValue() - 1);
   }
 
   static String humanDay(int dayOrdinal) {
@@ -56,6 +69,12 @@ class TransformUtil {
         day.getYear(),
         day.getMonth().getValue(),
         day.getDayOfMonth());
+  }
+
+  static int parseHumanDay(String value) {
+    return (int)
+        ChronoUnit.DAYS.between(
+            EPOCH, OffsetDateTime.of(LocalDate.parse(value), LocalTime.MIDNIGHT, ZoneOffset.UTC));
   }
 
   static String humanTime(Long microsFromMidnight) {
@@ -87,6 +106,15 @@ class TransformUtil {
         time.getMonth().getValue(),
         time.getDayOfMonth(),
         time.getHour());
+  }
+
+  private static final DateTimeFormatter HOUR_FORMATTER =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.ROOT);
+
+  static int parseHumanHour(String value) {
+    return (int)
+        ChronoUnit.HOURS.between(
+            EPOCH, OffsetDateTime.of(LocalDateTime.parse(value, HOUR_FORMATTER), ZoneOffset.UTC));
   }
 
   static String base64encode(ByteBuffer buffer) {

@@ -280,4 +280,52 @@ public class Transforms {
   public static <T> Transform<T, Void> alwaysNull() {
     return VoidTransform.get();
   }
+
+  /**
+   * Parses the human-readable year partition value (e.g. "2024") to its int ordinal as stored by
+   * the year transform: years since 1970.
+   *
+   * @param value the human-readable year, formatted as "yyyy"
+   * @return the year ordinal (yyyy - 1970)
+   * @throws NumberFormatException if {@code value} is not a valid integer
+   */
+  public static int parseHumanYear(String value) {
+    return TransformUtil.parseHumanYear(value);
+  }
+
+  /**
+   * Parses the human-readable month partition value (e.g. "2024-01") to its int ordinal as stored
+   * by the month transform: months since 1970-01.
+   *
+   * @param value the human-readable month, formatted as "yyyy-MM"
+   * @return the month ordinal ((yyyy - 1970) * 12 + (MM - 1))
+   * @throws java.time.format.DateTimeParseException if {@code value} is malformed
+   */
+  public static int parseHumanMonth(String value) {
+    return TransformUtil.parseHumanMonth(value);
+  }
+
+  /**
+   * Parses the human-readable day partition value (e.g. "2024-02-15") to its int ordinal as stored
+   * by the day transform: days since 1970-01-01 (UTC).
+   *
+   * @param value the human-readable day, formatted as "yyyy-MM-dd"
+   * @return the day ordinal
+   * @throws java.time.format.DateTimeParseException if {@code value} is malformed
+   */
+  public static int parseHumanDay(String value) {
+    return TransformUtil.parseHumanDay(value);
+  }
+
+  /**
+   * Parses the human-readable hour partition value (e.g. "2024-02-15-11") to its int ordinal as
+   * stored by the hour transform: hours since 1970-01-01T00 (UTC).
+   *
+   * @param value the human-readable hour, formatted as "yyyy-MM-dd-HH"
+   * @return the hour ordinal
+   * @throws java.time.format.DateTimeParseException if {@code value} is malformed
+   */
+  public static int parseHumanHour(String value) {
+    return TransformUtil.parseHumanHour(value);
+  }
 }
