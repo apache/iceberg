@@ -113,6 +113,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private final long targetManifestSizeBytes;
+  private final FileFormat manifestFormat;
   private final Map<String, String> manifestWriterProps;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
@@ -123,6 +124,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       SnapshotAncestryValidator.NON_VALIDATING;
 
   private ExecutorService workerPool;
+  private ExecutorService writePool;
+  private int writePoolParallelism = ThreadPools.WORKER_THREAD_POOL_SIZE;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -142,6 +145,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetManifestSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    this.manifestFormat =
+        ops.current().formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS
+            ? FileFormat.PARQUET
+            : FileFormat.AVRO;
     this.manifestWriterProps = manifestWriterProperties(ops.current());
     boolean snapshotIdInheritanceEnabled =
         ops.current()
@@ -161,6 +168,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  @Override
+  public ThisT writeManifestsWith(ExecutorService executorService, int parallelism) {
+    Preconditions.checkArgument(executorService != null, "Executor service cannot be null");
+    Preconditions.checkArgument(
+        parallelism > 0, "Parallelism must be greater than 0, but was: %s", parallelism);
+    this.writePool = executorService;
+    this.writePoolParallelism = parallelism;
     return self();
   }
 
@@ -220,6 +237,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     return workerPool;
+  }
+
+  protected ExecutorService writePool() {
+    if (writePool == null) {
+      this.writePool = ThreadPools.getWorkerPool();
+    }
+
+    return writePool;
   }
 
   @Override
@@ -603,7 +628,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected EncryptedOutputFile newManifestOutputFile() {
     String manifestFileLocation =
         ops.metadataFileLocation(
-            FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
+            manifestFormat.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
     return EncryptingFileIO.combine(ops.io(), ops.encryption())
         .newEncryptingOutputFile(manifestFileLocation);
   }
@@ -775,9 +800,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  private static <F> List<ManifestFile> writeManifests(
+  private <F> List<ManifestFile> writeManifests(
       Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
-    int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
+    int parallelism = manifestWriterCount(writePoolParallelism, files.size());
     List<List<F>> groups = divide(files, parallelism);
 
     // Create a new list pairing each group with its index
@@ -791,7 +816,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Tasks.foreach(groupsWithIndex)
         .stopOnFailure()
         .throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(writePool())
         .run(
             indexedGroup -> {
               int index = indexedGroup.first();

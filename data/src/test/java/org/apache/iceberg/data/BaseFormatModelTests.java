@@ -146,7 +146,6 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_SPLIT = "split";
   static final String FEATURE_READER_DEFAULT = "readerDefault";
   static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
-  static final String FEATURE_META_ROW_LINEAGE = "metaRowLineage";
   static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
 
@@ -162,10 +161,7 @@ public abstract class BaseFormatModelTests<T> {
           },
           FileFormat.ORC,
           new String[] {
-            FEATURE_REUSE_CONTAINERS,
-            FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
-            FEATURE_META_ROW_LINEAGE,
-            FEATURE_READER_DEFAULT
+            FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_READER_DEFAULT
           });
 
   private InMemoryFileIO fileIO;
@@ -1121,7 +1117,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinage(FileFormat fileFormat) throws IOException {
-    assumeSupports(fileFormat, FEATURE_META_ROW_LINEAGE);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
@@ -1155,7 +1150,6 @@ public abstract class BaseFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLinageExistValue(FileFormat fileFormat) throws IOException {
-    assumeSupports(fileFormat, FEATURE_META_ROW_LINEAGE);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema dataSchema = dataGenerator.schema();

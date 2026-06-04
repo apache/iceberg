@@ -1469,10 +1469,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .as(Encoders.STRING())
             .collectAsList();
     Predicate<String> isManifest =
-        f ->
-            (f.contains("optimized-m-") && f.endsWith(".avro"))
-                || f.endsWith("-m0.avro")
-                || f.endsWith("-m1.avro");
+        f -> f.contains("optimized-m-") || f.contains("-m0.") || f.contains("-m1.");
     Predicate<String> isManifestList = f -> f.contains("snap-") && f.endsWith(".avro");
     Predicate<String> isMetadataJSON = f -> f.endsWith(".metadata.json");
 
