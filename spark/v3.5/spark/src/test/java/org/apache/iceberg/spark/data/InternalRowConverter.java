@@ -79,10 +79,8 @@ public class InternalRowConverter {
               : ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) value).atZone(ZoneId.of("UTC")));
       case STRING -> UTF8String.fromString((String) value);
       case UUID -> UTF8String.fromString(value.toString());
-      case FIXED, BINARY -> {
-        if (value instanceof byte[] bytes) {
-          yield bytes;
-        }
+      case FIXED -> (byte[]) value;
+      case BINARY -> {
         ByteBuffer buffer = (ByteBuffer) value;
         yield Arrays.copyOfRange(
             buffer.array(),

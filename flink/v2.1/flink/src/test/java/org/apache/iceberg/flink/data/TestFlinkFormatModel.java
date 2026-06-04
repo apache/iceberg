@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
+import java.util.Set;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.PartitionData;
@@ -33,14 +34,12 @@ import org.apache.iceberg.types.Types;
 
 public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
 
-  @Override
-  protected boolean supportsTime() {
-    return false;
-  }
+  private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
+      Set.of(Type.TypeID.TIME, Type.TypeID.VARIANT);
 
   @Override
-  protected boolean supportsVariant() {
-    return false;
+  protected Schema filterUnsupported(Schema schema) {
+    return excludeColumnsContaining(schema, UNSUPPORTED_TYPE_IDS);
   }
 
   @Override

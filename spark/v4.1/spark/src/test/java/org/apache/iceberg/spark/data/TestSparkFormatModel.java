@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.BaseFormatModelTests;
 import org.apache.iceberg.data.Record;
@@ -31,14 +32,12 @@ import org.apache.spark.sql.catalyst.InternalRow;
 
 public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
 
-  @Override
-  protected boolean supportsTime() {
-    return false;
-  }
+  private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
+      Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO);
 
   @Override
-  protected boolean supportsTimestampNano() {
-    return false;
+  protected Schema filterUnsupported(Schema schema) {
+    return excludeColumnsContaining(schema, UNSUPPORTED_TYPE_IDS);
   }
 
   @Override
