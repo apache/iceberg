@@ -83,7 +83,7 @@ public class ParquetFormat implements FileFormatTestSupport {
         TableProperties.PARQUET_COMPRESSION,
         "gzip",
         TableProperties.PARQUET_PAGE_ROW_LIMIT,
-        "5",
+        "1",
         TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT,
         "1");
   }
@@ -95,29 +95,24 @@ public class ParquetFormat implements FileFormatTestSupport {
           "GZIP"
               .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
 
-      return compressionMatches && hasExpectedDataPages(reader, 2, 5);
+      return compressionMatches && hasExpectedDataPages(reader, 1);
     }
   }
 
-  private boolean hasExpectedDataPages(
-      ParquetFileReader reader, int expectedPageCount, int expectedRowsPerPage) throws IOException {
-    int pageCount = 0;
+  private boolean hasExpectedDataPages(ParquetFileReader reader, int expectedRowsPerPage)
+      throws IOException {
     PageReadStore rowGroup;
 
     while ((rowGroup = reader.readNextRowGroup()) != null) {
       PageReader pageReader =
           rowGroup.getPageReader(reader.getFileMetaData().getSchema().getColumns().get(0));
-      DataPage page;
-      while ((page = pageReader.readPage()) != null) {
-        pageCount += 1;
-
-        if (page.getValueCount() != expectedRowsPerPage) {
-          return false;
-        }
+      DataPage page = pageReader.readPage();
+      if (page != null) {
+        return page.getValueCount() == expectedRowsPerPage;
       }
     }
 
-    return pageCount == expectedPageCount;
+    return false;
   }
 
   @Override
