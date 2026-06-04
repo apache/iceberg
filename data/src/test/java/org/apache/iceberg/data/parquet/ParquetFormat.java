@@ -95,11 +95,11 @@ public class ParquetFormat implements FileFormatTestSupport {
           "GZIP"
               .equals(reader.getFooter().getBlocks().get(0).getColumns().get(0).getCodec().name());
 
-      return compressionMatches && hasExpectedDataPages(reader, 1);
+      return compressionMatches && hasExpectedRowsPerPage(reader, 1);
     }
   }
 
-  private boolean hasExpectedDataPages(ParquetFileReader reader, int expectedRowsPerPage)
+  private boolean hasExpectedRowsPerPage(ParquetFileReader reader, int expectedRowsPerPage)
       throws IOException {
     PageReadStore rowGroup;
 
