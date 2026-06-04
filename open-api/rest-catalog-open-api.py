@@ -82,11 +82,28 @@ class UpdateNamespacePropertiesRequest(BaseModel):
     )
 
 
+class Namespace(RootModel[list[str]]):
+    """
+    Reference to one or more levels of a namespace
+    """
+
+    root: list[str] = Field(
+        ...,
+        description='Reference to one or more levels of a namespace',
+        examples=[['accounting', 'tax']],
+    )
+
+
 class PageToken(RootModel[str | None]):
     root: str | None = Field(
         None,
         description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
     )
+
+
+class TableIdentifier(BaseModel):
+    namespace: Namespace
+    name: str
 
 
 class CatalogObjectIdentifier(RootModel[list[str]]):
@@ -317,6 +334,20 @@ class ViewHistoryEntry(BaseModel):
     timestamp_ms: int = Field(..., alias='timestamp-ms')
 
 
+class ViewVersion(BaseModel):
+    version_id: int = Field(..., alias='version-id')
+    timestamp_ms: int = Field(..., alias='timestamp-ms')
+    schema_id: int = Field(
+        ...,
+        alias='schema-id',
+        description='Schema ID to set as current, or -1 to set last added schema',
+    )
+    summary: dict[str, str]
+    representations: list[ViewRepresentation]
+    default_catalog: str | None = Field(None, alias='default-catalog')
+    default_namespace: Namespace = Field(..., alias='default-namespace')
+
+
 class BaseUpdate(BaseModel):
     action: str
 
@@ -407,6 +438,11 @@ class RemovePropertiesUpdate(BaseUpdate):
     removals: list[str]
 
 
+class AddViewVersionUpdate(BaseUpdate):
+    action: Literal['add-view-version'] = 'add-view-version'
+    view_version: ViewVersion = Field(..., alias='view-version')
+
+
 class SetCurrentViewVersionUpdate(BaseUpdate):
     action: Literal['set-current-view-version'] = 'set-current-view-version'
     view_version_id: int = Field(
@@ -446,11 +482,10 @@ class RemoveEncryptionKeyUpdate(BaseUpdate):
     key_id: str = Field(..., alias='key-id')
 
 
-class CustomOperationType(RootModel[str]):
+class OperationType(RootModel[str]):
     root: str = Field(
         ...,
-        description="Custom operation type for catalog-specific extensions. Must start with 'x-' followed by an implementation-specific identifier.\n",
-        pattern='^x-[a-zA-Z0-9-_.]+$',
+        description='The type of an operation. The standard operation types defined by this specification are listed below. This set may grow in future versions of the specification, so clients should ignore (discard) events with unknown operation types.\nImplementation-specific operation types SHOULD use an `x-` prefix (for example, `x-mycatalog.archive-snapshot`) to avoid colliding with current or future standard operation types. This mirrors the `X-` convention for HTTP headers and is a naming convention rather than a schema constraint.\nKnown standard operation types: `create-table`, `register-table`, `drop-table`, `update-table`, `rename-table`, `create-view`, `drop-view`, `update-view`, `rename-view`, `create-namespace`, `update-namespace-properties`, `drop-namespace`.\n',
     )
 
 
@@ -580,6 +615,50 @@ class EmptyPlanningResult(BaseModel):
 class PlanStatus(RootModel[Literal['completed', 'submitted', 'cancelled', 'failed']]):
     root: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
+    )
+
+
+class QueryEventsRequest(BaseModel):
+    continuation_token: str | None = Field(
+        None,
+        alias='continuation-token',
+        description='A continuation token returned by a previous response. Clients should treat the token as an opaque value and pass it unmodified. If not provided, events are returned from the beginning of the event log subject to other filters.\n',
+    )
+    page_size: int | None = Field(
+        None,
+        alias='page-size',
+        description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size. Servers may return less results than requested for various reasons, such as server side limits, payload size or processing time.\n',
+        ge=1,
+    )
+    since_timestamp_ms: int | None = Field(
+        None,
+        alias='since-timestamp-ms',
+        description='Optional starting timestamp (seek-to-timestamp) for the initial request, in milliseconds (inclusive). Lets clients begin consumption from a rough point in time without iterating the full history. If not provided, no filtering based on timestamp values is applied.\n',
+    )
+    operation_types: list[OperationType] | None = Field(
+        None,
+        alias='operation-types',
+        description='Filter events by the type of operation. If not provided, all types are returned.\n',
+    )
+    catalog_objects_by_name: list[CatalogObjectIdentifier] | None = Field(
+        None,
+        alias='catalog-objects-by-name',
+        description='Filter events by the list of catalog objects referenced by name (namespaces, tables, views). If not provided, events for all objects must be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) must be returned (recursively).\n',
+    )
+    catalog_objects_by_uuid: list[UUID] | None = Field(
+        None,
+        alias='catalog-objects-by-uuid',
+        description='Filter events by the list of catalog object UUIDs (tables, views). Combine with `object-types` to narrow to a specific object kind.\n',
+    )
+    object_types: list[Literal['namespace', 'table', 'view']] | None = Field(
+        None,
+        alias='object-types',
+        description='Filter events by the type of catalog object. If not provided, events for all object types must be returned.\n',
+    )
+    custom_filters: dict[str, Any] | None = Field(
+        None,
+        alias='custom-filters',
+        description='Implementation-specific filter extensions. Implementations may define custom filter properties beyond the standard ones defined in this specification.\n',
     )
 
 
@@ -756,6 +835,34 @@ class IcebergErrorResponse(BaseModel):
     error: ErrorModel
 
 
+class CreateNamespaceResponse(BaseModel):
+    namespace: Namespace
+    properties: dict[str, str] | None = Field(
+        {},
+        description='Properties stored on the namespace, if supported by the server.',
+        examples=[{'owner': 'Ralph', 'created_at': '1452120468'}],
+    )
+
+
+class GetNamespaceResponse(BaseModel):
+    namespace: Namespace
+    properties: dict[str, str] | None = Field(
+        {},
+        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
+        examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
+    )
+
+
+class ListTablesResponse(BaseModel):
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    identifiers: list[TableIdentifier] | None = None
+
+
+class ListNamespacesResponse(BaseModel):
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    namespaces: list[Namespace] | None = None
+
+
 class UpdateNamespacePropertiesResponse(BaseModel):
     updated: list[str] = Field(
         ..., description='List of property keys that were added or updated'
@@ -765,6 +872,61 @@ class UpdateNamespacePropertiesResponse(BaseModel):
         None,
         description="List of properties requested for removal that were not found in the namespace's properties. Represents a partial success response. Server's do not need to implement this.",
     )
+
+
+class Actor(BaseModel):
+    """
+    The actor who performed the operation, such as a user or service account. Implementations may add arbitrary additional fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.
+
+    """
+
+    model_config = ConfigDict(
+        extra='allow',
+    )
+    id: str | None = Field(
+        None,
+        description='Recommended, optional. Stable identifier of the actor (e.g. a user or service account). Provided when the server can attribute the operation.\n',
+    )
+
+
+class BaseOperation(BaseModel):
+    """
+    Base type for all catalog operations carried by an `Event`. The `operation-type` discriminator selects the concrete operation schema. Standard operation types are enumerated in `OperationType`. Implementation-specific operation types use an `x-` prefix (see `OperationType`) and are carried as a `BaseOperation` with implementation-defined additional properties; clients should discard operations with unknown `operation-type` values.
+
+    """
+
+    operation_type: OperationType = Field(..., alias='operation-type')
+
+
+class DropTableOperation(BaseOperation):
+    operation_type: Literal['drop-table'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    purge: bool | None = Field(None, description='Whether purge flag was set')
+
+
+class DropViewOperation(BaseOperation):
+    operation_type: Literal['drop-view'] = Field(..., alias='operation-type')
+    identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
+
+
+class CreateNamespaceOperation(CreateNamespaceResponse, BaseOperation):
+    operation_type: Literal['create-namespace'] = Field(..., alias='operation-type')
+
+
+class UpdateNamespacePropertiesOperation(
+    UpdateNamespacePropertiesResponse, BaseOperation
+):
+    operation_type: Literal['update-namespace-properties'] = Field(
+        ..., alias='operation-type'
+    )
+    namespace: Namespace
+
+
+class DropNamespaceOperation(BaseOperation):
+    operation_type: Literal['drop-namespace'] = Field(..., alias='operation-type')
+    namespace: Namespace
 
 
 class BlobMetadata(BaseModel):
@@ -1038,15 +1200,18 @@ class RemoteSignResult(BaseModel):
     headers: MultiValuedMap
 
 
-class Namespace(BaseModel):
-    """
-    Reference to one or more levels of a namespace
-    """
-
-
-class TableIdentifier(BaseModel):
+class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
-    name: str
+    properties: dict[str, str] | None = Field(
+        {},
+        description='Configured string to string map of properties for the namespace',
+        examples=[{'owner': 'Hank Bendickson'}],
+    )
+
+
+class RenameTableRequest(BaseModel):
+    source: TableIdentifier
+    destination: TableIdentifier
 
 
 class TransformTerm(BaseModel):
@@ -1055,70 +1220,10 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
-class ViewVersion(BaseModel):
-    version_id: int = Field(..., alias='version-id')
-    timestamp_ms: int = Field(..., alias='timestamp-ms')
-    schema_id: int = Field(
-        ...,
-        alias='schema-id',
-        description='Schema ID to set as current, or -1 to set last added schema',
-    )
-    summary: dict[str, str]
-    representations: list[ViewRepresentation]
-    default_catalog: str | None = Field(None, alias='default-catalog')
-    default_namespace: Namespace = Field(..., alias='default-namespace')
-
-
-class AddViewVersionUpdate(BaseUpdate):
-    action: Literal['add-view-version'] = 'add-view-version'
-    view_version: ViewVersion = Field(..., alias='view-version')
-
-
 class SetPartitionStatisticsUpdate(BaseUpdate):
     action: Literal['set-partition-statistics'] = 'set-partition-statistics'
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
-    )
-
-
-class OperationType(
-    RootModel[
-        Literal[
-            'create-table',
-            'register-table',
-            'drop-table',
-            'update-table',
-            'rename-table',
-            'create-view',
-            'drop-view',
-            'update-view',
-            'rename-view',
-            'create-namespace',
-            'update-namespace-properties',
-            'drop-namespace',
-        ]
-        | CustomOperationType
-    ]
-):
-    root: (
-        Literal[
-            'create-table',
-            'register-table',
-            'drop-table',
-            'update-table',
-            'rename-table',
-            'create-view',
-            'drop-view',
-            'update-view',
-            'rename-view',
-            'create-namespace',
-            'update-namespace-properties',
-            'drop-namespace',
-        ]
-        | CustomOperationType
-    ) = Field(
-        ...,
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
     )
 
 
@@ -1136,156 +1241,18 @@ class FailedPlanningResult(IcebergErrorResponse):
     )
 
 
-class QueryEventsRequest(BaseModel):
-    continuation_token: str | None = Field(
-        None,
-        alias='continuation-token',
-        description='A continuation token to resume fetching events from a previous request. If not provided, events are fetched from the beginning of the event log subject to other filters.\n',
-    )
-    page_size: int | None = Field(
-        None,
-        alias='page-size',
-        description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size. Servers may return less results than requested for various reasons, such as server side limits, payload size or processing time.\n',
-    )
-    after_timestamp_ms: int | None = Field(
-        None,
-        alias='after-timestamp-ms',
-        description='The (server) timestamp in milliseconds to start consuming events from (inclusive). If not provided, no filtering based on timestamp values.\n',
-    )
-    operation_types: list[OperationType] | None = Field(
-        None,
-        alias='operation-types',
-        description='Filter events by the type of operation. If not provided, all types are returned.\n',
-    )
-    catalog_objects_by_name: list[CatalogObjectIdentifier] | None = Field(
-        None,
-        alias='catalog-objects-by-name',
-        description='Filter events by the list of catalog objects referenced by name (namespaces, tables, views). If not provided, events for all objects must be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) must be returned (recursively).\n',
-    )
-    catalog_objects_by_uuid: list[UUID] | None = Field(
-        None,
-        alias='catalog-objects-by-uuid',
-        description='Filter events by the list of catalog object UUIDs (tables, views). Combine with `object-types` to narrow to a specific object kind.\n',
-    )
-    object_types: list[Literal['namespace', 'table', 'view']] | None = Field(
-        None,
-        alias='object-types',
-        description='Filter events by the type of catalog object. If not provided, events for all object types must be returned.\n',
-    )
-    custom_filters: dict[str, Any] | None = Field(
-        None,
-        alias='custom-filters',
-        description='Implementation-specific filter extensions. Implementations may define custom filter properties beyond the standard ones defined in this specification.\n',
-    )
-
-
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
-class CreateNamespaceResponse(BaseModel):
-    namespace: Namespace
-    properties: dict[str, str] | None = Field(
-        {},
-        description='Properties stored on the namespace, if supported by the server.',
-        examples=[{'owner': 'Ralph', 'created_at': '1452120468'}],
-    )
-
-
-class GetNamespaceResponse(BaseModel):
-    namespace: Namespace
-    properties: dict[str, str] | None = Field(
-        {},
-        description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
-        examples=[{'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'}],
-    )
-
-
-class ListTablesResponse(BaseModel):
-    next_page_token: PageToken | None = Field(None, alias='next-page-token')
-    identifiers: list[TableIdentifier] | None = None
-
-
-class ListNamespacesResponse(BaseModel):
-    next_page_token: PageToken | None = Field(None, alias='next-page-token')
-    namespaces: list[Namespace] | None = None
-
-
-class DropTableOperation(BaseModel):
-    operation_type: Literal['drop-table'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
-    identifier: TableIdentifier
+class RenameTableOperation(RenameTableRequest, BaseOperation):
+    operation_type: Literal['rename-table'] = Field(..., alias='operation-type')
     table_uuid: UUID = Field(..., alias='table-uuid')
-    purge: bool | None = Field(None, description='Whether purge flag was set')
 
 
-class DropViewOperation(BaseModel):
-    operation_type: Literal['drop-view'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
-    identifier: TableIdentifier
+class RenameViewOperation(RenameTableRequest, BaseOperation):
+    operation_type: Literal['rename-view'] = Field(..., alias='operation-type')
     view_uuid: UUID = Field(..., alias='view-uuid')
-
-
-class CreateNamespaceOperation(CreateNamespaceResponse):
-    operation_type: Literal['create-namespace'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
-
-
-class UpdateNamespacePropertiesOperation(UpdateNamespacePropertiesResponse):
-    operation_type: Literal['update-namespace-properties'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
-    namespace: Namespace
-
-
-class DropNamespaceOperation(BaseModel):
-    operation_type: Literal['drop-namespace'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
-    namespace: Namespace
-
-
-class CustomOperation(BaseModel):
-    """
-    Extension point for catalog-specific operations not defined in the standard.
-
-    """
-
-    model_config = ConfigDict(
-        extra='allow',
-    )
-    operation_type: Literal['custom'] = Field(..., alias='operation-type')
-    custom_type: CustomOperationType = Field(..., alias='custom-type')
-    identifier: TableIdentifier | None = Field(
-        None,
-        description='Table or view identifier this operation applies to, if applicable',
-    )
-    namespace: Namespace | None = Field(
-        None, description='Namespace this operation applies to, if applicable'
-    )
-    table_uuid: UUID | None = Field(
-        None,
-        alias='table-uuid',
-        description='UUID of table this operation applies to, if applicable',
-    )
-    view_uuid: UUID | None = Field(
-        None,
-        alias='view-uuid',
-        description='UUID of view this operation applies to, if applicable',
-    )
 
 
 class StatisticsFile(BaseModel):
@@ -1350,20 +1317,6 @@ class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
-class CreateNamespaceRequest(BaseModel):
-    namespace: Namespace
-    properties: dict[str, str] | None = Field(
-        {},
-        description='Configured string to string map of properties for the namespace',
-        examples=[{'owner': 'Hank Bendickson'}],
-    )
-
-
-class RenameTableRequest(BaseModel):
-    source: TableIdentifier
-    destination: TableIdentifier
-
-
 class Term(RootModel[Reference | TransformTerm]):
     root: Reference | TransformTerm
 
@@ -1377,24 +1330,6 @@ class SetStatisticsUpdate(BaseUpdate):
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
     )
     statistics: StatisticsFile
-
-
-class RenameTableOperation(RenameTableRequest):
-    operation_type: Literal['rename-table'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
-    table_uuid: UUID = Field(..., alias='table-uuid')
-
-
-class RenameViewOperation(RenameTableRequest):
-    operation_type: Literal['rename-view'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
-    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class UnaryExpression(BaseModel):
@@ -1811,12 +1746,7 @@ class QueryEventsResponse(BaseModel):
     continuation_token: str = Field(
         ...,
         alias='continuation-token',
-        description="An opaque continuation token to fetch the next page of events. This token encodes the server's cursor position and filter state. Clients should treat this as an opaque value and pass it unmodified in subsequent requests.\n",
-    )
-    highest_processed_timestamp_ms: int = Field(
-        ...,
-        alias='highest-processed-timestamp-ms',
-        description='The highest event timestamp processed when generating this response. This may not necessarily appear in the returned changes if it was filtered out.\n',
+        description="An opaque continuation token to fetch the next page of events. This token encodes the server's cursor position and filter state. Clients should treat this as an opaque value and pass it unmodified in subsequent requests. When no more events are currently available, the server returns an empty `events` array and a `continuation-token` that the client can re-issue later to receive events that occur after this point.\n",
     )
     events: list[Event]
 
@@ -1830,21 +1760,21 @@ class Event(BaseModel):
     request_id: str = Field(
         ...,
         alias='request-id',
-        description='Opaque ID of the request this change belongs to. This ID can be used to identify events that were part of the same request. Servers generate this ID randomly.\n',
+        description='Opaque ID of the request this change belongs to. This ID can be used to identify events that were part of the same request.\n',
     )
     request_event_count: int = Field(
         ...,
         alias='request-event-count',
-        description='Total number of events in this batch or request. Some endpoints, such as "updateTable" and "commitTransaction", can perform multiple updates in a single atomic request. Each update is modeled as a separate event. All events generated by the same request share the same `request-id`. The `request-event-count` field indicates the total number of events generated by that request.\n',
+        description='Number of events produced by the originating catalog request (e.g. updateTable or commitTransaction) that generated this event. Such requests can apply multiple updates atomically, each surfaced as a separate event sharing the same `request-id`; this count reports how many events that originating request produced in total.\n',
     )
     timestamp_ms: int = Field(
         ...,
         alias='timestamp-ms',
         description='Timestamp when this event occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
     )
-    actor: dict[str, Any] | None = Field(
+    actor: Actor | None = Field(
         None,
-        description='The actor who performed the operation, such as a user or service account. The content of this field is implementation specific.\n',
+        description='The actor who performed the operation, such as a user or service account. Implementations may add arbitrary additional fields; the optional `id` field is recommended as a portable identifier that consumers can render and key on.\n',
     )
     operation: (
         CreateTableOperation
@@ -1859,47 +1789,33 @@ class Event(BaseModel):
         | CreateNamespaceOperation
         | UpdateNamespacePropertiesOperation
         | DropNamespaceOperation
-        | CustomOperation
     ) = Field(
         ...,
-        description='The operation that was performed, such as creating or updating a table. Clients should discard events with unknown operation types.\n',
-        discriminator='operation_type',
+        description='The operation that was performed, such as creating or updating a table. The concrete type is selected by the `operation-type` discriminator defined on `BaseOperation`. Clients should discard events with unknown operation types. Operations are emitted only when the underlying change is committed; staged changes are not surfaced.\n',
     )
 
 
-class CreateTableOperation(BaseModel):
+class CreateTableOperation(BaseOperation):
     """
-    Operation to create a new table in the catalog. Events for this Operation must be issued when the create is finalized and committed, not when the create is staged.
+    Operation to create a new table in the catalog.
 
     """
 
-    operation_type: Literal['create-table'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
+    operation_type: Literal['create-table'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
     updates: list[TableUpdate]
 
 
-class RegisterTableOperation(BaseModel):
-    operation_type: Literal['register-table'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
+class RegisterTableOperation(BaseOperation):
+    operation_type: Literal['register-table'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
     updates: list[TableUpdate] | None = None
 
 
-class UpdateTableOperation(BaseModel):
-    operation_type: Literal['update-table'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
+class UpdateTableOperation(BaseOperation):
+    operation_type: Literal['update-table'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
     updates: list[TableUpdate]
@@ -1918,23 +1834,15 @@ class UpdateTableOperation(BaseModel):
     ) = None
 
 
-class CreateViewOperation(BaseModel):
-    operation_type: Literal['create-view'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
+class CreateViewOperation(BaseOperation):
+    operation_type: Literal['create-view'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     view_uuid: UUID = Field(..., alias='view-uuid')
     updates: list[ViewUpdate]
 
 
-class UpdateViewOperation(BaseModel):
-    operation_type: Literal['update-view'] = Field(
-        ...,
-        alias='operation-type',
-        description='Defines the type of operation, either a standard operation defined by the Iceberg REST API specification or a custom operation specific to an implementation. This enum is extended in future versions of the REST specification. Clients should ignore unknown operation types.\n',
-    )
+class UpdateViewOperation(BaseOperation):
+    operation_type: Literal['update-view'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     view_uuid: UUID = Field(..., alias='view-uuid')
     updates: list[ViewUpdate]
