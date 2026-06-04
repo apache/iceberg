@@ -70,11 +70,6 @@ abstract class BaseDistributedDataScan
     this.localPlanningSizeThreshold = localParallelism * LOCAL_PLANNING_MAX_SLOT_SIZE;
   }
 
-  @Override
-  protected boolean useSnapshotSchema() {
-    return true;
-  }
-
   /**
    * Returns the cluster parallelism.
    *

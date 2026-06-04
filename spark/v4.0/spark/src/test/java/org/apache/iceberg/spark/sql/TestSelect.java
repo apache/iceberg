@@ -744,7 +744,11 @@ public class TestSelect extends CatalogTestBase {
   public void testTimeTravelFilterOnRenamedColumn() {
     String ttTableName = tableName("tt_rename_table");
     sql("DROP TABLE IF EXISTS %s", ttTableName);
-    sql("CREATE TABLE %s (id BIGINT, col DOUBLE) USING iceberg", ttTableName);
+    sql(
+        "CREATE TABLE %s (id BIGINT, col DOUBLE) USING iceberg TBLPROPERTIES ("
+            + "'read.data-planning-mode'='distributed',"
+            + "'read.delete-planning-mode'='distributed')",
+        ttTableName);
     sql("INSERT INTO %s VALUES (1, 100.0), (2, 200.0), (3, 0.0)", ttTableName);
 
     TableIdentifier ttTableIdent = TableIdentifier.of(tableIdent.namespace(), "tt_rename_table");
