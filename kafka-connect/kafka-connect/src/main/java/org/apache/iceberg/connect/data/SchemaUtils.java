@@ -54,6 +54,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -70,6 +71,18 @@ class SchemaUtils {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUtils.class);
 
   private static final Pattern TRANSFORM_REGEX = Pattern.compile("(\\w+)\\((.+)\\)");
+
+  // Connect schema names assigned by the Confluent AvroConverter to sub-millisecond and zone-less
+  // Avro temporal logical types. These arrive as raw int64 (no Connect logical type), with the unit
+  // and zone semantics encoded only in the schema name. timestamp-* are UTC instants (map to
+  // with-zone); local-timestamp-* are zone-less (map to without-zone). Kept in sync with
+  // schema-registry's AvroData.
+  static final String AVRO_TIMESTAMP_MICROS = "timestamp-micros";
+  static final String AVRO_TIMESTAMP_NANOS = "timestamp-nanos";
+  static final String AVRO_LOCAL_TIMESTAMP_MILLIS = "local-timestamp-millis";
+  static final String AVRO_LOCAL_TIMESTAMP_MICROS = "local-timestamp-micros";
+  static final String AVRO_LOCAL_TIMESTAMP_NANOS = "local-timestamp-nanos";
+  static final String AVRO_TIME_MICROS = "time-micros";
 
   static PrimitiveType needsDataTypeUpdate(Type currentIcebergType, Schema valueSchema) {
     if (currentIcebergType.typeId() == TypeID.FLOAT && valueSchema.type() == Schema.Type.FLOAT64) {
@@ -248,8 +261,18 @@ class SchemaUtils {
           }
           return IntegerType.get();
         case INT64:
-          if (Timestamp.LOGICAL_NAME.equals(valueSchema.name())) {
+          String int64Name = valueSchema.name();
+          if (Timestamp.LOGICAL_NAME.equals(int64Name) || AVRO_TIMESTAMP_MICROS.equals(int64Name)) {
             return TimestampType.withZone();
+          } else if (AVRO_TIMESTAMP_NANOS.equals(int64Name)) {
+            return TimestampNanoType.withZone();
+          } else if (AVRO_LOCAL_TIMESTAMP_MILLIS.equals(int64Name)
+              || AVRO_LOCAL_TIMESTAMP_MICROS.equals(int64Name)) {
+            return TimestampType.withoutZone();
+          } else if (AVRO_LOCAL_TIMESTAMP_NANOS.equals(int64Name)) {
+            return TimestampNanoType.withoutZone();
+          } else if (AVRO_TIME_MICROS.equals(int64Name)) {
+            return TimeType.get();
           }
           return LongType.get();
         case FLOAT32:
