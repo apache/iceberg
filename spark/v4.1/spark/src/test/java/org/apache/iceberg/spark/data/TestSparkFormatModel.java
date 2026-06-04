@@ -46,6 +46,11 @@ public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
   }
 
   @Override
+  protected boolean supportsTime() {
+    return false;
+  }
+
+  @Override
   protected Class<InternalRow> engineType() {
     return InternalRow.class;
   }

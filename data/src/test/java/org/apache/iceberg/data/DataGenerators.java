@@ -251,10 +251,10 @@ class DataGenerators {
     }
   }
 
-  // Generator for reader default-value tests across primitive types. TIME and FIXED are left out
-  // because they fail on the engine read path, not because of default-value handling.
-  // TODO: include TIME once the engine readers support it.
-  // TODO: include FIXED once Spark supports it.
+  // Generator for reader default-value tests across primitive types.
+  // FIXED is excluded: Spark's InternalRowConverter expects a ByteBuffer but the generator produces
+  // byte[] (ClassCastException).
+  // TODO: include FIXED once Spark's converter handles it.
   static class PrimitiveDefaults implements DataGenerator {
     static final Schema READ_SCHEMA =
         new Schema(
@@ -295,7 +295,12 @@ class DataGenerators {
                 13,
                 "decimal_with_default",
                 Types.DecimalType.of(9, 2),
-                Literal.of(new BigDecimal("12.34"))));
+                Literal.of(new BigDecimal("12.34"))),
+            optionalWithDefault(
+                14,
+                "time_with_default",
+                Types.TimeType.get(),
+                Literal.of(DateTimeUtil.isoTimeToMicros("23:59:59.999999"))));
 
     static final Schema WRITE_SCHEMA = new Schema(required(1, "id", Types.LongType.get()));
 
