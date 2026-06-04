@@ -279,10 +279,14 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           lastValidSnapshot = nextValidSnapshot;
         }
       } while (nextValidSnapshot != null);
+
+      boolean scanAllFiles =
+          startOffset.shouldScanAllFiles()
+              && lastValidSnapshot.snapshotId() == startOffset.snapshotId();
       return new StreamingOffset(
           lastValidSnapshot.snapshotId(),
-          MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
-          false);
+          MicroBatchUtils.endPosition(table(), lastValidSnapshot, scanAllFiles),
+          scanAllFiles);
     }
 
     return computeLimitedOffset(limit);
@@ -399,16 +403,19 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   private void addMicroBatchToQueue(
       Snapshot snapshot, long startFileIndex, long endFileIndex, boolean shouldScanAllFile) {
     LOG.info("Adding MicroBatch for snapshot: {} to the queue", snapshot.snapshotId());
-    MicroBatches.MicroBatch microBatch =
-        MicroBatches.from(snapshot, table().io())
-            .caseSensitive(readConf().caseSensitive())
-            .specsById(table().specs())
-            .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, shouldScanAllFile);
+    List<FileScanTask> tasks =
+        shouldScanAllFile
+            ? planFullScan(snapshot, startFileIndex, endFileIndex)
+            : MicroBatches.from(snapshot, table().io())
+                .caseSensitive(readConf().caseSensitive())
+                .specsById(table().specs())
+                .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, false)
+                .tasks();
 
     long position = startFileIndex;
-    for (FileScanTask task : microBatch.tasks()) {
+    for (FileScanTask task : tasks) {
       Pair<StreamingOffset, FileScanTask> elem =
-          Pair.of(new StreamingOffset(microBatch.snapshotId(), position, shouldScanAllFile), task);
+          Pair.of(new StreamingOffset(snapshot.snapshotId(), position, shouldScanAllFile), task);
       queuedFileCount.incrementAndGet();
       queuedRowCount.addAndGet(task.file().recordCount());
       queue.addLast(elem);
@@ -432,7 +439,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       addMicroBatchToQueue(
           currentSnapshot,
           fromOffset.position(),
-          MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
+          MicroBatchUtils.endPosition(table(), currentSnapshot, fromOffset.shouldScanAllFiles()),
           fromOffset.shouldScanAllFiles());
     }
     if (toOffset != null) {
