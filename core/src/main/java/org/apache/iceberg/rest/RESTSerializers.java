@@ -51,12 +51,15 @@ import org.apache.iceberg.rest.requests.CreateViewRequestParser;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequestParser;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableQueryEventsRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequestParser;
+import org.apache.iceberg.rest.requests.QueryEventsRequest;
+import org.apache.iceberg.rest.requests.QueryEventsRequestParser;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequestParser;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
@@ -77,6 +80,7 @@ import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponseParser;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.ImmutableQueryEventsResponse;
 import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
@@ -87,6 +91,8 @@ import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponseParser;
+import org.apache.iceberg.rest.responses.QueryEventsResponse;
+import org.apache.iceberg.rest.responses.QueryEventsResponseParser;
 import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.apache.iceberg.rest.responses.RemoteSignResponseParser;
 import org.apache.iceberg.util.JsonUtil;
@@ -174,7 +180,16 @@ public class RESTSerializers {
         .addSerializer(RemoteSignResponse.class, new RemoteSignResponseSerializer<>())
         .addSerializer(ImmutableRemoteSignResponse.class, new RemoteSignResponseSerializer<>())
         .addDeserializer(RemoteSignResponse.class, new RemoteSignResponseDeserializer<>())
-        .addDeserializer(ImmutableRemoteSignResponse.class, new RemoteSignResponseDeserializer<>());
+        .addDeserializer(ImmutableRemoteSignResponse.class, new RemoteSignResponseDeserializer<>())
+        .addSerializer(QueryEventsRequest.class, new QueryEventsRequestSerializer<>())
+        .addSerializer(ImmutableQueryEventsRequest.class, new QueryEventsRequestSerializer<>())
+        .addDeserializer(QueryEventsRequest.class, new QueryEventsRequestDeserializer<>())
+        .addDeserializer(ImmutableQueryEventsRequest.class, new QueryEventsRequestDeserializer<>())
+        .addSerializer(QueryEventsResponse.class, new QueryEventsResponseSerializer<>())
+        .addSerializer(ImmutableQueryEventsResponse.class, new QueryEventsResponseSerializer<>())
+        .addDeserializer(QueryEventsResponse.class, new QueryEventsResponseDeserializer<>())
+        .addDeserializer(
+            ImmutableQueryEventsResponse.class, new QueryEventsResponseDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -634,6 +649,42 @@ public class RESTSerializers {
       return (T)
           FetchScanTasksResponseParser.fromJson(
               jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+    }
+  }
+
+  static class QueryEventsRequestSerializer<T extends QueryEventsRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      QueryEventsRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class QueryEventsRequestDeserializer<T extends QueryEventsRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) QueryEventsRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class QueryEventsResponseSerializer<T extends QueryEventsResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      QueryEventsResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class QueryEventsResponseDeserializer<T extends QueryEventsResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) QueryEventsResponseParser.fromJson(jsonNode);
     }
   }
 
