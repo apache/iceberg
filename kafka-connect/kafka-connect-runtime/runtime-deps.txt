@@ -13,7 +13,7 @@ com.fasterxml.jackson.core:jackson-databind:2.21
 com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.21
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21
 com.fasterxml.woodstox:woodstox-core:6.7
-com.github.ben-manes.caffeine:caffeine:2.9
+com.github.ben-manes.caffeine:caffeine:3.2
 com.github.luben:zstd-jni:1.5
 com.github.pjfanning:jersey-json:1.22
 com.google.android:annotations:4.1
