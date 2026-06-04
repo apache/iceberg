@@ -92,7 +92,8 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     // if there were no valid snapshots, check for an initialOffset again
     if (curSnapshot == null) {
       StreamingOffset startingOffset =
-          MicroBatchUtils.determineStartingOffset(table, readConf.streamFromTimestamp());
+          MicroBatchUtils.determineStartingOffset(
+              table, readConf.streamFromTimestamp(), readConf.streamFromSnapshot());
       LOG.debug("determineStartingOffset picked startingOffset: {}", startingOffset);
       if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
         return null;
