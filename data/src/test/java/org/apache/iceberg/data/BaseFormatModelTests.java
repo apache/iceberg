@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -88,7 +87,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
@@ -180,39 +178,6 @@ public abstract class BaseFormatModelTests<T> {
               format ->
                   Arrays.stream(DataGenerators.ALL)
                       .map(generator -> Arguments.of(format, generator)))
-          .toList();
-
-  private static final List<Arguments> PRIMITIVE_TYPES_AND_DEFAULTS =
-      List.of(
-          Arguments.of(Types.BooleanType.get(), Literal.of(false)),
-          Arguments.of(Types.IntegerType.get(), Literal.of(34)),
-          Arguments.of(Types.LongType.get(), Literal.of(4900000000L)),
-          Arguments.of(Types.FloatType.get(), Literal.of(12.21F)),
-          Arguments.of(Types.DoubleType.get(), Literal.of(-0.0D)),
-          Arguments.of(Types.DateType.get(), Literal.of(DateTimeUtil.isoDateToDays("2024-12-17"))),
-          Arguments.of(
-              Types.TimeType.get(), Literal.of(DateTimeUtil.isoTimeToMicros("23:59:59.999999"))),
-          Arguments.of(
-              Types.TimestampType.withZone(),
-              Literal.of(DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00"))),
-          Arguments.of(
-              Types.TimestampType.withoutZone(),
-              Literal.of(DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999"))),
-          Arguments.of(Types.StringType.get(), Literal.of("iceberg")),
-          Arguments.of(Types.UUIDType.get(), Literal.of(UUID.randomUUID())),
-          Arguments.of(
-              Types.FixedType.ofLength(4),
-              Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
-          Arguments.of(
-              Types.BinaryType.get(), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b}))),
-          Arguments.of(Types.DecimalType.of(9, 2), Literal.of(new BigDecimal("12.34"))));
-
-  private static final List<Arguments> FORMAT_AND_PRIMITIVE_DEFAULTS =
-      Arrays.stream(FILE_FORMATS)
-          .<Arguments>flatMap(
-              format ->
-                  PRIMITIVE_TYPES_AND_DEFAULTS.stream()
-                      .map(args -> Arguments.of(format, args.get()[0], args.get()[1])))
           .toList();
 
   static final String FEATURE_FILTER = "filter";
@@ -713,59 +678,29 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @ParameterizedTest
-  @FieldSource("FORMAT_AND_PRIMITIVE_DEFAULTS")
-  void testReaderSchemaEvolutionNewColumnWithDefault(
-      FileFormat fileFormat, Type.PrimitiveType type, Literal<?> defaultValue) throws IOException {
-
-    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
-
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
-    Schema writeSchema = dataGenerator.schema();
-
-    List<Record> genericRecords = dataGenerator.generateRecords();
-    writeGenericRecords(fileFormat, writeSchema, genericRecords);
-
-    int maxFieldId =
-        writeSchema.columns().stream().mapToInt(Types.NestedField::fieldId).max().orElse(0);
-
-    List<Types.NestedField> evolvedColumns = Lists.newArrayList(writeSchema.columns());
-    evolvedColumns.add(
-        Types.NestedField.optional("col_with_default")
-            .withId(maxFieldId + 1)
-            .ofType(type)
-            .withInitialDefault(defaultValue)
-            .build());
-
-    Schema evolvedSchema = new Schema(evolvedColumns);
-    readAndAssertGenericRecords(fileFormat, evolvedSchema, genericRecords);
-  }
-
-  @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDefaultValues(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
-    Schema writeSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .withDoc("Should not produce default value")
-                .build());
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
+    Schema writeSchema = new Schema(idField, dataField);
 
     List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
     Schema expectedSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.required("missing_str")
                 .withId(6)
                 .ofType(Types.StringType.get())
@@ -787,6 +722,7 @@ public abstract class BaseFormatModelTests<T> {
           expected.setField("data", record.getField("data"));
           expected.setField("missing_str", "orange");
           expected.setField("missing_int", 34);
+
           return expected;
         });
   }
@@ -796,27 +732,24 @@ public abstract class BaseFormatModelTests<T> {
   void testNullDefaultValue(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
-    Schema writeSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .withDoc("Should not produce default value")
-                .build());
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
+    Schema writeSchema = new Schema(idField, dataField);
 
     List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
     Schema expectedSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.optional("missing_date")
                 .withId(3)
                 .ofType(Types.DateType.get())
@@ -831,6 +764,7 @@ public abstract class BaseFormatModelTests<T> {
           expected.setField("id", record.getField("id"));
           expected.setField("data", record.getField("data"));
           expected.setField("missing_date", null);
+
           return expected;
         });
   }
@@ -840,15 +774,19 @@ public abstract class BaseFormatModelTests<T> {
   void testNestedDefaultValue(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
     Schema writeSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .withDoc("Should not produce default value")
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.optional("nested")
                 .withId(3)
                 .ofType(
@@ -862,12 +800,8 @@ public abstract class BaseFormatModelTests<T> {
 
     Schema expectedSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.optional("nested")
                 .withId(3)
                 .ofType(
@@ -896,6 +830,7 @@ public abstract class BaseFormatModelTests<T> {
             expectedNested.setField("missing_inner_float", -0.0F);
             expected.setField("nested", expectedNested);
           }
+
           return expected;
         });
   }
@@ -905,15 +840,19 @@ public abstract class BaseFormatModelTests<T> {
   void testMapNestedDefaultValue(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
     Schema writeSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .withDoc("Should not produce default value")
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.optional("nested_map")
                 .withId(3)
                 .ofType(
@@ -931,12 +870,8 @@ public abstract class BaseFormatModelTests<T> {
 
     Schema expectedSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.optional("nested_map")
                 .withId(3)
                 .ofType(
@@ -973,15 +908,16 @@ public abstract class BaseFormatModelTests<T> {
                     .asStructType();
             Map<Object, Record> rebuilt = Maps.newLinkedHashMap();
             writtenMap.forEach(
-                (key, val) ->
+                (key, value) ->
                     rebuilt.put(
                         key,
-                        val == null
+                        value == null
                             ? null
                             : GenericRecord.create(valueType)
-                                .copy("value_str", val.getField("value_str"), "value_int", 34)));
+                                .copy("value_str", value.getField("value_str"), "value_int", 34)));
             expected.setField("nested_map", rebuilt);
           }
+
           return expected;
         });
   }
@@ -991,15 +927,19 @@ public abstract class BaseFormatModelTests<T> {
   void testListNestedDefaultValue(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
     Schema writeSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .withDoc("Should not produce default value")
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.optional("nested_list")
                 .withId(3)
                 .ofType(
@@ -1015,12 +955,8 @@ public abstract class BaseFormatModelTests<T> {
 
     Schema expectedSchema =
         new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault(Literal.of("wrong!"))
-                .build(),
+            idField,
+            dataField,
             Types.NestedField.optional("nested_list")
                 .withId(3)
                 .ofType(
@@ -1056,18 +992,19 @@ public abstract class BaseFormatModelTests<T> {
             List<Record> rebuilt =
                 writtenList.stream()
                     .map(
-                        el ->
-                            el == null
+                        element ->
+                            element == null
                                 ? null
                                 : GenericRecord.create(elementType)
                                     .copy(
                                         "element_str",
-                                        el.getField("element_str"),
+                                        element.getField("element_str"),
                                         "element_int",
                                         34))
                     .collect(Collectors.toList());
             expected.setField("nested_list", rebuilt);
           }
+
           return expected;
         });
   }
@@ -1095,6 +1032,49 @@ public abstract class BaseFormatModelTests<T> {
             () -> readAndAssertGenericRecords(fileFormat, expectedSchema, genericRecords))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing required field: missing_str");
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testPrimitiveDefaultValues(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Schema writeSchema = DataGenerators.PrimitiveDefaults.WRITE_SCHEMA;
+    Schema readSchema = DataGenerators.PrimitiveDefaults.READ_SCHEMA;
+
+    List<Record> sourceRecords = RandomGenericData.generate(writeSchema, 10, 1L);
+    writeGenericRecords(fileFormat, writeSchema, sourceRecords);
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        readSchema,
+        sourceRecords,
+        record -> {
+          Record expected = GenericRecord.create(readSchema);
+          expected.setField("id", record.getField("id"));
+          for (Types.NestedField field : readSchema.columns()) {
+            if (!field.name().equals("id")) {
+              expected.setField(
+                  field.name(),
+                  GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()));
+            }
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testPrimitiveDefaultValuesNotApplied(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Schema readSchema = DataGenerators.PrimitiveDefaults.READ_SCHEMA;
+
+    List<Record> sourceRecords = RandomGenericData.generate(readSchema, 10, 1L);
+    writeGenericRecords(fileFormat, readSchema, sourceRecords);
+
+    readAndAssertEngineRecords(fileFormat, readSchema, sourceRecords, record -> record);
   }
 
   @ParameterizedTest
