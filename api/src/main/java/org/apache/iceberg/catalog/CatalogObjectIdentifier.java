@@ -38,6 +38,12 @@ public class CatalogObjectIdentifier {
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
 
   public static CatalogObjectIdentifier of(String... levels) {
+    return new CatalogObjectIdentifier(levels);
+  }
+
+  private final String[] levels;
+
+  private CatalogObjectIdentifier(String[] levels) {
     Preconditions.checkArgument(
         null != levels, "Cannot create catalog object identifier from null array");
 
@@ -49,12 +55,6 @@ public class CatalogObjectIdentifier {
           "Cannot create a catalog object identifier with the null-byte character");
     }
 
-    return new CatalogObjectIdentifier(levels);
-  }
-
-  private final String[] levels;
-
-  private CatalogObjectIdentifier(String[] levels) {
     this.levels = levels;
   }
 
