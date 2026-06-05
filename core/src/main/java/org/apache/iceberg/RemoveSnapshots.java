@@ -242,7 +242,7 @@ class RemoveSnapshots implements ExpireSnapshots {
       Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
       reachableSchemas.add(base.currentSchemaId());
 
-      boolean mayHasExpiredSpecs =
+      boolean mayHaveExpiredSpecs =
           base.specs().size() > 1
               || base.specs().stream().anyMatch(s -> s.specId() != base.defaultSpecId());
 
@@ -251,7 +251,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           .run(
               snapshotId -> {
                 Snapshot snapshot = base.snapshot(snapshotId);
-                if (mayHasExpiredSpecs) {
+                if (mayHaveExpiredSpecs && reachableSpecs.size() < base.specs().size()) {
                   snapshot.allManifests(ops.io()).stream()
                       .map(ManifestFile::partitionSpecId)
                       .forEach(reachableSpecs::add);
