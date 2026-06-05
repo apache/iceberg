@@ -23,8 +23,15 @@ enum EntryStatus {
   EXISTING(0),
   ADDED(1),
   DELETED(2),
-  /** Indicates an entry that has been replaced by a column update or DV change. Added in v4. */
-  REPLACED(3);
+  /**
+   * Non-live entry recording that a prior file version was superseded by a column update or DV
+   * change. Added in v4.
+   */
+  REPLACED(3),
+  /**
+   * Live entry recording that the file was modified by a column update or DV change. Added in v4.
+   */
+  MODIFIED(4);
 
   private static final EntryStatus[] VALUES = EntryStatus.values();
 

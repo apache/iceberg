@@ -23,16 +23,19 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
 class TrackingBuilder {
-  private final EntryStatus status;
-  private final Long snapshotId;
+  // null for the fresh-added path; non-null for the source-based path.
+  private final Tracking source;
+  // ID of the snapshot in which the new Tracking instance will be committed.
+  private final long newSnapshotId;
+  // Inherited from the source (or null for fresh-add).
   private final Long dataSequenceNumber;
   private final Long fileSequenceNumber;
   private final Long firstRowId;
-  // ID of the snapshot in which the new Tracking instance will be committed.
-  private final long newSnapshotId;
+  // Mutation state.
   private Long dvSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
+  private boolean mutated;
 
   /**
    * Creates a builder for a newly added file.
@@ -74,8 +77,7 @@ class TrackingBuilder {
   }
 
   private TrackingBuilder(long newSnapshotId) {
-    this.status = EntryStatus.ADDED;
-    this.snapshotId = newSnapshotId;
+    this.source = null;
     this.newSnapshotId = newSnapshotId;
     this.dataSequenceNumber = null;
     this.fileSequenceNumber = null;
@@ -83,13 +85,13 @@ class TrackingBuilder {
     this.dvSnapshotId = null;
     this.deletedPositions = null;
     this.replacedPositions = null;
+    this.mutated = false;
   }
 
   private TrackingBuilder(Tracking source, long newSnapshotId) {
     validateSource(source);
     validateStatusTransition(source.status(), EntryStatus.EXISTING);
-    this.status = EntryStatus.EXISTING;
-    this.snapshotId = source.snapshotId();
+    this.source = source;
     this.newSnapshotId = newSnapshotId;
     this.dataSequenceNumber = source.dataSequenceNumber();
     this.fileSequenceNumber = source.fileSequenceNumber();
@@ -97,6 +99,7 @@ class TrackingBuilder {
     this.dvSnapshotId = source.dvSnapshotId();
     this.deletedPositions = null;
     this.replacedPositions = null;
+    this.mutated = false;
   }
 
   /** Indicates that the DV has been updated for the new Tracking. */
@@ -106,41 +109,67 @@ class TrackingBuilder {
         deletedPositions == null && replacedPositions == null,
         "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
     this.dvSnapshotId = newSnapshotId;
+    this.mutated = true;
     return this;
   }
 
   TrackingBuilder deletedPositions(ByteBuffer positions) {
-    Preconditions.checkState(
-        status == EntryStatus.EXISTING, "Cannot set deleted positions on %s entry", status);
+    Preconditions.checkState(source != null, "Cannot set deleted positions on ADDED entry");
     // DV applies to data files; deleted positions apply to manifest files
     Preconditions.checkState(
         dvSnapshotId == null,
         "Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
     this.deletedPositions = ByteBuffers.toByteArray(positions);
+    this.mutated = true;
     return this;
   }
 
   TrackingBuilder replacedPositions(ByteBuffer positions) {
-    Preconditions.checkState(
-        status == EntryStatus.EXISTING, "Cannot set replaced positions on %s entry", status);
+    Preconditions.checkState(source != null, "Cannot set replaced positions on ADDED entry");
     // DV applies to data files; replaced positions apply to manifest files
     Preconditions.checkState(
         dvSnapshotId == null,
         "Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
     this.replacedPositions = ByteBuffers.toByteArray(positions);
+    this.mutated = true;
     return this;
   }
 
   Tracking build() {
+    EntryStatus status = deriveStatus();
+    Long outputSnapshotId = (status == EntryStatus.EXISTING) ? source.snapshotId() : newSnapshotId;
     return new TrackingStruct(
         status,
-        snapshotId,
+        outputSnapshotId,
         dataSequenceNumber,
         fileSequenceNumber,
         dvSnapshotId,
         firstRowId,
         deletedPositions,
         replacedPositions);
+  }
+
+  /** Derives the output status from the source, the snapshot, and any mutations. */
+  private EntryStatus deriveStatus() {
+    if (source == null) {
+      return EntryStatus.ADDED;
+    }
+
+    boolean sameSnapshot = source.snapshotId() != null && source.snapshotId() == newSnapshotId;
+
+    if (mutated) {
+      if (source.status() == EntryStatus.ADDED && sameSnapshot) {
+        return EntryStatus.ADDED;
+      }
+
+      return EntryStatus.MODIFIED;
+    }
+
+    if (sameSnapshot) {
+      return source.status();
+    }
+
+    return EntryStatus.EXISTING;
   }
 
   private static Tracking terminal(EntryStatus to, Tracking source, long newSnapshotId) {
