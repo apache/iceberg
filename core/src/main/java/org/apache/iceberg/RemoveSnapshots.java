@@ -242,9 +242,7 @@ class RemoveSnapshots implements ExpireSnapshots {
       Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
       reachableSchemas.add(base.currentSchemaId());
 
-      boolean mayHaveExpiredSpecs =
-          base.specs().size() > 1
-              || base.specs().stream().anyMatch(s -> s.specId() != base.defaultSpecId());
+      boolean mayHaveExpiredSpecs = base.specs().size() > 1;
 
       Tasks.foreach(idsToRetain)
           .executeWith(planExecutorService())
