@@ -61,6 +61,7 @@ import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -469,6 +470,49 @@ public class TestMetricsRowGroupFilter {
           .as("Should read when column is not in file (all nulls): " + expr)
           .isTrue();
     }
+  }
+
+  @TestTemplate
+  public void testColumnNotInFileWithInitialDefault() {
+    // A column added by schema evolution with an initial-default is absent from this older file, so
+    // it reads as the default ('US') for every row -- not as null. The row-group filter must
+    // therefore evaluate predicates against the default instead of assuming all-null, otherwise it
+    // would skip the row group and drop the backfilled rows (e.g. for col = <default> or the
+    // IsNotNull engines infer). See #16690. ORC throws on reading initial-default columns, so this
+    // is Parquet-only.
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("country")
+                .withId(99)
+                .ofType(StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+
+    // predicates that match the default keep the row group
+    Expression[] canMatch =
+        new Expression[] {equal("country", "US"), notNull("country"), notEqual("country", "CA")};
+    for (Expression expr : canMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should read: absent column reads as its initial-default 'US': " + expr)
+          .isTrue();
+    }
+
+    // predicates that cannot match the default skip the row group
+    Expression[] cannotMatch =
+        new Expression[] {equal("country", "CA"), isNull("country"), notEqual("country", "US")};
+    for (Expression expr : cannotMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should skip: default 'US' cannot satisfy: " + expr)
+          .isFalse();
+    }
+  }
+
+  private boolean shouldReadWithSchema(Schema schema, Expression expr) {
+    return new ParquetMetricsRowGroupFilter(schema, expr)
+        .shouldRead(parquetSchema, rowGroupMetadata);
   }
 
   @TestTemplate

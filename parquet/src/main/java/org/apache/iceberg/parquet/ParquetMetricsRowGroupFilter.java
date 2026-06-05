@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
+import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
@@ -37,6 +38,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.parquet.column.statistics.Statistics;
@@ -126,6 +128,27 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public Boolean or(Boolean leftResult, Boolean rightResult) {
       return leftResult || rightResult;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      // A column that is absent from this file but carries an initial-default reads as the default
+      // for every row, not as null. The per-predicate handlers below assume an absent column is all
+      // nulls (valueCount == null), which would skip the row group and drop the backfilled rows
+      // (e.g. for col = <default> or the IsNotNull engines infer). Evaluate such predicates against
+      // the default value instead. See #16690.
+      if (pred.term() instanceof BoundReference) {
+        int id = ((BoundReference<T>) pred.term()).fieldId();
+        if (!valueCounts.containsKey(id)) {
+          Types.NestedField field = schema.findField(id);
+          if (field != null && field.initialDefault() != null) {
+            return pred.test((T) field.initialDefault()) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+          }
+        }
+      }
+
+      return super.predicate(pred);
     }
 
     @Override
