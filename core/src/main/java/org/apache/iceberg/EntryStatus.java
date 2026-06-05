@@ -24,13 +24,11 @@ enum EntryStatus {
   ADDED(1),
   DELETED(2),
   /**
-   * Non-live entry recording that a prior file version was superseded by a column update or DV
-   * change. Added in v4.
+   * Non-live entry recording that a prior file version was superseded by another live entry. Added
+   * in v4.
    */
   REPLACED(3),
-  /**
-   * Live entry recording that the file was modified by a column update or DV change. Added in v4.
-   */
+  /** Live entry recording that the file was modified in this snapshot. Added in v4. */
   MODIFIED(4);
 
   private static final EntryStatus[] VALUES = EntryStatus.values();

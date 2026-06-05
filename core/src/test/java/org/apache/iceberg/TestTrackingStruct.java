@@ -454,24 +454,24 @@ class TestTrackingStruct {
   }
 
   private static Stream<Arguments> deriveStatusCases() {
-    long sameSnap = 42L;
-    long laterSnap = 999L;
+    long sameSnapshot = 42L;
+    long laterSnapshot = 999L;
     return Stream.of(
         // ADDED source
-        Arguments.of(EntryStatus.ADDED, sameSnap, false, EntryStatus.ADDED),
-        Arguments.of(EntryStatus.ADDED, sameSnap, true, EntryStatus.ADDED),
-        Arguments.of(EntryStatus.ADDED, laterSnap, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.ADDED, laterSnap, true, EntryStatus.MODIFIED),
+        Arguments.of(EntryStatus.ADDED, sameSnapshot, false, EntryStatus.ADDED),
+        Arguments.of(EntryStatus.ADDED, sameSnapshot, true, EntryStatus.ADDED),
+        Arguments.of(EntryStatus.ADDED, laterSnapshot, false, EntryStatus.EXISTING),
+        Arguments.of(EntryStatus.ADDED, laterSnapshot, true, EntryStatus.MODIFIED),
         // EXISTING source
-        Arguments.of(EntryStatus.EXISTING, sameSnap, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.EXISTING, sameSnap, true, EntryStatus.MODIFIED),
-        Arguments.of(EntryStatus.EXISTING, laterSnap, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.EXISTING, laterSnap, true, EntryStatus.MODIFIED),
+        Arguments.of(EntryStatus.EXISTING, sameSnapshot, false, EntryStatus.EXISTING),
+        Arguments.of(EntryStatus.EXISTING, sameSnapshot, true, EntryStatus.MODIFIED),
+        Arguments.of(EntryStatus.EXISTING, laterSnapshot, false, EntryStatus.EXISTING),
+        Arguments.of(EntryStatus.EXISTING, laterSnapshot, true, EntryStatus.MODIFIED),
         // MODIFIED source
-        Arguments.of(EntryStatus.MODIFIED, sameSnap, false, EntryStatus.MODIFIED),
-        Arguments.of(EntryStatus.MODIFIED, sameSnap, true, EntryStatus.MODIFIED),
-        Arguments.of(EntryStatus.MODIFIED, laterSnap, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.MODIFIED, laterSnap, true, EntryStatus.MODIFIED));
+        Arguments.of(EntryStatus.MODIFIED, sameSnapshot, false, EntryStatus.MODIFIED),
+        Arguments.of(EntryStatus.MODIFIED, sameSnapshot, true, EntryStatus.MODIFIED),
+        Arguments.of(EntryStatus.MODIFIED, laterSnapshot, false, EntryStatus.EXISTING),
+        Arguments.of(EntryStatus.MODIFIED, laterSnapshot, true, EntryStatus.MODIFIED));
   }
 
   @ParameterizedTest
@@ -574,8 +574,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testAddedWithDvSnapshotIdJavaSerializationRoundTrip()
-      throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTripForDataFile() throws IOException, ClassNotFoundException {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
 
     Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
@@ -588,8 +587,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testModifiedWithManifestDVPositionsJavaSerializationRoundTrip()
-      throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTripForManifest() throws IOException, ClassNotFoundException {
     Tracking tracking =
         TrackingBuilder.from(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
@@ -605,7 +603,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testAddedWithDvSnapshotIdKryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTripForDataFile() throws IOException {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
 
     Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
@@ -618,7 +616,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testModifiedWithManifestDVPositionsKryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTripForManifest() throws IOException {
     Tracking tracking =
         TrackingBuilder.from(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
