@@ -165,9 +165,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @TestTemplate
   public void testEqualityDeleteWriterWithMultipleSpecs() throws IOException {
     assumeThat(partitioned).isFalse();
-    // Mixed-spec scans supply partition values via idToConstant, which the Vortex generic reader
-    // does not yet inject (no constant readers — see GenericVortexReader TODO).
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.VORTEX);
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");

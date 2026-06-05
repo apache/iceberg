@@ -179,9 +179,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testClusteredEqualityDeleteWriterMultipleSpecs() throws IOException {
-    // Mixed-spec scans supply partition values via idToConstant, which the Vortex generic reader
-    // does not yet inject (no constant readers — see GenericVortexReader TODO).
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.VORTEX);
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory =
@@ -247,9 +244,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @TestTemplate
   public void testClusteredEqualityDeleteWriterOutOfOrderSpecsAndPartitions() throws IOException {
-    // Mixed-spec scans supply partition values via idToConstant, which the Vortex generic reader
-    // does not yet inject (no constant readers — see GenericVortexReader TODO).
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.VORTEX);
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory =

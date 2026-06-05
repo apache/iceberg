@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.VortexBatchReader;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -38,54 +39,72 @@ public class VectorizedSparkVortexReaders {
       Schema icebergSchema,
       org.apache.arrow.vector.types.pojo.Schema vortexSchema,
       Map<Integer, ?> idToConstant) {
-    return new SchemaCachingBatchReader(icebergSchema, vortexSchema, idToConstant);
+    return new ConstantAwareBatchReader(icebergSchema, idToConstant);
   }
 
-  static final class SchemaCachingBatchReader implements VortexBatchReader<ColumnarBatch> {
-    private final Schema readerSchema;
+  static final class ConstantAwareBatchReader implements VortexBatchReader<ColumnarBatch> {
+    private final List<Types.NestedField> columns;
     private final Map<Integer, ?> idToConstant;
-    private final List<Integer> schemaMapping;
 
-    SchemaCachingBatchReader(
-        Schema readerSchema,
-        org.apache.arrow.vector.types.pojo.Schema vortexSchema,
-        Map<Integer, ?> idToConstant) {
-      this.readerSchema = readerSchema;
-      this.idToConstant = idToConstant;
-      this.schemaMapping = vortexSchemaMapping(readerSchema, vortexSchema);
+    // Resolves expected column position -> Arrow batch column index, computed by name from the
+    // first batch. -1 marks a constant column not backed by a batch column. Vortex returns only the
+    // projected (non-constant, file-resident) columns, so the batch is not positionally aligned
+    // with
+    // the reader schema.
+    private int[] batchColumnIndex;
+
+    ConstantAwareBatchReader(Schema readerSchema, Map<Integer, ?> idToConstant) {
+      this.columns = readerSchema.columns();
+      this.idToConstant = idToConstant == null ? Collections.emptyMap() : idToConstant;
     }
 
     @Override
     public ColumnarBatch read(VectorSchemaRoot batch) {
       int rowCount = batch.getRowCount();
-      Map<Integer, ColumnVector> vectors = Maps.newHashMap();
-
-      for (Map.Entry<Integer, ?> entry : idToConstant.entrySet()) {
-        Integer fieldId = entry.getKey();
-        Object constant = entry.getValue();
-        if (MetadataColumns.isMetadataColumn(fieldId)) {
-          continue;
-        }
-
-        vectors.put(
-            fieldId, new ConstantColumnVector(readerSchema.findType(fieldId), rowCount, constant));
-      }
-
       List<FieldVector> fieldVectors = batch.getFieldVectors();
-      for (int i = 0; i < fieldVectors.size(); i++) {
-        int fieldId = schemaMapping.get(i);
-        vectors.put(fieldId, new ArrowColumnVector(fieldVectors.get(i)));
+      if (batchColumnIndex == null) {
+        this.batchColumnIndex = resolveColumns(fieldVectors);
       }
 
-      return new ColumnarBatch(vectors.values().toArray(new ColumnVector[0]), rowCount);
+      // Build columns in reader-schema order so they line up with Spark's expected output schema.
+      ColumnVector[] vectors = new ColumnVector[columns.size()];
+      for (int i = 0; i < columns.size(); i++) {
+        Types.NestedField field = columns.get(i);
+        int columnIndex = batchColumnIndex[i];
+        if (columnIndex >= 0) {
+          vectors[i] = new ArrowColumnVector(fieldVectors.get(columnIndex));
+        } else if (idToConstant.containsKey(field.fieldId())) {
+          vectors[i] =
+              new ConstantColumnVector(field.type(), rowCount, idToConstant.get(field.fieldId()));
+        } else if (field.fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
+          vectors[i] = new ConstantColumnVector(Types.BooleanType.get(), rowCount, false);
+        } else {
+          // Column is neither a constant nor present in the data file; surface nulls.
+          vectors[i] = new ConstantColumnVector(field.type(), rowCount, null);
+        }
+      }
+
+      return new ColumnarBatch(vectors, rowCount);
     }
 
-    // Mapping from Arrow Schema field index to Iceberg Field ID.
-    static List<Integer> vortexSchemaMapping(
-        Schema icebergSchema, org.apache.arrow.vector.types.pojo.Schema vortexSchema) {
-      return vortexSchema.getFields().stream()
-          .map(field -> icebergSchema.findField(field.getName()).fieldId())
-          .collect(Collectors.toList());
+    private int[] resolveColumns(List<FieldVector> fieldVectors) {
+      Map<String, Integer> nameToIndex = Maps.newHashMapWithExpectedSize(fieldVectors.size());
+      for (int i = 0; i < fieldVectors.size(); i++) {
+        nameToIndex.put(fieldVectors.get(i).getField().getName(), i);
+      }
+
+      int[] indexes = new int[columns.size()];
+      for (int i = 0; i < columns.size(); i++) {
+        Types.NestedField field = columns.get(i);
+        if (idToConstant.containsKey(field.fieldId())) {
+          indexes[i] = -1;
+        } else {
+          Integer index = nameToIndex.get(field.name());
+          indexes[i] = index == null ? -1 : index;
+        }
+      }
+
+      return indexes;
     }
   }
 }

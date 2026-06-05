@@ -47,6 +47,7 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
@@ -110,21 +111,40 @@ public class GenericVortexReaders {
   }
 
   public static VortexValueReader<Record> struct(
-      Types.StructType schema, List<VortexValueReader<?>> readers) {
-    return new StructReader(schema, readers);
+      Types.StructType schema, List<Field> fields, List<VortexValueReader<?>> readers) {
+    return new StructReader(schema, fields, readers);
   }
 
   public static <T> VortexValueReader<List<T>> list(VortexValueReader<T> elementReader) {
     return new ListReader<>(elementReader);
   }
 
+  /**
+   * Returns a reader that always produces {@code constant}, ignoring the Arrow vector and row.
+   *
+   * <p>Used to inject identity-partition values and metadata columns (for example {@code _file} or
+   * {@code _spec_id}) that are supplied through {@code idToConstant} rather than being read from
+   * the data file.
+   */
+  public static <C> VortexValueReader<C> constants(C constant) {
+    return new ConstantReader<>(constant);
+  }
+
   private static class StructReader implements VortexValueReader<Record> {
     private final Types.StructType schema;
+    // File column name backing each expected field, or null when the field is absent from the file.
+    private final String[] childNames;
     private final List<VortexValueReader<?>> readers;
 
-    private StructReader(Types.StructType schema, List<VortexValueReader<?>> readers) {
+    private StructReader(
+        Types.StructType schema, List<Field> fields, List<VortexValueReader<?>> readers) {
       this.schema = schema;
       this.readers = readers;
+      this.childNames = new String[fields.size()];
+      for (int i = 0; i < fields.size(); i++) {
+        Field field = fields.get(i);
+        this.childNames[i] = field == null ? null : field.getName();
+      }
     }
 
     @Override
@@ -133,9 +153,13 @@ public class GenericVortexReaders {
       GenericRecord record = GenericRecord.create(schema);
       for (int i = 0; i < readers.size(); i++) {
         VortexValueReader<?> reader = readers.get(i);
-        FieldVector child = (FieldVector) struct.getChildByOrdinal(i);
-        Object value = reader.read(child, row);
-        record.set(i, value);
+        if (reader == null) {
+          // Expected field is not present in the file struct; project it as null.
+          record.set(i, null);
+        } else {
+          FieldVector child = (FieldVector) struct.getChild(childNames[i]);
+          record.set(i, reader.read(child, row));
+        }
       }
       return record;
     }
@@ -157,6 +181,24 @@ public class GenericVortexReaders {
       return IntStream.range(start, end)
           .mapToObj(i -> elementReader.read(elementVector, i))
           .toList();
+    }
+  }
+
+  private static class ConstantReader<C> implements VortexValueReader<C> {
+    private final C constant;
+
+    private ConstantReader(C constant) {
+      this.constant = constant;
+    }
+
+    @Override
+    public C read(FieldVector vector, int row) {
+      return constant;
+    }
+
+    @Override
+    public C readNonNull(FieldVector vector, int row) {
+      return constant;
     }
   }
 

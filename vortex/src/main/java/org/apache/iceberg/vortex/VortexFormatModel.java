@@ -23,15 +23,16 @@ import dev.vortex.api.VortexWriter;
 import dev.vortex.jni.NativeRuntime;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -355,18 +356,24 @@ public class VortexFormatModel<D, S, R>
                     readerFunction.read(schema, fileSchema, engineSchema, idToConstant);
       }
 
-      org.apache.iceberg.Schema readSchema = schema;
-      if (idToConstant != null) {
-        List<Types.NestedField> readerFields =
-            schema.columns().stream()
-                .filter(field -> !idToConstant.containsKey(field.fieldId()))
-                .collect(Collectors.toList());
-        readSchema = new org.apache.iceberg.Schema(readerFields);
-      }
+      // Compute the columns to scan from the data file. Constants (identity partition values and
+      // metadata columns such as _file, _spec_id and _partition) come from idToConstant, and
+      // _is_deleted is synthesized by the reader, so none of those are projected from the file.
+      // _pos is also excluded and currently resolves to null: Vortex exposes row positions through
+      // a `row_idx` scan expression that the Java bindings (<= 0.73.0) do not yet surface.
+      Map<Integer, ?> constants = idToConstant == null ? Collections.emptyMap() : idToConstant;
+      List<String> projection =
+          schema.columns().stream()
+              .filter(
+                  field ->
+                      !constants.containsKey(field.fieldId())
+                          && !MetadataColumns.isMetadataColumn(field.name()))
+              .map(Types.NestedField::name)
+              .toList();
 
       return new VortexIterable<>(
           inputFile,
-          readSchema,
+          projection,
           filterPredicate,
           rowRange,
           readerFunc,

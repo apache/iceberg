@@ -65,67 +65,45 @@ public class TestGenericReadProjection extends TestReadProjection {
     }
   }
 
-  // GenericVortexReader and VortexSchemaWithTypeVisitor pair expected Iceberg fields with file
-  // Arrow fields positionally. Any read schema that does not list columns in the same order as the
-  // file fails. Renamed fields additionally need field-ID-based matching (Arrow schemas do not
-  // carry Iceberg field ids), and missing-field defaults need null fill-in support in the reader.
-  // The tests below stay declared so they re-enable automatically once those gaps are filled.
-
-  @Test
-  @Override
-  @Disabled("Vortex reader binds expected fields to file fields by position; reordered read fails")
-  public void testReorderedFullProjection() {}
-
-  @Test
-  @Override
-  @Disabled(
-      "Vortex reader binds expected fields to file fields by position; column-subset read fails")
-  public void testBasicProjection() {}
+  // Projection binds columns by name (see GenericVortexReader and VortexSchemaWithTypeVisitor) and
+  // the scan drops columns absent from the file (VortexIterable), so reordered, subset, missing,
+  // nested-struct, and list projections all work. The tests left disabled below each hit a
+  // *renamed* column (testListOfStructsProjection only in its trailing y->z sub-case): rebinding a
+  // renamed column to its old physical column requires Iceberg field ids stored in the file. Vortex
+  // drops Arrow field and schema metadata on write (verified empirically), so there is no field-id
+  // channel to persist and name-based binding cannot recover a rename. Re-enable if/when Vortex
+  // preserves field metadata or otherwise exposes field ids.
 
   @Test
   @Override
   @Disabled(
-      "Vortex reader binds expected fields to file fields by position; column-subset read fails")
-  public void testSpecialCharacterProjection() {}
-
-  @Test
-  @Override
-  @Disabled(
-      "Vortex projection asks the file for the read schema's column names; renames are not "
-          + "resolved by field id")
+      "Rename resolution needs Iceberg field ids in the file, but Vortex drops Arrow metadata, so "
+          + "a renamed column cannot be bound to its old physical column by name.")
   public void testRename() {}
 
   @Test
   @Override
   @Disabled(
-      "Vortex projection asks the file for the read schema's column names; renames are not "
-          + "resolved by field id")
+      "Rename resolution needs Iceberg field ids in the file, but Vortex drops Arrow metadata, so "
+          + "a renamed column cannot be bound to its old physical column by name.")
   public void testRenamedAddedField() {}
 
   @Test
   @Override
   @Disabled(
-      "Vortex projection asks the file for the read schema's column names; missing fields are not "
-          + "filled with nulls/defaults")
-  public void testReorderedProjection() {}
-
-  @Test
-  @Override
-  @Disabled("VortexSchemaWithTypeVisitor walks nested struct children positionally")
-  public void testNestedStructProjection() {}
+      "List-of-structs projection works by name, but the trailing y->z rename sub-case needs "
+          + "Iceberg field ids the Vortex file does not carry, so the renamed element field reads "
+          + "null.")
+  public void testListOfStructsProjection() {}
 
   private static void assumeSupported(Schema schema) {
-    // LIST round-trip works in the generic writer/reader (see TestGenericVortex), but projection
-    // breaks on lists for the same positional-field-matching reason that disables the other
-    // projection tests above. Skip until projection is rewritten to match by name/field-id.
+    // Lists and structs project by name now; maps and fixed stay out of these projection scenarios
+    // because they have no Vortex reader yet.
     assumeThat(
             TypeUtil.find(
                 schema,
-                type ->
-                    type.typeId() == Type.TypeID.LIST
-                        || type.typeId() == Type.TypeID.MAP
-                        || type.typeId() == Type.TypeID.FIXED))
-        .as("Vortex does not yet support lists, maps, or fixed in projection scenarios")
+                type -> type.typeId() == Type.TypeID.MAP || type.typeId() == Type.TypeID.FIXED))
+        .as("Vortex does not yet support maps or fixed in projection scenarios")
         .isNull();
   }
 

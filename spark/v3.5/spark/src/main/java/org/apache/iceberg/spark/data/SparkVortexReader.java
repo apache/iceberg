@@ -18,15 +18,18 @@
  */
 package org.apache.iceberg.spark.data;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.vortex.GenericVortexReaders;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.VortexRowReader;
@@ -38,35 +41,96 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 /** Read Vortex as Spark {@link InternalRow}. */
 public class SparkVortexReader implements VortexRowReader<InternalRow> {
 
-  private final List<VortexValueReader<?>> fieldReaders;
+  // Parallel arrays indexed by position in the expected (projected) schema. A field is read either
+  // from a file column ({@code columnNames[i]} is the Arrow column name) or as a constant
+  // ({@code columnNames[i]} is null and {@code readers[i]} is a constant reader).
+  private final VortexValueReader<?>[] readers;
+  private final String[] columnNames;
+
+  // Resolves expected field position -> Arrow batch column index. Vortex only returns the projected
+  // (non-constant, file-resident) columns, so this mapping is computed by name from the first batch
+  // rather than assuming the batch is positionally aligned with the expected schema. -1 marks a
+  // constant field that is not backed by a batch column.
+  private int[] batchColumnIndex;
 
   public SparkVortexReader(
       Schema readSchema,
       org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
       Map<Integer, ?> idToConstant) {
-    List<Field> fields = fileArrowSchema.getFields();
+    Map<Integer, ?> constants = idToConstant == null ? Collections.emptyMap() : idToConstant;
+
+    List<Field> fileFields = fileArrowSchema.getFields();
+    Map<String, Field> arrowFieldsByName = Maps.newHashMapWithExpectedSize(fileFields.size());
+    for (Field field : fileFields) {
+      arrowFieldsByName.put(field.getName(), field);
+    }
+
     List<Types.NestedField> expected = readSchema.columns();
-    this.fieldReaders = Lists.newArrayListWithExpectedSize(expected.size());
+    this.readers = new VortexValueReader<?>[expected.size()];
+    this.columnNames = new String[expected.size()];
+
     for (int i = 0; i < expected.size(); i++) {
-      Type icebergType = expected.get(i).type();
-      Field arrowField = fields.get(i);
-      this.fieldReaders.add(
-          VortexSchemaWithTypeVisitor.visit(icebergType, arrowField, SparkReadBuilder.INSTANCE));
+      Types.NestedField field = expected.get(i);
+      int id = field.fieldId();
+      if (constants.containsKey(id)) {
+        // Identity-partition value or metadata column (e.g. _file, _spec_id, _partition) supplied
+        // through idToConstant instead of being stored in the data file.
+        this.readers[i] = GenericVortexReaders.constants(constants.get(id));
+      } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+        this.readers[i] = GenericVortexReaders.constants(false);
+      } else {
+        Field arrowField = arrowFieldsByName.get(field.name());
+        if (arrowField == null) {
+          // Field is neither a constant nor present in the data file; fill with null.
+          this.readers[i] = GenericVortexReaders.constants(null);
+        } else {
+          this.readers[i] =
+              VortexSchemaWithTypeVisitor.visit(
+                  field.type(), arrowField, SparkReadBuilder.INSTANCE);
+          this.columnNames[i] = arrowField.getName();
+        }
+      }
     }
   }
 
   @Override
   public InternalRow read(VectorSchemaRoot batch, int row) {
-    GenericInternalRow result = new GenericInternalRow(fieldReaders.size());
-    for (int i = 0; i < fieldReaders.size(); i++) {
-      VortexValueReader<?> reader = fieldReaders.get(i);
-      result.update(i, reader.read(batch.getVector(i), row));
+    if (batchColumnIndex == null) {
+      this.batchColumnIndex = resolveColumns(batch);
+    }
+
+    GenericInternalRow result = new GenericInternalRow(readers.length);
+    for (int i = 0; i < readers.length; i++) {
+      int columnIndex = batchColumnIndex[i];
+      FieldVector vector = columnIndex < 0 ? null : batch.getVector(columnIndex);
+      result.update(i, readers[i].read(vector, row));
     }
     return result;
   }
 
-  static class SparkReadBuilder extends VortexSchemaWithTypeVisitor<VortexValueReader<?>> {
+  private int[] resolveColumns(VectorSchemaRoot batch) {
+    List<FieldVector> vectors = batch.getFieldVectors();
+    Map<String, Integer> nameToIndex = Maps.newHashMapWithExpectedSize(vectors.size());
+    for (int i = 0; i < vectors.size(); i++) {
+      nameToIndex.put(vectors.get(i).getField().getName(), i);
+    }
 
+    int[] indexes = new int[columnNames.length];
+    for (int i = 0; i < columnNames.length; i++) {
+      if (columnNames[i] == null) {
+        indexes[i] = -1;
+      } else {
+        Integer index = nameToIndex.get(columnNames[i]);
+        Preconditions.checkState(
+            index != null, "Vortex batch is missing projected column: %s", columnNames[i]);
+        indexes[i] = index;
+      }
+    }
+
+    return indexes;
+  }
+
+  static class SparkReadBuilder extends VortexSchemaWithTypeVisitor<VortexValueReader<?>> {
     static final SparkReadBuilder INSTANCE = new SparkReadBuilder();
 
     private SparkReadBuilder() {}
@@ -74,7 +138,7 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     @Override
     public VortexValueReader<?> struct(
         Types.StructType schema, List<Field> fields, List<VortexValueReader<?>> children) {
-      return new StructReader(children);
+      return new StructReader(fields, children);
     }
 
     @Override
@@ -110,22 +174,33 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
   }
 
   static class StructReader implements VortexValueReader<InternalRow> {
+    // File column name backing each expected field, or null when the field is absent from the file.
+    private final String[] childNames;
+    private final List<VortexValueReader<?>> fieldReaders;
 
-    private final List<VortexValueReader<?>> fields;
-
-    private StructReader(List<VortexValueReader<?>> fields) {
-      this.fields = fields;
+    private StructReader(List<Field> fields, List<VortexValueReader<?>> fieldReaders) {
+      this.fieldReaders = fieldReaders;
+      this.childNames = new String[fields.size()];
+      for (int i = 0; i < fields.size(); i++) {
+        Field field = fields.get(i);
+        this.childNames[i] = field == null ? null : field.getName();
+      }
     }
 
     @Override
     public InternalRow readNonNull(FieldVector vector, int row) {
       org.apache.arrow.vector.complex.StructVector struct =
           (org.apache.arrow.vector.complex.StructVector) vector;
-      GenericInternalRow result = new GenericInternalRow(fields.size());
-      for (int i = 0; i < fields.size(); i++) {
-        VortexValueReader<?> fieldReader = fields.get(i);
-        FieldVector child = (FieldVector) struct.getChildByOrdinal(i);
-        result.update(i, fieldReader.read(child, row));
+      GenericInternalRow result = new GenericInternalRow(fieldReaders.size());
+      for (int i = 0; i < fieldReaders.size(); i++) {
+        VortexValueReader<?> fieldReader = fieldReaders.get(i);
+        if (fieldReader == null) {
+          // Expected field is not present in the file struct; project it as null.
+          result.update(i, null);
+        } else {
+          FieldVector child = (FieldVector) struct.getChild(childNames[i]);
+          result.update(i, fieldReader.read(child, row));
+        }
       }
       return result;
     }

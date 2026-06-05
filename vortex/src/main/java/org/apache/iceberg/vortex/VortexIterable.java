@@ -30,9 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableGroup;
@@ -40,8 +43,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,14 +61,14 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
   VortexIterable(
       InputFile inputFile,
-      Schema icebergSchema,
+      List<String> projection,
       Optional<Expression> filterPredicate,
       long[] rowRange,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>> readerFunction,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>> batchReaderFunction,
       int workerThreads) {
     this.inputFile = inputFile;
-    this.projection = Lists.transform(icebergSchema.columns(), Types.NestedField::name);
+    this.projection = projection;
     this.filterPredicate = filterPredicate;
     this.rowRange = rowRange;
     this.rowReaderFunc = readerFunction;
@@ -103,7 +104,18 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
               return ConvertFilterToVortex.convert(icebergFileSchema, icebergExpression);
             });
 
-    String[] projectionNames = projection.toArray(new String[0]);
+    // Vortex resolves projected columns by name and errors on any name not in the file. Drop
+    // requested columns the file does not contain (e.g. fields added after the file was written) so
+    // the reader fills them with null/constants instead of crashing the scan. Binding is by name:
+    // Vortex stores no Iceberg field ids (its Java bindings drop Arrow field/schema metadata), so a
+    // column renamed since write time cannot be rebound to its old physical column here.
+    Set<String> fileColumns =
+        fileArrowSchema.getFields().stream()
+            .map(Field::getName)
+            .collect(Collectors.toUnmodifiableSet());
+
+    String[] projectionNames =
+        projection.stream().filter(fileColumns::contains).toArray(String[]::new);
     dev.vortex.api.Expression scanProjection =
         dev.vortex.api.Expression.select(projectionNames, dev.vortex.api.Expression.root());
 

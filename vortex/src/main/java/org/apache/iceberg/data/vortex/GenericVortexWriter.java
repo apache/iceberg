@@ -50,6 +50,7 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
@@ -204,6 +205,26 @@ public class GenericVortexWriter implements VortexValueWriter<Record> {
           }
         }
         listVector.endValue(rowIndex, elements.size());
+        break;
+      case STRUCT:
+        Types.StructType structType = (Types.StructType) type;
+        StructVector structVector = (StructVector) vector;
+        Record structValue = (Record) value;
+        List<Types.NestedField> structFields = structType.fields();
+        for (int i = 0; i < structFields.size(); i++) {
+          Types.NestedField structField = structFields.get(i);
+          // Bind each Iceberg child to the Arrow child of the same name; the Arrow struct is built
+          // from the write schema, so names line up even if ordinals were to drift.
+          FieldVector childVector = (FieldVector) structVector.getChild(structField.name());
+          Object childValue = structValue.get(i);
+          if (childValue == null) {
+            childVector.setNull(rowIndex);
+          } else {
+            writeValue(childVector, structField.type(), childValue, rowIndex);
+          }
+        }
+        // Mark the struct slot itself as non-null for this row.
+        structVector.setIndexDefined(rowIndex);
         break;
       default:
         throw new UnsupportedOperationException(

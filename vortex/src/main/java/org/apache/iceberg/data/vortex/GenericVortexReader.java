@@ -27,10 +27,12 @@ import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.VortexRowReader;
@@ -40,21 +42,57 @@ import org.apache.iceberg.vortex.VortexValueReader;
 
 public class GenericVortexReader implements VortexRowReader<Record> {
   private final Types.StructType structType;
-  private final List<VortexValueReader<?>> fieldReaders;
+
+  // Parallel arrays indexed by position in the expected (projected) struct. A field is read either
+  // from a file column ({@code columnNames[i]} is the Arrow column name) or as a constant
+  // ({@code columnNames[i]} is null and {@code readers[i]} is a constant reader).
+  private final VortexValueReader<?>[] readers;
+  private final String[] columnNames;
+
+  // Resolves expected field position -> Arrow batch column index. Vortex only returns the projected
+  // (non-constant, file-resident) columns, so this mapping is computed by name from the first batch
+  // rather than assuming the batch is positionally aligned with the expected schema. -1 marks a
+  // constant field that is not backed by a batch column.
+  private int[] batchColumnIndex;
 
   private GenericVortexReader(
       Schema expectedSchema,
       org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
       Map<Integer, ?> idToConstant) {
     this.structType = expectedSchema.asStruct();
-    GenericReadBuilder builder = new GenericReadBuilder(idToConstant);
+    Map<Integer, ?> constants = idToConstant == null ? Collections.emptyMap() : idToConstant;
+
     List<Field> fileFields = fileArrowSchema.getFields();
+    Map<String, Field> arrowFieldsByName = Maps.newHashMapWithExpectedSize(fileFields.size());
+    for (Field field : fileFields) {
+      arrowFieldsByName.put(field.getName(), field);
+    }
+
+    GenericReadBuilder builder = new GenericReadBuilder();
     List<Types.NestedField> expectedFields = structType.fields();
-    this.fieldReaders = Lists.newArrayListWithExpectedSize(expectedFields.size());
+    this.readers = new VortexValueReader<?>[expectedFields.size()];
+    this.columnNames = new String[expectedFields.size()];
+
     for (int i = 0; i < expectedFields.size(); i++) {
-      Type icebergType = expectedFields.get(i).type();
-      Field arrowField = fileFields.get(i);
-      this.fieldReaders.add(VortexSchemaWithTypeVisitor.visit(icebergType, arrowField, builder));
+      Types.NestedField field = expectedFields.get(i);
+      int id = field.fieldId();
+      if (constants.containsKey(id)) {
+        // Identity-partition value or metadata column (e.g. _file, _spec_id, _partition) supplied
+        // through idToConstant instead of being stored in the data file.
+        this.readers[i] = GenericVortexReaders.constants(constants.get(id));
+      } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+        this.readers[i] = GenericVortexReaders.constants(false);
+      } else {
+        Field arrowField = arrowFieldsByName.get(field.name());
+        if (arrowField == null) {
+          // The expected field is neither a constant nor present in the data file (for example an
+          // unsupplied metadata column). Fill it with null rather than reading a missing column.
+          this.readers[i] = GenericVortexReaders.constants(null);
+        } else {
+          this.readers[i] = VortexSchemaWithTypeVisitor.visit(field.type(), arrowField, builder);
+          this.columnNames[i] = arrowField.getName();
+        }
+      }
     }
   }
 
@@ -72,28 +110,48 @@ public class GenericVortexReader implements VortexRowReader<Record> {
 
   @Override
   public Record read(VectorSchemaRoot batch, int row) {
+    if (batchColumnIndex == null) {
+      this.batchColumnIndex = resolveColumns(batch);
+    }
+
     GenericRecord record = GenericRecord.create(structType);
-    for (int i = 0; i < fieldReaders.size(); i++) {
-      VortexValueReader<?> reader = fieldReaders.get(i);
-      FieldVector vector = batch.getVector(i);
-      record.set(i, reader.read(vector, row));
+    for (int i = 0; i < readers.length; i++) {
+      int columnIndex = batchColumnIndex[i];
+      FieldVector vector = columnIndex < 0 ? null : batch.getVector(columnIndex);
+      record.set(i, readers[i].read(vector, row));
     }
     return record;
   }
 
-  @SuppressWarnings("UnusedVariable")
-  static class GenericReadBuilder extends VortexSchemaWithTypeVisitor<VortexValueReader<?>> {
-    // TODO(aduffy): implement constant readers to fill in identity partition values
-    private final Map<Integer, ?> idToConstant;
-
-    GenericReadBuilder(Map<Integer, ?> idToConstant) {
-      this.idToConstant = idToConstant;
+  private int[] resolveColumns(VectorSchemaRoot batch) {
+    List<FieldVector> vectors = batch.getFieldVectors();
+    Map<String, Integer> nameToIndex = Maps.newHashMapWithExpectedSize(vectors.size());
+    for (int i = 0; i < vectors.size(); i++) {
+      nameToIndex.put(vectors.get(i).getField().getName(), i);
     }
+
+    int[] indexes = new int[columnNames.length];
+    for (int i = 0; i < columnNames.length; i++) {
+      if (columnNames[i] == null) {
+        indexes[i] = -1;
+      } else {
+        Integer index = nameToIndex.get(columnNames[i]);
+        Preconditions.checkState(
+            index != null, "Vortex batch is missing projected column: %s", columnNames[i]);
+        indexes[i] = index;
+      }
+    }
+
+    return indexes;
+  }
+
+  static class GenericReadBuilder extends VortexSchemaWithTypeVisitor<VortexValueReader<?>> {
+    GenericReadBuilder() {}
 
     @Override
     public VortexValueReader<?> struct(
         Types.StructType iStruct, List<Field> fields, List<VortexValueReader<?>> children) {
-      return GenericVortexReaders.struct(iStruct, children);
+      return GenericVortexReaders.struct(iStruct, fields, children);
     }
 
     @Override
