@@ -87,7 +87,7 @@ public class RollbackStagedTable
   }
 
   /**
-   * @deprecated since 1.12.0, use columns() instead
+   * @deprecated since 1.12.0, use {@link #columns()} instead
    */
   @Deprecated
   @Override
