@@ -25,12 +25,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
+import org.apache.avro.SchemaBuilder;
 import org.apache.flink.api.common.functions.DefaultOpenContext;
 import org.apache.flink.api.common.functions.util.ListCollector;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
@@ -47,15 +49,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
-public class TestVariantAvroDynamicTableRecordGenerator {
+class TestVariantAvroDynamicTableRecordGenerator {
 
-  public static final String TEST_DB = "test_db";
-  public static final String TEST_TABLE = "test_table";
-  public static final String BRANCH = "main";
+  private static final String TEST_DB = "test_db";
+  private static final String TEST_TABLE = "test_table";
+  private static final String BRANCH = "main";
   private static final Configuration FLINK_CONFIG = new Configuration();
 
   @Test
-  public void testMissingRequiredFields() {
+  void testMissingRequiredFields() {
     List<LogicalType> types = Lists.newArrayList();
     List<String> names = Lists.newArrayList();
 
@@ -76,7 +78,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
   }
 
   @Test
-  public void testWithWritePropertiesOverride() throws Exception {
+  void testWithWritePropertiesOverride() throws Exception {
     DataGenerator dataGenerator = new DataGenerators.Primitives();
     Variant variantData = dataGenerator.generateFlinkVariantData();
     Schema schema = dataGenerator.avroSchema();
@@ -111,7 +113,41 @@ public class TestVariantAvroDynamicTableRecordGenerator {
   }
 
   @Test
-  public void testWithPartitionedTable() throws Exception {
+  void testNullCatalogColumnsFallBackToWriteProperties() throws Exception {
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
+    Variant variantData = dataGenerator.generateFlinkVariantData();
+    Schema schema = dataGenerator.avroSchema();
+    String schemaVersion = "v1";
+
+    Map<String, String> writeProperties = Maps.newHashMap();
+    writeProperties.put(FlinkCreateTableOptions.CATALOG_DATABASE.key(), "fallback_db");
+    writeProperties.put(FlinkCreateTableOptions.CATALOG_TABLE.key(), "fallback_table");
+
+    RowType rowType = createRowTypeWithDbAndTable();
+    VariantAvroDynamicTableRecordGenerator generator =
+        new VariantAvroDynamicTableRecordGenerator(rowType, writeProperties, FLINK_CONFIG);
+    generator.open(new DefaultOpenContext());
+
+    RowData inputRecord =
+        GenericRowData.of(
+            variantData,
+            StringData.fromString(schema.toString()),
+            StringData.fromString(schema.getName() + schemaVersion),
+            null,
+            null);
+
+    List<DynamicRecord> records = Lists.newArrayList();
+    ListCollector<DynamicRecord> collector = new ListCollector<>(records);
+    generator.generate(inputRecord, collector);
+
+    assertThat(records).hasSize(1);
+    DynamicRecord record = records.get(0);
+    assertThat(record.tableIdentifier())
+        .isEqualTo(TableIdentifier.of("fallback_db", "fallback_table"));
+  }
+
+  @Test
+  void testWithPartitionedTable() throws Exception {
     DataGenerator dataGenerator = new DataGenerators.Primitives();
     Variant variantData = dataGenerator.generateFlinkVariantData();
     Schema schema = dataGenerator.avroSchema();
@@ -152,7 +188,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
   }
 
   @Test
-  public void testSchemaCaching() throws Exception {
+  void testSchemaCaching() throws Exception {
     DataGenerator dataGenerator1 = new DataGenerators.Primitives();
     DataGenerator dataGenerator2 = new DataGenerators.StructOfPrimitive();
 
@@ -226,14 +262,14 @@ public class TestVariantAvroDynamicTableRecordGenerator {
 
     assertThat(records).hasSize(3);
     // Should emit DynamicRecord with same tableSchema instance.
-    assertThat(records.get(1).schema() == schemaCacheItem.tableSchema()).isTrue();
+    assertThat(records.get(1).schema()).isSameAs(schemaCacheItem.tableSchema());
   }
 
   @Test
-  public void testSchemaEvolution() throws Exception {
+  void testSchemaEvolution() throws Exception {
     // Create simple schema with one field
-    org.apache.avro.Schema initialSchema =
-        org.apache.avro.SchemaBuilder.builder()
+    Schema initialSchema =
+        SchemaBuilder.builder()
             .record("UserRecord")
             .namespace("test.schema")
             .fields()
@@ -242,8 +278,8 @@ public class TestVariantAvroDynamicTableRecordGenerator {
     String initialSchemaId = "UserRecord:v1";
 
     // Create evolved schema with additional field
-    org.apache.avro.Schema evolvedSchema =
-        org.apache.avro.SchemaBuilder.builder()
+    Schema evolvedSchema =
+        SchemaBuilder.builder()
             .record("UserRecord")
             .namespace("test.schema")
             .fields()
@@ -316,7 +352,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
   }
 
   @Test
-  public void testPartitionSpecCaching() throws Exception {
+  void testPartitionSpecCaching() throws Exception {
     DataGenerator dataGenerator = new DataGenerators.Primitives();
     Variant variantData = dataGenerator.generateFlinkVariantData();
     String avroSchema = dataGenerator.avroSchema().toString();
@@ -380,7 +416,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
     assertThat(record2.spec().fields()).hasSize(1);
     assertThat(record1.spec().fields().get(0).name()).isEqualTo("row_id");
     assertThat(record2.spec().fields().get(0).name()).isEqualTo("row_id");
-    assertThat(record1.spec() == record2.spec()).isTrue();
+    assertThat(record1.spec()).isSameAs(record2.spec());
 
     // Verify third record has different partition spec (partitioned on string_field)
     assertThat(record3.spec().fields()).hasSize(1);
@@ -443,7 +479,7 @@ public class TestVariantAvroDynamicTableRecordGenerator {
     types.add(new VarCharType(false, 255));
     names.add(VariantAvroDynamicTableRecordGenerator.PARTITION_COLUMNS);
 
-    types.add(new org.apache.flink.table.types.logical.IntType(false));
+    types.add(new IntType(false));
     names.add(FlinkWriteOptions.WRITE_PARALLELISM.key());
 
     return RowType.of(types.toArray(new LogicalType[0]), names.toArray(new String[0]));

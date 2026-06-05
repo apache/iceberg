@@ -436,15 +436,15 @@ public class TestIcebergConnector extends TestBase {
     String avroSchemaId = "TestSchema:1";
     // Create table with dynamic sink enabled
     sql(
-        "CREATE TABLE %s (data VARIANT, `catalog-database` STRING, `catalog-table` STRING, avro_schema STRING, avro_schema_id STRING, branch STRING, `write-parallelism` INT) WITH %s",
+        "CREATE TABLE %s (data VARIANT NOT NULL, `catalog-database` STRING, `catalog-table` STRING, avro_schema STRING NOT NULL, avro_schema_id STRING NOT NULL, branch STRING, `write-parallelism` INT) WITH %s",
         TABLE_NAME + "_dynamic", toWithClause(dynamicTableProps));
 
     // Insert data with database and table information
     sql(
         """
-        INSERT INTO %s VALUES \
-        (PARSE_JSON('{"id": 1, "name": "AAA"}'), '%s', '%s', '%s', '%s', 'main', 1), \
-        (PARSE_JSON('{"id": 2, "name": "BBB"}'), '%s', '%s', '%s', '%s', 'main', 1)\
+        INSERT INTO %s VALUES
+        (PARSE_JSON('{"id": 1, "name": "AAA"}'), '%s', '%s', '%s', '%s', 'main', 1),
+        (PARSE_JSON('{"id": 2, "name": "BBB"}'), '%s', '%s', '%s', '%s', 'main', 1)
         """,
         TABLE_NAME + "_dynamic",
         databaseName(),

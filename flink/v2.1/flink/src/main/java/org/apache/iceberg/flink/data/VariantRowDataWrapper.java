@@ -167,7 +167,10 @@ public class VariantRowDataWrapper implements RowData {
 
   @Override
   public RowData getRow(int pos, int numFields) {
-    return new VariantRowDataWrapper((RowType) rowType.getTypeAt(pos)).wrap(field(pos));
+    Variant value = field(pos);
+    return isNull(value)
+        ? null
+        : new VariantRowDataWrapper((RowType) rowType.getTypeAt(pos)).wrap(value);
   }
 
   @Override
@@ -176,8 +179,11 @@ public class VariantRowDataWrapper implements RowData {
   }
 
   private static Object elementValue(Variant variant, LogicalType elementType) {
-    LogicalTypeRoot root = elementType.getTypeRoot();
+    if (isNull(variant)) {
+      return null;
+    }
 
+    LogicalTypeRoot root = elementType.getTypeRoot();
     return switch (root) {
       case NULL -> null;
       case BOOLEAN -> variant.getBoolean();
@@ -204,7 +210,7 @@ public class VariantRowDataWrapper implements RowData {
   }
 
   private static MapData mapDataValue(Variant variant, MapType mapType) {
-    if (variant == null) {
+    if (isNull(variant)) {
       return null;
     }
 
@@ -225,7 +231,7 @@ public class VariantRowDataWrapper implements RowData {
   }
 
   private static ArrayData arrayDataValue(Variant variant, LogicalType innerElementType) {
-    if (variant == null) {
+    if (isNull(variant)) {
       return null;
     }
 
@@ -234,7 +240,7 @@ public class VariantRowDataWrapper implements RowData {
 
     for (int i = 0; i < arraySize; i++) {
       Variant element = variant.getElement(i);
-      elements[i] = element == null ? null : elementValue(element, innerElementType);
+      elements[i] = elementValue(element, innerElementType);
     }
 
     return new GenericArrayData(elements);
@@ -285,11 +291,13 @@ public class VariantRowDataWrapper implements RowData {
   }
 
   private static TimestampData microTimestampValue(long micros) {
-    return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
+    return TimestampData.fromEpochMillis(
+        Math.floorDiv(micros, 1000L), (int) Math.floorMod(micros, 1000L) * 1000);
   }
 
   private static TimestampData nanoTimestampValue(long nanos) {
-    return TimestampData.fromEpochMillis(nanos / 1_000_000L, (int) (nanos % 1_000_000L));
+    return TimestampData.fromEpochMillis(
+        Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
   }
 
   private Variant field(int position) {
