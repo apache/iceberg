@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
@@ -32,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -44,6 +46,10 @@ import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClientBuilder;
 import software.amazon.awssdk.services.kms.model.DataKeySpec;
 import software.amazon.awssdk.services.kms.model.EncryptionAlgorithmSpec;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
+import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 public class AwsProperties implements Serializable {
 
@@ -119,6 +125,10 @@ public class AwsProperties implements Serializable {
   /**
    * Used by {@link AssumeRoleAwsClientFactory}. If set, all AWS clients will assume a role of the
    * given ARN, instead of using the default credential chain.
+   *
+   * <p>Also used for REST catalog SigV4 signing: if set, REST requests will be signed with
+   * credentials of the assumed role instead of the base credentials, so that catalog requests and
+   * data access are performed with the same role.
    */
   public static final String CLIENT_ASSUME_ROLE_ARN = "client.assume-role.arn";
 
@@ -448,9 +458,35 @@ public class AwsProperties implements Serializable {
     return restSigningName;
   }
 
+  /**
+   * Returns the {@link AwsCredentialsProvider} used for SigV4 signing of REST catalog requests.
+   *
+   * <p>If {@link #CLIENT_ASSUME_ROLE_ARN} is set, the configured role is assumed through an
+   * auto-refreshing {@link StsAssumeRoleCredentialsProvider}, so that REST request signing uses the
+   * same assumed role as the AWS clients created by {@link AssumeRoleAwsClientFactory}.
+   */
   public AwsCredentialsProvider restCredentialsProvider() {
-    return credentialsProvider(
-        this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
+    AwsCredentialsProvider provider =
+        credentialsProvider(this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
+    if (Strings.isNullOrEmpty(clientAssumeRoleArn)) {
+      return provider;
+    }
+
+    StsClient stsClient =
+        StsClient.builder().credentialsProvider(provider).region(restSigningRegion()).build();
+    StsAssumeRoleCredentialsProvider assumeRoleProvider =
+        StsAssumeRoleCredentialsProvider.builder()
+            .stsClient(stsClient)
+            .refreshRequest(
+                AssumeRoleRequest.builder()
+                    .roleArn(clientAssumeRoleArn)
+                    .roleSessionName(restSessionName())
+                    .durationSeconds(clientAssumeRoleTimeoutSec)
+                    .externalId(clientAssumeRoleExternalId)
+                    .tags(stsClientAssumeRoleTags)
+                    .build())
+            .build();
+    return new AssumeRoleRestCredentialsProvider(assumeRoleProvider, stsClient, provider);
   }
 
   public String kmsEndpoint() {
@@ -463,6 +499,14 @@ public class AwsProperties implements Serializable {
 
   public DataKeySpec kmsDataKeySpec() {
     return this.kmsDataKeySpec;
+  }
+
+  private String restSessionName() {
+    if (clientAssumeRoleSessionName != null) {
+      return clientAssumeRoleSessionName;
+    }
+
+    return String.format("iceberg-aws-%s", UUID.randomUUID());
   }
 
   private Set<software.amazon.awssdk.services.sts.model.Tag> toStsTags(
@@ -540,6 +584,41 @@ public class AwsProperties implements Serializable {
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  /**
+   * Wraps an {@link StsAssumeRoleCredentialsProvider} so that closing the provider also closes the
+   * underlying STS client and the base credentials provider, neither of which is closed by the
+   * assume-role provider itself.
+   */
+  private static class AssumeRoleRestCredentialsProvider
+      implements AwsCredentialsProvider, SdkAutoCloseable {
+    private final StsAssumeRoleCredentialsProvider delegate;
+    private final StsClient stsClient;
+    private final AwsCredentialsProvider baseCredentialsProvider;
+
+    AssumeRoleRestCredentialsProvider(
+        StsAssumeRoleCredentialsProvider delegate,
+        StsClient stsClient,
+        AwsCredentialsProvider baseCredentialsProvider) {
+      this.delegate = delegate;
+      this.stsClient = stsClient;
+      this.baseCredentialsProvider = baseCredentialsProvider;
+    }
+
+    @Override
+    public AwsCredentials resolveCredentials() {
+      return delegate.resolveCredentials();
+    }
+
+    @Override
+    public void close() {
+      delegate.close();
+      stsClient.close();
+      if (baseCredentialsProvider instanceof SdkAutoCloseable closeableProvider) {
+        closeableProvider.close();
+      }
     }
   }
 }
