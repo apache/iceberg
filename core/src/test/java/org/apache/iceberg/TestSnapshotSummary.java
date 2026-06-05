@@ -21,7 +21,15 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -210,6 +218,86 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
+  }
+
+  @TestTemplate
+  public void deleteDuplicateFilesWithinMultipleManifests() throws Exception {
+    int manifestCount = 40;
+    List<ManifestFile> manifests = Lists.newArrayList();
+    for (int index = 0; index < manifestCount; index += 1) {
+      DataFile file =
+          DataFiles.builder(SPEC)
+              .withPath("/path/to/duplicate-" + index + ".parquet")
+              .withFileSizeInBytes(10)
+              .withPartitionPath("data_bucket=" + (index % BUCKETS_NUMBER))
+              .withRecordCount(1)
+              .build();
+      manifests.add(writeManifestWithName("duplicate-" + index, file, file));
+    }
+
+    AppendFiles appendFiles = table.newFastAppend();
+    for (ManifestFile manifest : manifests) {
+      appendFiles.appendManifest(manifest);
+    }
+    appendFiles.commit();
+
+    ExecutorService executorService = Executors.newFixedThreadPool(manifestCount);
+    try {
+      table
+          .newDelete()
+          .deleteFromRowFilter(Expressions.alwaysTrue())
+          .scanManifestsWith(executorService)
+          .commit();
+
+      assertThat(table.currentSnapshot().summary())
+          .containsEntry(SnapshotSummary.DELETED_DUPLICATE_FILES, String.valueOf(manifestCount))
+          .containsEntry(SnapshotSummary.DELETED_FILES_PROP, String.valueOf(manifestCount));
+    } finally {
+      executorService.shutdownNow();
+    }
+  }
+
+  @TestTemplate
+  public void deleteDuplicateFilesWithConcurrentDeleteRetry() throws Exception {
+    String tableName = "retry-duplicate-delete";
+    File retryTableDir = temp.resolve(tableName).toFile();
+    AtomicBoolean failCommitAfterConcurrentDelete = new AtomicBoolean(false);
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, retryTableDir) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            if (base != null && failCommitAfterConcurrentDelete.compareAndSet(true, false)) {
+              TestTables.load(retryTableDir, tableName)
+                  .newDelete()
+                  .deleteFromRowFilter(Expressions.alwaysTrue())
+                  .commit();
+              throw new CommitFailedException("Injected concurrent delete");
+            }
+
+            super.commit(base, updatedMetadata);
+          }
+        };
+    this.table =
+        TestTables.create(
+            retryTableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+    table.updateProperties().set("random-snapshot-ids", "true").commit();
+
+    DataFile file =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/concurrent-delete-duplicate.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    ManifestFile manifest = writeManifestWithName("concurrent-delete-duplicate", file, file);
+    table.newFastAppend().appendManifest(manifest).commit();
+
+    failCommitAfterConcurrentDelete.set(true);
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+
+    assertThat(table.currentSnapshot().summary())
+        .doesNotContainKey(SnapshotSummary.DELETED_DUPLICATE_FILES)
+        .doesNotContainKey(SnapshotSummary.DELETED_FILES_PROP);
   }
 
   @TestTemplate
