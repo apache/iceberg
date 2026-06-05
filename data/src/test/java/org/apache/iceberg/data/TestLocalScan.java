@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -83,7 +84,7 @@ public class TestLocalScan {
 
   @Parameters(name = "fileFormat = {0}")
   public static List<Object> parameters() {
-    return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO);
+    return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO, FileFormat.VORTEX);
   }
 
   @Parameter private FileFormat format;

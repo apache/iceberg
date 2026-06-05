@@ -21,9 +21,11 @@ package org.apache.iceberg.vortex;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.vortex.api.Expression;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -72,5 +74,20 @@ public class TestConvertFilterToVortex {
     assertThat(result).isNotNull();
     assertThat(result).isNotSameAs(ConvertFilterToVortex.ALWAYS_TRUE);
     assertThat(result).isNotSameAs(ConvertFilterToVortex.ALWAYS_FALSE);
+  }
+
+  @Test
+  public void testCaseInsensitiveBinding() {
+    Expression result =
+        ConvertFilterToVortex.convert(SCHEMA, Expressions.lessThan("ID", 10L), false);
+
+    assertThat(result).isNotNull();
+    assertThat(result).isNotSameAs(ConvertFilterToVortex.ALWAYS_TRUE);
+    assertThat(result).isNotSameAs(ConvertFilterToVortex.ALWAYS_FALSE);
+
+    assertThatThrownBy(
+            () -> ConvertFilterToVortex.convert(SCHEMA, Expressions.lessThan("ID", 10L), true))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'ID'");
   }
 }

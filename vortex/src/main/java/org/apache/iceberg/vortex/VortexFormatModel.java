@@ -263,6 +263,7 @@ public class VortexFormatModel<D, S, R>
     private S engineSchema;
     private Map<Integer, ?> idToConstant;
     private Optional<Expression> filterPredicate = Optional.empty();
+    private boolean caseSensitive = true;
     private long[] rowRange;
     private int workerThreads = TableProperties.VORTEX_WORKER_THREADS_DEFAULT;
 
@@ -295,6 +296,7 @@ public class VortexFormatModel<D, S, R>
 
     @Override
     public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
+      this.caseSensitive = caseSensitive;
       return this;
     }
 
@@ -378,6 +380,7 @@ public class VortexFormatModel<D, S, R>
           rowRange,
           readerFunc,
           batchReaderFunc,
+          caseSensitive,
           workerThreads);
     }
   }

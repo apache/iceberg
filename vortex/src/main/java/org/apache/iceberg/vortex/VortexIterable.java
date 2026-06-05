@@ -57,6 +57,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>>
       batchReaderFunction;
   private final List<String> projection;
+  private final boolean caseSensitive;
   private final int workerThreads;
 
   VortexIterable(
@@ -66,6 +67,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       long[] rowRange,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>> readerFunction,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>> batchReaderFunction,
+      boolean caseSensitive,
       int workerThreads) {
     this.inputFile = inputFile;
     this.projection = projection;
@@ -73,6 +75,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     this.rowRange = rowRange;
     this.rowReaderFunc = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
+    this.caseSensitive = caseSensitive;
     this.workerThreads = workerThreads;
   }
 
@@ -101,7 +104,8 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
         filterPredicate.map(
             icebergExpression -> {
               Schema icebergFileSchema = VortexSchemas.convert(vortexArrowSchema);
-              return ConvertFilterToVortex.convert(icebergFileSchema, icebergExpression);
+              return ConvertFilterToVortex.convert(
+                  icebergFileSchema, icebergExpression, caseSensitive);
             });
 
     // Vortex resolves projected columns by name and errors on any name not in the file. Drop
