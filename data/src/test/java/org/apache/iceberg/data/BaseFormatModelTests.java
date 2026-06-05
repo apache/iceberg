@@ -1033,7 +1033,9 @@ public abstract class BaseFormatModelTests<T> {
                 .build());
 
     assertThatThrownBy(
-            () -> readAndAssertGenericRecords(fileFormat, expectedSchema, genericRecords))
+            () ->
+                readAndAssertEngineRecords(
+                    fileFormat, expectedSchema, genericRecords, record -> record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing required field: missing_str");
   }
@@ -1044,15 +1046,7 @@ public abstract class BaseFormatModelTests<T> {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Schema writeSchema = DataGenerators.PrimitiveDefaults.WRITE_SCHEMA;
-    Schema readSchema =
-        supportsTime()
-            ? DataGenerators.PrimitiveDefaults.READ_SCHEMA
-            : TypeUtil.selectNot(
-                DataGenerators.PrimitiveDefaults.READ_SCHEMA,
-                Set.of(
-                    DataGenerators.PrimitiveDefaults.READ_SCHEMA
-                        .findField("time_with_default")
-                        .fieldId()));
+    Schema readSchema = primitiveDefaultsReadSchema();
 
     List<Record> sourceRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, sourceRecords);
@@ -1081,15 +1075,7 @@ public abstract class BaseFormatModelTests<T> {
   void testPrimitiveDefaultValuesNotApplied(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
-    Schema readSchema =
-        supportsTime()
-            ? DataGenerators.PrimitiveDefaults.READ_SCHEMA
-            : TypeUtil.selectNot(
-                DataGenerators.PrimitiveDefaults.READ_SCHEMA,
-                Set.of(
-                    DataGenerators.PrimitiveDefaults.READ_SCHEMA
-                        .findField("time_with_default")
-                        .fieldId()));
+    Schema readSchema = primitiveDefaultsReadSchema();
 
     List<Record> sourceRecords = RandomGenericData.generate(readSchema, 10, 1L);
     writeGenericRecords(fileFormat, readSchema, sourceRecords);
@@ -2670,5 +2656,14 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(dataFile.format()).isEqualTo(fileFormat);
     assertWriterEffect.accept(fileFormat);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+  }
+
+  private Schema primitiveDefaultsReadSchema() {
+    Schema schema = DataGenerators.PrimitiveDefaults.READ_SCHEMA;
+    if (supportsTime()) {
+      return schema;
+    }
+
+    return TypeUtil.selectNot(schema, Set.of(schema.findField("time_with_default").fieldId()));
   }
 }
