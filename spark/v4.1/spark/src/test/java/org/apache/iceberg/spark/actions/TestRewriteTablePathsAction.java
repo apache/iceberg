@@ -722,7 +722,12 @@ public class TestRewriteTablePathsAction extends TestBase {
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(
-                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                SnapshotChanges.builderFor(table)
+                    .build()
+                    .addedDataFiles()
+                    .iterator()
+                    .next()
+                    .location(),
                 0L));
 
     File file = new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"));
