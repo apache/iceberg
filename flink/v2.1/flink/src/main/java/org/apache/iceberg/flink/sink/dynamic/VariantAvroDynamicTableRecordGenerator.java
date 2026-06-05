@@ -50,7 +50,7 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
   @VisibleForTesting static final String AVRO_SCHEMA_ID_COLUMN = "avro_schema_id";
   @VisibleForTesting static final String PARTITION_COLUMNS = "partition_columns";
 
-  private static final Splitter COMMA = Splitter.on(',');
+  private static final Splitter COMMA = Splitter.on(',').trimResults().omitEmptyStrings();
 
   private transient int maxCacheSize;
   private transient Map<TableIdentifier, SchemaAndPartitionSpecCacheItem> tableCache;
@@ -63,8 +63,8 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
     validateColumnWithConfigFallback(rowType, FlinkCreateTableOptions.CATALOG_TABLE);
 
     validateRequiredColumnAndType(DATA_COLUMN, new VariantType(false));
-    validateRequiredColumnAndType(AVRO_SCHEMA_COLUMN, new VarCharType(false, Integer.MAX_VALUE));
-    validateRequiredColumnAndType(AVRO_SCHEMA_ID_COLUMN, new VarCharType(false, Integer.MAX_VALUE));
+    validateRequiredColumnAndType(AVRO_SCHEMA_COLUMN, VarCharType.STRING_TYPE);
+    validateRequiredColumnAndType(AVRO_SCHEMA_ID_COLUMN, VarCharType.STRING_TYPE);
   }
 
   @Override
@@ -79,26 +79,27 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
 
   @Override
   public void generate(RowData inputRecord, Collector<DynamicRecord> out) throws Exception {
-    String catalogDb =
-        columnValueWithConfigFallback(inputRecord, FlinkCreateTableOptions.CATALOG_DATABASE);
-    String catalogTable =
-        columnValueWithConfigFallback(inputRecord, FlinkCreateTableOptions.CATALOG_TABLE);
+    Variant variantData = inputRecord.getVariant(fieldNameToPosition().get(DATA_COLUMN));
+    String avroSchema = columnValueAsString(inputRecord, AVRO_SCHEMA_COLUMN);
+    String avroSchemaId = columnValueAsString(inputRecord, AVRO_SCHEMA_ID_COLUMN);
 
+    if (variantData == null || avroSchema == null || avroSchemaId == null) {
+      return;
+    }
+
+    TableIdentifier tableIdentifier = extractTableIdentifier(inputRecord);
     String branch = columnValueAsString(inputRecord, FlinkWriteOptions.BRANCH.key());
-
     String distributionModeName =
         columnValueWithConfigFallback(inputRecord, FlinkWriteOptions.DISTRIBUTION_MODE);
     DistributionMode distributionMode =
         distributionModeName != null ? DistributionMode.fromName(distributionModeName) : null;
 
+    int writeParallelism = 0;
     Integer position = fieldNameToPosition().get(FlinkWriteOptions.WRITE_PARALLELISM.key());
-    int writeParallelism = position != null ? inputRecord.getInt(position) : 0;
+    if (position != null && !inputRecord.isNullAt(position)) {
+      writeParallelism = inputRecord.getInt(position);
+    }
 
-    Variant variantData = inputRecord.getVariant(fieldNameToPosition().get(DATA_COLUMN));
-    String avroSchema = columnValueAsString(inputRecord, AVRO_SCHEMA_COLUMN);
-    String avroSchemaId = columnValueAsString(inputRecord, AVRO_SCHEMA_ID_COLUMN);
-
-    TableIdentifier tableIdentifier = TableIdentifier.of(catalogDb, catalogTable);
     SchemaAndPartitionSpecCacheItem cacheItem =
         tableCache.computeIfAbsent(
             tableIdentifier, identifier -> new SchemaAndPartitionSpecCacheItem(maxCacheSize));
@@ -151,6 +152,24 @@ public class VariantAvroDynamicTableRecordGenerator extends DynamicTableRecordGe
         rowType.getFieldIndex(columnName) != -1 || writeProperties().containsKey(columnName),
         "Invalid %s: null. Either pass the column in Row or set it in table options.",
         columnName);
+  }
+
+  private TableIdentifier extractTableIdentifier(RowData inputRecord) {
+    String catalogDb =
+        columnValueWithConfigFallback(inputRecord, FlinkCreateTableOptions.CATALOG_DATABASE);
+    Preconditions.checkNotNull(
+        catalogDb,
+        "Invalid %s: null. Either pass the value in Row or set it in table options.",
+        FlinkCreateTableOptions.CATALOG_DATABASE.key());
+
+    String catalogTable =
+        columnValueWithConfigFallback(inputRecord, FlinkCreateTableOptions.CATALOG_TABLE);
+    Preconditions.checkNotNull(
+        catalogTable,
+        "Invalid %s: null. Either pass the value in Row or set it in table options.",
+        FlinkCreateTableOptions.CATALOG_TABLE.key());
+
+    return TableIdentifier.of(catalogDb, catalogTable);
   }
 
   @VisibleForTesting

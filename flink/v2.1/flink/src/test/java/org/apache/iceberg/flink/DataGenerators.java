@@ -696,6 +696,9 @@ public class DataGenerators {
                 Types.ListType.ofRequired(102, Types.TimestampNanoType.withoutZone())));
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
+    private final LocalDateTime tsAfterEpoch = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
+    private final LocalDateTime tsBeforeEpoch =
+        LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
 
     private final org.apache.avro.Schema avroSchema =
         AvroSchemaUtil.convert(icebergSchema, "table");
@@ -731,12 +734,9 @@ public class DataGenerators {
     public GenericRowData generateFlinkRowData() {
       Integer[] arr = {1, 2, 3};
 
-      long posNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
-      long negNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
+
       TimestampData[] tsArr = {
         TimestampData.fromEpochMillis(
             Math.floorDiv(posNanos, 1_000_000L), (int) Math.floorMod(posNanos, 1_000_000L)),
@@ -752,12 +752,19 @@ public class DataGenerators {
     @Override
     public Variant generateFlinkVariantData() {
       VariantBuilder builder = Variant.newBuilder();
+
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
+
       return builder
           .object()
           .add("row_id", builder.of("row_id_value"))
           .add(
               "array_of_int",
               builder.array().add(builder.of(1)).add(builder.of(2)).add(builder.of(3)).build())
+          .add(
+              "array_of_ts_ns",
+              builder.array().add(builder.of(posNanos)).add(builder.of(negNanos)).build())
           .build();
     }
 
@@ -767,12 +774,8 @@ public class DataGenerators {
       genericRecord.put("row_id", "row_id_value");
       genericRecord.put("array_of_int", Arrays.asList(1, 2, 3));
 
-      long posNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
-      long negNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
       genericRecord.put("array_of_ts_ns", Arrays.asList(posNanos, negNanos));
       return genericRecord;
     }
@@ -1056,6 +1059,10 @@ public class DataGenerators {
   }
 
   public static class MapOfPrimitives implements DataGenerator {
+    private final LocalDateTime tsAfterEpoch = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
+    private final LocalDateTime tsBeforeEpoch =
+        LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
+
     private final Schema icebergSchema =
         new Schema(
             Types.NestedField.required(1, "row_id", Types.StringType.get()),
@@ -1096,21 +1103,15 @@ public class DataGenerators {
       genericRecord.setField("row_id", "row_id_value");
       genericRecord.setField("map_of_primitives", ImmutableMap.of("Jane", 1, "Joe", 2));
 
-      LocalDateTime posNanos = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789);
-      LocalDateTime negNanos = LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321);
       genericRecord.setField(
-          "map_of_ts_ns", ImmutableMap.of("positive", posNanos, "negative", negNanos));
+          "map_of_ts_ns", ImmutableMap.of("positive", tsAfterEpoch, "negative", tsBeforeEpoch));
       return genericRecord;
     }
 
     @Override
     public GenericRowData generateFlinkRowData() {
-      long posNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789));
-      long negNanos =
-          org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(
-              LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654321));
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
 
       return GenericRowData.of(
           StringData.fromString("row_id_value"),
@@ -1131,12 +1132,22 @@ public class DataGenerators {
     @Override
     public Variant generateFlinkVariantData() {
       VariantBuilder builder = Variant.newBuilder();
+      long posNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsAfterEpoch);
+      long negNanos = org.apache.iceberg.util.DateTimeUtil.nanosFromTimestamp(tsBeforeEpoch);
+
       return builder
           .object()
           .add("row_id", builder.of("row_id_value"))
           .add(
               "map_of_primitives",
               builder.object().add("Jane", builder.of(1)).add("Joe", builder.of(2)).build())
+          .add(
+              "map_of_ts_ns",
+              builder
+                  .object()
+                  .add("positive", builder.of(posNanos))
+                  .add("negative", builder.of(negNanos))
+                  .build())
           .build();
     }
 
