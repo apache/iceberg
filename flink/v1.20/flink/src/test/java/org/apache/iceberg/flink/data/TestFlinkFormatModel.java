@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import org.apache.flink.table.data.GenericRowData;
@@ -39,8 +40,8 @@ public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
           Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO, Type.TypeID.VARIANT, Type.TypeID.UNKNOWN);
 
   @Override
-  protected Schema filterUnsupported(Schema schema) {
-    return excludeColumnsContaining(schema, UNSUPPORTED_TYPE_IDS);
+  protected Collection<Type.TypeID> unsupportedTypeIds() {
+    return UNSUPPORTED_TYPE_IDS;
   }
 
   @Override

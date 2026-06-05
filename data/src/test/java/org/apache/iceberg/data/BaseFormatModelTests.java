@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -74,12 +75,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.orc.ORCSchemaUtil;
-import org.apache.iceberg.orc.OrcRowWriter;
-import org.apache.iceberg.orc.OrcWritingTestUtils;
-import org.apache.iceberg.orc.TestORCSchemaUtil;
-import org.apache.iceberg.parquet.ParquetFileTestUtils;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -89,14 +84,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.orc.OrcFile;
-import org.apache.orc.Reader;
-import org.apache.orc.TypeDescription;
-import org.apache.orc.Writer;
-import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.apache.parquet.avro.AvroParquetWriter;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -123,20 +110,20 @@ public abstract class BaseFormatModelTests<T> {
   @TempDir private File tableDir;
 
   /**
-   * Returns the schema with columns whose types are unsupported by this engine removed. The base
-   * implementation accepts every column; engines that cannot handle certain types override this
-   * method, typically by calling {@link #excludeColumnsContaining(Schema, Set)}.
+   * Returns the set of type IDs that this engine cannot handle. The base implementation returns an
+   * empty collection; engines override to declare which top-level columns should be excluded from
+   * test schemas.
    */
-  protected Schema filterUnsupported(Schema schema) {
-    return schema;
+  protected Collection<Type.TypeID> unsupportedTypeIds() {
+    return Set.of();
   }
 
-  /**
-   * Returns {@code schema} with every top-level column whose type tree contains any of {@code
-   * unsupportedTypeIds} removed.
-   */
-  protected static Schema excludeColumnsContaining(
-      Schema schema, Set<Type.TypeID> unsupportedTypeIds) {
+  private Schema filterUnsupported(Schema schema) {
+    Collection<Type.TypeID> unsupportedTypeIds = unsupportedTypeIds();
+    if (unsupportedTypeIds.isEmpty()) {
+      return schema;
+    }
+
     List<Types.NestedField> kept =
         schema.columns().stream()
             .filter(
@@ -155,8 +142,7 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private static List<Record> project(List<Record> records, Schema targetSchema) {
-    if (records.isEmpty()
-        || records.get(0).struct().fields().size() == targetSchema.columns().size()) {
+    if (records.isEmpty()) {
       return records;
     }
 
@@ -167,6 +153,7 @@ public abstract class BaseFormatModelTests<T> {
               for (Types.NestedField col : targetSchema.columns()) {
                 result.setField(col.name(), source.getField(col.name()));
               }
+
               return result;
             })
         .toList();
@@ -238,11 +225,6 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = supportedSchema(dataGenerator);
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
@@ -255,11 +237,6 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = supportedSchema(dataGenerator);
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
@@ -295,11 +272,6 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = supportedSchema(dataGenerator);
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
@@ -472,10 +444,7 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, fullSchema, genericRecords);
 
-    List<Record> projectedGenericRecords =
-        genericRecords.stream()
-            .map(record -> copy(record, projectedSchema, projectedSchema))
-            .toList();
+    List<Record> projectedGenericRecords = project(genericRecords, projectedSchema);
     List<T> expectedEngineRecords =
         convertToEngineRecords(projectedGenericRecords, projectedSchema);
 
@@ -1450,10 +1419,7 @@ public abstract class BaseFormatModelTests<T> {
         new Schema(writeColumns.get(0), writeColumns.get(writeColumns.size() - 1));
 
     readAndAssertEngineRecords(
-        fileFormat,
-        projectedSchema,
-        genericRecords,
-        record -> copy(record, projectedSchema, projectedSchema));
+        fileFormat, projectedSchema, project(genericRecords, projectedSchema), Function.identity());
   }
 
   @ParameterizedTest
@@ -1539,10 +1505,7 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(2, "col_b", Types.IntegerType.get()));
 
     readAndAssertEngineRecords(
-        fileFormat,
-        reorderedSchema,
-        genericRecords,
-        record -> copy(record, reorderedSchema, reorderedSchema));
+        fileFormat, reorderedSchema, project(genericRecords, reorderedSchema), Function.identity());
   }
 
   /**
@@ -1607,7 +1570,7 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
 
     readAndAssertEngineRecords(
-        fileFormat, readSchema, genericRecords, record -> copy(record, readSchema, readSchema));
+        fileFormat, readSchema, project(genericRecords, readSchema), Function.identity());
   }
 
   /**
@@ -1871,6 +1834,7 @@ public abstract class BaseFormatModelTests<T> {
     if (!supportsFeature(fileFormat, FEATURE_COLUMN_LEVEL_METRICS)) {
       return;
     }
+
     Preconditions.checkArgument(
         !genericRecords.isEmpty(), "assertBounds requires non-empty records");
 
