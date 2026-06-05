@@ -118,8 +118,6 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
         .create();
     int afterSeconds = (int) (System.currentTimeMillis() / 1000);
 
-    // Same overflow as for tables: newHMSView computes lastAccessTime with a cast-before-divide
-    // that wraps to a 1970-era value. Assert the HMS view's lastAccessTime is the current second.
     Table hmsView = HIVE_METASTORE_EXTENSION.metastoreClient().getTable(dbName, identifier.name());
     assertThat(hmsView.getLastAccessTime()).isBetween(beforeSeconds, afterSeconds);
   }

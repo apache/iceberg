@@ -206,15 +206,15 @@ interface HiveOperationsBase {
 
   default Table newHmsTable(String hmsTableOwner) {
     Preconditions.checkNotNull(hmsTableOwner, "'hmsOwner' parameter can't be null");
-    final long currentTimeMillis = System.currentTimeMillis();
+    final int currentTimeSeconds = (int) (System.currentTimeMillis() / 1000L);
 
     Table newTable =
         new Table(
             table(),
             database(),
             hmsTableOwner,
-            (int) (currentTimeMillis / 1000),
-            (int) (currentTimeMillis / 1000),
+            currentTimeSeconds,
+            currentTimeSeconds,
             Integer.MAX_VALUE,
             null,
             Collections.emptyList(),
