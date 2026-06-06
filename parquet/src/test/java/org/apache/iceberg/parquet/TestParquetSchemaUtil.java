@@ -501,6 +501,38 @@ public class TestParquetSchemaUtil {
         .isEqualTo(expectedSchema.asStruct());
   }
 
+  @Test
+  public void testTimestampNanoConversionPreservesUnit() {
+    // INT64 + TIMESTAMP(NANOS) must round-trip back to Iceberg as timestamp_ns, not micros. A
+    // micros field is included to confirm the unit branch leaves the existing mapping untouched.
+    MessageType messageType =
+        org.apache.parquet.schema.Types.buildMessage()
+            .required(PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .id(1)
+            .named("ts_tz_ns")
+            .optional(PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .id(2)
+            .named("ts_ns")
+            .required(PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .id(3)
+            .named("ts_tz_micros")
+            .named("table");
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "ts_tz_ns", Types.TimestampNanoType.withZone()),
+            optional(2, "ts_ns", Types.TimestampNanoType.withoutZone()),
+            required(3, "ts_tz_micros", Types.TimestampType.withZone()));
+
+    Schema actualSchema = ParquetSchemaUtil.convert(messageType);
+    assertThat(actualSchema.asStruct())
+        .as("Schema must match")
+        .isEqualTo(expectedSchema.asStruct());
+  }
+
   private Type primitive(
       Integer id, String name, PrimitiveTypeName typeName, Repetition repetition) {
     PrimitiveBuilder<PrimitiveType> builder =

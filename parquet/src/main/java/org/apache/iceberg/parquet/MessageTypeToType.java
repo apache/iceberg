@@ -220,8 +220,15 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     @Override
     public Optional<Type> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
-      return Optional.of(
-          timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
+      boolean adjustToUtc = timestampType.isAdjustedToUTC();
+      if (timestampType.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS) {
+        return Optional.of(
+            adjustToUtc
+                ? Types.TimestampNanoType.withZone()
+                : Types.TimestampNanoType.withoutZone());
+      }
+
+      return Optional.of(adjustToUtc ? TimestampType.withZone() : TimestampType.withoutZone());
     }
 
     @Override

@@ -124,6 +124,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       SnapshotAncestryValidator.NON_VALIDATING;
 
   private ExecutorService workerPool;
+  private ExecutorService writePool;
+  private int writePoolParallelism = ThreadPools.WORKER_THREAD_POOL_SIZE;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -166,6 +168,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  @Override
+  public ThisT writeManifestsWith(ExecutorService executorService, int parallelism) {
+    Preconditions.checkArgument(executorService != null, "Executor service cannot be null");
+    Preconditions.checkArgument(
+        parallelism > 0, "Parallelism must be greater than 0, but was: %s", parallelism);
+    this.writePool = executorService;
+    this.writePoolParallelism = parallelism;
     return self();
   }
 
@@ -225,6 +237,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     return workerPool;
+  }
+
+  protected ExecutorService writePool() {
+    if (writePool == null) {
+      this.writePool = ThreadPools.getWorkerPool();
+    }
+
+    return writePool;
   }
 
   @Override
@@ -780,9 +800,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  private static <F> List<ManifestFile> writeManifests(
+  private <F> List<ManifestFile> writeManifests(
       Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
-    int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
+    int parallelism = manifestWriterCount(writePoolParallelism, files.size());
     List<List<F>> groups = divide(files, parallelism);
 
     // Create a new list pairing each group with its index
@@ -796,7 +816,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Tasks.foreach(groupsWithIndex)
         .stopOnFailure()
         .throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(writePool())
         .run(
             indexedGroup -> {
               int index = indexedGroup.first();
