@@ -219,6 +219,43 @@ public class TestSnapshotChanges {
   }
 
   @Test
+  public void testStreamingAccessorsForMultiSnapshotChanges() throws Exception {
+    DataFile fileA = newDataFile("/path/to/A.parquet");
+    DataFile fileB = newDataFile("/path/to/B.parquet");
+
+    table.newFastAppend().appendFile(fileA).commit();
+    Snapshot addFileA = table.currentSnapshot();
+    table.newFastAppend().appendFile(fileB).commit();
+    Snapshot addFileB = table.currentSnapshot();
+    table.newDelete().deleteFile(fileA).commit();
+    Snapshot removeFileA = table.currentSnapshot();
+
+    DeleteFile deleteFileA = newDeleteFile("/path/to/A-deletes.parquet");
+    table.newRowDelta().addDeletes(deleteFileA).commit();
+    Snapshot addDeleteFileA = table.currentSnapshot();
+    table.newRowDelta().removeDeletes(deleteFileA).commit();
+    Snapshot removeDeleteFileA = table.currentSnapshot();
+
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(
+                table,
+                ImmutableList.of(
+                    addFileA, addFileB, removeFileA, addDeleteFileA, removeDeleteFileA))
+            .build();
+
+    try (CloseableIterable<DataFile> addedDataFiles = changes.readAddedDataFiles();
+        CloseableIterable<DataFile> removedDataFiles = changes.readRemovedDataFiles();
+        CloseableIterable<DeleteFile> addedDeleteFiles = changes.readAddedDeleteFiles();
+        CloseableIterable<DeleteFile> removedDeleteFiles = changes.readRemovedDeleteFiles()) {
+      assertThat(paths(addedDataFiles))
+          .containsExactlyInAnyOrder(fileA.path().toString(), fileB.path().toString());
+      assertThat(paths(removedDataFiles)).containsExactly(fileA.path().toString());
+      assertThat(paths(addedDeleteFiles)).containsExactly(deleteFileA.path().toString());
+      assertThat(paths(removedDeleteFiles)).containsExactly(deleteFileA.path().toString());
+    }
+  }
+
+  @Test
   public void testMultiSnapshotCachingReturnsSameInstance() {
     DataFile fileA = newDataFile("/path/to/A.parquet");
     DataFile fileB = newDataFile("/path/to/B.parquet");
