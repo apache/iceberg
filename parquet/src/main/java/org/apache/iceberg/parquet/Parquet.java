@@ -51,8 +51,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_REC
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_CHECK_UNCOMPRESSED;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_CHECK_UNCOMPRESSED_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED_DEFAULT;
 
 import java.io.File;
 import java.io.IOException;
@@ -625,8 +625,8 @@ public class Parquet {
         boolean trackUncompressedRowGroupSize =
             PropertyUtil.propertyAsBoolean(
                 config,
-                PARQUET_ROW_GROUP_SIZE_CHECK_UNCOMPRESSED,
-                PARQUET_ROW_GROUP_SIZE_CHECK_UNCOMPRESSED_DEFAULT);
+                PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED,
+                PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED_DEFAULT);
 
         return new Context(
             rowGroupSize,

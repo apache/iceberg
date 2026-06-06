@@ -566,7 +566,7 @@ public class TestParquetDataWriter {
     DataFile trackedFile = writeCompressibleRecords("snappy", true);
 
     assertThat(dataFile.splitOffsets().size())
-        .as("Default path should use compressed size (single row group due to compression)")
+        .as("Default path should produce fewer row groups than the tracking path")
         .isLessThan(trackedFile.splitOffsets().size());
   }
 
@@ -588,7 +588,7 @@ public class TestParquetDataWriter {
             .set("write.parquet.compression-codec", codec);
 
     if (trackUncompressed) {
-      builder.set("write.parquet.row-group-size-check-uncompressed", "true");
+      builder.set("write.parquet.row-group-size-track-uncompressed", "true");
     }
 
     DataWriter<Record> dataWriter = builder.build();
