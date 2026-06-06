@@ -20,12 +20,14 @@ package org.apache.iceberg.rest;
 
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +38,24 @@ import org.slf4j.LoggerFactory;
 class RESTMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(RESTMetricsReporter.class);
 
+  // A single daemon thread processes reports asynchronously. The unbounded queue retains all
+  // pending reports without dropping; callers return immediately after enqueueing.
+  //
+  // Note: Tasks.range(1).executeWith(executor).run() must NOT be used here — despite submitting
+  // work to the executor, it blocks the calling thread in Tasks.waitFor() until the task
+  // completes, making report() synchronous and causing thread pile-up in any caller that wraps
+  // report() in its own executor pool.
   private static final ExecutorService METRICS_EXECUTOR =
-      ThreadPools.newExitingWorkerPool("rest-metrics-reporter", 1);
+      new ThreadPoolExecutor(
+          1,
+          1,
+          0L,
+          TimeUnit.MILLISECONDS,
+          new LinkedBlockingQueue<>(),
+          new ThreadFactoryBuilder()
+              .setDaemon(true)
+              .setNameFormat("rest-metrics-reporter-%d")
+              .build());
 
   private final RESTClient client;
   private final String metricsEndpoint;
@@ -57,21 +75,18 @@ class RESTMetricsReporter implements MetricsReporter {
       return;
     }
 
-    Tasks.range(1)
-        .executeWith(METRICS_EXECUTOR)
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (item, exception) ->
-                LOG.warn(
-                    "Failed to report metrics to REST endpoint {}", metricsEndpoint, exception))
-        .run(
-            item -> {
-              client.post(
-                  metricsEndpoint,
-                  ReportMetricsRequest.of(report),
-                  null,
-                  headers,
-                  ErrorHandlers.defaultErrorHandler());
-            });
+    METRICS_EXECUTOR.execute(
+        () -> {
+          try {
+            client.post(
+                metricsEndpoint,
+                ReportMetricsRequest.of(report),
+                null,
+                headers,
+                ErrorHandlers.defaultErrorHandler());
+          } catch (Exception e) {
+            LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
+          }
+        });
   }
 }
