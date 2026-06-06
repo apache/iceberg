@@ -27,12 +27,6 @@ import org.apache.flink.connector.file.src.util.Pool;
 /**
  * A recyclable object pool similar to Flink's {@link Pool}, but whose blocking {@link #pollEntry()}
  * can be unblocked by {@link #wakeUp()} without interrupting the waiting thread.
- *
- * <p>Flink's shutdown path is cooperative: it calls {@link
- * org.apache.flink.connector.base.source.reader.splitreader.SplitReader#wakeUp()} but does not
- * interrupt the fetcher thread. A thread parked in Flink's {@code Pool#pollEntry()} therefore never
- * returns and the fetcher leaks. This pool lets the fetcher block on an entry while still being
- * able to return control when woken up.
  */
 class PoolWithWakeup<T> {
 
