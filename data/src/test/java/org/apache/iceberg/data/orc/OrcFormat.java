@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.orc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -44,6 +45,7 @@ import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 public class OrcFormat implements FileFormatTestSupport {
   @Override
@@ -115,6 +117,13 @@ public class OrcFormat implements FileFormatTestSupport {
   @Override
   public String splitSizeProperty() {
     return TableProperties.ORC_STRIPE_SIZE_BYTES;
+  }
+
+  @Override
+  public void assertEncryptedFileUnreadable(ThrowingCallable readEncryptedFile) {
+    assertThatThrownBy(readEncryptedFile)
+        .hasMessage("does not support file encryption keys")
+        .isInstanceOf(RuntimeException.class);
   }
 
   private static Reader newOrcReader(InputFile inputFile, Configuration conf) throws IOException {

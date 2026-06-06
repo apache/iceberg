@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,8 +41,10 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 public class ParquetFormat implements FileFormatTestSupport {
   @Override
@@ -125,5 +128,12 @@ public class ParquetFormat implements FileFormatTestSupport {
   @Override
   public String splitSizeProperty() {
     return TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+  }
+
+  @Override
+  public void assertEncryptedFileUnreadable(ThrowingCallable readEncryptedFile) {
+    assertThatThrownBy(readEncryptedFile)
+        .as("Encrypted file should not be readable without decryption keys")
+        .isInstanceOf(ParquetCryptoRuntimeException.class);
   }
 }

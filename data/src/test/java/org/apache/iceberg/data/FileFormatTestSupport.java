@@ -29,6 +29,7 @@ import org.apache.iceberg.data.orc.OrcFormat;
 import org.apache.iceberg.data.parquet.ParquetFormat;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 public interface FileFormatTestSupport {
 
@@ -58,4 +59,6 @@ public interface FileFormatTestSupport {
   String metadataValue(InputFile inputFile, String key) throws IOException;
 
   String splitSizeProperty();
+
+  void assertEncryptedFileUnreadable(ThrowingCallable readEncryptedFile);
 }
