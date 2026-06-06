@@ -2655,6 +2655,11 @@ public abstract class BaseFormatModelTests<T> {
       return schema;
     }
 
-    return TypeUtil.selectNot(schema, Set.of(schema.findField("time_with_default").fieldId()));
+    Set<Integer> unsupportedFieldIds =
+        schema.columns().stream()
+            .filter(field -> field.type().typeId() == Type.TypeID.TIME)
+            .map(Types.NestedField::fieldId)
+            .collect(Collectors.toSet());
+    return TypeUtil.selectNot(schema, unsupportedFieldIds);
   }
 }
