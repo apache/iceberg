@@ -28,7 +28,7 @@ enum EntryStatus {
    * in v4.
    */
   REPLACED(3),
-  /** Live entry recording that the file was modified in this snapshot. Added in v4. */
+  /** The new (live) state of an entry that has been modified. Paired with REPLACED. Added in v4. */
   MODIFIED(4);
 
   private static final EntryStatus[] VALUES = EntryStatus.values();
