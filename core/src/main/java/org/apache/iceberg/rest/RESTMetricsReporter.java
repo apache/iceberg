@@ -21,10 +21,10 @@ package org.apache.iceberg.rest;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,8 +36,11 @@ import org.slf4j.LoggerFactory;
 class RESTMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(RESTMetricsReporter.class);
 
+  // Best-effort async reporting: callers enqueue and return immediately. Defaults to a single
+  // thread; high-throughput servers can tune via SystemConfigs.METRICS_REPORTER_THREAD_POOL_SIZE.
   private static final ExecutorService METRICS_EXECUTOR =
-      ThreadPools.newExitingWorkerPool("rest-metrics-reporter", 1);
+      ThreadPools.newExitingWorkerPool(
+          "rest-metrics-reporter", SystemConfigs.METRICS_REPORTER_THREAD_POOL_SIZE.value());
 
   private final RESTClient client;
   private final String metricsEndpoint;
@@ -57,21 +60,18 @@ class RESTMetricsReporter implements MetricsReporter {
       return;
     }
 
-    Tasks.range(1)
-        .executeWith(METRICS_EXECUTOR)
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (item, exception) ->
-                LOG.warn(
-                    "Failed to report metrics to REST endpoint {}", metricsEndpoint, exception))
-        .run(
-            item -> {
-              client.post(
-                  metricsEndpoint,
-                  ReportMetricsRequest.of(report),
-                  null,
-                  headers,
-                  ErrorHandlers.defaultErrorHandler());
-            });
+    METRICS_EXECUTOR.execute(
+        () -> {
+          try {
+            client.post(
+                metricsEndpoint,
+                ReportMetricsRequest.of(report),
+                null,
+                headers,
+                ErrorHandlers.defaultErrorHandler());
+          } catch (Exception e) {
+            LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
+          }
+        });
   }
 }
