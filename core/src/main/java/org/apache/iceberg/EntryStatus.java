@@ -24,8 +24,7 @@ enum EntryStatus {
   ADDED(1),
   DELETED(2),
   /**
-   * Non-live entry recording that a prior file version was superseded by another live entry. Added
-   * in v4.
+   * The old (replaced) state of an entry that has been modified. Paired with MODIFIED. Added in v4.
    */
   REPLACED(3),
   /** The new (live) state of an entry that has been modified. Paired with REPLACED. Added in v4. */

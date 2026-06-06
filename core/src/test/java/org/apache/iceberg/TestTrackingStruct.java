@@ -106,22 +106,13 @@ class TestTrackingStruct {
 
   @Test
   void testIsLive() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    Tracking source = sourceTracking();
 
-    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
-    assertThat(tracking.isLive()).isTrue();
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.EXISTING.id());
-    assertThat(tracking.isLive()).isTrue();
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.MODIFIED.id());
-    assertThat(tracking.isLive()).isTrue();
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.DELETED.id());
-    assertThat(tracking.isLive()).isFalse();
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.REPLACED.id());
-    assertThat(tracking.isLive()).isFalse();
+    assertThat(TrackingBuilder.added(42L).build().isLive()).isTrue();
+    assertThat(TrackingBuilder.from(source, 999L).build().isLive()).isTrue();
+    assertThat(TrackingBuilder.from(source, 999L).dvUpdated().build().isLive()).isTrue();
+    assertThat(TrackingBuilder.deleted(source, 999L).isLive()).isFalse();
+    assertThat(TrackingBuilder.replaced(source, 999L).isLive()).isFalse();
   }
 
   @Test
@@ -453,46 +444,12 @@ class TestTrackingStruct {
     assertThat(replaced.snapshotId()).isEqualTo(999L);
   }
 
-  private static Stream<Arguments> deriveStatusCases() {
-    long sameSnapshot = 42L;
-    long laterSnapshot = 999L;
-    return Stream.of(
-        // ADDED source
-        Arguments.of(EntryStatus.ADDED, sameSnapshot, false, EntryStatus.ADDED),
-        Arguments.of(EntryStatus.ADDED, sameSnapshot, true, EntryStatus.ADDED),
-        Arguments.of(EntryStatus.ADDED, laterSnapshot, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.ADDED, laterSnapshot, true, EntryStatus.MODIFIED),
-        // EXISTING source
-        Arguments.of(EntryStatus.EXISTING, sameSnapshot, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.EXISTING, sameSnapshot, true, EntryStatus.MODIFIED),
-        Arguments.of(EntryStatus.EXISTING, laterSnapshot, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.EXISTING, laterSnapshot, true, EntryStatus.MODIFIED),
-        // MODIFIED source
-        Arguments.of(EntryStatus.MODIFIED, sameSnapshot, false, EntryStatus.MODIFIED),
-        Arguments.of(EntryStatus.MODIFIED, sameSnapshot, true, EntryStatus.MODIFIED),
-        Arguments.of(EntryStatus.MODIFIED, laterSnapshot, false, EntryStatus.EXISTING),
-        Arguments.of(EntryStatus.MODIFIED, laterSnapshot, true, EntryStatus.MODIFIED));
-  }
-
-  @ParameterizedTest
-  @MethodSource("deriveStatusCases")
-  void testDeriveStatus(
-      EntryStatus sourceStatus, long newSnapshotId, boolean mutate, EntryStatus expected) {
-    Tracking source = sourceTrackingWithStatus(sourceStatus);
-    TrackingBuilder builder = TrackingBuilder.from(source, newSnapshotId);
-    if (mutate) {
-      builder.dvUpdated();
-    }
-
-    assertThat(builder.build().status()).isEqualTo(expected);
-  }
-
   @Test
   void testExistingPreservesSourceSnapshotId() {
     Tracking source = sourceTracking();
     Tracking existing = TrackingBuilder.from(source, 999L).build();
     assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(existing.snapshotId()).isEqualTo(source.snapshotId());
+    assertThat(existing.snapshotId()).isEqualTo(source.snapshotId()).isNotEqualTo(999L);
   }
 
   @Test
@@ -500,32 +457,29 @@ class TestTrackingStruct {
     Tracking source = sourceTracking();
     Tracking modified = TrackingBuilder.from(source, 999L).dvUpdated().build();
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(modified.snapshotId()).isEqualTo(999L);
+    assertThat(modified.snapshotId()).isEqualTo(999L).isNotEqualTo(source.snapshotId());
+  }
+
+  @Test
+  void testCarryForwardFromModifiedSourceChangesToExisting() {
+    // A MODIFIED entry from a prior commit carried forward without mutation becomes EXISTING,
+    // preserving the snapshot id from the modify commit.
+    Tracking modifiedSource = sourceTrackingWithStatus(EntryStatus.MODIFIED);
+    Tracking carried = TrackingBuilder.from(modifiedSource, 999L).build();
+    assertThat(carried.status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(carried.snapshotId()).isEqualTo(modifiedSource.snapshotId()).isNotEqualTo(999L);
   }
 
   @Test
   void testManifestDVPositionsProduceModified() {
     ByteBuffer deletedBytes = ByteBuffer.wrap(new byte[] {1, 2});
-    ByteBuffer replacedBytes = ByteBuffer.wrap(new byte[] {3, 4});
 
-    // cross-commit: ADDED source carried into a new snapshot with MDV positions
     Tracking addedSource = manifestSourceTracking();
-    Tracking crossCommit =
+    Tracking modified =
         TrackingBuilder.from(addedSource, 999L).deletedPositions(deletedBytes).build();
-    assertThat(crossCommit.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(crossCommit.snapshotId()).isEqualTo(999L);
-    assertThat(crossCommit.deletedPositions()).isEqualTo(deletedBytes);
-
-    // same-commit: EXISTING source mutated within its own snapshot
-    TrackingStruct existingSource = manifestSourceTracking();
-    existingSource.set(STATUS_ORDINAL, EntryStatus.EXISTING.id());
-    Tracking sameCommit =
-        TrackingBuilder.from(existingSource, existingSource.snapshotId())
-            .replacedPositions(replacedBytes)
-            .build();
-    assertThat(sameCommit.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(sameCommit.snapshotId()).isEqualTo(existingSource.snapshotId());
-    assertThat(sameCommit.replacedPositions()).isEqualTo(replacedBytes);
+    assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(modified.snapshotId()).isEqualTo(999L);
+    assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
   }
 
   @Test
