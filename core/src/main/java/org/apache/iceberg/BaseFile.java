@@ -280,6 +280,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.manifestLocation = manifestLocation;
   }
 
+  void setFileOrdinal(long ordinal) {
+    this.fileOrdinal = ordinal;
+  }
+
   @Override
   public Long fileSequenceNumber() {
     return fileSequenceNumber;

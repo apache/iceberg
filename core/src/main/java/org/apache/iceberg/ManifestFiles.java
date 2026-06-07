@@ -32,6 +32,7 @@ import java.util.function.Function;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -47,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -161,7 +163,7 @@ public class ManifestFiles {
    */
   public static ManifestReader<DataFile> read(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    return read(manifest, io, specsById, true);
+    return read(manifest, io, specsById, true, null);
   }
 
   static ManifestReader<DataFile> read(
@@ -169,11 +171,44 @@ public class ManifestFiles {
       FileIO io,
       Map<Integer, PartitionSpec> specsById,
       boolean isCommitted) {
+    return read(manifest, io, specsById, isCommitted, null);
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
+   *
+   * <p>The {@code formatVersion} hint determines reader dispatch when supplied: {@code 1} routes to
+   * the v4 {@code content_entry} reader; {@code 0} routes to the legacy reader. When {@code null},
+   * dispatch falls back to inspecting the Parquet footer schema (Avro is always legacy).
+   */
+  static ManifestReader<DataFile> read(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      boolean isCommitted,
+      Integer formatVersion) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s",
         manifest);
     InputFile file = newInputFile(io, manifest);
+
+    if (usesContentEntrySchema(file, formatVersion)) {
+      // v4 content_entry leaf manifest: route to ContentEntryReader
+      InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+      ContentEntryReader reader =
+          ContentEntryReader.forData(
+              file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+      return new ContentEntryManifestReaderAdapter<>(
+          file,
+          manifest.partitionSpecId(),
+          specsById,
+          reader,
+          ManifestContent.DATA,
+          manifest.firstRowId(),
+          isCommitted);
+    }
+
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
         file,
@@ -303,6 +338,29 @@ public class ManifestFiles {
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
+    return newWriter(
+        formatVersion,
+        spec,
+        v4UnionPartitionType(formatVersion, spec),
+        encryptedOutputFile,
+        snapshotId,
+        firstRowId,
+        writerProperties);
+  }
+
+  /**
+   * Internal factory used by v4 callers that already know the table's union partition type
+   * (computed from {@code Partitioning.partitionType(schema, specs)}). All v1/v2/v3 callers ignore
+   * {@code unionPartitionType}; pass {@code null} for those code paths.
+   */
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
@@ -313,10 +371,61 @@ public class ManifestFiles {
             spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
       case 4:
         return new ManifestWriter.V4Writer(
-            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+            spec,
+            unionPartitionType,
+            encryptedOutputFile,
+            snapshotId,
+            firstRowId,
+            writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
+  }
+
+  /**
+   * v4-only: returns the union partition type the writer must encode. For v1/v2/v3 returns null.
+   * Single-spec callers fall back to {@code spec.partitionType()} (the table's single live spec is
+   * trivially the union). Callers that know the table has multiple historical specs must use the
+   * {@link #newV4Writer} or {@link #newV4DeleteWriter} overloads and supply the full union type.
+   */
+  private static Types.StructType v4UnionPartitionType(int formatVersion, PartitionSpec spec) {
+    return formatVersion == 4 ? spec.partitionType() : null;
+  }
+
+  /**
+   * v4-only: opens a content_entry data manifest writer with the table's union partition type
+   * (typically computed via {@code Partitioning.partitionType(tableSchema, specsById.values())}).
+   * Use this on any v4 table that has had its spec evolved so multi-spec carry-overs encode with a
+   * single common schema.
+   */
+  static ManifestWriter<DataFile> newV4Writer(
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
+    Preconditions.checkArgument(
+        unionPartitionType != null,
+        "Invalid union partition type: null (compute via Partitioning.partitionType)");
+    return new ManifestWriter.V4Writer(
+        spec, unionPartitionType, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+  }
+
+  /**
+   * v4-only: opens a content_entry delete manifest writer with the table's union partition type.
+   */
+  static ManifestWriter<DeleteFile> newV4DeleteWriter(
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    Preconditions.checkArgument(
+        unionPartitionType != null,
+        "Invalid union partition type: null (compute via Partitioning.partitionType)");
+    return new ManifestWriter.V4DeleteWriter(
+        spec, unionPartitionType, encryptedOutputFile, snapshotId, writerProperties);
   }
 
   /**
@@ -329,11 +438,34 @@ public class ManifestFiles {
    */
   public static ManifestReader<DeleteFile> readDeleteManifest(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return readDeleteManifest(manifest, io, specsById, null);
+  }
+
+  /**
+   * Returns a new delete {@link ManifestReader} with an optional {@code formatVersion} hint for
+   * dispatch. See {@link #read(ManifestFile, FileIO, Map, boolean, Integer)}.
+   */
+  static ManifestReader<DeleteFile> readDeleteManifest(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      Integer formatVersion) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s",
         manifest);
     InputFile file = newInputFile(io, manifest);
+
+    if (usesContentEntrySchema(file, formatVersion)) {
+      // v4 content_entry leaf manifest: route to ContentEntryReader
+      InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+      ContentEntryReader reader =
+          ContentEntryReader.forDelete(
+              file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+      return new ContentEntryManifestReaderAdapter<>(
+          file, manifest.partitionSpecId(), specsById, reader, ManifestContent.DELETES);
+    }
+
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
         file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DELETE_FILES);
@@ -416,7 +548,8 @@ public class ManifestFiles {
       case 3:
         return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
+        return new ManifestWriter.V4DeleteWriter(
+            spec, spec.partitionType(), outputFile, snapshotId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -579,6 +712,65 @@ public class ManifestFiles {
     }
 
     return input;
+  }
+
+  /**
+   * Returns true when the manifest at {@code file} uses the v4 {@code content_entry} schema shape.
+   *
+   * <p>Dispatch is layered:
+   *
+   * <ol>
+   *   <li>Avro manifests are always legacy (pre-v4). The check returns false without inspecting the
+   *       file.
+   *   <li>If {@code formatVersion} is supplied (snapshot-tree readers thread it through from the
+   *       parent root manifest entry), {@code 1} routes to content_entry and {@code 0} to legacy.
+   *       No file inspection.
+   *   <li>Without a hint (tests writing-then-reading, ad-hoc tooling), peek at the Parquet footer
+   *       schema and dispatch on the presence of field id 134 ({@code content_type}) or 147 ({@code
+   *       tracking}). The schema-shape check is Parquet-only.
+   * </ol>
+   */
+  private static boolean usesContentEntrySchema(InputFile file, Integer formatVersion) {
+    FileFormat format = FileFormat.fromFileName(file.location());
+    if (format != FileFormat.PARQUET) {
+      // pre-v4 manifests are Avro; the content_entry schema is only emitted as Parquet
+      return false;
+    }
+
+    if (formatVersion != null) {
+      return formatVersion >= 1;
+    }
+
+    // Fallback for callers without a hint: inspect the Parquet footer schema for the
+    // content_entry-distinguishing field ids (TrackedFile.TRACKING = 147, content_type = 134).
+    Schema parquetSchema = readParquetSchema(file);
+    return parquetSchema.findField(TrackedFile.TRACKING.fieldId()) != null
+        || parquetSchema.findField(TrackedFile.CONTENT_TYPE.fieldId()) != null;
+  }
+
+  private static Schema readParquetSchema(InputFile file) {
+    if (PARQUET_SCHEMA_READER == null) {
+      throw new UnsupportedOperationException(
+          "Cannot read Parquet manifest schema: iceberg-parquet is not on the classpath ("
+              + file.location()
+              + ")");
+    }
+
+    return PARQUET_SCHEMA_READER.invoke(file);
+  }
+
+  private static final DynMethods.StaticMethod PARQUET_SCHEMA_READER = loadParquetSchemaReader();
+
+  @SuppressWarnings("CatchBlockLogException")
+  private static DynMethods.StaticMethod loadParquetSchemaReader() {
+    try {
+      return DynMethods.builder("readSchema")
+          .impl("org.apache.iceberg.InternalParquet", InputFile.class)
+          .buildStaticChecked();
+    } catch (NoSuchMethodException e) {
+      LOG.info("Unable to load Parquet schema reader for manifest dispatch: {}", e.getMessage());
+      return null;
+    }
   }
 
   static boolean cachingEnabled(FileIO io) {

@@ -1258,6 +1258,22 @@ public class Parquet {
     }
   }
 
+  /**
+   * Reads only the file schema from a Parquet footer.
+   *
+   * <p>Use this when dispatch logic needs to inspect the on-disk schema before committing to a
+   * projection (e.g., {@code ManifestFiles} routing between the legacy and v4 manifest readers).
+   * The returned schema is the Parquet file's full schema converted to Iceberg form; no rows are
+   * read.
+   */
+  public static Schema readSchema(InputFile file) {
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
+      return ParquetSchemaUtil.convert(reader.getFileMetaData().getSchema());
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to read Parquet schema from %s", file.location());
+    }
+  }
+
   public static class ReadBuilder implements InternalData.ReadBuilder {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();

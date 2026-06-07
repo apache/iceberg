@@ -29,6 +29,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 
 /**
  * Writer for manifest files.
@@ -59,6 +60,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long existingRows = 0L;
   private int deletedFiles = 0;
   private long deletedRows = 0L;
+  // v4: total number of entries appended via addEntry, across every status. Used by V4 writers to
+  // populate the leaf manifest's record_count on the root-manifest content_entry row. Tracked
+  // separately from the per-status counters above because v4 status counts (added/existing/deleted/
+  // replaced/modified) are not all surfaced via this writer's accessors (e.g. MODIFIED gets folded
+  // into existing in toManifestFile), and the on-disk record_count must equal the row count of
+  // the leaf manifest file regardless.
+  private int entriesWritten = 0;
   private Long minDataSequenceNumber = null;
 
   private ManifestWriter(
@@ -108,6 +116,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     return ManifestContent.DATA;
   }
 
+  protected Long writerSnapshotId() {
+    return snapshotId;
+  }
+
+  protected GenericManifestEntry<F> reusedEntry() {
+    return reused;
+  }
+
+  /** Total number of entries appended to this writer via {@link #addEntry}, across every status. */
+  protected int entriesWritten() {
+    return entriesWritten;
+  }
+
   void addEntry(ManifestEntry<F> entry) {
     switch (entry.status()) {
       case ADDED:
@@ -123,6 +144,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedRows += entry.file().recordCount();
         break;
     }
+    entriesWritten += 1;
 
     stats.update(entry.file().partition());
 
@@ -268,32 +290,186 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     writer.close();
   }
 
+  /**
+   * A {@link ManifestEntry} wrapper that delegates {@link StructLike} access to a {@code
+   * TrackedFile} struct for writing content_entry rows in v4 leaf manifests.
+   */
+  private static class ContentEntryWriterEntry<F extends ContentFile<F>>
+      implements ManifestEntry<F>, StructLike {
+    private ManifestEntry<F> wrapped;
+    private StructLike trackedStruct;
+
+    ContentEntryWriterEntry<F> wrap(ManifestEntry<F> entry, TrackedFile trackedFile) {
+      this.wrapped = entry;
+      // TrackedFile is package-private and has a single impl (TrackedFileStruct) that implements
+      // StructLike via SupportsIndexProjection. Keeping StructLike off the TrackedFile interface
+      // matches the convention in V1/V2/V3 metadata (ContentFile, ManifestEntry, ManifestFile are
+      // all kept clean of StructLike — their internal wrappers add it).
+      this.trackedStruct = (StructLike) trackedFile;
+      return this;
+    }
+
+    @Override
+    public int size() {
+      return trackedStruct.size();
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return trackedStruct.get(pos, javaClass);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("ContentEntryWriterEntry is read-only");
+    }
+
+    @Override
+    public Status status() {
+      return wrapped.status();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return wrapped.snapshotId();
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public F file() {
+      return wrapped.file();
+    }
+
+    @Override
+    public ManifestEntry<F> copy() {
+      return wrapped.copy();
+    }
+
+    @Override
+    public ManifestEntry<F> copyWithoutStats() {
+      return wrapped.copyWithoutStats();
+    }
+
+    @Override
+    public void setSnapshotId(long snapshotId) {
+      wrapped.setSnapshotId(snapshotId);
+    }
+
+    @Override
+    public void setDataSequenceNumber(long dataSequenceNumber) {
+      wrapped.setDataSequenceNumber(dataSequenceNumber);
+    }
+
+    @Override
+    public void setFileSequenceNumber(long fileSequenceNumber) {
+      wrapped.setFileSequenceNumber(fileSequenceNumber);
+    }
+  }
+
   static class V4Writer extends ManifestWriter<DataFile> {
-    private final V4Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
+    /**
+     * Placeholder partition struct used when the union partition type is empty (i.e., every live
+     * spec in the table is unpartitioned). Parquet cannot encode an empty {@code
+     * Types.StructType.of()} as a physical column, so a single dummy optional boolean field is used
+     * instead. This field is always written as null and is ignored on read. Mirrors the placeholder
+     * used by {@code RootManifestWriter} so the on-disk schema shape stays consistent across the v4
+     * metadata tree.
+     */
+    static final Types.StructType EMPTY_PARTITION_PLACEHOLDER =
+        Types.StructType.of(
+            Types.NestedField.optional(99999, "_unpartitioned", Types.BooleanType.get()));
+
+    /** Replaces an empty partition type with the placeholder; otherwise returns the input. */
+    static Types.StructType emptyPartitionPlaceholderIfNeeded(Types.StructType partitionType) {
+      return partitionType.fields().isEmpty() ? EMPTY_PARTITION_PLACEHOLDER : partitionType;
+    }
+
+    // ManifestWriter's super-constructor calls newAppender() before V4Writer's constructor body
+    // sets fields, so unionPartitionType must be available to newAppender via a side channel. A
+    // ThreadLocal is the simplest unobtrusive option that does not require restructuring the
+    // ManifestWriter hierarchy. Each V4Writer constructor stashes the union type before super(...)
+    // and clears it on its first use inside newAppender().
+    private static final ThreadLocal<Types.StructType> PENDING_UNION_PARTITION_TYPE =
+        new ThreadLocal<>();
+
+    private final Schema tableSchema;
+    private final Types.StructType unionPartitionType;
+    private final ContentEntryWriterEntry<DataFile> writerEntry;
 
     V4Writer(
         PartitionSpec spec,
+        Types.StructType unionPartitionType,
         EncryptedOutputFile file,
         Long snapshotId,
         Long firstRowId,
         Map<String, String> writerProperties) {
-      super(spec, file, snapshotId, firstRowId, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
+      super(
+          stashUnionPartitionType(spec, unionPartitionType),
+          file,
+          snapshotId,
+          firstRowId,
+          writerProperties);
+      this.tableSchema = spec.schema();
+      this.unionPartitionType = unionPartitionType;
+      this.writerEntry = new ContentEntryWriterEntry<>();
+    }
+
+    private static PartitionSpec stashUnionPartitionType(
+        PartitionSpec spec, Types.StructType unionPartitionType) {
+      PENDING_UNION_PARTITION_TYPE.set(unionPartitionType);
+      return spec;
     }
 
     @Override
     protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
-      return entryWrapper.wrap(entry);
+      TrackedFile trackedFile =
+          ContentEntryAdapters.fromDataFile(
+              entry, tableSchema, unionPartitionType, toEntryStatus(entry.status()));
+      return writerEntry.wrap(entry, trackedFile);
+    }
+
+    @Override
+    public void add(DataFile addedFile) {
+      // v4 stores firstRowId per-entry in the tracking struct; do not suppress it.
+      addEntry(reusedEntry().wrapAppendPreservingFirstRowId(writerSnapshotId(), null, addedFile));
+    }
+
+    @Override
+    public ManifestFile toManifestFile() {
+      // Set the on-disk record_count for the leaf manifest reference so the v4 root manifest's
+      // content_entry row at field id 103 carries the actual entry count (including any statuses
+      // not surfaced through the per-status accessors on ManifestFile).
+      GenericManifestFile result = (GenericManifestFile) super.toManifestFile();
+      result.setRecordCount(entriesWritten());
+      return result;
     }
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      Types.StructType partitionType = PENDING_UNION_PARTITION_TYPE.get();
+      PENDING_UNION_PARTITION_TYPE.remove();
+      Preconditions.checkArgument(
+          partitionType != null, "Invalid union partition type: null (writer mis-initialized)");
+      Schema contentEntrySchema =
+          new Schema(
+              TrackedFile.schemaWithContentStats(
+                      emptyPartitionPlaceholderIfNeeded(partitionType),
+                      StatsUtil.contentStatsFor(spec.schema()).type().asStructType())
+                  .fields());
       try {
         return InternalData.write(format(), file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
+            .schema(contentEntrySchema)
+            .named("content_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
@@ -310,30 +486,71 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   static class V4DeleteWriter extends ManifestWriter<DeleteFile> {
-    private final V4Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
+    // See V4Writer.PENDING_UNION_PARTITION_TYPE for why a ThreadLocal is necessary.
+    private static final ThreadLocal<Types.StructType> PENDING_UNION_PARTITION_TYPE =
+        new ThreadLocal<>();
+
+    private final Schema tableSchema;
+    private final Types.StructType unionPartitionType;
+    private final ContentEntryWriterEntry<DeleteFile> writerEntry;
 
     V4DeleteWriter(
         PartitionSpec spec,
+        Types.StructType unionPartitionType,
         EncryptedOutputFile file,
         Long snapshotId,
         Map<String, String> writerProperties) {
-      super(spec, file, snapshotId, null, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
+      super(
+          stashUnionPartitionType(spec, unionPartitionType),
+          file,
+          snapshotId,
+          null,
+          writerProperties);
+      this.tableSchema = spec.schema();
+      this.unionPartitionType = unionPartitionType;
+      this.writerEntry = new ContentEntryWriterEntry<>();
+    }
+
+    private static PartitionSpec stashUnionPartitionType(
+        PartitionSpec spec, Types.StructType unionPartitionType) {
+      PENDING_UNION_PARTITION_TYPE.set(unionPartitionType);
+      return spec;
     }
 
     @Override
     protected ManifestEntry<DeleteFile> prepare(ManifestEntry<DeleteFile> entry) {
-      return entryWrapper.wrap(entry);
+      TrackedFile trackedFile =
+          ContentEntryAdapters.fromDeleteFile(
+              entry, tableSchema, unionPartitionType, toEntryStatus(entry.status()));
+      return writerEntry.wrap(entry, trackedFile);
+    }
+
+    @Override
+    public ManifestFile toManifestFile() {
+      // See V4Writer.toManifestFile for why record_count is set explicitly on v4 leaf writers.
+      GenericManifestFile result = (GenericManifestFile) super.toManifestFile();
+      result.setRecordCount(entriesWritten());
+      return result;
     }
 
     @Override
     protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      Types.StructType partitionType = PENDING_UNION_PARTITION_TYPE.get();
+      PENDING_UNION_PARTITION_TYPE.remove();
+      Preconditions.checkArgument(
+          partitionType != null,
+          "Invalid union partition type: null (delete writer mis-initialized)");
+      Schema contentEntrySchema =
+          new Schema(
+              TrackedFile.schemaWithContentStats(
+                      V4Writer.emptyPartitionPlaceholderIfNeeded(partitionType),
+                      StatsUtil.contentStatsFor(spec.schema()).type().asStructType())
+                  .fields());
       try {
         return InternalData.write(format(), file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
+            .schema(contentEntrySchema)
+            .named("content_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
@@ -351,6 +568,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected ManifestContent content() {
       return ManifestContent.DELETES;
+    }
+  }
+
+  private static EntryStatus toEntryStatus(ManifestEntry.Status status) {
+    switch (status) {
+      case EXISTING:
+        return EntryStatus.EXISTING;
+      case ADDED:
+        return EntryStatus.ADDED;
+      case DELETED:
+        return EntryStatus.DELETED;
+      default:
+        throw new IllegalArgumentException("Unknown manifest entry status: " + status);
     }
   }
 
