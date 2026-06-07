@@ -21,23 +21,27 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.SparkException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
 /**
  * Tests for Spark SQL Default values integration with Iceberg default values.
  *
- * <p>Note: These tests use {@code validationCatalog.createTable()} to create tables with default
- * values because the Iceberg Spark integration does not yet support default value clauses in Spark
- * DDL.
+ * <p>These tests cover Spark SQL DEFAULT writes against Iceberg defaults and Spark SQL DDL default
+ * clauses that create or update Iceberg defaults.
  */
 public class TestSparkDefaultValues extends CatalogTestBase {
 
@@ -141,22 +145,30 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableWithDefaultsUnsupported() {
+  public void testCreateTableWithDefaults() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
 
-    assertThatThrownBy(
-            () ->
-                sql(
-                    "CREATE TABLE %s (id INT, data STRING DEFAULT 'default-value') USING iceberg",
-                    tableName))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("does not support column default value");
+    sql(
+        "CREATE TABLE %s (id INT, data STRING DEFAULT 'default-value') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.schema().findField("data").initialDefault()).isEqualTo("default-value");
+    assertThat(table.schema().findField("data").writeDefault()).isEqualTo("default-value");
+
+    sql("INSERT INTO %s VALUES (1, DEFAULT)", commitTarget());
+
+    assertEquals(
+        "Should use default value from CREATE TABLE DDL",
+        ImmutableList.of(row(1, "default-value")),
+        sql("SELECT * FROM %s", selectTarget()));
   }
 
   @TestTemplate
-  public void testAlterTableAddColumnWithDefaultUnsupported() {
+  public void testAlterTableAddColumnWithDefault() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
@@ -166,10 +178,175 @@ public class TestSparkDefaultValues extends CatalogTestBase {
     validationCatalog.createTable(
         tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
 
-    assertThatThrownBy(
-            () -> sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'default-value'", tableName))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("default values in Spark is currently unsupported");
+    sql("INSERT INTO %s VALUES (1), (2)", commitTarget());
+
+    sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'default-value'", tableName);
+    sql("REFRESH TABLE %s", commitTarget());
+    sql("INSERT INTO %s VALUES (3, DEFAULT)", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.schema().findField("data").initialDefault()).isEqualTo("default-value");
+    assertThat(table.schema().findField("data").writeDefault()).isEqualTo("default-value");
+
+    assertEquals(
+        "Should use default value for existing and new rows",
+        ImmutableList.of(row(1, "default-value"), row(2, "default-value"), row(3, "default-value")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testAlterTableSetAndDropColumnDefault() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("initial-default"))
+                .withWriteDefault(Literal.of("old-default"))
+                .build());
+
+    validationCatalog.createTable(
+        tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
+
+    sql("ALTER TABLE %s ALTER COLUMN data SET DEFAULT 'new-default'", tableName);
+    sql("REFRESH TABLE %s", commitTarget());
+    sql("INSERT INTO %s VALUES (1, DEFAULT)", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.schema().findField("data").initialDefault()).isEqualTo("initial-default");
+    assertThat(table.schema().findField("data").writeDefault()).isEqualTo("new-default");
+
+    assertEquals(
+        "Should use updated write default",
+        ImmutableList.of(row(1, "new-default")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+
+    sql("ALTER TABLE %s ALTER COLUMN data DROP DEFAULT", tableName);
+    sql("REFRESH TABLE %s", commitTarget());
+
+    Table updatedTable = validationCatalog.loadTable(tableIdent);
+    assertThat(updatedTable.schema().findField("data").initialDefault())
+        .isEqualTo("initial-default");
+    assertThat(updatedTable.schema().findField("data").writeDefault()).isNull();
+  }
+
+  @TestTemplate
+  public void testCreateTableDefaultValuesForPrimitiveTypes() {
+    List<DefaultColumn> columns = Lists.newArrayList();
+    columns.add(new DefaultColumn("bool_col", "BOOLEAN", "true", true));
+    columns.add(new DefaultColumn("int_col", "INT", "42", 42));
+    columns.add(new DefaultColumn("long_col", "BIGINT", "100L", 100L));
+    columns.add(new DefaultColumn("float_col", "FLOAT", "CAST('3.14' AS FLOAT)", 3.14F));
+    columns.add(new DefaultColumn("double_col", "DOUBLE", "2.718D", 2.718D));
+    columns.add(
+        new DefaultColumn("decimal_col", "DECIMAL(10, 2)", "99.99BD", new BigDecimal("99.99")));
+    columns.add(new DefaultColumn("string_col", "STRING", "'default-value'", "default-value"));
+    columns.add(
+        new DefaultColumn(
+            "date_col",
+            "DATE",
+            "DATE '2024-01-01'",
+            Literal.of("2024-01-01").to(Types.DateType.get()).value()));
+    columns.add(
+        new DefaultColumn(
+            "timestamp_col",
+            "TIMESTAMP",
+            "TIMESTAMP '2026-06-07 06:30:46.619896 UTC+00:00'",
+            Literal.of("2026-06-07T06:30:46.619896+00:00")
+                .to(Types.TimestampType.withZone())
+                .value()));
+    columns.add(
+        new DefaultColumn(
+            "timestamp_ntz_col",
+            "TIMESTAMP_NTZ",
+            "TIMESTAMP_NTZ '2026-06-07 06:30:46.619896'",
+            Literal.of("2026-06-07T06:30:46.619896")
+                .to(Types.TimestampType.withoutZone())
+                .value()));
+    columns.add(
+        new DefaultColumn(
+            "binary_col", "BINARY", "X'0A0B'", ByteBuffer.wrap(new byte[] {0x0a, 0x0b})));
+
+    StringBuilder createTable = new StringBuilder("CREATE TABLE ");
+    createTable.append(tableName).append(" (id INT");
+    for (DefaultColumn column : columns) {
+      createTable
+          .append(", ")
+          .append(column.name)
+          .append(" ")
+          .append(column.sqlType)
+          .append(" DEFAULT ")
+          .append(column.defaultSql);
+    }
+
+    createTable.append(") USING iceberg TBLPROPERTIES ('format-version'='3')");
+
+    sql(createTable.toString());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    for (DefaultColumn column : columns) {
+      assertThat(table.schema().findField(column.name).initialDefault())
+          .as("Initial default for %s", column.name)
+          .isEqualTo(column.expectedValue);
+      assertThat(table.schema().findField(column.name).writeDefault())
+          .as("Write default for %s", column.name)
+          .isEqualTo(column.expectedValue);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableUnsupportedDefaultTypesFailClearly() {
+    for (DefaultColumn column : unsupportedDefaultColumns()) {
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "CREATE TABLE %s (id INT, %s %s DEFAULT %s) USING iceberg "
+                          + "TBLPROPERTIES ('format-version'='3')",
+                      tableName, column.name, column.sqlType, column.defaultSql))
+          .as("Should reject default for unsupported type %s", column.sqlType)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Column default")
+          .hasMessageContaining("not supported by Iceberg Spark DDL");
+    }
+  }
+
+  @TestTemplate
+  public void testAlterTableAddColumnUnsupportedDefaultTypesFailClearly() {
+    sql("CREATE TABLE %s (id INT) USING iceberg TBLPROPERTIES ('format-version'='3')", tableName);
+
+    for (DefaultColumn column : unsupportedDefaultColumns()) {
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "ALTER TABLE %s ADD COLUMN %s %s DEFAULT %s",
+                      tableName, column.name, column.sqlType, column.defaultSql))
+          .as("Should reject default for unsupported type %s", column.sqlType)
+          .isInstanceOf(SparkException.class)
+          .hasMessageContaining("Column default")
+          .hasMessageContaining("not supported by Iceberg Spark DDL");
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableWithNullDefault() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING DEFAULT NULL) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.schema().findField("data").initialDefault()).isNull();
+    assertThat(table.schema().findField("data").writeDefault()).isNull();
+  }
+
+  private static List<DefaultColumn> unsupportedDefaultColumns() {
+    List<DefaultColumn> unsupportedColumns = Lists.newArrayList();
+    unsupportedColumns.add(new DefaultColumn("array_col", "ARRAY<INT>", "array(1, 2)", null));
+    unsupportedColumns.add(new DefaultColumn("map_col", "MAP<INT, INT>", "map(1, 2)", null));
+    unsupportedColumns.add(
+        new DefaultColumn("struct_col", "STRUCT<a: INT>", "named_struct('a', 1)", null));
+    return unsupportedColumns;
   }
 
   @TestTemplate
@@ -204,5 +381,19 @@ public class TestSparkDefaultValues extends CatalogTestBase {
         "Should have correct default values for existing and new rows",
         ImmutableList.of(row(1, "default_data"), row(2, "default_data"), row(3, "default_data")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  private static class DefaultColumn {
+    private final String name;
+    private final String sqlType;
+    private final String defaultSql;
+    private final Object expectedValue;
+
+    DefaultColumn(String name, String sqlType, String defaultSql, Object expectedValue) {
+      this.name = name;
+      this.sqlType = sqlType;
+      this.defaultSql = defaultSql;
+      this.expectedValue = expectedValue;
+    }
   }
 }
