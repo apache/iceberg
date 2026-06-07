@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -154,6 +155,9 @@ public class ManifestFiles {
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
+   * <p>Routes to the v4+ {@code content_entry} reader when {@link ManifestFile#formatVersion()} is
+   * v4 or higher, otherwise to the legacy reader.
+   *
    * @param manifest a {@link ManifestFile}
    * @param io a {@link FileIO}
    * @param specsById a Map from spec ID to partition spec
@@ -175,6 +179,21 @@ public class ManifestFiles {
         manifest);
     InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+
+    if (manifest.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
+      ContentEntryReader reader =
+          ContentEntryReader.forData(
+              file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+      return new ContentEntryManifestReaderAdapter<>(
+          file,
+          manifest.partitionSpecId(),
+          specsById,
+          reader,
+          ManifestContent.DATA,
+          manifest.firstRowId(),
+          isCommitted);
+    }
+
     return new ManifestReader<>(
         file,
         manifest.partitionSpecId(),
@@ -303,6 +322,29 @@ public class ManifestFiles {
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
+    return newWriter(
+        formatVersion,
+        spec,
+        v4UnionPartitionType(formatVersion, spec),
+        encryptedOutputFile,
+        snapshotId,
+        firstRowId,
+        writerProperties);
+  }
+
+  /**
+   * Internal factory used by v4+ callers that already know the table's union partition type
+   * (computed from {@code Partitioning.partitionType(schema, specs)}). All v1/v2/v3 callers ignore
+   * {@code unionPartitionType}; pass {@code null} for those code paths.
+   */
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
@@ -313,14 +355,66 @@ public class ManifestFiles {
             spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
       case 4:
         return new ManifestWriter.V4Writer(
-            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+            spec,
+            unionPartitionType,
+            encryptedOutputFile,
+            snapshotId,
+            firstRowId,
+            writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
   }
 
   /**
-   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
+   * v4+: returns the union partition type the writer must encode. For v1/v2/v3 returns null.
+   * Single-spec callers fall back to {@code spec.partitionType()} (the table's single live spec is
+   * trivially the union). Callers that know the table has multiple historical specs must use the
+   * {@link #newV4Writer} or {@link #newV4DeleteWriter} overloads and supply the full union type.
+   */
+  private static Types.StructType v4UnionPartitionType(int formatVersion, PartitionSpec spec) {
+    return formatVersion == 4 ? spec.partitionType() : null;
+  }
+
+  /**
+   * v4+: opens a content_entry data manifest writer with the table's union partition type
+   * (typically computed via {@code Partitioning.partitionType(tableSchema, specsById.values())}).
+   * Use this on any v4+ table that has had its spec evolved so multi-spec carry-overs encode with a
+   * single common schema.
+   */
+  static ManifestWriter<DataFile> newV4Writer(
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
+    Preconditions.checkArgument(
+        unionPartitionType != null,
+        "Invalid union partition type: null (compute via Partitioning.partitionType)");
+    return new ManifestWriter.V4Writer(
+        spec, unionPartitionType, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+  }
+
+  /** v4+: opens a content_entry delete manifest writer with the table's union partition type. */
+  static ManifestWriter<DeleteFile> newV4DeleteWriter(
+      PartitionSpec spec,
+      Types.StructType unionPartitionType,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    Preconditions.checkArgument(
+        unionPartitionType != null,
+        "Invalid union partition type: null (compute via Partitioning.partitionType)");
+    return new ManifestWriter.V4DeleteWriter(
+        spec, unionPartitionType, encryptedOutputFile, snapshotId, writerProperties);
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} for a delete {@link ManifestFile}.
+   *
+   * <p>Routes to the v4+ {@code content_entry} reader when {@link ManifestFile#formatVersion()} is
+   * v4 or higher, otherwise to the legacy reader.
    *
    * @param manifest a {@link ManifestFile}
    * @param io a {@link FileIO}
@@ -335,6 +429,15 @@ public class ManifestFiles {
         manifest);
     InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+
+    if (manifest.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
+      ContentEntryReader reader =
+          ContentEntryReader.forDelete(
+              file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+      return new ContentEntryManifestReaderAdapter<>(
+          file, manifest.partitionSpecId(), specsById, reader, ManifestContent.DELETES);
+    }
+
     return new ManifestReader<>(
         file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
@@ -416,7 +519,8 @@ public class ManifestFiles {
       case 3:
         return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
       case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
+        return new ManifestWriter.V4DeleteWriter(
+            spec, spec.partitionType(), outputFile, snapshotId, writerProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
