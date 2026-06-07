@@ -207,29 +207,27 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     if (trackUncompressedSize) {
       if (rowGroupUncompressedSize >= targetRowGroupSize) {
         flushRowGroup(false);
-      } else {
+      } else if (recordCount >= nextCheckRecordCount) {
         evaluateRowGroupSize(rowGroupUncompressedSize, false);
       }
-    } else {
+    } else if (recordCount >= nextCheckRecordCount) {
       evaluateRowGroupSize(writeStore.getBufferedSize(), true);
     }
   }
 
   private void evaluateRowGroupSize(long currentSize, boolean useMinRecordCountFloor) {
-    if (recordCount >= nextCheckRecordCount) {
-      double avgRecordSize = ((double) currentSize) / recordCount;
-      if (currentSize > (targetRowGroupSize - 2 * avgRecordSize)) {
-        flushRowGroup(false);
-      } else {
-        long remainingSpace = targetRowGroupSize - currentSize;
-        long remainingRecords = (long) (remainingSpace / avgRecordSize);
-        long interval = remainingRecords / 2;
-        if (useMinRecordCountFloor) {
-          interval = Math.max(interval, props.getMinRowCountForPageSizeCheck());
-        }
-        this.nextCheckRecordCount =
-            recordCount + Math.min(interval, props.getMaxRowCountForPageSizeCheck());
+    double avgRecordSize = ((double) currentSize) / recordCount;
+    if (currentSize > (targetRowGroupSize - 2 * avgRecordSize)) {
+      flushRowGroup(false);
+    } else {
+      long remainingSpace = targetRowGroupSize - currentSize;
+      long remainingRecords = (long) (remainingSpace / avgRecordSize);
+      long interval = remainingRecords / 2;
+      if (useMinRecordCountFloor) {
+        interval = Math.max(interval, props.getMinRowCountForPageSizeCheck());
       }
+      this.nextCheckRecordCount =
+          recordCount + Math.min(interval, props.getMaxRowCountForPageSizeCheck());
     }
   }
 
