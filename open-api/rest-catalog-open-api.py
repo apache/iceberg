@@ -643,7 +643,7 @@ class QueryEventsRequest(BaseModel):
     catalog_objects_by_name: list[CatalogObjectIdentifier] | None = Field(
         None,
         alias='catalog-objects-by-name',
-        description='Filter events by the list of catalog objects referenced by name (namespaces, tables, views). If not provided, events for all objects must be returned subject to other filters. For specified namespaces, events for the namespaces and all containing objects (namespaces, tables, views) must be returned (recursively).\n',
+        description='Filter events by catalog object name. Each entry is an ordered list of namespace/object levels and matches by prefix: an event matches when the entry equals the object\'s name path, or is a leading prefix of it (compared level by level). For example `["a","b"]` matches the namespace `a.b` itself and every object beneath it - the table `a.b.t1`, the view `a.b.v1`, the sub-namespace `a.b.c` and its contents - but not the sibling namespace `a.c`. Because matching is purely by name path, it is independent of object kind: the server does not resolve whether a path denotes a namespace, table, or view. Use `object-types` to restrict matches to specific kinds. If not provided, events for all objects must be returned subject to other filters.\n',
     )
     catalog_objects_by_uuid: list[UUID] | None = Field(
         None,
