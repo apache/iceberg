@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -633,7 +633,7 @@ class QueryEventsRequest(BaseModel):
     since_timestamp_ms: int | None = Field(
         None,
         alias='since-timestamp-ms',
-        description='Optional starting timestamp (seek-to-timestamp) for the initial request, in milliseconds (inclusive). Lets clients begin consumption from a rough point in time without iterating the full history. If not provided, no filtering based on timestamp values is applied.\n',
+        description='Optional starting timestamp (seek-to-timestamp) for the initial request. The client consumes events that occurred at or after the specified timestamp, in milliseconds (inclusive), without iterating the full history. If not provided, no filtering based on timestamp values is applied. This applies only to the initial request. When a `continuation-token` is provided, it determines the resume position and `since-timestamp-ms` is ignored.\n',
     )
     operation_types: list[OperationType] | None = Field(
         None,
@@ -655,7 +655,7 @@ class QueryEventsRequest(BaseModel):
         alias='object-types',
         description='Filter events by the type of catalog object. If not provided, events for all object types must be returned.\n',
     )
-    custom_filters: dict[str, Any] | None = Field(
+    custom_filters: dict[str, str] | None = Field(
         None,
         alias='custom-filters',
         description='Implementation-specific filter extensions. Implementations may define custom filter properties beyond the standard ones defined in this specification.\n',
@@ -858,9 +858,27 @@ class ListTablesResponse(BaseModel):
     identifiers: list[TableIdentifier] | None = None
 
 
+class ListFunctionsResponse(BaseModel):
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    identifiers: list[CatalogObjectIdentifier] | None = None
+
+
 class ListNamespacesResponse(BaseModel):
     next_page_token: PageToken | None = Field(None, alias='next-page-token')
     namespaces: list[Namespace] | None = None
+
+
+class FunctionSQLRepresentation(BaseModel):
+    type: Literal['sql']
+    dialect: str = Field(
+        ..., description='SQL dialect identifier (e.g., "spark", "trino").'
+    )
+    sql: str = Field(..., description='SQL expression text.')
+
+
+class FunctionDefinitionVersionRef(BaseModel):
+    definition_id: str = Field(..., alias='definition-id')
+    version_id: int = Field(..., alias='version-id')
 
 
 class UpdateNamespacePropertiesResponse(BaseModel):
@@ -880,9 +898,6 @@ class Actor(BaseModel):
 
     """
 
-    model_config = ConfigDict(
-        extra='allow',
-    )
     id: str | None = Field(
         None,
         description='Recommended, optional. Stable identifier of the actor (e.g. a user or service account). Provided when the server can attribute the operation.\n',
@@ -891,7 +906,7 @@ class Actor(BaseModel):
 
 class BaseOperation(BaseModel):
     """
-    Base type for all catalog operations carried by an `Event`. The `operation-type` discriminator selects the concrete operation schema. Standard operation types are enumerated in `OperationType`. Implementation-specific operation types use an `x-` prefix (see `OperationType`) and are carried as a `BaseOperation` with implementation-defined additional properties; clients should discard operations with unknown `operation-type` values.
+    Base type for all catalog operations carried by an `Event`. The `operation-type` discriminator selects the concrete operation schema. Standard operation types are enumerated in `OperationType`; implementation-specific operation types use an `x-` prefix (see `OperationType`). The schema enumerates only the standard operations; validation behavior for other `operation-type` values is implementation-defined. The typical Iceberg pattern is for parsers to switch on `operation-type` and route unknown values (including `x-` prefixed types) to a default handler.
 
     """
 
@@ -902,7 +917,10 @@ class DropTableOperation(BaseOperation):
     operation_type: Literal['drop-table'] = Field(..., alias='operation-type')
     identifier: TableIdentifier
     table_uuid: UUID = Field(..., alias='table-uuid')
-    purge: bool | None = Field(None, description='Whether purge flag was set')
+    purge: bool | None = Field(
+        None,
+        description="Whether the originating drop request specified the purge flag, indicating that the table's data files should also be deleted, not just the catalog entry.\n",
+    )
 
 
 class DropViewOperation(BaseOperation):
@@ -1245,6 +1263,25 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class FunctionRepresentation(RootModel[FunctionSQLRepresentation]):
+    root: FunctionSQLRepresentation = Field(
+        ..., description='UDF implementation representation.'
+    )
+
+
+class FunctionDefinitionLogEntry(BaseModel):
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when the function was updated to use the definition versions.',
+    )
+    definition_versions: list[FunctionDefinitionVersionRef] = Field(
+        ...,
+        alias='definition-versions',
+        description='Mapping of each definition to its selected version at this time.',
+    )
+
+
 class RenameTableOperation(RenameTableRequest, BaseOperation):
     operation_type: Literal['rename-table'] = Field(..., alias='operation-type')
     table_uuid: UUID = Field(..., alias='table-uuid')
@@ -1330,6 +1367,30 @@ class SetStatisticsUpdate(BaseUpdate):
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
     )
     statistics: StatisticsFile
+
+
+class FunctionDefinitionVersion(BaseModel):
+    version_id: int = Field(
+        ...,
+        alias='version-id',
+        description='Monotonically increasing identifier of the definition version.',
+    )
+    representations: list[FunctionRepresentation] = Field(
+        ..., description='UDF implementations.'
+    )
+    deterministic: bool | None = Field(
+        False, description='Whether the function is deterministic.'
+    )
+    on_null_input: Literal['return-null', 'call'] | None = Field(
+        'call',
+        alias='on-null-input',
+        description='Defines how the UDF behaves when any input parameter is NULL.',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Creation timestamp of this version (unix epoch millis).',
+    )
 
 
 class UnaryExpression(BaseModel):
@@ -1691,6 +1752,19 @@ class CreateTableRequest(BaseModel):
     properties: dict[str, str] | None = None
 
 
+class UnregisterTableResult(BaseModel):
+    """
+    Last metadata location and the corresponding table metadata for the table that was successfully unregistered and is no longer tracked by the catalog.
+    """
+
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='The last metadata location for the table at the time it was unregistered.',
+    )
+    metadata: TableMetadata
+
+
 class CreateViewRequest(BaseModel):
     name: str
     location: str | None = None
@@ -1737,6 +1811,136 @@ class ScanReport(BaseModel):
     metadata: dict[str, str] | None = None
 
 
+class LoadFunctionResult(BaseModel):
+    """
+    Result returned when a function is loaded from the catalog.
+
+
+    The function metadata JSON is returned in the `metadata` field. The location of the metadata
+    file is returned in the `metadata-location` field, if available.
+
+    """
+
+    metadata_location: str | None = Field(None, alias='metadata-location')
+    metadata: FunctionMetadata
+
+
+class FunctionMetadata(BaseModel):
+    """
+    Portable UDF metadata format.
+
+
+    Each function is represented by a self-contained metadata file. The `format-version` field
+    identifies the UDF metadata format.
+
+    """
+
+    function_uuid: UUID = Field(
+        ...,
+        alias='function-uuid',
+        description='A UUID that identifies this UDF, generated once at creation.',
+    )
+    format_version: int = Field(
+        ...,
+        alias='format-version',
+        description='UDF specification format version (must be 1).',
+        ge=1,
+        le=1,
+    )
+    definitions: list[FunctionDefinition] = Field(
+        ..., description='List of function definition entities.'
+    )
+    definition_log: list[FunctionDefinitionLogEntry] = Field(
+        ...,
+        alias='definition-log',
+        description="History of versions within the function's definitions.",
+    )
+    location: str | None = Field(
+        None,
+        description="The function's base location. This is used to store function metadata files.",
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='A string-to-string map of properties.'
+    )
+    secure: bool | None = Field(False, description='Whether it is a secure function.')
+    doc: str | None = Field(None, description='Documentation string.')
+
+
+class FunctionDefinition(BaseModel):
+    definition_id: str = Field(
+        ...,
+        alias='definition-id',
+        description='A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.',
+    )
+    parameters: list[FunctionParameter] = Field(
+        ...,
+        description='Ordered list of function parameters. Invocation order must match this list.',
+    )
+    return_type: FunctionDataType = Field(..., alias='return-type')
+    return_nullable: bool | None = Field(
+        True,
+        alias='return-nullable',
+        description='A hint to indicate whether the return value is nullable or not.',
+    )
+    versions: list[FunctionDefinitionVersion] = Field(
+        ..., description='Versioned implementations of this definition.'
+    )
+    current_version_id: int = Field(
+        ...,
+        alias='current-version-id',
+        description='Identifier of the current version for this definition.',
+    )
+    function_type: Literal['udf', 'udtf'] = Field(
+        ...,
+        alias='function-type',
+        description='Function type. When set to "udtf", "return-type" must be a struct describing the output schema.',
+    )
+    doc: str | None = Field(None, description='Documentation string.')
+
+
+class FunctionParameter(BaseModel):
+    type: FunctionDataType
+    name: str
+    doc: str | None = Field(None, description='Parameter documentation.')
+
+
+class FunctionListType(BaseModel):
+    """
+    UDF list type object.
+    """
+
+    type: Literal['list']
+    element: FunctionDataType
+
+
+class FunctionMapType(BaseModel):
+    """
+    UDF map type object.
+    """
+
+    type: Literal['map']
+    key: FunctionDataType
+    value: FunctionDataType
+
+
+class FunctionStructType(BaseModel):
+    """
+    UDF struct type object.
+    """
+
+    type: Literal['struct']
+    fields: list[FunctionStructField]
+
+
+class FunctionStructField(BaseModel):
+    """
+    UDF struct field.
+    """
+
+    name: str
+    type: FunctionDataType
+
+
 class CommitTableResponse(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: TableMetadata
@@ -1760,7 +1964,7 @@ class Event(BaseModel):
     request_id: str = Field(
         ...,
         alias='request-id',
-        description='Opaque ID of the request this change belongs to. This ID can be used to identify events that were part of the same request.\n',
+        description='Opaque identifier of the catalog request that produced this event. Some catalog endpoints (e.g. updateTable, commitTransaction) apply multiple updates atomically and emit one event per update; all such events share the same `request-id`, allowing clients to group them.\n',
     )
     request_event_count: int = Field(
         ...,
@@ -1791,7 +1995,7 @@ class Event(BaseModel):
         | DropNamespaceOperation
     ) = Field(
         ...,
-        description='The operation that was performed, such as creating or updating a table. The concrete type is selected by the `operation-type` discriminator defined on `BaseOperation`. Clients should discard events with unknown operation types. Operations are emitted only when the underlying change is committed; staged changes are not surfaced.\n',
+        description='The operation that was performed, such as creating or updating a table. The concrete type is selected by the `operation-type` discriminator defined on `BaseOperation`. Parsers should route events with unknown `operation-type` values to a default handler rather than failing. Operations are emitted only when the underlying change is committed; staged changes are not surfaced.\n',
     )
 
 
@@ -2041,6 +2245,15 @@ class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class FunctionDataType(
+    RootModel[str | FunctionListType | FunctionMapType | FunctionStructType]
+):
+    root: str | FunctionListType | FunctionMapType | FunctionStructType = Field(
+        ...,
+        description='A type for function parameters or return value. It is encoded either as a type string or as a JSON object for nested types (struct, list, map) following the UDF spec Types section.\n\nPrimitive and semi-structured type strings are encoded based on the Iceberg type JSON representation (e.g., "int", "string", "timestamp", "decimal(9,2)", "variant"). Type strings must contain no spaces or quote characters.\n\nNested types are based on the Iceberg type JSON representation, but the UDF spec only requires a subset of fields (e.g., list requires `type` and `element`; map requires `type`, `key`, and `value`; struct requires `type` and `fields`). Any other fields must be ignored.\n',
+    )
+
+
 class CompletedPlanningWithIDResult(CompletedPlanningResult):
     plan_id: str = Field(
         ..., alias='plan-id', description='ID used to track a planning request'
@@ -2096,6 +2309,14 @@ CommitViewRequest.model_rebuild()
 CreateTableRequest.model_rebuild()
 CreateViewRequest.model_rebuild()
 ScanReport.model_rebuild()
+LoadFunctionResult.model_rebuild()
+FunctionMetadata.model_rebuild()
+FunctionDefinition.model_rebuild()
+FunctionParameter.model_rebuild()
+FunctionListType.model_rebuild()
+FunctionMapType.model_rebuild()
+FunctionStructType.model_rebuild()
+FunctionStructField.model_rebuild()
 QueryEventsResponse.model_rebuild()
 Event.model_rebuild()
 CreateTableOperation.model_rebuild()

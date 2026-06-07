@@ -35,12 +35,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
+import org.apache.flink.api.connector.sink2.mocks.MockCommitRequest;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.client.JobExecutionException;
@@ -324,6 +328,67 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
 
     assertThat(generatorAndSinkChained).isTrue();
+  }
+
+  @Test
+  void testSlotSharingGroup() {
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(Collections.emptyList(), TypeInformation.of(new TypeHint<>() {}));
+
+    // Slot sharing group resource specs are registered on the env by name and referenced from
+    // operators via the String overload of .slotSharingGroup(...). We verify the effect by reading
+    // back the resource profile from the resulting job graph vertices.
+    String shuffleSinkSsgName = "shuffle-sink-ssg";
+    MemorySize shuffleSinkMemorySize = new MemorySize(123);
+    env.registerSlotSharingGroup(
+        SlotSharingGroup.newBuilder(shuffleSinkSsgName)
+            .setCpuCores(123)
+            .setTaskHeapMemory(shuffleSinkMemorySize)
+            .build());
+
+    String generatorSsgName = "generator-ssg";
+    MemorySize generatorMemorySize = new MemorySize(456);
+    env.registerSlotSharingGroup(
+        SlotSharingGroup.newBuilder(generatorSsgName)
+            .setCpuCores(456)
+            .setTaskHeapMemory(generatorMemorySize)
+            .build());
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new ForwardGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .immediateTableUpdate(false)
+        .shuffleSinkSlotSharingGroup(shuffleSinkSsgName)
+        .generatorSlotSharingGroup(generatorSsgName)
+        .append();
+
+    List<JobVertex> vertices =
+        StreamSupport.stream(env.getStreamGraph().getJobGraph().getVertices().spliterator(), false)
+            .toList();
+
+    boolean shufflingWriterSSGApplied =
+        vertices.stream()
+            .filter(vertex -> vertex.getName() != null && vertex.getName().contains("Sink: Writer"))
+            .anyMatch(
+                vertex ->
+                    vertex
+                        .getSlotSharingGroup()
+                        .getResourceProfile()
+                        .getTaskHeapMemory()
+                        .equals(shuffleSinkMemorySize));
+    boolean generatorSSGApplied =
+        vertices.stream()
+            .filter(vertex -> vertex.getName() != null && vertex.getName().contains("generator"))
+            .anyMatch(
+                vertex ->
+                    vertex
+                        .getSlotSharingGroup()
+                        .getResourceProfile()
+                        .getTaskHeapMemory()
+                        .equals(generatorMemorySize));
+
+    assertThat(shufflingWriterSSGApplied).isTrue();
+    assertThat(generatorSSGApplied).isTrue();
   }
 
   @Test
@@ -1100,6 +1165,48 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(totalAddedRecords).isEqualTo(records.size());
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testSkipsAlreadyCommittedDataAfterJobIdChanges(boolean overwriteMode) throws Exception {
+    TableIdentifier tableId = TableIdentifier.of(DATABASE, "t1");
+    List<DynamicIcebergDataImpl> records =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                tableId.name(),
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()));
+
+    DataFile seedDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/seed-data-1.parquet")
+            .withFileSizeInBytes(0)
+            .withRecordCount(1)
+            .build();
+
+    executeDynamicSink(
+        records, env, true, 1, new ReplayPreviousJobIdCommittableHook(seedDataFile), overwriteMode);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(tableId);
+
+    Snapshot mainSnapshot =
+        StreamSupport.stream(table.snapshots().spliterator(), false)
+            .filter(
+                s ->
+                    !ReplayPreviousJobIdCommittableHook.PREVIOUS_JOB_ID.equals(
+                        s.summary().get("flink.job-id")))
+            .filter(s -> s.summary().get("flink.job-id") != null)
+            .reduce((first, second) -> second)
+            .orElseThrow();
+    assertThat(mainSnapshot.summary())
+        .containsEntry("added-data-files", "1")
+        .containsEntry("added-records", String.valueOf(records.size()));
+
+    long expectedTotalRecords = overwriteMode ? records.size() : records.size() + 1L;
+    assertThat(Long.parseLong(mainSnapshot.summary().get("total-records")))
+        .isEqualTo(expectedTotalRecords);
+  }
+
   @Test
   void testCommitsOncePerTableBranchAndCheckpoint() throws Exception {
     String tableName = "t1";
@@ -1451,10 +1558,13 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
 
     @Override
-    public void beforeCommit(Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
+    public Collection<Committer.CommitRequest<DynamicCommittable>> beforeCommit(
+        Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
       if (!hasTriggered) {
         this.commitRequests.addAll(requests);
       }
+
+      return requests;
     }
 
     @Override
@@ -1469,6 +1579,66 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         commitRequests.clear();
         hasTriggered = true;
       }
+    }
+  }
+
+  /**
+   * Seeds an ancestor snapshot under a synthetic previous jobId and prepends a replay committable
+   * tagged with that jobId (at an earlier checkpoint, as would happen on restart-replay) to the
+   * batch. The seed uses {@code table.newAppend()} directly rather than a side committer so the
+   * real committable's manifest stays intact.
+   */
+  static class ReplayPreviousJobIdCommittableHook implements CommitHook {
+    static final String PREVIOUS_JOB_ID = JobID.generate().toHexString();
+
+    private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+    private static final String FLINK_JOB_ID = "flink.job-id";
+    private static final String OPERATOR_ID = "flink.operator-id";
+
+    // Static to survive Flink operator serialization.
+    private static boolean hasTriggered = false;
+
+    private final DataFile seedDataFile;
+
+    ReplayPreviousJobIdCommittableHook(DataFile seedDataFile) {
+      this.seedDataFile = seedDataFile;
+      hasTriggered = false;
+    }
+
+    @Override
+    public Collection<Committer.CommitRequest<DynamicCommittable>> beforeCommit(
+        Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
+      if (hasTriggered || requests.isEmpty()) {
+        return requests;
+      }
+
+      hasTriggered = true;
+      DynamicCommittable original = requests.iterator().next().getCommittable();
+      long replayedCheckpointId = original.checkpointId() - 1;
+
+      Table table =
+          CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.parse(original.key().tableName()));
+      table
+          .newAppend()
+          .appendFile(seedDataFile)
+          .set(FLINK_JOB_ID, PREVIOUS_JOB_ID)
+          .set(OPERATOR_ID, original.operatorId())
+          .set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(replayedCheckpointId))
+          .toBranch(original.key().branch())
+          .commit();
+
+      DynamicCommittable replayed =
+          new DynamicCommittable(
+              original.key(),
+              original.manifests(),
+              PREVIOUS_JOB_ID,
+              original.operatorId(),
+              replayedCheckpointId);
+      List<Committer.CommitRequest<DynamicCommittable>> enriched =
+          Lists.newArrayListWithCapacity(requests.size() + 1);
+      enriched.add(new MockCommitRequest<>(replayed));
+      enriched.addAll(requests);
+      return enriched;
     }
   }
 

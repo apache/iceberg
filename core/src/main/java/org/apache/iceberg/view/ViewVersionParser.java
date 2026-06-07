@@ -96,8 +96,7 @@ public class ViewVersionParser {
 
     String defaultCatalog = JsonUtil.getStringOrNull(DEFAULT_CATALOG, node);
 
-    Namespace defaultNamespace =
-        Namespace.of(JsonUtil.getStringArray(JsonUtil.get(DEFAULT_NAMESPACE, node)));
+    Namespace defaultNamespace = Namespace.of(JsonUtil.getStringArray(DEFAULT_NAMESPACE, node));
 
     return ImmutableViewVersion.builder()
         .versionId(versionId)

@@ -62,6 +62,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -448,6 +449,11 @@ public class FlinkCatalog extends AbstractCatalog {
           location = entry.getValue();
         }
       }
+    }
+
+    String comment = table.getComment();
+    if (comment != null && !comment.isEmpty()) {
+      properties.put(TableProperties.COMMENT, comment);
     }
 
     try {

@@ -417,6 +417,146 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
             null));
   }
 
+  @Test
+  public void testProjectStatFields() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_project_subset"),
+            "scan_project_subset",
+            SCHEMA,
+            SPEC,
+            3,
+            fileFormatProperty);
+
+    DataFile dataFile1 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile dataFile2 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "B"));
+    testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    long snapshotId = testTable.currentSnapshot().snapshotId();
+    PartitionStatisticsFile result =
+        PartitionStatsHandler.computeAndWriteStatsFile(testTable, snapshotId);
+    testTable.updatePartitionStatistics().setPartitionStatistics(result).commit();
+
+    Schema projection =
+        new Schema(
+            PartitionStatistics.EMPTY_PARTITION_FIELD,
+            PartitionStatistics.DATA_RECORD_COUNT,
+            PartitionStatistics.DATA_FILE_COUNT,
+            PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID);
+
+    List<PartitionStatistics> partitionStats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().project(projection).scan()) {
+      partitionStats = Lists.newArrayList(recordIterator);
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    assertThat(partitionStats)
+        .extracting(
+            PartitionStatistics::partition,
+            PartitionStatistics::dataRecordCount,
+            PartitionStatistics::dataFileCount,
+            PartitionStatistics::lastUpdatedSnapshotId)
+        .containsExactlyInAnyOrder(
+            Tuple.tuple(
+                partitionRecord(partitionType, "foo", "A"), dataFile1.recordCount(), 1, snapshotId),
+            Tuple.tuple(
+                partitionRecord(partitionType, "foo", "B"),
+                dataFile2.recordCount(),
+                1,
+                snapshotId));
+
+    assertThat(partitionStats)
+        .allSatisfy(
+            stats -> {
+              assertThat(stats.specId()).isNull();
+              assertThat(stats.totalDataFileSizeInBytes()).isNull();
+              assertThat(stats.positionDeleteRecordCount()).isNull();
+              assertThat(stats.positionDeleteFileCount()).isNull();
+              assertThat(stats.equalityDeleteRecordCount()).isNull();
+              assertThat(stats.equalityDeleteFileCount()).isNull();
+              assertThat(stats.totalRecords()).isNull();
+              assertThat(stats.lastUpdatedAt()).isNull();
+              assertThat(stats.dvCount()).isNull();
+            });
+  }
+
+  @Test
+  public void testProjectNullSchemaIsRejected() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_project_null"), "scan_project_null", SCHEMA, SPEC, 2, fileFormatProperty);
+
+    assertThatThrownBy(() -> testTable.newPartitionStatisticsScan().project(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid projection schema");
+  }
+
+  @Test
+  public void testProjectIgnoresUnknownField() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("scan_project_unknown"),
+            "scan_project_unknown",
+            SCHEMA,
+            SPEC,
+            3,
+            fileFormatProperty);
+
+    DataFile dataFile1 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "A"));
+    DataFile dataFile2 =
+        FileGenerationUtil.generateDataFile(testTable, TestHelpers.Row.of("foo", "B"));
+    testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    long snapshotId = testTable.currentSnapshot().snapshotId();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.computeAndWriteStatsFile(testTable, snapshotId))
+        .commit();
+
+    Schema projection =
+        new Schema(
+            PartitionStatistics.EMPTY_PARTITION_FIELD,
+            PartitionStatistics.DATA_RECORD_COUNT,
+            Types.NestedField.optional(9999, "not_a_stats_field", Types.StringType.get()));
+
+    List<PartitionStatistics> partitionStats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().project(projection).scan()) {
+      partitionStats = Lists.newArrayList(recordIterator);
+    }
+
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+
+    // only the valid projected fields are populated
+    assertThat(partitionStats)
+        .extracting(PartitionStatistics::partition, PartitionStatistics::dataRecordCount)
+        .containsExactlyInAnyOrder(
+            Tuple.tuple(partitionRecord(partitionType, "foo", "A"), dataFile1.recordCount()),
+            Tuple.tuple(partitionRecord(partitionType, "foo", "B"), dataFile2.recordCount()));
+
+    assertThat(partitionStats)
+        .allSatisfy(
+            stats -> {
+              assertThat(stats.specId()).isNull();
+              assertThat(stats.dataFileCount()).isNull();
+              assertThat(stats.totalDataFileSizeInBytes()).isNull();
+              assertThat(stats.positionDeleteRecordCount()).isNull();
+              assertThat(stats.positionDeleteFileCount()).isNull();
+              assertThat(stats.equalityDeleteRecordCount()).isNull();
+              assertThat(stats.equalityDeleteFileCount()).isNull();
+              assertThat(stats.totalRecords()).isNull();
+              assertThat(stats.lastUpdatedAt()).isNull();
+              assertThat(stats.lastUpdatedSnapshotId()).isNull();
+              assertThat(stats.dvCount()).isNull();
+            });
+  }
+
   private static void computeAndValidatePartitionStats(
       Table testTable, long snapshotId, Tuple... expectedValues) throws IOException {
     PartitionStatisticsFile result =
