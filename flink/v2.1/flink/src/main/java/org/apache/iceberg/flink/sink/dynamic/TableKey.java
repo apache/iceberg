@@ -33,11 +33,6 @@ class TableKey {
     this.branch = branch;
   }
 
-  TableKey(DynamicCommittable committable) {
-    this.tableName = committable.key().tableName();
-    this.branch = committable.key().branch();
-  }
-
   String tableName() {
     return tableName;
   }

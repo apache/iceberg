@@ -28,7 +28,6 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -39,14 +38,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.IntStream;
-import org.apache.avro.file.DataFileStream;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.io.DatumWriter;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -61,14 +52,13 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestTables;
-import org.apache.iceberg.avro.AvroTestHelpers;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -81,15 +71,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.orc.ORCSchemaUtil;
-import org.apache.iceberg.orc.OrcRowWriter;
-import org.apache.iceberg.orc.OrcWritingTestUtils;
-import org.apache.iceberg.orc.TestORCSchemaUtil;
-import org.apache.iceberg.parquet.ParquetFileTestUtils;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -97,14 +80,6 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.orc.OrcFile;
-import org.apache.orc.Reader;
-import org.apache.orc.TypeDescription;
-import org.apache.orc.Writer;
-import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.apache.parquet.avro.AvroParquetWriter;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -130,8 +105,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
-  private static final FileFormat[] FILE_FORMATS =
-      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+  private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
@@ -197,24 +171,9 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
-
-    try (writer) {
-      engineRecords.forEach(writer::write);
-    }
-
-    DataFile dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
-
+    writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
@@ -224,24 +183,9 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     Schema schema = dataGenerator.schema();
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
-
-    try (writer) {
-      engineRecords.forEach(writer::write);
-    }
-
-    DataFile dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
-
+    writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
@@ -274,34 +218,10 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
-
-    try (writer) {
-      engineRecords.forEach(writer::write);
-    }
-
-    DataFile dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
-
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
-    assertEquals(schema, engineRecords, readRecords);
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertEngineRecords(fileFormat, schema, genericRecords, Function.identity());
   }
 
   /** Write with engine type T, read with Generic Record */
@@ -1645,7 +1565,9 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = dataGenerator.generateRecords();
 
     // Write the file WITHOUT Iceberg field IDs (as an external writer would).
-    writeRecordsWithoutFieldIds(fileFormat, icebergSchema, genericRecords);
+    FileFormatTestSupport.forFormat(fileFormat)
+        .writeRecordsWithoutFieldIds(
+            encryptedFile.encryptingOutputFile(), icebergSchema, genericRecords);
 
     NameMapping nameMapping = MappingUtil.create(icebergSchema);
 
@@ -1660,6 +1582,83 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     assertEquals(icebergSchema, convertToEngineRecords(genericRecords, icebergSchema), readRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterOverwrite(FileFormat fileFormat) throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+
+    genericRecords = dataGenerator.generateRecords(20);
+    writeEngineRecords(
+        fileFormat, schema, convertToEngineRecords(genericRecords, schema), true /* overwrite */);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterNoOverwriteFailsIfFileExists(FileFormat fileFormat) throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+
+    assertThatThrownBy(() -> writeEngineRecords(fileFormat, schema, engineRecords))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Already exists");
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterSet(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) -> testPropertiesToSet(format).forEach(writerBuilder::set),
+        format -> assertThat(checkTestProperties(format)).isTrue());
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterSetAll(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) -> writerBuilder.setAll(testPropertiesToSet(format)),
+        format -> assertThat(checkTestProperties(format)).isTrue());
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterMeta(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) -> writerBuilder.meta("tck.meta.key", "tck-meta-value"),
+        format ->
+            assertThat(fileMetadataValue(format, "tck.meta.key")).isEqualTo("tck-meta-value"));
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterMetaMap(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) ->
+            writerBuilder.meta(
+                Map.of("tck.meta.key", "tck-meta-value", "tck.meta.key2", "tck-meta-value2")),
+        format -> {
+          assertThat(fileMetadataValue(format, "tck.meta.key")).isEqualTo("tck-meta-value");
+          assertThat(fileMetadataValue(format, "tck.meta.key2")).isEqualTo("tck-meta-value2");
+        });
   }
 
   private void readAndAssertGenericRecords(
@@ -1737,7 +1736,7 @@ public abstract class BaseFormatModelTests<T> {
   private DataFile writeRecordsForSplit(FileFormat fileFormat, Schema schema, List<Record> records)
       throws IOException {
 
-    String splitSizeProperty = splitSizeProperty(fileFormat);
+    String splitSizeProperty = FileFormatTestSupport.forFormat(fileFormat).splitSizeProperty();
     DataWriter<Record> writer =
         FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile)
             .schema(schema)
@@ -1761,16 +1760,6 @@ public abstract class BaseFormatModelTests<T> {
 
     assertThat(dataFile.format()).isEqualTo(fileFormat);
     return dataFile;
-  }
-
-  private static String splitSizeProperty(FileFormat fileFormat) {
-    return switch (fileFormat) {
-      case PARQUET -> TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-      case ORC -> TableProperties.ORC_STRIPE_SIZE_BYTES;
-      default ->
-          throw new UnsupportedOperationException(
-              "No split size property defined for format: " + fileFormat);
-    };
   }
 
   private static void assertCounts(
@@ -2110,112 +2099,6 @@ public abstract class BaseFormatModelTests<T> {
     return result;
   }
 
-  private void writeRecordsWithoutFieldIds(
-      FileFormat fileFormat, Schema schema, List<Record> records) throws IOException {
-    switch (fileFormat) {
-      case PARQUET -> writeParquetWithoutFieldIds(schema, records);
-      case AVRO -> writeAvroWithoutFieldIds(schema, records);
-      case ORC -> writeOrcWithoutFieldIds(schema, records);
-      default -> throw new UnsupportedOperationException("Unsupported file format: " + fileFormat);
-    }
-  }
-
-  private void writeAvroWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-    DatumWriter<GenericData.Record> datumWriter = new GenericDatumWriter<>(avroSchemaWithoutIds);
-    try (OutputStream out = outputFile.create();
-        DataFileWriter<GenericData.Record> writer = new DataFileWriter<>(datumWriter)) {
-      writer.create(avroSchemaWithoutIds, out);
-      for (Record record : records) {
-        GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
-        for (Types.NestedField field : schema.columns()) {
-          avroRecord.put(field.name(), record.getField(field.name()));
-        }
-
-        writer.append(avroRecord);
-      }
-    }
-
-    try (DataFileStream<GenericData.Record> reader =
-        new DataFileStream<>(outputFile.toInputFile().newStream(), new GenericDatumReader<>())) {
-      assertThat(AvroTestHelpers.hasIds(reader.getSchema())).isFalse();
-    }
-  }
-
-  private void writeParquetWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-
-    try (ParquetWriter<GenericData.Record> writer =
-        AvroParquetWriter.<GenericData.Record>builder(ParquetFileTestUtils.file(outputFile))
-            .withDataModel(GenericData.get())
-            .withSchema(avroSchemaWithoutIds)
-            .withConf(new Configuration())
-            .build()) {
-      for (Record record : records) {
-        GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
-        for (Types.NestedField field : schema.columns()) {
-          avroRecord.put(field.name(), record.getField(field.name()));
-        }
-
-        writer.write(avroRecord);
-      }
-    }
-
-    try (ParquetFileReader reader =
-        ParquetFileReader.open(ParquetFileTestUtils.file(outputFile.toInputFile()))) {
-      assertThat(ParquetSchemaUtil.hasIds(reader.getFooter().getFileMetaData().getSchema()))
-          .isFalse();
-    }
-  }
-
-  private void writeOrcWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    TypeDescription typeWithIds = ORCSchemaUtil.convert(schema);
-    TypeDescription typeWithoutIds = TestORCSchemaUtil.removeIds(typeWithIds);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-    Path hadoopPath = new Path(outputFile.location());
-
-    Configuration conf = new Configuration();
-    OrcFile.WriterOptions options =
-        OrcFile.writerOptions(conf)
-            .useUTCTimestamp(true)
-            .setSchema(typeWithoutIds)
-            .fileSystem(OrcWritingTestUtils.outputFileSystem(outputFile));
-
-    OrcRowWriter<Record> rowWriter = GenericOrcWriter.buildWriter(schema, typeWithIds);
-
-    try (Writer orcWriter = OrcFile.createWriter(hadoopPath, options)) {
-      VectorizedRowBatch batch = typeWithoutIds.createRowBatch();
-      for (Record record : records) {
-        rowWriter.write(record, batch);
-        if (batch.size == batch.getMaxSize()) {
-          orcWriter.addRowBatch(batch);
-          batch.reset();
-        }
-      }
-
-      if (batch.size > 0) {
-        orcWriter.addRowBatch(batch);
-        batch.reset();
-      }
-    }
-
-    InputFile inputFile = outputFile.toInputFile();
-    OrcFile.ReaderOptions readerOptions =
-        OrcFile.readerOptions(conf)
-            .useUTCTimestamp(true)
-            .filesystem(OrcWritingTestUtils.inputFileSystem(inputFile))
-            .maxLength(inputFile.getLength());
-
-    try (Reader reader = OrcFile.createReader(hadoopPath, readerOptions)) {
-      assertThat(TestORCSchemaUtil.hasIds(reader.getSchema())).isFalse();
-    }
-  }
-
   private void runTypePromotionCheck(
       FileFormat fileFormat, Type fromType, Type toType, Function<Object, Object> promoteValue)
       throws IOException {
@@ -2256,5 +2139,83 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(readRecords).hasSize(expectedGenericRecords.size());
     assertEquals(
         readSchema, convertToEngineRecords(expectedGenericRecords, readSchema), readRecords);
+  }
+
+  private DataFile writeEngineRecords(FileFormat fileFormat, Schema schema, List<T> records)
+      throws IOException {
+    return writeEngineRecords(fileFormat, schema, records, false /* overwrite */);
+  }
+
+  private DataFile writeEngineRecords(
+      FileFormat fileFormat, Schema schema, List<T> records, boolean overwrite) throws IOException {
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+
+    writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned());
+
+    if (overwrite) {
+      writerBuilder.overwrite();
+    }
+
+    DataWriter<T> writer = writerBuilder.build();
+
+    try (writer) {
+      records.forEach(writer::write);
+    }
+
+    DataFile dataFile = writer.toDataFile();
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(records.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+
+    return dataFile;
+  }
+
+  private static Map<String, String> testPropertiesToSet(FileFormat fileFormat) {
+    return FileFormatTestSupport.forFormat(fileFormat).testPropertiesToSet();
+  }
+
+  private boolean checkTestProperties(FileFormat fileFormat) throws IOException {
+    return FileFormatTestSupport.forFormat(fileFormat)
+        .checkTestProperties(encryptedFile.encryptingOutputFile().toInputFile());
+  }
+
+  private String fileMetadataValue(FileFormat fileFormat, String key) throws IOException {
+    return FileFormatTestSupport.forFormat(fileFormat)
+        .metadataValue(encryptedFile.encryptingOutputFile().toInputFile(), key);
+  }
+
+  @FunctionalInterface
+  private interface DataWriterEffectAssertion {
+    void accept(FileFormat fileFormat) throws IOException;
+  }
+
+  private void writeAndAssertDataWriterWithConfig(
+      FileFormat fileFormat,
+      BiConsumer<FileWriterBuilder<DataWriter<T>, Object>, FileFormat> configureWriter,
+      DataWriterEffectAssertion assertWriterEffect)
+      throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+    writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned());
+    configureWriter.accept(writerBuilder, fileFormat);
+
+    DataWriter<T> writer = writerBuilder.build();
+
+    try (writer) {
+      engineRecords.forEach(writer::write);
+    }
+
+    DataFile dataFile = writer.toDataFile();
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(genericRecords.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+    assertWriterEffect.accept(fileFormat);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 }

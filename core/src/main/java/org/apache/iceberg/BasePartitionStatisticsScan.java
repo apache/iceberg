@@ -22,12 +22,14 @@ import java.util.Optional;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
 
   private final Table table;
   private Long snapshotId;
+  private Schema projection;
 
   public BasePartitionStatisticsScan(Table table) {
     this.table = table;
@@ -49,7 +51,9 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
 
   @Override
   public PartitionStatisticsScan project(Schema newSchema) {
-    throw new UnsupportedOperationException("Projection is not supported");
+    Preconditions.checkArgument(newSchema != null, "Invalid projection schema: null");
+    this.projection = newSchema;
+    return this;
   }
 
   @Override
@@ -73,13 +77,15 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
 
     Types.StructType partitionType = Partitioning.partitionType(table);
     Schema schema = PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table));
+    Schema readSchema =
+        projection == null ? schema : TypeUtil.select(schema, TypeUtil.getProjectedIds(projection));
 
     FileFormat fileFormat = FileFormat.fromFileName(statsFile.get().path());
     Preconditions.checkNotNull(
         fileFormat != null, "Unable to determine format of file: %s", statsFile.get().path());
 
     return InternalData.read(fileFormat, table.io().newInputFile(statsFile.get().path()))
-        .project(schema)
+        .project(readSchema)
         .setRootType(BasePartitionStatistics.class)
         .build();
   }
