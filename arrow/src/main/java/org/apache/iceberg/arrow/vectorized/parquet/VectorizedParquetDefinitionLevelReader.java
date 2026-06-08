@@ -550,6 +550,33 @@ public final class VectorizedParquetDefinitionLevelReader
 
   class FixedSizeBinaryReader extends BaseReader {
     @Override
+    protected void nextRleBatch(
+        FieldVector vector,
+        int typeWidth,
+        NullabilityHolder nullabilityHolder,
+        VectorizedValuesReader valuesReader,
+        int idx,
+        int numValues,
+        byte[] byteArray) {
+      if (currentValue == maxDefLevel && valuesReader.supportsBulkFixedLengthRead()) {
+        // The whole run is non-null and the values are stored contiguously in the page, so copy
+        // them into the vector's data buffer in a single memcpy instead of one value at a time,
+        // mirroring how the numeric readers handle a non-null run.
+        valuesReader.readFixedLengthBytes(numValues, vector, idx, typeWidth);
+        nullabilityHolder.setNotNulls(idx, numValues);
+        if (setArrowValidityVector) {
+          ArrowBuf validityBuffer = vector.getValidityBuffer();
+          for (int i = 0; i < numValues; i++) {
+            BitVectorHelper.setBit(validityBuffer, idx + i);
+          }
+        }
+      } else {
+        super.nextRleBatch(
+            vector, typeWidth, nullabilityHolder, valuesReader, idx, numValues, byteArray);
+      }
+    }
+
+    @Override
     protected void nextVal(
         FieldVector vector,
         int idx,
