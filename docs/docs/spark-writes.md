@@ -461,6 +461,6 @@ tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisory
 settings will also affect other non-writing stages.
 It is important again to note that this is the estimated Spark input shuffle data size (typically, is row-based and
 compressed with a lower ratio) and not the write file size (typically, is columnar and compressed with a higher
-ratio), so a larger value than the target file size will need to be specified. The ratio of in-memory size to on
-disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this parameter at
+ratio), so a larger value than the target file size will need to be specified. The ratio of these two kinds of
+size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this parameter at
 write time to match the `write.target-file-size-bytes`.
