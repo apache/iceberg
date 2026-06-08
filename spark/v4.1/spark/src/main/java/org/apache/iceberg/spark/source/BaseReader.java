@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +50,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SingleFetchInputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -198,12 +198,12 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       if (singleFetchThreshold <= 0) {
         this.lazyInputFiles = raw;
       } else {
-        Map<String, Long> sizes = new HashMap<>(raw.size());
+        Map<String, Long> sizes = Maps.newHashMapWithExpectedSize(raw.size());
         taskGroup.tasks().stream()
             .flatMap(this::referencedFiles)
             .forEach(file -> sizes.put(file.location(), file.fileSizeInBytes()));
 
-        Map<String, InputFile> wrapped = new HashMap<>(raw.size());
+        Map<String, InputFile> wrapped = Maps.newHashMapWithExpectedSize(raw.size());
         for (Map.Entry<String, InputFile> entry : raw.entrySet()) {
           Long size = sizes.get(entry.getKey());
           if (size == null) {
