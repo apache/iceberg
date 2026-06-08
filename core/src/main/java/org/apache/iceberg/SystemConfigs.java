@@ -61,14 +61,6 @@ public class SystemConfigs {
           1,
           Integer::parseUnsignedInt);
 
-  /** Sets the thread pool size for asynchronous REST metrics reporting. */
-  public static final ConfigEntry<Integer> METRICS_REPORTER_THREAD_POOL_SIZE =
-      new ConfigEntry<>(
-          "iceberg.rest.metrics.reporter.num-threads",
-          "ICEBERG_REST_METRICS_REPORTER_NUM_THREADS",
-          1,
-          Integer::parseUnsignedInt);
-
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(
