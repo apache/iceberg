@@ -197,6 +197,144 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testRewriteV3ManifestsPreservesFirstRowId() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC")));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    List<Row> rowsBefore =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation)
+            .selectExpr("_row_id", "_last_updated_sequence_number", "*")
+            .orderBy("_row_id")
+            .collectAsList();
+    assertThat(rowsBefore).extracting(r -> r.<Long>getAs("_row_id")).doesNotContainNull();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation)
+            .selectExpr("_row_id", "_last_updated_sequence_number", "*")
+            .orderBy("_row_id")
+            .collectAsList();
+
+    assertThat(rowsAfter).containsExactlyElementsOf(rowsBefore);
+  }
+
+  @TestTemplate
+  public void testRewriteV3PartitionedManifestsPreservesFirstRowId() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, "AAAA", "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "BBBB", "BBBB")));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    List<Row> rowsBefore =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation)
+            .selectExpr("_row_id", "_last_updated_sequence_number", "*")
+            .orderBy("_row_id")
+            .collectAsList();
+    assertThat(rowsBefore).extracting(r -> r.<Long>getAs("_row_id")).doesNotContainNull();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation)
+            .selectExpr("_row_id", "_last_updated_sequence_number", "*")
+            .orderBy("_row_id")
+            .collectAsList();
+
+    assertThat(rowsAfter).containsExactlyElementsOf(rowsBefore);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsAfterV2ToV3Upgrade() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, "2");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    ThreeColumnRecord record1 = new ThreeColumnRecord(1, null, "AAAA");
+    ThreeColumnRecord record2 = new ThreeColumnRecord(2, "CCCC", "CCCC");
+    writeRecords(Lists.newArrayList(record1));
+    writeRecords(Lists.newArrayList(record2));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    table
+        .updateProperties()
+        .set(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+        .commit();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation)
+            .selectExpr("_row_id", "_last_updated_sequence_number", "*")
+            .orderBy("_row_id")
+            .collectAsList();
+
+    assertThat(rowsAfter)
+        .extracting(r -> r.<Long>getAs("_row_id"))
+        .doesNotContainNull()
+        .doesNotHaveDuplicates();
+    assertThat(rowsAfter)
+        .extracting(r -> new ThreeColumnRecord(r.getAs("c1"), r.getAs("c2"), r.getAs("c3")))
+        .containsExactlyInAnyOrder(record1, record2);
+  }
+
+  @TestTemplate
   public void testRewriteManifestsEmptyTable() throws IOException {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
