@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
+import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.io.api.Binary;
@@ -100,6 +102,124 @@ public class TestVectorizedParquetDefinitionLevelReader {
           .as("row 1 should receive the second decoded timestamp")
           .isEqualTo(222_222L);
     }
+  }
+
+  @Test
+  public void fixedSizeBinaryReaderPackedDictionaryDecodeDecodesRowsCorrectly() {
+    int typeWidth = 4;
+    byte[] value0 = {10, 11, 12, 13};
+    byte[] value1 = {20, 21, 22, 23};
+    try (RootAllocator allocator = new RootAllocator();
+        FixedSizeBinaryVector vector = new FixedSizeBinaryVector("fixed", allocator, typeWidth)) {
+      vector.allocateNew(2);
+
+      VectorizedParquetDefinitionLevelReader definitionReader =
+          new VectorizedParquetDefinitionLevelReader(1, 1, false);
+      VectorizedDictionaryEncodedParquetValuesReader dictionaryReader =
+          new VectorizedDictionaryEncodedParquetValuesReader(1, false);
+
+      dictionaryReader.mode = BaseVectorizedParquetValuesReader.Mode.PACKED;
+      dictionaryReader.currentCount = 2;
+      dictionaryReader.packedValuesBuffer[0] = 0;
+      dictionaryReader.packedValuesBuffer[1] = 1;
+
+      VectorizedParquetDefinitionLevelReader.FixedSizeBinaryReader reader =
+          definitionReader.fixedSizeBinaryReader();
+      reader.nextDictEncodedVal(
+          vector,
+          0,
+          dictionaryReader,
+          fixedDictionary(value0, value1),
+          BaseVectorizedParquetValuesReader.Mode.PACKED,
+          1,
+          null,
+          typeWidth);
+      reader.nextDictEncodedVal(
+          vector,
+          1,
+          dictionaryReader,
+          fixedDictionary(value0, value1),
+          BaseVectorizedParquetValuesReader.Mode.PACKED,
+          1,
+          null,
+          typeWidth);
+
+      vector.setValueCount(2);
+
+      assertThat(readFixed(vector, 0, typeWidth))
+          .as("row 0 should receive the first decoded value")
+          .isEqualTo(value0);
+      assertThat(readFixed(vector, 1, typeWidth))
+          .as("row 1 should receive the second decoded value")
+          .isEqualTo(value1);
+    }
+  }
+
+  @Test
+  public void fixedSizeBinaryDictEncodedReaderDecodesContiguousRunCorrectly() {
+    int typeWidth = 4;
+    byte[] value0 = {10, 11, 12, 13};
+    byte[] value1 = {20, 21, 22, 23};
+    try (RootAllocator allocator = new RootAllocator();
+        FixedSizeBinaryVector vector = new FixedSizeBinaryVector("fixed", allocator, typeWidth)) {
+      vector.allocateNew(2);
+
+      VectorizedDictionaryEncodedParquetValuesReader dictionaryReader =
+          new VectorizedDictionaryEncodedParquetValuesReader(0, false);
+      dictionaryReader.mode = BaseVectorizedParquetValuesReader.Mode.PACKED;
+      dictionaryReader.currentCount = 2;
+      dictionaryReader.packedValuesBuffer[0] = 0;
+      dictionaryReader.packedValuesBuffer[1] = 1;
+
+      NullabilityHolder holder = new NullabilityHolder(2);
+      dictionaryReader
+          .fixedSizeBinaryDictEncodedReader()
+          .nextBatch(vector, 0, 2, fixedDictionary(value0, value1), holder, typeWidth);
+
+      vector.setValueCount(2);
+
+      assertThat(readFixed(vector, 0, typeWidth))
+          .as("row 0 should receive the first decoded value")
+          .isEqualTo(value0);
+      assertThat(readFixed(vector, 1, typeWidth))
+          .as("row 1 should receive the second decoded value")
+          .isEqualTo(value1);
+    }
+  }
+
+  private static Dictionary fixedDictionary(byte[] value0, byte[] value1) {
+    return new Dictionary(Encoding.PLAIN_DICTIONARY) {
+      @Override
+      public int getMaxId() {
+        return 1;
+      }
+
+      @Override
+      public Binary decodeToBinary(int id) {
+        if (id == 0) {
+          return fixedBinaryWithOffset(value0);
+        } else if (id == 1) {
+          return fixedBinaryWithOffset(value1);
+        }
+
+        throw new IllegalArgumentException("Unexpected dictionary id: " + id);
+      }
+    };
+  }
+
+  private static Binary fixedBinaryWithOffset(byte[] value) {
+    // Back the entry at a non-zero offset so the test fails if the reader ignores the backing
+    // offset (as a plain getBytesUnsafe()[0, len) copy would).
+    byte[] padded = new byte[value.length + 3];
+    System.arraycopy(value, 0, padded, 3, value.length);
+    return Binary.fromConstantByteArray(padded, 3, value.length);
+  }
+
+  /** Read the raw bytes written into the vector's data buffer, independent of the validity bits. */
+  private static byte[] readFixed(FixedSizeBinaryVector vector, int idx, int typeWidth) {
+    byte[] bytes = new byte[typeWidth];
+    vector.getDataBuffer().getBytes((long) idx * typeWidth, bytes);
+    return bytes;
   }
 
   private static Binary int96Binary(long micros) {
