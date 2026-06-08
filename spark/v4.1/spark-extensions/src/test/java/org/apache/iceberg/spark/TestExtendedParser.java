@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,13 +36,18 @@ import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.expressions.Term;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.catalyst.parser.AbstractSqlParser;
 import org.apache.spark.sql.catalyst.parser.AstBuilder;
 import org.apache.spark.sql.catalyst.parser.ParameterContext;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.apache.spark.sql.catalyst.parser.PositionalParameterContext;
+import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.plans.logical.OneRowRelation;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -230,6 +236,36 @@ public class TestExtendedParser {
 
     assertThat(rows).hasSize(1);
     assertThat(rows.get(0).get(0)).isEqualTo(42);
+  }
+
+  /** Tests that a non-empty parameter context reaching an Iceberg command fails fast end-to-end. */
+  @Test
+  public void testParsePlanWithParametersRejectsParameterForIcebergCommand() throws Exception {
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(originalParser);
+    setSessionStateParser(spark.sessionState(), parser);
+
+    assertThatThrownBy(() -> spark.sql("ALTER TABLE t ADD PARTITION FIELD ?", new Object[] {1}))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("parameter");
+  }
+
+  /** Tests that a rejected Iceberg-command parameter context is not forwarded to the delegate. */
+  @Test
+  public void testParsePlanWithParametersDoesNotForwardParametersToIcebergPath() throws Exception {
+    ParserInterface delegate = mock(ParserInterface.class);
+    ParameterContext context =
+        new PositionalParameterContext(
+            scala.jdk.javaapi.CollectionConverters.asScala(
+                    Collections.<Expression>singletonList(Literal.create(1, DataTypes.IntegerType)))
+                .toSeq());
+
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(delegate);
+
+    assertThatThrownBy(
+            () -> parser.parsePlanWithParameters("ALTER TABLE t DROP PARTITION FIELD x", context))
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("parameter");
+    verify(delegate, never()).parsePlanWithParameters(anyString(), any(ParameterContext.class));
   }
 
   private static void setSessionStateParser(Object sessionState, ParserInterface parser)
