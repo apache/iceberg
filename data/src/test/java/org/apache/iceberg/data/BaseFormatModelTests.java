@@ -30,9 +30,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -73,12 +75,14 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -104,6 +108,56 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   @TempDir private File tableDir;
+
+  /**
+   * Returns the set of type IDs that this engine cannot handle. The base implementation returns an
+   * empty collection; engines override to declare which top-level columns should be excluded from
+   * test schemas.
+   */
+  protected Collection<Type.TypeID> unsupportedTypeIds() {
+    return Set.of();
+  }
+
+  private Schema filterUnsupported(Schema schema) {
+    Collection<Type.TypeID> unsupportedTypeIds = unsupportedTypeIds();
+    if (unsupportedTypeIds.isEmpty()) {
+      return schema;
+    }
+
+    List<Types.NestedField> kept =
+        schema.columns().stream()
+            .filter(
+                col ->
+                    TypeUtil.find(col.type(), t -> unsupportedTypeIds.contains(t.typeId())) == null)
+            .toList();
+    return kept.size() == schema.columns().size() ? schema : new Schema(kept);
+  }
+
+  private Schema supportedSchema(DataGenerator generator) {
+    Schema filtered = filterUnsupported(generator.schema());
+    assumeThat(filtered.columns())
+        .as("All columns of %s are unsupported by this engine", generator)
+        .isNotEmpty();
+    return filtered;
+  }
+
+  private static List<Record> project(List<Record> records, Schema targetSchema) {
+    if (records.isEmpty()) {
+      return records;
+    }
+
+    return records.stream()
+        .map(
+            source -> {
+              Record result = GenericRecord.create(targetSchema);
+              for (Types.NestedField col : targetSchema.columns()) {
+                result.setField(col.name(), source.getField(col.name()));
+              }
+
+              return result;
+            })
+        .toList();
+  }
 
   private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
@@ -170,8 +224,8 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = dataGenerator.schema();
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    Schema schema = supportedSchema(dataGenerator);
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
@@ -182,8 +236,8 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    Schema schema = supportedSchema(dataGenerator);
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
@@ -194,9 +248,9 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     writeGenericRecords(fileFormat, schema, genericRecords);
 
     // Read back and verify
@@ -217,8 +271,8 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = dataGenerator.schema();
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    Schema schema = supportedSchema(dataGenerator);
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
     writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertEngineRecords(fileFormat, schema, genericRecords, Function.identity());
@@ -229,7 +283,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -240,7 +294,7 @@ public abstract class BaseFormatModelTests<T> {
             .equalityFieldIds(1)
             .build();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
 
     try (writer) {
@@ -265,7 +319,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -276,7 +330,7 @@ public abstract class BaseFormatModelTests<T> {
             .equalityFieldIds(1)
             .build();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
 
     try (writer) {
@@ -298,7 +352,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterGenericWriteEngineRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 
@@ -309,7 +363,7 @@ public abstract class BaseFormatModelTests<T> {
             .equalityFieldIds(1)
             .build();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
 
     try (writer) {
       genericRecords.forEach(writer::write);
@@ -390,10 +444,7 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, fullSchema, genericRecords);
 
-    List<Record> projectedGenericRecords =
-        genericRecords.stream()
-            .map(record -> copy(record, projectedSchema, projectedSchema))
-            .toList();
+    List<Record> projectedGenericRecords = project(genericRecords, projectedSchema);
     List<T> expectedEngineRecords =
         convertToEngineRecords(projectedGenericRecords, projectedSchema);
 
@@ -873,7 +924,7 @@ public abstract class BaseFormatModelTests<T> {
     // col_b: mode=full -> valueCounts, nullValueCounts, and bounds all present
     Schema fullSchema = new Schema(schema.findField("col_b"));
     assertCounts(fileFormat, fullSchema, genericRecords, dataFile);
-    assertBounds(fileFormat, fullSchema, genericRecords, dataFile);
+    assertBounds(fileFormat, fullSchema, project(genericRecords, fullSchema), dataFile);
 
     // col_c, col_d, col_e: mode=counts (default) -> valueCounts and nullValueCounts present,
     // but no bounds
@@ -1368,10 +1419,7 @@ public abstract class BaseFormatModelTests<T> {
         new Schema(writeColumns.get(0), writeColumns.get(writeColumns.size() - 1));
 
     readAndAssertEngineRecords(
-        fileFormat,
-        projectedSchema,
-        genericRecords,
-        record -> copy(record, projectedSchema, projectedSchema));
+        fileFormat, projectedSchema, project(genericRecords, projectedSchema), Function.identity());
   }
 
   @ParameterizedTest
@@ -1457,10 +1505,7 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(2, "col_b", Types.IntegerType.get()));
 
     readAndAssertEngineRecords(
-        fileFormat,
-        reorderedSchema,
-        genericRecords,
-        record -> copy(record, reorderedSchema, reorderedSchema));
+        fileFormat, reorderedSchema, project(genericRecords, reorderedSchema), Function.identity());
   }
 
   /**
@@ -1525,7 +1570,7 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
 
     readAndAssertEngineRecords(
-        fileFormat, readSchema, genericRecords, record -> copy(record, readSchema, readSchema));
+        fileFormat, readSchema, project(genericRecords, readSchema), Function.identity());
   }
 
   /**
@@ -1790,43 +1835,64 @@ public abstract class BaseFormatModelTests<T> {
       return;
     }
 
+    Preconditions.checkArgument(
+        !genericRecords.isEmpty(), "assertBounds requires non-empty records");
+
     Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = file.upperBounds();
-    for (Types.NestedField field : schema.columns()) {
-      if (field.type().isPrimitiveType()) {
-        assertThat(lowerBounds).containsKey(field.fieldId());
-        assertThat(upperBounds).containsKey(field.fieldId());
 
-        ByteBuffer lowerBuffer = lowerBounds.get(field.fieldId());
-        ByteBuffer upperBuffer = upperBounds.get(field.fieldId());
+    InternalRecordWrapper wrapper = new InternalRecordWrapper(genericRecords.get(0).struct());
+    List<StructLike> wrappedRecords =
+        genericRecords.stream().map(r -> (StructLike) wrapper.copyFor(r)).toList();
 
-        Comparator<Object> cmp = Comparators.forType(field.type().asPrimitiveType());
+    List<Types.NestedField> columns = schema.columns();
+    for (int i = 0; i < columns.size(); i++) {
+      Types.NestedField field = columns.get(i);
+      if (!field.type().isPrimitiveType()) {
+        continue;
+      }
 
-        Object[] minMax = computeMinMax(genericRecords, field, cmp);
-        Object expectedMin = minMax[0];
-        Object expectedMax = minMax[1];
+      assertThat(lowerBounds).containsKey(field.fieldId());
+      assertThat(upperBounds).containsKey(field.fieldId());
 
-        if (expectedMin != null) {
-          assertThat(lowerBuffer).isNotNull();
-          Object actualLower = Conversions.fromByteBuffer(field.type(), lowerBuffer);
+      ByteBuffer lowerBuffer = lowerBounds.get(field.fieldId());
+      ByteBuffer upperBuffer = upperBounds.get(field.fieldId());
+      Comparator<Object> cmp = Comparators.forType(field.type().asPrimitiveType());
+
+      Object[] minMax = computeMinMax(wrappedRecords, i, cmp);
+      Object expectedMin = minMax[0];
+      Object expectedMax = minMax[1];
+
+      // String bounds may be truncated by the writer, so assert containment rather than equality.
+      boolean truncatable = field.type().typeId() == Type.TypeID.STRING;
+
+      if (expectedMin != null) {
+        assertThat(lowerBuffer).isNotNull();
+        Object actualLower = Conversions.fromByteBuffer(field.type(), lowerBuffer);
+        if (truncatable) {
+          assertThat(cmp.compare(actualLower, expectedMin)).isLessThanOrEqualTo(0);
+        } else {
           assertThat(cmp.compare(actualLower, expectedMin)).isEqualTo(0);
         }
+      }
 
-        if (expectedMax != null) {
-          assertThat(upperBuffer).isNotNull();
-          Object actualUpper = Conversions.fromByteBuffer(field.type(), upperBuffer);
+      if (expectedMax != null) {
+        assertThat(upperBuffer).isNotNull();
+        Object actualUpper = Conversions.fromByteBuffer(field.type(), upperBuffer);
+        if (truncatable) {
+          assertThat(cmp.compare(actualUpper, expectedMax)).isGreaterThanOrEqualTo(0);
+        } else {
           assertThat(cmp.compare(actualUpper, expectedMax)).isEqualTo(0);
         }
       }
     }
   }
 
-  private static Object[] computeMinMax(
-      List<Record> records, Types.NestedField field, Comparator<Object> cmp) {
+  private static Object[] computeMinMax(List<StructLike> records, int pos, Comparator<Object> cmp) {
     Object min = null;
     Object max = null;
-    for (Record record : records) {
-      Object value = record.getField(field.name());
+    for (StructLike record : records) {
+      Object value = record.get(pos, Object.class);
       if (value == null) {
         continue;
       }
@@ -2005,7 +2071,7 @@ public abstract class BaseFormatModelTests<T> {
     boundsAssertion.accept(lowerBounds.get(1), upperBounds.get(1));
 
     Schema intSchema = new Schema(schema.findField("col_int"));
-    assertBounds(fileFormat, intSchema, records, dataFile);
+    assertBounds(fileFormat, intSchema, project(records, intSchema), dataFile);
 
     assertThat(dataFile.columnSizes()).isNotNull().isNotEmpty();
   }
