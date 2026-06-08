@@ -41,18 +41,24 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -142,6 +148,14 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
   private static final int SCALE = 400000;
+
+  // Cache of pre-written input data files keyed by table shape (schema/spec/props are
+  // fixed per key), so identical large inputs are materialized via Spark only once per JVM
+  // fork and reused by every test that asks for the same shape. The Spark write of SCALE
+  // rows dominates these tests; the rewrite under test still runs per test on a fresh table.
+  @TempDir private static Path inputCacheDir;
+  private static final Map<String, List<DataFile>> INPUT_FILE_CACHE = new ConcurrentHashMap<>();
+  private static final AtomicInteger INPUT_CACHE_SEQ = new AtomicInteger();
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -2305,8 +2319,18 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
+    String key = "unpartitioned|fv=" + formatVersion + "|files=" + files + "|rows=" + SCALE;
+    List<DataFile> inputFiles =
+        cachedInputFiles(
+            key,
+            () -> {
+              Table golden = createTable();
+              writeRecords(files, SCALE);
+              golden.refresh();
+              return golden;
+            });
     Table table = createTable();
-    writeRecords(files, SCALE);
+    appendInputFiles(table, inputFiles);
     table.refresh();
     return table;
   }
@@ -2314,12 +2338,68 @@ public class TestRewriteDataFilesAction extends TestBase {
   protected Table createTablePartitioned(
       int partitions, int files, int numRecords, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
+    String key =
+        "partitioned|opts="
+            + new TreeMap<>(options)
+            + "|files="
+            + files
+            + "|rows="
+            + numRecords
+            + "|partitions="
+            + partitions;
+    List<DataFile> inputFiles =
+        cachedInputFiles(
+            key,
+            () -> {
+              Table golden = TABLES.create(SCHEMA, spec, options, tableLocation);
+              assertThat(golden.currentSnapshot()).as("Table must be empty").isNull();
+              writeRecords(files, numRecords, partitions);
+              golden.refresh();
+              return golden;
+            });
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
-
-    writeRecords(files, numRecords, partitions);
+    appendInputFiles(table, inputFiles);
     table.refresh();
     return table;
+  }
+
+  /**
+   * Returns the input data files for a given table shape, materializing them with Spark exactly
+   * once per JVM fork and reusing them afterwards. On a cache miss the {@code goldenBuilder} writes
+   * the data into a stable cache location (kept alive for the whole class via a static {@link
+   * TempDir}); on a hit the cached {@link DataFile}s are returned and re-appended to a fresh table
+   * by {@link #appendInputFiles}. The data is deterministic (fixed RNG seed) so reuse is
+   * byte-identical to regenerating it.
+   */
+  private List<DataFile> cachedInputFiles(String key, Supplier<Table> goldenBuilder) {
+    return INPUT_FILE_CACHE.computeIfAbsent(
+        key,
+        ignored -> {
+          String savedLocation = this.tableLocation;
+          try {
+            this.tableLocation =
+                inputCacheDir
+                    .resolve("input-" + INPUT_CACHE_SEQ.incrementAndGet())
+                    .toUri()
+                    .toString();
+            Table golden = goldenBuilder.get();
+            // includeColumnStats() is required: a plain scan drops lower/upper bounds and
+            // value counts, and re-appending stat-less files breaks tests that read bounds.
+            return Streams.stream(golden.newScan().includeColumnStats().planFiles())
+                .map(FileScanTask::file)
+                .map(DataFile::copy)
+                .collect(Collectors.toList());
+          } finally {
+            this.tableLocation = savedLocation;
+          }
+        });
+  }
+
+  private static void appendInputFiles(Table table, List<DataFile> inputFiles) {
+    AppendFiles append = table.newAppend();
+    inputFiles.forEach(append::appendFile);
+    append.commit();
   }
 
   protected Table createTablePartitioned(int partitions, int files) {
