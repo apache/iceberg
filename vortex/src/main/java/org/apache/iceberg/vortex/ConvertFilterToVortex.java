@@ -44,17 +44,24 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   static final Expression UNCONVERTIBLE = Expression.literal(true);
 
   private static final int SET_PREDICATE_LIMIT = 200;
-  private static final boolean CASE_SENSITIVE = true;
 
   private final Schema fileSchema;
+  private final boolean caseSensitive;
 
-  private ConvertFilterToVortex(Schema fileSchema) {
+  private ConvertFilterToVortex(Schema fileSchema, boolean caseSensitive) {
     this.fileSchema = fileSchema;
+    this.caseSensitive = caseSensitive;
   }
 
   public static Expression convert(Schema schema, org.apache.iceberg.expressions.Expression expr) {
+    return convert(schema, expr, true);
+  }
+
+  public static Expression convert(
+      Schema schema, org.apache.iceberg.expressions.Expression expr, boolean caseSensitive) {
     org.apache.iceberg.expressions.Expression pushedNot = Expressions.rewriteNot(expr);
-    Expression converted = ExpressionVisitors.visit(pushedNot, new ConvertFilterToVortex(schema));
+    Expression converted =
+        ExpressionVisitors.visit(pushedNot, new ConvertFilterToVortex(schema, caseSensitive));
     if (converted == UNCONVERTIBLE) {
       return ALWAYS_TRUE;
     } else {
@@ -153,7 +160,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   }
 
   private org.apache.iceberg.expressions.Expression bind(UnboundPredicate<?> pred) {
-    return pred.bind(fileSchema.asStruct(), CASE_SENSITIVE);
+    return pred.bind(fileSchema.asStruct(), caseSensitive);
   }
 
   /**

@@ -131,7 +131,7 @@ public abstract class BaseFormatModelTests<T> {
   @TempDir private File tableDir;
 
   private static final FileFormat[] FILE_FORMATS =
-      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC, FileFormat.VORTEX};
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
