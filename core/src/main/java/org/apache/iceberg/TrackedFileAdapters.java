@@ -61,26 +61,6 @@ class TrackedFileAdapters {
     return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
   }
 
-  private static PartitionSpec resolveSpec(
-      TrackedFile file, Map<Integer, PartitionSpec> specsById) {
-    Integer specId = file.specId();
-    if (specId != null) {
-      PartitionSpec spec = specsById.get(specId);
-      Preconditions.checkArgument(
-          spec != null, "Cannot find partition spec for spec ID: %s", specId);
-      return spec;
-    }
-
-    for (PartitionSpec spec : specsById.values()) {
-      if (spec.isUnpartitioned()) {
-        return spec;
-      }
-    }
-
-    throw new IllegalArgumentException(
-        "Cannot find unpartitioned spec in specs: " + specsById.keySet());
-  }
-
   /**
    * Shared base for all tracked file adapters. Holds the common fields and implements the methods
    * that delegate to {@link TrackedFile} and {@link PartitionSpec}.
@@ -124,10 +104,9 @@ class TrackedFileAdapters {
       return file.specId() != null ? file.specId() : spec.specId();
     }
 
-    // TODO: return a real partition tuple (https://github.com/apache/iceberg/issues/16222)
     @Override
     public StructLike partition() {
-      return null;
+      return file().partition();
     }
 
     @Override
@@ -432,5 +411,25 @@ class TrackedFileAdapters {
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
       return copy();
     }
+  }
+
+  private static PartitionSpec resolveSpec(
+      TrackedFile file, Map<Integer, PartitionSpec> specsById) {
+    Integer specId = file.specId();
+    if (specId != null) {
+      PartitionSpec spec = specsById.get(specId);
+      Preconditions.checkArgument(
+          spec != null, "Cannot find partition spec for spec ID: %s", specId);
+      return spec;
+    }
+
+    for (PartitionSpec spec : specsById.values()) {
+      if (spec.isUnpartitioned()) {
+        return spec;
+      }
+    }
+
+    throw new IllegalArgumentException(
+        "Cannot find unpartitioned spec in specs: " + specsById.keySet());
   }
 }

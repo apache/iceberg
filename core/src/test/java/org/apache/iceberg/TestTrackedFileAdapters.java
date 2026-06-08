@@ -29,181 +29,224 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class TestTrackedFileAdapters {
 
   private static final String MANIFEST_LOCATION = "s3://bucket/table/manifest.parquet";
+  private static final String DATA_FILE_LOCATION = "s3://bucket/data/file.parquet";
+  private static final String DV_LOCATION = "s3://bucket/puffin/dv-file.bin";
 
+  // Tracking values that the delegation tests validate.
+  private static final long MANIFEST_POS = 3L;
+  private static final long DATA_SEQUENCE_NUMBER = 10L;
+  private static final long FILE_SEQUENCE_NUMBER = 11L;
+  private static final long FIRST_ROW_ID = 1000L;
+
+  private static final int UNPARTITIONED_SPEC_ID = 0;
   private static final Map<Integer, PartitionSpec> UNPARTITIONED =
-      ImmutableMap.of(0, PartitionSpec.unpartitioned());
+      ImmutableMap.of(UNPARTITIONED_SPEC_ID, PartitionSpec.unpartitioned());
 
-  private static Map<Integer, PartitionSpec> specsById(PartitionSpec spec) {
-    return ImmutableMap.of(spec.specId(), spec);
-  }
+  private static final int PARTITIONED_SPEC_ID = 1;
+  private static final PartitionSpec PARTITIONED_SPEC =
+      PartitionSpec.builderFor(new Schema()).withSpecId(PARTITIONED_SPEC_ID).build();
+
+  // Passed for unpartitioned test files, where there is no partition tuple.
+  private static final PartitionData NO_PARTITION = null;
+
+  // Tracking field ordinals, looked up from the schema so the tests do not hard-code offsets.
+  private static final int STATUS_ORDINAL = ordinalOf(Tracking.schema(), "status");
+  private static final int SNAPSHOT_ID_ORDINAL = ordinalOf(Tracking.schema(), "snapshot_id");
+  private static final int DATA_SEQUENCE_NUMBER_ORDINAL =
+      ordinalOf(Tracking.schema(), "sequence_number");
+  private static final int FILE_SEQUENCE_NUMBER_ORDINAL =
+      ordinalOf(Tracking.schema(), "file_sequence_number");
+  private static final int FIRST_ROW_ID_ORDINAL = ordinalOf(Tracking.schema(), "first_row_id");
+  // manifestPos is appended after the tracking schema fields by the manifest reader.
+  private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
+
+  // TrackedFile optional field ordinals, looked up from the schema.
+  private static final Types.StructType TRACKED_FILE_SCHEMA =
+      TrackedFile.schemaWithContentStats(Types.StructType.of(), Types.StructType.of());
+  private static final int SPEC_ID_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "spec_id");
+  private static final int CONTENT_STATS_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "content_stats");
+  private static final int SORT_ORDER_ID_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "sort_order_id");
+  private static final int DELETION_VECTOR_ORDINAL =
+      ordinalOf(TRACKED_FILE_SCHEMA, "deletion_vector");
+  private static final int KEY_METADATA_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "key_metadata");
+  private static final int SPLIT_OFFSETS_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "split_offsets");
+  private static final int EQUALITY_IDS_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "equality_ids");
 
   @Test
-  void testDataFileAdapterDelegatesAllFields() {
-    TrackingStruct tracking = createTracking(3L);
-    ContentStats stats = createContentStats();
+  void testDataFileAdapterDelegation() {
+    PartitionData partition =
+        new PartitionData(
+            Types.StructType.of(
+                Types.NestedField.optional(1000, "category", Types.StringType.get())));
+    partition.set(0, "books");
 
     TrackedFileStruct file =
         new TrackedFileStruct(
-            tracking,
+            createTracking(),
             FileContent.DATA,
-            "s3://bucket/data/file.parquet",
+            DATA_FILE_LOCATION,
             FileFormat.PARQUET,
-            null,
+            partition,
             100L,
             1024L);
-    file.set(6, 0);
-    file.set(8, stats);
-    file.set(9, 3);
-    file.set(12, ByteBuffer.wrap(new byte[] {1, 2, 3}));
-    file.set(13, ImmutableList.of(50L, 100L));
+    file.set(SPEC_ID_ORDINAL, UNPARTITIONED_SPEC_ID);
+    file.set(CONTENT_STATS_ORDINAL, createContentStats());
+    file.set(SORT_ORDER_ID_ORDINAL, 3);
+    file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    file.set(SPLIT_OFFSETS_ORDINAL, ImmutableList.of(50L, 100L));
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
-    assertThat(dataFile.pos()).isEqualTo(3L);
-    assertThat(dataFile.specId()).isEqualTo(0);
+    assertThat(dataFile.pos()).isEqualTo(MANIFEST_POS);
+    assertThat(dataFile.specId()).isEqualTo(UNPARTITIONED_SPEC_ID);
+    assertThat(dataFile.partition()).isSameAs(partition);
     assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
-    assertThat(dataFile.location()).isEqualTo("s3://bucket/data/file.parquet");
+    assertThat(dataFile.location()).isEqualTo(DATA_FILE_LOCATION);
     assertThat(dataFile.format()).isEqualTo(FileFormat.PARQUET);
     assertThat(dataFile.recordCount()).isEqualTo(100L);
     assertThat(dataFile.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(dataFile.sortOrderId()).isEqualTo(3);
-    assertThat(dataFile.dataSequenceNumber()).isEqualTo(10L);
-    assertThat(dataFile.fileSequenceNumber()).isEqualTo(11L);
-    assertThat(dataFile.firstRowId()).isEqualTo(1000L);
+    assertThat(dataFile.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
+    assertThat(dataFile.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
+    assertThat(dataFile.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(dataFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
-    assertThat(dataFile.valueCounts()).containsOnly(entry(1, 100L), entry(2, 200L));
-    assertThat(dataFile.nullValueCounts()).containsOnly(entry(1, 5L), entry(2, 10L));
-    assertThat(dataFile.nanValueCounts()).containsOnly(entry(2, 3L));
+    assertThat(dataFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 200L));
+    assertThat(dataFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
+    assertThat(dataFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
     assertThat(dataFile.lowerBounds())
-        .containsEntry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1))
-        .containsEntry(2, Conversions.toByteBuffer(Types.FloatType.get(), 1.0f));
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
+            Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 1.0f)));
     assertThat(dataFile.upperBounds())
-        .containsEntry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000))
-        .containsEntry(2, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f));
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000)),
+            Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f)));
   }
 
-  @Test
-  void testDataFileAdapterRejectsNonData() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.EQUALITY_DELETES,
-            "s3://bucket/delete.avro",
-            FileFormat.AVRO,
-            null,
-            50L,
-            512L);
-    file.set(6, 0);
+  @ParameterizedTest
+  @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
+  void testDataFileAdapterRejectsNonDataContent(FileContent contentType) {
+    TrackedFileStruct file = trackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type for DataFile: %s", FileContent.EQUALITY_DELETES);
+        .hasMessage("Invalid content type for DataFile: %s", contentType);
   }
 
   @Test
-  void testEqualityDeleteFileAdapterDelegatesAllFields() {
-    TrackingStruct tracking = createTracking(5L);
-    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(1).build();
-    ContentStats stats = createContentStats();
-
+  void testEqualityDeleteFileAdapterDelegation() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            tracking,
+            createTracking(),
             FileContent.EQUALITY_DELETES,
             "s3://bucket/eq-delete.avro",
             FileFormat.AVRO,
-            null,
+            NO_PARTITION,
             50L,
             512L);
-    file.set(6, 1);
-    file.set(8, stats);
-    file.set(9, 5);
-    file.set(12, ByteBuffer.wrap(new byte[] {4, 5}));
-    file.set(13, ImmutableList.of(200L));
-    file.set(14, ImmutableList.of(1, 2, 3));
+    file.set(SPEC_ID_ORDINAL, PARTITIONED_SPEC_ID);
+    file.set(CONTENT_STATS_ORDINAL, createContentStats());
+    file.set(SORT_ORDER_ID_ORDINAL, 5);
+    file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {4, 5}));
+    file.set(SPLIT_OFFSETS_ORDINAL, ImmutableList.of(200L));
+    file.set(EQUALITY_IDS_ORDINAL, ImmutableList.of(1, 2, 3));
 
-    DeleteFile deleteFile = TrackedFileAdapters.asEqualityDeleteFile(file, specsById(spec));
+    DeleteFile deleteFile =
+        TrackedFileAdapters.asEqualityDeleteFile(file, specsById(PARTITIONED_SPEC));
 
-    assertThat(deleteFile.pos()).isEqualTo(5L);
-    assertThat(deleteFile.specId()).isEqualTo(1);
+    assertThat(deleteFile.pos()).isEqualTo(MANIFEST_POS);
+    assertThat(deleteFile.specId()).isEqualTo(PARTITIONED_SPEC_ID);
     assertThat(deleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(deleteFile.location()).isEqualTo("s3://bucket/eq-delete.avro");
     assertThat(deleteFile.format()).isEqualTo(FileFormat.AVRO);
     assertThat(deleteFile.recordCount()).isEqualTo(50L);
     assertThat(deleteFile.fileSizeInBytes()).isEqualTo(512L);
     assertThat(deleteFile.sortOrderId()).isEqualTo(5);
-    assertThat(deleteFile.dataSequenceNumber()).isEqualTo(10L);
-    assertThat(deleteFile.fileSequenceNumber()).isEqualTo(11L);
+    assertThat(deleteFile.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
+    assertThat(deleteFile.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
     assertThat(deleteFile.firstRowId()).isNull();
     assertThat(deleteFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {4, 5}));
     assertThat(deleteFile.splitOffsets()).containsExactly(200L);
     assertThat(deleteFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(deleteFile.equalityFieldIds()).containsExactly(1, 2, 3);
     assertThat(deleteFile.columnSizes()).isNull();
-    assertThat(deleteFile.valueCounts()).containsOnly(entry(1, 100L), entry(2, 200L));
-    assertThat(deleteFile.nullValueCounts()).containsOnly(entry(1, 5L), entry(2, 10L));
-    assertThat(deleteFile.nanValueCounts()).containsOnly(entry(2, 3L));
+    assertThat(deleteFile.valueCounts()).containsOnly(Map.entry(1, 100L), Map.entry(2, 200L));
+    assertThat(deleteFile.nullValueCounts()).containsOnly(Map.entry(1, 5L), Map.entry(2, 10L));
+    assertThat(deleteFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
     assertThat(deleteFile.lowerBounds())
-        .containsEntry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1))
-        .containsEntry(2, Conversions.toByteBuffer(Types.FloatType.get(), 1.0f));
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
+            Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 1.0f)));
     assertThat(deleteFile.upperBounds())
-        .containsEntry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000))
-        .containsEntry(2, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f));
+        .containsOnly(
+            Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000)),
+            Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f)));
   }
 
-  @Test
-  void testEqualityDeleteFileAdapterRejectsNonEqualityDeletes() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            "s3://bucket/data.parquet",
-            FileFormat.PARQUET,
-            null,
-            100L,
-            1024L);
-    file.set(6, 0);
+  @ParameterizedTest
+  @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "EQUALITY_DELETES")
+  void testEqualityDeleteFileAdapterRejectsNonEqualityContent(FileContent contentType) {
+    TrackedFileStruct file = trackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type for equality delete file: %s", FileContent.DATA);
+        .hasMessage("Invalid content type for equality delete file: %s", contentType);
   }
 
   @Test
-  void testDVDeleteFileAdapterDelegatesAllFields() {
-    TrackingStruct tracking = createTracking(7L);
-    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(2).build();
+  void testDVDeleteFileAdapterDelegation() {
+    DeletionVector dv =
+        DeletionVectorStruct.builder()
+            .location(DV_LOCATION)
+            .offset(128L)
+            .sizeInBytes(256L)
+            .cardinality(10L)
+            .build();
 
-    TrackedFileStruct file = createDataFileWithDV(tracking, 2);
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            createTracking(),
+            FileContent.DATA,
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            NO_PARTITION,
+            100L,
+            1024L);
+    file.set(SPEC_ID_ORDINAL, PARTITIONED_SPEC_ID);
+    file.set(DELETION_VECTOR_ORDINAL, dv);
 
-    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, specsById(spec));
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(file, specsById(PARTITIONED_SPEC));
 
-    // DV-specific fields from DeletionVector
+    // DV blob metadata is surfaced through the DeleteFile DV fields.
     assertThat(dvFile.content()).isEqualTo(FileContent.POSITION_DELETES);
-    assertThat(dvFile.location()).isEqualTo("s3://bucket/puffin/dv-file.bin");
+    assertThat(dvFile.location()).isEqualTo(DV_LOCATION);
     assertThat(dvFile.format()).isEqualTo(FileFormat.PUFFIN);
-    assertThat(dvFile.recordCount()).isEqualTo(10L);
-    assertThat(dvFile.fileSizeInBytes()).isEqualTo(256L);
-    assertThat(dvFile.referencedDataFile()).isEqualTo("s3://bucket/data/file.parquet");
-    assertThat(dvFile.contentOffset()).isEqualTo(128L);
-    assertThat(dvFile.contentSizeInBytes()).isEqualTo(256L);
+    assertThat(dvFile.recordCount()).isEqualTo(dv.cardinality());
+    assertThat(dvFile.contentOffset()).isEqualTo(dv.offset());
+    assertThat(dvFile.contentSizeInBytes()).isEqualTo(dv.sizeInBytes());
+    // fileSizeInBytes reports the DV blob size, not the full Puffin file size.
+    assertThat(dvFile.fileSizeInBytes()).isEqualTo(dv.sizeInBytes());
+    // referencedDataFile is delegated to the tracked data file's location.
+    assertThat(dvFile.referencedDataFile()).isEqualTo(DATA_FILE_LOCATION);
 
     // fields delegated from TrackedFile / Tracking
-    assertThat(dvFile.pos()).isEqualTo(7L);
-    assertThat(dvFile.specId()).isEqualTo(2);
-    assertThat(dvFile.dataSequenceNumber()).isEqualTo(10L);
-    assertThat(dvFile.fileSequenceNumber()).isEqualTo(11L);
+    assertThat(dvFile.pos()).isEqualTo(MANIFEST_POS);
+    assertThat(dvFile.specId()).isEqualTo(PARTITIONED_SPEC_ID);
+    assertThat(dvFile.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
+    assertThat(dvFile.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
     assertThat(dvFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
 
-    // fields that should be null for DVs
+    // fields that are null for DVs
     assertThat(dvFile.sortOrderId()).isNull();
     assertThat(dvFile.firstRowId()).isNull();
     assertThat(dvFile.keyMetadata()).isNull();
@@ -217,37 +260,19 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.upperBounds()).isNull();
   }
 
-  @Test
-  void testDVDeleteFileAdapterRejectsNonData() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.EQUALITY_DELETES,
-            "s3://bucket/eq-delete.avro",
-            FileFormat.AVRO,
-            null,
-            50L,
-            512L);
-    file.set(6, 0);
-    file.set(10, createDeletionVector());
+  @ParameterizedTest
+  @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
+  void testDVDeleteFileAdapterRejectsNonDataContent(FileContent contentType) {
+    TrackedFileStruct file = trackedFile(contentType);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type for DV delete file: %s", FileContent.EQUALITY_DELETES);
+        .hasMessage("Invalid content type for DV delete file: %s", contentType);
   }
 
   @Test
-  void testDVDeleteFileAdapterRejectsNullDV() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            "s3://bucket/data.parquet",
-            FileFormat.PARQUET,
-            null,
-            100L,
-            1024L);
-    file.set(6, 0);
+  void testDVDeleteFileAdapterRejectsNullDeletionVector() {
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(file, UNPARTITIONED))
         .isInstanceOf(IllegalArgumentException.class)
@@ -256,16 +281,7 @@ class TestTrackedFileAdapters {
 
   @Test
   void testNullContentStatsReturnsNullStats() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            "s3://bucket/data.parquet",
-            FileFormat.PARQUET,
-            null,
-            100L,
-            1024L);
-    file.set(6, 0);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
 
@@ -277,19 +293,27 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testNullSpecIdResolvesToUnpartitionedSpec() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            "s3://bucket/data.parquet",
-            FileFormat.PARQUET,
-            null,
-            100L,
-            1024L);
+  void testNullTrackingReturnsNullTrackingFields() {
+    // Files read before manifest inheritance have no tracking; tracking-derived fields must be
+    // null rather than throwing.
+    assertNullTrackingFields(
+        TrackedFileAdapters.asDataFile(trackedFile(FileContent.DATA), UNPARTITIONED));
+    assertNullTrackingFields(
+        TrackedFileAdapters.asEqualityDeleteFile(
+            trackedFile(FileContent.EQUALITY_DELETES), UNPARTITIONED));
 
-    PartitionSpec spec = PartitionSpec.builderFor(new Schema()).withSpecId(5).build();
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(spec));
+    TrackedFileStruct dvFile = trackedFile(FileContent.DATA);
+    dvFile.set(DELETION_VECTOR_ORDINAL, deletionVector());
+    assertNullTrackingFields(TrackedFileAdapters.asDVDeleteFile(dvFile, UNPARTITIONED));
+  }
+
+  @Test
+  void testNullSpecIdResolvesToUnpartitionedSpec() {
+    PartitionSpec unpartitioned = PartitionSpec.builderFor(new Schema()).withSpecId(5).build();
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
+
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(unpartitioned));
+
     assertThat(dataFile.specId()).isEqualTo(5);
   }
 
@@ -297,16 +321,7 @@ class TestTrackedFileAdapters {
   void testNullSpecIdThrowsWhenNoUnpartitionedSpec() {
     Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
     PartitionSpec partitioned = PartitionSpec.builderFor(schema).identity("id").build();
-
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            "s3://bucket/data.parquet",
-            FileFormat.PARQUET,
-            null,
-            100L,
-            1024L);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, specsById(partitioned)))
         .isInstanceOf(IllegalArgumentException.class)
@@ -315,55 +330,47 @@ class TestTrackedFileAdapters {
 
   @Test
   void testUnknownSpecIdThrows() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            "s3://bucket/data.parquet",
-            FileFormat.PARQUET,
-            null,
-            100L,
-            1024L);
-    file.set(6, 99);
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
+    file.set(SPEC_ID_ORDINAL, 99);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find partition spec for spec ID");
   }
 
-  private static TrackingStruct createTracking(long manifestPos) {
-    TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.ADDED)
-            .snapshotId(42L)
-            .dataSequenceNumber(10L)
-            .fileSequenceNumber(11L)
-            .firstRowId(1000L)
-            .build();
-    // manifestLocation and manifestPos are set by manifest readers, not written to manifests
+  private static void assertNullTrackingFields(ContentFile<?> file) {
+    assertThat(file.pos()).isNull();
+    assertThat(file.manifestLocation()).isNull();
+    assertThat(file.dataSequenceNumber()).isNull();
+    assertThat(file.fileSequenceNumber()).isNull();
+    assertThat(file.firstRowId()).isNull();
+  }
+
+  private static Map<Integer, PartitionSpec> specsById(PartitionSpec spec) {
+    return ImmutableMap.of(spec.specId(), spec);
+  }
+
+  /** Minimal file with no tracking, used by the rejection and null-tracking tests. */
+  private static TrackedFileStruct trackedFile(FileContent contentType) {
+    return new TrackedFileStruct(
+        null, contentType, "s3://bucket/file", FileFormat.PARQUET, NO_PARTITION, 1L, 1L);
+  }
+
+  private static TrackingStruct createTracking() {
+    TrackingStruct tracking = new TrackingStruct();
+    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
+    tracking.set(SNAPSHOT_ID_ORDINAL, 42L);
+    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, DATA_SEQUENCE_NUMBER);
+    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, FILE_SEQUENCE_NUMBER);
+    tracking.set(FIRST_ROW_ID_ORDINAL, FIRST_ROW_ID);
     tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(8, manifestPos);
+    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
     return tracking;
   }
 
-  private static TrackedFileStruct createDataFileWithDV(Tracking tracking, int specId) {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            tracking,
-            FileContent.DATA,
-            "s3://bucket/data/file.parquet",
-            FileFormat.PARQUET,
-            null,
-            100L,
-            1024L);
-    file.set(6, specId);
-    file.set(10, createDeletionVector());
-    return file;
-  }
-
-  private static DeletionVectorStruct createDeletionVector() {
+  private static DeletionVector deletionVector() {
     return DeletionVectorStruct.builder()
-        .location("s3://bucket/puffin/dv-file.bin")
+        .location(DV_LOCATION)
         .offset(128L)
         .sizeInBytes(256L)
         .cardinality(10L)
@@ -418,7 +425,14 @@ class TestTrackedFileAdapters {
         .build();
   }
 
-  private static Map.Entry<Integer, Long> entry(int key, long value) {
-    return Map.entry(key, value);
+  private static int ordinalOf(Types.StructType schema, String fieldName) {
+    List<Types.NestedField> fields = schema.fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+      if (fields.get(i).name().equals(fieldName)) {
+        return i;
+      }
+    }
+
+    throw new IllegalArgumentException("No such field: " + fieldName);
   }
 }
