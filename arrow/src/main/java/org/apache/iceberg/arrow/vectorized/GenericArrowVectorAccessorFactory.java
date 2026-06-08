@@ -30,6 +30,7 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.ExtensionTypeVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
@@ -44,7 +45,14 @@ import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.ViewVarBinaryVector;
+import org.apache.arrow.vector.ViewVarCharVector;
+import org.apache.arrow.vector.complex.BaseListVector;
+import org.apache.arrow.vector.complex.LargeListVector;
+import org.apache.arrow.vector.complex.LargeListViewVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.ListViewVector;
+import org.apache.arrow.vector.complex.RunEndEncodedVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.util.DecimalUtility;
 import org.apache.iceberg.parquet.ParquetUtil;
@@ -125,64 +133,61 @@ public class GenericArrowVectorAccessorFactory<
     // TODO: consider moving this to logical type annotations,
     // as new Parquet types are added only there.
     if (primitive.getOriginalType() != null) {
-      switch (desc.getPrimitiveType().getOriginalType()) {
-        case ENUM:
-        case JSON:
-        case UTF8:
-        case BSON:
-          return new DictionaryStringAccessor<>(
-              (IntVector) vector, dictionary, stringFactorySupplier.get());
-        case INT_64:
-        case TIME_MICROS:
-        case TIMESTAMP_MILLIS:
-        case TIMESTAMP_MICROS:
-          return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
-        case DECIMAL:
-          switch (primitive.getPrimitiveTypeName()) {
-            case BINARY:
-            case FIXED_LEN_BYTE_ARRAY:
-              return new DictionaryDecimalBinaryAccessor<>(
-                  (IntVector) vector, dictionary, decimalFactorySupplier.get());
-            case INT64:
-              return new DictionaryDecimalLongAccessor<>(
-                  (IntVector) vector, dictionary, decimalFactorySupplier.get());
-            case INT32:
-              return new DictionaryDecimalIntAccessor<>(
-                  (IntVector) vector, dictionary, decimalFactorySupplier.get());
-            default:
-              throw new UnsupportedOperationException(
-                  "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-          }
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported logical type: " + primitive.getOriginalType());
-      }
+      return switch (desc.getPrimitiveType().getOriginalType()) {
+        case ENUM, JSON, UTF8, BSON ->
+            new DictionaryStringAccessor<>(
+                (IntVector) vector, dictionary, stringFactorySupplier.get());
+        case INT_64, TIME_MICROS, TIMESTAMP_MILLIS, TIMESTAMP_MICROS ->
+            new DictionaryLongAccessor<>((IntVector) vector, dictionary);
+        case DECIMAL ->
+            switch (primitive.getPrimitiveTypeName()) {
+              case BINARY, FIXED_LEN_BYTE_ARRAY ->
+                  new DictionaryDecimalBinaryAccessor<>(
+                      (IntVector) vector, dictionary, decimalFactorySupplier.get());
+              case INT64 ->
+                  new DictionaryDecimalLongAccessor<>(
+                      (IntVector) vector, dictionary, decimalFactorySupplier.get());
+              case INT32 ->
+                  new DictionaryDecimalIntAccessor<>(
+                      (IntVector) vector, dictionary, decimalFactorySupplier.get());
+              default ->
+                  throw new UnsupportedOperationException(
+                      "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+            };
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported logical type: " + primitive.getOriginalType());
+      };
     } else {
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-        case BINARY:
-          return new DictionaryBinaryAccessor<>(
-              (IntVector) vector, dictionary, stringFactorySupplier.get());
-        case FLOAT:
-          return new DictionaryFloatAccessor<>((IntVector) vector, dictionary);
-        case INT64:
-          return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
-        case INT96:
-          // Impala & Spark used to write timestamps as INT96 by default. For backwards
-          // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
-          // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
-          return new DictionaryTimestampInt96Accessor<>((IntVector) vector, dictionary);
-        case DOUBLE:
-          return new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);
-        default:
-          throw new UnsupportedOperationException("Unsupported type: " + primitive);
-      }
+      return switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY, BINARY ->
+            new DictionaryBinaryAccessor<>(
+                (IntVector) vector, dictionary, stringFactorySupplier.get());
+        case FLOAT -> new DictionaryFloatAccessor<>((IntVector) vector, dictionary);
+        case INT64 -> new DictionaryLongAccessor<>((IntVector) vector, dictionary);
+        case INT96 ->
+            // Impala & Spark used to write timestamps as INT96 by default. For backwards
+            // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
+            // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
+            new DictionaryTimestampInt96Accessor<>((IntVector) vector, dictionary);
+        case DOUBLE -> new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);
+        default -> throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      };
     }
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(
       FieldVector vector, PrimitiveType primitive) {
+    if (vector instanceof ExtensionTypeVector) {
+      // e.g. the canonical Arrow UUID type, whose storage is a FixedSizeBinaryVector. Build an
+      // accessor over the underlying storage vector.
+      return getPlainVectorAccessor(
+          (FieldVector) ((ExtensionTypeVector<?>) vector).getUnderlyingVector(), primitive);
+    } else if (vector instanceof RunEndEncodedVector runEndEncoded) {
+      return new RunEndEncodedAccessor<>(
+          runEndEncoded, getPlainVectorAccessor(runEndEncoded.getValuesVector(), primitive));
+    }
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
@@ -203,8 +208,12 @@ public class GenericArrowVectorAccessorFactory<
       return new DecimalAccessor<>((DecimalVector) vector, decimalFactorySupplier.get());
     } else if (vector instanceof VarCharVector) {
       return new StringAccessor<>((VarCharVector) vector, stringFactorySupplier.get());
+    } else if (vector instanceof ViewVarCharVector) {
+      return new StringViewAccessor<>((ViewVarCharVector) vector, stringFactorySupplier.get());
     } else if (vector instanceof VarBinaryVector) {
       return new BinaryAccessor<>((VarBinaryVector) vector);
+    } else if (vector instanceof ViewVarBinaryVector) {
+      return new BinaryViewAccessor<>((ViewVarBinaryVector) vector);
     } else if (vector instanceof DateDayVector) {
       return new DateAccessor<>((DateDayVector) vector);
     } else if (vector instanceof TimeStampMicroTZVector) {
@@ -215,11 +224,19 @@ public class GenericArrowVectorAccessorFactory<
       return new TimestampAccessor<>((TimeStampNanoVector) vector);
     } else if (vector instanceof TimeStampNanoTZVector) {
       return new TimestampAccessor<>((TimeStampNanoTZVector) vector);
-    } else if (vector instanceof ListVector) {
-      ListVector listVector = (ListVector) vector;
-      return new ArrayAccessor<>(listVector, arrayFactorySupplier.get());
-    } else if (vector instanceof StructVector) {
-      StructVector structVector = (StructVector) vector;
+    } else if (vector instanceof ListVector listVector) {
+      return new ArrayAccessor<>(
+          listVector, listVector.getDataVector(), arrayFactorySupplier.get());
+    } else if (vector instanceof LargeListVector largeListVector) {
+      return new LargeListArrayAccessor<>(
+          largeListVector, largeListVector.getDataVector(), arrayFactorySupplier.get());
+    } else if (vector instanceof ListViewVector listViewVector) {
+      return new ArrayAccessor<>(
+          listViewVector, listViewVector.getDataVector(), arrayFactorySupplier.get());
+    } else if (vector instanceof LargeListViewVector largeListViewVector) {
+      return new LargeListViewArrayAccessor<>(
+          largeListViewVector, largeListViewVector.getDataVector(), arrayFactorySupplier.get());
+    } else if (vector instanceof StructVector structVector) {
       return new StructAccessor<>(structVector, structChildFactorySupplier.get());
     } else if (vector instanceof TimeMicroVector) {
       return new TimeMicroAccessor<>((TimeMicroVector) vector);
@@ -412,6 +429,107 @@ public class GenericArrowVectorAccessorFactory<
     }
   }
 
+  private static class StringViewAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final ViewVarCharVector vector;
+    private final StringFactory<Utf8StringT> stringFactory;
+
+    StringViewAccessor(ViewVarCharVector vector, StringFactory<Utf8StringT> stringFactory) {
+      super(vector);
+      this.vector = vector;
+      this.stringFactory = stringFactory;
+    }
+
+    @Override
+    public final Utf8StringT getUTF8String(int rowId) {
+      return stringFactory.ofRow(vector, rowId);
+    }
+  }
+
+  private static class BinaryViewAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final ViewVarBinaryVector vector;
+
+    BinaryViewAccessor(ViewVarBinaryVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    public final byte[] getBinary(int rowId) {
+      return vector.get(rowId);
+    }
+  }
+
+  /**
+   * Accessor for run-end encoded vectors. Each logical row is resolved to its physical position in
+   * the run-end encoded values vector, and the read is delegated to an accessor over those values.
+   */
+  private static class RunEndEncodedAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final RunEndEncodedVector vector;
+    private final ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> values;
+
+    RunEndEncodedAccessor(
+        RunEndEncodedVector vector,
+        ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> values) {
+      super(vector);
+      this.vector = vector;
+      this.values = values;
+    }
+
+    @Override
+    public boolean getBoolean(int rowId) {
+      return values.getBoolean(vector.getPhysicalIndex(rowId));
+    }
+
+    @Override
+    public int getInt(int rowId) {
+      return values.getInt(vector.getPhysicalIndex(rowId));
+    }
+
+    @Override
+    public long getLong(int rowId) {
+      return values.getLong(vector.getPhysicalIndex(rowId));
+    }
+
+    @Override
+    public float getFloat(int rowId) {
+      return values.getFloat(vector.getPhysicalIndex(rowId));
+    }
+
+    @Override
+    public double getDouble(int rowId) {
+      return values.getDouble(vector.getPhysicalIndex(rowId));
+    }
+
+    @Override
+    public byte[] getBinary(int rowId) {
+      return values.getBinary(vector.getPhysicalIndex(rowId));
+    }
+
+    @Override
+    public DecimalT getDecimal(int rowId, int precision, int scale) {
+      return values.getDecimal(vector.getPhysicalIndex(rowId), precision, scale);
+    }
+
+    @Override
+    public Utf8StringT getUTF8String(int rowId) {
+      return values.getUTF8String(vector.getPhysicalIndex(rowId));
+    }
+
+    @Override
+    public ArrayT getArray(int rowId) {
+      return values.getArray(vector.getPhysicalIndex(rowId));
+    }
+  }
+
   private static class DictionaryStringAccessor<
           DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
@@ -590,24 +708,95 @@ public class GenericArrowVectorAccessorFactory<
     }
   }
 
+  /**
+   * Accessor for {@link ListVector} and {@link ListViewVector}, both of which expose element ranges
+   * through the {@link BaseListVector} interface.
+   */
   private static class ArrayAccessor<
           DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
-    private final ListVector vector;
+    private final BaseListVector vector;
     private final ChildVectorT arrayData;
     private final ArrayFactory<ChildVectorT, ArrayT> arrayFactory;
 
-    ArrayAccessor(ListVector vector, ArrayFactory<ChildVectorT, ArrayT> arrayFactory) {
+    ArrayAccessor(
+        BaseListVector vector,
+        FieldVector dataVector,
+        ArrayFactory<ChildVectorT, ArrayT> arrayFactory) {
       super(vector);
       this.vector = vector;
       this.arrayFactory = arrayFactory;
-      this.arrayData = arrayFactory.ofChild(vector.getDataVector());
+      this.arrayData = arrayFactory.ofChild(dataVector);
     }
 
     @Override
     public final ArrayT getArray(int rowId) {
-      return arrayFactory.ofRow(vector, arrayData, rowId);
+      int start = vector.getElementStartIndex(rowId);
+      int end = vector.getElementEndIndex(rowId);
+      return arrayFactory.ofRow(arrayData, start, end - start);
+    }
+  }
+
+  /**
+   * Accessor for {@link LargeListViewVector}, which uses 64-bit offset and size buffers and does
+   * not implement {@link BaseListVector}, so element ranges are read from its buffers directly.
+   */
+  private static class LargeListViewArrayAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final LargeListViewVector vector;
+    private final ChildVectorT arrayData;
+    private final ArrayFactory<ChildVectorT, ArrayT> arrayFactory;
+
+    LargeListViewArrayAccessor(
+        LargeListViewVector vector,
+        FieldVector dataVector,
+        ArrayFactory<ChildVectorT, ArrayT> arrayFactory) {
+      super(vector);
+      this.vector = vector;
+      this.arrayFactory = arrayFactory;
+      this.arrayData = arrayFactory.ofChild(dataVector);
+    }
+
+    @Override
+    public final ArrayT getArray(int rowId) {
+      long start =
+          vector.getOffsetBuffer().getLong((long) rowId * LargeListViewVector.OFFSET_WIDTH);
+      long size = vector.getSizeBuffer().getLong((long) rowId * LargeListViewVector.SIZE_WIDTH);
+      return arrayFactory.ofRow(arrayData, (int) start, (int) size);
+    }
+  }
+
+  /**
+   * Accessor for {@link LargeListVector}, which uses 64-bit cumulative offsets and does not
+   * implement {@link BaseListVector}, but exposes element ranges through its own {@code long}
+   * accessors.
+   */
+  private static class LargeListArrayAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final LargeListVector vector;
+    private final ChildVectorT arrayData;
+    private final ArrayFactory<ChildVectorT, ArrayT> arrayFactory;
+
+    LargeListArrayAccessor(
+        LargeListVector vector,
+        FieldVector dataVector,
+        ArrayFactory<ChildVectorT, ArrayT> arrayFactory) {
+      super(vector);
+      this.vector = vector;
+      this.arrayFactory = arrayFactory;
+      this.arrayData = arrayFactory.ofChild(dataVector);
+    }
+
+    @Override
+    public final ArrayT getArray(int rowId) {
+      long start = vector.getElementStartIndex(rowId);
+      long end = vector.getElementEndIndex(rowId);
+      return arrayFactory.ofRow(arrayData, (int) start, (int) (end - start));
     }
   }
 
@@ -814,6 +1003,9 @@ public class GenericArrowVectorAccessorFactory<
     /** Create a UTF8 String from the row value in the arrow vector. */
     Utf8StringT ofRow(VarCharVector vector, int rowId);
 
+    /** Create a UTF8 String from the row value in the ViewVarCharVector vector. */
+    Utf8StringT ofRow(ViewVarCharVector vector, int rowId);
+
     /** Create a UTF8 String from the row value in the FixedSizeBinaryVector vector. */
     default Utf8StringT ofRow(FixedSizeBinaryVector vector, int rowId) {
       throw new UnsupportedOperationException(
@@ -848,8 +1040,13 @@ public class GenericArrowVectorAccessorFactory<
     /** Create a child vector of type {@code ChildVectorT} from the arrow child vector. */
     ChildVectorT ofChild(ValueVector childVector);
 
-    /** Create an Arrow of type {@code ArrayT} from the row value in the arrow child vector. */
-    ArrayT ofRow(ValueVector vector, ChildVectorT childData, int rowId);
+    /**
+     * Create an array of type {@code ArrayT} from a contiguous range of the child vector. The
+     * caller resolves the range (the start position of the first element and the number of
+     * elements) from the list or list-view vector's offsets, so this method is independent of the
+     * list encoding.
+     */
+    ArrayT ofRow(ChildVectorT childData, int elementStart, int numElements);
   }
 
   /**
