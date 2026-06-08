@@ -197,9 +197,11 @@ public class TestVectorizedParquetDefinitionLevelReader {
       @Override
       public Binary decodeToBinary(int id) {
         if (id == 0) {
-          return fixedBinaryWithOffset(value0);
+          // A real Parquet FIXED_LEN_BYTE_ARRAY dictionary backs entries with a sliced ByteBuffer.
+          return byteBufferBackedWithOffset(value0);
         } else if (id == 1) {
-          return fixedBinaryWithOffset(value1);
+          // Cover the byte[]-backed Binary variant in the same decode as well.
+          return byteArraySliceBackedWithOffset(value1);
         }
 
         throw new IllegalArgumentException("Unexpected dictionary id: " + id);
@@ -207,9 +209,14 @@ public class TestVectorizedParquetDefinitionLevelReader {
     };
   }
 
-  private static Binary fixedBinaryWithOffset(byte[] value) {
-    // Back the entry at a non-zero offset so the test fails if the reader ignores the backing
-    // offset (as a plain getBytesUnsafe()[0, len) copy would).
+  private static Binary byteBufferBackedWithOffset(byte[] value) {
+    // Non-zero offset so the test fails if the reader ignores the entry's backing offset.
+    byte[] padded = new byte[value.length + 3];
+    System.arraycopy(value, 0, padded, 3, value.length);
+    return Binary.fromConstantByteBuffer(ByteBuffer.wrap(padded), 3, value.length);
+  }
+
+  private static Binary byteArraySliceBackedWithOffset(byte[] value) {
     byte[] padded = new byte[value.length + 3];
     System.arraycopy(value, 0, padded, 3, value.length);
     return Binary.fromConstantByteArray(padded, 3, value.length);
