@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
