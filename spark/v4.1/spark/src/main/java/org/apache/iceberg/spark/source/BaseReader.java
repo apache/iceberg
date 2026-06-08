@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,7 @@ import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.SingleFetchInputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.spark.SparkExecutorCache;
@@ -55,6 +57,7 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -77,6 +80,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final long singleFetchThreshold;
 
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
@@ -102,6 +106,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
+    this.singleFetchThreshold =
+        PropertyUtil.propertyAsLong(
+            table.properties(),
+            TableProperties.READ_SINGLE_FETCH_THRESHOLD_BYTES,
+            TableProperties.READ_SINGLE_FETCH_THRESHOLD_BYTES_DEFAULT);
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -182,9 +191,31 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
-      this.lazyInputFiles =
+      Map<String, InputFile> raw =
           fileIO.bulkDecrypt(
               () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
+
+      if (singleFetchThreshold <= 0) {
+        this.lazyInputFiles = raw;
+      } else {
+        Map<String, Long> sizes = new HashMap<>(raw.size());
+        taskGroup.tasks().stream()
+            .flatMap(this::referencedFiles)
+            .forEach(file -> sizes.put(file.location(), file.fileSizeInBytes()));
+
+        Map<String, InputFile> wrapped = new HashMap<>(raw.size());
+        for (Map.Entry<String, InputFile> entry : raw.entrySet()) {
+          Long size = sizes.get(entry.getKey());
+          if (size == null) {
+            wrapped.put(entry.getKey(), entry.getValue());
+          } else {
+            wrapped.put(
+                entry.getKey(),
+                new SingleFetchInputFile(entry.getValue(), size, singleFetchThreshold));
+          }
+        }
+        this.lazyInputFiles = wrapped;
+      }
     }
 
     return lazyInputFiles;

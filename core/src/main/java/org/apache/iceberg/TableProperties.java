@@ -260,6 +260,10 @@ public class TableProperties {
   public static final String PARQUET_BATCH_SIZE = "read.parquet.vectorization.batch-size";
   public static final int PARQUET_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String READ_SINGLE_FETCH_THRESHOLD_BYTES =
+      "read.single-fetch-threshold-bytes";
+  public static final long READ_SINGLE_FETCH_THRESHOLD_BYTES_DEFAULT = 0L;
+
   public static final String ORC_VECTORIZATION_ENABLED = "read.orc.vectorization.enabled";
   public static final boolean ORC_VECTORIZATION_ENABLED_DEFAULT = false;
 
