@@ -375,20 +375,20 @@ class TestTrackedFileStruct {
                 10000,
                 "1",
                 Types.StructType.of(
-                    Types.NestedField.optional(10001, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10002, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10003, "nan_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10006, "lower_bound", Types.IntegerType.get()),
-                    Types.NestedField.optional(10007, "upper_bound", Types.IntegerType.get()))),
+                    Types.NestedField.optional(10001, "lower_bound", Types.IntegerType.get()),
+                    Types.NestedField.optional(10002, "upper_bound", Types.IntegerType.get()),
+                    Types.NestedField.optional(10004, "value_count", Types.LongType.get()),
+                    Types.NestedField.optional(10005, "null_value_count", Types.LongType.get()),
+                    Types.NestedField.optional(10006, "nan_value_count", Types.LongType.get()))),
             Types.NestedField.optional(
                 20000,
                 "2",
                 Types.StructType.of(
-                    Types.NestedField.optional(20001, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20002, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20003, "nan_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20006, "lower_bound", Types.FloatType.get()),
-                    Types.NestedField.optional(20007, "upper_bound", Types.FloatType.get()))));
+                    Types.NestedField.optional(20001, "lower_bound", Types.FloatType.get()),
+                    Types.NestedField.optional(20002, "upper_bound", Types.FloatType.get()),
+                    Types.NestedField.optional(20004, "value_count", Types.LongType.get()),
+                    Types.NestedField.optional(20005, "null_value_count", Types.LongType.get()),
+                    Types.NestedField.optional(20006, "nan_value_count", Types.LongType.get()))));
 
     List<FieldStats<?>> fieldStatsList =
         ImmutableList.of(

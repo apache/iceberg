@@ -111,7 +111,7 @@ class StatsUtil {
   }
 
   public static Types.NestedField contentStatsFor(Schema schema) {
-    ContentStatsSchemaVisitor visitor = new ContentStatsSchemaVisitor();
+    ContentStatsSchemaVisitor visitor = new ContentStatsSchemaVisitor(schema);
     Types.NestedField result = TypeUtil.visit(schema, visitor);
     if (!visitor.skippedFieldIds.isEmpty()) {
       LOG.warn("Could not create stats schema for field ids: {}", visitor.skippedFieldIds);
@@ -121,8 +121,13 @@ class StatsUtil {
   }
 
   private static class ContentStatsSchemaVisitor extends TypeUtil.SchemaVisitor<Types.NestedField> {
+    private final Schema tableSchema;
     private final List<Types.NestedField> statsFields = Lists.newArrayList();
     private final Set<Integer> skippedFieldIds = Sets.newLinkedHashSet();
+
+    ContentStatsSchemaVisitor(Schema tableSchema) {
+      this.tableSchema = tableSchema;
+    }
 
     @Override
     public Types.NestedField schema(Schema schema, Types.NestedField structResult) {
@@ -171,14 +176,15 @@ class StatsUtil {
 
     @Override
     public Types.NestedField field(Types.NestedField field, Types.NestedField fieldResult) {
-      if (field.type().isNestedType() || field.type().isVariantType()) {
+      if (field.type().isNestedType()) {
         return null;
       }
 
       int fieldId = StatsUtil.statsFieldIdForField(field.fieldId());
       if (fieldId >= 0) {
         Types.StructType structType = FieldStatistic.fieldStatsFor(field, fieldId);
-        return optional(fieldId, Integer.toString(field.fieldId()), structType);
+        String fullName = tableSchema.findColumnName(field.fieldId());
+        return optional(fieldId, fullName, structType);
       } else {
         skippedFieldIds.add(field.fieldId());
       }

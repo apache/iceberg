@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.FieldStatistic.EXACT_BOUNDS;
+import static org.apache.iceberg.FieldStatistic.AVG_VALUE_SIZE_IN_BYTES;
 import static org.apache.iceberg.FieldStatistic.LOWER_BOUND;
-import static org.apache.iceberg.FieldStatistic.MAX_VALUE_SIZE;
 import static org.apache.iceberg.FieldStatistic.NAN_VALUE_COUNT;
 import static org.apache.iceberg.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.FieldStatistic.TIGHT_BOUNDS;
 import static org.apache.iceberg.FieldStatistic.UPPER_BOUND;
 import static org.apache.iceberg.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -34,6 +33,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.api.Test;
 
 public class TestContentStats {
@@ -244,7 +247,7 @@ public class TestContentStats {
     Schema tableSchema = new Schema(optional(1, "s", Types.StringType.get()));
     Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
     Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
-    assertThat(statsStructForFieldId.fields()).hasSize(7);
+    assertThat(statsStructForFieldId.fields()).hasSize(6);
 
     GenericRecord record = GenericRecord.create(statsStructForFieldId);
     BaseFieldStats<String> fieldStats =
@@ -253,20 +256,18 @@ public class TestContentStats {
             .fieldId(1)
             .valueCount(10L)
             .nullValueCount(2L)
-            .avgValueSize(3)
-            .maxValueSize(10)
+            .avgValueSizeInBytes(3)
             .lowerBound("aa")
             .upperBound("zzz")
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
-    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
-    record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
-    record.setField(AVG_VALUE_SIZE.fieldName(), fieldStats.avgValueSize());
-    record.setField(MAX_VALUE_SIZE.fieldName(), fieldStats.maxValueSize());
     record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
     record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
-    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
+    record.setField(TIGHT_BOUNDS.fieldName(), fieldStats.tightBounds());
+    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
+    record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
+    record.setField(AVG_VALUE_SIZE_IN_BYTES.fieldName(), fieldStats.avgValueSizeInBytes());
 
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
     stats.set(0, record);
@@ -290,15 +291,15 @@ public class TestContentStats {
             .nanValueCount(3L)
             .lowerBound(5.0)
             .upperBound(20.0)
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
+    record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
+    record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
+    record.setField(TIGHT_BOUNDS.fieldName(), fieldStats.tightBounds());
     record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
     record.setField(NULL_VALUE_COUNT.fieldName(), fieldStats.nullValueCount());
     record.setField(NAN_VALUE_COUNT.fieldName(), fieldStats.nanValueCount());
-    record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
-    record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
-    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
 
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
     stats.set(0, record);
@@ -320,18 +321,136 @@ public class TestContentStats {
             .valueCount(10L)
             .lowerBound(5)
             .upperBound(20)
-            .hasExactBounds()
+            .tightBounds()
             .build();
 
-    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
     record.setField(LOWER_BOUND.fieldName(), fieldStats.lowerBound());
     record.setField(UPPER_BOUND.fieldName(), fieldStats.upperBound());
-    record.setField(EXACT_BOUNDS.fieldName(), fieldStats.hasExactBounds());
+    record.setField(TIGHT_BOUNDS.fieldName(), fieldStats.tightBounds());
+    record.setField(VALUE_COUNT.fieldName(), fieldStats.valueCount());
 
     // this is typically called by Avro reflection code
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
     stats.set(0, record);
     assertThat(stats.fieldStats()).containsExactly(fieldStats);
+  }
+
+  @Test
+  public void setByPositionOptionalGeometry() {
+    Schema tableSchema = new Schema(optional(1, "g", Types.GeometryType.crs84()));
+    Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
+    Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
+    // lower_bound, upper_bound, value_count, null_value_count
+    assertThat(statsStructForFieldId.fields()).hasSize(4);
+
+    GenericRecord lower =
+        GenericRecord.create(
+            statsStructForFieldId.field(LOWER_BOUND.fieldName()).type().asStructType());
+    lower.setField("x", -122.4);
+    lower.setField("y", 37.7);
+    lower.setField("z", null);
+    lower.setField("m", null);
+
+    GenericRecord upper =
+        GenericRecord.create(
+            statsStructForFieldId.field(UPPER_BOUND.fieldName()).type().asStructType());
+    upper.setField("x", -122.0);
+    upper.setField("y", 38.0);
+    upper.setField("z", null);
+    upper.setField("m", null);
+
+    GenericRecord record = GenericRecord.create(statsStructForFieldId);
+    record.setField(LOWER_BOUND.fieldName(), lower);
+    record.setField(UPPER_BOUND.fieldName(), upper);
+    record.setField(VALUE_COUNT.fieldName(), 100L);
+    record.setField(NULL_VALUE_COUNT.fieldName(), 5L);
+
+    ContentStats stats = new BaseContentStats(rootStatsStruct);
+    stats.set(0, record);
+
+    FieldStats<?> result = stats.fieldStats().get(0);
+    assertThat(result.valueCount()).isEqualTo(100L);
+    assertThat(result.nullValueCount()).isEqualTo(5L);
+    assertThat(result.tightBounds()).isFalse();
+    assertThat(result.lowerBound()).isEqualTo(lower);
+    assertThat(result.upperBound()).isEqualTo(upper);
+  }
+
+  @Test
+  public void setByPositionOptionalGeography() {
+    Schema tableSchema = new Schema(optional(1, "g", Types.GeographyType.crs84()));
+    Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
+    Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
+    // lower_bound, upper_bound, value_count, null_value_count
+    assertThat(statsStructForFieldId.fields()).hasSize(4);
+
+    GenericRecord lower =
+        GenericRecord.create(
+            statsStructForFieldId.field(LOWER_BOUND.fieldName()).type().asStructType());
+    lower.setField("x", 10.0);
+    lower.setField("y", 20.0);
+    lower.setField("z", 0.0);
+    lower.setField("m", null);
+
+    GenericRecord upper =
+        GenericRecord.create(
+            statsStructForFieldId.field(UPPER_BOUND.fieldName()).type().asStructType());
+    upper.setField("x", 30.0);
+    upper.setField("y", 40.0);
+    upper.setField("z", 100.0);
+    upper.setField("m", null);
+
+    GenericRecord record = GenericRecord.create(statsStructForFieldId);
+    record.setField(LOWER_BOUND.fieldName(), lower);
+    record.setField(UPPER_BOUND.fieldName(), upper);
+    record.setField(VALUE_COUNT.fieldName(), 200L);
+    record.setField(NULL_VALUE_COUNT.fieldName(), 10L);
+
+    ContentStats stats = new BaseContentStats(rootStatsStruct);
+    stats.set(0, record);
+
+    FieldStats<?> result = stats.fieldStats().get(0);
+    assertThat(result.valueCount()).isEqualTo(200L);
+    assertThat(result.nullValueCount()).isEqualTo(10L);
+    assertThat(result.tightBounds()).isFalse();
+    assertThat(result.lowerBound()).isEqualTo(lower);
+    assertThat(result.upperBound()).isEqualTo(upper);
+  }
+
+  @Test
+  public void setByPositionRequiredVariant() {
+    Schema tableSchema = new Schema(required(1, "v", Types.VariantType.get()));
+    Types.StructType rootStatsStruct = StatsUtil.contentStatsFor(tableSchema).type().asStructType();
+    Types.StructType statsStructForFieldId = rootStatsStruct.fields().get(0).type().asStructType();
+    // lower_bound, upper_bound, value_count, avg_value_size_in_bytes
+    assertThat(statsStructForFieldId.fields()).hasSize(4);
+
+    VariantMetadata metadata = Variants.metadata("$['name']", "$['score']");
+    ShreddedObject lower = Variants.object(metadata);
+    lower.put("$['name']", Variants.of("alice"));
+    lower.put("$['score']", Variants.of(1));
+    Variant lowerVariant = Variant.of(metadata, lower);
+
+    ShreddedObject upper = Variants.object(metadata);
+    upper.put("$['name']", Variants.of("zara"));
+    upper.put("$['score']", Variants.of(100));
+    Variant upperVariant = Variant.of(metadata, upper);
+
+    GenericRecord record = GenericRecord.create(statsStructForFieldId);
+    record.setField(LOWER_BOUND.fieldName(), lowerVariant);
+    record.setField(UPPER_BOUND.fieldName(), upperVariant);
+    record.setField(VALUE_COUNT.fieldName(), 50L);
+    record.setField(AVG_VALUE_SIZE_IN_BYTES.fieldName(), 128);
+
+    ContentStats stats = new BaseContentStats(rootStatsStruct);
+    stats.set(0, record);
+
+    FieldStats<?> result = stats.fieldStats().get(0);
+    assertThat(result.valueCount()).isEqualTo(50L);
+    assertThat(result.avgValueSizeInBytes()).isEqualTo(128);
+    assertThat(result.tightBounds()).isFalse();
+    assertThat(result.lowerBound()).isEqualTo(lowerVariant);
+    assertThat(result.upperBound()).isEqualTo(upperVariant);
   }
 
   @Test
