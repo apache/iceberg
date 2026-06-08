@@ -1077,9 +1077,6 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
-  apply plugin: 'com.gradleup.shadow'
-
-  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -1164,23 +1161,19 @@ project(':iceberg-open-api') {
   }
   check.dependsOn('validateRESTCatalogSpec')
 
-  shadowJar {
-    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
-    archiveClassifier.set(null)
-    configurations = [project.configurations.testFixturesRuntimeClasspath]
-    from sourceSets.testFixtures.output
-    zip64 true
-
-    // include the LICENSE and NOTICE files for the runtime Jar
+  // REST server runtime as a dir of jars; consumed by docker/iceberg-rest-fixture.
+  tasks.register('installRESTServer', Sync) {
+    into layout.buildDirectory.dir('iceberg-rest-server')
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
     }
-
-    manifest {
-      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
+    into('libs') {
+      from configurations.testFixturesRuntimeClasspath
+      from tasks.testFixturesJar
     }
   }
+  build.dependsOn 'installRESTServer'
 
   jar {
     enabled = false
