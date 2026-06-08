@@ -268,10 +268,7 @@ class Coordinator extends Channel {
         envelopeList.stream()
             .filter(
                 envelope -> {
-                  if (controlTopicReset) {
-                    return true;
-                  }
-                  Long minOffset = committedOffsets.get(envelope.partition());
+                  Long minOffset = baseOffsets.get(envelope.partition());
                   return minOffset == null || envelope.offset() >= minOffset;
                 })
             .map(envelope -> (DataWritten) envelope.event().payload())
