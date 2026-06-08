@@ -133,7 +133,7 @@ public class ParquetFormat implements FileFormatTestSupport {
   @Override
   public void assertEncryptedFileUnreadable(ThrowingCallable readEncryptedFile) {
     assertThatThrownBy(readEncryptedFile)
-        .as("Encrypted file should not be readable without decryption keys")
+        .hasMessage("does not support file encryption keys")
         .isInstanceOf(ParquetCryptoRuntimeException.class);
   }
 }
