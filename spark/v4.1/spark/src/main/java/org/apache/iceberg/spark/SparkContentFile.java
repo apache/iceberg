@@ -52,10 +52,10 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
   private final int sortOrderIdPosition;
   private final int fileSpecIdPosition;
   private final int equalityIdsPosition;
+  private final int firstRowIdPosition;
   private final int referencedDataFilePosition;
   private final int contentOffsetPosition;
   private final int contentSizePosition;
-  private final int firstRowIdPosition;
   private final Type lowerBoundsType;
   private final Type upperBoundsType;
   private final Type keyMetadataType;
@@ -105,10 +105,10 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     this.sortOrderIdPosition = positions.get(DataFile.SORT_ORDER_ID.name());
     this.fileSpecIdPosition = positions.get(DataFile.SPEC_ID.name());
     this.equalityIdsPosition = positions.get(DataFile.EQUALITY_IDS.name());
+    this.firstRowIdPosition = positions.get(DataFile.FIRST_ROW_ID.name());
     this.referencedDataFilePosition = positions.get(DataFile.REFERENCED_DATA_FILE.name());
     this.contentOffsetPosition = positions.get(DataFile.CONTENT_OFFSET.name());
     this.contentSizePosition = positions.get(DataFile.CONTENT_SIZE.name());
-    this.firstRowIdPosition = positions.get(DataFile.FIRST_ROW_ID.name());
   }
 
   public F wrap(Row row) {

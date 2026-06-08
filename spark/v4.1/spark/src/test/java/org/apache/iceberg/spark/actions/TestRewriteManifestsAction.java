@@ -203,7 +203,6 @@ public class TestRewriteManifestsAction extends TestBase {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
-    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
     writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
@@ -220,6 +219,7 @@ public class TestRewriteManifestsAction extends TestBase {
             .selectExpr("_row_id", "_last_updated_sequence_number", "*")
             .orderBy("_row_id")
             .collectAsList();
+    assertThat(rowsBefore).extracting(r -> r.<Long>getAs("_row_id")).doesNotContainNull();
 
     SparkActions.get()
         .rewriteManifests(table)
@@ -248,7 +248,6 @@ public class TestRewriteManifestsAction extends TestBase {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
-    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
     writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, "AAAA", "AAAA")));
@@ -265,6 +264,7 @@ public class TestRewriteManifestsAction extends TestBase {
             .selectExpr("_row_id", "_last_updated_sequence_number", "*")
             .orderBy("_row_id")
             .collectAsList();
+    assertThat(rowsBefore).extracting(r -> r.<Long>getAs("_row_id")).doesNotContainNull();
 
     SparkActions.get()
         .rewriteManifests(table)
@@ -293,7 +293,6 @@ public class TestRewriteManifestsAction extends TestBase {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, "2");
-    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
     ThreeColumnRecord record1 = new ThreeColumnRecord(1, null, "AAAA");
