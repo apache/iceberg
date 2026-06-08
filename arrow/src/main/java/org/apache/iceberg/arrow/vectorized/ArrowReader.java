@@ -83,7 +83,9 @@ import org.slf4j.LoggerFactory;
  *   <li>Iceberg: {@link Types.FixedType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}
  *   <li>Iceberg: {@link Types.DateType}, Arrow: {@link MinorType#DATEDAY}
  *   <li>Iceberg: {@link Types.TimeType}, Arrow: {@link MinorType#TIMEMICRO}
- *   <li>Iceberg: {@link Types.UUIDType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}(16)
+ *   <li>Iceberg: {@link Types.UUIDType}, Arrow: the canonical {@code arrow.uuid} extension type
+ *       ({@link org.apache.arrow.vector.extension.UuidType}) backed by {@link
+ *       MinorType#FIXEDSIZEBINARY}(16)
  * </ul>
  *
  * <p>Features that don't work in this implementation:

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 com.fasterxml.jackson.core:jackson-annotations:2.22
 com.fasterxml.jackson.core:jackson-core:2.21
 com.fasterxml.jackson.core:jackson-databind:2.21
@@ -5,14 +6,24 @@ com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22
 com.github.ben-manes.caffeine:caffeine:3.2
 com.google.errorprone:error_prone_annotations:2.49
 com.google.flatbuffers:flatbuffers-java:23.5
+=======
+com.fasterxml.jackson.core:jackson-annotations:2.21
+com.fasterxml.jackson.core:jackson-core:2.15
+com.fasterxml.jackson.core:jackson-databind:2.15
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21
+com.github.ben-manes.caffeine:caffeine:2.9
+com.google.errorprone:error_prone_annotations:2.10
+com.google.flatbuffers:flatbuffers-java:25.2
+>>>>>>> bd68f1646 (Upgrade arrow to 19.0.0)
 dev.failsafe:failsafe:3.3
 io.airlift:aircompressor:2.0
 io.netty:netty-buffer:4.2
 io.netty:netty-common:4.2
-org.apache.arrow:arrow-format:15.0
-org.apache.arrow:arrow-memory-core:15.0
-org.apache.arrow:arrow-memory-netty:15.0
-org.apache.arrow:arrow-vector:15.0
+org.apache.arrow:arrow-format:19.0
+org.apache.arrow:arrow-memory-core:19.0
+org.apache.arrow:arrow-memory-netty-buffer-patch:19.0
+org.apache.arrow:arrow-memory-netty:19.0
+org.apache.arrow:arrow-vector:19.0
 org.apache.avro:avro:1.12
 org.apache.datasketches:datasketches-java:6.2
 org.apache.datasketches:datasketches-memory:3.0
@@ -29,8 +40,12 @@ org.apache.parquet:parquet-format-structures:1.17
 org.apache.parquet:parquet-hadoop:1.17
 org.apache.parquet:parquet-jackson:1.17
 org.apache.parquet:parquet-variant:1.17
+<<<<<<< HEAD
 org.eclipse.collections:eclipse-collections-api:11.1
 org.eclipse.collections:eclipse-collections:11.1
+=======
+org.checkerframework:checker-qual:3.19
+>>>>>>> bd68f1646 (Upgrade arrow to 19.0.0)
 org.eclipse.microprofile.openapi:microprofile-openapi-api:4.1
 org.jspecify:jspecify:1.0
 org.locationtech.jts:jts-core:1.20
