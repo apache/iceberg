@@ -79,7 +79,11 @@ or any public cloud.
 
 ### [Dataddo](https://www.dataddo.com/)
 
-[Dataddo](https://www.dataddo.com/) is a unified data integration platform for moving enterprise data across cloud, on-prem, and hybrid environments. It enables reliable, governed, and observable data movement from SaaS, ERPs, databases, files, and APIs into any destination (including open data lakes and lakehouses), helping organizations meet compliance and operational requirements at scale. Dataddo fully supports Apache Iceberg destinations, including [Apache Iceberg on AWS](https://builder.aws.com/content/397JB7LWY1N13Y4QmWEU2eXsX7B/building-open-data-lakes-on-aws-with-apache-iceberg-and-dataddo).
+[Dataddo](https://www.dataddo.com/) is a fully managed data integration platform for moving enterprise data across cloud, on-prem, and hybrid environments, with first-class support for open table formats including Apache Iceberg.
+* **Architecture** - Dataddo runs a single control plane that orchestrates data planes on AWS, Azure, GCP, soveriegn clouds or on-premises Kubernetes and OpenShift, so sensitive data never leaves your network.
+* **Transport patterns** - Dataddo supports ETL/ELT, CDC, streaming, reverse ETL, and batch delivery from hundreds of fully maintained connectors.
+* **Iceberg support** - Dataddo writes to Apache Iceberg via catalogs such as AWS Glue, REST and others, and automatically detects source schema drift so downstream tables don't silently break.
+See the [Dataddo Platform](https://dataddo.com/platform) for details.
 
 ### [dltHub](https://dlthub.com/)
 
