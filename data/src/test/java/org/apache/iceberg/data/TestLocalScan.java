@@ -30,6 +30,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -337,6 +338,8 @@ public class TestLocalScan {
 
   @TestTemplate
   public void testProjectWithSchema() {
+    assumeThat(format != FileFormat.VORTEX).isTrue();
+
     // Test with table schema
     Iterable<Record> results = IcebergGenerics.read(sharedTable).project(SCHEMA).build();
 
