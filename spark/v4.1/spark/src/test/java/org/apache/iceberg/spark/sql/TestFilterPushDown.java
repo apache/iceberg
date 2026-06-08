@@ -616,7 +616,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "try_variant_get(data, '$.num', 'int') IS NULL",
               "isnull(try_variant_get(data, $.num, IntegerType, false, Some(UTC)))",
-              "",
+              "variant_get(data, '$.num', 'int') IS NULL",
               ImmutableList.of(row(4L, null)));
 
           checkFilters(
@@ -634,7 +634,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
           checkFilters(
               "try_variant_get(data, '$.num', 'int') IN (25, 35)",
               "try_variant_get(data, $.num, IntegerType, false, Some(UTC)) IN (25,35)",
-              "",
+              "variant_get(data, '$.num', 'int') IN (25, 35)",
               ImmutableList.of(
                   row(1L, toSparkVariantRow("foo", 25)), row(3L, toSparkVariantRow("baz", 35))));
 

@@ -354,7 +354,7 @@ public class SparkV2Filters {
 
   private static boolean canConvertToTerm(
       org.apache.spark.sql.connector.expressions.Expression expr) {
-    return isRef(expr) || isSystemFunc(expr);
+    return isRef(expr) || isSystemFunc(expr) || isVariantGetFunc(expr);
   }
 
   private static boolean isRef(org.apache.spark.sql.connector.expressions.Expression expr) {
@@ -440,10 +440,48 @@ public class SparkV2Filters {
     if (input instanceof NamedReference) {
       return Expressions.ref(SparkUtil.toColumnName((NamedReference) input));
     } else if (input instanceof UserDefinedScalarFunc) {
-      return udfToTerm((UserDefinedScalarFunc) input);
+      UserDefinedScalarFunc udf = (UserDefinedScalarFunc) input;
+      if (isVariantGetFunc(udf)) {
+        return variantGetToTerm(udf);
+      }
+      return udfToTerm(udf);
     } else {
       return null;
     }
+  }
+
+  private static boolean isVariantGetFunc(
+      org.apache.spark.sql.connector.expressions.Expression expr) {
+    if (!(expr instanceof UserDefinedScalarFunc udf)) {
+      return false;
+    }
+    String name = udf.name().toLowerCase(Locale.ROOT);
+    return ("variant_get".equals(name) || "try_variant_get".equals(name))
+        && udf.children().length == 3
+        && isRef(udf.children()[0])
+        && isLiteral(udf.children()[1])
+        && isLiteral(udf.children()[2]);
+  }
+
+  private static UnboundTerm<Object> variantGetToTerm(UserDefinedScalarFunc udf) {
+    org.apache.spark.sql.connector.expressions.Expression[] children = udf.children();
+    String colName = SparkUtil.toColumnName((NamedReference) children[0]);
+    String path = convertLiteral((Literal<?>) children[1]).toString();
+    String sparkTypeName = convertLiteral((Literal<?>) children[2]).toString();
+    String icebergTypeName = sparkTypeNameToIceberg(sparkTypeName);
+    try {
+      return Expressions.extract(colName, path, icebergTypeName);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
+  private static String sparkTypeNameToIceberg(String sparkTypeName) {
+    return switch (sparkTypeName.toLowerCase(Locale.ROOT)) {
+      case "bigint" -> "long";
+      case "tinyint", "smallint" -> "int";
+      default -> sparkTypeName;
+    };
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
