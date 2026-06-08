@@ -34,10 +34,10 @@ import org.apache.flink.table.api.Schema.UnresolvedPrimaryKey;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogTable;
-import org.apache.flink.table.catalog.CommonCatalogOptions;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -231,8 +231,18 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
 
     // `type` option is filtered out by Flink
     // https://github.com/apache/flink/blob/edc3d68736de73665440f4313ddcfd9142d8d42b/flink-table/flink-table-common/src/main/java/org/apache/flink/table/factories/FactoryUtil.java#L378
-    Map<String, String> filteredOptions = Maps.newHashMap(config);
-    filteredOptions.remove(CommonCatalogOptions.CATALOG_TYPE.key());
+    // Only catalog-type / catalog-impl are retained for the LIKE target to reconstruct the
+    // catalog; everything else (e.g. warehouse) must be supplied explicitly via WITH.
+    Map<String, String> filteredOptions = Maps.newHashMap();
+    if (config.containsKey(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE)) {
+      filteredOptions.put(
+          FlinkCatalogFactory.ICEBERG_CATALOG_TYPE,
+          config.get(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE));
+    }
+    if (config.containsKey(CatalogProperties.CATALOG_IMPL)) {
+      filteredOptions.put(
+          CatalogProperties.CATALOG_IMPL, config.get(CatalogProperties.CATALOG_IMPL));
+    }
 
     String srcCatalogProps =
         FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", filteredOptions);

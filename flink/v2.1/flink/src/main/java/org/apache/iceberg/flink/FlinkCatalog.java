@@ -54,6 +54,7 @@ import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
@@ -77,6 +78,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -94,6 +96,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  */
 @Internal
 public class FlinkCatalog extends AbstractCatalog {
+
+  /**
+   * Catalog property keys propagated to a CREATE TABLE LIKE target so it can reconstruct the
+   * Iceberg catalog. Anything outside this set must be supplied explicitly via the WITH clause on
+   * the LIKE target.
+   */
+  private static final Set<String> INHERITABLE_CATALOG_PROPS =
+      ImmutableSet.of(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, CatalogProperties.CATALOG_IMPL);
+
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
   private final Namespace baseNamespace;
@@ -112,7 +123,10 @@ public class FlinkCatalog extends AbstractCatalog {
       long cacheExpirationIntervalMs) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
-    this.catalogProps = catalogProps;
+    this.catalogProps =
+        catalogProps.entrySet().stream()
+            .filter(entry -> INHERITABLE_CATALOG_PROPS.contains(entry.getKey()))
+            .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
 
