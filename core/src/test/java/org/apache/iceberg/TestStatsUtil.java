@@ -158,21 +158,11 @@ public class TestStatsUtil {
                 146,
                 "content_stats",
                 Types.StructType.of(
-                    optional(10000, intField.name(), FieldStatistic.fieldStatsFor(intField, 10000)),
-                    optional(
-                        10400, floatField.name(), FieldStatistic.fieldStatsFor(floatField, 10400)),
-                    optional(
-                        10800,
-                        stringField.name(),
-                        FieldStatistic.fieldStatsFor(stringField, 10800)),
-                    optional(
-                        11200,
-                        booleanField.name(),
-                        FieldStatistic.fieldStatsFor(booleanField, 11200)),
-                    optional(
-                        200010000,
-                        uuidField.name(),
-                        FieldStatistic.fieldStatsFor(uuidField, 200010000)))));
+                    optional(10000, "i", FieldStatistic.fieldStatsFor(intField, 10000)),
+                    optional(10400, "f", FieldStatistic.fieldStatsFor(floatField, 10400)),
+                    optional(10800, "s", FieldStatistic.fieldStatsFor(stringField, 10800)),
+                    optional(11200, "b", FieldStatistic.fieldStatsFor(booleanField, 11200)),
+                    optional(200010000, "u", FieldStatistic.fieldStatsFor(uuidField, 200010000)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
@@ -214,27 +204,33 @@ public class TestStatsUtil {
                         FieldStatistic.fieldStatsFor(
                             required(0, "i", Types.IntegerType.get()), 10000)),
                     optional(
-                        10600,
-                        listElement.name(),
-                        FieldStatistic.fieldStatsFor(listElement, 10600)),
+                        10600, "list.element", FieldStatistic.fieldStatsFor(listElement, 10600)),
                     optional(
-                        11400, structInt.name(), FieldStatistic.fieldStatsFor(structInt, 11400)),
+                        11400, "simple_struct.int", FieldStatistic.fieldStatsFor(structInt, 11400)),
                     optional(
                         11600,
-                        structString.name(),
+                        "simple_struct.string",
                         FieldStatistic.fieldStatsFor(structString, 11600)),
-                    optional(14400, mapKey.name(), FieldStatistic.fieldStatsFor(mapKey, 14400)),
-                    optional(14800, mapValue.name(), FieldStatistic.fieldStatsFor(mapValue, 14800)),
-                    optional(
-                        16000,
-                        variantField.name(),
-                        FieldStatistic.fieldStatsFor(variantField, 16000)),
-                    optional(
-                        20010000,
-                        uuidField.name(),
-                        FieldStatistic.fieldStatsFor(uuidField, 20010000)))));
+                    optional(14400, "b.key", FieldStatistic.fieldStatsFor(mapKey, 14400)),
+                    optional(14800, "b.value", FieldStatistic.fieldStatsFor(mapValue, 14800)),
+                    optional(16000, "variant", FieldStatistic.fieldStatsFor(variantField, 16000)),
+                    optional(20010000, "u", FieldStatistic.fieldStatsFor(uuidField, 20010000)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
+  }
+
+  @Test
+  public void contentStatsChildNamesAreUnique() {
+    Schema schema =
+        new Schema(
+            required(1, "a", Types.StructType.of(required(2, "x", Types.IntegerType.get()))),
+            required(3, "b", Types.StructType.of(required(4, "x", Types.IntegerType.get()))));
+
+    Types.StructType contentStats = StatsUtil.contentStatsFor(schema).type().asStructType();
+
+    assertThat(contentStats.fields().stream().map(Types.NestedField::name).toList())
+        .doesNotHaveDuplicates()
+        .containsExactly("a.x", "b.x");
   }
 
   @Test
