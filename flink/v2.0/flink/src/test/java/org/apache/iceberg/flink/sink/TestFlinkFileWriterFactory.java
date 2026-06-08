@@ -19,9 +19,12 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
@@ -34,6 +37,18 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkFileWriterFactory extends TestFileWriterFactory<RowData> {
+
+  // Vortex is not yet supported on Flink, so it is excluded from the parameter matrix.
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}, Partitioned = {2}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, FileFormat.AVRO, false},
+        new Object[] {2, FileFormat.AVRO, true},
+        new Object[] {2, FileFormat.PARQUET, false},
+        new Object[] {2, FileFormat.PARQUET, true},
+        new Object[] {2, FileFormat.ORC, false},
+        new Object[] {2, FileFormat.ORC, true});
+  }
 
   @Override
   protected FileWriterFactory<RowData> newWriterFactory(

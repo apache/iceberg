@@ -17,7 +17,9 @@
  * under the License.
  */
 
+
 import groovy.transform.Memoized
+
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
@@ -164,7 +166,7 @@ subprojects {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
     }
-    
+
     tasks.named("revapiAnalyze").configure {
       dependsOn(":iceberg-common:jar")
     }
@@ -466,6 +468,7 @@ project(':iceberg-data') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation(testFixtures(project(':iceberg-parquet')))
+    testRuntimeOnly project(':iceberg-vortex')
   }
 
   test {
@@ -957,6 +960,56 @@ project(':iceberg-parquet') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-data')
+  }
+}
+
+project(':iceberg-vortex') {
+  test {
+    useJUnitPlatform()
+  }
+  dependencies {
+    api project(':iceberg-api')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    // Compile against the shaded artifact so Vortex APIs use relocated Arrow signatures.
+    compileOnly("${libs.vortex.jni.get().module}:${libs.vortex.jni.get().version}:all") {
+      transitive = false
+    }
+    runtimeOnly("${libs.vortex.jni.get().module}:${libs.vortex.jni.get().version}:all")
+    // VortexFormatModel exposes Arrow types in its public API, so Arrow must be
+    // visible to consumers of iceberg-vortex.
+    api(libs.arrow.vector) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    implementation(libs.arrow.c.data) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    implementation(libs.arrow.memory.netty) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    runtimeOnly libs.netty.buffer
+
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
+    compileOnly(libs.hadoop3.client) {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+
+    testImplementation libs.arrow.memory.netty
+    testImplementation libs.hadoop3.common
+    testRuntimeOnly 'com.google.protobuf:protobuf-java:4.33.5'
   }
 }
 

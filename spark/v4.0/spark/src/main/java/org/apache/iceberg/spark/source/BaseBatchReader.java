@@ -36,6 +36,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.VortexBatchReadConf;
 import org.apache.iceberg.spark.data.vectorized.ColumnVectorWithFilter;
 import org.apache.iceberg.spark.data.vectorized.ColumnarBatchUtil;
 import org.apache.iceberg.spark.data.vectorized.UpdatableDeletedColumnVector;
@@ -47,6 +48,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final ParquetBatchReadConf parquetConf;
   private final OrcBatchReadConf orcConf;
+  private final VortexBatchReadConf vortexConf;
 
   BaseBatchReader(
       Table table,
@@ -57,6 +59,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
       OrcBatchReadConf orcConf,
+      VortexBatchReadConf vortexConf,
       boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
@@ -68,6 +71,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         cacheDeleteFilesOnExecutors);
     this.parquetConf = parquetConf;
     this.orcConf = orcConf;
+    this.vortexConf = vortexConf;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -85,6 +89,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
     } else if (orcConf != null) {
       readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
+    } else if (vortexConf != null) {
+      readBuilder = readBuilder.recordsPerBatch(vortexConf.batchSize());
     }
 
     CloseableIterable<ColumnarBatch> iterable =

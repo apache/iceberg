@@ -1,0 +1,17 @@
+# Danger! Multiple jars contain identically named classes. This may cause different behaviour depending on classpath ordering.
+# Run ./gradlew checkClassUniqueness --fix to update this file
+
+## runtimeClasspath
+[com.google.guava:guava, dev.vortex:vortex-jni (classifier=all)]
+  - com.google.thirdparty.publicsuffix.PublicSuffixPatterns
+  - com.google.thirdparty.publicsuffix.PublicSuffixTrie
+  - com.google.thirdparty.publicsuffix.PublicSuffixTrie$ChunksCharSequence
+  - com.google.thirdparty.publicsuffix.PublicSuffixType
+[dev.vortex:vortex-jni (classifier=all), org.apache.arrow:arrow-c-data]
+  - org.apache.arrow.c.ArrayStreamExporter$ExportedArrayStreamPrivateData
+  - org.apache.arrow.c.jni.JniWrapper
+[dev.vortex:vortex-jni (classifier=all), org.apache.arrow:arrow-memory-netty-buffer-patch]
+  - io.netty.buffer.ExpandableByteBuf
+  - io.netty.buffer.NettyArrowBuf
+  - io.netty.buffer.PooledByteBufAllocatorL
+  - io.netty.buffer.PooledByteBufAllocatorL$InnerAllocator

@@ -32,10 +32,12 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
+import org.apache.iceberg.spark.ImmutableVortexBatchReadConf;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.VortexBatchReadConf;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -130,7 +132,8 @@ class SparkBatch implements Batch {
 
     } else if (useOrcBatchReads()) {
       return new SparkColumnarReaderFactory(orcBatchReadConf());
-
+    } else if (useVortexBatchReads()) {
+      return new SparkColumnarReaderFactory(vortexBatchReadConf());
     } else {
       return new SparkRowReaderFactory();
     }
@@ -142,6 +145,10 @@ class SparkBatch implements Batch {
 
   private OrcBatchReadConf orcBatchReadConf() {
     return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
+  }
+
+  private VortexBatchReadConf vortexBatchReadConf() {
+    return ImmutableVortexBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:
@@ -178,6 +185,26 @@ class SparkBatch implements Batch {
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
+  }
+
+  // conditions for using Vortex batch reads:
+  // - all tasks are of FileScanTask type and read only Vortex files
+  private boolean useVortexBatchReads() {
+    return taskGroups.stream().allMatch(this::supportsVortexBatchReads);
+  }
+
+  private boolean supportsVortexBatchReads(ScanTask task) {
+    if (task instanceof ScanTaskGroup) {
+      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+      return taskGroup.tasks().stream().allMatch(this::supportsVortexBatchReads);
+
+    } else if (task.isFileScanTask() && !task.isDataTask()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      return fileScanTask.file().format() == FileFormat.VORTEX;
+
+    } else {
+      return false;
+    }
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {

@@ -266,6 +266,10 @@ public class TableProperties {
   public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
   public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String READ_VORTEX_WORKER_THREADS = "read.vortex.worker-threads";
+  public static final String WRITE_VORTEX_WORKER_THREADS = "write.vortex.worker-threads";
+  public static final int VORTEX_WORKER_THREADS_DEFAULT = 4;
+
   public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();

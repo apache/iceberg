@@ -59,6 +59,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-data')
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
+    implementation(project(':iceberg-vortex')) {
+      exclude group: 'dev.vortex', module: 'vortex-jni'
+    }
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
     implementation("org.apache.datasketches:datasketches-java:${libs.versions.datasketches.get()}")
@@ -77,6 +80,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
+    implementation(libs.vortex.spark212) {
+      exclude group: "dev.vortex"
+    }
+    implementation("${libs.vortex.jni.get().module}:${libs.vortex.jni.get().version}:all")
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
@@ -93,6 +100,11 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     }
 
     implementation libs.caffeine
+
+    // ADUFFY ADDED
+    testImplementation(libs.hadoop3.aws)
+    testImplementation(libs.hadoop3.common)
+    // ADUFFY ADDED
 
     testImplementation(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -244,6 +256,13 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'net.snowflake' , module: 'snowflake-jdbc'
     }
 
+    // ADUFFY ADDED
+    integrationImplementation libs.hadoop3.aws
+    integrationImplementation libs.hadoop3.azure
+    integrationImplementation libs.hadoop3.common
+    integrationRuntimeOnly libs.arrow.memory.netty
+    // ADUFFY ADDED
+
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
     integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark35.get()}") {
       exclude group: 'org.roaringbitmap'
@@ -263,10 +282,13 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationRuntimeOnly project(path: ':iceberg-core', configuration: 'testArtifacts')
     integrationRuntimeOnly (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
 
+
     // Not allowed on our classpath, only the runtime jar is allowed
+    integrationCompileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     integrationCompileOnly project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
     integrationCompileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
     integrationCompileOnly project(':iceberg-api')
+    integrationCompileOnly project(':iceberg-core')
   }
 
   shadowJar {
@@ -297,7 +319,10 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     relocate 'org.apache.hc.core5', 'org.apache.iceberg.shaded.org.apache.hc.core5'
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty', 'org.apache.iceberg.shaded.io.netty'
-    relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
+    relocate('org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow') {
+      exclude("org/apache/arrow/c/jni/*")
+      exclude("org/apache/arrow/c/ArrayStreamExporter\$ExportedArrayStreamPrivateData")
+    }
     relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
