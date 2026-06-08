@@ -121,7 +121,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testRowGroupRowLimitConfigurable() throws IOException {
+  public void rowGroupRowLimitConfigurable() throws IOException {
     Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
 
     int recordCount = 25;
