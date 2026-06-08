@@ -1124,15 +1124,12 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
-  apply plugin: 'com.gradleup.shadow'
 
   // There are no main sources, so drop the implicit test fixtures -> main component dependency that
   // would otherwise put the disabled main JAR on consumers' classpaths
   configurations.testFixturesApi.dependencies.removeIf {
     it instanceof ProjectDependency && it.path == project.path
   }
-
-  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -1219,17 +1216,19 @@ project(':iceberg-open-api') {
   }
   check.dependsOn('validateRESTCatalogSpec')
 
-  shadowJar {
-    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
-    archiveClassifier.set(null)
-    configurations = [project.configurations.testFixturesRuntimeClasspath]
-    from sourceSets.testFixtures.output
-    zip64 true
-
-    manifest {
-      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
+  // REST server runtime as a dir of jars; consumed by docker/iceberg-rest-fixture.
+  tasks.register('installRESTServer', Sync) {
+    into layout.buildDirectory.dir('iceberg-rest-server')
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+    into('libs') {
+      from configurations.testFixturesRuntimeClasspath
+      from tasks.testFixturesJar
     }
   }
+  build.dependsOn 'installRESTServer'
 
   jar {
     enabled = false
