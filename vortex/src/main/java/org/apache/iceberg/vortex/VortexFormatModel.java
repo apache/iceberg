@@ -295,8 +295,8 @@ public class VortexFormatModel<D, S, R>
     }
 
     @Override
-    public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
-      this.caseSensitive = caseSensitive;
+    public ReadBuilder<D, S> caseSensitive(boolean newCaseSensitive) {
+      this.caseSensitive = newCaseSensitive;
       return this;
     }
 
