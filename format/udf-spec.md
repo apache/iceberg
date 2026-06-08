@@ -80,6 +80,7 @@ must produce values of the declared `return-type`.
 | Requirement | Field name           | Type                           | Description                                                                                       |
 |-------------|----------------------|--------------------------------|---------------------------------------------------------------------------------------------------|
 | *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (see [Definition ID](#definition-id)).  |
+| *optional*  | `specific-name`      | `string`                       | A user-assignable, unique identifier for this definition (see [Specific Name](#specific-name)).   |
 | *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.     |
 | *required*  | `return-type`        | `string` or `object`           | Declared return type using [Types](#types).                                                       |
 | *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                  |
@@ -130,6 +131,18 @@ Examples of complete definition-id signatures:
 * `int` – single int parameter
 * `int,string` – two parameters: int and string
 * `int,list<int>,struct<id:int,name:string>` – three parameters: an int, a list and a struct
+
+#### Specific Name
+The `specific-name` is an optional, user-assignable identifier for a single definition, analogous to the SQL standard's
+routine *specific name*. It provides a stable handle for a definition that is independent of its signature, which engines
+may use to reference a specific overload unambiguously (e.g., for SQL statements such as `DROP SPECIFIC FUNCTION`).
+
+* `specific-name` is for identification only. It **must not** be used for overload resolution; resolution is based on the
+  definition's `parameters` (see [Function Call Convention and Resolution in Engines](#function-call-convention-and-resolution-in-engines)).
+* When present, `specific-name` **must** be unique among all definitions within the UDF metadata.
+* `specific-name` **must not** collide with the `definition-id` of any other definition within the UDF metadata, so that a
+  single string unambiguously references at most one definition.
+* When absent, the `definition-id` serves as the definition's identifier.
 
 ### Definition Version
 
@@ -220,6 +233,7 @@ RETURN x + 1.0;
   "definitions": [
     {
       "definition-id": "int",
+      "specific-name": "add_one_int",
       "parameters": [
         {
           "name": "x", "type": "int", "doc": "Input integer"
@@ -251,6 +265,7 @@ RETURN x + 1.0;
     },
     {
       "definition-id": "float",
+      "specific-name": "add_one_float",
       "parameters": [
         {
           "name": "x", "type": "float", "doc": "Input float"
