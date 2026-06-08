@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.apache.iceberg.DataFile;
@@ -68,6 +69,8 @@ import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestParquetDataWriter {
   private static final Schema SCHEMA =
@@ -542,5 +545,71 @@ public class TestParquetDataWriter {
       InternalTestHelpers.assertEquals(
           variantSchema.asStruct(), variantRecords.get(i), writtenRecords.get(i));
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"gzip", "snappy", "zstd", "uncompressed"})
+  public void testRowGroupSizeEnforcedWhenCompressionEnabled(String codec) throws IOException {
+    // With uncompressed tracking, row groups split at the configured target
+    DataFile dataFile = writeCompressibleRecords(codec, true);
+
+    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(30);
+    assertThat(dataFile.splitOffsets().size())
+        .as("Row group count should reflect enforcement of the target")
+        .isGreaterThanOrEqualTo(3);
+  }
+
+  @Test
+  public void testDefaultPathUsesCompressedSize() throws IOException {
+    // Without uncompressed tracking, compressed bytes never hit the target
+    DataFile dataFile = writeCompressibleRecords("snappy", false);
+    DataFile trackedFile = writeCompressibleRecords("snappy", true);
+
+    assertThat(dataFile.splitOffsets().size())
+        .as("Default path should produce fewer row groups than the tracking path")
+        .isLessThan(trackedFile.splitOffsets().size());
+  }
+
+  // Writes 30 records of 256 KB compressible JSON (~8 MB uncompressed) with a 2 MB target.
+  private DataFile writeCompressibleRecords(String codec, boolean trackUncompressed)
+      throws IOException {
+    OutputFile file = Files.localOutput(createTempFile(temp));
+
+    long targetRowGroupSize = 2 * 1024 * 1024;
+
+    Parquet.DataWriteBuilder builder =
+        Parquet.writeData(file)
+            .schema(SCHEMA)
+            .createWriterFunc(GenericParquetWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .set("write.parquet.row-group-size-bytes", String.valueOf(targetRowGroupSize))
+            .set("write.parquet.page-size-bytes", "1048576")
+            .set("write.parquet.compression-codec", codec);
+
+    if (trackUncompressed) {
+      builder.set("write.parquet.row-group-size-track-uncompressed", "true");
+    }
+
+    DataWriter<Record> dataWriter = builder.build();
+
+    try (dataWriter) {
+      Random rng = new Random(42);
+      for (int i = 0; i < 30; i++) {
+        GenericRecord record = GenericRecord.create(SCHEMA);
+        record.setField("id", (long) i);
+        StringBuilder sb = new StringBuilder(256 * 1024);
+        sb.append("{\"id\":").append(i).append(",\"values\":[");
+        while (sb.length() < 256 * 1024) {
+          sb.append(rng.nextInt(100000)).append(',');
+        }
+        sb.setCharAt(sb.length() - 1, ']');
+        sb.append('}');
+        record.setField("data", sb.toString());
+        dataWriter.write(record);
+      }
+    }
+
+    return dataWriter.toDataFile();
   }
 }

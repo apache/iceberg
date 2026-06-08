@@ -122,9 +122,10 @@ public class ParquetMetricsRowGroupFilter {
         return ROWS_CANNOT_MATCH;
       }
 
-      this.stats = Maps.newHashMap();
-      this.valueCounts = Maps.newHashMap();
-      this.conversions = Maps.newHashMap();
+      int columnCount = rowGroup.getColumns().size();
+      this.stats = Maps.newHashMapWithExpectedSize(columnCount);
+      this.valueCounts = Maps.newHashMapWithExpectedSize(columnCount);
+      this.conversions = Maps.newHashMapWithExpectedSize(columnCount);
       this.useSignedUuidComparator = signedUuidMode;
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();

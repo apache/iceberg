@@ -59,7 +59,7 @@ httpcomponents-httpclient5 = "5.6.1"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
 jackson-annotations = "2.21"
-jackson-bom = "2.21.3"
+jackson-bom = "2.21.4"
 jackson214 = { strictly = "2.14.2"}
 jackson215 = { strictly = "2.15.2"} # see rich version usage explanation above
 jakarta-el-api = "3.0.3"
@@ -77,7 +77,7 @@ lz4Java = "1.11.0"
 microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.107.5"
+nessie = "0.107.6"
 netty-buffer = "4.2.14.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.8"
