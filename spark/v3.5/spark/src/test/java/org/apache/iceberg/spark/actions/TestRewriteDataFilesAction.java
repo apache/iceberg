@@ -2319,7 +2319,7 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
-    String key = "unpartitioned|fv=" + formatVersion + "|files=" + files + "|rows=" + SCALE;
+    String key = String.format("unpartitioned|fv=%d|files=%d|rows=%d", formatVersion, files, SCALE);
     List<DataFile> inputFiles =
         cachedInputFiles(
             key,
@@ -2339,14 +2339,9 @@ public class TestRewriteDataFilesAction extends TestBase {
       int partitions, int files, int numRecords, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     String key =
-        "partitioned|opts="
-            + new TreeMap<>(options)
-            + "|files="
-            + files
-            + "|rows="
-            + numRecords
-            + "|partitions="
-            + partitions;
+        String.format(
+            "partitioned|opts=%s|files=%d|rows=%d|partitions=%d",
+            new TreeMap<>(options), files, numRecords, partitions);
     List<DataFile> inputFiles =
         cachedInputFiles(
             key,
