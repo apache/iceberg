@@ -282,7 +282,10 @@ class DataGenerators {
             optionalWithDefault(
                 10, "string_with_default", Types.StringType.get(), Literal.of("iceberg")),
             optionalWithDefault(
-                11, "uuid_with_default", Types.UUIDType.get(), Literal.of(UUID.randomUUID())),
+                11,
+                "uuid_with_default",
+                Types.UUIDType.get(),
+                Literal.of(java.util.UUID.randomUUID())),
             optionalWithDefault(
                 12,
                 "binary_with_default",

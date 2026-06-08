@@ -109,10 +109,6 @@ public abstract class BaseFormatModelTests<T> {
     return false;
   }
 
-  protected boolean supportsTime() {
-    return true;
-  }
-
   @TempDir private File tableDir;
 
   /**
@@ -2650,16 +2646,6 @@ public abstract class BaseFormatModelTests<T> {
   }
 
   private Schema primitiveDefaultsReadSchema() {
-    Schema schema = DataGenerators.PrimitiveDefaults.READ_SCHEMA;
-    if (supportsTime()) {
-      return schema;
-    }
-
-    Set<Integer> unsupportedFieldIds =
-        schema.columns().stream()
-            .filter(field -> field.type().typeId() == Type.TypeID.TIME)
-            .map(Types.NestedField::fieldId)
-            .collect(Collectors.toSet());
-    return TypeUtil.selectNot(schema, unsupportedFieldIds);
+    return filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
   }
 }
