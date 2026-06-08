@@ -39,7 +39,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.IntStream;
-
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
@@ -163,8 +162,7 @@ public abstract class BaseFormatModelTests<T> {
           FileFormat.ORC,
           new String[] {
             FEATURE_REUSE_CONTAINERS, FEATURE_COLUMN_METRICS_TRUNCATE_BINARY, FEATURE_READER_DEFAULT
-          }
-        );
+          });
 
   private InMemoryFileIO fileIO;
   private EncryptedOutputFile encryptedFile;
