@@ -39,6 +39,7 @@ import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
@@ -142,6 +143,25 @@ public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
           ((TimeStampNanoVector) vector).setSafe(rowIndex, row.getLong(fieldIndex));
         }
 
+        break;
+      case STRUCT:
+        Types.StructType structType = (Types.StructType) type;
+        StructVector structVector = (StructVector) vector;
+        List<Types.NestedField> structFields = structType.fields();
+        InternalRow structRow = row.getStruct(fieldIndex, structFields.size());
+        for (int i = 0; i < structFields.size(); i++) {
+          Types.NestedField structField = structFields.get(i);
+          // Bind each Iceberg child to the Arrow child of the same name; the Arrow struct is built
+          // from the write schema, so names line up even if ordinals were to drift.
+          FieldVector childVector = (FieldVector) structVector.getChild(structField.name());
+          if (structRow.isNullAt(i)) {
+            childVector.setNull(rowIndex);
+          } else {
+            writeValue(childVector, structField.type(), structRow, i, rowIndex);
+          }
+        }
+        // Mark the struct slot itself as non-null for this row.
+        structVector.setIndexDefined(rowIndex);
         break;
       default:
         throw new UnsupportedOperationException(

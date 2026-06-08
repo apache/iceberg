@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.TimeUnit;
@@ -44,11 +45,18 @@ public final class VortexSchemas {
 
   /** Convert a Vortex file's Arrow {@link org.apache.arrow.vector.types.pojo.Schema} to Iceberg. */
   public static Schema convert(org.apache.arrow.vector.types.pojo.Schema arrowSchema) {
-    List<Field> fields = arrowSchema.getFields();
+    return new Schema(convertFields(arrowSchema.getFields(), new AtomicInteger(0)));
+  }
+
+  // Arrow/Vortex schemas carry no Iceberg field ids, so ids are synthesized here. A single shared
+  // counter assigns each field (including nested struct fields and list elements) a unique id in
+  // pre-order, which is all Iceberg requires for a valid schema; binding/projection happens by
+  // name.
+  private static List<Types.NestedField> convertFields(List<Field> fields, AtomicInteger nextId) {
     List<Types.NestedField> columns = Lists.newArrayListWithExpectedSize(fields.size());
-    for (int fieldId = 0; fieldId < fields.size(); fieldId++) {
-      Field field = fields.get(fieldId);
-      Type icebergType = toIcebergType(field);
+    for (Field field : fields) {
+      int fieldId = nextId.getAndIncrement();
+      Type icebergType = toIcebergType(field, nextId);
       if (field.isNullable()) {
         columns.add(optional(fieldId, field.getName(), icebergType));
       } else {
@@ -56,18 +64,24 @@ public final class VortexSchemas {
       }
     }
 
-    return new Schema(columns);
+    return columns;
   }
 
   /** Convert a Vortex file's relocated Arrow schema to Iceberg. */
   public static Schema convert(
       dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Schema arrowSchema) {
-    List<dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field> fields =
-        arrowSchema.getFields();
+    return new Schema(convertVortexFields(arrowSchema.getFields(), new AtomicInteger(0)));
+  }
+
+  // Counterpart of convertFields for relocated Vortex Arrow fields (see that method for details). A
+  // distinct name is required because both overloads would otherwise erase to convert(List, ...).
+  private static List<Types.NestedField> convertVortexFields(
+      List<dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field> fields,
+      AtomicInteger nextId) {
     List<Types.NestedField> columns = Lists.newArrayListWithExpectedSize(fields.size());
-    for (int fieldId = 0; fieldId < fields.size(); fieldId++) {
-      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field = fields.get(fieldId);
-      Type icebergType = toIcebergType(field);
+    for (dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field : fields) {
+      int fieldId = nextId.getAndIncrement();
+      Type icebergType = toIcebergType(field, nextId);
       if (field.isNullable()) {
         columns.add(optional(fieldId, field.getName(), icebergType));
       } else {
@@ -75,7 +89,7 @@ public final class VortexSchemas {
       }
     }
 
-    return new Schema(columns);
+    return columns;
   }
 
   /** Convert an Iceberg Schema to an Arrow Schema suitable for local Arrow vectors. */
@@ -471,7 +485,7 @@ public final class VortexSchemas {
         children);
   }
 
-  private static Type toIcebergType(Field field) {
+  private static Type toIcebergType(Field field, AtomicInteger nextId) {
     // UUID is conveyed as the {@code arrow.uuid} extension over
     // FixedSizeBinary(16). Check metadata directly so this works whether or not
     // the extension is registered with ExtensionTypeRegistry.
@@ -489,14 +503,18 @@ public final class VortexSchemas {
       return Types.FixedType.ofLength(fixed.getByteWidth());
     } else if (arrowType instanceof ArrowType.Timestamp tsType) {
       return toIcebergTimestamp(tsType);
-    } else if (arrowType instanceof ArrowType.List) {
-      return toIcebergList(field);
+    } else if (arrowType instanceof ArrowType.List
+        || arrowType instanceof ArrowType.LargeList
+        || arrowType instanceof ArrowType.FixedSizeList) {
+      return toIcebergList(field, nextId);
+    } else if (arrowType instanceof ArrowType.Struct) {
+      return Types.StructType.of(convertFields(field.getChildren(), nextId));
     }
     return toIcebergSimpleType(arrowType);
   }
 
   private static Type toIcebergType(
-      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field) {
+      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field, AtomicInteger nextId) {
     if (isUuidField(field)) {
       return Types.UUIDType.get();
     }
@@ -521,8 +539,16 @@ public final class VortexSchemas {
         dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Timestamp tsType) {
       return toIcebergTimestamp(tsType);
     } else if (arrowType
-        instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.List) {
-      return toIcebergList(field);
+            instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.List
+        || arrowType
+            instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.LargeList
+        || arrowType
+            instanceof
+            dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList) {
+      return toIcebergList(field, nextId);
+    } else if (arrowType
+        instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Struct) {
+      return Types.StructType.of(convertVortexFields(field.getChildren(), nextId));
     }
     return toIcebergSimpleType(arrowType);
   }
@@ -612,22 +638,24 @@ public final class VortexSchemas {
     return isNano ? Types.TimestampNanoType.withZone() : Types.TimestampType.withZone();
   }
 
-  private static Type toIcebergList(Field field) {
+  private static Type toIcebergList(Field field, AtomicInteger nextId) {
     Field elementField = field.getChildren().get(0);
-    Type innerType = toIcebergType(elementField);
+    int elementId = nextId.getAndIncrement();
+    Type innerType = toIcebergType(elementField, nextId);
     return elementField.isNullable()
-        ? Types.ListType.ofOptional(0, innerType)
-        : Types.ListType.ofRequired(0, innerType);
+        ? Types.ListType.ofOptional(elementId, innerType)
+        : Types.ListType.ofRequired(elementId, innerType);
   }
 
   private static Type toIcebergList(
-      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field) {
+      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field, AtomicInteger nextId) {
     dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field elementField =
         field.getChildren().get(0);
-    Type innerType = toIcebergType(elementField);
+    int elementId = nextId.getAndIncrement();
+    Type innerType = toIcebergType(elementField, nextId);
     return elementField.isNullable()
-        ? Types.ListType.ofOptional(0, innerType)
-        : Types.ListType.ofRequired(0, innerType);
+        ? Types.ListType.ofOptional(elementId, innerType)
+        : Types.ListType.ofRequired(elementId, innerType);
   }
 
   /**

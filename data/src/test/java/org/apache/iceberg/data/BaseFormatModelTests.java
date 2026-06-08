@@ -130,8 +130,13 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
+  // Vortex is intentionally excluded from this TCK for now. Its appender writes through a native
+  // code path that targets a filesystem URI, so it cannot populate the in-memory OutputFile this
+  // suite writes to (every write-based case fails converting the unwritten file), and it does not
+  // yet register position-delete writers or support split-size and name-mapping reads. Re-add
+  // FileFormat.VORTEX once the appender supports arbitrary FileIO and those capabilities land.
   private static final FileFormat[] FILE_FORMATS =
-      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC, FileFormat.VORTEX};
+      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
