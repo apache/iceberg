@@ -110,22 +110,10 @@ class SparkBatch implements Batch {
               projectionString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors,
-              shouldUseMergingSortedReader(taskGroup));
+              cacheDeleteFilesOnExecutors);
     }
 
     return partitions;
-  }
-
-  /**
-   * Returns true if this task group should use a k-way merging reader. This requires ordering to be
-   * enabled at the table level, multiple files in the group, and all tasks being {@link
-   * FileScanTask}s.
-   */
-  private boolean shouldUseMergingSortedReader(ScanTaskGroup<?> taskGroup) {
-    return orderingEnabled
-        && taskGroup.tasks().size() > 1
-        && taskGroup.tasks().stream().allMatch(task -> task instanceof FileScanTask);
   }
 
   private String[][] computePreferredLocations() {
@@ -151,7 +139,7 @@ class SparkBatch implements Batch {
       return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
-      return new SparkRowReaderFactory();
+      return new SparkRowReaderFactory(orderingEnabled);
     }
   }
 
