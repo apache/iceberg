@@ -40,7 +40,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
   private final boolean cacheDeleteFilesOnExecutors;
-  private final boolean useMergingSortedReader;
 
   private transient Schema projection = null;
 
@@ -52,8 +51,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       String projectionString,
       boolean caseSensitive,
       String[] preferredLocations,
-      boolean cacheDeleteFilesOnExecutors,
-      boolean useMergingSortedReader) {
+      boolean cacheDeleteFilesOnExecutors) {
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
@@ -62,7 +60,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
-    this.useMergingSortedReader = useMergingSortedReader;
   }
 
   @Override
@@ -106,9 +103,5 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     }
 
     return projection;
-  }
-
-  public boolean useMergingSortedReader() {
-    return useMergingSortedReader;
   }
 }
