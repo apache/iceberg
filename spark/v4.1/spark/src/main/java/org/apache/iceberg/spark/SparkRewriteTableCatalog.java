@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.SparkRewriteTable;
@@ -29,8 +28,6 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableInfo;
-import org.apache.spark.sql.connector.expressions.Transform;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 public class SparkRewriteTableCatalog implements TableCatalog, SupportsFunctions {
@@ -72,17 +69,6 @@ public class SparkRewriteTableCatalog implements TableCatalog, SupportsFunctions
   @Override
   public void invalidateTable(Identifier ident) {
     throw new UnsupportedOperationException(CLASS_NAME + " does not support table invalidation");
-  }
-
-  /**
-   * @deprecated since 1.12.0, use {@link #createTable(Identifier, TableInfo)} instead.
-   */
-  @Deprecated
-  @Override
-  public SparkTable createTable(
-      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
-      throws TableAlreadyExistsException {
-    return createTable(ident, Spark3Util.tableInfo(schema, partitions, properties));
   }
 
   @Override

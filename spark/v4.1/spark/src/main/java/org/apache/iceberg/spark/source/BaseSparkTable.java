@@ -97,18 +97,24 @@ abstract class BaseSparkTable
   @Deprecated
   @Override
   public StructType schema() {
-    if (lazySparkSchema == null) {
-      this.lazySparkSchema = SparkSchemaUtil.convert(schema);
-    }
-    return lazySparkSchema;
+    return sparkSchema();
   }
 
   @Override
   public Column[] columns() {
     if (lazySparkColumns == null) {
-      this.lazySparkColumns = CatalogV2Util.structTypeToV2Columns(SparkSchemaUtil.convert(schema));
+      this.lazySparkColumns = CatalogV2Util.structTypeToV2Columns(sparkSchema());
     }
+
     return lazySparkColumns;
+  }
+
+  private StructType sparkSchema() {
+    if (lazySparkSchema == null) {
+      this.lazySparkSchema = SparkSchemaUtil.convert(schema);
+    }
+
+    return lazySparkSchema;
   }
 
   @Override
