@@ -31,10 +31,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.IntStream;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestStatsUtil {
+  // the reserved field IDs from the reserved field ID space as defined in
+  // https://iceberg.apache.org/spec/#reserved-field-ids
+  private static final int RESERVED_FIELD_IDS_START = Integer.MAX_VALUE - 200;
 
   @Test
   public void statsIdsForTableColumns() {
@@ -86,62 +90,63 @@ public class TestStatsUtil {
 
   @Test
   public void statsIdsOverflowForTableColumns() {
-    // pick 100 random IDs that are > MAX_FIELD_ID and < METADATA_SPACE_FIELD_ID_START as going over
+    // pick 100 random IDs that are > MAX_FIELD_ID and < RESERVED_FIELD_IDS_START as going over
     // the entire ID range takes too long
     int invalidFieldId = -1;
     for (int i = 0; i < 100; i++) {
       int id =
           ThreadLocalRandom.current()
-              .nextInt(
-                  StatsUtil.MAX_DATA_FIELD_ID + 1,
-                  StatsUtil.STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS);
+              .nextInt(StatsUtil.MAX_DATA_FIELD_ID + 1, RESERVED_FIELD_IDS_START);
       assertThat(StatsUtil.statsFieldIdForField(id)).as("at pos %s", id).isEqualTo(invalidFieldId);
     }
 
     assertThat(StatsUtil.fieldIdForStatsField(-1)).isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(0)).isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(200)).isEqualTo(invalidFieldId);
     assertThat(StatsUtil.fieldIdForStatsField(5_000)).isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(8_600)).isEqualTo(invalidFieldId);
     assertThat(StatsUtil.fieldIdForStatsField(10_001)).isEqualTo(invalidFieldId);
     assertThat(StatsUtil.fieldIdForStatsField(10_201)).isEqualTo(invalidFieldId);
     assertThat(StatsUtil.fieldIdForStatsField(10_500)).isEqualTo(invalidFieldId);
     assertThat(StatsUtil.fieldIdForStatsField(10_900)).isEqualTo(invalidFieldId);
+
+    // stats field IDs at or above the exclusive upper bound are invalid
+    assertThat(StatsUtil.fieldIdForStatsField(StatsUtil.STATS_SPACE_FIELD_ID_END))
+        .isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(StatsUtil.STATS_SPACE_FIELD_ID_END + 200))
+        .isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(Integer.MAX_VALUE)).isEqualTo(invalidFieldId);
+
+    // field ID just past MAX_DATA_FIELD_ID is invalid
+    assertThat(StatsUtil.statsFieldIdForField(StatsUtil.MAX_DATA_FIELD_ID + 1))
+        .isEqualTo(invalidFieldId);
   }
 
   @Test
-  public void statsIdsForReservedColumns() {
-    int offset = 0;
-    for (int id = StatsUtil.RESERVED_FIELD_IDS_START; id < Integer.MAX_VALUE; id++) {
-      int statsFieldId = StatsUtil.statsFieldIdForField(id);
-      int expected = StatsUtil.STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS + offset;
-      assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
-      offset = offset + StatsUtil.NUM_SUPPORTED_STATS_PER_COLUMN;
-      assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).as("at pos %s", id).isEqualTo(id);
-    }
-
-    // also verify hardcoded IDs that are mentioned in the docs
-    int fieldId = 2_147_483_447;
-    int statsFieldId = 2_147_000_000;
+  public void statsIdsForMetadataColumns() {
+    int fieldId = MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
+    int statsFieldId = 9_000;
     assertThat(StatsUtil.statsFieldIdForField(fieldId)).isEqualTo(statsFieldId);
     assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).isEqualTo(fieldId);
 
-    fieldId = 2_147_483_448;
-    statsFieldId = 2_147_000_200;
+    fieldId = MetadataColumns.ROW_ID.fieldId();
+    statsFieldId = 9_200;
     assertThat(StatsUtil.statsFieldIdForField(fieldId)).isEqualTo(statsFieldId);
     assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).isEqualTo(fieldId);
 
-    fieldId = 2_147_483_541;
-    statsFieldId = 2_147_018_800;
-    assertThat(StatsUtil.statsFieldIdForField(fieldId)).isEqualTo(statsFieldId);
-    assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).isEqualTo(fieldId);
-
-    fieldId = 2_147_483_645;
-    statsFieldId = 2_147_039_600;
-    assertThat(StatsUtil.statsFieldIdForField(fieldId)).isEqualTo(statsFieldId);
-    assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).isEqualTo(fieldId);
-
-    fieldId = 2_147_483_646;
-    statsFieldId = 2_147_039_800;
-    assertThat(StatsUtil.statsFieldIdForField(fieldId)).isEqualTo(statsFieldId);
-    assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).isEqualTo(fieldId);
+    // reserved metadata fields with IDs below/above the reserved stats range have no stats
+    int invalidFieldId = -1;
+    assertThat(StatsUtil.fieldIdForStatsField(8_800)).isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(9_400)).isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(9_600)).isEqualTo(invalidFieldId);
+    assertThat(StatsUtil.fieldIdForStatsField(9_800)).isEqualTo(invalidFieldId);
+    assertThat(IntStream.range(RESERVED_FIELD_IDS_START, Integer.MAX_VALUE))
+        .filteredOn(id -> !StatsUtil.SUPPORTED_METADATA_FIELD_IDS.contains(id))
+        .allSatisfy(
+            id ->
+                assertThat(StatsUtil.statsFieldIdForField(id))
+                    .as("at pos %s", id)
+                    .isEqualTo(invalidFieldId));
   }
 
   @Test
@@ -150,7 +155,7 @@ public class TestStatsUtil {
     Types.NestedField floatField = required(2, "f", Types.FloatType.get());
     Types.NestedField stringField = required(4, "s", Types.StringType.get());
     Types.NestedField booleanField = required(6, "b", Types.BooleanType.get());
-    Types.NestedField uuidField = required(1_000_000, "u", Types.UUIDType.get());
+    Types.NestedField uuidField = required(StatsUtil.MAX_DATA_FIELD_ID, "u", Types.UUIDType.get());
     Schema schema = new Schema(intField, floatField, stringField, booleanField, uuidField);
     Schema expectedStatsSchema =
         new Schema(
@@ -162,7 +167,11 @@ public class TestStatsUtil {
                     optional(10400, "f", FieldStatistic.fieldStatsFor(floatField, 10400)),
                     optional(10800, "s", FieldStatistic.fieldStatsFor(stringField, 10800)),
                     optional(11200, "b", FieldStatistic.fieldStatsFor(booleanField, 11200)),
-                    optional(200010000, "u", FieldStatistic.fieldStatsFor(uuidField, 200010000)))));
+                    optional(
+                        StatsUtil.MAX_DATA_STATS_FIELD_ID,
+                        "u",
+                        FieldStatistic.fieldStatsFor(
+                            uuidField, StatsUtil.MAX_DATA_STATS_FIELD_ID)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
@@ -175,7 +184,7 @@ public class TestStatsUtil {
     Types.NestedField mapKey = required(22, "key", Types.IntegerType.get());
     Types.NestedField mapValue = optional(24, "value", Types.StringType.get());
     Types.NestedField variantField = required(30, "variant", Types.VariantType.get());
-    Types.NestedField uuidField = required(100_000, "u", Types.UUIDType.get());
+    Types.NestedField uuidField = required(StatsUtil.MAX_DATA_FIELD_ID, "u", Types.UUIDType.get());
     Schema schema =
         new Schema(
             required(0, "i", Types.IntegerType.get()),
@@ -214,7 +223,11 @@ public class TestStatsUtil {
                     optional(14400, "b.key", FieldStatistic.fieldStatsFor(mapKey, 14400)),
                     optional(14800, "b.value", FieldStatistic.fieldStatsFor(mapValue, 14800)),
                     optional(16000, "variant", FieldStatistic.fieldStatsFor(variantField, 16000)),
-                    optional(20010000, "u", FieldStatistic.fieldStatsFor(uuidField, 20010000)))));
+                    optional(
+                        StatsUtil.MAX_DATA_STATS_FIELD_ID,
+                        "u",
+                        FieldStatistic.fieldStatsFor(
+                            uuidField, StatsUtil.MAX_DATA_STATS_FIELD_ID)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
@@ -231,6 +244,23 @@ public class TestStatsUtil {
     assertThat(contentStats.fields().stream().map(Types.NestedField::name).toList())
         .doesNotHaveDuplicates()
         .containsExactly("a.x", "b.x");
+  }
+
+  @Test
+  public void contentStatsSkipsFieldsOutsideStatsRange() {
+    Types.NestedField validField = required(0, "i", Types.IntegerType.get());
+    Types.NestedField outOfRangeField =
+        required(StatsUtil.MAX_DATA_FIELD_ID + 1, "out_of_range", Types.IntegerType.get());
+    Schema schema = new Schema(validField, outOfRangeField);
+    Schema expectedStatsSchema =
+        new Schema(
+            optional(
+                146,
+                "content_stats",
+                Types.StructType.of(
+                    optional(10000, "i", FieldStatistic.fieldStatsFor(validField, 10000)))));
+    Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
+    assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
 
   @Test
