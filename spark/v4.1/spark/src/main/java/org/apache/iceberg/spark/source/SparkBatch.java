@@ -58,8 +58,6 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
-  private final boolean orderingEnabled;
-  private Boolean lazyAnyGroupNeedsMerging;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -69,8 +67,7 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
-      int scanHashCode,
-      boolean orderingEnabled) {
+      int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.fileIO = fileIO;
@@ -83,7 +80,6 @@ class SparkBatch implements Batch {
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
-    this.orderingEnabled = orderingEnabled;
   }
 
   @Override
@@ -99,12 +95,10 @@ class SparkBatch implements Batch {
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
 
     for (int index = 0; index < taskGroups.size(); index++) {
-      ScanTaskGroup<?> taskGroup = taskGroups.get(index);
-
       partitions[index] =
           new SparkInputPartition(
               groupingKeyType,
-              taskGroup,
+              taskGroups.get(index),
               tableBroadcast,
               fileIOBroadcast,
               projectionString,
@@ -139,7 +133,7 @@ class SparkBatch implements Batch {
       return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
-      return new SparkRowReaderFactory(orderingEnabled);
+      return new SparkRowReaderFactory();
     }
   }
 
@@ -151,29 +145,13 @@ class SparkBatch implements Batch {
     return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
   }
 
-  private boolean anyGroupNeedsMergingReader() {
-    if (lazyAnyGroupNeedsMerging == null) {
-      lazyAnyGroupNeedsMerging =
-          orderingEnabled
-              && taskGroups.stream()
-                  .anyMatch(
-                      group ->
-                          group.tasks().size() > 1
-                              && group.tasks().stream()
-                                  .allMatch(task -> task instanceof FileScanTask));
-    }
-    return lazyAnyGroupNeedsMerging;
-  }
-
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
-  // - no task group requires a merging sorted reader (incompatible with vectorized reads)
   // - only primitives or metadata columns are projected, excluding geometry and geography which
   //   are primitives with no Arrow vector yet
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
-        && !anyGroupNeedsMergingReader()
         && projection.columns().stream().allMatch(this::supportsParquetBatchReads)
         && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
@@ -209,11 +187,9 @@ class SparkBatch implements Batch {
 
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
-  // - no task group requires a merging sorted reader (incompatible with vectorized reads)
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
-        && !anyGroupNeedsMergingReader()
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
   }
 
