@@ -180,8 +180,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType(),
         taskGroups(),
         projection,
-        hashCode(),
-        isOrderingEnabled());
+        hashCode());
   }
 
   @Override
@@ -367,20 +366,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     };
   }
 
-  protected boolean isOrderingEnabled() {
-    return false;
-  }
-
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
-    // Disable splitting tasks into multiple groups when we need to preserve ordering.
-    // This prevents multiple InputPartitions with the same partitionKey, which would
-    // cause Spark to suppress outputOrdering.
-    if (readConf.preserveDataOrdering()
-        && readConf.preserveDataGrouping()
-        && table.sortOrder().isSorted()) {
-      return Long.MAX_VALUE;
-    }
-
     if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
       long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();
       int parallelism = readConf.parallelism();

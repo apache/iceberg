@@ -43,15 +43,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
-import org.apache.spark.sql.connector.read.SupportsReportOrdering;
 import org.apache.spark.sql.connector.read.SupportsReportPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.KeyGroupedPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.Partitioning;
@@ -60,20 +57,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends SparkScan
-    implements SupportsReportPartitioning, SupportsReportOrdering {
+    implements SupportsReportPartitioning {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPartitioningAwareScan.class);
 
   private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final boolean preserveDataGrouping;
-  private final boolean preserveDataOrdering;
 
   private Set<PartitionSpec> specs = null; // lazy cache of scanned specs
   private List<T> tasks = null; // lazy cache of uncombined tasks
   private List<ScanTaskGroup<T>> taskGroups = null; // lazy cache of task groups
   private StructType groupingKeyType = null; // lazy cache of the grouping key type
   private Transform[] groupingKeyTransforms = null; // lazy cache of grouping key transforms
-  private Boolean orderingEnabled = null; // lazy cache of ordering decision
 
   SparkPartitioningAwareScan(
       SparkSession spark,
@@ -96,13 +91,6 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
-    this.preserveDataOrdering = readConf.preserveDataOrdering();
-
-    if (preserveDataOrdering && !preserveDataGrouping) {
-      throw new ValidationException(
-          "Cannot preserve data ordering without data grouping. Set %s to true or disable %s.",
-          SparkSQLProperties.PRESERVE_DATA_GROUPING, SparkSQLProperties.PRESERVE_DATA_ORDERING);
-    }
 
     if (scan == null) {
       this.specs = Collections.emptySet();
@@ -133,34 +121,6 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
           table().name());
       return new KeyGroupedPartitioning(groupingKeyTransforms(), taskGroups().size());
     }
-  }
-
-  @Override
-  public SortOrder[] outputOrdering() {
-    if (!isOrderingEnabled()) {
-      return new SortOrder[0];
-    }
-
-    org.apache.iceberg.SortOrder sortOrder = table().sortOrder();
-    SortOrder[] ordering = Spark3Util.toOrdering(sortOrder);
-    LOG.info(
-        "Reporting sort order {} for table {}: {}", sortOrder.orderId(), table().name(), ordering);
-
-    return ordering;
-  }
-
-  @Override
-  protected boolean isOrderingEnabled() {
-    if (orderingEnabled == null) {
-      orderingEnabled =
-          !groupingKeyType().fields().isEmpty()
-              && preserveDataOrdering
-              && SortOrderAnalyzer.canReportOrdering(table(), taskGroups(), groupingKeyType());
-      if (!orderingEnabled) {
-        LOG.info("Not reporting ordering for table {}", table().name());
-      }
-    }
-    return orderingEnabled;
   }
 
   @Override
