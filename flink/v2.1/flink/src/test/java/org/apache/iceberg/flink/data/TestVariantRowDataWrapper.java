@@ -253,6 +253,7 @@ class TestVariantRowDataWrapper {
               variantKeyList.add(variantKeys.getString(k));
               rowDataKeyList.add(rowDataKeys.getString(k));
             }
+
             assertThat(variantKeyList).containsExactlyInAnyOrderElementsOf(rowDataKeyList);
 
             for (int k = 0; k < rowDataKeys.size(); k++) {
