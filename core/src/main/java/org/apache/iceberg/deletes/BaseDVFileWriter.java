@@ -61,7 +61,6 @@ public class BaseDVFileWriter implements DVFileWriter {
   private final Function<String, PositionDeleteIndex> loadPreviousDeletes;
   private final Map<String, Deletes> deletesByPath = Maps.newHashMap();
   private final Map<String, BlobMetadata> blobsByPath = Maps.newHashMap();
-  private EncryptionKeyMetadata keyMetadata = null;
   private DeleteWriteResult result = null;
 
   public BaseDVFileWriter(
@@ -124,7 +123,12 @@ public class BaseDVFileWriter implements DVFileWriter {
         return;
       }
 
-      PuffinWriter writer = newWriter();
+      EncryptedOutputFile outputFile = dvOutputFile.get();
+      EncryptionKeyMetadata keyMetadata = outputFile.keyMetadata();
+      PuffinWriter writer =
+          Puffin.write(outputFile.encryptingOutputFile())
+              .createdBy(IcebergBuild.fullVersion())
+              .build();
 
       try (PuffinWriter closeableWriter = writer) {
         for (Deletes deletes : deletesByPath.values()) {
@@ -150,7 +154,7 @@ public class BaseDVFileWriter implements DVFileWriter {
       long puffinFileSize = writer.fileSize();
 
       for (String path : deletesByPath.keySet()) {
-        DeleteFile dv = createDV(puffinPath, puffinFileSize, path);
+        DeleteFile dv = createDV(puffinPath, puffinFileSize, path, keyMetadata);
         dvs.add(dv);
       }
 
@@ -158,7 +162,8 @@ public class BaseDVFileWriter implements DVFileWriter {
     }
   }
 
-  private DeleteFile createDV(String path, long size, String referencedDataFile) {
+  private DeleteFile createDV(
+      String path, long size, String referencedDataFile, EncryptionKeyMetadata keyMetadata) {
     Deletes deletes = deletesByPath.get(referencedDataFile);
     BlobMetadata blobMetadata = blobsByPath.get(referencedDataFile);
     return FileMetadata.deleteFileBuilder(deletes.spec())
@@ -167,7 +172,7 @@ public class BaseDVFileWriter implements DVFileWriter {
         .withPath(path)
         .withPartition(deletes.partition())
         .withFileSizeInBytes(size)
-        .withEncryptionKeyMetadata(encryptionKeyMetadata(size))
+        .withEncryptionKeyMetadata(encryptionKeyMetadata(size, keyMetadata))
         .withReferencedDataFile(referencedDataFile)
         .withContentOffset(blobMetadata.offset())
         .withContentSizeInBytes(blobMetadata.length())
@@ -182,15 +187,8 @@ public class BaseDVFileWriter implements DVFileWriter {
     blobsByPath.put(path, blobMetadata);
   }
 
-  private PuffinWriter newWriter() {
-    EncryptedOutputFile outputFile = dvOutputFile.get();
-    this.keyMetadata = outputFile.keyMetadata();
-    return Puffin.write(outputFile.encryptingOutputFile())
-        .createdBy(IcebergBuild.fullVersion())
-        .build();
-  }
-
-  private ByteBuffer encryptionKeyMetadata(long fileSizeInBytes) {
+  private ByteBuffer encryptionKeyMetadata(
+      long fileSizeInBytes, EncryptionKeyMetadata keyMetadata) {
     if (keyMetadata instanceof NativeEncryptionKeyMetadata nativeKeyMetadata) {
       return nativeKeyMetadata.copyWithLength(fileSizeInBytes).buffer();
     }

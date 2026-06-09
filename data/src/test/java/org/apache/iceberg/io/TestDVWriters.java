@@ -50,6 +50,7 @@ import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
@@ -94,8 +95,8 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
     OutputFile outputFile = Files.localOutput(temp.resolve("native-dv.puffin").toString());
     TestNativeEncryptionKeyMetadata keyMetadata = new TestNativeEncryptionKeyMetadata(123L);
-    TestEncryptedOutputFile encryptedOutputFile =
-        new TestEncryptedOutputFile(outputFile, keyMetadata);
+    EncryptedOutputFile encryptedOutputFile =
+        EncryptedFiles.encryptedOutput(outputFile, keyMetadata);
 
     DVFileWriter writer = Deletes.writeDVs(encryptedOutputFile, path -> null);
     writer.delete("/path/to/data.parquet", 1L, PartitionSpec.unpartitioned(), null);
@@ -116,9 +117,7 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN);
     buffer.putLong(456L);
     buffer.flip();
-    TestEncryptionKeyMetadata keyMetadata = new TestEncryptionKeyMetadata(buffer);
-    TestEncryptedOutputFile encryptedOutputFile =
-        new TestEncryptedOutputFile(outputFile, keyMetadata);
+    EncryptedOutputFile encryptedOutputFile = EncryptedFiles.encryptedOutput(outputFile, buffer);
 
     DVFileWriter writer = Deletes.writeDVs(encryptedOutputFile, path -> null);
     writer.delete("/path/to/data.parquet", 1L, PartitionSpec.unpartitioned(), null);
@@ -402,28 +401,6 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
 
   private static long decode(ByteBuffer buffer) {
     return buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN).getLong();
-  }
-
-  private record TestEncryptedOutputFile(OutputFile outputFile, EncryptionKeyMetadata keyMetadata)
-      implements EncryptedOutputFile {
-
-    @Override
-    public OutputFile encryptingOutputFile() {
-      return outputFile;
-    }
-  }
-
-  private record TestEncryptionKeyMetadata(ByteBuffer buffer) implements EncryptionKeyMetadata {
-
-    @Override
-    public ByteBuffer buffer() {
-      return buffer.duplicate();
-    }
-
-    @Override
-    public EncryptionKeyMetadata copy() {
-      return new TestEncryptionKeyMetadata(buffer.duplicate());
-    }
   }
 
   private record TestNativeEncryptionKeyMetadata(long encodedValue)
