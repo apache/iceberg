@@ -519,6 +519,10 @@ acceptedBreaks:
       justification: "Removing deprecated code for 1.11.0"
   "1.11.0":
     org.apache.iceberg:iceberg-core:
+    - code: "java.class.noLongerImplementsInterface"
+      old: "class org.apache.iceberg.io.ResolvingFileIO"
+      new: "class org.apache.iceberg.io.ResolvingFileIO"
+      justification: "Hadoop dependency should be optional"
     - code: "java.class.removed"
       old: "class org.apache.iceberg.PartitionStats"
       justification: "Removed deprecated functionality for partition stats"

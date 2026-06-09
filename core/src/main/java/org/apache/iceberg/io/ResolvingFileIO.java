@@ -49,8 +49,7 @@ import org.slf4j.LoggerFactory;
  * Delegate FileIO implementations must implement the {@link DelegateFileIO} mixin interface,
  * otherwise initialization will fail.
  */
-public class ResolvingFileIO
-    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials {
+public class ResolvingFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -72,7 +71,7 @@ public class ResolvingFileIO
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
-  private SerializableSupplier<Configuration> hadoopConf;
+  private SerializableSupplier<Object> hadoopConf;
   // use modifiable collection for Kryo serde
   private List<StorageCredential> storageCredentials = Lists.newArrayList();
 
@@ -146,20 +145,19 @@ public class ResolvingFileIO
     }
   }
 
-  @Override
+  @SuppressWarnings("unchecked")
   public void serializeConfWith(
       Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
-    this.hadoopConf = confSerializer.apply(getConf());
+    this.hadoopConf = (SerializableSupplier<Object>) (Object) confSerializer.apply(getConf());
   }
 
-  @Override
+  @SuppressWarnings("unchecked")
   public void setConf(Configuration conf) {
-    this.hadoopConf = new SerializableConfiguration(conf);
+    this.hadoopConf = (SerializableSupplier<Object>) (Object) new SerializableConfiguration(conf);
   }
 
-  @Override
   public Configuration getConf() {
-    return Optional.ofNullable(hadoopConf).map(Supplier::get).orElse(null);
+    return (Configuration) Optional.ofNullable(hadoopConf).map(Supplier::get).orElse(null);
   }
 
   @VisibleForTesting
@@ -187,7 +185,7 @@ public class ResolvingFileIO
     return ioInstances.computeIfAbsent(
         impl,
         key -> {
-          Configuration conf = getConf();
+          Object conf = getConf();
           FileIO fileIO;
 
           try {

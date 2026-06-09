@@ -25,6 +25,7 @@ import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.spark.util.KnownSizeEstimation;
 import org.slf4j.Logger;
@@ -104,6 +105,8 @@ class SerializableFileIOWithSize
       Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
     if (fileIO instanceof HadoopConfigurable configurable) {
       configurable.serializeConfWith(confSerializer);
+    } else if (fileIO instanceof ResolvingFileIO io) {
+      io.serializeConfWith(confSerializer);
     }
   }
 
@@ -111,6 +114,8 @@ class SerializableFileIOWithSize
   public void setConf(Configuration conf) {
     if (fileIO instanceof HadoopConfigurable configurable) {
       configurable.setConf(conf);
+    } else if (fileIO instanceof ResolvingFileIO io) {
+      io.setConf(conf);
     }
   }
 
@@ -118,6 +123,9 @@ class SerializableFileIOWithSize
   public Configuration getConf() {
     if (fileIO instanceof HadoopConfigurable hadoopConfigurable) {
       return hadoopConfigurable.getConf();
+    }
+    if (fileIO instanceof ResolvingFileIO io) {
+      return io.getConf();
     }
 
     return null;

@@ -59,6 +59,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -176,10 +177,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     if (table != null
         && config.getBoolean(
             InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
-            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)
-        && table.io() instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) table.io())
-          .serializeConfWith(conf -> new NonSerializingConfig(config)::get);
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)) {
+      if (table.io() instanceof HadoopConfigurable io) {
+        io.serializeConfWith(conf -> new NonSerializingConfig(config)::get);
+      } else if (table.io() instanceof ResolvingFileIO io) {
+        io.serializeConfWith(conf -> new NonSerializingConfig(config)::get);
+      }
     }
   }
 
@@ -194,9 +197,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     if (table != null
         && config.getBoolean(
             InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
-            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)
-        && table.io() instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) table.io()).setConf(config);
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)) {
+      if (table.io() instanceof HadoopConfigurable io) {
+        io.setConf(config);
+      } else if (table.io() instanceof ResolvingFileIO io) {
+        io.setConf(config);
+      }
     }
   }
 

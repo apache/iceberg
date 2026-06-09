@@ -30,6 +30,7 @@ import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
+import org.apache.iceberg.io.ResolvingFileIO;
 
 public class SerializationUtil {
 
@@ -58,6 +59,8 @@ public class SerializationUtil {
       Object obj, Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
     if (obj instanceof HadoopConfigurable) {
       ((HadoopConfigurable) obj).serializeConfWith(confSerializer);
+    } else if (obj instanceof ResolvingFileIO io) {
+      io.serializeConfWith(confSerializer);
     }
 
     try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
