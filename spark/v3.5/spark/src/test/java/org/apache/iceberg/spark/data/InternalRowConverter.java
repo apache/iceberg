@@ -27,14 +27,13 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
@@ -80,19 +79,13 @@ public class InternalRowConverter {
               : ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) value).atZone(ZoneId.of("UTC")));
       case STRING -> UTF8String.fromString((String) value);
       case UUID -> UTF8String.fromString(value.toString());
-      case FIXED -> {
-        if (value instanceof ByteBuffer) {
-          yield ByteBuffers.toByteArray((ByteBuffer) value);
-        } else if (value instanceof GenericData.Fixed) {
-          yield ((GenericData.Fixed) value).bytes();
-        } else if (value instanceof byte[]) {
-          yield (byte[]) value;
-        } else {
-          throw new IllegalStateException(
-              "Invalid expected value, not byte[], ByteBuffer, or Fixed: " + value);
-        }
+      case FIXED, BINARY -> {
+        ByteBuffer buffer = (ByteBuffer) value;
+        yield Arrays.copyOfRange(
+            buffer.array(),
+            buffer.arrayOffset() + buffer.position(),
+            buffer.arrayOffset() + buffer.remaining());
       }
-      case BINARY -> ((ByteBuffer) value).array();
       case DECIMAL -> Decimal.apply((BigDecimal) value);
       case STRUCT -> convert((Types.StructType) type, (Record) value);
       case LIST ->
