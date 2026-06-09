@@ -601,7 +601,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextInteger()), scale);
+      return BigDecimal.valueOf(column.nextInteger(), scale);
     }
   }
 
@@ -615,7 +615,7 @@ public class ParquetValueReaders {
 
     @Override
     public BigDecimal read(BigDecimal ignored) {
-      return new BigDecimal(BigInteger.valueOf(column.nextLong()), scale);
+      return BigDecimal.valueOf(column.nextLong(), scale);
     }
   }
 
