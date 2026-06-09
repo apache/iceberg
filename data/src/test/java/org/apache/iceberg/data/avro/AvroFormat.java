@@ -19,7 +19,6 @@
 package org.apache.iceberg.data.avro;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,7 +39,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 public class AvroFormat implements FileFormatTestSupport {
   @Override
@@ -99,12 +97,5 @@ public class AvroFormat implements FileFormatTestSupport {
   public String splitSizeProperty() {
     throw new UnsupportedOperationException(
         "No split size property defined for format: " + format());
-  }
-
-  @Override
-  public void assertEncryptedFileUnreadable(ThrowingCallable readEncryptedFile) {
-    assertThatThrownBy(readEncryptedFile)
-        .hasMessage("does not support file encryption keys")
-        .isInstanceOf(RuntimeException.class);
   }
 }

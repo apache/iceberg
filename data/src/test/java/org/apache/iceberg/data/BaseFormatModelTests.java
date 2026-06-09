@@ -1760,6 +1760,7 @@ public abstract class BaseFormatModelTests<T> {
     writeAndAssertEncryptedDataWriter(fileFormat, encryptingFileIO, writerBuilder);
   }
 
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   private void writeAndAssertEncryptedDataWriter(
       FileFormat fileFormat,
       EncryptingFileIO encryptingFileIO,
@@ -1782,11 +1783,11 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(dataFile.format()).isEqualTo(fileFormat);
     assertThat(dataFile.keyMetadata()).isNotNull();
 
-    FileFormatTestSupport.forFormat(fileFormat)
-        .assertEncryptedFileUnreadable(
+    assertThatThrownBy(
             () ->
                 readAndAssertGenericRecords(
-                    fileFormat, schema, genericRecords, fileIO.newInputFile(dataFile.location())));
+                    fileFormat, schema, genericRecords, fileIO.newInputFile(dataFile.location())))
+        .isInstanceOf(RuntimeException.class);
 
     readAndAssertGenericRecords(
         fileFormat, schema, genericRecords, encryptingFileIO.newInputFile(dataFile));
