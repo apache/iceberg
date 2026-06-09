@@ -81,13 +81,6 @@ interface Tracking {
   /** Returns the status of the entry. */
   EntryStatus status();
 
-  /** Returns whether this entry is live. */
-  default boolean isLive() {
-    return status() == EntryStatus.ADDED
-        || status() == EntryStatus.EXISTING
-        || status() == EntryStatus.MODIFIED;
-  }
-
   /** Returns the snapshot ID where the file was added, deleted, replaced, or modified. */
   Long snapshotId();
 

@@ -45,4 +45,20 @@ class TestEntryStatus {
         .isInstanceOf(ArrayIndexOutOfBoundsException.class)
         .hasMessageContaining(String.valueOf(id));
   }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = EntryStatus.class,
+      names = {"EXISTING", "ADDED", "MODIFIED"})
+  void isLive(EntryStatus status) {
+    assertThat(status.isLive()).isTrue();
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = EntryStatus.class,
+      names = {"DELETED", "REPLACED"})
+  void isNotLive(EntryStatus status) {
+    assertThat(status.isLive()).isFalse();
+  }
 }

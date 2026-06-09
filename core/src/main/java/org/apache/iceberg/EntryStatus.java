@@ -27,7 +27,7 @@ enum EntryStatus {
    * The old (replaced) state of an entry that has been modified. Paired with MODIFIED. Added in v4.
    */
   REPLACED(3),
-  /** The new (live) state of an entry that has been modified. Paired with REPLACED. Added in v4. */
+  /** The new (live) state of an entry that has been modified. Added in v4. */
   MODIFIED(4);
 
   private static final EntryStatus[] VALUES = EntryStatus.values();
@@ -40,6 +40,10 @@ enum EntryStatus {
 
   public int id() {
     return id;
+  }
+
+  boolean isLive() {
+    return this == EXISTING || this == ADDED || this == MODIFIED;
   }
 
   static EntryStatus fromId(int id) {

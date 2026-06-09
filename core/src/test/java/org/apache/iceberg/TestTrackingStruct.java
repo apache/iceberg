@@ -86,7 +86,7 @@ class TestTrackingStruct {
     assertThat(copy.snapshotId()).isEqualTo(tracking.snapshotId());
     assertThat(copy.dataSequenceNumber()).isEqualTo(tracking.dataSequenceNumber());
     assertThat(copy.fileSequenceNumber()).isEqualTo(tracking.fileSequenceNumber());
-    assertThat(copy.dvSnapshotId()).isNull();
+    assertThat(copy.dvSnapshotId()).isEqualTo(tracking.dvSnapshotId());
     assertThat(copy.firstRowId()).isEqualTo(tracking.firstRowId());
     assertThat(copy.deletedPositions()).isEqualTo(tracking.deletedPositions());
     assertThat(copy.replacedPositions()).isEqualTo(tracking.replacedPositions());
@@ -102,17 +102,6 @@ class TestTrackingStruct {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(STATUS_ORDINAL, status.id());
     assertThat(tracking.status()).isEqualTo(status);
-  }
-
-  @Test
-  void testIsLive() {
-    Tracking source = sourceTracking();
-
-    assertThat(TrackingBuilder.added(42L).build().isLive()).isTrue();
-    assertThat(TrackingBuilder.from(source, 999L).build().isLive()).isTrue();
-    assertThat(TrackingBuilder.from(source, 999L).dvUpdated().build().isLive()).isTrue();
-    assertThat(TrackingBuilder.deleted(source, 999L).isLive()).isFalse();
-    assertThat(TrackingBuilder.replaced(source, 999L).isLive()).isFalse();
   }
 
   @Test
@@ -308,11 +297,14 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testDvUpdatedProducesModifiedAndStampsCurrentSnapshot() {
-    Tracking modified = TrackingBuilder.from(sourceTracking(), 999L).dvUpdated().build();
+  void testDvUpdatedProducesModifiedAndAdvancesDvSnapshotId() {
+    Tracking source = sourceTracking();
+    Tracking modified = TrackingBuilder.from(source, 999L).dvUpdated().build();
 
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(modified.snapshotId()).isEqualTo(999L);
+    // the entry snapshot id is preserved so we still know when the base file was added
+    assertThat(modified.snapshotId()).isEqualTo(source.snapshotId()).isNotEqualTo(999L);
+    // only the DV snapshot id advances to the commit snapshot
     assertThat(modified.dvSnapshotId()).isEqualTo(999L);
   }
 
@@ -327,34 +319,6 @@ class TestTrackingStruct {
             () -> TrackingBuilder.added(42L).replacedPositions(ByteBuffer.wrap(new byte[] {1})))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot set replaced positions on ADDED entry");
-  }
-
-  @Test
-  void testDvSnapshotIdAndManifestDVPositionsAreMutuallyExclusive() {
-    // sourceTracking has dvSnapshotId=43, inherited by existing(source)
-    assertThatThrownBy(
-            () ->
-                TrackingBuilder.from(sourceTracking(), 1L)
-                    .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
-
-    assertThatThrownBy(
-            () ->
-                TrackingBuilder.from(sourceTracking(), 1L)
-                    .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
-
-    // Setting MDV positions first then dvUpdated is also rejected
-    assertThatThrownBy(
-            () ->
-                TrackingBuilder.from(manifestSourceTracking(), 1L)
-                    .deletedPositions(ByteBuffer.wrap(new byte[] {1}))
-                    .dvUpdated())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
   }
 
   @Test
@@ -453,14 +417,6 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testModifiedUsesNewSnapshotId() {
-    Tracking source = sourceTracking();
-    Tracking modified = TrackingBuilder.from(source, 999L).dvUpdated().build();
-    assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(modified.snapshotId()).isEqualTo(999L).isNotEqualTo(source.snapshotId());
-  }
-
-  @Test
   void testCarryForwardFromModifiedSourceChangesToExisting() {
     // A MODIFIED entry from a prior commit carried forward without mutation becomes EXISTING,
     // preserving the snapshot id from the modify commit.
@@ -478,7 +434,9 @@ class TestTrackingStruct {
     Tracking modified =
         TrackingBuilder.from(addedSource, 999L).deletedPositions(deletedBytes).build();
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(modified.snapshotId()).isEqualTo(999L);
+    // the entry snapshot id is preserved; only the DV snapshot id advances to the commit snapshot
+    assertThat(modified.snapshotId()).isEqualTo(addedSource.snapshotId()).isNotEqualTo(999L);
+    assertThat(modified.dvSnapshotId()).isEqualTo(999L);
     assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
   }
 
@@ -551,7 +509,7 @@ class TestTrackingStruct {
     Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(deserialized.dvSnapshotId()).isNull();
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(1L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }
@@ -580,7 +538,7 @@ class TestTrackingStruct {
     Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(deserialized.dvSnapshotId()).isNull();
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(1L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }

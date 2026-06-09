@@ -23,12 +23,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
 class TrackingBuilder {
-  private EntryStatus status;
-  private Long snapshotId;
   private final long newSnapshotId;
+  private final Long snapshotId;
   private final Long dataSequenceNumber;
   private final Long fileSequenceNumber;
   private final Long firstRowId;
+  private EntryStatus status;
   private Long dvSnapshotId;
   private byte[] deletedPositions;
   private byte[] replacedPositions;
@@ -100,36 +100,35 @@ class TrackingBuilder {
 
   /** Indicates that the DV has been updated for the new Tracking. */
   TrackingBuilder dvUpdated() {
-    // DV applies to data files; deleted/replaced positions apply to manifest files
-    Preconditions.checkState(
-        deletedPositions == null && replacedPositions == null,
-        "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
     this.dvSnapshotId = newSnapshotId;
-    promoteToModified();
+    if (status == EntryStatus.EXISTING) {
+      this.status = EntryStatus.MODIFIED;
+    }
+
     return this;
   }
 
   TrackingBuilder deletedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set deleted positions on ADDED entry");
-    // DV applies to data files; deleted positions apply to manifest files
-    Preconditions.checkState(
-        dvSnapshotId == null,
-        "Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
     this.deletedPositions = ByteBuffers.toByteArray(positions);
-    promoteToModified();
+    this.dvSnapshotId = newSnapshotId;
+    if (status == EntryStatus.EXISTING) {
+      this.status = EntryStatus.MODIFIED;
+    }
+
     return this;
   }
 
   TrackingBuilder replacedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set replaced positions on ADDED entry");
-    // DV applies to data files; replaced positions apply to manifest files
-    Preconditions.checkState(
-        dvSnapshotId == null,
-        "Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
     this.replacedPositions = ByteBuffers.toByteArray(positions);
-    promoteToModified();
+    this.dvSnapshotId = newSnapshotId;
+    if (status == EntryStatus.EXISTING) {
+      this.status = EntryStatus.MODIFIED;
+    }
+
     return this;
   }
 
@@ -143,13 +142,6 @@ class TrackingBuilder {
         firstRowId,
         deletedPositions,
         replacedPositions);
-  }
-
-  private void promoteToModified() {
-    if (status == EntryStatus.EXISTING) {
-      this.status = EntryStatus.MODIFIED;
-      this.snapshotId = newSnapshotId;
-    }
   }
 
   private static Tracking terminal(EntryStatus to, Tracking source, long newSnapshotId) {
