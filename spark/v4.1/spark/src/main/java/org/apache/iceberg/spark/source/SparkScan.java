@@ -180,7 +180,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType(),
         taskGroups(),
         projection,
-        hashCode());
+        hashCode(),
+        isOrderingEnabled());
   }
 
   @Override
@@ -364,6 +365,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       new PositionalDeleteFiles(),
       new SkippedDeleteFiles()
     };
+  }
+
+  protected boolean isOrderingEnabled() {
+    return false;
   }
 
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {

@@ -64,6 +64,8 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final boolean orderingEnabled;
+  private final boolean anyTaskNeedsMerging;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -73,7 +75,8 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
-      int scanHashCode) {
+      int scanHashCode,
+      boolean orderingEnabled) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.fileIO = fileIO;
@@ -86,6 +89,9 @@ class SparkBatch implements Batch {
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.orderingEnabled = orderingEnabled;
+    this.anyTaskNeedsMerging =
+        orderingEnabled && taskGroups.stream().anyMatch(group -> group.tasks().size() > 1);
   }
 
   @Override
@@ -139,7 +145,7 @@ class SparkBatch implements Batch {
       return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
-      return new SparkRowReaderFactory();
+      return new SparkRowReaderFactory(orderingEnabled);
     }
   }
 
@@ -153,11 +159,13 @@ class SparkBatch implements Batch {
 
   // conditions for using Parquet batch reads:
   // - Parquet vectorization is enabled
+  // - no task group requires a merging sorted reader (incompatible with vectorized reads)
   // - only primitives, unshredded variant, or metadata columns are projected, excluding geometry
   //   and geography which are primitives with no Arrow vector yet
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
+        && !anyTaskNeedsMerging
         && projection.columns().stream().allMatch(this::supportsParquetBatchReads)
         && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
@@ -221,9 +229,11 @@ class SparkBatch implements Batch {
 
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
+  // - no task group requires a merging sorted reader (incompatible with vectorized reads)
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
+        && !anyTaskNeedsMerging
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
   }
 
