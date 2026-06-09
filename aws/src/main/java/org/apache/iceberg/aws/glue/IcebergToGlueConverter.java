@@ -295,47 +295,81 @@ class IcebergToGlueConverter {
    * @return type string
    */
   private static String toTypeString(Type type) {
+    StringBuilder sb = new StringBuilder();
+    buildTypeString(type, sb);
+    return sb.toString();
+  }
+
+  private static void buildTypeString(Type type, StringBuilder sb) {
     switch (type.typeId()) {
       case BOOLEAN:
-        return "boolean";
+        sb.append("boolean");
+        return;
       case INTEGER:
-        return "int";
+        sb.append("int");
+        return;
       case LONG:
-        return "bigint";
+        sb.append("bigint");
+        return;
       case FLOAT:
-        return "float";
+        sb.append("float");
+        return;
       case DOUBLE:
-        return "double";
+        sb.append("double");
+        return;
       case DATE:
-        return "date";
+        sb.append("date");
+        return;
       case TIME:
       case STRING:
       case UUID:
-        return "string";
+        sb.append("string");
+        return;
       case TIMESTAMP:
-        return "timestamp";
+        sb.append("timestamp");
+        return;
       case FIXED:
       case BINARY:
-        return "binary";
+        sb.append("binary");
+        return;
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
-        return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
+        sb.append("decimal(")
+            .append(decimalType.precision())
+            .append(',')
+            .append(decimalType.scale())
+            .append(')');
+        return;
       case STRUCT:
         final Types.StructType structType = type.asStructType();
-        final String nameToType =
-            structType.fields().stream()
-                .map(f -> String.format("%s:%s", f.name(), toTypeString(f.type())))
-                .collect(Collectors.joining(","));
-        return String.format("struct<%s>", nameToType);
+        sb.append("struct<");
+        final List<NestedField> fields = structType.fields();
+        for (int i = 0; i < fields.size(); i++) {
+          if (i > 0) {
+            sb.append(',');
+          }
+          final NestedField field = fields.get(i);
+          sb.append(field.name()).append(':');
+          buildTypeString(field.type(), sb);
+        }
+        sb.append('>');
+        return;
       case LIST:
         final Types.ListType listType = type.asListType();
-        return String.format("array<%s>", toTypeString(listType.elementType()));
+        sb.append("array<");
+        buildTypeString(listType.elementType(), sb);
+        sb.append('>');
+        return;
       case MAP:
         final Types.MapType mapType = type.asMapType();
-        return String.format(
-            "map<%s,%s>", toTypeString(mapType.keyType()), toTypeString(mapType.valueType()));
+        sb.append("map<");
+        buildTypeString(mapType.keyType(), sb);
+        sb.append(',');
+        buildTypeString(mapType.valueType(), sb);
+        sb.append('>');
+        return;
       default:
-        return type.typeId().name().toLowerCase(Locale.ENGLISH);
+        sb.append(type.typeId().name().toLowerCase(Locale.ENGLISH));
     }
   }
 
