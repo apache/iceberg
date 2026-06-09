@@ -255,19 +255,7 @@ class Coordinator extends Channel {
           committedOffsets);
     }
 
-    // Build per-partition base offsets: exclude any partition whose control topic offset has
-    // regressed below the previously committed offset (i.e., that partition was reset).
-    // Non-reset partitions retain their committed offset as the dedup and merge baseline;
-    // reset partitions have no entry, so Long::max stores their new low offset and the
-    // minOffset == null branch passes their events without deduplication.
-    Map<Integer, Long> baseOffsets =
-        committedOffsets.entrySet().stream()
-            .filter(
-                e -> {
-                  Long current = controlTopicOffsets.get(e.getKey());
-                  return current == null || current >= e.getValue();
-                })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    Map<Integer, Long> baseOffsets = buildBaseOffsets(committedOffsets, controlTopicOffsets);
     Map<Integer, Long> mergedOffsets =
         Stream.of(baseOffsets, controlTopicOffsets)
             .flatMap(map -> map.entrySet().stream())
@@ -356,6 +344,20 @@ class Coordinator extends Channel {
           commitState.currentCommitId(),
           validThroughTs);
     }
+  }
+
+  // Returns a per-partition dedup/merge baseline by keeping only entries from committedOffsets
+  // where the control topic offset has not regressed. Reset partitions are absent so that
+  // Long::max stores their new low offset and the minOffset == null branch passes their events.
+  private Map<Integer, Long> buildBaseOffsets(
+      Map<Integer, Long> committedOffsets, Map<Integer, Long> controlTopicOffsets) {
+    return committedOffsets.entrySet().stream()
+        .filter(
+            e -> {
+              Long current = controlTopicOffsets.get(e.getKey());
+              return current == null || current >= e.getValue();
+            })
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   private SnapshotAncestryValidator offsetValidator(
