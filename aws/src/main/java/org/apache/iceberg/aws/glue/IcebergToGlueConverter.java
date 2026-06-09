@@ -379,9 +379,9 @@ class IcebergToGlueConverter {
                       ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)));
 
       if (field.doc() != null && !field.doc().isEmpty()) {
-        builder.comment(truncateColumnComment(field.doc()));
+        builder.comment(truncateColumnComment(field.name(), field.doc()));
       } else if (existingColumnMap != null && existingColumnMap.containsKey(field.name())) {
-        builder.comment(truncateColumnComment(existingColumnMap.get(field.name())));
+        builder.comment(truncateColumnComment(field.name(), existingColumnMap.get(field.name())));
       }
 
       columns.add(builder.build());
@@ -389,17 +389,15 @@ class IcebergToGlueConverter {
     }
   }
 
-  private static String truncateColumnComment(String comment) {
-    if (comment == null) {
-      return null;
-    }
-
+  private static String truncateColumnComment(String columnName, String comment) {
     if (comment.length() <= GLUE_COLUMN_COMMENT_MAX_LENGTH) {
       return comment;
     }
 
     LOG.warn(
-        "Truncating column comment to Glue's maximum {} characters",
+        "Truncating comment length for column {} from {} to Glue's maximum {} characters",
+        columnName,
+        comment.length(),
         GLUE_COLUMN_COMMENT_MAX_LENGTH);
     return comment.substring(0, GLUE_COLUMN_COMMENT_MAX_LENGTH);
   }

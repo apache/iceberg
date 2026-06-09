@@ -406,8 +406,7 @@ public class TestIcebergToGlueConverter {
   public void testSetColumnCommentTruncationWithExistingTable() {
     // Actual TableInput
     TableInput.Builder actualTableInputBuilder = TableInput.builder();
-    Schema schema =
-        new Schema(Types.NestedField.required(1, "x", Types.StringType.get(), "a".repeat(256)));
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.StringType.get()));
     TableMetadata tableMetadata =
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), "s3://test", ImmutableMap.of());
@@ -419,7 +418,7 @@ public class TestIcebergToGlueConverter {
                 StorageDescriptor.builder()
                     .columns(
                         ImmutableList.of(
-                            Column.builder().name("x").comment("existing comment").build()))
+                            Column.builder().name("x").comment("a".repeat(256)).build()))
                     .build())
             .build();
 
