@@ -30,6 +30,9 @@ import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -52,7 +55,7 @@ public class BaseDVFileWriter implements DVFileWriter {
   private static final String REFERENCED_DATA_FILE_KEY = "referenced-data-file";
   private static final String CARDINALITY_KEY = "cardinality";
 
-  private final Supplier<OutputFile> dvOutputFile;
+  private final Supplier<EncryptedOutputFile> dvOutputFile;
   private final Function<String, PositionDeleteIndex> loadPreviousDeletes;
   private final Map<String, Deletes> deletesByPath = Maps.newHashMap();
   private final Map<String, BlobMetadata> blobsByPath = Maps.newHashMap();
@@ -60,12 +63,18 @@ public class BaseDVFileWriter implements DVFileWriter {
 
   public BaseDVFileWriter(
       OutputFileFactory fileFactory, Function<String, PositionDeleteIndex> loadPreviousDeletes) {
-    this(() -> fileFactory.newOutputFile().encryptingOutputFile(), loadPreviousDeletes);
+    this(loadPreviousDeletes, fileFactory::newOutputFile);
   }
 
   public BaseDVFileWriter(
       Supplier<OutputFile> dvOutputFile,
       Function<String, PositionDeleteIndex> loadPreviousDeletes) {
+    this(loadPreviousDeletes, () -> EncryptedFiles.plainAsEncryptedOutput(dvOutputFile.get()));
+  }
+
+  BaseDVFileWriter(
+      Function<String, PositionDeleteIndex> loadPreviousDeletes,
+      Supplier<EncryptedOutputFile> dvOutputFile) {
     this.dvOutputFile = dvOutputFile;
     this.loadPreviousDeletes = loadPreviousDeletes;
   }
@@ -108,7 +117,12 @@ public class BaseDVFileWriter implements DVFileWriter {
         return;
       }
 
-      PuffinWriter writer = newWriter();
+      EncryptedOutputFile outputFile = dvOutputFile.get();
+      EncryptionKeyMetadata keyMetadata = outputFile.keyMetadata();
+      PuffinWriter writer =
+          Puffin.write(outputFile.encryptingOutputFile())
+              .createdBy(IcebergBuild.fullVersion())
+              .build();
 
       try (PuffinWriter closeableWriter = writer) {
         for (Deletes deletes : deletesByPath.values()) {
@@ -134,7 +148,7 @@ public class BaseDVFileWriter implements DVFileWriter {
       long puffinFileSize = writer.fileSize();
 
       for (String path : deletesByPath.keySet()) {
-        DeleteFile dv = createDV(puffinPath, puffinFileSize, path);
+        DeleteFile dv = createDV(puffinPath, puffinFileSize, path, keyMetadata);
         dvs.add(dv);
       }
 
@@ -142,7 +156,8 @@ public class BaseDVFileWriter implements DVFileWriter {
     }
   }
 
-  private DeleteFile createDV(String path, long size, String referencedDataFile) {
+  private DeleteFile createDV(
+      String path, long size, String referencedDataFile, EncryptionKeyMetadata keyMetadata) {
     Deletes deletes = deletesByPath.get(referencedDataFile);
     BlobMetadata blobMetadata = blobsByPath.get(referencedDataFile);
     return FileMetadata.deleteFileBuilder(deletes.spec())
@@ -151,6 +166,7 @@ public class BaseDVFileWriter implements DVFileWriter {
         .withPath(path)
         .withPartition(deletes.partition())
         .withFileSizeInBytes(size)
+        .withEncryptionKeyMetadata(keyMetadata)
         .withReferencedDataFile(referencedDataFile)
         .withContentOffset(blobMetadata.offset())
         .withContentSizeInBytes(blobMetadata.length())
@@ -163,11 +179,6 @@ public class BaseDVFileWriter implements DVFileWriter {
     PositionDeleteIndex positions = deletes.positions();
     BlobMetadata blobMetadata = writer.write(toBlob(positions, path));
     blobsByPath.put(path, blobMetadata);
-  }
-
-  private PuffinWriter newWriter() {
-    OutputFile outputFile = dvOutputFile.get();
-    return Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build();
   }
 
   private Blob toBlob(PositionDeleteIndex positions, String path) {
