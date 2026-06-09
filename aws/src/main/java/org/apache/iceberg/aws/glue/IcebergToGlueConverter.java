@@ -64,6 +64,7 @@ class IcebergToGlueConverter {
   public static final String GLUE_DB_LOCATION_KEY = "location";
   // Utilized for defining descriptions at both the Glue database and table levels.
   public static final String GLUE_DESCRIPTION_KEY = "comment";
+  public static final int GLUE_COLUMN_COMMENT_MAX_LENGTH = 255;
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
@@ -378,13 +379,28 @@ class IcebergToGlueConverter {
                       ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)));
 
       if (field.doc() != null && !field.doc().isEmpty()) {
-        builder.comment(field.doc());
+        builder.comment(truncateColumnComment(field.doc()));
       } else if (existingColumnMap != null && existingColumnMap.containsKey(field.name())) {
-        builder.comment(existingColumnMap.get(field.name()));
+        builder.comment(truncateColumnComment(existingColumnMap.get(field.name())));
       }
 
       columns.add(builder.build());
       dedupe.add(field.name());
     }
+  }
+
+  private static String truncateColumnComment(String comment) {
+    if (comment == null) {
+      return null;
+    }
+
+    if (comment.length() <= GLUE_COLUMN_COMMENT_MAX_LENGTH) {
+      return comment;
+    }
+
+    LOG.warn(
+        "Truncating column comment to Glue's maximum {} characters",
+        GLUE_COLUMN_COMMENT_MAX_LENGTH);
+    return comment.substring(0, GLUE_COLUMN_COMMENT_MAX_LENGTH);
   }
 }
