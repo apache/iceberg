@@ -291,6 +291,17 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean CHECKSUM_ENABLED_DEFAULT = false;
 
+  /**
+   * Determines whether the stack trace of the call site is captured when an S3 input or output
+   * stream is created. The captured stack is only used to report the creation site if a stream is
+   * garbage collected without being closed. Capturing it is relatively expensive, so it can be
+   * disabled to avoid the cost on the per-file stream creation path. ResolvingFileIO sets this to
+   * {@code false} for the FileIO it delegates to, because it already tracks that creation stack.
+   */
+  public static final String CREATE_STACK_TRACE_ENABLED = "init-creation-stacktrace";
+
+  public static final boolean CREATE_STACK_TRACE_ENABLED_DEFAULT = true;
+
   public static final String REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
 
   public static final boolean REMOTE_SIGNING_ENABLED_DEFAULT = false;
@@ -521,6 +532,7 @@ public class S3FileIOProperties implements Serializable {
   private String stagingDirectory;
   private ObjectCannedACL acl;
   private boolean isChecksumEnabled;
+  private boolean createStackTraceEnabled;
   private boolean isChunkedEncodingEnabled;
   private final Set<Tag> writeTags;
   private boolean isWriteTableTagEnabled;
@@ -564,6 +576,7 @@ public class S3FileIOProperties implements Serializable {
     this.deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
     this.stagingDirectory = System.getProperty("java.io.tmpdir");
     this.isChecksumEnabled = CHECKSUM_ENABLED_DEFAULT;
+    this.createStackTraceEnabled = CREATE_STACK_TRACE_ENABLED_DEFAULT;
     this.isChunkedEncodingEnabled = CHUNKED_ENCODING_ENABLED_DEFAULT;
     this.writeTags = Sets.newHashSet();
     this.isWriteTableTagEnabled = WRITE_TABLE_TAG_ENABLED_DEFAULT;
@@ -655,6 +668,9 @@ public class S3FileIOProperties implements Serializable {
         "Cannot support S3 CannedACL " + aclType);
     this.isChecksumEnabled =
         PropertyUtil.propertyAsBoolean(properties, CHECKSUM_ENABLED, CHECKSUM_ENABLED_DEFAULT);
+    this.createStackTraceEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CREATE_STACK_TRACE_ENABLED, CREATE_STACK_TRACE_ENABLED_DEFAULT);
     this.isChunkedEncodingEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, CHUNKED_ENCODING_ENABLED, CHUNKED_ENCODING_ENABLED_DEFAULT);
@@ -823,6 +839,10 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isChecksumEnabled() {
     return this.isChecksumEnabled;
+  }
+
+  public boolean isCreateStackTraceEnabled() {
+    return this.createStackTraceEnabled;
   }
 
   public boolean isChunkedEncodingEnabled() {
