@@ -61,6 +61,57 @@ public class TestCommitState {
   }
 
   @Test
+  public void testIsCommitReadyResetsBetweenCommits() {
+    TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
+
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    DataComplete firstPayload = mock(DataComplete.class);
+    when(firstPayload.commitId()).thenReturn(commitState.currentCommitId());
+    when(firstPayload.assignments()).thenReturn(ImmutableList.of(tp, tp));
+    commitState.addReady(wrapInEnvelope(firstPayload));
+    assertThat(commitState.isCommitReady(2)).isTrue();
+
+    commitState.endCurrentCommit();
+    commitState.startNewCommit();
+
+    assertThat(commitState.isCommitReady(1)).isFalse();
+
+    DataComplete secondPayload = mock(DataComplete.class);
+    when(secondPayload.commitId()).thenReturn(commitState.currentCommitId());
+    when(secondPayload.assignments()).thenReturn(ImmutableList.of(tp));
+    commitState.addReady(wrapInEnvelope(secondPayload));
+
+    assertThat(commitState.isCommitReady(1)).isTrue();
+    assertThat(commitState.isCommitReady(2)).isFalse();
+  }
+
+  @Test
+  public void testIsCommitReadyIgnoresZombieCoordinatorPayloads() {
+    TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
+
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    // Stale DataComplete from a zombie Coordinator that started a different commit.
+    DataComplete zombiePayload = mock(DataComplete.class);
+    when(zombiePayload.commitId()).thenReturn(UUID.randomUUID());
+    when(zombiePayload.assignments()).thenReturn(ImmutableList.of(tp, tp));
+
+    DataComplete currentPayload = mock(DataComplete.class);
+    when(currentPayload.commitId()).thenReturn(commitState.currentCommitId());
+    when(currentPayload.assignments()).thenReturn(ImmutableList.of(tp));
+
+    commitState.addReady(wrapInEnvelope(zombiePayload));
+    commitState.addReady(wrapInEnvelope(currentPayload));
+
+    // Only the current commit's payload counts toward readiness.
+    assertThat(commitState.isCommitReady(1)).isTrue();
+    assertThat(commitState.isCommitReady(2)).isFalse();
+  }
+
+  @Test
   public void testGetValidThroughTs() {
     DataComplete payload1 = mock(DataComplete.class);
     TopicPartitionOffset tp1 = mock(TopicPartitionOffset.class);
