@@ -148,7 +148,7 @@ container and the last 8 bits that identify the corresponding position within
 the container.
 
 Containers may be sparse or dense. This type is encoded by the container's
-corresponding descriptor byte. Containers with less then 32 bits set must be
+corresponding descriptor byte. Containers with less than 32 bits set must be
 sparse and containers with 32 or more bits set must be dense.
 
 
@@ -171,7 +171,7 @@ Examples:
 |------------|-------------------|---------------|
 | 0          | (zero bytes)      | None |
 | 3          | `00 22 FF`        | 0, 34, 255 |
-| 31         | `00 01 02 ... 1F` | 0, 1, 2, ..., 31 |
+| 31         | `00 01 02 ... 1E` | 0, 1, 2, ..., 30 |
 
 
 ### Dense containers
