@@ -255,9 +255,19 @@ class Coordinator extends Channel {
           committedOffsets);
     }
 
-    // When a reset is detected, base the stored offsets only on the current control topic
-    // offsets so subsequent commits use the correct (new-cluster) baseline.
-    Map<Integer, Long> baseOffsets = controlTopicReset ? Map.of() : committedOffsets;
+    // Build per-partition base offsets: exclude any partition whose control topic offset has
+    // regressed below the previously committed offset (i.e., that partition was reset).
+    // Non-reset partitions retain their committed offset as the dedup and merge baseline;
+    // reset partitions have no entry, so Long::max stores their new low offset and the
+    // minOffset == null branch passes their events without deduplication.
+    Map<Integer, Long> baseOffsets =
+        committedOffsets.entrySet().stream()
+            .filter(
+                e -> {
+                  Long current = controlTopicOffsets.get(e.getKey());
+                  return current == null || current >= e.getValue();
+                })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     Map<Integer, Long> mergedOffsets =
         Stream.of(baseOffsets, controlTopicOffsets)
             .flatMap(map -> map.entrySet().stream())
