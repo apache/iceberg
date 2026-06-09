@@ -50,7 +50,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -113,6 +112,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
@@ -155,7 +155,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   // fork and reused by every test that asks for the same shape. The Spark write of SCALE
   // rows dominates these tests; the rewrite under test still runs per test on a fresh table.
   @TempDir private static Path inputCacheDir;
-  private static final Map<String, List<DataFile>> INPUT_FILE_CACHE = new ConcurrentHashMap<>();
+  private static final Map<String, List<DataFile>> INPUT_FILE_CACHE = Maps.newConcurrentMap();
   private static final AtomicInteger INPUT_CACHE_SEQ = new AtomicInteger();
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
