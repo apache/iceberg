@@ -108,6 +108,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -2391,8 +2392,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     String key =
         String.format(
-            "partitioned|opts=%s|files=%d|rows=%d|partitions=%d",
-            new TreeMap<>(options), files, numRecords, partitions);
+            "partitioned|fv=%d|spec=%s|opts=%s|files=%d|rows=%d|partitions=%d",
+            formatVersion, spec, new TreeMap<>(options), files, numRecords, partitions);
     List<DataFile> inputFiles =
         cachedInputFiles(
             key,
@@ -2444,7 +2445,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             Streams.stream(golden.newScan().includeColumnStats().planFiles())
                 .map(FileScanTask::file)
                 .map(DataFile::copy)
-                .collect(Collectors.toList());
+                .collect(ImmutableList.toImmutableList());
         INPUT_FILE_CACHE.put(key, built);
         return built;
       } finally {
