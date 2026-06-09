@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collections;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.BaseScanTaskGroup;
@@ -106,11 +106,12 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
                     new RowDataReader(
                         table,
                         partition.io(),
-                        new BaseScanTaskGroup<>(Collections.singletonList(task)),
+                        new BaseScanTaskGroup<>(ImmutableList.of(task)),
                         mergeReadSchema,
                         partition.isCaseSensitive(),
                         partition.cacheDeleteFilesOnExecutors()))
             .toList();
+    fileReaders.forEach(resources::addCloseable);
     // Wrap each reader as a CloseableIterable and feed into SortedMerge.
     List<CloseableIterable<InternalRow>> fileIterables =
         fileReaders.stream().map(this::readerToIterable).toList();
