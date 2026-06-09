@@ -239,9 +239,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       this.endpoints = ImmutableSet.copyOf(config.endpoints());
     }
 
-    this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
-    this.closeables.addCloseable(metricsExecutor::shutdown);
-
     this.client = clientBuilder.apply(mergedProps);
     this.closeables.addCloseable(this.client);
 
@@ -282,6 +279,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (reportingViaRestEnabled) {
+      this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
+      this.closeables.addCloseable(metricsExecutor::shutdown);
+    }
+
     this.namespaceSeparator =
         PropertyUtil.propertyAsString(
             mergedProps,
