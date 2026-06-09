@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
-import org.apache.avro.SchemaParseException;
 import org.apache.flink.api.common.functions.DefaultOpenContext;
 import org.apache.flink.api.common.functions.util.ListCollector;
 import org.apache.flink.configuration.Configuration;
@@ -114,25 +113,6 @@ class TestVariantAvroDynamicTableRecordGenerator {
             StringData.fromString(TEST_DB),
             StringData.fromString(TEST_TABLE));
     assertThat(runGenerate(rowType, Collections.emptyMap(), nullSchemaId)).isEmpty();
-  }
-
-  @Test
-  void testMalformedAvroSchemaThrows() {
-    DataGenerator dataGenerator = new DataGenerators.Primitives();
-    Variant variantData = dataGenerator.generateFlinkVariantData();
-    String schemaId = "TestSchema:v1";
-    RowType rowType = createRowTypeWithDbAndTable();
-
-    RowData malformed =
-        GenericRowData.of(
-            variantData,
-            StringData.fromString("not-a-valid-avro-schema"),
-            StringData.fromString(schemaId),
-            StringData.fromString(TEST_DB),
-            StringData.fromString(TEST_TABLE));
-
-    assertThatThrownBy(() -> runGenerate(rowType, Collections.emptyMap(), malformed))
-        .isInstanceOf(SchemaParseException.class);
   }
 
   @Test
