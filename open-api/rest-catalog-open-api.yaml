@@ -3637,10 +3637,12 @@ components:
       description: >
           Read restrictions for a table, including column projections and row filter expressions.
 
-          A reader MUST enforce the restrictions defined in this object when reading data
-          from the table. Read restrictions returned in a loadTable response apply to every
-          read operation on the loaded table performed using this response, including
-          subsequent planTableScan and fetchScanTasks calls.
+          A client SHOULD support the read-restrictions field. If a client supports
+          read-restrictions, it MUST fail if it cannot apply any returned restriction
+          (including unrecognized action or expression types). Read restrictions returned
+          in a loadTable response apply to every read operation on the loaded table
+          performed using this response, including subsequent planTableScan and
+          fetchScanTasks calls.
 
           In this section, "reader" refers to the read-side actor that applies restrictions
           per row or per column. "Engine" refers to the broader query-execution context
