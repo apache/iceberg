@@ -1033,7 +1033,7 @@ public abstract class BaseFormatModelTests<T> {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Schema writeSchema = DataGenerators.PrimitiveDefaults.WRITE_SCHEMA;
-    Schema readSchema = primitiveDefaultsReadSchema();
+    Schema readSchema = filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
 
     List<Record> sourceRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, sourceRecords);
@@ -1062,7 +1062,7 @@ public abstract class BaseFormatModelTests<T> {
   void testPrimitiveDefaultValuesNotApplied(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
-    Schema readSchema = primitiveDefaultsReadSchema();
+    Schema readSchema = filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
 
     List<Record> sourceRecords = RandomGenericData.generate(readSchema, 10, 1L);
     writeGenericRecords(fileFormat, readSchema, sourceRecords);
@@ -2643,9 +2643,5 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(dataFile.format()).isEqualTo(fileFormat);
     assertWriterEffect.accept(fileFormat);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
-  }
-
-  private Schema primitiveDefaultsReadSchema() {
-    return filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
   }
 }
