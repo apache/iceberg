@@ -129,7 +129,10 @@ class S3OutputStream extends PositionOutputStream {
     this.s3FileIOProperties = s3FileIOProperties;
     this.writeTags = s3FileIOProperties.writeTags();
 
-    this.createStack = Thread.currentThread().getStackTrace();
+    this.createStack =
+        s3FileIOProperties.isCreateStackTraceEnabled()
+            ? Thread.currentThread().getStackTrace()
+            : null;
 
     this.multiPartSize = s3FileIOProperties.multiPartSize();
     this.multiPartThresholdSize =
@@ -486,8 +489,15 @@ class S3OutputStream extends PositionOutputStream {
     super.finalize();
     if (!closed) {
       close(false); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
-      LOG.warn("Unclosed output stream created by:\n\t{}", trace);
+      if (createStack != null) {
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed output stream created by:\n\t{}", trace);
+      } else {
+        LOG.warn(
+            "Unclosed output stream; enable '{}' to capture its creation stack.",
+            S3FileIOProperties.CREATE_STACK_TRACE_ENABLED);
+      }
     }
   }
 

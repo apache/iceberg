@@ -503,7 +503,10 @@ public class S3FileIO
     this.properties = SerializableMap.copyOf(props);
 
     this.createStack =
-        PropertyUtil.propertyAsBoolean(properties, "init-creation-stacktrace", true)
+        PropertyUtil.propertyAsBoolean(
+                properties,
+                S3FileIOProperties.CREATE_STACK_TRACE_ENABLED,
+                S3FileIOProperties.CREATE_STACK_TRACE_ENABLED_DEFAULT)
             ? Thread.currentThread().getStackTrace()
             : null;
 
