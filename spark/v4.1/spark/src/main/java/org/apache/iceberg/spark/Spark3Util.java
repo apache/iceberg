@@ -112,7 +112,7 @@ public class Spark3Util {
 
   private Spark3Util() {}
 
-  public static TableInfo tableInfo(
+  static TableInfo tableInfo(
       StructType schema, Transform[] transforms, Map<String, String> properties) {
     return tableInfo(CatalogV2Util.structTypeToV2Columns(schema), transforms, properties);
   }
