@@ -278,7 +278,8 @@ To encode a chunk of values:
 3. Choose `b1` and `b2` (see below)
 4. Pack the least-significant `b1` bits of each value into `32 * b1` bytes
 5. Collect exception values that do not fit into `b1` bits, and their offsets
-6. For each exception, pack the remaining `b2` bits into `ceil(e*b2/8)` bytes
+6. Write the exception offset array (1 byte per exception)
+7. For each exception, pack the remaining `b2` bits into `ceil(e*b2/8)` bytes
 
 The recommended way to choose bit widths `b1` and `b2` is:
 
