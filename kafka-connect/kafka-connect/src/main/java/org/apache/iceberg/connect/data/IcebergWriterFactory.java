@@ -107,7 +107,6 @@ class IcebergWriterFactory {
               tableName));
     }
 
-    org.apache.iceberg.Schema initialSchema = new org.apache.iceberg.Schema(structType.fields());
     Set<Integer> identifierFieldIds =
         idColumns.stream()
             .map(
@@ -119,14 +118,14 @@ class IcebergWriterFactory {
                                 + "Nested identifier fields are not supported by the connector.",
                             name, tableName));
                   }
-                  NestedField field = initialSchema.findField(name);
+                  NestedField field = structType.field(name);
                   if (field == null) {
                     throw new DataException(
                         String.format(
                             "ID column '%s' not found in schema for table %s. Available columns: %s",
                             name,
                             tableName,
-                            initialSchema.columns().stream()
+                            structType.fields().stream()
                                 .map(NestedField::name)
                                 .collect(Collectors.toList())));
                   }
