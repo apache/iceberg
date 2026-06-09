@@ -80,7 +80,7 @@ remaining descriptor bits cannot be used.
 
 ## Format
 
-A Mumbling bitmap consists of 3 sections:
+A Mumbling bitmap consists of 3 concatenated sections:
 
 * Header
 * Descriptor array
@@ -242,7 +242,7 @@ and the remaining bits of the exceptions are packed into an exception array.
 
 ## PFOR encoding
 
-Each chunk is stored using the following sections:
+Each chunk is stored using the following concatenated sections:
 
 * Header (3 bytes)
 * Primary value array
