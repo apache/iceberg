@@ -156,6 +156,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   // rows dominates these tests; the rewrite under test still runs per test on a fresh table.
   @TempDir private static Path inputCacheDir;
   private static final Map<String, List<DataFile>> INPUT_FILE_CACHE = Maps.newConcurrentMap();
+  private static final Map<String, Object> INPUT_CACHE_LOCKS = Maps.newConcurrentMap();
   private static final AtomicInteger INPUT_CACHE_SEQ = new AtomicInteger();
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
@@ -2418,27 +2419,38 @@ public class TestRewriteDataFilesAction extends TestBase {
    * byte-identical to regenerating it.
    */
   private List<DataFile> cachedInputFiles(String key, Supplier<Table> goldenBuilder) {
-    return INPUT_FILE_CACHE.computeIfAbsent(
-        key,
-        ignored -> {
-          String savedLocation = this.tableLocation;
-          try {
-            this.tableLocation =
-                inputCacheDir
-                    .resolve("input-" + INPUT_CACHE_SEQ.incrementAndGet())
-                    .toUri()
-                    .toString();
-            Table golden = goldenBuilder.get();
-            // includeColumnStats() is required: a plain scan drops lower/upper bounds and
-            // value counts, and re-appending stat-less files breaks tests that read bounds.
-            return Streams.stream(golden.newScan().includeColumnStats().planFiles())
+    List<DataFile> cached = INPUT_FILE_CACHE.get(key);
+    if (cached != null) {
+      return cached;
+    }
+    // Serialize builds per key: concurrent callers requesting the same table shape block on the
+    // first build and then reuse its result, instead of materializing identical input twice. The
+    // heavy Spark write happens outside any map lock, so distinct shapes can still build in
+    // parallel.
+    Object lock = INPUT_CACHE_LOCKS.computeIfAbsent(key, ignored -> new Object());
+    synchronized (lock) {
+      List<DataFile> existing = INPUT_FILE_CACHE.get(key);
+      if (existing != null) {
+        return existing;
+      }
+      String savedLocation = this.tableLocation;
+      try {
+        this.tableLocation =
+            inputCacheDir.resolve("input-" + INPUT_CACHE_SEQ.incrementAndGet()).toUri().toString();
+        Table golden = goldenBuilder.get();
+        // includeColumnStats() is required: a plain scan drops lower/upper bounds and
+        // value counts, and re-appending stat-less files breaks tests that read bounds.
+        List<DataFile> built =
+            Streams.stream(golden.newScan().includeColumnStats().planFiles())
                 .map(FileScanTask::file)
                 .map(DataFile::copy)
                 .collect(Collectors.toList());
-          } finally {
-            this.tableLocation = savedLocation;
-          }
-        });
+        INPUT_FILE_CACHE.put(key, built);
+        return built;
+      } finally {
+        this.tableLocation = savedLocation;
+      }
+    }
   }
 
   private static void appendInputFiles(Table table, List<DataFile> inputFiles) {
