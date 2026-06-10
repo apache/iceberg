@@ -1062,9 +1062,6 @@ public class TestSparkScan extends TestBaseWithCatalog {
         () -> {
           Predicate predicate1 = new Predicate("=", expressions(fieldRef("id"), intLit(2)));
           Predicate predicate2 = new Predicate("<", expressions(fieldRef("id"), intLit(10)));
-          String filter1Desc = Spark3Util.describe(SparkV2Filters.convert(predicate1));
-          String filter2Desc = Spark3Util.describe(SparkV2Filters.convert(predicate2));
-          String expectedFilterDesc = filter1Desc + ", " + filter2Desc;
           pushFilters(builder, predicate1, predicate2);
 
           Scan scan = builder.buildCopyOnWriteScan();
@@ -1075,7 +1072,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
           assertThat(description).contains("schemaId=" + table.schema().schemaId());
           assertThat(description).contains("snapshotId=" + table.currentSnapshot().snapshotId());
           assertThat(description).contains("branch=null");
-          assertThat(description).contains("filters=" + expectedFilterDesc);
+          assertThat(description).contains("filters=id = 2, id < 10");
           assertThat(description).contains("groupedBy=data");
         });
   }
