@@ -181,6 +181,7 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
   static final String FEATURE_ENCRYPTION = "encryption";
+  static final String FEATURE_ENCRYPTION_KEY_METADATA = "encryptionKeyMetadata";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -198,6 +199,7 @@ public abstract class BaseFormatModelTests<T> {
             FEATURE_REUSE_CONTAINERS,
             FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
             FEATURE_READER_DEFAULT,
+            FEATURE_ENCRYPTION_KEY_METADATA,
             FEATURE_ENCRYPTION
           });
 
@@ -1717,8 +1719,8 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  void testDataWriterEncryption(FileFormat fileFormat) throws IOException {
-    assumeSupports(fileFormat, FEATURE_ENCRYPTION);
+  void testDataWriterEncryptionKeyMetaData(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_ENCRYPTION_KEY_METADATA);
 
     EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
     EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(fileIO, encryptionManager);
