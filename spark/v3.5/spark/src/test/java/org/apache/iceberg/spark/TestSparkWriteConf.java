@@ -29,11 +29,13 @@ import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MERGE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
@@ -342,6 +344,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                 ImmutableMap.of(
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
+                    PARQUET_FORMAT_VERSION,
+                    "v1",
+                    DELETE_PARQUET_FORMAT_VERSION,
+                    "v1",
                     PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION_LEVEL,
@@ -415,6 +421,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                 ImmutableMap.of(
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
+                    PARQUET_FORMAT_VERSION,
+                    "v1",
+                    DELETE_PARQUET_FORMAT_VERSION,
+                    "v1",
                     PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION_LEVEL,
@@ -486,6 +496,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                 ImmutableMap.of(
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
+                    PARQUET_FORMAT_VERSION,
+                    "v1",
+                    DELETE_PARQUET_FORMAT_VERSION,
+                    "v1",
                     PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION_LEVEL,

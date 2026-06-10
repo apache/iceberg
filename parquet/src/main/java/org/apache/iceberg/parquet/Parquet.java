@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_VERSION;
@@ -39,12 +40,13 @@ import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_FORMAT_VERSION;
+import static org.apache.iceberg.TableProperties.PARQUET_FORMAT_VERSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_VERSION;
-import static org.apache.iceberg.TableProperties.PARQUET_PAGE_VERSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
@@ -274,8 +276,12 @@ public class Parquet {
           version == WriterVersion.PARQUET_1_0 || version == WriterVersion.PARQUET_2_0,
           "Unsupported writer version: %s",
           version);
-      config.put(PARQUET_PAGE_VERSION, version.name());
+      config.put(PARQUET_FORMAT_VERSION, writerVersionToFormatVersion(version));
       return this;
+    }
+
+    private static String writerVersionToFormatVersion(WriterVersion version) {
+      return version == WriterVersion.PARQUET_2_0 ? "v2" : "v1";
     }
 
     public WriteBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
@@ -572,9 +578,7 @@ public class Parquet {
                 config, PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
         Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
 
-        WriterVersion writerVersion =
-            toWriterVersion(
-                config.getOrDefault(PARQUET_PAGE_VERSION, PARQUET_PAGE_VERSION_DEFAULT));
+        WriterVersion writerVersion = resolveWriterVersion(config);
 
         String codecAsString =
             config.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
@@ -671,11 +675,7 @@ public class Parquet {
                 config, DELETE_PARQUET_DICT_SIZE_BYTES, dataContext.dictionaryPageSize());
         Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
 
-        String deletePageVersion = config.get(DELETE_PARQUET_PAGE_VERSION);
-        WriterVersion writerVersion =
-            deletePageVersion != null
-                ? toWriterVersion(deletePageVersion)
-                : dataContext.writerVersion();
+        WriterVersion writerVersion = resolveDeleteWriterVersion(config, dataContext);
 
         String codecAsString = config.get(DELETE_PARQUET_COMPRESSION);
         CompressionCodecName codec =
@@ -733,13 +733,53 @@ public class Parquet {
         }
       }
 
-      private static WriterVersion toWriterVersion(String pageVersion) {
-        try {
-          return WriterVersion.fromString(pageVersion);
-        } catch (IllegalArgumentException e) {
-          throw new IllegalArgumentException(
-              "Unsupported Parquet page version: " + pageVersion + " (must be v1 or v2)");
+      private static WriterVersion resolveWriterVersion(Map<String, String> config) {
+        String formatVersion = config.get(PARQUET_FORMAT_VERSION);
+        if (formatVersion != null) {
+          return toWriterVersion(formatVersion, "format version");
         }
+
+        String pageVersion = config.get(PARQUET_PAGE_VERSION);
+        if (pageVersion != null) {
+          return toWriterVersion(pageVersion, "page version");
+        }
+
+        return toWriterVersion(PARQUET_FORMAT_VERSION_DEFAULT, "format version");
+      }
+
+      private static WriterVersion resolveDeleteWriterVersion(
+          Map<String, String> config, Context dataContext) {
+        String deleteFormatVersion = config.get(DELETE_PARQUET_FORMAT_VERSION);
+        if (deleteFormatVersion != null) {
+          return toWriterVersion(deleteFormatVersion, "format version");
+        }
+
+        String deletePageVersion = config.get(DELETE_PARQUET_PAGE_VERSION);
+        if (deletePageVersion != null) {
+          return toWriterVersion(deletePageVersion, "page version");
+        }
+
+        return dataContext.writerVersion();
+      }
+
+      private static WriterVersion toWriterVersion(String version, String versionType) {
+        try {
+          return WriterVersion.fromString(normalizeWriterVersion(version));
+        } catch (IllegalArgumentException e) {
+          String validValues = "v1 or v2";
+          throw new IllegalArgumentException(
+              "Unsupported Parquet "
+                  + versionType
+                  + ": "
+                  + version
+                  + " (must be "
+                  + validValues
+                  + ")");
+        }
+      }
+
+      private static String normalizeWriterVersion(String version) {
+        return version;
       }
 
       int rowGroupSize() {
