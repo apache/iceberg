@@ -466,6 +466,12 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testIsLiveDelegatesToStatus() {
+    assertThat(sourceTrackingWithStatus(EntryStatus.ADDED).isLive()).isTrue();
+    assertThat(sourceTrackingWithStatus(EntryStatus.DELETED).isLive()).isFalse();
+  }
+
+  @Test
   void testInternalSetIgnoresUnknownOrdinal() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
