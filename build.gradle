@@ -26,9 +26,9 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.10'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.11'
     classpath 'com.palantir.baseline:gradle-baseline-java:6.90.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.5.1'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.6.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -209,9 +209,10 @@ subprojects {
           substitute module("org.bouncycastle:bcprov-jdk18on") using module(libs.bouncycastle.bcprov.get().toString()) because("Enforce BouncyCastle that contains CVE-2026-5598 fix")
         }
         eachDependency { details ->
-          if (details.requested.group == 'io.netty' && details.requested.version?.startsWith('4.1.')) {
+          if (details.requested.group == 'io.netty'
+              && (details.requested.version?.startsWith('4.1.') || details.requested.version?.startsWith('4.2.'))) {
             details.useVersion(libs.versions.netty.buffer.get())
-            details.because("Fix Netty 4.1.x CVEs (CVE-2026-42577, CVE-2026-42579, CVE-2026-42583, CVE-2026-42584, CVE-2026-42587)")
+            details.because("Fix Netty 4.1.x and 4.2.x CVEs (CVE-2026-42577, CVE-2026-42579, CVE-2026-42583, CVE-2026-42584, CVE-2026-42587, CVE-2026-44249, CVE-2026-45416, CVE-2026-45674, CVE-2026-47691)")
           }
         }
       }

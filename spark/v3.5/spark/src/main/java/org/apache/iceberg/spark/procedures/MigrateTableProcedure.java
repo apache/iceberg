@@ -46,10 +46,17 @@ class MigrateTableProcedure extends BaseProcedure {
       ProcedureParameter.optional("backup_table_name", DataTypes.StringType);
   private static final ProcedureParameter PARALLELISM_PARAM =
       ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+  private static final ProcedureParameter IGNORE_MISSING_FILES_PARAM =
+      ProcedureParameter.optional("ignore_missing_files", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        TABLE_PARAM, PROPERTIES_PARAM, DROP_BACKUP_PARAM, BACKUP_TABLE_NAME_PARAM, PARALLELISM_PARAM
+        TABLE_PARAM,
+        PROPERTIES_PARAM,
+        DROP_BACKUP_PARAM,
+        BACKUP_TABLE_NAME_PARAM,
+        PARALLELISM_PARAM,
+        IGNORE_MISSING_FILES_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -110,6 +117,11 @@ class MigrateTableProcedure extends BaseProcedure {
       Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
       migrateTableSparkAction =
           migrateTableSparkAction.executeWith(SparkTableUtil.migrationService(parallelism));
+    }
+
+    boolean ignoreMissingFiles = input.asBoolean(IGNORE_MISSING_FILES_PARAM, false);
+    if (ignoreMissingFiles) {
+      migrateTableSparkAction = migrateTableSparkAction.ignoreMissingFiles();
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();

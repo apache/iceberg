@@ -21,6 +21,10 @@
 
 Project conventions, architecture, and coding patterns synthesized from 58,000+ review comments across 4,300+ merged PRs.
 
+## Security Model
+
+When assessing potential vulnerabilities or calibrating automated security findings, use [`SECURITY-THREAT-MODEL.md`](SECURITY-THREAT-MODEL.md) as the authoritative detailed description of Iceberg's security boundaries, trust assumptions, and non-boundaries.
+
 ## Architecture
 
 ### Module Boundaries

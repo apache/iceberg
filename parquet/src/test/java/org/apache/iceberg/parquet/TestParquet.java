@@ -24,6 +24,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PR
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
@@ -36,6 +38,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -48,6 +52,11 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
@@ -377,5 +386,110 @@ public class TestParquet {
             createWriterFunc,
             records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
+  }
+
+  @Test
+  public void timestampNanoFilterRespectsNanoseconds() throws IOException {
+    // Predicate pushdown on timestamp_ns must filter at full nanosecond resolution. The five rows
+    // differ only by sub-microsecond nanoseconds, so a micros-truncating push down could not
+    // separate id 2 (250 ns) from id 3 (750 ns) and would return the wrong rows.
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "ts", Types.TimestampNanoType.withoutZone()));
+
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records =
+        Lists.newArrayList(
+            template.copy(
+                ImmutableMap.of(
+                    "id", 1L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000000"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 2L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000250"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 3L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000000750"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 4L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000001500"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 5L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
+
+    File file = writeNanoRecords(schema, records);
+
+    // Boundary at 500 ns: only ids 3 (750 ns), 4 (1500 ns), 5 (3000 ns) qualify.
+    List<Long> ids =
+        filterIds(schema, file, greaterThanOrEqual("ts", "2024-01-01T00:00:00.000000500"));
+    assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
+  }
+
+  @Test
+  public void timestamptzNanoFilterAcrossTimezones() throws IOException {
+    // Each row is written in a different zone offset; instants are 0/500/750/1500/3000 ns past the
+    // same UTC second. id2 lands exactly on the filter boundary but in +05:00, so a strict
+    // greaterThan must exclude it by instant, not by wall-clock (its 05:00 vs the boundary's
+    // 04:00).
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "ts", Types.TimestampNanoType.withZone()));
+
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records =
+        Lists.newArrayList(
+            template.copy(
+                ImmutableMap.of(
+                    "id", 1L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000000000+00:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 2L, "ts", OffsetDateTime.parse("2024-01-01T05:00:00.000000500+05:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 3L, "ts", OffsetDateTime.parse("2023-12-31T16:00:00.000000750-08:00"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 4L, "ts", OffsetDateTime.parse("2024-01-01T05:30:00.000001500+05:30"))),
+            template.copy(
+                ImmutableMap.of(
+                    "id", 5L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
+
+    File file = writeNanoRecords(schema, records);
+
+    // Boundary == 2024-01-01T00:00:00.000000500Z, expressed in +04:00. id2 is that same instant
+    // (written in +05:00); a strict greaterThan excludes it, leaving ids 3/4/5.
+    List<Long> ids =
+        filterIds(schema, file, greaterThan("ts", "2024-01-01T04:00:00.000000500+04:00"));
+    assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
+  }
+
+  private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
+    File file = createTempFile(temp);
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      for (Record record : records) {
+        appender.add(record);
+      }
+    }
+
+    return file;
+  }
+
+  private List<Long> filterIds(Schema schema, File file, Expression filter) throws IOException {
+    List<Long> ids = Lists.newArrayList();
+    // callInit() drives the parquet-mr ReadSupport path, the only read path that runs
+    // ParquetFilters.
+    try (CloseableIterable<GenericData.Record> reader =
+        Parquet.read(localInput(file)).project(schema).callInit().filter(filter).build()) {
+      for (GenericData.Record record : reader) {
+        ids.add((Long) record.get("id"));
+      }
+    }
+
+    return ids;
   }
 }

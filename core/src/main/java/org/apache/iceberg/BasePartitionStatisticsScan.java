@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
@@ -32,8 +35,8 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
 
   private final Table table;
   private Long snapshotId;
+  private Schema projection;
   private Expression filter = Expressions.alwaysTrue();
-  private Schema projection = null;
   private boolean caseSensitive = true;
 
   public BasePartitionStatisticsScan(Table table) {
@@ -51,7 +54,7 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
 
   @Override
   public PartitionStatisticsScan filter(Expression newFilter) {
-    Preconditions.checkArgument(newFilter != null, "Filter expression cannot be null");
+    Preconditions.checkArgument(newFilter != null, "Invalid filter: null");
     this.filter = newFilter;
     return this;
   }
@@ -64,7 +67,7 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
 
   @Override
   public PartitionStatisticsScan project(Schema newSchema) {
-    Preconditions.checkArgument(newSchema != null, "Projection schema cannot be null");
+    Preconditions.checkArgument(newSchema != null, "Invalid projection schema: null");
     this.projection = newSchema;
     return this;
   }
@@ -89,16 +92,19 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
     }
 
     Types.StructType partitionType = Partitioning.partitionType(table);
-    Schema fullSchema =
-        PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table));
-    Schema readSchema = readSchema(fullSchema);
+    Schema schema = PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table));
+    Schema readSchema = readSchema(schema);
 
     FileFormat fileFormat = FileFormat.fromFileName(statsFile.get().path());
     Preconditions.checkNotNull(
         fileFormat != null, "Unable to determine format of file: %s", statsFile.get().path());
 
+    // Pass the filter as a best-effort row-group skipping hint. The hint is bound case-sensitively
+    // by the format reader, so only use it for case-sensitive scans; the Evaluator below always
+    // applies the filter for exact, case-correct results.
+    Expression filterHint = caseSensitive ? filter : Expressions.alwaysTrue();
     CloseableIterable<PartitionStatistics> result =
-        InternalData.read(fileFormat, table.io().newInputFile(statsFile.get().path()), filter)
+        InternalData.read(fileFormat, table.io().newInputFile(statsFile.get().path()), filterHint)
             .project(readSchema)
             .setRootType(BasePartitionStatistics.class)
             .build();
@@ -111,23 +117,23 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
     return result;
   }
 
-  /** Returns the schema to read from the file: union of projected columns and filter-referenced columns. */
-  private Schema readSchema(Schema fullSchema) {
-    if (projection == null && filter == Expressions.alwaysTrue()) {
-      return fullSchema;
+  /**
+   * Resolves the schema to read. When a projection is set, all columns referenced by the filter are
+   * added to the result not just the projected fields.
+   */
+  private Schema readSchema(Schema schema) {
+    if (projection == null) {
+      return schema;
     }
 
-    Schema baseSchema = projection != null ? projection : fullSchema;
+    Set<Integer> fieldIdsToRead = Sets.newHashSet();
 
-    if (filter == Expressions.alwaysTrue()) {
-      return baseSchema;
-    }
+    fieldIdsToRead.addAll(TypeUtil.getProjectedIds(projection));
 
-    // Include columns referenced by the filter expression so the evaluator has the data it needs.
-    java.util.Set<Integer> filterFieldIds =
-        Binder.boundReferences(fullSchema.asStruct(), java.util.Collections.singletonList(filter), caseSensitive);
-    Schema filterSchema = TypeUtil.select(fullSchema, filterFieldIds);
+    fieldIdsToRead.addAll(
+        Binder.boundReferences(
+            schema.asStruct(), Collections.singletonList(filter), caseSensitive));
 
-    return TypeUtil.join(baseSchema, filterSchema);
+    return TypeUtil.select(schema, fieldIdsToRead);
   }
 }
