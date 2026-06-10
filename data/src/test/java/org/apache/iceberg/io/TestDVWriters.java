@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -30,6 +32,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
@@ -43,10 +46,14 @@ import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
+import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -80,6 +87,44 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
     this.parquetFileFactory =
         OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PARQUET).build();
+  }
+
+  @TestTemplate
+  public void testDVWriterUsesNativeEncryptionKeyMetadataWithFileSize() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    OutputFile outputFile = Files.localOutput(temp.resolve("native-dv.puffin").toString());
+    TestNativeEncryptionKeyMetadata keyMetadata = new TestNativeEncryptionKeyMetadata(123L);
+    EncryptedOutputFile encryptedOutputFile =
+        EncryptedFiles.encryptedOutput(outputFile, keyMetadata);
+
+    DVFileWriter writer = Deletes.writeDVs(encryptedOutputFile, path -> null);
+    writer.delete("/path/to/data.parquet", 1L, PartitionSpec.unpartitioned(), null);
+    writer.close();
+
+    DeleteFile deleteFile = Iterables.getOnlyElement(writer.result().deleteFiles());
+    long fileSize = deleteFile.fileSizeInBytes();
+
+    assertThat(fileSize).isPositive();
+    assertThat(decode(deleteFile.keyMetadata())).isEqualTo(fileSize);
+  }
+
+  @TestTemplate
+  public void testDVWriterPreservesNonNativeEncryptionKeyMetadata() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    OutputFile outputFile = Files.localOutput(temp.resolve("non-native-dv.puffin").toString());
+    ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+    buffer.putLong(456L);
+    buffer.flip();
+    EncryptedOutputFile encryptedOutputFile = EncryptedFiles.encryptedOutput(outputFile, buffer);
+
+    DVFileWriter writer = Deletes.writeDVs(encryptedOutputFile, path -> null);
+    writer.delete("/path/to/data.parquet", 1L, PartitionSpec.unpartitioned(), null);
+    writer.close();
+
+    DeleteFile deleteFile = Iterables.getOnlyElement(writer.result().deleteFiles());
+    assertThat(decode(deleteFile.keyMetadata())).isEqualTo(456L);
   }
 
   @TestTemplate
@@ -352,6 +397,47 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     }
 
     return writer.toDeleteFile();
+  }
+
+  private static long decode(ByteBuffer buffer) {
+    return buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN).getLong();
+  }
+
+  private record TestNativeEncryptionKeyMetadata(long encodedValue)
+      implements NativeEncryptionKeyMetadata {
+
+    @Override
+    public ByteBuffer encryptionKey() {
+      return ByteBuffer.allocate(16);
+    }
+
+    @Override
+    public ByteBuffer aadPrefix() {
+      return ByteBuffer.allocate(4);
+    }
+
+    @Override
+    public Long fileLength() {
+      return encodedValue;
+    }
+
+    @Override
+    public ByteBuffer buffer() {
+      ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+      buffer.putLong(encodedValue);
+      buffer.flip();
+      return buffer;
+    }
+
+    @Override
+    public EncryptionKeyMetadata copy() {
+      return new TestNativeEncryptionKeyMetadata(encodedValue);
+    }
+
+    @Override
+    public NativeEncryptionKeyMetadata copyWithLength(long length) {
+      return new TestNativeEncryptionKeyMetadata(length);
+    }
   }
 
   private static class PreviousDeleteLoader implements Function<String, PositionDeleteIndex> {

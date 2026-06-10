@@ -176,6 +176,10 @@ public class TableProperties {
       "write.delete.parquet.row-group-check-max-record-count";
   public static final int PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = 10000;
 
+  public static final String PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED =
+      "write.parquet.row-group-size-track-uncompressed";
+  public static final boolean PARQUET_ROW_GROUP_SIZE_TRACK_UNCOMPRESSED_DEFAULT = false;
+
   public static final String PARQUET_BLOOM_FILTER_MAX_BYTES =
       "write.parquet.bloom-filter-max-bytes";
   public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;

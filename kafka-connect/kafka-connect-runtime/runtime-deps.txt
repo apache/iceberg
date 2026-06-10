@@ -1,11 +1,11 @@
 com.azure:azure-core-http-netty:1.16
-com.azure:azure-core:1.57
+com.azure:azure-core:1.58
 com.azure:azure-identity:1.18
 com.azure:azure-json:1.5
-com.azure:azure-storage-blob:12.33
-com.azure:azure-storage-common:12.32
-com.azure:azure-storage-file-datalake:12.26
-com.azure:azure-storage-internal-avro:12.18
+com.azure:azure-storage-blob:12.34
+com.azure:azure-storage-common:12.33
+com.azure:azure-storage-file-datalake:12.27
+com.azure:azure-storage-internal-avro:12.19
 com.azure:azure-xml:1.2
 com.fasterxml.jackson.core:jackson-annotations:2.21
 com.fasterxml.jackson.core:jackson-core:2.21
