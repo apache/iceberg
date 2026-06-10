@@ -98,8 +98,15 @@ class TrackingBuilder {
     this.replacedPositions = null;
   }
 
-  /** Indicates that the DV has been updated for the new Tracking. */
+  /**
+   * Records that the file's DV was updated by this commit, advancing {@code dvSnapshotId} to the
+   * commit snapshot. An EXISTING entry transitions to MODIFIED; an ADDED entry stays ADDED (a file
+   * added and given a DV in the same commit).
+   */
   TrackingBuilder dvUpdated() {
+    Preconditions.checkState(
+        deletedPositions == null && replacedPositions == null,
+        "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
     this.dvSnapshotId = newSnapshotId;
     if (status == EntryStatus.EXISTING) {
       this.status = EntryStatus.MODIFIED;
@@ -108,6 +115,11 @@ class TrackingBuilder {
     return this;
   }
 
+  /**
+   * Records the manifest-leaf positions deleted by this commit, advancing {@code dvSnapshotId} to
+   * the commit snapshot and transitioning an EXISTING entry to MODIFIED. Cannot be called on an
+   * ADDED entry.
+   */
   TrackingBuilder deletedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set deleted positions on ADDED entry");
@@ -120,6 +132,11 @@ class TrackingBuilder {
     return this;
   }
 
+  /**
+   * Records the manifest-leaf positions replaced by this commit, advancing {@code dvSnapshotId} to
+   * the commit snapshot and transitioning an EXISTING entry to MODIFIED. Cannot be called on an
+   * ADDED entry.
+   */
   TrackingBuilder replacedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set replaced positions on ADDED entry");

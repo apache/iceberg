@@ -34,7 +34,7 @@ interface Tracking {
           1,
           "snapshot_id",
           Types.LongType.get(),
-          "Snapshot ID where the file was added, deleted, replaced, or modified");
+          "Snapshot ID where the file was added, deleted, or replaced");
   Types.NestedField SEQUENCE_NUMBER =
       Types.NestedField.optional(
           3, "sequence_number", Types.LongType.get(), "Data sequence number of the file");
@@ -81,7 +81,7 @@ interface Tracking {
   /** Returns the status of the entry. */
   EntryStatus status();
 
-  /** Returns the snapshot ID where the file was added, deleted, replaced, or modified. */
+  /** Returns the snapshot ID where the file was added, deleted, or replaced. */
   Long snapshotId();
 
   /** Returns the data sequence number of the file. */

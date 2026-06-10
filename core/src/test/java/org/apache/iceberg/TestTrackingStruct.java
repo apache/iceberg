@@ -221,7 +221,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testAddedBuilder() {
+  void testAddedWithSameCommitDvStaysAdded() {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
@@ -322,6 +322,27 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testDvUpdatedRejectedWhenManifestPositionsSet() {
+    assertThatThrownBy(
+            () ->
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                    .deletedPositions(ByteBuffer.wrap(new byte[] {1}))
+                    .dvUpdated())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
+
+    assertThatThrownBy(
+            () ->
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                    .replacedPositions(ByteBuffer.wrap(new byte[] {1}))
+                    .dvUpdated())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
+  }
+
+  @Test
   void testBuilderRejectsNullSource() {
     assertThatThrownBy(() -> TrackingBuilder.from(null, 1L))
         .isInstanceOf(IllegalArgumentException.class)
@@ -419,11 +440,16 @@ class TestTrackingStruct {
   @Test
   void testCarryForwardFromModifiedSourceChangesToExisting() {
     // A MODIFIED entry from a prior commit carried forward without mutation becomes EXISTING,
-    // preserving the snapshot id from the modify commit.
+    // preserving the snapshot id of the original add (the modify commit lives in dvSnapshotId).
     Tracking modifiedSource = sourceTrackingWithStatus(EntryStatus.MODIFIED);
     Tracking carried = TrackingBuilder.from(modifiedSource, 999L).build();
     assertThat(carried.status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(carried.snapshotId()).isEqualTo(modifiedSource.snapshotId()).isNotEqualTo(999L);
+    // the modify-commit pointer and inherited fields are carried forward unchanged
+    assertThat(carried.dvSnapshotId()).isEqualTo(modifiedSource.dvSnapshotId()).isNotEqualTo(999L);
+    assertThat(carried.dataSequenceNumber()).isEqualTo(modifiedSource.dataSequenceNumber());
+    assertThat(carried.fileSequenceNumber()).isEqualTo(modifiedSource.fileSequenceNumber());
+    assertThat(carried.firstRowId()).isEqualTo(modifiedSource.firstRowId());
   }
 
   @Test
