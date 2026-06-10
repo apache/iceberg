@@ -495,7 +495,10 @@ public class PartitionStatsHandler {
         PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION,
         targetStats.equalityDeleteFileCount() + inputStats.equalityDeleteFileCount());
 
-    if (inputStats.dvCount() != null) {
+    // For backward compatibility, for V2 tables we have to check that the position of dv_count is
+    // within the schema of the stats file.
+    if (inputStats.dvCount() != null
+        && targetStats.size() > PartitionStatistics.DV_COUNT_POSITION) {
       if (targetStats.dvCount() == null) {
         targetStats.set(PartitionStatistics.DV_COUNT_POSITION, inputStats.dvCount());
       } else {

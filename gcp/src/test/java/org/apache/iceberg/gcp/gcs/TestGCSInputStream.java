@@ -37,6 +37,7 @@ import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.Test;
 
 public class TestGCSInputStream {
+  private static final int EOF = -1;
 
   private final Random random = new Random(1);
 
@@ -54,7 +55,6 @@ public class TestGCSInputStream {
     try (SeekableInputStream in =
         new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
       int readSize = 1024;
-      byte[] actual = new byte[readSize];
 
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
@@ -92,6 +92,27 @@ public class TestGCSInputStream {
         new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
       assertThat(in.read()).isEqualTo(i0);
       assertThat(in.read()).isEqualTo(i1);
+      assertThat(in.read()).isEqualTo(EOF);
+    }
+  }
+
+  @Test
+  public void testReadBufferedEOF() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read.dat");
+    int dataSize = 8;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize + 1];
+
+    writeGCSData(uri, expected);
+
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
+      int bytesRead = in.read(actual, 0, dataSize + 1);
+      assertThat(bytesRead).isEqualTo(dataSize);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
+
+      assertThat(in.read(actual, 0, 10)).isEqualTo(EOF);
+      assertThat(in.getPos()).isEqualTo(dataSize);
     }
   }
 
