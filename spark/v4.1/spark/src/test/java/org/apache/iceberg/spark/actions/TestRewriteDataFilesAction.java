@@ -137,6 +137,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataTypes;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -150,6 +151,9 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
   private static final int SCALE = 400000;
+  // Row group size used by createTable(); part of the unpartitioned cache key so a future
+  // override of this property can't silently hand back cached files of a different shape.
+  private static final int INPUT_PARQUET_ROW_GROUP_SIZE_BYTES = 20 * 1024;
 
   // Cache of pre-written input data files keyed by table shape (schema/spec/props are
   // fixed per key), so identical large inputs are materialized via Spark only once per JVM
@@ -184,6 +188,16 @@ public class TestRewriteDataFilesAction extends TestBase {
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
     spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
+  }
+
+  @AfterAll
+  public static void clearInputFileCache() {
+    // inputCacheDir is a static @TempDir that JUnit recreates if the class runs twice in one JVM
+    // (IDE re-run, forkCount=0). Clear the cache so a second run can't return DataFiles pointing
+    // into the deleted first-run directory.
+    INPUT_FILE_CACHE.clear();
+    INPUT_CACHE_LOCKS.clear();
+    INPUT_CACHE_SEQ.set(0);
   }
 
   @BeforeEach
@@ -2246,6 +2260,9 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected void shouldHaveNoOrphans(Table table) {
+    // Cached input files live under the static inputCacheDir, outside table.location(), so
+    // deleteOrphanFiles (which only scans the table prefix) never sees them by design. Orphan
+    // coverage therefore does not extend to the shared cached inputs.
     assertThat(
             actions()
                 .deleteOrphanFiles(table)
@@ -2358,7 +2375,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     table
         .updateProperties()
-        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(20 * 1024))
+        .set(
+            TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+            Integer.toString(INPUT_PARQUET_ROW_GROUP_SIZE_BYTES))
         .commit();
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
     return table;
@@ -2371,7 +2390,10 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
-    String key = String.format("unpartitioned|fv=%d|files=%d|rows=%d", formatVersion, files, SCALE);
+    String key =
+        String.format(
+            "unpartitioned|fv=%d|rowGroup=%d|files=%d|rows=%d",
+            formatVersion, INPUT_PARQUET_ROW_GROUP_SIZE_BYTES, files, SCALE);
     List<DataFile> inputFiles =
         cachedInputFiles(
             key,
@@ -2441,11 +2463,20 @@ public class TestRewriteDataFilesAction extends TestBase {
         Table golden = goldenBuilder.get();
         // includeColumnStats() is required: a plain scan drops lower/upper bounds and
         // value counts, and re-appending stat-less files breaks tests that read bounds.
-        List<DataFile> built =
-            Streams.stream(golden.newScan().includeColumnStats().planFiles())
-                .map(FileScanTask::file)
-                .map(DataFile::copy)
-                .collect(ImmutableList.toImmutableList());
+        // planFiles() returns a CloseableIterable holding manifest readers open, so close it via
+        // try-with-resources; otherwise every cache miss leaks file descriptors and can leave
+        // manifest files locked on Windows.
+        List<DataFile> built;
+        try (CloseableIterable<FileScanTask> tasks =
+            golden.newScan().includeColumnStats().planFiles()) {
+          built =
+              Streams.stream(tasks)
+                  .map(FileScanTask::file)
+                  .map(DataFile::copy)
+                  .collect(ImmutableList.toImmutableList());
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to plan cached input files", e);
+        }
         INPUT_FILE_CACHE.put(key, built);
         return built;
       } finally {
