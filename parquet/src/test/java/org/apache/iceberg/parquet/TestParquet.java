@@ -34,6 +34,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -43,6 +44,7 @@ import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -54,12 +56,15 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -70,9 +75,11 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.variants.Variant;
+import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -107,38 +114,64 @@ public class TestParquet {
   public void testReadOptionsHonorHadoopVectoredIoConfiguration() {
     Configuration conf = new Configuration();
     conf.setBoolean(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, false);
-    InputFile inputFile =
-        HadoopInputFile.fromLocation(temp.resolve("data.parquet").toString(), 1, conf);
 
-    ParquetReadOptions options =
-        Parquet.buildReadOptions(inputFile, Collections.emptyMap(), null, null, null);
+    ParquetReadOptions options = HadoopReadOptions.builder(conf).build();
 
     assertThat(options.useHadoopVectoredIo()).isFalse();
   }
 
   @Test
-  public void testReadOptionsHonorVectoredIoReadProperty() {
-    InputFile inputFile = localInput(temp.resolve("data.parquet").toFile());
+  public void testReadWithVectoredIoPropertyDisabled() throws IOException {
+    File parquetFile = generateFile(null, 101, 4 * Integer.BYTES, null, null).first();
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
 
-    ParquetReadOptions options =
-        Parquet.buildReadOptions(
-            inputFile,
-            ImmutableMap.of(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false"),
-            null,
-            null,
-            null);
-
-    assertThat(options.useHadoopVectoredIo()).isFalse();
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(parquetFile))
+            .project(schema)
+            .set(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false")
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      assertThat(reader).hasSize(101);
+    }
   }
 
   @Test
   public void testReadOptionsDefaultToHadoopVectoredIoEnabled() {
-    InputFile inputFile = localInput(temp.resolve("data.parquet").toFile());
-
     ParquetReadOptions options =
-        Parquet.buildReadOptions(inputFile, Collections.emptyMap(), null, null, null);
+        ParquetReadOptions.builder(new PlainParquetConfiguration()).build();
 
     assertThat(options.useHadoopVectoredIo()).isTrue();
+  }
+
+  @Test
+  public void testVectoredIoDisabledDoesNotInvokeReadVectored() throws IOException {
+    File parquetFile = generateFile(null, 101, 4 * Integer.BYTES, null, null).first();
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    RangeReadableTrackingInputFile inputFile =
+        new RangeReadableTrackingInputFile(Files.localInput(parquetFile));
+
+    try (CloseableIterable<Record> reader =
+        Parquet.read(inputFile)
+            .project(schema)
+            .set(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false")
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      assertThat(reader).hasSize(101);
+    }
+
+    assertThat(inputFile.readVectoredCalls()).isZero();
+
+    inputFile.reset();
+    try (CloseableIterable<Record> reader =
+        Parquet.read(inputFile)
+            .project(schema)
+            .set(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "true")
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      assertThat(reader).hasSize(101);
+    }
+
+    assertThat(inputFile.readVectoredCalls()).isGreaterThan(0);
   }
 
   @Test
@@ -533,5 +566,115 @@ public class TestParquet {
     }
 
     return ids;
+  }
+
+  private static final class RangeReadableTrackingInputFile implements InputFile {
+    private final InputFile delegate;
+    private int readVectoredCalls = 0;
+
+    private RangeReadableTrackingInputFile(InputFile delegate) {
+      this.delegate = delegate;
+    }
+
+    private void reset() {
+      readVectoredCalls = 0;
+    }
+
+    private int readVectoredCalls() {
+      return readVectoredCalls;
+    }
+
+    @Override
+    public long getLength() {
+      return delegate.getLength();
+    }
+
+    @Override
+    public String location() {
+      return delegate.location();
+    }
+
+    @Override
+    public boolean exists() {
+      return delegate.exists();
+    }
+
+    @Override
+    public SeekableInputStream newStream() {
+      SeekableInputStream stream = delegate.newStream();
+      return new RangeReadableTrackingStream(stream);
+    }
+
+    private final class RangeReadableTrackingStream extends SeekableInputStream
+        implements RangeReadable {
+      private final SeekableInputStream delegate;
+
+      private RangeReadableTrackingStream(SeekableInputStream delegate) {
+        this.delegate = delegate;
+      }
+
+      @Override
+      public long getPos() throws IOException {
+        return delegate.getPos();
+      }
+
+      @Override
+      public void seek(long newPos) throws IOException {
+        delegate.seek(newPos);
+      }
+
+      @Override
+      public int read() throws IOException {
+        return delegate.read();
+      }
+
+      @Override
+      public int read(byte[] b, int off, int len) throws IOException {
+        return delegate.read(b, off, len);
+      }
+
+      @Override
+      public void readFully(long position, byte[] buffer, int offset, int length)
+          throws IOException {
+        if (delegate instanceof RangeReadable) {
+          ((RangeReadable) delegate).readFully(position, buffer, offset, length);
+        } else {
+          long current = getPos();
+          try {
+            seek(position);
+            int bytesRead = 0;
+            while (bytesRead < length) {
+              int read = delegate.read(buffer, offset + bytesRead, length - bytesRead);
+              if (read < 0) {
+                throw new EOFException(
+                    "Failed to read " + length + " bytes at position " + position);
+              }
+              bytesRead += read;
+            }
+          } finally {
+            seek(current);
+          }
+        }
+      }
+
+      @Override
+      public int readTail(byte[] buffer, int offset, int length) throws IOException {
+        if (delegate instanceof RangeReadable) {
+          return ((RangeReadable) delegate).readTail(buffer, offset, length);
+        }
+        return delegate.read(buffer, offset, length);
+      }
+
+      @Override
+      public void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate)
+          throws IOException {
+        readVectoredCalls++;
+        for (FileRange range : ranges) {
+          byte[] bytes = new byte[range.length()];
+          readFully(range.offset(), bytes, 0, range.length());
+          range.byteBuffer().complete(ByteBuffer.wrap(bytes));
+        }
+      }
+    }
   }
 }
