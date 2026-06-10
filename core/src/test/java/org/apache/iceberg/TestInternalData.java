@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -37,7 +38,6 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.api.Assumptions;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestInternalData {
@@ -104,12 +104,10 @@ public class TestInternalData {
     }
   }
 
-  /**
-   * Avro ignores withFilterHint — all rows are returned regardless of the hint.
-   */
+  /** Avro ignores withFilterHint — all rows are returned regardless of the hint. */
   @TestTemplate
   public void testWithFilterHintIsNoOpForAvro() throws IOException {
-    Assumptions.assumeTrue(format == FileFormat.AVRO, "Avro-only: hint must be a no-op");
+    assumeThat(format).as("Avro-only: hint must be a no-op").isEqualTo(FileFormat.AVRO);
 
     OutputFile outputFile = fileIO.newOutputFile(tempDir.resolve("test." + format).toString());
 
@@ -123,7 +121,10 @@ public class TestInternalData {
     // Apply a hint that would match nothing — Avro must still return all rows.
     List<Record> result = Lists.newArrayList();
     try (CloseableIterable<Record> reader =
-        InternalData.read(format, fileIO.newInputFile(outputFile.location()), Expressions.greaterThan("id", 1000L))
+        InternalData.read(
+                format,
+                fileIO.newInputFile(outputFile.location()),
+                Expressions.greaterThan("id", 1000L))
             .project(SIMPLE_SCHEMA)
             .build()) {
       reader.forEach(result::add);
@@ -136,19 +137,19 @@ public class TestInternalData {
    * Verifies that withFilterHint actually triggers Parquet row-group skipping.
    *
    * <p>Two non-overlapping id ranges are written into separate row groups by using a very small
-   * row-group size (1 byte) and a min-record-check count of 1, forcing a flush after every row.
-   * The filter hint targets only the high range, so the low-range row groups must be skipped.
-   * Without a residual filter the count proves whether skipping happened: if row-group skipping
-   * works the reader returns only the high-range rows; if it were disabled it would return all rows.
+   * row-group size (1 byte) and a min-record-check count of 1, forcing a flush after every row. The
+   * filter hint targets only the high range, so the low-range row groups must be skipped. Without a
+   * residual filter the count proves whether skipping happened: if row-group skipping works the
+   * reader returns only the high-range rows; if it were disabled it would return all rows.
    */
   @TestTemplate
   public void testWithFilterHintEnablesRowGroupSkippingForParquet() throws IOException {
-    Assumptions.assumeTrue(format == FileFormat.PARQUET, "Parquet-only: row-group skipping");
+    assumeThat(format).as("Parquet-only: row-group skipping").isEqualTo(FileFormat.PARQUET);
 
     OutputFile outputFile = fileIO.newOutputFile(tempDir.resolve("test." + format).toString());
 
     // Low group: ids 1-5 (max = 5)
-    List<Record> lowRecords  = buildRecords(1L, 2L, 3L, 4L, 5L);
+    List<Record> lowRecords = buildRecords(1L, 2L, 3L, 4L, 5L);
     // High group: ids 1001-1005 (min = 1001)
     List<Record> highRecords = buildRecords(1001L, 1002L, 1003L, 1004L, 1005L);
 
@@ -171,7 +172,10 @@ public class TestInternalData {
     // If skipping were broken: all 10 records would be returned.
     List<Record> result = Lists.newArrayList();
     try (CloseableIterable<Record> reader =
-        InternalData.read(format, fileIO.newInputFile(outputFile.location()), Expressions.greaterThan("id", 100L))
+        InternalData.read(
+                format,
+                fileIO.newInputFile(outputFile.location()),
+                Expressions.greaterThan("id", 100L))
             .project(SIMPLE_SCHEMA)
             .build()) {
       reader.forEach(result::add);
@@ -180,8 +184,49 @@ public class TestInternalData {
     assertThat(result)
         .as("Only high-range row groups should be read; low-range groups must be skipped")
         .hasSize(highRecords.size());
-    assertThat(result)
-        .allSatisfy(r -> assertThat(r.get(0, Long.class)).isGreaterThan(100L));
+    assertThat(result).allSatisfy(r -> assertThat(r.get(0, Long.class)).isGreaterThan(100L));
+  }
+
+  /**
+   * A selective hint that matches no row group must skip them all. Using the same forced
+   * one-row-group-per-record layout as {@link #testWithFilterHintEnablesRowGroupSkippingForParquet}
+   * and NO residual filter, a hint of {@code id > 100000} (above every written value) must return
+   * zero rows for Parquet. This only happens if the hint is wired in and drives row-group
+   * elimination; if the wiring regressed, all 10 rows would be returned.
+   */
+  @TestTemplate
+  public void testWithFilterHintSkipsAllRowGroupsWhenNoneMatchForParquet() throws IOException {
+    assumeThat(format).as("Parquet-only: row-group skipping").isEqualTo(FileFormat.PARQUET);
+
+    OutputFile outputFile = fileIO.newOutputFile(tempDir.resolve("test." + format).toString());
+
+    List<Record> lowRecords = buildRecords(1L, 2L, 3L, 4L, 5L);
+    List<Record> highRecords = buildRecords(1001L, 1002L, 1003L, 1004L, 1005L);
+
+    try (FileAppender<Record> appender =
+        InternalData.write(format, outputFile)
+            .schema(SIMPLE_SCHEMA)
+            .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1")
+            .set(TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, "1")
+            .build()) {
+      appender.addAll(lowRecords);
+      appender.addAll(highRecords);
+    }
+
+    // Hint matches nothing (every id <= 1005). All row groups must be eliminated, so with no
+    // residual filter the reader returns zero rows. Without the hint, all 10 rows would be read.
+    List<Record> result = Lists.newArrayList();
+    try (CloseableIterable<Record> reader =
+        InternalData.read(
+                format,
+                fileIO.newInputFile(outputFile.location()),
+                Expressions.greaterThan("id", 100000L))
+            .project(SIMPLE_SCHEMA)
+            .build()) {
+      reader.forEach(result::add);
+    }
+
+    assertThat(result).as("hint matches no row group, so all groups must be skipped").isEmpty();
   }
 
   /**
@@ -192,7 +237,7 @@ public class TestInternalData {
   public void testWithFilterHintAndResidualFilterReturnsMatchingRowsOnly() throws IOException {
     OutputFile outputFile = fileIO.newOutputFile(tempDir.resolve("test." + format).toString());
 
-    List<Record> lowRecords  = buildRecords(1L, 2L, 3L, 4L, 5L);
+    List<Record> lowRecords = buildRecords(1L, 2L, 3L, 4L, 5L);
     List<Record> highRecords = buildRecords(1001L, 1002L, 1003L, 1004L, 1005L);
 
     try (FileAppender<Record> appender =
@@ -205,9 +250,12 @@ public class TestInternalData {
     // Phase 2: residual filter for correctness on both formats.
     List<Record> result = Lists.newArrayList();
     try (CloseableIterable<Record> base =
-        InternalData.read(format, fileIO.newInputFile(outputFile.location()), Expressions.greaterThan("id", 100L))
-            .project(SIMPLE_SCHEMA)
-            .build();
+            InternalData.read(
+                    format,
+                    fileIO.newInputFile(outputFile.location()),
+                    Expressions.greaterThan("id", 100L))
+                .project(SIMPLE_SCHEMA)
+                .build();
         CloseableIterable<Record> filtered =
             CloseableIterable.filter(base, r -> (Long) r.get(0) > 100L)) {
       filtered.forEach(result::add);
