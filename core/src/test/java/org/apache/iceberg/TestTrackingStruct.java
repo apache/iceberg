@@ -439,13 +439,12 @@ class TestTrackingStruct {
 
   @Test
   void testCarryForwardFromModifiedSourceChangesToExisting() {
-    // A MODIFIED entry from a prior commit carried forward without mutation becomes EXISTING,
-    // preserving the snapshot id of the original add (the modify commit lives in dvSnapshotId).
+    // A MODIFIED entry from a prior commit carried forward without mutation; status becomes
+    // EXISTING.
     Tracking modifiedSource = sourceTrackingWithStatus(EntryStatus.MODIFIED);
     Tracking carried = TrackingBuilder.from(modifiedSource, 999L).build();
     assertThat(carried.status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(carried.snapshotId()).isEqualTo(modifiedSource.snapshotId()).isNotEqualTo(999L);
-    // the modify-commit pointer and inherited fields are carried forward unchanged
     assertThat(carried.dvSnapshotId()).isEqualTo(modifiedSource.dvSnapshotId()).isNotEqualTo(999L);
     assertThat(carried.dataSequenceNumber()).isEqualTo(modifiedSource.dataSequenceNumber());
     assertThat(carried.fileSequenceNumber()).isEqualTo(modifiedSource.fileSequenceNumber());

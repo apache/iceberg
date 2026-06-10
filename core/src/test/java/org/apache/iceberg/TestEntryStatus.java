@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -46,19 +47,12 @@ class TestEntryStatus {
         .hasMessageContaining(String.valueOf(id));
   }
 
-  @ParameterizedTest
-  @EnumSource(
-      value = EntryStatus.class,
-      names = {"EXISTING", "ADDED", "MODIFIED"})
-  void isLive(EntryStatus status) {
-    assertThat(status.isLive()).isTrue();
-  }
-
-  @ParameterizedTest
-  @EnumSource(
-      value = EntryStatus.class,
-      names = {"DELETED", "REPLACED"})
-  void isNotLive(EntryStatus status) {
-    assertThat(status.isLive()).isFalse();
+  @Test
+  void isLive() {
+    assertThat(EntryStatus.EXISTING.isLive()).isTrue();
+    assertThat(EntryStatus.ADDED.isLive()).isTrue();
+    assertThat(EntryStatus.MODIFIED.isLive()).isTrue();
+    assertThat(EntryStatus.DELETED.isLive()).isFalse();
+    assertThat(EntryStatus.REPLACED.isLive()).isFalse();
   }
 }
