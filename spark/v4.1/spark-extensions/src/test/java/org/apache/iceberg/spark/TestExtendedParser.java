@@ -249,6 +249,16 @@ public class TestExtendedParser {
         .hasMessageContaining("parameter");
   }
 
+  /** Tests that a null parameter context is treated as having no parameters to bind. */
+  @Test
+  public void testParsePlanWithParametersAcceptsNullContextForIcebergCommand() throws Exception {
+    IcebergSparkSqlExtensionsParser parser = new IcebergSparkSqlExtensionsParser(originalParser);
+
+    LogicalPlan plan = parser.parsePlanWithParameters("ALTER TABLE t DROP PARTITION FIELD x", null);
+
+    assertThat(plan).isNotNull();
+  }
+
   /** Tests that a rejected Iceberg-command parameter context is not forwarded to the delegate. */
   @Test
   public void testParsePlanWithParametersDoesNotForwardParametersToIcebergPath() throws Exception {

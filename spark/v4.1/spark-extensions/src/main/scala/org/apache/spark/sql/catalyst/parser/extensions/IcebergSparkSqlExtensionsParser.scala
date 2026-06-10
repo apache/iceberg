@@ -128,7 +128,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
   override def parsePlanWithParameters(
       sqlText: String,
       parameterContext: ParameterContext): LogicalPlan =
-    parsePlanWithDelegate(sqlText, Some(parameterContext)) { sql =>
+    parsePlanWithDelegate(sqlText, Option(parameterContext)) { sql =>
       delegate.parsePlanWithParameters(sql, parameterContext)
     }
 
