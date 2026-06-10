@@ -79,6 +79,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -3149,6 +3150,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  @SuppressWarnings("MethodLength")
   public void testCustomTableOperationsInjection() throws IOException {
     AtomicBoolean customTableOpsCalled = new AtomicBoolean();
     AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
@@ -3164,9 +3166,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           String path,
           Supplier<Map<String, String>> headers,
           FileIO fileIO,
+          KeyManagementClient keyManagementClient,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        super(client, path, () -> customHeaders, fileIO, current, supportedEndpoints);
+        super(
+            client,
+            path,
+            () -> customHeaders,
+            fileIO,
+            keyManagementClient,
+            current,
+            supportedEndpoints);
         customTableOpsCalled.set(true);
       }
 
@@ -3175,6 +3185,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           String path,
           Supplier<Map<String, String>> headers,
           FileIO fileIO,
+          KeyManagementClient keyManagementClient,
           RESTTableOperations.UpdateType updateType,
           List<MetadataUpdate> createChanges,
           TableMetadata current,
@@ -3184,6 +3195,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             path,
             () -> customHeaders,
             fileIO,
+            keyManagementClient,
             updateType,
             createChanges,
             current,
@@ -3207,11 +3219,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> readHeaders,
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
+          KeyManagementClient kmsClient,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
         RESTTableOperations ops =
             new CustomRESTTableOperations(
-                restClient, path, mutationHeaders, fileIO, current, supportedEndpoints);
+                restClient, path, mutationHeaders, fileIO, kmsClient, current, supportedEndpoints);
         RESTTableOperations spy = Mockito.spy(ops);
         capturedOps.set(spy);
         return spy;
@@ -3224,6 +3237,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> readHeaders,
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
+          KeyManagementClient kmsClient,
           RESTTableOperations.UpdateType updateType,
           List<MetadataUpdate> createChanges,
           TableMetadata current,
@@ -3234,6 +3248,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 path,
                 mutationHeaders,
                 fileIO,
+                kmsClient,
                 updateType,
                 createChanges,
                 current,
