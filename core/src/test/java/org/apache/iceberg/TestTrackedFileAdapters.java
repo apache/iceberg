@@ -44,13 +44,18 @@ class TestTrackedFileAdapters {
   private static final long FILE_SEQUENCE_NUMBER = 11L;
   private static final long FIRST_ROW_ID = 1000L;
 
-  private static final int UNPARTITIONED_SPEC_ID = 0;
+  private static final int UNPARTITIONED_SPEC_ID = PartitionSpec.unpartitioned().specId();
   private static final Map<Integer, PartitionSpec> UNPARTITIONED =
       ImmutableMap.of(UNPARTITIONED_SPEC_ID, PartitionSpec.unpartitioned());
 
+  private static final Schema PARTITION_SCHEMA =
+      new Schema(Types.NestedField.required(1, "category", Types.StringType.get()));
   private static final int PARTITIONED_SPEC_ID = 1;
   private static final PartitionSpec PARTITIONED_SPEC =
-      PartitionSpec.builderFor(new Schema()).withSpecId(PARTITIONED_SPEC_ID).build();
+      PartitionSpec.builderFor(PARTITION_SCHEMA)
+          .identity("category")
+          .withSpecId(PARTITIONED_SPEC_ID)
+          .build();
 
   // Passed for unpartitioned test files, where there is no partition tuple.
   private static final PartitionData NO_PARTITION = null;
@@ -80,11 +85,7 @@ class TestTrackedFileAdapters {
 
   @Test
   void testDataFileAdapterDelegation() {
-    PartitionData partition =
-        new PartitionData(
-            Types.StructType.of(
-                Types.NestedField.optional(1000, "category", Types.StringType.get())));
-    partition.set(0, "books");
+    PartitionData partition = partition("books");
 
     TrackedFileStruct file =
         new TrackedFileStruct(
@@ -95,16 +96,16 @@ class TestTrackedFileAdapters {
             partition,
             100L,
             1024L);
-    file.set(SPEC_ID_ORDINAL, UNPARTITIONED_SPEC_ID);
+    file.set(SPEC_ID_ORDINAL, PARTITIONED_SPEC_ID);
     file.set(CONTENT_STATS_ORDINAL, createContentStats());
     file.set(SORT_ORDER_ID_ORDINAL, 3);
     file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(SPLIT_OFFSETS_ORDINAL, ImmutableList.of(50L, 100L));
 
-    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
 
     assertThat(dataFile.pos()).isEqualTo(MANIFEST_POS);
-    assertThat(dataFile.specId()).isEqualTo(UNPARTITIONED_SPEC_ID);
+    assertThat(dataFile.specId()).isEqualTo(PARTITIONED_SPEC_ID);
     assertThat(dataFile.partition()).isSameAs(partition);
     assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
     assertThat(dataFile.location()).isEqualTo(DATA_FILE_LOCATION);
@@ -145,13 +146,15 @@ class TestTrackedFileAdapters {
 
   @Test
   void testEqualityDeleteFileAdapterDelegation() {
+    PartitionData partition = partition("books");
+
     TrackedFileStruct file =
         new TrackedFileStruct(
             createTracking(),
             FileContent.EQUALITY_DELETES,
             "s3://bucket/eq-delete.avro",
             FileFormat.AVRO,
-            NO_PARTITION,
+            partition,
             50L,
             512L);
     file.set(SPEC_ID_ORDINAL, PARTITIONED_SPEC_ID);
@@ -166,6 +169,7 @@ class TestTrackedFileAdapters {
 
     assertThat(deleteFile.pos()).isEqualTo(MANIFEST_POS);
     assertThat(deleteFile.specId()).isEqualTo(PARTITIONED_SPEC_ID);
+    assertThat(deleteFile.partition()).isSameAs(partition);
     assertThat(deleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(deleteFile.location()).isEqualTo("s3://bucket/eq-delete.avro");
     assertThat(deleteFile.format()).isEqualTo(FileFormat.AVRO);
@@ -213,13 +217,14 @@ class TestTrackedFileAdapters {
             .cardinality(10L)
             .build();
 
+    PartitionData partition = partition("books");
     TrackedFileStruct file =
         new TrackedFileStruct(
             createTracking(),
             FileContent.DATA,
             DATA_FILE_LOCATION,
             FileFormat.PARQUET,
-            NO_PARTITION,
+            partition,
             100L,
             1024L);
     file.set(SPEC_ID_ORDINAL, PARTITIONED_SPEC_ID);
@@ -242,6 +247,7 @@ class TestTrackedFileAdapters {
     // fields delegated from TrackedFile / Tracking
     assertThat(dvFile.pos()).isEqualTo(MANIFEST_POS);
     assertThat(dvFile.specId()).isEqualTo(PARTITIONED_SPEC_ID);
+    assertThat(dvFile.partition()).isSameAs(partition);
     assertThat(dvFile.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(dvFile.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
     assertThat(dvFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
@@ -308,6 +314,16 @@ class TestTrackedFileAdapters {
   }
 
   @Test
+  void testUnpartitionedFilePartitionIsEmpty() {
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
+
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, UNPARTITIONED);
+
+    assertThat(dataFile.specId()).isEqualTo(UNPARTITIONED_SPEC_ID);
+    assertThat(dataFile.partition().size()).isEqualTo(0);
+  }
+
+  @Test
   void testNullSpecIdResolvesToUnpartitionedSpec() {
     PartitionSpec unpartitioned = PartitionSpec.builderFor(new Schema()).withSpecId(5).build();
     TrackedFileStruct file = trackedFile(FileContent.DATA);
@@ -348,6 +364,13 @@ class TestTrackedFileAdapters {
 
   private static Map<Integer, PartitionSpec> specsById(PartitionSpec spec) {
     return ImmutableMap.of(spec.specId(), spec);
+  }
+
+  // Builds a partition tuple whose struct type matches PARTITIONED_SPEC.
+  private static PartitionData partition(String category) {
+    PartitionData partition = new PartitionData(PARTITIONED_SPEC.partitionType());
+    partition.set(0, category);
+    return partition;
   }
 
   /** Minimal file with no tracking, used by the rejection and null-tracking tests. */

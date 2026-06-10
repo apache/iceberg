@@ -101,7 +101,7 @@ class TrackedFileAdapters {
 
     @Override
     public int specId() {
-      return file.specId() != null ? file.specId() : spec.specId();
+      return spec.specId();
     }
 
     @Override
