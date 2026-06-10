@@ -58,6 +58,24 @@ public class Tasks {
     }
   }
 
+  public static class RetryExhaustedException extends RuntimeException {
+    public enum Reason {
+      RETRY_LIMIT_EXCEEDED,
+      TIMEOUT_EXCEEDED
+    }
+
+    private final Reason reason;
+
+    public RetryExhaustedException(Throwable cause, Reason reason) {
+      super(cause);
+      this.reason = reason;
+    }
+
+    public Reason reason() {
+      return reason;
+    }
+  }
+
   public interface FailureTask<I, E extends Exception> {
     void run(I item, Exception exception) throws E;
   }
@@ -415,11 +433,18 @@ public class Tasks {
 
         } catch (Exception e) {
           long durationMs = System.currentTimeMillis() - start;
-          if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
-            if (durationMs > maxDurationMs) {
+          boolean retryLimitExceeded = attempt >= maxAttempts;
+          boolean timeoutExceeded = durationMs > maxDurationMs && attempt > 1;
+
+          if (retryLimitExceeded || timeoutExceeded) {
+            RetryExhaustedException.Reason reason;
+            if (timeoutExceeded) {
               LOG.info("Stopping retries after {} ms", durationMs);
+              reason = RetryExhaustedException.Reason.TIMEOUT_EXCEEDED;
+            } else {
+              reason = RetryExhaustedException.Reason.RETRY_LIMIT_EXCEEDED;
             }
-            throw e;
+            throw new RetryExhaustedException(e, reason);
           }
 
           if (shouldRetryPredicate != null) {

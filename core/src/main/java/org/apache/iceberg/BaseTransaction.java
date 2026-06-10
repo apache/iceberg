@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -332,6 +333,9 @@ public class BaseTransaction implements Transaction {
     } catch (CommitStateUnknownException e) {
       throw e;
 
+    } catch (RetryExhaustedException e) {
+      throw toCommitFailedException(e, props);
+
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
@@ -375,6 +379,8 @@ public class BaseTransaction implements Transaction {
     } catch (CommitStateUnknownException e) {
       throw e;
 
+    } catch (RetryExhaustedException e) {
+      throw toCommitFailedException(e, base.properties());
     } catch (PendingUpdateFailedException e) {
       cleanUp();
       throw e.wrapped();
@@ -774,6 +780,28 @@ public class BaseTransaction implements Transaction {
 
     public CommitFailedException wrapped() {
       return wrapped;
+    }
+  }
+
+  private static CommitFailedException toCommitFailedException(
+      RetryExhaustedException e, Map<String, String> properties) {
+    int numRetries =
+        PropertyUtil.propertyAsInt(properties, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        PropertyUtil.propertyAsInt(
+            properties, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
+      return new CommitFailedException(
+          e,
+          "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
+          totalTimeoutMs,
+          COMMIT_TOTAL_RETRY_TIME_MS);
+    } else {
+      return new CommitFailedException(
+          e,
+          "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
+          numRetries,
+          COMMIT_NUM_RETRIES);
     }
   }
 }

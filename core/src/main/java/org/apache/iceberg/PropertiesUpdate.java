@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 
 class PropertiesUpdate implements UpdateProperties {
   private final TableOperations ops;
@@ -99,19 +100,39 @@ class PropertiesUpdate implements UpdateProperties {
   @Override
   public void commit() {
     // If existing table commit properties in base are corrupted, allow rectification
-    Tasks.foreach(ops)
-        .retry(base.propertyTryAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            base.propertyTryAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            base.propertyTryAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            base.propertyTryAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(
-            taskOps -> {
-              Map<String, String> newProperties = apply();
-              TableMetadata updated = base.replaceProperties(newProperties);
-              taskOps.commit(base, updated);
-            });
+    int numRetries =
+        base.propertyTryAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        base.propertyTryAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    try {
+      Tasks.foreach(ops)
+          .retry(base.propertyTryAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              base.propertyTryAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              base.propertyTryAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              base.propertyTryAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(
+              taskOps -> {
+                Map<String, String> newProperties = apply();
+                TableMetadata updated = base.replaceProperties(newProperties);
+                taskOps.commit(base, updated);
+              });
+    } catch (RetryExhaustedException e) {
+      if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
+        throw new CommitFailedException(
+            e,
+            "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
+            totalTimeoutMs,
+            COMMIT_TOTAL_RETRY_TIME_MS);
+      } else {
+        throw new CommitFailedException(
+            e,
+            "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
+            numRetries,
+            COMMIT_NUM_RETRIES);
+      }
+    }
   }
 }

@@ -77,6 +77,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -528,6 +529,24 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       } catch (CommitStateUnknownException commitStateUnknownException) {
         throw commitStateUnknownException;
+      } catch (RetryExhaustedException e) {
+        int numRetries =
+            base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+        int totalTimeoutMs =
+            base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+        if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
+          throw new CommitFailedException(
+              e,
+              "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
+              totalTimeoutMs,
+              COMMIT_TOTAL_RETRY_TIME_MS);
+        } else {
+          throw new CommitFailedException(
+              e,
+              "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
+              numRetries,
+              COMMIT_NUM_RETRIES);
+        }
       } catch (RuntimeException e) {
         if (!strictCleanup || e instanceof CleanableFailure) {
           Exceptions.suppressAndThrow(e, this::cleanAll);

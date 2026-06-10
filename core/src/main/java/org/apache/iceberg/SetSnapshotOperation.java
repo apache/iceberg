@@ -33,6 +33,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 
 /**
  * Sets the current snapshot directly or by rolling back.
@@ -107,33 +108,53 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
 
   @Override
   public void commit() {
-    Tasks.foreach(ops)
-        .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(
-            taskOps -> {
-              Snapshot snapshot = apply();
-              TableMetadata updated =
-                  TableMetadata.buildFrom(base)
-                      .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
-                      .build();
+    int numRetries =
+        base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    try {
+      Tasks.foreach(ops)
+          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(
+              taskOps -> {
+                Snapshot snapshot = apply();
+                TableMetadata updated =
+                    TableMetadata.buildFrom(base)
+                        .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
+                        .build();
 
-              // Do commit this operation even if the metadata has not changed, as we need to
-              // advance the hasLastOpCommited for the transaction's commit to work properly.
-              // (Without any other operations in the transaction, the commitTransaction() call
-              // will be a no-op anyway)
+                // Do commit this operation even if the metadata has not changed, as we need to
+                // advance the hasLastOpCommited for the transaction's commit to work properly.
+                // (Without any other operations in the transaction, the commitTransaction() call
+                // will be a no-op anyway)
 
-              // if the table UUID is missing, add it here. the UUID will be re-created each time
-              // this operation retries
-              // to ensure that if a concurrent operation assigns the UUID, this operation will not
-              // fail.
-              taskOps.commit(base, updated.withUUID());
-            });
+                // if the table UUID is missing, add it here. the UUID will be re-created each time
+                // this operation retries
+                // to ensure that if a concurrent operation assigns the UUID, this operation will not
+                // fail.
+                taskOps.commit(base, updated.withUUID());
+              });
+    } catch (RetryExhaustedException e) {
+      if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
+        throw new CommitFailedException(
+            e,
+            "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
+            totalTimeoutMs,
+            COMMIT_TOTAL_RETRY_TIME_MS);
+      } else {
+        throw new CommitFailedException(
+            e,
+            "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
+            numRetries,
+            COMMIT_NUM_RETRIES);
+      }
+    }
   }
 
   /**
