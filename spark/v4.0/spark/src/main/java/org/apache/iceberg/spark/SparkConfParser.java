@@ -289,7 +289,7 @@ class SparkConfParser {
           }
 
           String sparkTableSessionConfValue =
-              sessionConf.get(toCamelCase(tableSessionConfName), null);
+              sessionConf.get(toCamelCase(sessionConfName) + "." + tableName, null);
           if (sparkTableSessionConfValue != null) {
             return conversion.apply(sparkTableSessionConfValue);
           }

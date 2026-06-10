@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -90,6 +91,26 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
           assertThat(conf.splitSizeOption()).isEqualTo(24L);
           assertThat(conf.splitSize()).isEqualTo(24L);
         });
+  }
+
+  @TestTemplate
+  public void testSplitSizeCamelCaseTableScopedSessionConfPreservesTableName() {
+    String quotedTableName = tableName("`table-name`");
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", quotedTableName);
+
+    try {
+      Table table = validationCatalog.loadTable(TableIdentifier.of("default", "table-name"));
+      String tableScopedSplitSize = "spark.sql.iceberg.splitSize." + table.name();
+      withSQLConf(
+          ImmutableMap.of(tableScopedSplitSize, "24"),
+          () -> {
+            SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+            assertThat(conf.splitSizeOption()).isEqualTo(24L);
+            assertThat(conf.splitSize()).isEqualTo(24L);
+          });
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", quotedTableName);
+    }
   }
 
   @TestTemplate
