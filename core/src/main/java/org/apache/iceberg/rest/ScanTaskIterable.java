@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -33,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
@@ -41,7 +41,7 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class ScanTaskIterable implements CloseableIterable<FileScanTask> {
+class ScanTaskIterable extends CloseableGroup implements CloseableIterable<FileScanTask> {
 
   private static final Logger LOG = LoggerFactory.getLogger(ScanTaskIterable.class);
   private static final int DEFAULT_TASK_QUEUE_CAPACITY = 1000;
@@ -103,11 +103,10 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
 
   @Override
   public CloseableIterator<FileScanTask> iterator() {
-    return new ScanTasksIterator();
+    ScanTasksIterator iter = new ScanTasksIterator();
+    addCloseable(iter);
+    return iter;
   }
-
-  @Override
-  public void close() throws IOException {}
 
   private class PlanTaskWorker implements Runnable {
 
@@ -278,13 +277,17 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
 
     @Override
     public void close() {
-      shutdown.set(true);
-      LOG.info(
-          "ScanTasksIterator is closing. Clearing {} queued tasks and {} plan tasks.",
-          taskQueue.size(),
-          planTasks.size());
-      taskQueue.clear();
-      planTasks.clear();
+      if (shutdown.compareAndSet(false, true)) {
+        LOG.info(
+            "ScanTasksIterator is closing. Clearing {} queued tasks, {} plan tasks, and {} initial file scan tasks.",
+            taskQueue.size(),
+            planTasks.size(),
+            initialFileScanTasks.size());
+
+        taskQueue.clear();
+        planTasks.clear();
+        initialFileScanTasks.clear();
+      }
     }
   }
 }
