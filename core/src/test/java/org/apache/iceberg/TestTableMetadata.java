@@ -2148,4 +2148,42 @@ public class TestTableMetadata {
         .isInstanceOf(RetryableValidationException.class)
         .hasMessageContaining("Cannot add a snapshot, first-row-id is behind table next-row-id");
   }
+
+  @Test
+  public void testSetRefRejectsTagForMainBranch() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, PartitionSpec.unpartitioned(), "location", ImmutableMap.of());
+
+    Snapshot snapshot =
+        new BaseSnapshot(
+            1,
+            1L,
+            null,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            "file:/s1.avro",
+            null,
+            null,
+            null);
+    TableMetadata withSnapshot = TableMetadata.buildFrom(base).addSnapshot(snapshot).build();
+
+    assertThatThrownBy(
+            () ->
+                TableMetadata.buildFrom(withSnapshot)
+                    .setRef(
+                        SnapshotRef.MAIN_BRANCH,
+                        SnapshotRef.tagBuilder(snapshot.snapshotId()).build()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot set main to a tag: main must be a branch");
+
+    // any other ref name can still be a tag
+    TableMetadata withTag =
+        TableMetadata.buildFrom(withSnapshot)
+            .setRef("tag1", SnapshotRef.tagBuilder(snapshot.snapshotId()).build())
+            .build();
+    assertThat(withTag.ref("tag1").isTag()).isTrue();
+  }
 }

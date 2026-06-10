@@ -324,6 +324,25 @@ public class TestSnapshotManager extends TestBase {
   }
 
   @TestTemplate
+  public void testCreateTagNamedMainFails() {
+    // stage a snapshot so that the table has a snapshot but no main branch ref yet
+    table.newAppend().appendFile(FILE_A).stageOnly().commit();
+    Snapshot stagedSnapshot = Iterables.getOnlyElement(table.snapshots());
+
+    assertThatThrownBy(
+            () ->
+                table
+                    .manageSnapshots()
+                    .createTag(SnapshotRef.MAIN_BRANCH, stagedSnapshot.snapshotId())
+                    .commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot set main to a tag: main must be a branch");
+
+    // the failed commit must not have created the main ref
+    assertThat(table.ops().refresh().ref(SnapshotRef.MAIN_BRANCH)).isNull();
+  }
+
+  @TestTemplate
   public void testRemoveBranch() {
     table.newAppend().appendFile(FILE_A).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
