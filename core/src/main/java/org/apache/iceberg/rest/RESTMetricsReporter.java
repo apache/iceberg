@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -57,18 +58,25 @@ class RESTMetricsReporter implements MetricsReporter {
       return;
     }
 
-    executor.execute(
-        () -> {
-          try {
-            client.post(
-                metricsEndpoint,
-                ReportMetricsRequest.of(report),
-                null,
-                headers,
-                ErrorHandlers.defaultErrorHandler());
-          } catch (Exception e) {
-            LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
-          }
-        });
+    try {
+      executor.execute(
+          () -> {
+            try {
+              client.post(
+                  metricsEndpoint,
+                  ReportMetricsRequest.of(report),
+                  null,
+                  headers,
+                  ErrorHandlers.defaultErrorHandler());
+            } catch (Exception e) {
+              LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
+            }
+          });
+    } catch (RejectedExecutionException e) {
+      LOG.warn(
+          "Failed to report metrics to REST endpoint {}: metrics executor has been shut down",
+          metricsEndpoint,
+          e);
+    }
   }
 }

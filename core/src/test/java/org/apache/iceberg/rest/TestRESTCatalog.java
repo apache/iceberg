@@ -3749,6 +3749,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog.loadTable(TABLE).newFastAppend().appendFile(fileOnMain).commit();
 
+    // Wait for the async metrics report from the first commit to reach the adapter before
+    // setting up the next stub. Without this, the background metrics thread can call
+    // adapter.execute() while Mockito is in the middle of stubbing, causing
+    // UnfinishedStubbingException.
+    Mockito.verify(adapter, timeout(5000))
+        .execute(matches(HTTPMethod.POST, RESOURCE_PATHS.metrics(TABLE)), any(), any(), any());
+
     DataFile fileOnAnotherBranch =
         DataFiles.builder(SPEC)
             .withPath("/path/commit-test-conflicting.parquet")
