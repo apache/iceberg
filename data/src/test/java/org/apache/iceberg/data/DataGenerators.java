@@ -20,8 +20,13 @@ package org.apache.iceberg.data;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /**
  * Test data generators for different schema types. Add new generators to ALL array to include them
@@ -242,6 +247,77 @@ class DataGenerators {
     @Override
     public Schema schema() {
       return schema;
+    }
+  }
+
+  // Generator for reader default-value tests across primitive types.
+  // FIXED is excluded: Spark's InternalRowConverter expects a ByteBuffer but the generator produces
+  // byte[] (ClassCastException).
+  // TODO: include FIXED once Spark's converter handles it.
+  static class PrimitiveDefaults implements DataGenerator {
+    static final Schema READ_SCHEMA =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optionalWithDefault(2, "bool_with_default", Types.BooleanType.get(), Literal.of(false)),
+            optionalWithDefault(3, "int_with_default", Types.IntegerType.get(), Literal.of(34)),
+            optionalWithDefault(
+                4, "long_with_default", Types.LongType.get(), Literal.of(4900000000L)),
+            optionalWithDefault(5, "float_with_default", Types.FloatType.get(), Literal.of(12.21F)),
+            optionalWithDefault(
+                6, "double_with_default", Types.DoubleType.get(), Literal.of(-0.0D)),
+            optionalWithDefault(
+                7,
+                "date_with_default",
+                Types.DateType.get(),
+                Literal.of(DateTimeUtil.isoDateToDays("2024-12-17"))),
+            optionalWithDefault(
+                8,
+                "timestamptz_with_default",
+                Types.TimestampType.withZone(),
+                Literal.of(
+                    DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00"))),
+            optionalWithDefault(
+                9,
+                "timestamp_with_default",
+                Types.TimestampType.withoutZone(),
+                Literal.of(DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999"))),
+            optionalWithDefault(
+                10, "string_with_default", Types.StringType.get(), Literal.of("iceberg")),
+            optionalWithDefault(
+                11,
+                "uuid_with_default",
+                Types.UUIDType.get(),
+                Literal.of(java.util.UUID.randomUUID())),
+            optionalWithDefault(
+                12,
+                "binary_with_default",
+                Types.BinaryType.get(),
+                Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b}))),
+            optionalWithDefault(
+                13,
+                "decimal_with_default",
+                Types.DecimalType.of(9, 2),
+                Literal.of(new BigDecimal("12.34"))),
+            optionalWithDefault(
+                14,
+                "time_with_default",
+                Types.TimeType.get(),
+                Literal.of(DateTimeUtil.isoTimeToMicros("23:59:59.999999"))));
+
+    static final Schema WRITE_SCHEMA = new Schema(required(1, "id", Types.LongType.get()));
+
+    private static Types.NestedField optionalWithDefault(
+        int id, String name, Type type, Literal<?> initialDefault) {
+      return Types.NestedField.optional(name)
+          .withId(id)
+          .ofType(type)
+          .withInitialDefault(initialDefault)
+          .build();
+    }
+
+    @Override
+    public Schema schema() {
+      return READ_SCHEMA;
     }
   }
 }
