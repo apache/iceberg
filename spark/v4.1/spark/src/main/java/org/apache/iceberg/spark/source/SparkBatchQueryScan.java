@@ -79,8 +79,9 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
         && Objects.equals(snapshot, that.snapshot)
         && Objects.equals(branch, that.branch)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filtersDesc().equals(that.filtersDesc())
-        && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
+        && filtersDescForEqualsAndHashCode().equals(that.filtersDescForEqualsAndHashCode())
+        && runtimeFiltersDescForEqualsAndHashCode()
+            .equals(that.runtimeFiltersDescForEqualsAndHashCode());
   }
 
   @Override
@@ -91,8 +92,8 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
         snapshot,
         branch,
         readSchema(),
-        filtersDesc(),
-        runtimeFiltersDesc());
+        filtersDescForEqualsAndHashCode(),
+        runtimeFiltersDescForEqualsAndHashCode());
   }
 
   @Override

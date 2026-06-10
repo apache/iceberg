@@ -165,8 +165,12 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
   }
 
-  protected String filtersDesc() {
+  protected String filtersDescForEqualsAndHashCode() {
     return createOrderedExprString(filters.stream());
+  }
+
+  protected String filtersDesc() {
+    return Spark3Util.describe(filters);
   }
 
   protected Types.StructType groupingKeyType() {
@@ -428,6 +432,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       flattened.addAll(rightResult);
       // sort the flattened stream back else otherwise the subtree may have ordering issue, when
       // calculating hashCode
+      // The transform to Pair for comparing is done for performance aspects, to evaluate the String
+      // representation only
+      // once for each Expression. Not using sorted(Comparator.comparing(Spark3Util::describe)) as
+      // it would result in
+      // String eval each comparison
       return flattened.stream()
           .map(expr -> Pair.of(Spark3Util.describe(expr), expr))
           .sorted((o1, o2) -> o1.getLeft().compareTo(o2.getLeft()))

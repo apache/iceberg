@@ -1064,12 +1064,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
           Predicate predicate2 = new Predicate("<", expressions(fieldRef("id"), intLit(10)));
           String filter1Desc = Spark3Util.describe(SparkV2Filters.convert(predicate1));
           String filter2Desc = Spark3Util.describe(SparkV2Filters.convert(predicate2));
-          String expectedFilterDesc;
-          if (filter1Desc.compareTo(filter2Desc) < 0) {
-            expectedFilterDesc = filter1Desc + ", " + filter2Desc;
-          } else {
-            expectedFilterDesc = filter2Desc + ", " + filter1Desc;
-          }
+          String expectedFilterDesc = filter1Desc + ", " + filter2Desc;
           pushFilters(builder, predicate1, predicate2);
 
           Scan scan = builder.buildCopyOnWriteScan();
