@@ -59,6 +59,8 @@ public class Tasks {
   }
 
   public static class RetryExhaustedException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
     public enum Reason {
       RETRY_LIMIT_EXCEEDED,
       TIMEOUT_EXCEEDED
