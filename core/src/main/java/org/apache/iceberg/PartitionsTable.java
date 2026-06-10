@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.StructLikeMap;
@@ -90,6 +91,9 @@ public class PartitionsTable extends BaseMetadataTable {
           "last_updated_snapshot_id",
           Types.LongType.get(),
           "Id of snapshot that last updated this partition");
+  private static final Types.NestedField DV_COUNT =
+      Types.NestedField.required(
+          12, "dv_count", Types.IntegerType.get(), "Count of deletion vectors");
 
   private final Schema schema;
 
@@ -115,7 +119,8 @@ public class PartitionsTable extends BaseMetadataTable {
             EQUALITY_DELETE_RECORD_COUNT,
             EQUALITY_DELETE_FILE_COUNT,
             LAST_UPDATED_AT,
-            LAST_UPDATED_SNAPSHOT_ID);
+            LAST_UPDATED_SNAPSHOT_ID,
+            DV_COUNT);
     this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
@@ -138,7 +143,8 @@ public class PartitionsTable extends BaseMetadataTable {
               EQUALITY_DELETE_RECORD_COUNT.fieldId(),
               EQUALITY_DELETE_FILE_COUNT.fieldId(),
               LAST_UPDATED_AT.fieldId(),
-              LAST_UPDATED_SNAPSHOT_ID.fieldId()));
+              LAST_UPDATED_SNAPSHOT_ID.fieldId(),
+              DV_COUNT.fieldId()));
     }
     return schema;
   }
@@ -167,7 +173,8 @@ public class PartitionsTable extends BaseMetadataTable {
                   root.eqDeleteRecordCount,
                   root.eqDeleteFileCount,
                   root.lastUpdatedAt,
-                  root.lastUpdatedSnapshotId));
+                  root.lastUpdatedSnapshotId,
+                  root.dvCount));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -190,7 +197,8 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.eqDeleteRecordCount,
         partition.eqDeleteFileCount,
         partition.lastUpdatedAt,
-        partition.lastUpdatedSnapshotId);
+        partition.lastUpdatedSnapshotId,
+        partition.dvCount);
   }
 
   @VisibleForTesting
@@ -310,6 +318,7 @@ public class PartitionsTable extends BaseMetadataTable {
     private int eqDeleteFileCount;
     private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
+    private int dvCount;
 
     Partition(StructLike key, PartitionData partitionDataTemplate) {
       this.partitionData = toPartitionData(key, partitionDataTemplate);
@@ -321,6 +330,7 @@ public class PartitionsTable extends BaseMetadataTable {
       this.posDeleteFileCount = 0;
       this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
+      this.dvCount = 0;
     }
 
     @VisibleForTesting
@@ -347,7 +357,11 @@ public class PartitionsTable extends BaseMetadataTable {
           break;
         case POSITION_DELETES:
           this.posDeleteRecordCount += file.recordCount();
-          this.posDeleteFileCount += 1;
+          if (ContentFileUtil.isDV((DeleteFile) file)) {
+            this.dvCount += 1;
+          } else {
+            this.posDeleteFileCount += 1;
+          }
           break;
         case EQUALITY_DELETES:
           this.eqDeleteRecordCount += file.recordCount();
