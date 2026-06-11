@@ -21,8 +21,10 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Type;
@@ -65,7 +67,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.MANIFEST_INFO,
           TrackedFile.KEY_METADATA,
           TrackedFile.SPLIT_OFFSETS,
-          TrackedFile.EQUALITY_IDS);
+          TrackedFile.EQUALITY_IDS,
+          TrackedFile.COLUMN_FILES);
 
   private FileContent contentType = null;
   private String location = null;
@@ -84,6 +87,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
+  private List<ColumnFile> columnFiles = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -154,6 +158,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.equalityIds =
         toCopy.equalityIds != null
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
+            : null;
+    this.columnFiles =
+        toCopy.columnFiles != null
+            ? toCopy.columnFiles.stream().map(ColumnFile::copy).collect(Collectors.toList())
             : null;
   }
 
@@ -233,6 +241,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
+  public List<ColumnFile> columnFiles() {
+    return columnFiles != null ? Collections.unmodifiableList(columnFiles) : null;
+  }
+
+  @Override
   public TrackedFile copy() {
     return new TrackedFileStruct(this, true, null);
   }
@@ -279,6 +292,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         return splitOffsets();
       case 14:
         return equalityIds();
+      case 15:
+        return columnFiles();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -333,6 +348,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 14:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         break;
+      case 15:
+        this.columnFiles =
+            ((List<ColumnFile>) value).stream().map(ColumnFile::copy).collect(Collectors.toList());
+        break;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -356,6 +375,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityIds())
+        .add("column_files", columnFiles)
         .toString();
   }
 }
