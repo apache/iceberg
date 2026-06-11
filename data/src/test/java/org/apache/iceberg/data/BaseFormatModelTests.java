@@ -180,8 +180,8 @@ public abstract class BaseFormatModelTests<T> {
   static final String FEATURE_REUSE_CONTAINERS = "reuseContainers";
   static final String FEATURE_COLUMN_LEVEL_METRICS = "columnLevelMetrics";
   static final String FEATURE_COLUMN_METRICS_TRUNCATE_BINARY = "columnMetricsTruncateBinary";
-  static final String FEATURE_ENCRYPTION = "encryption";
-  static final String FEATURE_ENCRYPTION_KEY_METADATA = "encryptionKeyMetadata";
+  static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
+  static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -192,15 +192,15 @@ public abstract class BaseFormatModelTests<T> {
             FEATURE_SPLIT,
             FEATURE_COLUMN_LEVEL_METRICS,
             FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
-            FEATURE_ENCRYPTION
+            FEATURE_NATIVE_ENCRYPTION
           },
           FileFormat.ORC,
           new String[] {
             FEATURE_REUSE_CONTAINERS,
             FEATURE_COLUMN_METRICS_TRUNCATE_BINARY,
             FEATURE_READER_DEFAULT,
-            FEATURE_ENCRYPTION_KEY_METADATA,
-            FEATURE_ENCRYPTION
+            FEATURE_AES_STREAM_ENCRYPTION,
+            FEATURE_NATIVE_ENCRYPTION
           });
 
   private InMemoryFileIO fileIO;
@@ -1719,8 +1719,8 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  void testDataWriterEncryptionKeyMetaData(FileFormat fileFormat) throws IOException {
-    assumeSupports(fileFormat, FEATURE_ENCRYPTION_KEY_METADATA);
+  void testDataWriterAesStreamEncryption(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_AES_STREAM_ENCRYPTION);
 
     EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
     EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(fileIO, encryptionManager);
@@ -1736,9 +1736,8 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  void testDataWriterWithFileEncryptionKeyAndWithAADPrefix(FileFormat fileFormat)
-      throws IOException {
-    assumeSupports(fileFormat, FEATURE_ENCRYPTION);
+  void testDataWriterNativeEncryption(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_NATIVE_ENCRYPTION);
 
     EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
     EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(fileIO, encryptionManager);
