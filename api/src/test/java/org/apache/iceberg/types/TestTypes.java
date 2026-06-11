@@ -172,6 +172,32 @@ public class TestTypes {
         .isEqualTo("geography(srid:4326, karney)");
     assertThat(Types.GeographyType.of(null, EdgeAlgorithm.KARNEY).toString())
         .isEqualTo("geography(OGC:CRS84, karney)");
+    assertThat(
+            Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.SPHERICAL)
+                .toString())
+        .isEqualTo("geography");
+    assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).toString())
+        .isEqualTo("geography(srid:4326)");
+  }
+
+  @Test
+  public void testGeospatialTypeDefaultNormalization() {
+    // the default CRS and edge algorithm normalize so that equivalent type specs are equal
+    assertThat(Types.GeometryType.of(Types.GeometryType.DEFAULT_CRS))
+        .isEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS))
+        .isEqualTo(Types.GeographyType.crs84());
+    assertThat(Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.SPHERICAL))
+        .isEqualTo(Types.GeographyType.crs84())
+        .hasSameHashCodeAs(Types.GeographyType.crs84());
+    assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL))
+        .isEqualTo(Types.GeographyType.of("srid:4326"))
+        .hasSameHashCodeAs(Types.GeographyType.of("srid:4326"));
+    assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).algorithm())
+        .isEqualTo(EdgeAlgorithm.SPHERICAL);
+    assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.KARNEY))
+        .isNotEqualTo(Types.GeographyType.of("srid:4326"));
+    assertThat(Types.GeographyType.of("srid:4326")).isNotEqualTo(Types.GeographyType.crs84());
   }
 
   @Test

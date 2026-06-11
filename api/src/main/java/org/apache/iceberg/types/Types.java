@@ -680,18 +680,19 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
+      // compare the resolved CRS and algorithm so an explicit default is equal to an omitted one
+      return crs().equals(that.crs()) && algorithm() == that.algorithm();
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeographyType.class, crs, algorithm);
+      return Objects.hash(GeographyType.class, crs(), algorithm());
     }
 
     @Override
     public String toString() {
-      if (algorithm != null) {
-        return String.format("geography(%s, %s)", crs != null ? crs : DEFAULT_CRS, algorithm);
+      if (algorithm() != DEFAULT_ALGORITHM) {
+        return String.format("geography(%s, %s)", crs(), algorithm());
       } else if (crs != null) {
         return String.format("geography(%s)", crs);
       } else {
