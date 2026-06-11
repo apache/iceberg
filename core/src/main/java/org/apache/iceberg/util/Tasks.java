@@ -58,21 +58,42 @@ public class Tasks {
     }
   }
 
+  /**
+   * Exception thrown when retry is exhausted due to either retry limit or timeout.
+   *
+   * <p>This exception wraps the original failure as its cause and provides a {@link Reason} to
+   * distinguish between retry limit exceeded and timeout exceeded, allowing callers to produce
+   * actionable messages that tell operators which table property to tune.
+   */
   public static class RetryExhaustedException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
+    /** Reason why retry was exhausted. */
     public enum Reason {
+      /** The maximum number of retry attempts was reached. */
       RETRY_LIMIT_EXCEEDED,
+      /** The total retry timeout duration was exceeded. */
       TIMEOUT_EXCEEDED
     }
 
     private final Reason reason;
 
+    /**
+     * Creates a new retry exhausted exception.
+     *
+     * @param cause the underlying failure that caused retries
+     * @param reason the reason why retry was exhausted
+     */
     public RetryExhaustedException(Throwable cause, Reason reason) {
       super(cause);
       this.reason = reason;
     }
 
+    /**
+     * Returns the reason why retry was exhausted.
+     *
+     * @return the exhaustion reason
+     */
     public Reason reason() {
       return reason;
     }
