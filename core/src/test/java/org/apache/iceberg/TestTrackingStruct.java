@@ -82,11 +82,11 @@ class TestTrackingStruct {
 
     Tracking copy = tracking.copy();
 
-    assertThat(copy.status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(copy.status()).isEqualTo(EntryStatus.MODIFIED);
     assertThat(copy.snapshotId()).isEqualTo(tracking.snapshotId());
     assertThat(copy.dataSequenceNumber()).isEqualTo(tracking.dataSequenceNumber());
     assertThat(copy.fileSequenceNumber()).isEqualTo(tracking.fileSequenceNumber());
-    assertThat(copy.dvSnapshotId()).isNull();
+    assertThat(copy.dvSnapshotId()).isEqualTo(tracking.dvSnapshotId());
     assertThat(copy.firstRowId()).isEqualTo(tracking.firstRowId());
     assertThat(copy.deletedPositions()).isEqualTo(tracking.deletedPositions());
     assertThat(copy.replacedPositions()).isEqualTo(tracking.replacedPositions());
@@ -102,23 +102,6 @@ class TestTrackingStruct {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(STATUS_ORDINAL, status.id());
     assertThat(tracking.status()).isEqualTo(status);
-  }
-
-  @Test
-  void testIsLive() {
-    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
-    assertThat(tracking.isLive()).isTrue();
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.EXISTING.id());
-    assertThat(tracking.isLive()).isTrue();
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.DELETED.id());
-    assertThat(tracking.isLive()).isFalse();
-
-    tracking.set(STATUS_ORDINAL, EntryStatus.REPLACED.id());
-    assertThat(tracking.isLive()).isFalse();
   }
 
   @Test
@@ -154,6 +137,20 @@ class TestTrackingStruct {
     tracking.inheritFrom(createManifestTracking(100L, 60L));
 
     // sequence numbers are not inherited for EXISTING entries
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(5L);
+    assertThat(tracking.fileSequenceNumber()).isEqualTo(6L);
+  }
+
+  @Test
+  void testDoNotInheritSequenceNumberForModifiedEntries() {
+    TrackingStruct tracking = new TrackingStruct(Tracking.schema());
+    tracking.set(STATUS_ORDINAL, EntryStatus.MODIFIED.id());
+    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, 5L);
+    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, 6L);
+
+    tracking.inheritFrom(createManifestTracking(100L, 60L));
+
+    // sequence numbers are not inherited for MODIFIED entries
     assertThat(tracking.dataSequenceNumber()).isEqualTo(5L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(6L);
   }
@@ -224,7 +221,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testAddedBuilder() {
+  void testAddedWithSameCommitDvStaysAdded() {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
@@ -300,9 +297,15 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testExistingBuilderAllowsDvMutation() {
-    Tracking existing = TrackingBuilder.from(sourceTracking(), 999L).dvUpdated().build();
-    assertThat(existing.dvSnapshotId()).isEqualTo(999L);
+  void testDvUpdatedProducesModifiedAndAdvancesDvSnapshotId() {
+    Tracking source = sourceTracking();
+    Tracking modified = TrackingBuilder.from(source, 999L).dvUpdated().build();
+
+    assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
+    // the entry snapshot id is preserved so we still know when the base file was added
+    assertThat(modified.snapshotId()).isEqualTo(source.snapshotId()).isNotEqualTo(999L);
+    // only the DV snapshot id advances to the commit snapshot
+    assertThat(modified.dvSnapshotId()).isEqualTo(999L);
   }
 
   @Test
@@ -319,27 +322,20 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testDvSnapshotIdAndManifestDVPositionsAreMutuallyExclusive() {
-    // sourceTracking has dvSnapshotId=43, inherited by existing(source)
+  void testDvUpdatedRejectedWhenManifestPositionsSet() {
     assertThatThrownBy(
             () ->
-                TrackingBuilder.from(sourceTracking(), 1L)
-                    .deletedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set deleted positions on a data file entry (DV snapshot ID is set)");
-
-    assertThatThrownBy(
-            () ->
-                TrackingBuilder.from(sourceTracking(), 1L)
-                    .replacedPositions(ByteBuffer.wrap(new byte[] {1})))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot set replaced positions on a data file entry (DV snapshot ID is set)");
-
-    // Setting MDV positions first then dvUpdated is also rejected
-    assertThatThrownBy(
-            () ->
-                TrackingBuilder.from(manifestSourceTracking(), 1L)
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
                     .deletedPositions(ByteBuffer.wrap(new byte[] {1}))
+                    .dvUpdated())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot mark DV updated on a manifest entry (deleted/replaced positions are set)");
+
+    assertThatThrownBy(
+            () ->
+                TrackingBuilder.from(manifestSourceTracking(), 999L)
+                    .replacedPositions(ByteBuffer.wrap(new byte[] {1}))
                     .dvUpdated())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
@@ -434,6 +430,46 @@ class TestTrackingStruct {
   }
 
   @Test
+  void testExistingPreservesSourceSnapshotId() {
+    Tracking source = sourceTracking();
+    Tracking existing = TrackingBuilder.from(source, 999L).build();
+    assertThat(existing.status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(existing.snapshotId()).isEqualTo(source.snapshotId()).isNotEqualTo(999L);
+  }
+
+  @Test
+  void testCarryForwardFromModifiedSourceChangesToExisting() {
+    Tracking modifiedSource = sourceTrackingWithStatus(EntryStatus.MODIFIED);
+    Tracking carried = TrackingBuilder.from(modifiedSource, 999L).build();
+    assertThat(carried.status()).isEqualTo(EntryStatus.EXISTING);
+    assertThat(carried.snapshotId()).isEqualTo(modifiedSource.snapshotId()).isNotEqualTo(999L);
+    assertThat(carried.dvSnapshotId()).isEqualTo(modifiedSource.dvSnapshotId()).isNotEqualTo(999L);
+    assertThat(carried.dataSequenceNumber()).isEqualTo(modifiedSource.dataSequenceNumber());
+    assertThat(carried.fileSequenceNumber()).isEqualTo(modifiedSource.fileSequenceNumber());
+    assertThat(carried.firstRowId()).isEqualTo(modifiedSource.firstRowId());
+  }
+
+  @Test
+  void testManifestDVPositionsProduceModified() {
+    ByteBuffer deletedBytes = ByteBuffer.wrap(new byte[] {1, 2});
+
+    Tracking addedSource = manifestSourceTracking();
+    Tracking modified =
+        TrackingBuilder.from(addedSource, 999L).deletedPositions(deletedBytes).build();
+    assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
+    // the entry snapshot id is preserved; only the DV snapshot id advances to the commit snapshot
+    assertThat(modified.snapshotId()).isEqualTo(addedSource.snapshotId()).isNotEqualTo(999L);
+    assertThat(modified.dvSnapshotId()).isEqualTo(999L);
+    assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
+  }
+
+  @Test
+  void testIsLiveDelegatesToStatus() {
+    assertThat(sourceTrackingWithStatus(EntryStatus.ADDED).isLive()).isTrue();
+    assertThat(sourceTrackingWithStatus(EntryStatus.DELETED).isLive()).isFalse();
+  }
+
+  @Test
   void testInternalSetIgnoresUnknownOrdinal() {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
@@ -479,8 +515,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testAddedWithDvSnapshotIdJavaSerializationRoundTrip()
-      throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTripForDataFile() throws IOException, ClassNotFoundException {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
 
     Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
@@ -493,8 +528,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testExistingWithManifestDVPositionsJavaSerializationRoundTrip()
-      throws IOException, ClassNotFoundException {
+  void testJavaSerializationRoundTripForManifest() throws IOException, ClassNotFoundException {
     Tracking tracking =
         TrackingBuilder.from(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
@@ -503,14 +537,14 @@ class TestTrackingStruct {
 
     Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
 
-    assertThat(deserialized.status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(deserialized.dvSnapshotId()).isNull();
+    assertThat(deserialized.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(1L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }
 
   @Test
-  void testAddedWithDvSnapshotIdKryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTripForDataFile() throws IOException {
     Tracking tracking = TrackingBuilder.added(42L).dvUpdated().build();
 
     Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
@@ -523,7 +557,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testExistingWithManifestDVPositionsKryoSerializationRoundTrip() throws IOException {
+  void testKryoSerializationRoundTripForManifest() throws IOException {
     Tracking tracking =
         TrackingBuilder.from(manifestSourceTracking(), 1L)
             .deletedPositions(ByteBuffer.wrap(new byte[] {1, 2}))
@@ -532,8 +566,8 @@ class TestTrackingStruct {
 
     Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 
-    assertThat(deserialized.status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(deserialized.dvSnapshotId()).isNull();
+    assertThat(deserialized.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(deserialized.dvSnapshotId()).isEqualTo(1L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }
