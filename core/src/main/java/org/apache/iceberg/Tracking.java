@@ -81,7 +81,7 @@ interface Tracking {
   /** Returns the status of the entry. */
   EntryStatus status();
 
-  /** Returns whether the entry is live. */
+  /** Returns whether this entry is live. */
   default boolean isLive() {
     return status().isLive();
   }

@@ -98,11 +98,7 @@ class TrackingBuilder {
     this.replacedPositions = null;
   }
 
-  /**
-   * Records that the file's DV was updated by this commit, advancing {@code dvSnapshotId} to the
-   * commit snapshot. An EXISTING entry transitions to MODIFIED; an ADDED entry stays ADDED (a file
-   * added and given a DV in the same commit).
-   */
+  /** Indicates that the DV has been updated for the new Tracking. */
   TrackingBuilder dvUpdated() {
     Preconditions.checkState(
         deletedPositions == null && replacedPositions == null,
@@ -115,37 +111,23 @@ class TrackingBuilder {
     return this;
   }
 
-  /**
-   * Records the manifest-leaf positions deleted by this commit, advancing {@code dvSnapshotId} to
-   * the commit snapshot and transitioning an EXISTING entry to MODIFIED. Cannot be called on an
-   * ADDED entry.
-   */
+  /** Sets the positions deleted by this commit for a manifest entry. */
   TrackingBuilder deletedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set deleted positions on ADDED entry");
     this.deletedPositions = ByteBuffers.toByteArray(positions);
     this.dvSnapshotId = newSnapshotId;
-    if (status == EntryStatus.EXISTING) {
-      this.status = EntryStatus.MODIFIED;
-    }
-
+    this.status = EntryStatus.MODIFIED;
     return this;
   }
 
-  /**
-   * Records the manifest-leaf positions replaced by this commit, advancing {@code dvSnapshotId} to
-   * the commit snapshot and transitioning an EXISTING entry to MODIFIED. Cannot be called on an
-   * ADDED entry.
-   */
+  /** Sets the positions replaced by this commit for a manifest entry. */
   TrackingBuilder replacedPositions(ByteBuffer positions) {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set replaced positions on ADDED entry");
     this.replacedPositions = ByteBuffers.toByteArray(positions);
     this.dvSnapshotId = newSnapshotId;
-    if (status == EntryStatus.EXISTING) {
-      this.status = EntryStatus.MODIFIED;
-    }
-
+    this.status = EntryStatus.MODIFIED;
     return this;
   }
 
