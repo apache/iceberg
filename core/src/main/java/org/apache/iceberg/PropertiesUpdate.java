@@ -100,8 +100,7 @@ class PropertiesUpdate implements UpdateProperties {
   @Override
   public void commit() {
     // If existing table commit properties in base are corrupted, allow rectification
-    int numRetries =
-        base.propertyTryAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int numRetries = base.propertyTryAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
     int totalTimeoutMs =
         base.propertyTryAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
     try {
@@ -120,6 +119,9 @@ class PropertiesUpdate implements UpdateProperties {
                 taskOps.commit(base, updated);
               });
     } catch (RetryExhaustedException e) {
+      if (e.getCause() instanceof CommitFailedException) {
+        throw (CommitFailedException) e.getCause();
+      }
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
         throw new CommitFailedException(
             e,

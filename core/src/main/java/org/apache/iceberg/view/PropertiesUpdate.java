@@ -80,6 +80,9 @@ class PropertiesUpdate implements UpdateViewProperties {
           .onlyRetryOn(CommitFailedException.class)
           .run(taskOps -> taskOps.commit(base, internalApply()));
     } catch (RetryExhaustedException e) {
+      if (e.getCause() instanceof CommitFailedException) {
+        throw (CommitFailedException) e.getCause();
+      }
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
         throw new CommitFailedException(
             e,

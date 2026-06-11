@@ -63,28 +63,31 @@ public class SetStatistics implements UpdateStatistics {
 
   @Override
   public void commit() {
-    int numRetries =
-        ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int numRetries = ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
     int totalTimeoutMs =
-        ops.current()
-            .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+        ops.current().propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
     try {
       Tasks.foreach(ops)
-        .retry(ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            ops.current().propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            ops.current().propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            ops.current()
-                .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(
-            taskOps -> {
-              TableMetadata base = taskOps.refresh();
-              TableMetadata updated = internalApply(base);
-              taskOps.commit(base, updated);
-            });
+          .retry(ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              ops.current()
+                  .propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              ops.current()
+                  .propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              ops.current()
+                  .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(
+              taskOps -> {
+                TableMetadata base = taskOps.refresh();
+                TableMetadata updated = internalApply(base);
+                taskOps.commit(base, updated);
+              });
     } catch (RetryExhaustedException e) {
+      if (e.getCause() instanceof CommitFailedException) {
+        throw (CommitFailedException) e.getCause();
+      }
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
         throw new CommitFailedException(
             e,

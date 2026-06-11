@@ -460,6 +460,9 @@ public class Tasks {
           boolean timeoutExceeded = durationMs > maxDurationMs && attempt > 1;
 
           if (retryLimitExceeded || timeoutExceeded) {
+            if (attempt <= 1) {
+              throw e;
+            }
             RetryExhaustedException.Reason reason;
             if (timeoutExceeded) {
               LOG.info("Stopping retries after {} ms", durationMs);

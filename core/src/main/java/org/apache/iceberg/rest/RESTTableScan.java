@@ -54,6 +54,7 @@ import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -302,6 +303,16 @@ class RESTTableScan extends DataTableScan {
                             id));
                 }
               });
+    } catch (RetryExhaustedException e) {
+      throw new RemotePlanTimeoutException(
+          String.format(
+              Locale.ROOT,
+              "Remote scan planning for planId: %s did not complete within configured limits"
+                  + " (timeout=%d ms, maxRetries=%d)",
+              planId,
+              maxWaitTimeMs,
+              MAX_RETRIES),
+          e);
     } catch (NotCompleteException e) {
       throw new RemotePlanTimeoutException(
           String.format(

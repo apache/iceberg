@@ -108,8 +108,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
 
   @Override
   public void commit() {
-    int numRetries =
-        base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
     int totalTimeoutMs =
         base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
     try {
@@ -136,11 +135,15 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
 
                 // if the table UUID is missing, add it here. the UUID will be re-created each time
                 // this operation retries
-                // to ensure that if a concurrent operation assigns the UUID, this operation will not
+                // to ensure that if a concurrent operation assigns the UUID, this operation will
+                // not
                 // fail.
                 taskOps.commit(base, updated.withUUID());
               });
     } catch (RetryExhaustedException e) {
+      if (e.getCause() instanceof CommitFailedException) {
+        throw (CommitFailedException) e.getCause();
+      }
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
         throw new CommitFailedException(
             e,

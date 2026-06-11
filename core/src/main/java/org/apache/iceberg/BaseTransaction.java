@@ -785,6 +785,11 @@ public class BaseTransaction implements Transaction {
 
   private static CommitFailedException toCommitFailedException(
       RetryExhaustedException ex, Map<String, String> properties) {
+    // if the original cause was already a CommitFailedException, keep it
+    if (ex.getCause() instanceof CommitFailedException) {
+      return (CommitFailedException) ex.getCause();
+    }
+
     int numRetries =
         PropertyUtil.propertyAsInt(properties, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
     int totalTimeoutMs =

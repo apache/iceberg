@@ -54,8 +54,7 @@ public class SetLocation implements UpdateLocation {
   @Override
   public void commit() {
     TableMetadata base = ops.refresh();
-    int numRetries =
-        base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
     int totalTimeoutMs =
         base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
     try {
@@ -69,6 +68,9 @@ public class SetLocation implements UpdateLocation {
           .onlyRetryOn(CommitFailedException.class)
           .run(taskOps -> taskOps.commit(base, base.updateLocation(newLocation)));
     } catch (RetryExhaustedException e) {
+      if (e.getCause() instanceof CommitFailedException) {
+        throw (CommitFailedException) e.getCause();
+      }
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
         throw new CommitFailedException(
             e,
