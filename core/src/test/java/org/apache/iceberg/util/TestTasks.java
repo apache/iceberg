@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -150,41 +151,47 @@ public class TestTasks {
   @Test
   public void retryExhaustedHandlerIsOptIn() {
     RuntimeException failure = new RuntimeException("failed");
+    AtomicInteger attempts = new AtomicInteger(0);
 
     Throwable thrown =
         catchThrowable(
             () ->
                 Tasks.foreach(1)
-                    .retry(0)
+                    .retry(1)
                     .exponentialBackoff(0, 0, 5000, 0)
                     .onlyRetryOn(RuntimeException.class)
                     .run(
                         x -> {
+                          attempts.incrementAndGet();
                           throw failure;
                         }));
 
     assertThat(thrown).isSameAs(failure);
+    assertThat(attempts.get()).isEqualTo(2);
   }
 
   @Test
   public void retryExhaustedDoesNotWrapNonRetryableException() {
     RuntimeException failure = new RuntimeException("failed");
     RuntimeException wrapped = new RuntimeException("wrapped");
+    AtomicInteger attempts = new AtomicInteger(0);
 
     Throwable thrown =
         catchThrowable(
             () ->
                 Tasks.foreach(1)
-                    .retry(0)
+                    .retry(1)
                     .exponentialBackoff(0, 0, 5000, 0)
                     .onlyRetryOn(IllegalArgumentException.class)
                     .onRetryExhausted((exception, reason) -> wrapped)
                     .run(
                         x -> {
+                          attempts.incrementAndGet();
                           throw failure;
                         }));
 
     assertThat(thrown).isSameAs(failure);
+    assertThat(attempts.get()).isOne();
   }
 
   @Test
