@@ -16,20 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.variants;
+package org.apache.iceberg.flink.source.reader;
 
-import java.nio.ByteBuffer;
+import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.io.CloseableIterator;
 
-interface SerializedValue extends VariantValue, Serialized {
-  @Override
-  default int sizeInBytes() {
-    return buffer().remaining();
-  }
-
-  @Override
-  default int writeTo(ByteBuffer buffer, int offset) {
-    ByteBuffer value = buffer();
-    buffer.put(offset, value, value.position(), value.remaining());
-    return value.remaining();
-  }
+/**
+ * A {@link CloseableIterator} that can be woken up while it is blocked producing the next element.
+ *
+ * <p>This lets {@link IcebergSourceSplitReader#wakeUp()} unblock a fetcher thread that is waiting
+ * for an array-pool entry in {@link ArrayPoolDataIteratorBatcher} so that the thread can return
+ * control and exit cleanly during shutdown.
+ */
+@Internal
+interface WakeableIterator<T> extends CloseableIterator<T> {
+  /** Wake up the iterator if it is currently blocked in {@link #next()}. */
+  void wakeUp();
 }

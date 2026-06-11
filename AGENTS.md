@@ -90,6 +90,7 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - Use `this.` for instance field assignment. `Preconditions` calls first in methods.
 - No `final` on locals. No one-argument-per-line unless necessary.
 - Magic numbers should be named constants. No personal pronouns in comments.
+- Javadoc describes the function or purpose of a class or method, not the implementation. Only describe what callers need to use the component, as though it were defined by an interface. Don't leak implementation details — over-documenting creates churn when the implementation changes.
 - `} else {` on same line. Minimize variable scope. `try-with-resources` for all `AutoCloseable`.
 - Prefer method references over lambdas. Wrap lines at the highest semantic level.
 - Always use imports — never use fully-qualified class names inline.
