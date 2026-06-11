@@ -530,11 +530,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } catch (CommitStateUnknownException commitStateUnknownException) {
         throw commitStateUnknownException;
       } catch (RetryExhaustedException e) {
-        // if the original cause was already a CommitFailedException, keep it
-        if (e.getCause() instanceof CommitFailedException) {
-          throw (CommitFailedException) e.getCause();
-        }
-
         int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
         int totalTimeoutMs =
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);

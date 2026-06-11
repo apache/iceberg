@@ -68,9 +68,6 @@ public class SetLocation implements UpdateLocation {
           .onlyRetryOn(CommitFailedException.class)
           .run(taskOps -> taskOps.commit(base, base.updateLocation(newLocation)));
     } catch (RetryExhaustedException e) {
-      if (e.getCause() instanceof CommitFailedException) {
-        throw (CommitFailedException) e.getCause();
-      }
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
         throw new CommitFailedException(
             e,

@@ -459,6 +459,10 @@ public class Tasks {
           boolean retryLimitExceeded = attempt >= maxAttempts;
           boolean timeoutExceeded = durationMs > maxDurationMs && attempt > 1;
 
+          if (!shouldRetry(e)) {
+            throw e;
+          }
+
           if (retryLimitExceeded || timeoutExceeded) {
             if (attempt <= 1) {
               throw e;
@@ -471,33 +475,6 @@ public class Tasks {
               reason = RetryExhaustedException.Reason.RETRY_LIMIT_EXCEEDED;
             }
             throw new RetryExhaustedException(e, reason);
-          }
-
-          if (shouldRetryPredicate != null) {
-            if (!shouldRetryPredicate.test(e)) {
-              throw e;
-            }
-
-          } else if (onlyRetryExceptions != null) {
-            // if onlyRetryExceptions are present, then this retries if one is found
-            boolean matchedRetryException = false;
-            for (Class<? extends Exception> exClass : onlyRetryExceptions) {
-              if (exClass.isInstance(e)) {
-                matchedRetryException = true;
-                break;
-              }
-            }
-            if (!matchedRetryException) {
-              throw e;
-            }
-
-          } else {
-            // otherwise, always retry unless one of the stop exceptions is found
-            for (Class<? extends Exception> exClass : stopRetryExceptions) {
-              if (exClass.isInstance(e)) {
-                throw e;
-              }
-            }
           }
 
           int delayMs =
@@ -518,6 +495,30 @@ public class Tasks {
           }
         }
       }
+    }
+
+    private boolean shouldRetry(Exception exception) {
+      if (shouldRetryPredicate != null) {
+        return shouldRetryPredicate.test(exception);
+      }
+
+      if (onlyRetryExceptions != null) {
+        for (Class<? extends Exception> exClass : onlyRetryExceptions) {
+          if (exClass.isInstance(exception)) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      for (Class<? extends Exception> exClass : stopRetryExceptions) {
+        if (exClass.isInstance(exception)) {
+          return false;
+        }
+      }
+
+      return true;
     }
   }
 
