@@ -439,8 +439,6 @@ class TestTrackingStruct {
 
   @Test
   void testCarryForwardFromModifiedSourceChangesToExisting() {
-    // A MODIFIED entry from a prior commit carried forward without mutation; status becomes
-    // EXISTING.
     Tracking modifiedSource = sourceTrackingWithStatus(EntryStatus.MODIFIED);
     Tracking carried = TrackingBuilder.from(modifiedSource, 999L).build();
     assertThat(carried.status()).isEqualTo(EntryStatus.EXISTING);
