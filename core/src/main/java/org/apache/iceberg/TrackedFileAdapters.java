@@ -24,15 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs.
- *
- * <p>V4 colocates deletion vectors with data file entries in {@link TrackedFile}. Rather than
- * extending {@link DataFile} with deletion vector fields, DVs are extracted as separate {@link
- * DeleteFile} objects via {@link #asDVDeleteFile(TrackedFile, Map)}. This matches the v3 convention
- * where DVs are tracked as {@link DeleteFile} entries in delete manifests and keeps the existing
- * {@link FileScanTask} contract ({@code file()} + {@code deletes()}) unchanged.
- */
+/** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
 class TrackedFileAdapters {
 
   private TrackedFileAdapters() {}
@@ -61,16 +53,18 @@ class TrackedFileAdapters {
     return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
   }
 
-  /**
-   * Shared base for all tracked file adapters. Holds the common fields and implements the methods
-   * that delegate to {@link TrackedFile} and {@link PartitionSpec}.
-   */
+  /** Shared base for all tracked file adapters. */
   private abstract static class TrackedFileAdapter<F extends ContentFile<F>>
       implements ContentFile<F> {
     private final TrackedFile file;
     private final PartitionSpec spec;
 
     private TrackedFileAdapter(TrackedFile file, PartitionSpec spec) {
+      Preconditions.checkArgument(
+          file.specId() == null ? spec.isUnpartitioned() : file.specId() == spec.specId(),
+          "File spec ID %s does not match partition spec %s",
+          file.specId(),
+          spec.specId());
       this.file = file;
       this.spec = spec;
     }
@@ -122,7 +116,10 @@ class TrackedFileAdapters {
     }
   }
 
-  /** Shared base for adapters that delegate to a {@link TrackedFile} for content file fields. */
+  /**
+   * Shared base for adapters where the {@link ContentFile} is the {@link TrackedFile} itself, as
+   * opposed to {@link TrackedDVDeleteFile} which represents the tracked file's deletion vector.
+   */
   private abstract static class TrackedContentFile<F extends ContentFile<F>>
       extends TrackedFileAdapter<F> {
     private TrackedContentFile(TrackedFile file, PartitionSpec spec) {
@@ -278,11 +275,6 @@ class TrackedFileAdapters {
 
   /**
    * Adapts the deletion vector from a TrackedFile DATA entry to the {@link DeleteFile} interface.
-   *
-   * <p>The DV blob metadata is mapped to the DeleteFile DV fields: {@link
-   * DeleteFile#referencedDataFile()} is the data file location, and {@link
-   * DeleteFile#contentOffset()} / {@link DeleteFile#contentSizeInBytes()} point to the blob within
-   * the Puffin file.
    */
   private static class TrackedDVDeleteFile extends TrackedFileAdapter<DeleteFile>
       implements DeleteFile {
@@ -423,6 +415,7 @@ class TrackedFileAdapters {
       return spec;
     }
 
+    // A null spec ID means the file is unpartitioned; use the table's unpartitioned spec.
     for (PartitionSpec spec : specsById.values()) {
       if (spec.isUnpartitioned()) {
         return spec;

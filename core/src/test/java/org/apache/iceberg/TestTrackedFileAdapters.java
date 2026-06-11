@@ -354,6 +354,27 @@ class TestTrackedFileAdapters {
         .hasMessageContaining("Cannot find partition spec for spec ID");
   }
 
+  @Test
+  void testSpecIdMismatchThrows() {
+    int mismatchedSpecId = PARTITIONED_SPEC_ID + 1;
+    TrackedFileStruct file = trackedFile(FileContent.DATA);
+    file.set(SPEC_ID_ORDINAL, PARTITIONED_SPEC_ID);
+    PartitionSpec mismatched =
+        PartitionSpec.builderFor(PARTITION_SCHEMA)
+            .identity("category")
+            .withSpecId(mismatchedSpecId)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                TrackedFileAdapters.asDataFile(
+                    file, ImmutableMap.of(PARTITIONED_SPEC_ID, mismatched)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "File spec ID %s does not match partition spec %s",
+            PARTITIONED_SPEC_ID, mismatchedSpecId);
+  }
+
   private static void assertNullTrackingFields(ContentFile<?> file) {
     assertThat(file.pos()).isNull();
     assertThat(file.manifestLocation()).isNull();
