@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.util.List;
+import org.apache.iceberg.CommitRetry;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
@@ -100,6 +101,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetry::retryExhaustedException)
         .run(taskOps -> taskOps.commit(base, internalApply()));
   }
 

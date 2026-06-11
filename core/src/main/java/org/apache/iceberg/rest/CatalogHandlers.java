@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.CommitRetry;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
@@ -621,6 +622,7 @@ public class CatalogHandlers {
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .onRetryExhausted(CommitRetry::retryExhaustedException)
           .run(
               taskOps -> {
                 TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
@@ -783,6 +785,7 @@ public class CatalogHandlers {
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .onRetryExhausted(CommitRetry::retryExhaustedException)
           .run(
               taskOps -> {
                 ViewMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();

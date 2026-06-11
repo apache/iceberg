@@ -107,6 +107,7 @@ class PropertiesUpdate implements UpdateProperties {
             base.propertyTryAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetry::retryExhaustedException)
         .run(
             taskOps -> {
               Map<String, String> newProperties = apply();

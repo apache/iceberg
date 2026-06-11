@@ -32,12 +32,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.CommitRetry.retryExhaustionReason;
+import static org.apache.iceberg.CommitRetry.RetryExhaustedException;
 
 public class Tasks {
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
@@ -88,6 +92,7 @@ public class Tasks {
     private long maxDurationMs = 600000; // 10 minutes
     private double scaleFactor = 2.0; // exponential
     private Counter attemptsCounter;
+    private Function<RetryExhaustedException, RuntimeException> retryExhaustedHandler = null;
 
     public Builder(Iterable<I> items) {
       this.items = items;
@@ -177,6 +182,12 @@ public class Tasks {
 
     public Builder<I> countAttempts(Counter counter) {
       this.attemptsCounter = counter;
+      return this;
+    }
+
+    public Builder<I> onRetryExhausted(
+        Function<RetryExhaustedException, RuntimeException> handler) {
+      this.retryExhaustedHandler = handler;
       return this;
     }
 
@@ -414,39 +425,30 @@ public class Tasks {
           break;
 
         } catch (Exception e) {
-          long durationMs = System.currentTimeMillis() - start;
-          if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
-            if (durationMs > maxDurationMs) {
-              LOG.info("Stopping retries after {} ms", durationMs);
-            }
+          if (!shouldRetry(e)) {
             throw e;
           }
 
-          if (shouldRetryPredicate != null) {
-            if (!shouldRetryPredicate.test(e)) {
-              throw e;
+          long durationMs = System.currentTimeMillis() - start;
+          boolean attemptsExhausted = attempt >= maxAttempts;
+          boolean timeoutExhausted = durationMs > maxDurationMs && attempt > 1;
+          if (attemptsExhausted || timeoutExhausted) {
+            if (timeoutExhausted) {
+              LOG.info("Stopping retries after {} ms", durationMs);
             }
 
-          } else if (onlyRetryExceptions != null) {
-            // if onlyRetryExceptions are present, then this retries if one is found
-            boolean matchedRetryException = false;
-            for (Class<? extends Exception> exClass : onlyRetryExceptions) {
-              if (exClass.isInstance(e)) {
-                matchedRetryException = true;
-                break;
-              }
-            }
-            if (!matchedRetryException) {
-              throw e;
+            if (retryExhaustedHandler != null) {
+              throw retryExhaustedHandler.apply(
+                  new RetryExhaustedException(
+                      retryExhaustionReason(attemptsExhausted, timeoutExhausted),
+                      attempt,
+                      maxAttempts,
+                      durationMs,
+                      maxDurationMs,
+                      e));
             }
 
-          } else {
-            // otherwise, always retry unless one of the stop exceptions is found
-            for (Class<? extends Exception> exClass : stopRetryExceptions) {
-              if (exClass.isInstance(e)) {
-                throw e;
-              }
-            }
+            throw e;
           }
 
           int delayMs =
@@ -466,6 +468,30 @@ public class Tasks {
             throw new RuntimeException(ie);
           }
         }
+      }
+    }
+
+    private boolean shouldRetry(Exception exception) {
+      if (shouldRetryPredicate != null) {
+        return shouldRetryPredicate.test(exception);
+      } else if (onlyRetryExceptions != null) {
+        // if onlyRetryExceptions are present, then this retries if one is found
+        for (Class<? extends Exception> exClass : onlyRetryExceptions) {
+          if (exClass.isInstance(exception)) {
+            return true;
+          }
+        }
+
+        return false;
+      } else {
+        // otherwise, always retry unless one of the stop exceptions is found
+        for (Class<? extends Exception> exClass : stopRetryExceptions) {
+          if (exClass.isInstance(exception)) {
+            return false;
+          }
+        }
+
+        return true;
       }
     }
   }

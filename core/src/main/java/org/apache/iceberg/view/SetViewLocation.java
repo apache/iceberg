@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import org.apache.iceberg.CommitRetry;
 import org.apache.iceberg.UpdateLocation;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -63,6 +64,7 @@ class SetViewLocation implements UpdateLocation {
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetry::retryExhaustedException)
         .run(
             taskOps ->
                 taskOps.commit(base, ViewMetadata.buildFrom(base).setLocation(apply()).build()));
