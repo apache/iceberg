@@ -310,6 +310,7 @@ public class BaseTransaction implements Transaction {
                   props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .onRetryExhausted(CommitRetry::retryExhaustedException)
           .run(
               underlyingOps -> {
                 try {
@@ -365,6 +366,7 @@ public class BaseTransaction implements Transaction {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .onRetryExhausted(CommitRetry::retryExhaustedException)
           .run(
               underlyingOps -> {
                 applyUpdates(underlyingOps);

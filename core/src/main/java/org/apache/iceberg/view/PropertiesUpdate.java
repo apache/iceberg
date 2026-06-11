@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.CommitRetry;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -73,6 +74,7 @@ class PropertiesUpdate implements UpdateViewProperties {
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
+        .onRetryExhausted(CommitRetry::retryExhaustedException)
         .run(taskOps -> taskOps.commit(base, internalApply()));
   }
 
