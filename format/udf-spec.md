@@ -79,8 +79,7 @@ must produce values of the declared `return-type`.
 
 | Requirement | Field name           | Type                           | Description                                                                                       |
 |-------------|----------------------|--------------------------------|---------------------------------------------------------------------------------------------------|
-| *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (see [Definition ID](#definition-id)).  |
-| *optional*  | `specific-name`      | `string`                       | A user-assignable, unique identifier for this definition (see [Specific Name](#specific-name)).   |
+| *required*  | `definition-id`      | `string`                       | An identifier for this definition (see [Definition ID](#definition-id)).                          |
 | *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.     |
 | *required*  | `return-type`        | `string` or `object`           | Declared return type using [Types](#types).                                                       |
 | *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                  |
@@ -118,8 +117,14 @@ following fields required. Any other fields must be ignored.
   e.g., `{ "type": "struct", "fields": [ { "name": "id", "type": "int" }, { "name": "name", "type": "string" } ] }`
 
 #### Definition ID
-The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list with no
-spaces. Each type uses the following string representation:
+The `definition-id` is a string that uniquely identifies a definition within the UDF metadata. It may be a user-specified
+string (for example, an SQL-standard routine *specific name*), which allows engines to reference a specific overload with a
+stable, human-readable handle. The `definition-id` is for identification only and **must not** be used for overload
+resolution; resolution is based on the definition's `parameters` (see
+[Function Call Convention and Resolution in Engines](#function-call-convention-and-resolution-in-engines)).
+
+When not user-specified, the `definition-id` must default to a canonical string derived from the parameter types, formatted as
+a comma-separated list with no spaces. Each type uses the following string representation:
 
 * Primitives and semi-structured: the type name (e.g., `int`, `variant`)
 * List: `list<element-type>` (e.g., `list<int>`)
@@ -132,17 +137,9 @@ Examples of complete definition-id signatures:
 * `int,string` – two parameters: int and string
 * `int,list<int>,struct<id:int,name:string>` – three parameters: an int, a list and a struct
 
-#### Specific Name
-The `specific-name` is an optional, user-assignable identifier for a single definition, analogous to the SQL standard's
-routine *specific name*. It provides a stable handle for a definition that is independent of its signature, which engines
-may use to reference a specific overload unambiguously (e.g., for SQL statements such as `DROP SPECIFIC FUNCTION`).
-
-* `specific-name` is for identification only. It **must not** be used for overload resolution; resolution is based on the
-  definition's `parameters` (see [Function Call Convention and Resolution in Engines](#function-call-convention-and-resolution-in-engines)).
-* When present, `specific-name` **must** be unique among all definitions within the UDF metadata.
-* `specific-name` **must not** collide with the `definition-id` of any other definition within the UDF metadata, so that a
-  single string unambiguously references at most one definition.
-* When absent, the `definition-id` serves as the definition's identifier.
+Regardless of whether the `definition-id` is user-specified or defaulted, it **must** be unique among all definitions
+within the UDF metadata, and there **must** be only one definition for a given signature (the ordered list of parameter
+types).
 
 ### Definition Version
 
@@ -212,9 +209,10 @@ SQL statement:
 CREATE FUNCTION add_one(x INT COMMENT 'Input integer')
 COMMENT 'Add one to the input integer'
 RETURNS INT
+SPECIFIC add_one_int
 RETURN x + 1;
 
--- Trino SQL
+-- Trino SQL (no SPECIFIC clause; definition-id defaults to the canonical signature)
 CREATE FUNCTION add_one(x FLOAT COMMENT 'Input float')
 COMMENT 'Add one to the input float'
 RETURNS FLOAT
@@ -232,8 +230,7 @@ RETURN x + 1.0;
   "format-version": 1,
   "definitions": [
     {
-      "definition-id": "int",
-      "specific-name": "add_one_int",
+      "definition-id": "add_one_int",
       "parameters": [
         {
           "name": "x", "type": "int", "doc": "Input integer"
@@ -265,7 +262,6 @@ RETURN x + 1.0;
     },
     {
       "definition-id": "float",
-      "specific-name": "add_one_float",
       "parameters": [
         {
           "name": "x", "type": "float", "doc": "Input float"
@@ -291,20 +287,20 @@ RETURN x + 1.0;
     {
       "timestamp-ms": 1734507000123,
       "definition-versions": [
-        { "definition-id": "int", "version-id": 1 }
+        { "definition-id": "add_one_int", "version-id": 1 }
       ]
     },
     {
       "timestamp-ms": 1734507001123,
       "definition-versions": [
-        { "definition-id": "int", "version-id": 1 },
+        { "definition-id": "add_one_int", "version-id": 1 },
         { "definition-id": "float", "version-id": 1 }
       ]
     },
     {
       "timestamp-ms": 1735507000124,
       "definition-versions": [
-        { "definition-id": "int", "version-id": 2 },
+        { "definition-id": "add_one_int", "version-id": 2 },
         { "definition-id": "float", "version-id": 1 }
       ]
     }
