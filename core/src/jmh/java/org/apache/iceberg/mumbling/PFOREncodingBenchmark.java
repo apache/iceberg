@@ -89,7 +89,7 @@ public class PFOREncodingBenchmark {
     Random random = new Random(1938745);
 
     // 256-value descriptor-like data: mostly [0,31] with ~5% [0,255] outliers
-    descriptorValues = PFORRandomData.exceptions(random, 256, 0.5f);
+    descriptorValues = PFORRandomData.exceptions(random, 256, 0.05f);
 
     // 256-value uniform byte data
     uniformValues = PFORRandomData.uniform(random, 256, 255);
