@@ -22,8 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
-import org.apache.iceberg.CommitRetry;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
@@ -65,6 +65,9 @@ public class TestTasks {
   @Test
   public void retryExhaustedReportsAttemptLimit() {
     RuntimeException failure = new RuntimeException("failed");
+    RuntimeException wrapped = new RuntimeException("wrapped");
+    AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+    AtomicReference<Tasks.RetryExhaustionReason> capturedReason = new AtomicReference<>();
 
     Throwable thrown =
         catchThrowable(
@@ -73,22 +76,27 @@ public class TestTasks {
                     .retry(1)
                     .exponentialBackoff(0, 0, 5000, 0)
                     .onlyRetryOn(RuntimeException.class)
-                    .onRetryExhausted(exhausted -> exhausted)
+                    .onRetryExhausted(
+                        (exception, reason) -> {
+                          capturedFailure.set(exception);
+                          capturedReason.set(reason);
+                          return wrapped;
+                        })
                     .run(
                         x -> {
                           throw failure;
                         }));
 
-    assertThat(thrown).isInstanceOf(CommitRetry.RetryExhaustedException.class);
-    CommitRetry.RetryExhaustedException exhausted = (CommitRetry.RetryExhaustedException) thrown;
-    assertThat(exhausted.reason()).isEqualTo(CommitRetry.RetryExhaustionReason.ATTEMPT_LIMIT);
-    assertThat(exhausted.attempts()).isEqualTo(2);
-    assertThat(exhausted.maxAttempts()).isEqualTo(2);
-    assertThat(exhausted.getCause()).isSameAs(failure);
+    assertThat(thrown).isSameAs(wrapped);
+    assertThat(capturedFailure.get()).isSameAs(failure);
+    assertThat(capturedReason.get()).isEqualTo(Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
   }
 
   @Test
   public void retryExhaustedReportsTimeout() {
+    RuntimeException wrapped = new RuntimeException("wrapped");
+    AtomicReference<Tasks.RetryExhaustionReason> capturedReason = new AtomicReference<>();
+
     Throwable thrown =
         catchThrowable(
             () ->
@@ -96,23 +104,26 @@ public class TestTasks {
                     .retry(2)
                     .exponentialBackoff(0, 0, 1, 0)
                     .onlyRetryOn(RuntimeException.class)
-                    .onRetryExhausted(exhausted -> exhausted)
+                    .onRetryExhausted(
+                        (exception, reason) -> {
+                          capturedReason.set(reason);
+                          return wrapped;
+                        })
                     .run(
                         x -> {
                           sleep(5);
                           throw new RuntimeException("failed");
                         }));
 
-    assertThat(thrown).isInstanceOf(CommitRetry.RetryExhaustedException.class);
-    CommitRetry.RetryExhaustedException exhausted = (CommitRetry.RetryExhaustedException) thrown;
-    assertThat(exhausted.reason()).isEqualTo(CommitRetry.RetryExhaustionReason.TIMEOUT);
-    assertThat(exhausted.attempts()).isEqualTo(2);
-    assertThat(exhausted.maxAttempts()).isEqualTo(3);
-    assertThat(exhausted.durationMs()).isGreaterThan(exhausted.maxDurationMs());
+    assertThat(thrown).isSameAs(wrapped);
+    assertThat(capturedReason.get()).isEqualTo(Tasks.RetryExhaustionReason.TIMEOUT);
   }
 
   @Test
   public void retryExhaustedReportsAttemptLimitAndTimeout() {
+    RuntimeException wrapped = new RuntimeException("wrapped");
+    AtomicReference<Tasks.RetryExhaustionReason> capturedReason = new AtomicReference<>();
+
     Throwable thrown =
         catchThrowable(
             () ->
@@ -120,19 +131,20 @@ public class TestTasks {
                     .retry(1)
                     .exponentialBackoff(0, 0, 1, 0)
                     .onlyRetryOn(RuntimeException.class)
-                    .onRetryExhausted(exhausted -> exhausted)
+                    .onRetryExhausted(
+                        (exception, reason) -> {
+                          capturedReason.set(reason);
+                          return wrapped;
+                        })
                     .run(
                         x -> {
                           sleep(5);
                           throw new RuntimeException("failed");
                         }));
 
-    assertThat(thrown).isInstanceOf(CommitRetry.RetryExhaustedException.class);
-    CommitRetry.RetryExhaustedException exhausted = (CommitRetry.RetryExhaustedException) thrown;
-    assertThat(exhausted.reason()).isEqualTo(CommitRetry.RetryExhaustionReason.ATTEMPT_LIMIT_AND_TIMEOUT);
-    assertThat(exhausted.attempts()).isEqualTo(2);
-    assertThat(exhausted.maxAttempts()).isEqualTo(2);
-    assertThat(exhausted.durationMs()).isGreaterThan(exhausted.maxDurationMs());
+    assertThat(thrown).isSameAs(wrapped);
+    assertThat(capturedReason.get())
+        .isEqualTo(Tasks.RetryExhaustionReason.ATTEMPT_LIMIT_AND_TIMEOUT);
   }
 
   @Test
@@ -155,6 +167,27 @@ public class TestTasks {
   }
 
   @Test
+  public void retryExhaustedDoesNotWrapNonRetryableException() {
+    RuntimeException failure = new RuntimeException("failed");
+    RuntimeException wrapped = new RuntimeException("wrapped");
+
+    Throwable thrown =
+        catchThrowable(
+            () ->
+                Tasks.foreach(1)
+                    .retry(0)
+                    .exponentialBackoff(0, 0, 5000, 0)
+                    .onlyRetryOn(IllegalArgumentException.class)
+                    .onRetryExhausted((exception, reason) -> wrapped)
+                    .run(
+                        x -> {
+                          throw failure;
+                        }));
+
+    assertThat(thrown).isSameAs(failure);
+  }
+
+  @Test
   public void retryExhaustedCanWrapAsCommitFailedException() {
     CommitFailedException failure = new CommitFailedException("failed");
 
@@ -165,7 +198,8 @@ public class TestTasks {
                     .retry(0)
                     .exponentialBackoff(0, 0, 5000, 0)
                     .onlyRetryOn(CommitFailedException.class)
-                    .onRetryExhausted(exhausted -> new CommitFailedException(exhausted, "wrapped"))
+                    .onRetryExhausted(
+                        (exception, reason) -> new CommitFailedException(exception, "wrapped"))
                     .run(
                         x -> {
                           throw failure;
@@ -173,8 +207,7 @@ public class TestTasks {
 
     assertThat(thrown).isInstanceOf(CommitFailedException.class);
     assertThat(thrown).hasMessage("wrapped");
-    assertThat(thrown.getCause()).isInstanceOf(CommitRetry.RetryExhaustedException.class);
-    assertThat(thrown.getCause().getCause()).isSameAs(failure);
+    assertThat(thrown.getCause()).isSameAs(failure);
   }
 
   private static void sleep(long millis) {

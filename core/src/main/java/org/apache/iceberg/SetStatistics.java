@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.CommitRetry;
 import org.apache.iceberg.util.Tasks;
 
 public class SetStatistics implements UpdateStatistics {

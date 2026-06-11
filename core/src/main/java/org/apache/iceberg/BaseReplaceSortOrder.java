@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Term;
+import org.apache.iceberg.util.CommitRetry;
 import org.apache.iceberg.util.Tasks;
 
 public class BaseReplaceSortOrder implements ReplaceSortOrder {

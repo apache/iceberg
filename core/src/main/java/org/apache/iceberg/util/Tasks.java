@@ -32,7 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.iceberg.metrics.Counter;
@@ -40,13 +40,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.CommitRetry.retryExhaustionReason;
-import static org.apache.iceberg.CommitRetry.RetryExhaustedException;
-
 public class Tasks {
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
 
   private Tasks() {}
+
+  public enum RetryExhaustionReason {
+    ATTEMPT_LIMIT,
+    TIMEOUT,
+    ATTEMPT_LIMIT_AND_TIMEOUT
+  }
 
   public static class UnrecoverableException extends RuntimeException {
     public UnrecoverableException(String message) {
@@ -92,7 +95,8 @@ public class Tasks {
     private long maxDurationMs = 600000; // 10 minutes
     private double scaleFactor = 2.0; // exponential
     private Counter attemptsCounter;
-    private Function<RetryExhaustedException, RuntimeException> retryExhaustedHandler = null;
+    private BiFunction<Exception, RetryExhaustionReason, RuntimeException> retryExhaustedHandler =
+        null;
 
     public Builder(Iterable<I> items) {
       this.items = items;
@@ -186,7 +190,7 @@ public class Tasks {
     }
 
     public Builder<I> onRetryExhausted(
-        Function<RetryExhaustedException, RuntimeException> handler) {
+        BiFunction<Exception, RetryExhaustionReason, RuntimeException> handler) {
       this.retryExhaustedHandler = handler;
       return this;
     }
@@ -439,13 +443,7 @@ public class Tasks {
 
             if (retryExhaustedHandler != null) {
               throw retryExhaustedHandler.apply(
-                  new RetryExhaustedException(
-                      retryExhaustionReason(attemptsExhausted, timeoutExhausted),
-                      attempt,
-                      maxAttempts,
-                      durationMs,
-                      maxDurationMs,
-                      e));
+                  e, retryExhaustionReason(attemptsExhausted, timeoutExhausted));
             }
 
             throw e;
@@ -492,6 +490,17 @@ public class Tasks {
         }
 
         return true;
+      }
+    }
+
+    private RetryExhaustionReason retryExhaustionReason(
+        boolean attemptsExhausted, boolean timeoutExhausted) {
+      if (attemptsExhausted && timeoutExhausted) {
+        return RetryExhaustionReason.ATTEMPT_LIMIT_AND_TIMEOUT;
+      } else if (attemptsExhausted) {
+        return RetryExhaustionReason.ATTEMPT_LIMIT;
+      } else {
+        return RetryExhaustionReason.TIMEOUT;
       }
     }
   }
