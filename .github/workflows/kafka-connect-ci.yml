@@ -28,6 +28,7 @@ on:
     tags:
     - 'apache-iceberg-**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/api-binary-compatibility.yml'
@@ -75,6 +76,7 @@ concurrency:
 jobs:
 
   kafka-connect-tests:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04
     strategy:
       max-parallel: 15

@@ -28,6 +28,7 @@ on:
     tags:
     - 'apache-iceberg-**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/api-binary-compatibility.yml'
@@ -76,6 +77,7 @@ jobs:
 
   # Test all flink versions with scala 2.12 for general validation.
   flink-scala-2-12-tests:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:

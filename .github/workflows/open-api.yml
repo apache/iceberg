@@ -28,6 +28,7 @@ on:
     tags:
       - 'apache-iceberg-**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '.github/workflows/open-api.yml'
       - 'open-api/**'
@@ -41,6 +42,7 @@ concurrency:
 
 jobs:
   openapi-spec-validator:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-slim
 
     steps:
