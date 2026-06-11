@@ -120,6 +120,11 @@ public class Conversions {
         return (ByteBuffer) value;
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // GEOMETRY and GEOGRAPHY values are represented as byte buffers in WKB
+        // (Well-Known Binary) format in Iceberg. Return the byte buffer as is.
+        return (ByteBuffer) value;
       case VARIANT:
         // Produce a concatenated buffer of metadata and value
         Variant variant = (Variant) value;
@@ -194,6 +199,11 @@ public class Conversions {
         byte[] unscaledBytes = new byte[buffer.remaining()];
         tmp.get(unscaledBytes);
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // GEOMETRY and GEOGRAPHY values are represented as byte buffers in WKB
+        // (Well-Known Binary) format in Iceberg. Return the byte buffer as is.
+        return tmp;
       case VARIANT:
         return Variant.from(tmp);
       case UNKNOWN:

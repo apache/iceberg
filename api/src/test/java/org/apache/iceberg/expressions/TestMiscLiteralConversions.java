@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -48,7 +50,17 @@ public class TestMiscLiteralConversions {
             Pair.of(Literal.of("abc"), Types.StringType.get()),
             Pair.of(Literal.of(UUID.randomUUID()), Types.UUIDType.get()),
             Pair.of(Literal.of(new byte[] {0, 1, 2}), Types.FixedType.ofLength(3)),
-            Pair.of(Literal.of(ByteBuffer.wrap(new byte[] {0, 1, 2})), Types.BinaryType.get()));
+            Pair.of(Literal.of(ByteBuffer.wrap(new byte[] {0, 1, 2})), Types.BinaryType.get()),
+            Pair.of(
+                Literal.of(
+                    new BoundingBox(
+                        GeospatialBound.createXY(0, 1), GeospatialBound.createXY(2, 3))),
+                Types.GeometryType.crs84()),
+            Pair.of(
+                Literal.of(
+                    new BoundingBox(
+                        GeospatialBound.createXY(0, 1), GeospatialBound.createXY(2, 3))),
+                Types.GeographyType.crs84()));
 
     for (Pair<Literal<?>, Type> pair : pairs) {
       Literal<?> lit = pair.first();
@@ -181,7 +193,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -197,7 +211,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -208,7 +224,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -227,7 +245,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -246,7 +266,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -267,7 +289,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -288,7 +312,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -305,7 +331,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -322,7 +350,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -343,7 +373,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -358,7 +390,9 @@ public class TestMiscLiteralConversions {
         Types.FloatType.get(),
         Types.DoubleType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -379,7 +413,9 @@ public class TestMiscLiteralConversions {
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -400,7 +436,9 @@ public class TestMiscLiteralConversions {
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.UUIDType.get(),
-        Types.FixedType.ofLength(1));
+        Types.FixedType.ofLength(1),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -421,7 +459,75 @@ public class TestMiscLiteralConversions {
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.UUIDType.get(),
+        Types.FixedType.ofLength(1),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
+  }
+
+  @Test
+  public void testInvalidGeospatialConversions() {
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    Literal<BoundingBox> geoBoundingBoxLiteral = Literal.of(new BoundingBox(min, max));
+    testInvalidConversions(
+        geoBoundingBoxLiteral,
+        Types.BooleanType.get(),
+        Types.IntegerType.get(),
+        Types.LongType.get(),
+        Types.FloatType.get(),
+        Types.DoubleType.get(),
+        Types.DateType.get(),
+        Types.TimeType.get(),
+        Types.DecimalType.of(9, 2),
+        Types.StringType.get(),
+        Types.UUIDType.get(),
+        Types.BinaryType.get(),
         Types.FixedType.ofLength(1));
+  }
+
+  @Test
+  public void testBoundingBoxLiteralComparator() {
+    Literal<BoundingBox> xy =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0)));
+    Literal<BoundingBox> sameMinLargerMax =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(4.0, 5.0)));
+    Literal<BoundingBox> largerMin =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXY(2.0, 2.0), GeospatialBound.createXY(3.0, 4.0)));
+    Literal<BoundingBox> xyz =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXYZ(1.0, 2.0, 3.0),
+                GeospatialBound.createXYZ(3.0, 4.0, 5.0)));
+    Literal<BoundingBox> xym =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXYM(1.0, 2.0, 3.0),
+                GeospatialBound.createXYM(3.0, 4.0, 5.0)));
+    Literal<BoundingBox> xyzm =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0),
+                GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0)));
+
+    assertThat(xy.comparator().compare(xy.value(), xy.value())).isZero();
+    assertThat(xym.comparator().compare(xym.value(), xym.value())).isZero();
+    assertThat(xyz.comparator().compare(xyz.value(), xyz.value())).isZero();
+    assertThat(xyzm.comparator().compare(xyzm.value(), xyzm.value())).isZero();
+
+    assertThat(xy.comparator().compare(xy.value(), sameMinLargerMax.value())).isLessThan(0);
+    assertThat(xy.comparator().compare(xy.value(), largerMin.value())).isLessThan(0);
+    assertThat(xy.comparator().compare(xy.value(), xyz.value())).isNotZero();
+    assertThat(xy.comparator().compare(xy.value(), xym.value())).isNotZero();
+    assertThat(xy.comparator().compare(xy.value(), xyzm.value())).isNotZero();
+    assertThat(xym.comparator().compare(xyz.value(), xym.value())).isNotZero();
+    assertThat(xyz.comparator().compare(xyz.value(), xyzm.value())).isNotZero();
+    assertThat(xym.comparator().compare(xym.value(), xyzm.value())).isNotZero();
   }
 
   private void testInvalidConversions(Literal<?> lit, Type... invalidTypes) {
