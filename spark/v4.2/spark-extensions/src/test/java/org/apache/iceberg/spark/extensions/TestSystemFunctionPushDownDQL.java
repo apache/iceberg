@@ -84,16 +84,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testYearsFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testYearsFunction(false);
+    testYearsFunction();
   }
 
   @TestTemplate
   public void testYearsFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "years(ts)");
-    testYearsFunction(true);
+    testYearsFunction();
   }
 
-  private void testYearsFunction(boolean partitioned) {
+  private void testYearsFunction() {
     int targetYears = timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00");
     String query =
         String.format(
@@ -102,7 +102,7 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "years");
+    checkExpressions(optimizedPlan, "years");
     checkPushedFilters(optimizedPlan, equal(year("ts"), targetYears));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -112,16 +112,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testMonthsFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testMonthsFunction(false);
+    testMonthsFunction();
   }
 
   @TestTemplate
   public void testMonthsFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "months(ts)");
-    testMonthsFunction(true);
+    testMonthsFunction();
   }
 
-  private void testMonthsFunction(boolean partitioned) {
+  private void testMonthsFunction() {
     int targetMonths = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
     String query =
         String.format(
@@ -130,7 +130,7 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "months");
+    checkExpressions(optimizedPlan, "months");
     checkPushedFilters(optimizedPlan, greaterThan(month("ts"), targetMonths));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -140,16 +140,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testDaysFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testDaysFunction(false);
+    testDaysFunction();
   }
 
   @TestTemplate
   public void testDaysFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "days(ts)");
-    testDaysFunction(true);
+    testDaysFunction();
   }
 
-  private void testDaysFunction(boolean partitioned) {
+  private void testDaysFunction() {
     String timestamp = "2018-11-20T00:00:00.000000+00:00";
     int targetDays = timestampStrToDayOrdinal(timestamp);
     String query =
@@ -160,7 +160,7 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "days");
+    checkExpressions(optimizedPlan, "days");
     checkPushedFilters(optimizedPlan, lessThan(day("ts"), targetDays));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -170,16 +170,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testHoursFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testHoursFunction(false);
+    testHoursFunction();
   }
 
   @TestTemplate
   public void testHoursFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "hours(ts)");
-    testHoursFunction(true);
+    testHoursFunction();
   }
 
-  private void testHoursFunction(boolean partitioned) {
+  private void testHoursFunction() {
     int targetHours = timestampStrToHourOrdinal("2017-11-22T06:02:09.243857+00:00");
     String query =
         String.format(
@@ -188,7 +188,7 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "hours");
+    checkExpressions(optimizedPlan, "hours");
     checkPushedFilters(optimizedPlan, greaterThanOrEqual(hour("ts"), targetHours));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -198,16 +198,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testBucketLongFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testBucketLongFunction(false);
+    testBucketLongFunction();
   }
 
   @TestTemplate
   public void testBucketLongFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "bucket(5, id)");
-    testBucketLongFunction(true);
+    testBucketLongFunction();
   }
 
-  private void testBucketLongFunction(boolean partitioned) {
+  private void testBucketLongFunction() {
     int target = 2;
     String query =
         String.format(
@@ -216,7 +216,7 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "bucket");
+    checkExpressions(optimizedPlan, "bucket");
     checkPushedFilters(optimizedPlan, lessThanOrEqual(bucket("id", 5), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -226,16 +226,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testBucketStringFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testBucketStringFunction(false);
+    testBucketStringFunction();
   }
 
   @TestTemplate
   public void testBucketStringFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "bucket(5, data)");
-    testBucketStringFunction(true);
+    testBucketStringFunction();
   }
 
-  private void testBucketStringFunction(boolean partitioned) {
+  private void testBucketStringFunction() {
     int target = 2;
     String query =
         String.format(
@@ -244,7 +244,7 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "bucket");
+    checkExpressions(optimizedPlan, "bucket");
     checkPushedFilters(optimizedPlan, notEqual(bucket("data", 5), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
@@ -254,16 +254,16 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testTruncateFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testTruncateFunction(false);
+    testTruncateFunction();
   }
 
   @TestTemplate
   public void testTruncateFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "truncate(4, data)");
-    testTruncateFunction(true);
+    testTruncateFunction();
   }
 
-  private void testTruncateFunction(boolean partitioned) {
+  private void testTruncateFunction() {
     String target = "data";
     String query =
         String.format(
@@ -273,15 +273,14 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "truncate");
+    checkExpressions(optimizedPlan, "truncate");
     checkPushedFilters(optimizedPlan, equal(truncate("data", 4), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
     assertThat(actual).hasSize(5);
   }
 
-  private void checkExpressions(
-      LogicalPlan optimizedPlan, boolean partitioned, String expectedFunctionName) {
+  private void checkExpressions(LogicalPlan optimizedPlan, String expectedFunctionName) {
     List<Expression> staticInvokes =
         PlanUtils.collectSparkExpressions(
             optimizedPlan, expression -> expression instanceof StaticInvoke);
@@ -291,13 +290,9 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
         PlanUtils.collectSparkExpressions(
             optimizedPlan, expression -> expression instanceof ApplyFunctionExpression);
 
-    if (partitioned) {
-      assertThat(applyExpressions).isEmpty();
-    } else {
-      assertThat(applyExpressions).hasSize(1);
-      ApplyFunctionExpression expression = (ApplyFunctionExpression) applyExpressions.get(0);
-      assertThat(expression.name()).isEqualTo(expectedFunctionName);
-    }
+    assertThat(applyExpressions).hasSize(1);
+    ApplyFunctionExpression expression = (ApplyFunctionExpression) applyExpressions.get(0);
+    assertThat(expression.name()).isEqualTo(expectedFunctionName);
   }
 
   private void checkPushedFilters(

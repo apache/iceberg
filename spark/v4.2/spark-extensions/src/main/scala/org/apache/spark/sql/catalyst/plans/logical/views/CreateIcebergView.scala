@@ -19,6 +19,7 @@
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.analysis.AnalysisContext
+import org.apache.spark.sql.catalyst.analysis.ViewSchemaMode
 import org.apache.spark.sql.catalyst.plans.logical.AnalysisOnlyCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
@@ -32,9 +33,11 @@ case class CreateIcebergView(
     columnComments: Seq[Option[String]],
     queryColumnNames: Seq[String] = Seq.empty,
     comment: Option[String],
+    collation: Option[String],
     properties: Map[String, String],
     allowExisting: Boolean,
     replace: Boolean,
+    viewSchemaMode: ViewSchemaMode,
     rewritten: Boolean = false,
     isAnalyzed: Boolean = false)
     extends AnalysisOnlyCommand {

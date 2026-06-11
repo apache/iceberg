@@ -28,8 +28,6 @@ import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
-import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.util.SchemaUtils
 
 object CheckViews extends (LogicalPlan => Unit) {
 
@@ -37,30 +35,20 @@ object CheckViews extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case CreateIcebergView(
-            resolvedIdent @ ResolvedIdentifier(_: ViewCatalog, _),
-            _,
-            query,
-            columnAliases,
-            _,
-            _,
-            _,
-            _,
-            _,
-            replace,
-            _,
-            _) =>
-        verifyColumnCount(resolvedIdent, columnAliases, query)
-        SchemaUtils.checkColumnNameDuplication(
-          query.schema.fieldNames.toIndexedSeq,
-          SQLConf.get.resolver)
-        if (replace) {
-          val viewIdent: Seq[String] =
-            resolvedIdent.catalog.name() +: resolvedIdent.identifier.asMultipartIdentifier
-          checkCyclicViewReference(viewIdent, query, Seq(viewIdent))
+      case c: CreateIcebergView =>
+        c.child match {
+          case resolvedIdent @ ResolvedIdentifier(_: ViewCatalog, _) =>
+            verifyColumnCount(resolvedIdent, c.columnAliases, c.query)
+            if (c.replace) {
+              val viewIdent: Seq[String] =
+                resolvedIdent.catalog.name() +: resolvedIdent.identifier.asMultipartIdentifier
+              checkCyclicViewReference(viewIdent, c.query, Seq(viewIdent))
+            }
+
+          case _ => // OK
         }
 
-      case AlterViewAs(ResolvedV2View(_, _), _, _) =>
+      case AlterViewAs(ResolvedV2View(_, _), _, _, _, _) =>
         throw new IcebergAnalysisException(
           "ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead")
 

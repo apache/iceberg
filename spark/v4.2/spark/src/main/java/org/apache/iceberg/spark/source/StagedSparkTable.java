@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.Transaction;
 import org.apache.spark.sql.connector.catalog.StagedTable;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
 public class StagedSparkTable extends SparkTable implements StagedTable {
   private final Transaction transaction;
@@ -37,5 +38,10 @@ public class StagedSparkTable extends SparkTable implements StagedTable {
   @Override
   public void abortStagedChanges() {
     // TODO: clean up
+  }
+
+  @Override
+  public CustomTaskMetric[] reportDriverMetrics() {
+    return new CustomTaskMetric[0];
   }
 }

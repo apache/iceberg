@@ -19,35 +19,48 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
+import org.apache.spark.sql.catalyst.analysis.ViewUtil
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
-import org.apache.spark.sql.connector.catalog.ViewCatalog
-import org.apache.spark.sql.connector.catalog.ViewChange
+import org.apache.spark.sql.connector.catalog.View
+import org.apache.spark.sql.execution.LeafExecNode
+import scala.jdk.CollectionConverters._
 
-case class AlterV2ViewUnsetPropertiesExec(
-    catalog: ViewCatalog,
+/**
+ * Executes SHOW TBLPROPERTIES for Spark V2 views.
+ *
+ * Uses a custom command instead of Spark's built-in implementation so Iceberg reserved metadata is
+ * filtered from user-visible view properties.
+ */
+case class IcebergShowV2ViewPropertiesExec(
+    output: Seq[Attribute],
+    catalogName: String,
     ident: Identifier,
-    propertyKeys: Seq[String],
-    ifExists: Boolean)
-    extends LeafV2CommandExec {
+    view: View,
+    propertyKey: Option[String])
+    extends V2CommandExec
+    with LeafExecNode {
 
-  override lazy val output: Seq[Attribute] = Nil
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override protected def run(): Seq[InternalRow] = {
-    if (!ifExists) {
-      propertyKeys.filterNot(catalog.loadView(ident).properties.containsKey).foreach { property =>
-        throw new IcebergAnalysisException(s"Cannot remove property that is not set: '$property'")
-      }
+    propertyKey match {
+      case Some(p) =>
+        val propValue =
+          properties.getOrElse(p, s"View ${catalogName}.${ident.quoted} does not have property: $p")
+        Seq(toCatalystRow(p, propValue))
+      case None =>
+        properties.map { case (k, v) =>
+          toCatalystRow(k, v)
+        }.toSeq
     }
+  }
 
-    val changes = propertyKeys.map(ViewChange.removeProperty)
-    catalog.alterView(ident, changes: _*)
-
-    Nil
+  private def properties = {
+    view.properties.asScala.toMap -- ViewUtil.RESERVED_PROPERTIES
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterV2ViewUnsetProperties: ${ident}"
+    s"IcebergShowV2ViewPropertiesExec"
   }
 }

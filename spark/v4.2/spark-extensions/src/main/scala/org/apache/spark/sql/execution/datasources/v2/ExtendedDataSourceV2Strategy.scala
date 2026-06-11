@@ -124,7 +124,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         throw new IcebergAnalysisException(
           s"Cannot move view between catalogs: from=${oldCatalog.name} and to=${newIdent.catalog().name()}")
       }
-      RenameV2ViewExec(oldCatalog, oldIdent, newIdent.identifier()) :: Nil
+
+      val targetIdent = qualifyViewRenameTarget(oldIdent, newIdent.identifier())
+      RenameV2ViewExec(oldCatalog, oldIdent, targetIdent) :: Nil
 
     case DropIcebergView(ResolvedIdentifier(viewCatalog: ViewCatalog, ident), ifExists) =>
       DropV2ViewExec(viewCatalog, ident, ifExists) :: Nil
@@ -135,45 +137,67 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           query,
           columnAliases,
           columnComments,
-          queryColumnNames,
+          _,
           comment,
+          collation,
           properties,
           allowExisting,
           replace,
+          viewSchemaMode,
           _,
           _) =>
       CreateV2ViewExec(
-        catalog = viewCatalog,
-        ident = ident,
-        queryText = queryText,
-        columnAliases = columnAliases,
-        columnComments = columnComments,
-        queryColumnNames = queryColumnNames,
-        viewSchema = query.schema,
-        comment = comment,
-        properties = properties,
-        allowExisting = allowExisting,
-        replace = replace) :: Nil
+        viewCatalog,
+        ident,
+        columnAliases.zip(columnComments),
+        comment,
+        collation,
+        properties,
+        queryText,
+        query,
+        allowExisting,
+        replace,
+        viewSchemaMode) :: Nil
 
-    case DescribeRelation(ResolvedV2View(catalog, ident), _, isExtended, output) =>
-      DescribeV2ViewExec(output, catalog.loadView(ident), isExtended) :: Nil
+    case DescribeRelation(ResolvedV2View(catalog, ident), isExtended, output) =>
+      IcebergDescribeV2ViewExec(
+        output,
+        catalog.name(),
+        ident,
+        catalog.loadView(ident),
+        isExtended) :: Nil
 
     case ShowTableProperties(ResolvedV2View(catalog, ident), propertyKey, output) =>
-      ShowV2ViewPropertiesExec(output, catalog.loadView(ident), propertyKey) :: Nil
+      IcebergShowV2ViewPropertiesExec(
+        output,
+        catalog.name(),
+        ident,
+        catalog.loadView(ident),
+        propertyKey) :: Nil
 
     case ShowIcebergViews(ResolvedNamespace(catalog: ViewCatalog, namespace, _), pattern, output) =>
       ShowV2ViewsExec(output, catalog, namespace, pattern) :: Nil
 
     case ShowCreateTable(ResolvedV2View(catalog, ident), _, output) =>
-      ShowCreateV2ViewExec(output, catalog.loadView(ident)) :: Nil
+      IcebergShowCreateV2ViewExec(output, ident, catalog.loadView(ident)) :: Nil
 
     case SetViewProperties(ResolvedV2View(catalog, ident), properties) =>
-      AlterV2ViewSetPropertiesExec(catalog, ident, properties) :: Nil
+      IcebergAlterV2ViewSetPropertiesExec(catalog, ident, properties) :: Nil
 
     case UnsetViewProperties(ResolvedV2View(catalog, ident), propertyKeys, ifExists) =>
-      AlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
+      IcebergAlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
 
     case _ => Nil
+  }
+
+  private def qualifyViewRenameTarget(
+      sourceIdent: Identifier,
+      targetIdent: Identifier): Identifier = {
+    if (targetIdent.namespace().isEmpty) {
+      Identifier.of(sourceIdent.namespace(), targetIdent.name())
+    } else {
+      targetIdent
+    }
   }
 
   private object IcebergCatalogAndIdentifier {

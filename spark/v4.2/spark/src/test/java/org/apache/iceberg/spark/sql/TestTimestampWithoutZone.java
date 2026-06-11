@@ -182,7 +182,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
         .sessionState()
         .catalogManager()
         .currentCatalog()
-        .initialize(catalog.name(), new CaseInsensitiveStringMap(catalogConfig));
+        .initialize(catalogName, new CaseInsensitiveStringMap(catalogConfig));
     sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
     sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", NEW_TABLE_NAME, tableName);

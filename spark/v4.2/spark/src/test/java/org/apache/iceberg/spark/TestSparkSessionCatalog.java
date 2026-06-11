@@ -120,7 +120,7 @@ public class TestSparkSessionCatalog extends TestBase {
             withSettings()
                 .extraInterfaces(
                     FunctionCatalog.class, SupportsNamespaces.class, ViewCatalog.class));
-    when(((ViewCatalog) sessionCatalog).listViews("default")).thenReturn(views);
+    when(((ViewCatalog) sessionCatalog).listViews(new String[] {"default"})).thenReturn(views);
 
     SparkSessionCatalog<?> catalog = new NoViewCatalog<>();
     catalog.initialize("spark_catalog", new CaseInsensitiveStringMap(Collections.emptyMap()));

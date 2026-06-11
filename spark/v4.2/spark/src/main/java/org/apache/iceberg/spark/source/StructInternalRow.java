@@ -53,6 +53,8 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
 import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.MapType;
@@ -61,9 +63,8 @@ import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VariantType;
+import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.CalendarInterval;
-import org.apache.spark.unsafe.types.GeographyVal;
-import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -204,6 +205,11 @@ class StructInternalRow extends InternalRow {
   }
 
   @Override
+  public BinaryView getBinaryView(int ordinal) {
+    return isNullAt(ordinal) ? null : BinaryView.fromBytes(getBinaryInternal(ordinal));
+  }
+
+  @Override
   public CalendarInterval getInterval(int ordinal) {
     throw new UnsupportedOperationException("Unsupported type: interval");
   }
@@ -250,16 +256,6 @@ class StructInternalRow extends InternalRow {
   }
 
   @Override
-  public GeographyVal getGeography(int ordinal) {
-    return isNullAt(ordinal) ? null : GeographyVal.fromBytes(getBinaryInternal(ordinal));
-  }
-
-  @Override
-  public GeometryVal getGeometry(int ordinal) {
-    return isNullAt(ordinal) ? null : GeometryVal.fromBytes(getBinaryInternal(ordinal));
-  }
-
-  @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Object get(int ordinal, DataType dataType) {
     if (isNullAt(ordinal)) {
@@ -298,6 +294,8 @@ class StructInternalRow extends InternalRow {
       return getLong(ordinal);
     } else if (dataType instanceof VariantType) {
       return getVariantInternal(ordinal);
+    } else if (dataType instanceof GeographyType || dataType instanceof GeometryType) {
+      return BinaryView.fromBytes(getBinaryInternal(ordinal));
     }
     return null;
   }

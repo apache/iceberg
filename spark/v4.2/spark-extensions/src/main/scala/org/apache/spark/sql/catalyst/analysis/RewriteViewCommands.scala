@@ -22,8 +22,12 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.CreateView
+import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
 import org.apache.spark.sql.catalyst.plans.logical.DropView
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.RenameTable
+import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
+import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
 import org.apache.spark.sql.catalyst.plans.logical.ShowViews
 import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
@@ -50,16 +54,30 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     case DropView(ResolvedIdent(resolved), ifExists) =>
       DropIcebergView(resolved, ifExists)
 
+    case RenameTable(ResolvedViewPlan(resolved), newName, isView @ true) =>
+      RenameTable(resolved, newName, isView)
+
+    case DescribeRelation(ResolvedViewPlan(resolved), isExtended, output) =>
+      DescribeRelation(resolved, isExtended, output)
+
+    case ShowCreateTable(ResolvedViewPlan(resolved), asSerde, output) =>
+      ShowCreateTable(resolved, asSerde, output)
+
+    case ShowTableProperties(ResolvedViewPlan(resolved), propertyKey, output) =>
+      ShowTableProperties(resolved, propertyKey, output)
+
     case CreateView(
           ResolvedIdent(resolved),
           userSpecifiedColumns,
           comment,
-          _,
+          collation,
           properties,
           Some(queryText),
           query,
           allowExisting,
           replace,
+          viewSchemaMode,
+          _,
           _) =>
       val q = CTESubstitution.apply(query)
       verifyTemporaryObjectsDontExist(resolved, q)
@@ -70,9 +88,11 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         columnAliases = userSpecifiedColumns.map(_._1),
         columnComments = userSpecifiedColumns.map(_._2.orElse(Option.empty)),
         comment = comment,
+        collation = collation,
         properties = properties,
         allowExisting = allowExisting,
-        replace = replace)
+        replace = replace,
+        viewSchemaMode = viewSchemaMode)
 
     case view @ ShowViews(CurrentNamespace, pattern, output) =>
       if (ViewUtil.isViewCatalog(catalogManager.currentCatalog)) {
@@ -186,6 +206,19 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         ViewUtil
           .loadView(catalog, ident)
           .flatMap(_ => Some(ResolvedV2View(catalog.asViewCatalog, ident)))
+
+      case _ =>
+        None
+    }
+  }
+
+  private object ResolvedViewPlan {
+    def unapply(plan: LogicalPlan): Option[ResolvedV2View] = plan match {
+      case UnresolvedTableOrView(ResolvedView(resolved), _, _, _) =>
+        Some(resolved)
+
+      case UnresolvedIdentifier(ResolvedView(resolved), _) =>
+        Some(resolved)
 
       case _ =>
         None

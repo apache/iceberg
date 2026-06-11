@@ -19,7 +19,6 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
@@ -34,10 +33,10 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.CatalogManager
+import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.errors.QueryCompilationErrors
-import org.apache.spark.sql.types.MetadataBuilder
 
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
@@ -53,61 +52,29 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     case u @ UnresolvedRelation(parts @ CatalogAndIdentifier(catalog, ident), _, _) =>
       ViewUtil
         .loadView(catalog, ident)
-        .map(createViewRelation(parts, _))
+        .map(createViewRelation(parts, catalog, _))
         .getOrElse(u)
 
-    case u @ UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _) =>
+    case u @ UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _, _) =>
       ViewUtil
         .loadView(catalog, ident)
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
 
-    case c @ CreateIcebergView(
-          ResolvedIdentifier(_, _),
-          _,
-          query,
-          columnAliases,
-          columnComments,
-          _,
-          _,
-          _,
-          _,
-          _,
-          _,
-          _) if query.resolved && !c.rewritten =>
-      val aliased = aliasColumns(query, columnAliases, columnComments)
-      c.copy(
-        query = aliased,
-        queryColumnNames = query.schema.fieldNames.toIndexedSeq,
-        rewritten = true)
+    case c: CreateIcebergView if c.query.resolved && !c.rewritten =>
+      c.copy(rewritten = true)
   }
 
-  private def aliasColumns(
-      plan: LogicalPlan,
-      columnAliases: Seq[String],
-      columnComments: Seq[Option[String]]): LogicalPlan = {
-    if (columnAliases.isEmpty || columnAliases.length != plan.output.length) {
-      plan
-    } else {
-      val projectList = plan.output.zipWithIndex.map { case (attr, pos) =>
-        if (columnComments.apply(pos).isDefined) {
-          val meta =
-            new MetadataBuilder().putString("comment", columnComments.apply(pos).get).build()
-          Alias(attr, columnAliases.apply(pos))(explicitMetadata = Some(meta))
-        } else {
-          Alias(attr, columnAliases.apply(pos))()
-        }
-      }
-      Project(projectList, plan)
-    }
-  }
-
-  private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
-    val parsed = parseViewText(nameParts.quoted, view.query)
+  private def createViewRelation(
+      nameParts: Seq[String],
+      catalog: CatalogPlugin,
+      view: View): LogicalPlan = {
+    val parsed = parseViewText(nameParts.quoted, view.queryText)
 
     // Apply any necessary rewrites to preserve correct resolution
-    val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
-    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace);
+    val viewCatalogAndNamespace: Seq[String] =
+      Option(view.currentCatalog).getOrElse(catalog.name()) +: view.currentNamespace.toSeq
+    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace)
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
@@ -178,6 +145,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   }
 
   private def isBuiltinFunction(name: String): Boolean = {
-    catalogManager.v1SessionCatalog.isBuiltinFunction(FunctionIdentifier(name))
+    catalogManager.v1SessionCatalog.isBuiltinFunction(name)
   }
 }

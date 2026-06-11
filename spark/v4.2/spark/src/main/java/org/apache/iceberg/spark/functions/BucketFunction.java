@@ -352,7 +352,7 @@ public class BucketFunction implements UnboundFunction {
   }
 
   static class BucketReducer implements Reducer<Integer, Integer>, Serializable {
-    private int commonDivisor;
+    private final int commonDivisor;
 
     BucketReducer(int commonDivisor) {
       this.commonDivisor = commonDivisor;
@@ -361,6 +361,11 @@ public class BucketFunction implements UnboundFunction {
     @Override
     public Integer reduce(Integer bucketNo) {
       return bucketNo % this.commonDivisor;
+    }
+
+    @Override
+    public DataType resultType() {
+      return DataTypes.IntegerType;
     }
   }
 }
