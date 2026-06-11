@@ -39,6 +39,12 @@ public class TestDateTimeUtil {
   }
 
   @Test
+  public void microsToMillis() {
+    assertThat(DateTimeUtil.microsToMillis(1510871468000001L)).isEqualTo(1510871468000L);
+    assertThat(DateTimeUtil.microsToMillis(-1510871468000001L)).isEqualTo(-1510871468001L);
+  }
+
+  @Test
   public void isoTimestampToNanos() {
     assertThat(DateTimeUtil.isoTimestampToNanos("2017-11-16T22:31:08.000001001"))
         .isEqualTo(1510871468000001001L);
