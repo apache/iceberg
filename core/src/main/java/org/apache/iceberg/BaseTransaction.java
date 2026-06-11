@@ -784,21 +784,21 @@ public class BaseTransaction implements Transaction {
   }
 
   private static CommitFailedException toCommitFailedException(
-      RetryExhaustedException e, Map<String, String> properties) {
+      RetryExhaustedException ex, Map<String, String> properties) {
     int numRetries =
         PropertyUtil.propertyAsInt(properties, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
     int totalTimeoutMs =
         PropertyUtil.propertyAsInt(
             properties, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
-    if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
+    if (ex.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
       return new CommitFailedException(
-          e,
+          ex,
           "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
           totalTimeoutMs,
           COMMIT_TOTAL_RETRY_TIME_MS);
     } else {
       return new CommitFailedException(
-          e,
+          ex,
           "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
           numRetries,
           COMMIT_NUM_RETRIES);
