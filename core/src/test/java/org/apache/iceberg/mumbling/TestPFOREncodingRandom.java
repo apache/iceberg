@@ -27,9 +27,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * Randomized round-trip tests for {@link PFOREncoding}.
- */
+/** Randomized round-trip tests for {@link PFOREncoding}. */
 public class TestPFOREncodingRandom {
   private static final Random RANDOM = new Random(3546521684L);
 
