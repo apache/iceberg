@@ -204,24 +204,31 @@ public class TestConversions {
     //   x:y:z     (24B) when only m is unset
     //   x:y:NaN:m (32B) when only z is unset -- z slot is filled with NaN
     //   x:y:z:m   (32B) when all are set
-    byte[] x = {0, 0, 0, 0, 0, 0, 36, 64}; // 10.0
-    byte[] y = {0, 0, 0, 0, 0, 0, 42, 64}; // 13.0
-    byte[] z = {0, 0, 0, 0, 0, 0, 46, 64}; // 15.0
-    byte[] m = {0, 0, 0, 0, 0, 0, 52, 64}; // 20.0
-    byte[] nan = {0, 0, 0, 0, 0, 0, -8, 127};
+    byte[] xBytes = {0, 0, 0, 0, 0, 0, 36, 64}; // 10.0
+    byte[] yBytes = {0, 0, 0, 0, 0, 0, 42, 64}; // 13.0
+    byte[] zBytes = {0, 0, 0, 0, 0, 0, 46, 64}; // 15.0
+    byte[] mBytes = {0, 0, 0, 0, 0, 0, 52, 64}; // 20.0
+    byte[] nanBytes = {0, 0, 0, 0, 0, 0, -8, 127};
 
     for (Type type : ImmutableList.of(GeometryType.crs84(), GeographyType.crs84())) {
-      assertConversion(GeospatialBound.createXY(10.0, 13.0), type, Bytes.concat(x, y));
-      assertConversion(GeospatialBound.createXYZ(10.0, 13.0, 15.0), type, Bytes.concat(x, y, z));
+      assertConversion(GeospatialBound.createXY(10.0, 13.0), type, Bytes.concat(xBytes, yBytes));
       assertConversion(
-          GeospatialBound.createXYM(10.0, 13.0, 20.0), type, Bytes.concat(x, y, nan, m));
+          GeospatialBound.createXYZ(10.0, 13.0, 15.0), type, Bytes.concat(xBytes, yBytes, zBytes));
       assertConversion(
-          GeospatialBound.createXYZM(10.0, 13.0, 15.0, 20.0), type, Bytes.concat(x, y, z, m));
+          GeospatialBound.createXYM(10.0, 13.0, 20.0),
+          type,
+          Bytes.concat(xBytes, yBytes, nanBytes, mBytes));
+      assertConversion(
+          GeospatialBound.createXYZM(10.0, 13.0, 15.0, 20.0),
+          type,
+          Bytes.concat(xBytes, yBytes, zBytes, mBytes));
     }
 
     // a non-default CRS must not change the binary encoding
     assertConversion(
-        GeospatialBound.createXY(10.0, 13.0), GeometryType.of("EPSG:3857"), Bytes.concat(x, y));
+        GeospatialBound.createXY(10.0, 13.0),
+        GeometryType.of("EPSG:3857"),
+        Bytes.concat(xBytes, yBytes));
   }
 
   @Test
