@@ -28,7 +28,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -332,9 +331,7 @@ public class TestFastAppend extends TestBase {
     ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
     assertThat(new File(newManifest.path())).exists();
 
-    assertThatThrownBy(append::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(append::commit);
 
     assertThat(new File(newManifest.path())).doesNotExist();
   }
@@ -347,9 +344,7 @@ public class TestFastAppend extends TestBase {
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
 
     // Default number of retries results in a failed commit
-    assertThatThrownBy(append::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(append::commit);
 
     // After increasing the number of retries the commit succeeds
     table
@@ -381,9 +376,7 @@ public class TestFastAppend extends TestBase {
       assertThat(newManifest.path()).isEqualTo(manifest.path());
     }
 
-    assertThatThrownBy(append::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(append::commit);
 
     if (formatVersion == 1) {
       assertThat(new File(newManifest.path())).doesNotExist();
@@ -494,9 +487,7 @@ public class TestFastAppend extends TestBase {
     AppendFiles append = table.newAppend();
     append.appendManifest(manifest);
 
-    assertThatThrownBy(append::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(append::commit);
 
     assertThat(new File(manifest.path())).exists();
   }

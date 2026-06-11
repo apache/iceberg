@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
@@ -1028,9 +1027,7 @@ public class TestRewriteManifests extends TestBase {
     rewriteManifests.deleteManifest(secondSnapshotManifest);
     rewriteManifests.addManifest(newManifest);
 
-    assertThatThrownBy(rewriteManifests::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(rewriteManifests::commit);
 
     assertThat(new File(newManifest.path())).exists();
   }
@@ -1070,9 +1067,7 @@ public class TestRewriteManifests extends TestBase {
     rewriteManifests.deleteManifest(secondSnapshotManifest);
     rewriteManifests.addManifest(newManifest);
 
-    assertThatThrownBy(rewriteManifests::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(rewriteManifests::commit);
 
     assertThat(new File(newManifest.path())).exists();
   }
@@ -1678,9 +1673,7 @@ public class TestRewriteManifests extends TestBase {
     rewriteManifests.addManifest(newDeleteManifest);
 
     // the rewrite must fail
-    assertThatThrownBy(rewriteManifests::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(rewriteManifests::commit);
 
     // the new manifest must not be deleted as the commit hasn't succeeded
     assertThat(new File(newDeleteManifest.path())).exists();
