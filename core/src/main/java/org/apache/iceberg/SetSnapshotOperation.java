@@ -120,6 +120,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
           .run(
               taskOps -> {
                 Snapshot snapshot = apply();

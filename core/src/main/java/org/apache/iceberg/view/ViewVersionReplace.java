@@ -105,6 +105,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
               totalTimeoutMs,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
           .run(taskOps -> taskOps.commit(base, internalApply()));
     } catch (RetryExhaustedException e) {
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {

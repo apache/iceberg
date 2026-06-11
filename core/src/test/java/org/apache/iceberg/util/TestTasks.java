@@ -69,12 +69,14 @@ public class TestTasks {
                     .retry(1)
                     .exponentialBackoff(0, 0, 5000, 0)
                     .onlyRetryOn(IllegalStateException.class)
+                    .throwRetryExhaustedException()
                     .run(
                         item -> {
                           throw new IllegalStateException("Retryable failure");
                         }))
         .isInstanceOf(Tasks.RetryExhaustedException.class)
         .hasCauseInstanceOf(IllegalStateException.class)
+        .hasMessage("java.lang.IllegalStateException: Retryable failure")
         .satisfies(
             thrown ->
                 assertThat(((Tasks.RetryExhaustedException) thrown).reason())

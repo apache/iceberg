@@ -66,6 +66,7 @@ public class SetLocation implements UpdateLocation {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
           .run(taskOps -> taskOps.commit(base, base.updateLocation(newLocation)));
     } catch (RetryExhaustedException e) {
       if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {

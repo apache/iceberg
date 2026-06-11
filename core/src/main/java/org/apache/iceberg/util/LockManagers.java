@@ -241,6 +241,7 @@ public class LockManagers {
         Tasks.foreach(entityId)
             .retry(Integer.MAX_VALUE - 1)
             .onlyRetryOn(IllegalStateException.class)
+            .throwRetryExhaustedException()
             .throwFailureWhenFinished()
             .exponentialBackoff(acquireIntervalMs(), acquireIntervalMs(), acquireTimeoutMs(), 1)
             .run(id -> acquireOnce(id, ownerId));

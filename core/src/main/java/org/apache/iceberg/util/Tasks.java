@@ -129,6 +129,7 @@ public class Tasks {
     private long maxDurationMs = 600000; // 10 minutes
     private double scaleFactor = 2.0; // exponential
     private Counter attemptsCounter;
+    private boolean throwRetryExhaustedException = false;
 
     public Builder(Iterable<I> items) {
       this.items = items;
@@ -218,6 +219,11 @@ public class Tasks {
 
     public Builder<I> countAttempts(Counter counter) {
       this.attemptsCounter = counter;
+      return this;
+    }
+
+    public Builder<I> throwRetryExhaustedException() {
+      this.throwRetryExhaustedException = true;
       return this;
     }
 
@@ -474,7 +480,12 @@ public class Tasks {
             } else {
               reason = RetryExhaustedException.Reason.RETRY_LIMIT_EXCEEDED;
             }
-            throw new RetryExhaustedException(e, reason);
+
+            if (throwRetryExhaustedException) {
+              throw new RetryExhaustedException(e, reason);
+            }
+
+            throw e;
           }
 
           int delayMs =

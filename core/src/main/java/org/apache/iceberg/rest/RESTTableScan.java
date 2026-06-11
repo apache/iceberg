@@ -265,6 +265,7 @@ class RESTTableScan extends DataTableScan {
           .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, maxWaitTimeMs, SCALE_FACTOR)
           .retry(MAX_RETRIES)
           .onlyRetryOn(NotCompleteException.class)
+          .throwRetryExhaustedException()
           .onFailure(
               (id, err) -> {
                 LOG.warn("Planning failed for plan ID: {}", id, err);

@@ -68,6 +68,7 @@ class SetViewLocation implements UpdateLocation {
               totalTimeoutMs,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
           .run(
               taskOps ->
                   taskOps.commit(base, ViewMetadata.buildFrom(base).setLocation(apply()).build()));
