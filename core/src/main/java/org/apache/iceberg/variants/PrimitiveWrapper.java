@@ -24,7 +24,6 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.UUIDUtil;
 
 class PrimitiveWrapper<T> implements VariantPrimitive<T> {

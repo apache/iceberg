@@ -192,7 +192,8 @@ public class VariantTestUtil {
       // write the offset and the string
       ByteBuffers.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
-      buffer.put(dataOffset + nextOffset, nameBuffer, nameBuffer.position(), nameBuffer.remaining());
+      buffer.put(
+          dataOffset + nextOffset, nameBuffer, nameBuffer.position(), nameBuffer.remaining());
       // update the offset and index
       nextOffset += nameBuffer.remaining();
       index += 1;

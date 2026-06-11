@@ -19,7 +19,6 @@
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
-import org.apache.iceberg.util.ByteBuffers;
 
 interface SerializedValue extends VariantValue, Serialized {
   @Override

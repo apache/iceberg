@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class VariantUtil {
   private static final int BASIC_TYPE_MASK = 0b11;
