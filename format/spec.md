@@ -524,7 +524,7 @@ The `void` transform may be used to replace the transform in an existing partiti
 
 Notes:
 
-1. The physical representation is a 4-byte integer counting days from `1970-01-01`. Writers may produce Avro fields annotated both with and without a logical `date` annotation, and readers must accept both forms.
+1. Readers must also accept `int` values for the `day` transform, interpreting each integer as a `date` represented by the number of days since `1970-01-01`.
 
 #### Bucket Transform Details
 
