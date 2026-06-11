@@ -33,6 +33,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.CommitRetry;
 import org.apache.iceberg.util.Tasks;
 
 class PropertiesUpdate implements UpdateProperties {

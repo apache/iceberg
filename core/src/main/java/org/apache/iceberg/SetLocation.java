@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.util.CommitRetry;
 import org.apache.iceberg.util.Tasks;
 
 public class SetLocation implements UpdateLocation {
