@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Date;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.connect.data.Decimal;
@@ -32,6 +33,9 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.Test;
 
 public class TestDebeziumTransform {
+
+  private static final long EVENT_TS_MS = 1718000001000L;
+  private static final long SOURCE_TS_MS = 1718000000000L;
 
   private static final Schema KEY_SCHEMA =
       SchemaBuilder.struct().field("account_id", Schema.INT64_SCHEMA).build();
@@ -48,6 +52,7 @@ public class TestDebeziumTransform {
           .field("db", Schema.STRING_SCHEMA)
           .field("schema", Schema.STRING_SCHEMA)
           .field("table", Schema.STRING_SCHEMA)
+          .field("ts_ms", Schema.INT64_SCHEMA)
           .build();
 
   private static final Schema VALUE_SCHEMA =
@@ -86,6 +91,8 @@ public class TestDebeziumTransform {
 
       Map<String, Object> cdcMetadata = (Map<String, Object>) value.get("_cdc");
       assertThat(cdcMetadata.get("op")).isEqualTo("U");
+      assertThat(cdcMetadata.get("ts")).isEqualTo(EVENT_TS_MS);
+      assertThat(cdcMetadata.get("source_ts")).isEqualTo(SOURCE_TS_MS);
       assertThat(cdcMetadata.get("source")).isEqualTo("schema.tbl");
       assertThat(cdcMetadata.get("target")).isEqualTo("schema_x.tbl_x");
       assertThat(cdcMetadata.get("key")).isInstanceOf(Map.class);
@@ -109,6 +116,9 @@ public class TestDebeziumTransform {
 
       Struct cdcMetadata = value.getStruct("_cdc");
       assertThat(cdcMetadata.get("op")).isEqualTo("U");
+      assertThat(cdcMetadata.get("ts")).isEqualTo(Date.from(Instant.ofEpochMilli(EVENT_TS_MS)));
+      assertThat(cdcMetadata.get("source_ts"))
+          .isEqualTo(Date.from(Instant.ofEpochMilli(SOURCE_TS_MS)));
       assertThat(cdcMetadata.get("source")).isEqualTo("schema.tbl");
       assertThat(cdcMetadata.get("target")).isEqualTo("schema_x.tbl_x");
       assertThat(cdcMetadata.get("key")).isInstanceOf(Struct.class);
@@ -120,7 +130,8 @@ public class TestDebeziumTransform {
         ImmutableMap.of(
             "db", "db",
             "schema", "schema",
-            "table", "tbl");
+            "table", "tbl",
+            "ts_ms", SOURCE_TS_MS);
 
     Map<String, Object> data =
         ImmutableMap.of(
@@ -130,7 +141,7 @@ public class TestDebeziumTransform {
 
     return ImmutableMap.of(
         "op", operation,
-        "ts_ms", System.currentTimeMillis(),
+        "ts_ms", EVENT_TS_MS,
         "source", source,
         "before", data,
         "after", data);
@@ -138,7 +149,11 @@ public class TestDebeziumTransform {
 
   private Struct createDebeziumEventStruct(String operation) {
     Struct source =
-        new Struct(SOURCE_SCHEMA).put("db", "db").put("schema", "schema").put("table", "tbl");
+        new Struct(SOURCE_SCHEMA)
+            .put("db", "db")
+            .put("schema", "schema")
+            .put("table", "tbl")
+            .put("ts_ms", SOURCE_TS_MS);
 
     Struct data =
         new Struct(ROW_SCHEMA)
@@ -148,7 +163,7 @@ public class TestDebeziumTransform {
 
     return new Struct(VALUE_SCHEMA)
         .put("op", operation)
-        .put("ts_ms", System.currentTimeMillis())
+        .put("ts_ms", EVENT_TS_MS)
         .put("source", source)
         .put("before", data)
         .put("after", data);
