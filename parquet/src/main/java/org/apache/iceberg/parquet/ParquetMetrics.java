@@ -264,11 +264,23 @@ class ParquetMetrics {
         int truncateLength) {
       if (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
         return null;
-      } else if (truncateLength <= 0) {
+      } else if (truncateLength <= 0 || isGeospatial(icebergType)) {
+        // Parquet's lex min/max statistics are not meaningful for geometry/geography. Spatial
+        // bounding boxes are tracked separately via GeospatialBound and are not yet plumbed
+        // through the standard FieldMetrics path, so fall back to counts only.
         return counts(fieldId);
       } else {
         return bounds(fieldId, icebergType, primitive, truncateLength);
       }
+    }
+
+    private static boolean isGeospatial(org.apache.iceberg.types.Type.PrimitiveType icebergType) {
+      if (icebergType == null) {
+        return false;
+      }
+      org.apache.iceberg.types.Type.TypeID id = icebergType.typeId();
+      return id == org.apache.iceberg.types.Type.TypeID.GEOMETRY
+          || id == org.apache.iceberg.types.Type.TypeID.GEOGRAPHY;
     }
 
     private FieldMetrics<ByteBuffer> counts(int fieldId) {
