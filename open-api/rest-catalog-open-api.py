@@ -256,12 +256,20 @@ class SortOrder(BaseModel):
 
 class EncryptedKey(BaseModel):
     key_id: str = Field(..., alias='key-id')
-    encrypted_key_metadata: Base64Str = Field(..., alias='encrypted-key-metadata')
+    encrypted_key_metadata: Base64Str = Field(
+        ...,
+        alias='encrypted-key-metadata',
+        json_schema_extra={'contentEncoding': 'base64'},
+    )
     encrypted_by_id: str | None = Field(None, alias='encrypted-by-id')
     properties: dict[str, str] | None = None
 
 
 class Summary(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+    )
+    __pydantic_extra__: dict[str, str]
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
 

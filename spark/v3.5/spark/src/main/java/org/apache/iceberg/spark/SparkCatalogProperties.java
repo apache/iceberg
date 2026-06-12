@@ -16,39 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.spark;
 
-/** Status of an entry in a manifest file. */
-enum EntryStatus {
-  EXISTING(0, true),
-  ADDED(1, true),
-  DELETED(2, false),
+public final class SparkCatalogProperties {
+
+  private SparkCatalogProperties() {}
+
   /**
-   * The old (replaced) state of an entry that has been modified. Paired with MODIFIED. Added in v4.
+   * Controls whether Spark should delegate DROP TABLE PURGE requests to the REST catalog instead of
+   * performing client-side file deletion.
+   *
+   * <p>When enabled, Spark sends the purge request to the REST catalog, allowing the catalog to
+   * handle deletion.
+   *
+   * <p>Defaults to false for backward compatibility.
    */
-  REPLACED(3, false),
-  /** The new (live) state of an entry that has been modified. Added in v4. */
-  MODIFIED(4, true);
+  public static final String REST_CATALOG_PURGE = "rest-catalog-purge";
 
-  private static final EntryStatus[] VALUES = EntryStatus.values();
-
-  private final int id;
-  private final boolean live;
-
-  EntryStatus(int id, boolean live) {
-    this.id = id;
-    this.live = live;
-  }
-
-  public int id() {
-    return id;
-  }
-
-  boolean isLive() {
-    return live;
-  }
-
-  static EntryStatus fromId(int id) {
-    return VALUES[id];
-  }
+  public static final boolean REST_CATALOG_PURGE_DEFAULT = false;
 }
