@@ -167,8 +167,8 @@ class RootManifestWriter implements AutoCloseable {
   /**
    * Adds a manifest reference entry with an explicit entry status. Use {@link EntryStatus#EXISTING}
    * for manifests carried over unchanged from the previous snapshot, and {@link EntryStatus#ADDED}
-   * for manifests newly written in this snapshot. The output's {@code format_version} is
-   * read from {@link ManifestFile#formatVersion()}.
+   * for manifests newly written in this snapshot. The output's {@code format_version} is read from
+   * {@link ManifestFile#formatVersion()}.
    */
   void add(ManifestFile manifest, EntryStatus status) {
     addEntry(manifest, status);

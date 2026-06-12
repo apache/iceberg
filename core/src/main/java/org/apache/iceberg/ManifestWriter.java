@@ -67,6 +67,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   // into existing in toManifestFile), and the on-disk record_count must equal the row count of
   // the leaf manifest file regardless.
   private int entriesWritten = 0;
+  private int replacedFiles = 0;
+  private long replacedRows = 0L;
+  // MODIFIED entries are live (like EXISTING) — tracked separately so toManifestFile() can
+  // fold them into existingFilesCount/existingRowsCount without double-counting.
+  private int modifiedFiles = 0;
+  private long modifiedRows = 0L;
   private Long minDataSequenceNumber = null;
 
   private ManifestWriter(
@@ -155,6 +161,81 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     writer.add(prepare(entry));
+  }
+
+  // Protected helpers for subclasses that need to bypass prepare() and directly drive counters.
+  protected void incrementAdded(long recordCount) {
+    addedFiles += 1;
+    addedRows += recordCount;
+  }
+
+  protected void updateStats(StructLike partition) {
+    stats.update(partition);
+  }
+
+  protected void updateMinDataSequenceNumber(Long seqNum) {
+    if (seqNum != null && (minDataSequenceNumber == null || seqNum < minDataSequenceNumber)) {
+      minDataSequenceNumber = seqNum;
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  protected void writeRaw(ManifestEntry<?> entry) {
+    writer.add((ManifestEntry<F>) entry);
+  }
+
+  // Tracks a REPLACED entry (not live): increments replacedFiles/replacedRows counters and writes
+  // the entry directly (already prepared by V4Writer.prepareWithStatus). Must NOT call prepare()
+  // again — that would overwrite the REPLACED EntryStatus with the original ManifestEntry.Status.
+  void addReplacedEntry(ManifestEntry<F> entry) {
+    replacedFiles += 1;
+    replacedRows += entry.file().recordCount();
+    entriesWritten += 1;
+    stats.update(entry.file().partition());
+    writeRaw(entry);
+  }
+
+  // Tracks a MODIFIED entry (live): increments modifiedFiles/modifiedRows counters and updates
+  // minDataSequenceNumber. Must NOT call prepare() again — the entry is already prepared.
+  void addModifiedEntry(ManifestEntry<F> entry) {
+    modifiedFiles += 1;
+    modifiedRows += entry.file().recordCount();
+    entriesWritten += 1;
+    stats.update(entry.file().partition());
+
+    if (entry.dataSequenceNumber() != null
+        && (minDataSequenceNumber == null || entry.dataSequenceNumber() < minDataSequenceNumber)) {
+      this.minDataSequenceNumber = entry.dataSequenceNumber();
+    }
+
+    writeRaw(entry);
+  }
+
+  /**
+   * Write an entry marking the prior state of a data file in a v4 REPLACED/MODIFIED pair.
+   *
+   * <p>Only meaningful for v4 data manifests; non-v4 writers throw {@link
+   * UnsupportedOperationException}. The pair must be followed immediately by a {@link
+   * #modifiedEntry(ManifestEntry, DeletionVector)} call for the same data file.
+   */
+  void replacedEntry(ManifestEntry<F> entry) {
+    throw new UnsupportedOperationException(
+        "REPLACED entries require a v4 manifest writer; use V4Writer");
+  }
+
+  /**
+   * Write an entry marking the new live state of a data file in a v4 REPLACED/MODIFIED pair.
+   *
+   * <p>Only meaningful for v4 data manifests; non-v4 writers throw {@link
+   * UnsupportedOperationException}. Must follow a {@link #replacedEntry(ManifestEntry)} call for
+   * the same data file.
+   *
+   * @param entry the manifest entry for the data file
+   * @param dv the new deletion vector to attach to the MODIFIED entry
+   */
+  void modifiedEntry(ManifestEntry<F> entry, DeletionVector dv) {
+    throw new UnsupportedOperationException(
+        "MODIFIED entries require a v4 manifest writer; use V4Writer");
   }
 
   /**
@@ -252,23 +333,32 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     // so the min data sequence number is the one that will be assigned when this is committed.
     // pass UNASSIGNED_SEQ to inherit it.
     long minSeqNumber = minDataSequenceNumber != null ? minDataSequenceNumber : UNASSIGNED_SEQ;
-    return new GenericManifestFile(
-        file.location(),
-        writer.length(),
-        specId,
-        content(),
-        UNASSIGNED_SEQ,
-        minSeqNumber,
-        snapshotId,
-        stats.summaries(),
-        keyMetadataBuffer,
-        addedFiles,
-        addedRows,
-        existingFiles,
-        existingRows,
-        deletedFiles,
-        deletedRows,
-        firstRowId);
+    // MODIFIED entries are live (v4 REPLACED/MODIFIED pairs); fold into existing counts so that
+    // ManifestFilterManager.hasExistingFiles() remains correct.
+    GenericManifestFile result =
+        new GenericManifestFile(
+            file.location(),
+            writer.length(),
+            specId,
+            content(),
+            UNASSIGNED_SEQ,
+            minSeqNumber,
+            snapshotId,
+            stats.summaries(),
+            keyMetadataBuffer,
+            addedFiles,
+            addedRows,
+            existingFiles + modifiedFiles,
+            existingRows + modifiedRows,
+            deletedFiles,
+            deletedRows,
+            firstRowId);
+    if (replacedFiles > 0 || modifiedFiles > 0) {
+      result.replacedFilesCount = replacedFiles;
+      result.replacedRowsCount = replacedRows;
+    }
+
+    return result;
   }
 
   private ByteBuffer keyMetadataBuffer() {
@@ -441,6 +531,90 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     public void add(DataFile addedFile) {
       // v4 stores firstRowId per-entry in the tracking struct; do not suppress it.
       addEntry(reusedEntry().wrapAppendPreservingFirstRowId(writerSnapshotId(), null, addedFile));
+    }
+
+    /** Adds a data file that was born with a DV in the same commit as a single ADDED entry. */
+    void addWithDV(DataFile addedFile, DeletionVector dv) {
+      Long snapshotId = writerSnapshotId();
+      ManifestEntry<DataFile> entry =
+          reusedEntry().wrapAppendPreservingFirstRowId(snapshotId, null, addedFile);
+      // Born-with-DV is an ADDED entry with the DV attached in the same commit. Build via the
+      // TrackedFileBuilder.data() chain directly because ContentEntryAdapters.fromDataFile(...)
+      // does not take a DV parameter.
+      TrackedFileBuilder builder =
+          TrackedFileBuilder.data(snapshotId != null ? snapshotId : 0L)
+              .formatVersion(ContentEntryAdapters.V4_FORMAT_VERSION)
+              .location(addedFile.location())
+              .fileFormat(addedFile.format())
+              .partition((PartitionData) addedFile.partition())
+              .recordCount(addedFile.recordCount())
+              .fileSizeInBytes(addedFile.fileSizeInBytes())
+              .specId(addedFile.specId())
+              .deletionVector(dv);
+      if (addedFile.sortOrderId() != null) {
+        builder.sortOrderId(addedFile.sortOrderId());
+      }
+      if (addedFile.keyMetadata() != null) {
+        builder.keyMetadata(addedFile.keyMetadata());
+      }
+      if (addedFile.splitOffsets() != null) {
+        builder.splitOffsets(addedFile.splitOffsets());
+      }
+      TrackedFile trackedFile = builder.build();
+      // Write directly using the DV-carrying trackedFile, bypassing prepare() which would
+      // overwrite the TrackedFile without the DV.
+      writeRawEntry(writerEntry.wrap(entry, trackedFile), addedFile.recordCount(), true);
+    }
+
+    /**
+     * Writes a pre-prepared entry (already wrapped in a {@code TrackedFile} struct) without calling
+     * prepare() again. Used when the TrackedFile has already been set up by the caller.
+     */
+    private void writeRawEntry(
+        ManifestEntry<DataFile> prepared, long recordCount, boolean isAdded) {
+      if (isAdded) {
+        incrementAdded(recordCount);
+      }
+
+      updateStats(prepared.file().partition());
+      updateMinDataSequenceNumber(prepared.dataSequenceNumber());
+      writeRaw(prepared);
+    }
+
+    @Override
+    void replacedEntry(ManifestEntry<DataFile> entry) {
+      // Emit the prior-state row (REPLACED — not live) without a DV.
+      addReplacedEntry(prepareWithStatus(entry, null));
+    }
+
+    @Override
+    void modifiedEntry(ManifestEntry<DataFile> entry, DeletionVector dv) {
+      // Emit the new live row (MODIFIED) with the attached DV.
+      addModifiedEntry(prepareWithStatus(entry, dv));
+    }
+
+    // Produces a ManifestEntry whose StructLike representation carries the right EntryStatus for a
+    // v4 REPLACED/MODIFIED pair, bypassing the ManifestEntry.Status→EntryStatus mapping in
+    // prepare(). When {@code dv} is non-null the row is MODIFIED; when null the row is REPLACED.
+    // The resulting tracking row records the writer's snapshot id (not the source entry's) —
+    // both REPLACED and MODIFIED denote the commit performing the transition.
+    private ManifestEntry<DataFile> prepareWithStatus(
+        ManifestEntry<DataFile> entry, DeletionVector dv) {
+      TrackedFile source =
+          ContentEntryAdapters.fromDataFile(
+              entry, tableSchema, unionPartitionType, EntryStatus.EXISTING);
+      long snapshotId = writerSnapshotId() != null ? writerSnapshotId() : 0L;
+      TrackedFile trackedFile;
+      if (dv != null) {
+        // MODIFIED: chain through TrackedFileBuilder.from(...).deletionVector(dv) which promotes
+        // EXISTING → MODIFIED. TrackingBuilder.build() resets snapshot_id to the new commit's id.
+        trackedFile = TrackedFileBuilder.from(source, snapshotId).deletionVector(dv).build();
+      } else {
+        // REPLACED: terminal transition; the new row records the current commit's snapshot id.
+        trackedFile = TrackedFileBuilder.replaced(source, snapshotId);
+      }
+
+      return writerEntry.wrap(entry, trackedFile);
     }
 
     @Override

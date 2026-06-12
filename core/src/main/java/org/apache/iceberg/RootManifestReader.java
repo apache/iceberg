@@ -147,7 +147,7 @@ class RootManifestReader {
     manifestFile.setRecordCount(row.recordCount());
     manifestFile.setFormatVersion(row.formatVersion());
     if (info != null) {
-      if (info.replacedFilesCount() > 0 || info.replacedRowsCount() > 0) {
+      if (info.replacedFilesCount() > 0) {
         manifestFile.replacedFilesCount = info.replacedFilesCount();
         manifestFile.replacedRowsCount = info.replacedRowsCount();
       }

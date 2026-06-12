@@ -47,6 +47,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -111,6 +112,21 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // cache new manifests for delete files
   private final List<ManifestFile> cachedNewDeleteManifests = Lists.newLinkedList();
   private boolean hasNewDeleteFiles = false;
+
+  // v4 colocated DV state: manifests rewritten with REPLACED/MODIFIED pairs
+  private final List<ManifestFile> cachedDVRewrittenManifests = Lists.newLinkedList();
+  // paths of original manifests that were replaced by DV-rewritten manifests
+  private final Set<String> dvReplacedManifestPaths = Sets.newHashSet();
+  // data file paths whose DVs were collapsed into data manifests (not written as delete manifests)
+  private final Set<String> collapsedDVPaths = Sets.newHashSet();
+  private boolean hasDVRewrittenManifests = false;
+  // map of data file path → DV for data files being born with a DV in this commit
+  private Map<String, DeleteFile> bornWithDVByPath = ImmutableMap.of();
+  // Snapshot summary contributions for DVs that were collapsed into data manifests instead of
+  // emitted as standalone position-delete manifests. Reuses the same DV/POSITION_DELETES counters
+  // as v3 standalone DV writes so v4 commits produce identical summary metrics.
+  private final SnapshotSummary.Builder collapsedDVAddedSummary = SnapshotSummary.builder();
+  private final SnapshotSummary.Builder collapsedDVRemovedSummary = SnapshotSummary.builder();
 
   private boolean caseSensitive = true;
 
@@ -852,6 +868,38 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .throwFailureWhenFinished()
         .executeWith(workerPool())
         .run(manifest -> validateAddedDVs(manifest, conflictDetectionFilter, newSnapshotIds));
+
+    // v4 path: scan concurrent DATA manifests for colocated DVs. v4 stores DVs as MODIFIED
+    // entries on the data manifest (REPLACED/MODIFIED pair); the v3 DELETE-content history
+    // above does not see them.
+    Pair<List<ManifestFile>, Set<Long>> dataHistory =
+        validationHistory(
+            base, startingSnapshotId, VALIDATE_ADDED_DVS_OPERATIONS, ManifestContent.DATA, parent);
+    Iterable<ManifestFile> newDataManifestsWithDVs =
+        Iterables.filter(
+            filterManifestsByPartition(base, conflictDetectionFilter, dataHistory.first()),
+            m -> m.replacedFilesCount() != null && m.replacedFilesCount() > 0);
+
+    Tasks.foreach(newDataManifestsWithDVs)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())
+        .run(this::validateConcurrentColocatedDVs);
+  }
+
+  private void validateConcurrentColocatedDVs(ManifestFile manifest) {
+    try (CloseableIterable<DeleteFile> dvs =
+        ManifestFiles.readColocatedDVs(manifest, ops().io(), ops().current().specsById())) {
+      for (DeleteFile dv : dvs) {
+        ValidationException.check(
+            !dvsByReferencedFile.containsKey(dv.referencedDataFile()),
+            "Found concurrently added DV for %s: %s",
+            dv.referencedDataFile(),
+            ContentFileUtil.dvDesc(dv));
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private void validateAddedDVs(
@@ -994,6 +1042,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<DataFile> filesToBeDeleted = filterManager.filesToBeDeleted();
     deleteFilterManager.removeDanglingDeletesFor(filesToBeDeleted);
 
+    // For v4 tables, collapse DVs into data leaf manifests (REPLACED/MODIFIED pairs) instead of
+    // writing separate delete manifests.
+    List<ManifestFile> dvRewrittenManifests = ImmutableList.of();
+    List<ManifestFile> filteredWithoutDVReplaced = filtered;
+    if (base.formatVersion() >= 4 && !dvsByReferencedFile.isEmpty()) {
+      dvRewrittenManifests = prepareDVRewrittenManifests(base, filtered);
+      if (!dvReplacedManifestPaths.isEmpty()) {
+        filteredWithoutDVReplaced =
+            filtered.stream()
+                .filter(m -> !dvReplacedManifestPaths.contains(m.path()))
+                .collect(ImmutableList.toImmutableList());
+      }
+    }
+
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
@@ -1006,7 +1068,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 || manifest.hasExistingFiles()
                 || manifest.snapshotId() == snapshotId();
     Iterable<ManifestFile> unmergedManifests =
-        Iterables.filter(Iterables.concat(prepareNewDataManifests(), filtered), shouldKeep);
+        Iterables.filter(
+            Iterables.concat(
+                prepareNewDataManifests(), dvRewrittenManifests, filteredWithoutDVReplaced),
+            shouldKeep);
     Iterable<ManifestFile> unmergedDeleteManifests =
         Iterables.filter(Iterables.concat(prepareDeleteManifests(), filteredDeletes), shouldKeep);
 
@@ -1014,6 +1079,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     summaryBuilder.clear();
     summaryBuilder.merge(addedDataFilesSummary);
     summaryBuilder.merge(addedDeleteFilesSummary);
+    summaryBuilder.merge(collapsedDVAddedSummary);
+    summaryBuilder.merge(collapsedDVRemovedSummary);
     summaryBuilder.merge(appendedManifestsSummary);
     summaryBuilder.merge(filterManager.buildSummary(filtered));
     summaryBuilder.merge(deleteFilterManager.buildSummary(filteredDeletes));
@@ -1071,6 +1138,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteMergeManager.cleanUncommitted(committed);
     deleteFilterManager.cleanUncommitted(committed);
     cleanUncommittedAppends(committed);
+    deleteUncommitted(cachedDVRewrittenManifests, committed, true /* clear manifests */);
   }
 
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
@@ -1110,14 +1178,54 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (cachedNewDataManifests.isEmpty()) {
       newDataFilesBySpec.forEach(
           (specId, dataFiles) -> {
-            List<ManifestFile> newDataManifests =
-                writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, spec(specId));
+            List<ManifestFile> newDataManifests;
+            if (!bornWithDVByPath.isEmpty()) {
+              newDataManifests =
+                  writeDataManifestsWithBornDVs(
+                      dataFiles, newDataFilesDataSequenceNumber, spec(specId), bornWithDVByPath);
+            } else {
+              newDataManifests =
+                  writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, spec(specId));
+            }
+
             cachedNewDataManifests.addAll(newDataManifests);
           });
       this.hasNewDataFiles = false;
     }
 
     return cachedNewDataManifests;
+  }
+
+  // Like writeDataManifests but uses addWithDV for files that are born with a DV.
+  private List<ManifestFile> writeDataManifestsWithBornDVs(
+      Iterable<DataFile> files,
+      Long dataSeq,
+      PartitionSpec spec,
+      Map<String, DeleteFile> bornWithDVs) {
+    ManifestWriter<DataFile> writer = newManifestWriter(spec);
+    try {
+      for (DataFile file : files) {
+        String path = file.location().toString();
+        DeleteFile dv = bornWithDVs.get(path);
+        if (dv != null && writer instanceof ManifestWriter.V4Writer) {
+          // Born-with-DV: emit a single ADDED entry with the DV embedded.
+          DeletionVector dvStruct = toDeletionVector(dv);
+          ((ManifestWriter.V4Writer) writer).addWithDV(file, dvStruct);
+        } else if (dataSeq != null) {
+          writer.add(file, dataSeq);
+        } else {
+          writer.add(file);
+        }
+      }
+    } finally {
+      try {
+        writer.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close manifest writer for born-with-DV files", e);
+      }
+    }
+
+    return ImmutableList.of(writer.toManifestFile());
   }
 
   private Iterable<ManifestFile> prepareDeleteManifests() {
@@ -1143,7 +1251,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
-      List<DeleteFile> mergedDVs = mergeDVs();
+      // For v4: exclude DVs that were already collapsed into data manifests.
+      Map<String, List<DeleteFile>> dvsToEmit;
+      if (!collapsedDVPaths.isEmpty()) {
+        dvsToEmit = Maps.newLinkedHashMap();
+        for (Map.Entry<String, List<DeleteFile>> entry : dvsByReferencedFile.entrySet()) {
+          if (!collapsedDVPaths.contains(entry.getKey())) {
+            dvsToEmit.put(entry.getKey(), entry.getValue());
+          }
+        }
+      } else {
+        dvsToEmit = dvsByReferencedFile;
+      }
+
+      List<DeleteFile> mergedDVs = mergeDVs(dvsToEmit);
       Map<Integer, List<DeleteFile>> newDeleteFilesBySpec =
           Streams.stream(Iterables.concat(mergedDVs, DeleteFileSet.of(v2Deletes)))
               .collect(Collectors.groupingBy(ContentFile::specId));
@@ -1162,8 +1283,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return cachedNewDeleteManifests;
   }
 
-  private List<DeleteFile> mergeDVs() {
-    for (Map.Entry<String, List<DeleteFile>> entry : dvsByReferencedFile.entrySet()) {
+  private List<DeleteFile> mergeDVs(Map<String, List<DeleteFile>> dvsMap) {
+    for (Map.Entry<String, List<DeleteFile>> entry : dvsMap.entrySet()) {
       if (entry.getValue().size() > 1) {
         LOG.warn(
             "Merging {} duplicate DVs for data file {} in table {}.",
@@ -1171,6 +1292,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             entry.getKey(),
             tableName);
       }
+    }
+
+    if (dvsMap.isEmpty()) {
+      return ImmutableList.of();
     }
 
     FileIO fileIO = EncryptingFileIO.combine(ops().io(), ops().encryption());
@@ -1184,11 +1309,248 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                         "merged-dvs-%s-%s", snapshotId(), dvMergeAttempt.incrementAndGet())));
 
     return DVUtil.mergeAndWriteDVsIfRequired(
-        dvsByReferencedFile,
+        dvsMap,
         dvOutputLocation,
         fileIO,
         ops().current().specsById(),
         ThreadPools.getDeleteWorkerPool());
+  }
+
+  /**
+   * Prepares v4 DV-rewritten leaf manifests. For each data file being updated with a DV, rewrites
+   * the leaf manifest that contains it: the existing entry becomes REPLACED, and a new MODIFIED
+   * entry carries the DV. Returns the new leaf manifests (to be included in the snapshot).
+   * Populates {@link #dvReplacedManifestPaths} with the paths of the original manifests that were
+   * replaced, and {@link #collapsedDVPaths} with data file paths whose DVs were collapsed.
+   */
+  private List<ManifestFile> prepareDVRewrittenManifests(
+      TableMetadata base, List<ManifestFile> filteredDataManifests) {
+    if (hasDVRewrittenManifests && !cachedDVRewrittenManifests.isEmpty()) {
+      cachedDVRewrittenManifests.forEach(m -> deleteFile(m.path()));
+      cachedDVRewrittenManifests.clear();
+      dvReplacedManifestPaths.clear();
+      collapsedDVPaths.clear();
+      collapsedDVAddedSummary.clear();
+      collapsedDVRemovedSummary.clear();
+    }
+
+    if (!cachedDVRewrittenManifests.isEmpty()) {
+      return cachedDVRewrittenManifests;
+    }
+
+    // Collect the paths of all newly-added data files in this commit (born-with-DV case).
+    Set<String> newDataFilePaths = Sets.newHashSet();
+    newDataFilesBySpec
+        .values()
+        .forEach(fileSet -> fileSet.forEach(f -> newDataFilePaths.add(f.location().toString())));
+
+    // Merge DVs per referenced data file to get one DV per file.
+    List<DeleteFile> mergedDVList = mergeDVs(dvsByReferencedFile);
+
+    // Build a map: data file path → merged DV DeleteFile
+    Map<String, DeleteFile> mergedDVByPath = Maps.newHashMap();
+    for (DeleteFile dv : mergedDVList) {
+      mergedDVByPath.put(dv.referencedDataFile().toString(), dv);
+    }
+
+    // For data files being born with a DV in this commit: store the DV so
+    // newDataFilesAsManifests() can embed it. Mark them as collapsed to skip delete manifests.
+    Map<String, DeleteFile> bornWithDV = Maps.newHashMap();
+    for (Map.Entry<String, DeleteFile> entry : mergedDVByPath.entrySet()) {
+      if (newDataFilePaths.contains(entry.getKey())) {
+        bornWithDV.put(entry.getKey(), entry.getValue());
+        collapsedDVPaths.add(entry.getKey());
+        // Credit the colocated DV to the snapshot summary so v4 born-with-DV commits report the
+        // same added-dvs / added-position-deletes / added-delete-files / added-files-size metrics
+        // as v3 standalone DV writes.
+        DeleteFile dv = entry.getValue();
+        collapsedDVAddedSummary.addedFile(spec(dv.specId()), dv);
+      }
+    }
+
+    if (!bornWithDV.isEmpty()) {
+      // Update newDataFilesBySpec: replace data files that have a DV with DV-carrying versions.
+      // We handle this by storing bornWithDV so newDataFilesAsManifests can access it.
+      this.bornWithDVByPath = bornWithDV;
+      this.hasNewDataFiles = true; // force rewrite
+    }
+
+    // For existing data files: find the manifests that contain them and rewrite with REPLACED/
+    // MODIFIED pairs.
+    Map<String, DeleteFile> dvsForExisting = Maps.newLinkedHashMap();
+    for (Map.Entry<String, DeleteFile> entry : mergedDVByPath.entrySet()) {
+      if (!newDataFilePaths.contains(entry.getKey())) {
+        dvsForExisting.put(entry.getKey(), entry.getValue());
+      }
+    }
+
+    if (!dvsForExisting.isEmpty()) {
+      rewriteLeafManifestsWithDVs(base, filteredDataManifests, dvsForExisting);
+    }
+
+    this.hasDVRewrittenManifests = true;
+    return cachedDVRewrittenManifests;
+  }
+
+  // Scans filteredDataManifests to find entries for the given data file paths, and rewrites those
+  // manifests with REPLACED/MODIFIED pairs. New manifests go into cachedDVRewrittenManifests;
+  // original manifest paths go into dvReplacedManifestPaths; affected DV paths go into
+  // collapsedDVPaths.
+  private void rewriteLeafManifestsWithDVs(
+      TableMetadata base,
+      List<ManifestFile> filteredDataManifests,
+      Map<String, DeleteFile> dvsForExisting) {
+    Map<Integer, PartitionSpec> specsById = base.specsById();
+
+    // Track which referenced data file paths we still need to find.
+    Set<String> remaining = Sets.newHashSet(dvsForExisting.keySet());
+
+    for (ManifestFile manifest : filteredDataManifests) {
+      if (remaining.isEmpty()) {
+        break;
+      }
+
+      // Quick check: can this manifest contain any of the remaining paths?
+      if (!manifestMightContain(manifest, remaining, specsById)) {
+        continue;
+      }
+
+      // Read all entries from the manifest.
+      List<ManifestEntry<DataFile>> entries = Lists.newArrayList();
+      boolean manifestAffected = false;
+      try (CloseableIterable<ManifestEntry<DataFile>> iter =
+          ManifestFiles.read(manifest, ops().io(), specsById).entries()) {
+        for (ManifestEntry<DataFile> entry : iter) {
+          entries.add(entry.copy());
+          if (entry.isLive() && remaining.contains(entry.file().location().toString())) {
+            manifestAffected = true;
+          }
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(
+            "Failed to read manifest for DV collapse: " + manifest.path(), e);
+      }
+
+      if (!manifestAffected) {
+        continue;
+      }
+
+      // Load any prior colocated DVs from this manifest so we can credit them as "removed" on the
+      // summary when they are superseded by the new DV in this commit. ManifestFiles.read above
+      // surfaces DV-bearing rows as plain DataFile entries, dropping the DV reference; the
+      // ContentEntryReader path exposes the colocated DV as a DeleteFile.
+      Map<String, DeleteFile> priorDVsByPath = Maps.newHashMap();
+      try (CloseableIterable<DeleteFile> priorDVs =
+          ManifestFiles.readColocatedDVs(
+              manifest, EncryptingFileIO.combine(ops().io(), ops().encryption()), specsById)) {
+        for (DeleteFile priorDV : priorDVs) {
+          priorDVsByPath.put(priorDV.referencedDataFile().toString(), priorDV);
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(
+            "Failed to read colocated DVs for DV collapse: " + manifest.path(), e);
+      }
+
+      // Rewrite this manifest: for each affected data file, emit REPLACED + MODIFIED pair.
+      PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+      ManifestWriter<DataFile> writer = newManifestWriter(spec);
+      Set<String> affectedInThisManifest = Sets.newHashSet();
+      try {
+        for (ManifestEntry<DataFile> entry : entries) {
+          String path = entry.file().location().toString();
+          // Drop non-live entries (DELETED rows from the snapshot that deleted the file, and
+          // REPLACED rows from a prior commit that updated a DV — both project to non-live via
+          // ContentEntryReader.toManifestStatus). They have already served their purpose in the
+          // snapshot that produced them; subsequent leaf rewrites omit them per spec semantics
+          // for DELETED (and by analogy for REPLACED, which is not-live for the same reason).
+          if (!entry.isLive()) {
+            continue;
+          }
+
+          DeleteFile dv = dvsForExisting.get(path);
+          if (dv != null) {
+            // Emit REPLACED (prior state, no DV) then MODIFIED (new state, with DV).
+            writer.replacedEntry(entry);
+            DeletionVector dvStruct = toDeletionVector(dv);
+            writer.modifiedEntry(entry, dvStruct);
+            affectedInThisManifest.add(path);
+            // Credit the new DV as added on the snapshot summary so v4 commits report the same
+            // added-dvs / added-position-deletes / added-delete-files / added-files-size metrics
+            // as v3 standalone DV writes.
+            collapsedDVAddedSummary.addedFile(spec(dv.specId()), dv);
+            // If the prior live entry already carried a colocated DV, credit it as removed: the
+            // REPLACED row drops it and the MODIFIED row supersedes it with the new DV.
+            DeleteFile priorDV = priorDVsByPath.get(path);
+            if (priorDV != null) {
+              collapsedDVRemovedSummary.deletedFile(spec(priorDV.specId()), priorDV);
+            }
+          } else if (entry.status() == ManifestEntry.Status.EXISTING) {
+            writer.existing(entry);
+          } else if (entry.status() == ManifestEntry.Status.ADDED) {
+            writer.add(entry);
+          }
+        }
+      } catch (Exception e) {
+        try {
+          writer.close();
+        } catch (IOException closeEx) {
+          e.addSuppressed(closeEx);
+        }
+
+        throw new RuntimeException("Failed to rewrite manifest with DVs: " + manifest.path(), e);
+      }
+
+      try {
+        writer.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close manifest writer for DV collapse", e);
+      }
+
+      ManifestFile rewritten =
+          GenericManifestFile.copyOf(writer.toManifestFile()).withSnapshotId(snapshotId()).build();
+      cachedDVRewrittenManifests.add(rewritten);
+      dvReplacedManifestPaths.add(manifest.path());
+      collapsedDVPaths.addAll(affectedInThisManifest);
+      remaining.removeAll(affectedInThisManifest);
+    }
+
+    if (!remaining.isEmpty()) {
+      LOG.warn(
+          "Could not find leaf manifest entries for DV-referenced data files: {} in table {}",
+          remaining,
+          tableName);
+    }
+  }
+
+  // Check whether a manifest might contain any of the given data file paths based on partition
+  // summaries. Currently returns true (conservative) since path-based pruning is expensive.
+  @SuppressWarnings("unused")
+  private static boolean manifestMightContain(
+      ManifestFile manifest, Set<String> paths, Map<Integer, PartitionSpec> specsById) {
+    // Conservative: always scan. Future optimization: index by partition or file stats.
+    return manifest.hasAddedFiles() || manifest.hasExistingFiles();
+  }
+
+  // Build a DeletionVectorStruct from a DV DeleteFile's Puffin blob reference.
+  private static DeletionVector toDeletionVector(DeleteFile dv) {
+    Preconditions.checkArgument(
+        ContentFileUtil.isDV(dv), "Cannot build DeletionVector from non-DV delete file: %s", dv);
+    Preconditions.checkArgument(
+        dv.location() != null, "Invalid DV delete file: null location for %s", dv);
+    Preconditions.checkArgument(
+        dv.contentOffset() != null,
+        "Invalid DV delete file: null content offset for %s",
+        dv.location());
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() != null,
+        "Invalid DV delete file: null content size for %s",
+        dv.location());
+    return DeletionVectorStruct.builder()
+        .location(dv.location().toString())
+        .offset(dv.contentOffset())
+        .sizeInBytes(dv.contentSizeInBytes())
+        .cardinality(dv.recordCount())
+        .build();
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
