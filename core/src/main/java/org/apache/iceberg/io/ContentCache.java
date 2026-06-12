@@ -114,16 +114,20 @@ public class ContentCache {
   /**
    * Try cache the file-content of file in the given location upon stream reading.
    *
-   * <p>If length is longer than maximum length allowed by ContentCache, a regular {@link InputFile}
-   * and no caching will be done for that file. Otherwise, this method will return a {@link
-   * CachingInputFile} that serve file reads backed by ContentCache.
+   * <p>If the file-content for the location is already cached, this method returns a {@link
+   * CachingInputFile} without checking the file length, so input files that resolve their length
+   * with a remote call can be served from the cache without any round-trip. Otherwise, if length is
+   * longer than maximum length allowed by ContentCache, a regular {@link InputFile} and no caching
+   * will be done for that file. Otherwise, this method will return a {@link CachingInputFile} that
+   * serve file reads backed by ContentCache.
    *
    * @param input an InputFile to cache
-   * @return a {@link CachingInputFile} if length is within allowed limit. Otherwise, a regular
-   *     {@link InputFile} for given location.
+   * @return a {@link CachingInputFile} if the location is already cached or length is within
+   *     allowed limit. Otherwise, a regular {@link InputFile} for given location.
    */
   public InputFile tryCache(InputFile input) {
-    if (input.getLength() <= maxContentLength) {
+    // probe with asMap() because getIfPresent records a cache hit even though nothing is read
+    if (cache.asMap().containsKey(input.location()) || input.getLength() <= maxContentLength) {
       return new CachingInputFile(this, input);
     }
     return input;
