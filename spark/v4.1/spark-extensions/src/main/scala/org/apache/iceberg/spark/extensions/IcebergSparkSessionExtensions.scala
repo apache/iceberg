@@ -22,6 +22,7 @@ import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.CheckViews
 import org.apache.spark.sql.catalyst.analysis.ResolveBranch
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
+import org.apache.spark.sql.catalyst.analysis.RewriteScopedReplace
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
@@ -35,6 +36,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectPostHocResolutionRule { spark => ResolveBranch(spark) }
+    extensions.injectPostHocResolutionRule { _ => RewriteScopedReplace }
     extensions.injectCheckRule(_ => CheckViews)
 
     // optimizer extensions
