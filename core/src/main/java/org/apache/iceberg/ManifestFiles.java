@@ -629,7 +629,7 @@ public class ManifestFiles {
       int parallelism,
       ExecutorService writePool,
       Function<List<F>, List<ManifestFile>> writeFunc) {
-    List<List<F>> groups = partition(files, parallelism);
+    List<List<F>> groups = divide(files, parallelism);
 
     // Pair each group with its index so results can be reassembled in input order.
     List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayList();
@@ -657,7 +657,7 @@ public class ManifestFiles {
     return builder.build();
   }
 
-  private static <T> List<List<T>> partition(Collection<T> collection, int groupCount) {
+  private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
     List<T> list = Lists.newArrayList(collection);
     int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
     return Lists.partition(list, groupSize);
