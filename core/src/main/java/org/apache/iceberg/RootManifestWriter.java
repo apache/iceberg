@@ -143,6 +143,11 @@ class RootManifestWriter implements AutoCloseable {
                   "sequence-number", String.valueOf(sequenceNumber),
                   "format-version", "4",
                   "content", "root-manifest"))
+          // Force ParquetWriter to materialize an empty file when no manifest entries were added,
+          // so v4+ snapshots referencing an empty manifest set remain readable. Matches v3's
+          // empty-Avro-manifest-list behavior. Property is the string form of
+          // ParquetWriter.MATERIALIZE_EMPTY_FILE; core has no compile-time dep on iceberg-parquet.
+          .set("iceberg.parquet.materialize-empty-file", "true")
           .overwrite()
           .build();
     } catch (IOException e) {
@@ -158,9 +163,23 @@ class RootManifestWriter implements AutoCloseable {
    * 0}.
    */
   void add(ManifestFile manifest) {
+    addEntry(manifest, EntryStatus.ADDED);
+  }
+
+  /**
+   * Adds a manifest reference entry with an explicit entry status. Use {@link EntryStatus#EXISTING}
+   * for manifests carried over unchanged from the previous snapshot, and {@link EntryStatus#ADDED}
+   * for manifests newly written in this snapshot. The output's {@code format_version} is read from
+   * {@link ManifestFile#formatVersion()}.
+   */
+  void add(ManifestFile manifest, EntryStatus status) {
+    addEntry(manifest, status);
+  }
+
+  private void addEntry(ManifestFile manifest, EntryStatus status) {
     ManifestFile resolved = assignSequenceNumber(manifest);
     Long firstRowId = resolveFirstRowId(resolved);
-    trackedFile.wrap(resolved, EntryStatus.ADDED, firstRowId);
+    trackedFile.wrap(resolved, status, firstRowId);
     appender.add((StructLike) trackedFile);
   }
 
