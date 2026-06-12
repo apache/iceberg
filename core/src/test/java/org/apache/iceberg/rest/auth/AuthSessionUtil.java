@@ -23,7 +23,8 @@ import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 /**
  * Helper class to make the token refresh retries configurable for testing.
  *
- * @deprecated will be removed in 1.14.0
+ * @deprecated will be removed in 1.14.0, use {@link
+ *     org.apache.iceberg.rest.auth.oauth2.OAuth2Manager} instead.
  */
 @Deprecated
 public class AuthSessionUtil {
