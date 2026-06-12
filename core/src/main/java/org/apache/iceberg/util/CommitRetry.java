@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 
+import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 
 public class CommitRetry {
@@ -28,8 +29,17 @@ public class CommitRetry {
 
   public static CommitFailedException retryExhaustedException(
       Exception cause, Tasks.RetryExhaustionReason reason) {
+    if (isRetryableValidationCommitFailure(cause)) {
+      return (CommitFailedException) cause;
+    }
+
     return new CommitFailedException(
         cause, "Commit failed after exhausting retries. %s", retryExhaustionMessage(reason));
+  }
+
+  public static boolean isRetryableValidationCommitFailure(Exception cause) {
+    return cause instanceof CommitFailedException
+        && cause.getCause() instanceof RetryableValidationException;
   }
 
   @SuppressWarnings("StatementSwitchToExpressionSwitch")

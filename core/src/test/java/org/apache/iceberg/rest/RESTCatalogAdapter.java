@@ -32,6 +32,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
@@ -79,6 +80,7 @@ import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.util.CommitRetry;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -715,9 +717,14 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   public static void configureResponseFromException(
       Exception exc, ErrorResponse.Builder errorBuilder) {
+    String errorType = exc.getClass().getSimpleName();
+    if (CommitRetry.isRetryableValidationCommitFailure(exc)) {
+      errorType = RetryableValidationException.class.getSimpleName();
+    }
+
     errorBuilder
         .responseCode(EXCEPTION_ERROR_CODES.getOrDefault(exc.getClass(), 500))
-        .withType(exc.getClass().getSimpleName())
+        .withType(errorType)
         .withMessage(exc.getMessage())
         .withStackTrace(exc);
   }

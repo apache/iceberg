@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.junit.jupiter.api.Test;
@@ -65,5 +66,18 @@ class TestCommitRetry {
         .hasMessageContaining(TableProperties.COMMIT_NUM_RETRIES)
         .hasMessageContaining(TableProperties.COMMIT_TOTAL_RETRY_TIME_MS);
     assertThat(wrapped.getCause()).isSameAs(original);
+  }
+
+  @Test
+  void retryExhaustedExceptionPreservesRetryableValidationFailures() {
+    CommitFailedException original =
+        new CommitFailedException(
+            new RetryableValidationException("stale values"),
+            "Commit failed: Validation failed, please retry: stale values");
+
+    CommitFailedException wrapped =
+        CommitRetry.retryExhaustedException(original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
+
+    assertThat(wrapped).isSameAs(original);
   }
 }
