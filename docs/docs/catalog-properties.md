@@ -94,6 +94,22 @@ Required and optional properties to include while using `oauth2` authentication
 | `audience`              | null              | Optional param to specify token `audience`                                                                                                                            |
 | `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
 
+#### SigV4 auth properties
+Required and optional properties to include while using `sigv4` authentication
+
+| Property                             | Default          | Description                                                                                                       |
+|--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
+| `rest.signing-region`                     | null           | Region to be used by the SigV4 protocol for signing requests. |
+| `rest.signing-name`                       | `execute-api`  | The service name to be used by the SigV4 protocol for signing requests. |
+| `rest.access-key-id`                      | null           | Configure the static access key ID used for SigV4 signing. |
+| `rest.secret-access-key`                  | null           | Configure the static secret access key used for SigV4 signing. |
+| `rest.session-token`                      | null           | Configure the static session token used for SigV4. |
+| `client.credentials-provider`             | null           | When set, REST catalog requests will use this provider to get AWS credentials to sign the request instead of reading the default credential chain. |
+
+When `rest.access-key-id`, `rest.secret-access-key`, and optionally `rest.session-token` are set, REST Catalog requests will be signed with the provided basic or session credentials instead of using the default credential chain. If `rest.session-token` is set, session credential is used, otherwise basic credential is used. 
+
+When basic or session credentials are provided, the provided credentials will be used instead of `client.credentials-provider`. `client.credentials-provider` must contain a static `create` or `create(Map<String, String>)` method to be used by REST catalog requests.
+
 #### Google auth properties
 Required and optional properties to include while using `google` authentication
 
