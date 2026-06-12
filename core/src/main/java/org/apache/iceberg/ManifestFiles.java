@@ -614,12 +614,12 @@ public class ManifestFiles {
   }
 
   /**
-   * Writes the given files into manifests in parallel, splitting them into the given number of
-   * groups and submitting each group to the provided executor.
+   * Writes the given files into manifests in parallel, splitting them into up to {@code
+   * parallelism} groups and submitting each group to the provided executor. The actual number of
+   * groups may be smaller because the group size is rounded up.
    *
    * @param files content files to write
-   * @param parallelism number of parallel groups; the caller decides this based on its own
-   *     parallelism and minimum-group-size policy
+   * @param parallelism upper bound on the number of parallel groups
    * @param writePool executor used to run group writes concurrently
    * @param writeFunc function that writes a single group and returns the resulting manifests
    * @return manifests in input-group order
