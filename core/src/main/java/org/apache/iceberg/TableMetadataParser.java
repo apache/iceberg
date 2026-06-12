@@ -516,7 +516,7 @@ public class TableMetadataParser {
       snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
       Iterator<JsonNode> iterator = snapshotArray.elements();
       while (iterator.hasNext()) {
-        snapshots.add(SnapshotParser.fromJson(iterator.next()));
+        snapshots.add(SnapshotParser.fromJson(iterator.next(), formatVersion));
       }
     } else {
       snapshots = ImmutableList.of();
