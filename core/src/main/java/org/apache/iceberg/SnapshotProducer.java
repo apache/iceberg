@@ -956,9 +956,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     String message = cause.getMessage();
-    return message != null
-        && (message.startsWith("Commit failed: Requirement failed:")
-            || message.startsWith("Commit failed: Validation failed, please retry:"));
+    return message == null || !message.startsWith("Commit failed: table was updated");
   }
 
   private static void updateTotal(

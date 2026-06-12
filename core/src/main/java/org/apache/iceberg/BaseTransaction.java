@@ -787,10 +787,7 @@ public class BaseTransaction implements Transaction {
 
   private static CommitFailedException toCommitFailedException(
       RetryExhaustedException ex, Map<String, String> properties) {
-    String message = ex.getCause() != null ? ex.getCause().getMessage() : null;
-    if (ex.getCause() instanceof CommitFailedException
-        && message != null
-        && message.startsWith("Commit failed: Requirement failed:")) {
+    if (shouldPreserveCommitFailure(ex.getCause())) {
       return (CommitFailedException) ex.getCause();
     }
 
@@ -812,5 +809,14 @@ public class BaseTransaction implements Transaction {
           numRetries,
           COMMIT_NUM_RETRIES);
     }
+  }
+
+  private static boolean shouldPreserveCommitFailure(Throwable cause) {
+    if (!(cause instanceof CommitFailedException)) {
+      return false;
+    }
+
+    String message = cause.getMessage();
+    return message == null || !message.startsWith("Commit failed: table was updated");
   }
 }
