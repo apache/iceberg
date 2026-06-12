@@ -224,10 +224,13 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 
 `bucket` and `truncate` are called as 2-argument functions. The first argument is an `int` parameter (`N` or `W` from the table spec) and the second argument is the value to transform. For example, `bucket(256, id)` calls `bucket[256]`.
 
-| Parameterized function name | Description                                   | Source types                                                                                 | Result type |
-|-----------------------------|-----------------------------------------------|----------------------------------------------------------------------------------------------|-------------|
-| `bucket(N, value)`          | Hash of value, mod `N` (see table spec)       | Any primitive except for `geometry`, `geography`, `variant`, `boolean`, `float`, or `double` | `int`       |
-| `truncate(W, value)`        | Value truncated to width `W` (see table spec) | `int`, `long`, `decimal`, `string`, `binary`                                                 | Source type |
+| Parameterized function name | Description                                                           | Source types                                                                                 | Result type |
+|-----------------------------|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------|-------------|
+| `bucket(N, value)`          | Hash of value, mod `N` (see [table spec details][bucket-ref])         | Any primitive except for `geometry`, `geography`, `variant`, `boolean`, `float`, or `double` | `int`       |
+| `truncate(W, value)`        | Value truncated to width `W` (see [table spec details][truncate-ref]) | `int`, `long`, `decimal`, `string`, `binary`                                                 | Source type |
+
+[bucket-ref]: spec/#bucket-transform-details
+[truncate-ref]: spec/#truncate-transform-details
 
 
 ## Appendix B: JSON serialization
