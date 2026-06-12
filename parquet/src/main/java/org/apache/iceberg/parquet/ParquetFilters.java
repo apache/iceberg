@@ -55,7 +55,7 @@ class ParquetFilters {
     Schema schema = ParquetSchemaUtil.convert(parquetSchema);
     FilterPredicate pred =
         ExpressionVisitors.visit(
-            expr,
+            Expressions.rewriteNot(expr),
             new ConvertFilterToParquet(
                 schema, primitiveTypesById(parquetSchema, schema), caseSensitive));
     // TODO: handle AlwaysFalse.INSTANCE

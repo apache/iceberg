@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -140,6 +141,15 @@ class TestParquetFilters {
     FilterCompat.Filter filter =
         ParquetFilters.convert(
             PARQUET_SCHEMA, equal("decimal_int", new BigDecimal("12.345")), true);
+
+    assertThat(filter).isSameAs(FilterCompat.NOOP);
+  }
+
+  @Test
+  void skipsNegatedDecimalLiteralWithIncompatibleScale() {
+    FilterCompat.Filter filter =
+        ParquetFilters.convert(
+            PARQUET_SCHEMA, not(equal("decimal_int", new BigDecimal("12.345"))), true);
 
     assertThat(filter).isSameAs(FilterCompat.NOOP);
   }
