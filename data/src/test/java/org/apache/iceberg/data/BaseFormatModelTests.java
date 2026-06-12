@@ -28,25 +28,19 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.avro.file.DataFileStream;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.io.DatumWriter;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -61,14 +55,13 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestTables;
-import org.apache.iceberg.avro.AvroTestHelpers;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -81,30 +74,18 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.orc.ORCSchemaUtil;
-import org.apache.iceberg.orc.OrcRowWriter;
-import org.apache.iceberg.orc.OrcWritingTestUtils;
-import org.apache.iceberg.orc.TestORCSchemaUtil;
-import org.apache.iceberg.parquet.ParquetFileTestUtils;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.orc.OrcFile;
-import org.apache.orc.Reader;
-import org.apache.orc.TypeDescription;
-import org.apache.orc.Writer;
-import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.apache.parquet.avro.AvroParquetWriter;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -130,8 +111,57 @@ public abstract class BaseFormatModelTests<T> {
 
   @TempDir private File tableDir;
 
-  private static final FileFormat[] FILE_FORMATS =
-      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+  /**
+   * Returns the set of type IDs that this engine cannot handle. The base implementation returns an
+   * empty collection; engines override to declare which top-level columns should be excluded from
+   * test schemas.
+   */
+  protected Collection<Type.TypeID> unsupportedTypeIds() {
+    return Set.of();
+  }
+
+  private Schema filterUnsupported(Schema schema) {
+    Collection<Type.TypeID> unsupportedTypeIds = unsupportedTypeIds();
+    if (unsupportedTypeIds.isEmpty()) {
+      return schema;
+    }
+
+    List<Types.NestedField> kept =
+        schema.columns().stream()
+            .filter(
+                col ->
+                    TypeUtil.find(col.type(), t -> unsupportedTypeIds.contains(t.typeId())) == null)
+            .toList();
+    return kept.size() == schema.columns().size() ? schema : new Schema(kept);
+  }
+
+  private Schema supportedSchema(DataGenerator generator) {
+    Schema filtered = filterUnsupported(generator.schema());
+    assumeThat(filtered.columns())
+        .as("All columns of %s are unsupported by this engine", generator)
+        .isNotEmpty();
+    return filtered;
+  }
+
+  private static List<Record> project(List<Record> records, Schema targetSchema) {
+    if (records.isEmpty()) {
+      return records;
+    }
+
+    return records.stream()
+        .map(
+            source -> {
+              Record result = GenericRecord.create(targetSchema);
+              for (Types.NestedField col : targetSchema.columns()) {
+                result.setField(col.name(), source.getField(col.name()));
+              }
+
+              return result;
+            })
+        .toList();
+  }
+
+  private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
@@ -196,25 +226,10 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = dataGenerator.schema();
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    Schema schema = supportedSchema(dataGenerator);
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
-
-    try (writer) {
-      engineRecords.forEach(writer::write);
-    }
-
-    DataFile dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
-
+    writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
@@ -223,25 +238,10 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    Schema schema = supportedSchema(dataGenerator);
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
-
-    try (writer) {
-      engineRecords.forEach(writer::write);
-    }
-
-    DataFile dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
-
+    writeEngineRecords(fileFormat, schema, engineRecords);
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
@@ -250,9 +250,9 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     writeGenericRecords(fileFormat, schema, genericRecords);
 
     // Read back and verify
@@ -273,35 +273,11 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testDataWriterEngineWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
-    Schema schema = dataGenerator.schema();
-    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
-
-    DataWriter<T> writer = writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
-
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    Schema schema = supportedSchema(dataGenerator);
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
-
-    try (writer) {
-      engineRecords.forEach(writer::write);
-    }
-
-    DataFile dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
-
-    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-    }
-
-    assertEquals(schema, engineRecords, readRecords);
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertEngineRecords(fileFormat, schema, genericRecords, Function.identity());
   }
 
   /** Write with engine type T, read with Generic Record */
@@ -309,7 +285,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -320,7 +296,7 @@ public abstract class BaseFormatModelTests<T> {
             .equalityFieldIds(1)
             .build();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
 
     try (writer) {
@@ -345,7 +321,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterEngineWriteWithoutEngineSchema(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
@@ -356,7 +332,7 @@ public abstract class BaseFormatModelTests<T> {
             .equalityFieldIds(1)
             .build();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
 
     try (writer) {
@@ -378,7 +354,7 @@ public abstract class BaseFormatModelTests<T> {
   @FieldSource("FORMAT_AND_GENERATOR")
   void testEqualityDeleteWriterGenericWriteEngineRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
-    Schema schema = dataGenerator.schema();
+    Schema schema = supportedSchema(dataGenerator);
     FileWriterBuilder<EqualityDeleteWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 
@@ -389,7 +365,7 @@ public abstract class BaseFormatModelTests<T> {
             .equalityFieldIds(1)
             .build();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
 
     try (writer) {
       genericRecords.forEach(writer::write);
@@ -470,10 +446,7 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = dataGenerator.generateRecords();
     writeGenericRecords(fileFormat, fullSchema, genericRecords);
 
-    List<Record> projectedGenericRecords =
-        genericRecords.stream()
-            .map(record -> copy(record, projectedSchema, projectedSchema))
-            .toList();
+    List<Record> projectedGenericRecords = project(genericRecords, projectedSchema);
     List<T> expectedEngineRecords =
         convertToEngineRecords(projectedGenericRecords, projectedSchema);
 
@@ -697,46 +670,404 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  void testReaderSchemaEvolutionNewColumnWithDefault(FileFormat fileFormat) throws IOException {
-
+  void testDefaultValues(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
-    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
-    Schema writeSchema = dataGenerator.schema();
 
-    List<Record> genericRecords = dataGenerator.generateRecords();
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
+    Schema writeSchema = new Schema(idField, dataField);
+
+    List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
-    String defaultStringValue = "default_value";
-    int defaultIntValue = 42;
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.required("missing_str")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("orange"))
+                .build(),
+            Types.NestedField.optional("missing_int")
+                .withId(7)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.of(34))
+                .build());
 
-    int maxFieldId =
-        writeSchema.columns().stream().mapToInt(Types.NestedField::fieldId).max().orElse(0);
-
-    List<Types.NestedField> evolvedColumns = Lists.newArrayList(writeSchema.columns());
-    evolvedColumns.add(
-        Types.NestedField.required("col_f")
-            .withId(maxFieldId + 1)
-            .ofType(Types.StringType.get())
-            .withInitialDefault(Literal.of(defaultStringValue))
-            .build());
-    evolvedColumns.add(
-        Types.NestedField.optional("col_g")
-            .withId(maxFieldId + 2)
-            .ofType(Types.IntegerType.get())
-            .withInitialDefault(Literal.of(defaultIntValue))
-            .build());
-
-    Schema evolvedSchema = new Schema(evolvedColumns);
-    readAndAssertGenericRecords(
+    readAndAssertEngineRecords(
         fileFormat,
-        evolvedSchema,
+        expectedSchema,
         genericRecords,
         record -> {
-          Record expected = copy(record, writeSchema, evolvedSchema);
-          expected.setField("col_f", defaultStringValue);
-          expected.setField("col_g", defaultIntValue);
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          expected.setField("data", record.getField("data"));
+          expected.setField("missing_str", "orange");
+          expected.setField("missing_int", 34);
+
           return expected;
         });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testNullDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
+    Schema writeSchema = new Schema(idField, dataField);
+
+    List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.optional("missing_date")
+                .withId(3)
+                .ofType(Types.DateType.get())
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = GenericRecord.create(expectedSchema);
+          expected.setField("id", record.getField("id"));
+          expected.setField("data", record.getField("data"));
+          expected.setField("missing_date", null);
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
+    Schema writeSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.optional("nested")
+                .withId(3)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.required(4, "inner", Types.StringType.get())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.optional("nested")
+                .withId(3)
+                .ofType(
+                    Types.StructType.of(
+                        Types.NestedField.required(4, "inner", Types.StringType.get()),
+                        Types.NestedField.optional("missing_inner_float")
+                            .withId(5)
+                            .ofType(Types.FloatType.get())
+                            .withInitialDefault(Literal.of(-0.0F))
+                            .build()))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = copy(record, writeSchema, expectedSchema);
+
+          Record writtenNested = (Record) record.getField("nested");
+          if (writtenNested != null) {
+            Record expectedNested =
+                GenericRecord.create(expectedSchema.findField("nested").type().asStructType());
+            expectedNested.setField("inner", writtenNested.getField("inner"));
+            expectedNested.setField("missing_inner_float", -0.0F);
+            expected.setField("nested", expectedNested);
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testMapNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
+    Schema writeSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.optional("nested_map")
+                .withId(3)
+                .ofType(
+                    Types.MapType.ofOptional(
+                        4,
+                        5,
+                        Types.StringType.get(),
+                        Types.StructType.of(
+                            Types.NestedField.required(6, "value_str", Types.StringType.get()))))
+                .withDoc("Used to test nested map value field defaults")
+                .build());
+
+    List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.optional("nested_map")
+                .withId(3)
+                .ofType(
+                    Types.MapType.ofOptional(
+                        4,
+                        5,
+                        Types.StringType.get(),
+                        Types.StructType.of(
+                            Types.NestedField.required(6, "value_str", Types.StringType.get()),
+                            Types.NestedField.optional("value_int")
+                                .withId(7)
+                                .ofType(Types.IntegerType.get())
+                                .withInitialDefault(Literal.of(34))
+                                .build())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = copy(record, writeSchema, expectedSchema);
+
+          @SuppressWarnings("unchecked")
+          Map<Object, Record> writtenMap = (Map<Object, Record>) expected.getField("nested_map");
+          if (writtenMap != null) {
+            Types.StructType valueType =
+                expectedSchema
+                    .findField("nested_map")
+                    .type()
+                    .asMapType()
+                    .valueType()
+                    .asStructType();
+            Map<Object, Record> rebuilt = Maps.newLinkedHashMap();
+            writtenMap.forEach(
+                (key, value) ->
+                    rebuilt.put(
+                        key,
+                        value == null
+                            ? null
+                            : GenericRecord.create(valueType)
+                                .copy("value_str", value.getField("value_str"), "value_int", 34)));
+            expected.setField("nested_map", rebuilt);
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testListNestedDefaultValue(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField dataField =
+        Types.NestedField.optional("data")
+            .withId(2)
+            .ofType(Types.StringType.get())
+            .withInitialDefault(Literal.of("wrong!"))
+            .withDoc("Should not produce default value")
+            .build();
+
+    Schema writeSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.optional("nested_list")
+                .withId(3)
+                .ofType(
+                    Types.ListType.ofOptional(
+                        4,
+                        Types.StructType.of(
+                            Types.NestedField.required(5, "element_str", Types.StringType.get()))))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    Schema expectedSchema =
+        new Schema(
+            idField,
+            dataField,
+            Types.NestedField.optional("nested_list")
+                .withId(3)
+                .ofType(
+                    Types.ListType.ofOptional(
+                        4,
+                        Types.StructType.of(
+                            Types.NestedField.required(5, "element_str", Types.StringType.get()),
+                            Types.NestedField.optional("element_int")
+                                .withId(7)
+                                .ofType(Types.IntegerType.get())
+                                .withInitialDefault(Literal.of(34))
+                                .build())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        expectedSchema,
+        genericRecords,
+        record -> {
+          Record expected = copy(record, writeSchema, expectedSchema);
+
+          @SuppressWarnings("unchecked")
+          List<Record> writtenList = (List<Record>) expected.getField("nested_list");
+          if (writtenList != null) {
+            Types.StructType elementType =
+                expectedSchema
+                    .findField("nested_list")
+                    .type()
+                    .asListType()
+                    .elementType()
+                    .asStructType();
+            List<Record> rebuilt =
+                writtenList.stream()
+                    .map(
+                        element ->
+                            element == null
+                                ? null
+                                : GenericRecord.create(elementType)
+                                    .copy(
+                                        "element_str",
+                                        element.getField("element_str"),
+                                        "element_int",
+                                        34))
+                    .collect(Collectors.toList());
+            expected.setField("nested_list", rebuilt);
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testMissingRequiredWithoutDefault(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Schema writeSchema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+
+    List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    Schema expectedSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required("missing_str")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withDoc("Missing required field with no default")
+                .build());
+
+    assertThatThrownBy(
+            () ->
+                readAndAssertEngineRecords(
+                    fileFormat, expectedSchema, genericRecords, record -> record))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required field: missing_str");
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testPrimitiveDefaultValues(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Schema writeSchema = DataGenerators.PrimitiveDefaults.WRITE_SCHEMA;
+    Schema readSchema = filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
+
+    List<Record> sourceRecords = RandomGenericData.generate(writeSchema, 10, 1L);
+    writeGenericRecords(fileFormat, writeSchema, sourceRecords);
+
+    readAndAssertEngineRecords(
+        fileFormat,
+        readSchema,
+        sourceRecords,
+        record -> {
+          Record expected = GenericRecord.create(readSchema);
+          expected.setField("id", record.getField("id"));
+          for (Types.NestedField field : readSchema.columns()) {
+            if (!field.name().equals("id")) {
+              expected.setField(
+                  field.name(),
+                  GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()));
+            }
+          }
+
+          return expected;
+        });
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testPrimitiveDefaultValuesNotApplied(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Schema readSchema = filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
+
+    List<Record> sourceRecords = RandomGenericData.generate(readSchema, 10, 1L);
+    writeGenericRecords(fileFormat, readSchema, sourceRecords);
+
+    readAndAssertEngineRecords(fileFormat, readSchema, sourceRecords, record -> record);
   }
 
   @ParameterizedTest
@@ -953,7 +1284,7 @@ public abstract class BaseFormatModelTests<T> {
     // col_b: mode=full -> valueCounts, nullValueCounts, and bounds all present
     Schema fullSchema = new Schema(schema.findField("col_b"));
     assertCounts(fileFormat, fullSchema, genericRecords, dataFile);
-    assertBounds(fileFormat, fullSchema, genericRecords, dataFile);
+    assertBounds(fileFormat, fullSchema, project(genericRecords, fullSchema), dataFile);
 
     // col_c, col_d, col_e: mode=counts (default) -> valueCounts and nullValueCounts present,
     // but no bounds
@@ -1448,10 +1779,7 @@ public abstract class BaseFormatModelTests<T> {
         new Schema(writeColumns.get(0), writeColumns.get(writeColumns.size() - 1));
 
     readAndAssertEngineRecords(
-        fileFormat,
-        projectedSchema,
-        genericRecords,
-        record -> copy(record, projectedSchema, projectedSchema));
+        fileFormat, projectedSchema, project(genericRecords, projectedSchema), Function.identity());
   }
 
   @ParameterizedTest
@@ -1537,10 +1865,7 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(2, "col_b", Types.IntegerType.get()));
 
     readAndAssertEngineRecords(
-        fileFormat,
-        reorderedSchema,
-        genericRecords,
-        record -> copy(record, reorderedSchema, reorderedSchema));
+        fileFormat, reorderedSchema, project(genericRecords, reorderedSchema), Function.identity());
   }
 
   /**
@@ -1605,7 +1930,7 @@ public abstract class BaseFormatModelTests<T> {
             Types.NestedField.required(5, "col_e", Types.DoubleType.get()));
 
     readAndAssertEngineRecords(
-        fileFormat, readSchema, genericRecords, record -> copy(record, readSchema, readSchema));
+        fileFormat, readSchema, project(genericRecords, readSchema), Function.identity());
   }
 
   /**
@@ -1645,7 +1970,9 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> genericRecords = dataGenerator.generateRecords();
 
     // Write the file WITHOUT Iceberg field IDs (as an external writer would).
-    writeRecordsWithoutFieldIds(fileFormat, icebergSchema, genericRecords);
+    FileFormatTestSupport.forFormat(fileFormat)
+        .writeRecordsWithoutFieldIds(
+            encryptedFile.encryptingOutputFile(), icebergSchema, genericRecords);
 
     NameMapping nameMapping = MappingUtil.create(icebergSchema);
 
@@ -1660,6 +1987,83 @@ public abstract class BaseFormatModelTests<T> {
     }
 
     assertEquals(icebergSchema, convertToEngineRecords(genericRecords, icebergSchema), readRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterOverwrite(FileFormat fileFormat) throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+
+    genericRecords = dataGenerator.generateRecords(20);
+    writeEngineRecords(
+        fileFormat, schema, convertToEngineRecords(genericRecords, schema), true /* overwrite */);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterNoOverwriteFailsIfFileExists(FileFormat fileFormat) throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    writeEngineRecords(fileFormat, schema, engineRecords);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
+
+    assertThatThrownBy(() -> writeEngineRecords(fileFormat, schema, engineRecords))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Already exists");
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterSet(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) -> testPropertiesToSet(format).forEach(writerBuilder::set),
+        format -> assertThat(checkTestProperties(format)).isTrue());
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterSetAll(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) -> writerBuilder.setAll(testPropertiesToSet(format)),
+        format -> assertThat(checkTestProperties(format)).isTrue());
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterMeta(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) -> writerBuilder.meta("tck.meta.key", "tck-meta-value"),
+        format ->
+            assertThat(fileMetadataValue(format, "tck.meta.key")).isEqualTo("tck-meta-value"));
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testDataWriterMetaMap(FileFormat fileFormat) throws IOException {
+    writeAndAssertDataWriterWithConfig(
+        fileFormat,
+        (writerBuilder, format) ->
+            writerBuilder.meta(
+                Map.of("tck.meta.key", "tck-meta-value", "tck.meta.key2", "tck-meta-value2")),
+        format -> {
+          assertThat(fileMetadataValue(format, "tck.meta.key")).isEqualTo("tck-meta-value");
+          assertThat(fileMetadataValue(format, "tck.meta.key2")).isEqualTo("tck-meta-value2");
+        });
   }
 
   private void readAndAssertGenericRecords(
@@ -1737,7 +2141,7 @@ public abstract class BaseFormatModelTests<T> {
   private DataFile writeRecordsForSplit(FileFormat fileFormat, Schema schema, List<Record> records)
       throws IOException {
 
-    String splitSizeProperty = splitSizeProperty(fileFormat);
+    String splitSizeProperty = FileFormatTestSupport.forFormat(fileFormat).splitSizeProperty();
     DataWriter<Record> writer =
         FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile)
             .schema(schema)
@@ -1761,16 +2165,6 @@ public abstract class BaseFormatModelTests<T> {
 
     assertThat(dataFile.format()).isEqualTo(fileFormat);
     return dataFile;
-  }
-
-  private static String splitSizeProperty(FileFormat fileFormat) {
-    return switch (fileFormat) {
-      case PARQUET -> TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-      case ORC -> TableProperties.ORC_STRIPE_SIZE_BYTES;
-      default ->
-          throw new UnsupportedOperationException(
-              "No split size property defined for format: " + fileFormat);
-    };
   }
 
   private static void assertCounts(
@@ -1801,43 +2195,64 @@ public abstract class BaseFormatModelTests<T> {
       return;
     }
 
+    Preconditions.checkArgument(
+        !genericRecords.isEmpty(), "assertBounds requires non-empty records");
+
     Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = file.upperBounds();
-    for (Types.NestedField field : schema.columns()) {
-      if (field.type().isPrimitiveType()) {
-        assertThat(lowerBounds).containsKey(field.fieldId());
-        assertThat(upperBounds).containsKey(field.fieldId());
 
-        ByteBuffer lowerBuffer = lowerBounds.get(field.fieldId());
-        ByteBuffer upperBuffer = upperBounds.get(field.fieldId());
+    InternalRecordWrapper wrapper = new InternalRecordWrapper(genericRecords.get(0).struct());
+    List<StructLike> wrappedRecords =
+        genericRecords.stream().map(r -> (StructLike) wrapper.copyFor(r)).toList();
 
-        Comparator<Object> cmp = Comparators.forType(field.type().asPrimitiveType());
+    List<Types.NestedField> columns = schema.columns();
+    for (int i = 0; i < columns.size(); i++) {
+      Types.NestedField field = columns.get(i);
+      if (!field.type().isPrimitiveType()) {
+        continue;
+      }
 
-        Object[] minMax = computeMinMax(genericRecords, field, cmp);
-        Object expectedMin = minMax[0];
-        Object expectedMax = minMax[1];
+      assertThat(lowerBounds).containsKey(field.fieldId());
+      assertThat(upperBounds).containsKey(field.fieldId());
 
-        if (expectedMin != null) {
-          assertThat(lowerBuffer).isNotNull();
-          Object actualLower = Conversions.fromByteBuffer(field.type(), lowerBuffer);
+      ByteBuffer lowerBuffer = lowerBounds.get(field.fieldId());
+      ByteBuffer upperBuffer = upperBounds.get(field.fieldId());
+      Comparator<Object> cmp = Comparators.forType(field.type().asPrimitiveType());
+
+      Object[] minMax = computeMinMax(wrappedRecords, i, cmp);
+      Object expectedMin = minMax[0];
+      Object expectedMax = minMax[1];
+
+      // String bounds may be truncated by the writer, so assert containment rather than equality.
+      boolean truncatable = field.type().typeId() == Type.TypeID.STRING;
+
+      if (expectedMin != null) {
+        assertThat(lowerBuffer).isNotNull();
+        Object actualLower = Conversions.fromByteBuffer(field.type(), lowerBuffer);
+        if (truncatable) {
+          assertThat(cmp.compare(actualLower, expectedMin)).isLessThanOrEqualTo(0);
+        } else {
           assertThat(cmp.compare(actualLower, expectedMin)).isEqualTo(0);
         }
+      }
 
-        if (expectedMax != null) {
-          assertThat(upperBuffer).isNotNull();
-          Object actualUpper = Conversions.fromByteBuffer(field.type(), upperBuffer);
+      if (expectedMax != null) {
+        assertThat(upperBuffer).isNotNull();
+        Object actualUpper = Conversions.fromByteBuffer(field.type(), upperBuffer);
+        if (truncatable) {
+          assertThat(cmp.compare(actualUpper, expectedMax)).isGreaterThanOrEqualTo(0);
+        } else {
           assertThat(cmp.compare(actualUpper, expectedMax)).isEqualTo(0);
         }
       }
     }
   }
 
-  private static Object[] computeMinMax(
-      List<Record> records, Types.NestedField field, Comparator<Object> cmp) {
+  private static Object[] computeMinMax(List<StructLike> records, int pos, Comparator<Object> cmp) {
     Object min = null;
     Object max = null;
-    for (Record record : records) {
-      Object value = record.getField(field.name());
+    for (StructLike record : records) {
+      Object value = record.get(pos, Object.class);
       if (value == null) {
         continue;
       }
@@ -2016,7 +2431,7 @@ public abstract class BaseFormatModelTests<T> {
     boundsAssertion.accept(lowerBounds.get(1), upperBounds.get(1));
 
     Schema intSchema = new Schema(schema.findField("col_int"));
-    assertBounds(fileFormat, intSchema, records, dataFile);
+    assertBounds(fileFormat, intSchema, project(records, intSchema), dataFile);
 
     assertThat(dataFile.columnSizes()).isNotNull().isNotEmpty();
   }
@@ -2110,112 +2525,6 @@ public abstract class BaseFormatModelTests<T> {
     return result;
   }
 
-  private void writeRecordsWithoutFieldIds(
-      FileFormat fileFormat, Schema schema, List<Record> records) throws IOException {
-    switch (fileFormat) {
-      case PARQUET -> writeParquetWithoutFieldIds(schema, records);
-      case AVRO -> writeAvroWithoutFieldIds(schema, records);
-      case ORC -> writeOrcWithoutFieldIds(schema, records);
-      default -> throw new UnsupportedOperationException("Unsupported file format: " + fileFormat);
-    }
-  }
-
-  private void writeAvroWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-    DatumWriter<GenericData.Record> datumWriter = new GenericDatumWriter<>(avroSchemaWithoutIds);
-    try (OutputStream out = outputFile.create();
-        DataFileWriter<GenericData.Record> writer = new DataFileWriter<>(datumWriter)) {
-      writer.create(avroSchemaWithoutIds, out);
-      for (Record record : records) {
-        GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
-        for (Types.NestedField field : schema.columns()) {
-          avroRecord.put(field.name(), record.getField(field.name()));
-        }
-
-        writer.append(avroRecord);
-      }
-    }
-
-    try (DataFileStream<GenericData.Record> reader =
-        new DataFileStream<>(outputFile.toInputFile().newStream(), new GenericDatumReader<>())) {
-      assertThat(AvroTestHelpers.hasIds(reader.getSchema())).isFalse();
-    }
-  }
-
-  private void writeParquetWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    org.apache.avro.Schema avroSchemaWithoutIds = AvroTestHelpers.removeIds(schema);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-
-    try (ParquetWriter<GenericData.Record> writer =
-        AvroParquetWriter.<GenericData.Record>builder(ParquetFileTestUtils.file(outputFile))
-            .withDataModel(GenericData.get())
-            .withSchema(avroSchemaWithoutIds)
-            .withConf(new Configuration())
-            .build()) {
-      for (Record record : records) {
-        GenericData.Record avroRecord = new GenericData.Record(avroSchemaWithoutIds);
-        for (Types.NestedField field : schema.columns()) {
-          avroRecord.put(field.name(), record.getField(field.name()));
-        }
-
-        writer.write(avroRecord);
-      }
-    }
-
-    try (ParquetFileReader reader =
-        ParquetFileReader.open(ParquetFileTestUtils.file(outputFile.toInputFile()))) {
-      assertThat(ParquetSchemaUtil.hasIds(reader.getFooter().getFileMetaData().getSchema()))
-          .isFalse();
-    }
-  }
-
-  private void writeOrcWithoutFieldIds(Schema schema, List<Record> records) throws IOException {
-    TypeDescription typeWithIds = ORCSchemaUtil.convert(schema);
-    TypeDescription typeWithoutIds = TestORCSchemaUtil.removeIds(typeWithIds);
-
-    OutputFile outputFile = encryptedFile.encryptingOutputFile();
-    Path hadoopPath = new Path(outputFile.location());
-
-    Configuration conf = new Configuration();
-    OrcFile.WriterOptions options =
-        OrcFile.writerOptions(conf)
-            .useUTCTimestamp(true)
-            .setSchema(typeWithoutIds)
-            .fileSystem(OrcWritingTestUtils.outputFileSystem(outputFile));
-
-    OrcRowWriter<Record> rowWriter = GenericOrcWriter.buildWriter(schema, typeWithIds);
-
-    try (Writer orcWriter = OrcFile.createWriter(hadoopPath, options)) {
-      VectorizedRowBatch batch = typeWithoutIds.createRowBatch();
-      for (Record record : records) {
-        rowWriter.write(record, batch);
-        if (batch.size == batch.getMaxSize()) {
-          orcWriter.addRowBatch(batch);
-          batch.reset();
-        }
-      }
-
-      if (batch.size > 0) {
-        orcWriter.addRowBatch(batch);
-        batch.reset();
-      }
-    }
-
-    InputFile inputFile = outputFile.toInputFile();
-    OrcFile.ReaderOptions readerOptions =
-        OrcFile.readerOptions(conf)
-            .useUTCTimestamp(true)
-            .filesystem(OrcWritingTestUtils.inputFileSystem(inputFile))
-            .maxLength(inputFile.getLength());
-
-    try (Reader reader = OrcFile.createReader(hadoopPath, readerOptions)) {
-      assertThat(TestORCSchemaUtil.hasIds(reader.getSchema())).isFalse();
-    }
-  }
-
   private void runTypePromotionCheck(
       FileFormat fileFormat, Type fromType, Type toType, Function<Object, Object> promoteValue)
       throws IOException {
@@ -2256,5 +2565,83 @@ public abstract class BaseFormatModelTests<T> {
     assertThat(readRecords).hasSize(expectedGenericRecords.size());
     assertEquals(
         readSchema, convertToEngineRecords(expectedGenericRecords, readSchema), readRecords);
+  }
+
+  private DataFile writeEngineRecords(FileFormat fileFormat, Schema schema, List<T> records)
+      throws IOException {
+    return writeEngineRecords(fileFormat, schema, records, false /* overwrite */);
+  }
+
+  private DataFile writeEngineRecords(
+      FileFormat fileFormat, Schema schema, List<T> records, boolean overwrite) throws IOException {
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+
+    writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned());
+
+    if (overwrite) {
+      writerBuilder.overwrite();
+    }
+
+    DataWriter<T> writer = writerBuilder.build();
+
+    try (writer) {
+      records.forEach(writer::write);
+    }
+
+    DataFile dataFile = writer.toDataFile();
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(records.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+
+    return dataFile;
+  }
+
+  private static Map<String, String> testPropertiesToSet(FileFormat fileFormat) {
+    return FileFormatTestSupport.forFormat(fileFormat).testPropertiesToSet();
+  }
+
+  private boolean checkTestProperties(FileFormat fileFormat) throws IOException {
+    return FileFormatTestSupport.forFormat(fileFormat)
+        .checkTestProperties(encryptedFile.encryptingOutputFile().toInputFile());
+  }
+
+  private String fileMetadataValue(FileFormat fileFormat, String key) throws IOException {
+    return FileFormatTestSupport.forFormat(fileFormat)
+        .metadataValue(encryptedFile.encryptingOutputFile().toInputFile(), key);
+  }
+
+  @FunctionalInterface
+  private interface DataWriterEffectAssertion {
+    void accept(FileFormat fileFormat) throws IOException;
+  }
+
+  private void writeAndAssertDataWriterWithConfig(
+      FileFormat fileFormat,
+      BiConsumer<FileWriterBuilder<DataWriter<T>, Object>, FileFormat> configureWriter,
+      DataWriterEffectAssertion assertWriterEffect)
+      throws IOException {
+    DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
+    Schema schema = dataGenerator.schema();
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
+
+    FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
+    writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned());
+    configureWriter.accept(writerBuilder, fileFormat);
+
+    DataWriter<T> writer = writerBuilder.build();
+
+    try (writer) {
+      engineRecords.forEach(writer::write);
+    }
+
+    DataFile dataFile = writer.toDataFile();
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(genericRecords.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+    assertWriterEffect.accept(fileFormat);
+    readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 }

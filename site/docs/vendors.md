@@ -77,6 +77,14 @@ or any public cloud.
 
 [Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more.
 
+### [Dataddo](https://www.dataddo.com/)
+
+[Dataddo](https://www.dataddo.com/) is a fully managed data integration platform for moving enterprise data across cloud, on-prem, and hybrid environments, with first-class support for open table formats including Apache Iceberg.
+* **Architecture** - Dataddo runs a single control plane that orchestrates data planes on AWS, Azure, GCP, sovereign clouds or on-premises Kubernetes and OpenShift, so sensitive data never leaves your network.
+* **Transport patterns** - Dataddo supports ETL/ELT, CDC, streaming, reverse ETL, and batch delivery from hundreds of fully maintained connectors.
+* **Iceberg support** - Dataddo writes to Apache Iceberg via catalogs such as AWS Glue, REST and others, and automatically detects source schema drift so downstream tables don't silently break.
+See the [Dataddo Platform](https://dataddo.com/platform) for details.
+
 ### [dltHub](https://dlthub.com/)
 
 [dlt](https://dlthub.com/docs/intro) is an open-source Python library for building production-grade extract & load pipelines. It automates the tedious parts of ELT, letting you load any data source into Apache Iceberg with minimal code. dlt eliminates boilerplate and makes data ingestion robust against evolving and unpredictable data sources.
