@@ -44,6 +44,7 @@ import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.LiteralValue;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.UserDefinedScalarFunc;
+import org.apache.spark.sql.connector.expressions.VariantGet;
 import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
@@ -655,69 +656,35 @@ public class TestSparkV2Filters {
 
   @Test
   public void testVariantGet() {
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            "variant_get",
-            "variant_get",
-            expressions(
-                FieldReference.apply("v"),
-                LiteralValue.apply(UTF8String.fromString("$.city"), DataTypes.StringType),
-                LiteralValue.apply(UTF8String.fromString("string"), DataTypes.StringType)));
-    testUDF(udf, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.city", DataTypes.StringType, true, null);
+    testUDF(vg, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
   }
 
   @Test
   public void testTryVariantGet() {
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            "try_variant_get",
-            "try_variant_get",
-            expressions(
-                FieldReference.apply("v"),
-                LiteralValue.apply(UTF8String.fromString("$.city"), DataTypes.StringType),
-                LiteralValue.apply(UTF8String.fromString("string"), DataTypes.StringType)));
-    testUDF(udf, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.city", DataTypes.StringType, false, null);
+    testUDF(vg, Expressions.extract("v", "$.city", "string"), "NYC", DataTypes.StringType);
   }
 
   @Test
   public void testVariantGetNestedPath() {
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            "variant_get",
-            "variant_get",
-            expressions(
-                FieldReference.apply("v"),
-                LiteralValue.apply(UTF8String.fromString("$.event.id"), DataTypes.StringType),
-                LiteralValue.apply(UTF8String.fromString("long"), DataTypes.StringType)));
-    testUDF(udf, Expressions.extract("v", "$.event.id", "long"), 42L, DataTypes.LongType);
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.event.id", DataTypes.LongType, true, null);
+    testUDF(vg, Expressions.extract("v", "$.event.id", "long"), 42L, DataTypes.LongType);
   }
 
   @Test
   public void testVariantGetBigintTypeName() {
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            "variant_get",
-            "variant_get",
-            expressions(
-                FieldReference.apply("v"),
-                LiteralValue.apply(UTF8String.fromString("$.event.id"), DataTypes.StringType),
-                LiteralValue.apply(UTF8String.fromString("bigint"), DataTypes.StringType)));
-    testUDF(udf, Expressions.extract("v", "$.event.id", "long"), 42L, DataTypes.LongType);
+    // LongType.catalogString() = "bigint"; toIcebergTypeName maps "bigint" -> "long"
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.event.id", DataTypes.LongType, true, null);
+    testUDF(vg, Expressions.extract("v", "$.event.id", "long"), 42L, DataTypes.LongType);
   }
 
   @Test
   public void testVariantGetInPredicate() {
-    UserDefinedScalarFunc udf =
-        new UserDefinedScalarFunc(
-            "variant_get",
-            "variant_get",
-            expressions(
-                FieldReference.apply("v"),
-                LiteralValue.apply(UTF8String.fromString("$.city"), DataTypes.StringType),
-                LiteralValue.apply(UTF8String.fromString("string"), DataTypes.StringType)));
+    VariantGet vg = new VariantGet(FieldReference.apply("v"), "$.city", DataTypes.StringType, true, null);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValues =
         expressions(
-            udf,
+            vg,
             LiteralValue.apply(UTF8String.fromString("NYC"), DataTypes.StringType),
             LiteralValue.apply(UTF8String.fromString("LA"), DataTypes.StringType));
     Predicate in = new Predicate("IN", attrAndValues);
