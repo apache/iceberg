@@ -65,6 +65,15 @@ public class GenericManifestFile extends SupportsIndexProjection
   // reference level. Set via setRecordCount(...) by the v4 writer (post-construction in
   // ManifestWriter.toManifestFile) and by RootManifestReader when projecting a content_entry row.
   private Long recordCount = null;
+  // v4: per-leaf format version persisted on the v4 root-manifest entry. 0 for legacy
+  // v1-v3 leaves carried over during a v3-to-v4 upgrade; 4 for v4 content_entry leaves.
+  // Defaults to 0 so legacy manifests round-trip with their pre-v4 semantics intact.
+  private int formatVersion = 0;
+  // v4: counts for REPLACED entries persisted on the v4 root manifest. Null for
+  // pre-v4 manifest list entries which don't carry these fields. Set directly by package-mates
+  // (e.g., ManifestWriter, RootManifestReader); no public setter.
+  Integer replacedFilesCount = null;
+  Long replacedRowsCount = null;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -178,6 +187,9 @@ public class GenericManifestFile extends SupportsIndexProjection
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.firstRowId = toCopy.firstRowId;
     this.recordCount = toCopy.recordCount;
+    this.formatVersion = toCopy.formatVersion;
+    this.replacedFilesCount = toCopy.replacedFilesCount;
+    this.replacedRowsCount = toCopy.replacedRowsCount;
   }
 
   /** Constructor for Java serialization. */
@@ -264,6 +276,16 @@ public class GenericManifestFile extends SupportsIndexProjection
   }
 
   @Override
+  public Integer replacedFilesCount() {
+    return replacedFilesCount;
+  }
+
+  @Override
+  public Long replacedRowsCount() {
+    return replacedRowsCount;
+  }
+
+  @Override
   public List<PartitionFieldSummary> partitions() {
     return partitions == null ? null : Arrays.asList(partitions);
   }
@@ -288,6 +310,17 @@ public class GenericManifestFile extends SupportsIndexProjection
   // read-only default method.
   void setRecordCount(long newRecordCount) {
     this.recordCount = newRecordCount;
+  }
+
+  @Override
+  public int formatVersion() {
+    return formatVersion;
+  }
+
+  // Package-private setter used by the v4 root manifest reader/writer to populate the per-leaf
+  // format version. The interface exposes it as a read-only default method.
+  void setFormatVersion(int newFormatVersion) {
+    this.formatVersion = newFormatVersion;
   }
 
   @Override
@@ -492,6 +525,18 @@ public class GenericManifestFile extends SupportsIndexProjection
 
     public CopyBuilder withSnapshotId(Long newSnapshotId) {
       manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    /**
+     * Replaces the sequence number and min sequence number on the copy. Used by {@link
+     * RootManifestWriter} to resolve {@link ManifestWriter#UNASSIGNED_SEQ} on a freshly written
+     * leaf manifest before it is emitted as a root-manifest entry, mirroring {@code
+     * V3Metadata.ManifestFileWrapper}.
+     */
+    CopyBuilder withSequenceNumbers(long newSequenceNumber, long newMinSequenceNumber) {
+      manifestFile.sequenceNumber = newSequenceNumber;
+      manifestFile.minSequenceNumber = newMinSequenceNumber;
       return this;
     }
 

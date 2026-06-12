@@ -207,6 +207,18 @@ public interface ManifestFile {
   }
 
   /**
+   * Returns the format version of the manifest file. Used at the v4 root-manifest level to dispatch
+   * leaf-manifest reads: {@code 0} for legacy v1-v3 manifests (Avro {@code manifest_entry} shape),
+   * {@code 4} for v4 leaf manifests (Parquet {@code content_entry} shape).
+   *
+   * <p>Defaults to {@code 0} (legacy) for manifests that don't carry an explicit value — pre-v4
+   * manifest list entries don't have this field.
+   */
+  default int formatVersion() {
+    return 0;
+  }
+
+  /**
    * Returns a list of {@link PartitionFieldSummary partition field summaries}.
    *
    * <p>Each summary corresponds to a field in the manifest file's partition spec, by ordinal. For

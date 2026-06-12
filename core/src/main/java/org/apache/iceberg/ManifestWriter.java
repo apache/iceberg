@@ -450,6 +450,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       // not surfaced through the per-status accessors on ManifestFile).
       GenericManifestFile result = (GenericManifestFile) super.toManifestFile();
       result.setRecordCount(entriesWritten());
+      result.setFormatVersion(ContentEntryAdapters.V4_FORMAT_VERSION);
       return result;
     }
 
@@ -530,6 +531,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       // See V4Writer.toManifestFile for why record_count is set explicitly on v4 leaf writers.
       GenericManifestFile result = (GenericManifestFile) super.toManifestFile();
       result.setRecordCount(entriesWritten());
+      result.setFormatVersion(ContentEntryAdapters.V4_FORMAT_VERSION);
       return result;
     }
 
