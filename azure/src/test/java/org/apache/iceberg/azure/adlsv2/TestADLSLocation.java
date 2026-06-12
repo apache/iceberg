@@ -85,6 +85,30 @@ public class TestADLSLocation {
   }
 
   @Test
+  public void testHostWithoutDot() {
+    String p1 = "abfs://container@account/path/to/file";
+    ADLSLocation location = new ADLSLocation(p1);
+
+    assertThat(location.storageAccount()).isEqualTo("account");
+    assertThat(location.container().get()).isEqualTo("container");
+    assertThat(location.host()).isEqualTo("account");
+    assertThat(location.path()).isEqualTo("path/to/file");
+  }
+
+  @Test
+  public void testAuthorityWithMultipleAtSigns() {
+    // The endpoint is built as "https://" + host(), so a second '@' must not be carried into the
+    // host: "account.dfs.core.windows.net@example.com" would resolve to example.com.
+    String p1 = "abfs://container@account.dfs.core.windows.net@example.com/path/to/file";
+    ADLSLocation location = new ADLSLocation(p1);
+
+    assertThat(location.container().get()).isEqualTo("container");
+    assertThat(location.host()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(location.storageAccount()).isEqualTo("account");
+    assertThat(location.path()).isEqualTo("path/to/file");
+  }
+
+  @Test
   public void testNoPath() {
     String p1 = "abfs://container@account.dfs.core.windows.net";
     ADLSLocation location = new ADLSLocation(p1);
