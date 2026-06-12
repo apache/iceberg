@@ -50,6 +50,7 @@ public class SnapshotParser {
   private static final String OPERATION = "operation";
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
+  private static final String ROOT_MANIFEST = "root-manifest";
   private static final String SCHEMA_ID = "schema-id";
   private static final String FIRST_ROW_ID = "first-row-id";
   private static final String ADDED_ROWS = "added-rows";
@@ -83,7 +84,10 @@ public class SnapshotParser {
     }
 
     String manifestList = snapshot.manifestListLocation();
-    if (manifestList != null) {
+    String rootManifest = snapshot.rootManifestLocation();
+    if (rootManifest != null) {
+      generator.writeStringField(ROOT_MANIFEST, rootManifest);
+    } else if (manifestList != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
@@ -122,6 +126,10 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(JsonNode node) {
+    return fromJson(node, 2);
+  }
+
+  static Snapshot fromJson(JsonNode node, int formatVersion) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -136,38 +144,9 @@ public class SnapshotParser {
     }
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
 
-    Map<String, String> summary = null;
-    String operation = null;
-    if (node.has(SUMMARY)) {
-      JsonNode sNode = node.get(SUMMARY);
-      Preconditions.checkArgument(
-          sNode != null && !sNode.isNull() && sNode.isObject(),
-          "Cannot parse summary from non-object value: %s",
-          sNode);
-
-      if (sNode.size() > 0) {
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        Iterator<String> fields = sNode.fieldNames();
-        while (fields.hasNext()) {
-          String field = fields.next();
-          if (field.equals(OPERATION)) {
-            operation = JsonUtil.getString(OPERATION, sNode);
-          } else {
-            builder.put(field, JsonUtil.getString(field, sNode));
-          }
-        }
-        summary = builder.build();
-
-        // When the operation is not found, default to overwrite
-        // to ensure that we can read the summary without raising an exception
-        if (operation == null) {
-          LOG.warn(
-              "Encountered invalid summary for snapshot {}: the field 'operation' is required but missing, setting 'operation' to overwrite",
-              snapshotId);
-          operation = DataOperations.OVERWRITE;
-        }
-      }
-    }
+    SnapshotSummary parsedSummary = parseSummary(node, snapshotId);
+    Map<String, String> summary = parsedSummary.fields();
+    String operation = parsedSummary.operation();
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
 
@@ -176,7 +155,26 @@ public class SnapshotParser {
 
     String keyId = JsonUtil.getStringOrNull(KEY_ID, node);
 
-    if (node.has(MANIFEST_LIST)) {
+    if (node.has(ROOT_MANIFEST)) {
+      // v4+ snapshot: uses root-manifest instead of manifest-list
+      String rootManifest = JsonUtil.getString(ROOT_MANIFEST, node);
+      int resolvedFormatVersion = formatVersion >= 4 ? formatVersion : 4;
+      return new BaseSnapshot(
+          resolvedFormatVersion,
+          sequenceNumber,
+          snapshotId,
+          parentId,
+          timestamp,
+          operation,
+          summary,
+          schemaId,
+          null,
+          rootManifest,
+          firstRowId,
+          addedRows,
+          keyId);
+
+    } else if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
@@ -204,6 +202,67 @@ public class SnapshotParser {
           summary,
           schemaId,
           JsonUtil.getStringList(MANIFESTS, node).toArray(new String[0]));
+    }
+  }
+
+  /** Parses the optional {@code summary} object on a snapshot JSON node into fields + operation. */
+  private static SnapshotSummary parseSummary(JsonNode node, long snapshotId) {
+    if (!node.has(SUMMARY)) {
+      return SnapshotSummary.EMPTY;
+    }
+
+    JsonNode sNode = node.get(SUMMARY);
+    Preconditions.checkArgument(
+        sNode != null && !sNode.isNull() && sNode.isObject(),
+        "Cannot parse summary from non-object value: %s",
+        sNode);
+
+    if (sNode.size() <= 0) {
+      return SnapshotSummary.EMPTY;
+    }
+
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    String operation = null;
+    Iterator<String> fields = sNode.fieldNames();
+    while (fields.hasNext()) {
+      String field = fields.next();
+      if (field.equals(OPERATION)) {
+        operation = JsonUtil.getString(OPERATION, sNode);
+      } else {
+        builder.put(field, JsonUtil.getString(field, sNode));
+      }
+    }
+
+    // When the operation is not found, default to overwrite
+    // to ensure that we can read the summary without raising an exception
+    if (operation == null) {
+      LOG.warn(
+          "Encountered invalid summary for snapshot {}: the field 'operation' is required but missing, setting 'operation' to overwrite",
+          snapshotId);
+      operation = DataOperations.OVERWRITE;
+    }
+
+    return new SnapshotSummary(builder.build(), operation);
+  }
+
+  /** Parsed snapshot {@code summary} object: the field map and resolved operation. */
+  private static final class SnapshotSummary {
+    private static final SnapshotSummary EMPTY = new SnapshotSummary(null, null);
+
+    private final Map<String, String> fields;
+    private final String operation;
+
+    SnapshotSummary(Map<String, String> fields, String operation) {
+      this.fields = fields;
+      this.operation = operation;
+    }
+
+    Map<String, String> fields() {
+      return fields;
+    }
+
+    String operation() {
+      return operation;
     }
   }
 
