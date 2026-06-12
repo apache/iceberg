@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
@@ -44,6 +45,9 @@ import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClientBuilder;
 import software.amazon.awssdk.services.kms.model.DataKeySpec;
 import software.amazon.awssdk.services.kms.model.EncryptionAlgorithmSpec;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AwsProperties implements Serializable {
 
@@ -237,6 +241,7 @@ public class AwsProperties implements Serializable {
   private final String clientAssumeRoleSessionName;
   private final String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
+  private final HttpClientProperties httpClientProperties;
 
   private final String glueEndpoint;
   private String glueCatalogId;
@@ -266,6 +271,7 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleSessionName = null;
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
+    this.httpClientProperties = new HttpClientProperties();
 
     this.glueCatalogId = null;
     this.glueEndpoint = null;
@@ -298,6 +304,7 @@ public class AwsProperties implements Serializable {
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(
             properties, AwsClientProperties.CLIENT_CREDENTIAL_PROVIDER_PREFIX);
+    this.httpClientProperties = new HttpClientProperties(properties);
 
     this.glueEndpoint = properties.get(GLUE_CATALOG_ENDPOINT);
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
@@ -493,8 +500,44 @@ public class AwsProperties implements Serializable {
       return credentialsProvider(this.clientCredentialsProvider);
     }
 
+    // When a role is configured to be assumed (e.g. via AssumeRoleAwsClientFactory), sign requests
+    // with the assumed-role credentials so that they do not diverge from the credentials used for
+    // S3, Glue, KMS and DynamoDB. See https://github.com/apache/iceberg/issues/16667.
+    if (!Strings.isNullOrEmpty(this.clientAssumeRoleArn)) {
+      return assumeRoleCredentialsProvider();
+    }
+
     // Create a new credential provider for each client
     return DefaultCredentialsProvider.builder().build();
+  }
+
+  private StsAssumeRoleCredentialsProvider assumeRoleCredentialsProvider() {
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(this.clientAssumeRoleRegion),
+        "Cannot assume role %s to sign REST requests: %s is required",
+        this.clientAssumeRoleArn,
+        CLIENT_ASSUME_ROLE_REGION);
+
+    String sessionName =
+        this.clientAssumeRoleSessionName != null
+            ? this.clientAssumeRoleSessionName
+            : String.format("iceberg-aws-%s", UUID.randomUUID());
+
+    return StsAssumeRoleCredentialsProvider.builder()
+        .stsClient(
+            StsClient.builder()
+                .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+                .region(Region.of(this.clientAssumeRoleRegion))
+                .build())
+        .refreshRequest(
+            AssumeRoleRequest.builder()
+                .roleArn(this.clientAssumeRoleArn)
+                .roleSessionName(sessionName)
+                .durationSeconds(this.clientAssumeRoleTimeoutSec)
+                .externalId(this.clientAssumeRoleExternalId)
+                .tags(this.stsClientAssumeRoleTags)
+                .build())
+        .build();
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
