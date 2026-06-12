@@ -29,13 +29,15 @@ Stored expressions are needed for use cases like data validations (`CHECK` const
 
 The goal of this specification is to define a simple expression structure and avoid complexity.
 
-To remain simple, the expressions that can be represented are deliberately constrained. Value expressions are constants, field references, or function calls with value expression arguments. Predicates are comparisons of value expressions that produce true or false.
+To remain simple, the expressions that can be represented are deliberately constrained to value expressions (constants, references, and function calls) and predicates (comparisons that produce true or false).
 
-This approach is intended to keep focus on the logical structure of expressions. Complexity is pushed to the functions that are called, which can be a limited set of well-defined and portable functions (like Iceberg partition transforms) or could be user-defined functions that can use the full range of SQL capabilities. Multi-dialect UDFs are responsible for any SQL constructs that are specific to an engine, rather than importing and duplicating dialects in Iceberg expressions.
+This approach is intended to keep focus on the logical structure of expressions. Complexity is pushed to the functions that are called, which are a limited set of well-defined and portable functions (like Iceberg partition transforms) or [user-defined functions][udf-spec] that can use the full range of SQL capabilities. Multi-dialect UDFs are responsible for any SQL constructs that are specific to an engine, rather than importing and duplicating dialects in Iceberg expressions.
 
 This is consistent with Iceberg's conservative approach in other specs. Expressions and predicates are an important part of Iceberg implementation APIs, but have been deliberately limited in specifications. For example, sort orders and partition fields are strictly limited to a small set of transforms over well-defined inputs (source field IDs). This spec is widening what can be expressed, but depends on function calls for complex tasks.
 
 This specification covers the structure of Iceberg expressions and includes appendicies that specify serialization as JSON and a set of portable functions defined by Iceberg specifications.
+
+[udf-spec]: https://iceberg.apache.org/udf-spec
 
 
 ## Structure
@@ -43,12 +45,12 @@ This specification covers the structure of Iceberg expressions and includes appe
 Iceberg expressions have two types:
 
 * **Value expressions** represent data values and transformations of values (function calls) that produce any Iceberg type
-* **Predicates** represent comparisons of value expressions and boolean logic that produce `true` or `false`
+* **Predicates** represent comparisons of value expressions as well as combinations of predicates with boolean logic (and, or, not)
 
 
 ### Value expressions
 
-A value expression is an expression that produces a typed value
+A value expression is an expression that produces a typed value.
 
 Value expressions can be one of three types: a constant value, a field reference, or a function applied to zero or more value expressions.
 
@@ -64,7 +66,7 @@ A field reference represents the value of a specific field in a row. When an exp
 
 Field references may be named references (unbound) or ID references (bound). ID references identify a field by field ID from a schema. Named references identify a field by name that must be resolved to an ID (bound to a schema) to access the field.
 
-ID references are used for stored expressions, where the identity of the column is determined when the stored expression is created. For example, column constraints are tied to field ID so that renaming a column does not drop its stored constraint.
+ID references are used for stored expressions, where the identity of the column is determined when the stored expression is created. For example, column constraints are tied to field IDs so that renaming a column does not invalidate the reference in its stored constraint.
 
 Named references are used when the identity of the column is determined when the expression is evaluated. For example, query filters are resolved each time a query runs so servers-side planning uses unbound named references.
 
@@ -81,27 +83,27 @@ Functions are identified by catalog, namespace, and name.
 * Namespace is optional and is assumed to be empty ([]) if it is not present or is null
 * Catalog is optional and is assumed to be the catalog in which the referencing object is stored if it is not present or is null
 
-The catalog name is used to identify the catalog where the function definition can be loaded or it identifies a reserved function set. As in the view and UDF specs, catalog names represent connection configurations that may differ across environments. Omitting catalog names is recommended to avoid depending on consistent environments. For example, if a table has a CHECK constraint that references a UDF without a catalog name (missing or null), the UDF should be loaded from the table’s catalog.
+The catalog name identifies the catalog where the function definition can be loaded or is a reserved name that identifies a set of functions. As in the view and UDF specs, catalog names represent connection configurations that may differ across environments. Omitting catalog names is recommended to avoid depending on consistent environments. For example, if a table has a CHECK constraint that references a UDF without a catalog name (missing or null), the UDF should be loaded from the table’s catalog.
 
-Reserved function set names are:
+The reserved names used to identify sets are:
 
 * `sql_functions` is used for functions defined by the SQL standard
 * `iceberg_functions` is used for functions defined in this specification
 
 Engines may document and use a catalog name to identify their built-in functions that are not part of the SQL spec, like `spark_builtin_functions.to_utc_timestamp`.
 
-Producers are responsible for resolving catalog, namespace, and name if the environment is relevant. For example, if a SQL engine uses its current catalog and namespace to find a function, the resolved catalog and namespace must be used to produce an unambiguous function identifier.
+Function identifiers are unambiguous and are not interpreted using session context. Producers are responsible for resolving catalog, namespace, and name if the session is relevant. For example, if a SQL engine uses its current catalog and namespace to find a function, the resolved catalog and namespace must be used to produce an unambiguous function identifier.
 
 
 #### Value expression types
 
 The type produced by a value expression may change. For example, an ID reference may produce a widened type after the underlying column's type is promoted.
 
-Function calls may produce different types when function definitions change, and type changes may change the definition that is resolved for a function name. For example, `identity(int) -> int` will change to `identity(long) -> long` when an input field is promoted from `int` to `long`.
+A value expression's result type is determined when it is bound to a specific input schema.
 
-A value expression's type is determined when it is bound to a specific input schema.
+Function calls may produce different types when function definitions change, and type changes may change the definition that is resolved for a function name. For example, if the input field passed to `identity(int) -> int` is promoted from `int` to `long`, the resolved `identity` function can change to `identity(long) -> long` if it is defined.
 
-If types are incompatible at runtime, implementations binding or evaluating expressions may apply type promotion to align types for predicates and to resolve functions. Implementations may choose when to promote values to accomodate engines that differ in casting behavior. However, implementations must fail rather than insert "unsafe" casts. 
+If types are incompatible at runtime, implementations binding or evaluating expressions may apply type promotion to align types for predicates and to resolve functions. Implementations may choose when to promote values to accomodate engines that differ in casting behavior. However, implementations must fail rather than insert unsafe casts. 
 
 
 ### Predicates
@@ -110,9 +112,9 @@ A predicate is a boolean expression that produces true or false.
 
 Predicates can be constants (true or false), comparisons or tests of value expressions, or logical combinations of predicates (AND, OR, NOT).
 
-If value expression types in a predicate are incompatible, implementations should align types using type promotion. For instance, `int_col > 5.0` should promote int values to float. If the types cannot be aligned according to type promotion rules, the predicate must evaluate to false. For instance, `"goats" > -Infinity` should always be `false`.
+If value expression types in a predicate are incompatible, implementations should align types using type promotion. For instance, `int_col > 5.0` should promote int values to float. If the types cannot be aligned according to type promotion rules (for instance, `"goats" > -Infinity`), the predicate cannot be evaluated and implementatinos must fail.
 
-Value expressions are not valid predicates, even when the expression is expected to return a boolean value. Value expressions must be compared or tested to produce a predicate. For example, `is_empty("")` is not a valid predicate, but `is_empty("") = true` is a valid predicate.
+Value expressions are not valid predicates, even when the expression is expected to return a boolean value. Value expressions must be compared or tested to produce a predicate. For example, `is_empty(str_col)` is not a valid predicate because it may produce `null`, but `is_empty(str_col) = true` is a valid predicate.
 
 
 #### Comparisons
@@ -128,13 +130,13 @@ Comparisons are predicates that compare two value expressions with the same prim
 | `>`         | Greater than |
 | `>=`        | Greater than or equal |
 
-Primitive types are compared using natural order, except for the following types:
+Primitive types are compared using signed comparison, except for the following types:
 
 * `false` is less than `true` for `boolean`
 * `fixed` and `binary` use unsigned byte-wise comparison
-* `string` uses unsigned byte-wise comparison of the UTF-8 representation
+* `string` uses unsigned byte-wise comparison of the UTF-8 representation; it is not the Unicode Collation Algorithm
 * `uuid` uses unsigned byte-wise comparison of the UUID bytes
-* `float` and `double` use IEEE 754 total order after normalizing NaN to the canonical NaN (sign bit 0, exponent bits all 1, matissa msb 1 followed by all 0)
+* `float` and `double` use IEEE 754 total order after normalizing NaN to the canonical NaN (sign bit 0, exponent bits all 1, mantissa msb 1 followed by all 0)
     * `NaN = NaN` is true for any two NaN values
     * `val < NaN` is true for all non-NaN values
 
@@ -150,15 +152,15 @@ Tests are predicates that test a single value expression, optionally using a con
 | `IS NOT NaN`            | float, double |               | true iff the value is not an IEEE 754 NaN |
 | `STARTS WITH const`     | string        | string        | true iff the constant is a prefix of the value |
 | `NOT STARTS WITH const` | string        | string        | true iff the constant is not a prefix of the value |
-| `IN (constant set)`     | any           | same as value | true iff the value is equal to any constant |
-| `NOT IN (constant set)` | any           | same as value | true iff the value is not equal to all constants |
+| `IN (constant set)`     | any primitive | same as value | true iff the value is equal to any constant |
+| `NOT IN (constant set)` | any primitive | same as value | true iff the value is not equal to all constants |
 
 
 #### Boolean logic
 
 Predicates must use 2-valued boolean logic. Evaluation of all predicates must produce `true` or `false`.
 
-Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending depending on context to interpret a null result (`WHERE` vs `CHECK`).
+Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending on context to interpret a null result (`WHERE` vs `CHECK`).
 
 Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation.
 
@@ -172,7 +174,7 @@ Comparisons must be null-safe. For example:
 * `null <= null` is `true`
 * `34 < null` is `false`
 
-Comparisons must handle null values when value expressions evaluate to null. However, value expressions used to define a predicate should not directly contain null constants and may reject them. For example, `x = get_item(map, "key")` is valid although `get_item` may return a null value, but `x = null` should be rejected because `x IS NULL` is the recommended unambiguous predicate.
+Comparisons must handle null values when value expressions evaluate to null. However, value expressions that are the direct child of a comparison must not be a null constant. For example, `x = get_item(map, "key")` is valid although `get_item` may return a null value, but `x = null` must be rejected because `x IS NULL` is the correct unambiguous predicate.
 
 
 ### Compatibility with REST catalog expressions
@@ -212,7 +214,7 @@ All partition transforms produce `null` for a `null` input value.
 
 Note that `year`, `month`, and `hour` transforms produce ordinal values and not human-readable values. For example, `year(2018-05-13)` produces `48`, not `2018`.
 
-Parameterized functions are called as 2-argument functions. The first argument is an `int` parameter (`N` or `W` from the table spec) and the second argument is the value to transform. For example, `bucket(256, id)` calls `bucket[256]`.
+`bucket` and `truncate` are called as 2-argument functions. The first argument is an `int` parameter (`N` or `W` from the table spec) and the second argument is the value to transform. For example, `bucket(256, id)` calls `bucket[256]`.
 
 | Parameterized function name | Description                                   | Source types                                                                                 | Result type |
 |-----------------------------|-----------------------------------------------|----------------------------------------------------------------------------------------------|-------------|
