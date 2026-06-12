@@ -29,6 +29,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | Feature support                                  | Spark | Notes                                                                       |
 |--------------------------------------------------|---------|-----------------------------------------------------------------------------|
 | [SQL insert into](#insert-into)                  | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL scoped replace](#insert-into--replace-using) | ✔️      | ⚠ Requires Iceberg Spark extensions and Spark 4.1 or higher                 |
 | [SQL merge into](#merge-into)                    | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
 | [SQL insert overwrite](#insert-overwrite)        | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
 | [SQL delete from](#delete-from)                  | ✔️      | ⚠ Row-level delete requires Iceberg Spark extensions                        |
@@ -40,7 +41,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 
 ## Writing with SQL
 
-Spark supports SQL `INSERT INTO`, `MERGE INTO`, and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
+Spark supports SQL `INSERT INTO`, `INSERT INTO ... REPLACE USING`, `MERGE INTO`, and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
 
 ### `INSERT INTO`
 
@@ -52,6 +53,31 @@ INSERT INTO prod.db.table VALUES (1, 'a'), (2, 'b')
 ```sql
 INSERT INTO prod.db.table SELECT ...
 ```
+
+### `INSERT INTO ... REPLACE USING`
+
+Iceberg supports scoped replacement writes with Iceberg Spark extensions in Spark 4.1 and higher. A scoped replace deletes existing target rows whose replacement scope appears in the source query, then inserts all rows from the source query in the same commit.
+
+```sql
+INSERT INTO prod.db.table
+REPLACE USING (scope_col_1, scope_col_2)
+SELECT ...
+```
+
+The columns listed in `REPLACE USING` define the replacement scope. For each distinct tuple of scope values produced by the source query, matching target rows are removed using null-safe equality, and the full source query output is appended.
+
+For example, this query replaces all existing rows for categories present in `prod.db.staged_rows` and keeps rows for other categories:
+
+```sql
+INSERT INTO prod.db.sample
+REPLACE USING (category)
+SELECT id, data, category, ts
+FROM prod.db.staged_rows
+```
+
+`REPLACE USING` is useful when incoming data contains complete replacement slices for one or more logical groups, such as tenants, departments, dates, or regions. Unlike `INSERT OVERWRITE`, the replacement scope is based on table columns in the source data and does not depend on the table's partition spec.
+
+The source query must produce the same number of columns as the target table, using the same assignment rules as `INSERT INTO`. Each `REPLACE USING` column must exist in both the target table and the source query output.
 
 ### `MERGE INTO`
 
