@@ -23,7 +23,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 /**
- * @deprecated will be removed in 1.14.0.
+ * @deprecated will be removed in 1.14.0, use {@link
+ *     org.apache.iceberg.rest.auth.oauth2.OAuth2Manager} instead.
  */
 @Deprecated
 public class OAuthErrorResponseParser {
