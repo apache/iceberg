@@ -77,10 +77,9 @@ The context in which an expression is used determines the type of references tha
 
 An apply expression represents the result of a function applied to (or called on) zero or more values produced by child value expressions.
 
-Functions are identified by catalog, namespace, and name.
+Functions are referenced using a catalog and a function identifer (list of strings).
 
-* Function name is always required
-* Namespace is optional and is assumed to be empty ([]) if it is not present or is null
+* The function identifier consists of 0 or more namespace names followed by the function name. At least one part, the function name, is required.
 * Catalog is optional and is assumed to be the catalog in which the referencing object is stored if it is not present or is null
 
 The catalog name identifies the catalog where the function definition can be loaded or is a reserved name that identifies a set of functions. As in the view and UDF specs, catalog names represent connection configurations that may differ across environments. Omitting catalog names is recommended to avoid depending on consistent environments. For example, if a table has a CHECK constraint that references a UDF without a catalog name (missing or null), the UDF should be loaded from the table’s catalog.
@@ -92,7 +91,7 @@ The reserved names used to identify sets are:
 
 Engines may document and use a catalog name to identify their built-in functions that are not part of the SQL spec, like `spark_builtin_functions.to_utc_timestamp`.
 
-Function identifiers are unambiguous and are not interpreted using session context. Producers are responsible for resolving catalog, namespace, and name if the session is relevant. For example, if a SQL engine uses its current catalog and namespace to find a function, the resolved catalog and namespace must be used to produce an unambiguous function identifier.
+Function references are unambiguous and are not interpreted using session context. Producers are responsible for resolving catalog, namespace, and name if the session is relevant. For example, if a SQL engine uses its current catalog and namespace to find a function, the resolved catalog and namespace must be used to produce an unambiguous function reference.
 
 
 #### Value expression types
@@ -164,32 +163,41 @@ Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `NOT NU
 
 Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation.
 
-Comparisons must be null-safe. For example:
+Comparisons must be null-safe. For any two operands a and b:
 
-* `null = null` is `true`
-* `34 = null` is `false`
-* `null != null` is `false`
-* `34 != null` is `true`
-* `null < null` is `false`
-* `null <= null` is `true`
-* `34 < null` is `false`
+* `a = b` is true if both are null, or both are non-null and equal; otherwise false
+* `a != b` is the boolean negation of a = b
+* `a < b` and `a > b` are false when either operand is null; otherwise they use the order defined above
+* `a <= b` is `(a = b) OR (a < b)`; `a >= b` is `(a = b) OR (a > b)`; both are true when both operands are null and false when only one operand is null
+
+This table shows examples of these rules after evaluating value expressions to constants:
+
+| Comparison     | Result  |
+|----------------|---------|
+| `null = null`  | `true`  |
+| `34 = null`    | `false` |
+| `null != null` | `false` |
+| `34 != null`   | `true`  |
+| `null < null`  | `false` |
+| `null <= null` | `true`  |
+| `34 < null`    | `false` |
 
 Comparisons must handle null values when value expressions evaluate to null. However, value expressions that are the direct child of a comparison must not be a null constant. For example, `x = get_item(map, "key")` is valid although `get_item` may return a null value, but `x = null` must be rejected because `x IS NULL` is the correct unambiguous predicate.
 
 
 ### Compatibility with REST catalog expressions
 
-Older clients use more restrictive forms of predicates and references that used a "term" for specific transforms and named references. These expressions should be supported for backward compatibility to allow older clients to interact with newer REST catalog services.
+Prior to this spec, REST APIs used a more restrictive, term-based form of predicates and references. Those forms are now deprecated, but should be supported for backward compatibility to allow older clients to interact with newer REST catalog services.
 
-Prior to this spec, deprecated expressions were passed in the REST API in 3 places:
+The deprecated expressions were passed in 3 places:
 
 * As `filter` passed to server-side scan planning
 * As `filter` passed to the service in `ScanReport`
 * As `residual` passed to the client with a scan task
 
-Both server-side scan planning and the report endpoint can continue to accept filters from older clients without issues by parsing term-based expressions (see [Appendix B: JSON serialization](#appendix-b-json-serialization)).
+Both server-side scan planning and the report endpoint should continue to accept filters from older clients by parsing term-based expressions (see [Appendix B: JSON serialization](#backward-compatibility)).
 
-Residuals passed from services back to clients that do not use the new syntax would cause clients to fail, but services are allowed to omit the residual so that it is calculated on the client side (intended to avoid duplicating large IN filters). For compatibility, REST services should detect client versions and produce deprecated predicates, or omit residuals from tasks.
+Residuals passed from services back to clients that do not use the new syntax would cause clients to fail. Services are allowed to omit the residual so that it is calculated on the client side (intended to avoid duplicating large IN filters). For compatibility, REST services should omit residuals from tasks, but may include them if the service detects support for newer predicates (for example, via client version).
 
 
 ## Appendix A: Iceberg functions
@@ -237,12 +245,15 @@ LITERAL: VALUE
 LITERALS: [ LITERAL* ]
 
 REFERENCE: BOUND_REF | UNBOUND_REF
-BOUND_REF: ID | { "type": "reference", "id": ID }
-UNBOUND_REF: NAME | { "type": "reference", "name": NAME }
+BOUND_REF: { "type": "reference", "id": ID }
+UNBOUND_REF: { "type": "reference", "name": NAME }
 
-APPLY: { "type": "apply", "func-name": FUNC_ID, "arguments": [ EXPR* ] }
-FUNC_ID: NAME
-    | { "catalog": NAME, "namespace": [ NAME* ], "name": NAME }
+APPLY: { "type": "apply", "function": FUNC_REF, "arguments": [ FUNC_ARG* ] }
+FUNC_ARG: EXPR | PREDICATE
+FUNC_REF: NAME
+    | [ NAME* ]
+    | { "identifier": [ NAME* ] }
+    | { "catalog": NAME, "identifier": [ NAME* ] }
 
 ID: integer
 NAME: string
@@ -251,7 +262,8 @@ VALUE: non-null single value JSON from the table spec
 DATA_TYPE: Iceberg type from the spec
 ```
 
-If a function identifier is a string, that string is the function name, the namespace is empty ([]), and the catalog is missing/null.
+If a function reference is a string, that string is the one-part identifier and the catalog is missing/null.
+If a function reference is a list of strings, it is the function identifier and the catalog is missing/null.
 
 ### Predicates
 
