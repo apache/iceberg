@@ -92,7 +92,7 @@ public class TestRestDropPurgeTable extends TestBase {
   }
 
   @Test
-  void purgeTableDoesClientSidePurgeWhenDisabled() {
+  void purgeNotDelegatedToCatalogWhenDisabled() {
     SparkCatalog catalog = createCatalog(false);
     catalog.purgeTable(SPARK_ID);
     verify(restCatalogMock).dropTable(any(), eq(false));

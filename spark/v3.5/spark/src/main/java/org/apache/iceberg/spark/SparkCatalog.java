@@ -386,8 +386,8 @@ public class SparkCatalog extends BaseCatalog {
         if (restCatalogPurge) {
           return icebergCatalog.dropTable(buildIdentifier(ident), true);
         } else {
-          LOG.warn(
-              "Set '{}' to true to use the REST Catalog's capabilities to purge the table.",
+          LOG.info(
+              "Set '{}' to true to use the REST catalog's capabilities to purge the table.",
               SparkCatalogProperties.REST_CATALOG_PURGE);
         }
       }
@@ -799,8 +799,9 @@ public class SparkCatalog extends BaseCatalog {
 
     Preconditions.checkArgument(
         !restCatalogPurge || isRestCatalog,
-        "Cannot enable '%s': the configured catalog is not a REST catalog",
-        SparkCatalogProperties.REST_CATALOG_PURGE);
+        "Cannot enable '%s': the configured catalog is not a REST catalog: %s",
+        SparkCatalogProperties.REST_CATALOG_PURGE,
+        catalog.getClass().getName());
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
