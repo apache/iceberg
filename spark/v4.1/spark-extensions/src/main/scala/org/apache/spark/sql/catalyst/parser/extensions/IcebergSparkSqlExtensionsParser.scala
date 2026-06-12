@@ -32,12 +32,14 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
+import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParameterContext
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceScopedData
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
@@ -139,12 +141,152 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
   private def parsePlanWithDelegate(sqlText: String)(
       delegateParse: String => LogicalPlan): LogicalPlan = {
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
-    if (isIcebergCommand(sqlTextAfterSubstitution)) {
+    if (isScopedReplaceCommand(sqlTextAfterSubstitution)) {
+      parseScopedReplace(sqlTextAfterSubstitution)(delegateParse)
+    } else if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }
         .asInstanceOf[LogicalPlan]
     } else {
       RewriteViewCommands(SparkSession.active).apply(delegateParse(sqlText))
     }
+  }
+
+  /**
+   * Parse `INSERT INTO t REPLACE USING (cols) <query>`.
+   *
+   * Spark's grammar does not yet accept `REPLACE USING` in `INSERT INTO`, while the Iceberg
+   * extension grammar cannot own an arbitrary trailing Spark query. Keep the workaround narrow: the
+   * Iceberg grammar parses only the command head, and the wrapped Spark parser parses the query.
+   *
+   * TODO: Propose Spark to add `REPLACE USING` / `REPLACE ON` to `insertInto`, remove this text
+   * split, and build [[ReplaceScopedData]] from the native Spark parse tree instead.
+   */
+  private def parseScopedReplace(sqlText: String)(
+      delegateParse: String => LogicalPlan): LogicalPlan = {
+    val scopeListEnd = scopeListEndIndex(sqlText)
+    val headText = sqlText.substring(0, scopeListEnd + 1)
+    val queryText = sqlText.substring(scopeListEnd + 1)
+    val (tableParts, scopeColumns) = parse(headText) { parser =>
+      astBuilder.visitSingleScopedReplaceHead(parser.singleScopedReplaceHead())
+    }
+    val source = delegateParse(queryText)
+    ReplaceScopedData(UnresolvedRelation(tableParts), scopeColumns, source)
+  }
+
+  /**
+   * Find the index of the `)` that closes the scope column list of `REPLACE USING (...)`.
+   *
+   * String literals and SQL comments are masked out first so the keyword search and parenthesis
+   * matching cannot be fooled by `replace using` text or parentheses appearing inside a literal or
+   * comment.
+   */
+  private def scopeListEndIndex(sqlText: String): Int = {
+    val masked = maskLiteralsAndComments(sqlText)
+    val matcher = ReplaceUsingOpenParen.pattern.matcher(masked)
+    if (!matcher.find()) {
+      throw new IcebergParseException(
+        Option(sqlText),
+        "Could not locate the REPLACE USING (...) scope column list",
+        Origin(),
+        Origin())
+    }
+    var depth = 1
+    var idx = matcher.end()
+    while (idx < masked.length && depth > 0) {
+      masked.charAt(idx) match {
+        case '(' => depth += 1
+        case ')' => depth -= 1
+        case _ =>
+      }
+      if (depth == 0) {
+        return idx
+      }
+      idx += 1
+    }
+    throw new IcebergParseException(
+      Option(sqlText),
+      "Unbalanced parentheses in REPLACE USING (...) scope column list",
+      Origin(),
+      Origin())
+  }
+
+  /**
+   * Blanks out literals and comments with spaces, preserving input offsets for later string scans.
+   *
+   * By default this also blanks backquoted identifiers, which keeps parentheses inside quoted names
+   * from affecting scope-list matching. Command-head detection opts out so backquoted table names
+   * remain visible to the head pattern.
+   */
+  private def maskLiteralsAndComments(sql: String, maskBackquotes: Boolean = true): String = {
+    val out = sql.toCharArray
+    val n = out.length
+    var i = 0
+    while (i < n) {
+      sql.charAt(i) match {
+        case '`' if !maskBackquotes =>
+          i += 1
+          while (i < n && sql.charAt(i) != '`') {
+            i += 1
+          }
+          if (i < n) {
+            i += 1
+          }
+        case '\'' | '"' | '`' =>
+          val quote = sql.charAt(i)
+          out(i) = ' '
+          i += 1
+          while (i < n && sql.charAt(i) != quote) {
+            // Backslash escapes apply only inside the SQL string literals, not backquotes.
+            if (quote != '`' && sql.charAt(i) == '\\' && i + 1 < n) {
+              out(i) = ' '
+              i += 1
+            }
+            out(i) = ' '
+            i += 1
+          }
+          if (i < n) {
+            out(i) = ' '
+            i += 1
+          }
+        case '-' if i + 1 < n && sql.charAt(i + 1) == '-' =>
+          while (i < n && sql.charAt(i) != '\n') {
+            out(i) = ' '
+            i += 1
+          }
+        case '/' if i + 1 < n && sql.charAt(i + 1) == '*' =>
+          // Spark's lexer treats block comments as nesting (see SqlBaseLexer's BRACKETED_COMMENT,
+          // which recurses), so a comment only closes once every opener has a matching `*/`. Track
+          // the nesting depth here so an inner `*/` does not prematurely unmask trailing text.
+          var depth = 1
+          out(i) = ' '
+          out(i + 1) = ' '
+          i += 2
+          while (i + 1 < n && depth > 0) {
+            if (sql.charAt(i) == '/' && sql.charAt(i + 1) == '*') {
+              depth += 1
+              out(i) = ' '
+              out(i + 1) = ' '
+              i += 2
+            } else if (sql.charAt(i) == '*' && sql.charAt(i + 1) == '/') {
+              depth -= 1
+              out(i) = ' '
+              out(i + 1) = ' '
+              i += 2
+            } else {
+              out(i) = ' '
+              i += 1
+            }
+          }
+          // Blank any trailing char of an unterminated comment (depth never reached 0).
+          if (depth > 0 && i < n) {
+            out(i) = ' '
+            i += 1
+          }
+        case _ =>
+          i += 1
+      }
+    }
+    new String(out)
   }
 
   private def isIcebergCommand(sqlText: String): Boolean = {
@@ -172,6 +314,18 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
       normalized.contains("set identifier fields") ||
       normalized.contains("drop identifier fields") ||
       isSnapshotRefDdl(normalized))
+  }
+
+  /**
+   * Detect `INSERT INTO [TABLE] <identifier> REPLACE USING (...)` by anchoring on the statement
+   * head, so `REPLACE USING (` appearing later in the query body (e.g. a join alias `replace`
+   * with a `USING (...)` clause) is left for Spark to parse as an ordinary insert. Matching runs
+   * on text with literals and comments masked so they cannot fabricate a head match; backquoted
+   * table identifiers are preserved so the head pattern can see the target table.
+   */
+  private def isScopedReplaceCommand(sqlText: String): Boolean = {
+    val masked = maskLiteralsAndComments(sqlText, maskBackquotes = false)
+    ScopedReplaceCommandHead.pattern.matcher(masked).find()
   }
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {
@@ -231,6 +385,22 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
 }
 
 object IcebergSparkSqlExtensionsParser {
+
+  /** Matches the `REPLACE USING (` opener (case-insensitive, whitespace-tolerant). */
+  private val ReplaceUsingOpenParen = "(?i)replace\\s+using\\s*\\(".r
+
+  /**
+   * Anchors scoped-replace detection to the statement head: `INSERT INTO [TABLE]
+   * <multipartIdentifier> REPLACE USING (`. The identifier is a dotted chain of unquoted (`\w+`)
+   * or backquoted parts; word-character parts separated only by whitespace (i.e. ordinary query
+   * keywords like `SELECT ... FROM`) cannot match, so a `REPLACE USING (` appearing later in the
+   * query body does not trigger the scoped-replace path.
+   */
+  private val ScopedReplaceCommandHead =
+    ("(?i)^\\s*insert\\s+into\\s+(?:table\\s+)?" +
+      "(?:\\w+|`(?:[^`]|``)*`)(?:\\s*\\.\\s*(?:\\w+|`(?:[^`]|``)*`))*" +
+      "\\s+replace\\s+using\\s*\\(").r
+
   private val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
     DynConstructors
       .builder()
