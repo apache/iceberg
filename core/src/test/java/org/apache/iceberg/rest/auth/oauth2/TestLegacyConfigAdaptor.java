@@ -18,14 +18,14 @@
  */
 package org.apache.iceberg.rest.auth.oauth2;
 
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.DEFAULT_CLIENT_ID;
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.MESSAGE_TEMPLATE_LEGACY_OPTION;
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.MESSAGE_TEMPLATE_MERGED_CONTEXTUAL_CONFIG;
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.MESSAGE_TEMPLATE_MISSING_TOKEN_ENDPOINT;
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.MESSAGE_TEMPLATE_NO_CLIENT_ID;
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.MESSAGE_TEMPLATE_RELATIVE_TOKEN_ENDPOINT;
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.MESSAGE_TEMPLATE_TABLE_CONFIG_NOT_ALLOWED;
-import static org.apache.iceberg.rest.auth.oauth2.ConfigMigrator.MESSAGE_TEMPLATE_VENDED_TOKEN;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.DEFAULT_CLIENT_ID;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_LEGACY_OPTION;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_MERGED_CONTEXTUAL_CONFIG;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_MISSING_TOKEN_ENDPOINT;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_NO_CLIENT_ID;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_RELATIVE_TOKEN_ENDPOINT;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_TABLE_CONFIG_NOT_ALLOWED;
+import static org.apache.iceberg.rest.auth.oauth2.LegacyConfigAdaptor.MESSAGE_TEMPLATE_VENDED_TOKEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.list;
 
@@ -59,7 +59,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @SuppressWarnings("deprecation")
-class TestConfigMigrator {
+class TestLegacyConfigAdaptor {
 
   private List<Pair<String, List<String>>> messages;
   private BiConsumer<String, String[]> consumer;
@@ -89,7 +89,7 @@ class TestConfigMigrator {
             "secret",
             "non.oauth2.property",
             "value");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     // Only OAuth2 properties should be included
     assertThat(actual)
         .isEqualTo(
@@ -106,7 +106,7 @@ class TestConfigMigrator {
   @Test
   void credentialValid() {
     Map<String, String> input = Map.of(OAuth2Properties.CREDENTIAL, "client1:secret1");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual)
         .isEqualTo(Map.of(BasicConfig.CLIENT_ID, "client1", BasicConfig.CLIENT_SECRET, "secret1"));
     assertThat(messages).hasSize(1);
@@ -120,7 +120,7 @@ class TestConfigMigrator {
   @Test
   void credentialNoClientId() {
     Map<String, String> input = Map.of(OAuth2Properties.CREDENTIAL, "secret1");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual)
         .isEqualTo(
             Map.of(
@@ -141,7 +141,7 @@ class TestConfigMigrator {
   @Test
   void token() {
     Map<String, String> input = Map.of(OAuth2Properties.TOKEN, "access-token-123");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(Map.of(BasicConfig.TOKEN, "access-token-123"));
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
@@ -151,7 +151,7 @@ class TestConfigMigrator {
   @Test
   void tokenExpiresInMs() {
     Map<String, String> input = Map.of(OAuth2Properties.TOKEN_EXPIRES_IN_MS, "300000");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual)
         .isEqualTo(
             Map.of(TokenRefreshConfig.ACCESS_TOKEN_LIFESPAN, Duration.ofMillis(300000).toString()));
@@ -166,7 +166,7 @@ class TestConfigMigrator {
   void tokenRefreshEnabled(boolean enabled) {
     Map<String, String> input =
         Map.of(OAuth2Properties.TOKEN_REFRESH_ENABLED, String.valueOf(enabled));
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(Map.of(TokenRefreshConfig.ENABLED, String.valueOf(enabled)));
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
@@ -177,7 +177,7 @@ class TestConfigMigrator {
   void oauth2ServerUri() {
     Map<String, String> input =
         Map.of(OAuth2Properties.OAUTH2_SERVER_URI, "https://example.com/token");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(Map.of(BasicConfig.TOKEN_ENDPOINT, "https://example.com/token"));
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
@@ -190,7 +190,7 @@ class TestConfigMigrator {
   @Test
   void scope() {
     Map<String, String> input = Map.of(OAuth2Properties.SCOPE, "read write admin");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(Map.of(BasicConfig.SCOPE, "read write admin"));
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
@@ -200,7 +200,7 @@ class TestConfigMigrator {
   @Test
   void audience() {
     Map<String, String> input = Map.of(OAuth2Properties.AUDIENCE, "https://api.example.com");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(Map.of(TokenExchangeConfig.AUDIENCES, "https://api.example.com"));
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
@@ -210,7 +210,7 @@ class TestConfigMigrator {
   @Test
   void resource() {
     Map<String, String> input = Map.of(OAuth2Properties.RESOURCE, "urn:example:resource");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(Map.of(TokenExchangeConfig.RESOURCES, "urn:example:resource"));
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
@@ -221,7 +221,7 @@ class TestConfigMigrator {
   @MethodSource
   void vendedTokenExchange(String tokenTypeProperty) {
     Map<String, String> input = Map.of(tokenTypeProperty, "some-value");
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual)
         .isEqualTo(
             Map.of(
@@ -260,7 +260,7 @@ class TestConfigMigrator {
   void tokenExchangeEnabled(boolean enabled) {
     Map<String, String> input =
         Map.of(OAuth2Properties.TOKEN_EXCHANGE_ENABLED, String.valueOf(enabled));
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual)
         .isEqualTo(Map.of(TokenRefreshConfig.TOKEN_EXCHANGE_ENABLED, String.valueOf(enabled)));
     assertThat(messages).hasSize(1);
@@ -301,7 +301,7 @@ class TestConfigMigrator {
             .put(TokenExchangeConfig.AUDIENCES, "https://api.example.com")
             .build();
 
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(expected);
 
     assertThat(messages).hasSize(8);
@@ -324,7 +324,7 @@ class TestConfigMigrator {
   @MethodSource
   void newPropertyOverridesLegacy(
       Map<String, String> input, Map<String, String> expectedOutput, String[] expectedWarningArgs) {
-    Map<String, String> actual = new ConfigMigrator(consumer).migrateProperties(input);
+    Map<String, String> actual = new LegacyConfigAdaptor(consumer).migrateProperties(input);
     assertThat(actual).isEqualTo(expectedOutput);
     assertThat(messages).hasSize(1);
     assertThatMessage(messages.get(0), MESSAGE_TEMPLATE_LEGACY_OPTION)
@@ -426,7 +426,7 @@ class TestConfigMigrator {
   })
   void legacyTokenEndpoint(String catalogUri, String oauth2ServerUri, String expected) {
     Map<String, String> input = Map.of(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri);
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     Map<String, String> actual = migrator.migrateProperties(input);
     migrator.handleTokenEndpoint(actual, catalogUri);
     assertThat(actual).isEqualTo(Map.of(BasicConfig.TOKEN_ENDPOINT, expected));
@@ -450,7 +450,7 @@ class TestConfigMigrator {
   void tokenEndpointMissing(String catalogUri, String expected) {
     Map<String, String> input =
         Map.of(BasicConfig.CLIENT_ID, "client-id", BasicConfig.CLIENT_SECRET, "client-secret");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     Map<String, String> actual = migrator.migrateProperties(input);
     migrator.handleTokenEndpoint(actual, catalogUri);
     assertThat(actual)
@@ -477,7 +477,7 @@ class TestConfigMigrator {
             "client-id",
             BasicConfig.CLIENT_SECRET,
             "client-secret");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     Map<String, String> actual = migrator.migrateProperties(input);
     migrator.handleTokenEndpoint(actual, "https://catalog.com");
     assertThat(actual).isEqualTo(input);
@@ -487,7 +487,7 @@ class TestConfigMigrator {
   @Test
   void tokenEndpointMissingWithStaticToken() {
     Map<String, String> input = Map.of(BasicConfig.TOKEN, "static-token");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     Map<String, String> actual = migrator.migrateProperties(input);
     migrator.handleTokenEndpoint(actual, "https://catalog.com");
     assertThat(actual).isEqualTo(input);
@@ -504,7 +504,7 @@ class TestConfigMigrator {
             "client-id",
             BasicConfig.CLIENT_SECRET,
             "client-secret");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     Map<String, String> actual = migrator.migrateProperties(input);
     migrator.handleTokenEndpoint(actual, "https://catalog.com");
     assertThat(actual)
@@ -531,7 +531,7 @@ class TestConfigMigrator {
             "client-id",
             BasicConfig.CLIENT_SECRET,
             "client-secret");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     Map<String, String> actual = migrator.migrateProperties(input);
     migrator.handleTokenEndpoint(actual, "https://catalog.com");
     assertThat(actual).isEqualTo(input);
@@ -548,7 +548,7 @@ class TestConfigMigrator {
             .put(BasicConfig.CLIENT_ID, "client-id")
             .put(BasicConfig.CLIENT_SECRET, "client-secret")
             .build();
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateCatalogConfig(input, "https://example.com");
     assertThat(actual)
         .isEqualTo(
@@ -574,7 +574,7 @@ class TestConfigMigrator {
                     .build())
             .build();
     Map<String, String> input = Map.of();
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateContextualConfig(parent, input, "https://example.com");
     assertThat(actual).isSameAs(parent);
     assertThat(messages).hasSize(0);
@@ -598,7 +598,7 @@ class TestConfigMigrator {
                     .build())
             .build();
     Map<String, String> input = Map.of();
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateContextualConfig(parent, input, "https://example.com");
     assertThat(actual).isEqualTo(parent);
     assertThat(messages).hasSize(6);
@@ -634,7 +634,7 @@ class TestConfigMigrator {
             BasicConfig.SCOPE, "child-scope",
             TokenExchangeConfig.RESOURCES, "child-resource",
             TokenExchangeConfig.AUDIENCES, "child-audience");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateContextualConfig(parent, input, "https://example.com");
     assertThat(actual)
         .isEqualTo(
@@ -680,7 +680,7 @@ class TestConfigMigrator {
             BasicConfig.SCOPE, "child-scope",
             TokenExchangeConfig.RESOURCES, "child-resource",
             TokenExchangeConfig.AUDIENCES, "child-audience");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateContextualConfig(parent, input, "https://example.com");
     assertThat(actual)
         .isEqualTo(
@@ -714,7 +714,7 @@ class TestConfigMigrator {
                     .build())
             .build();
     Map<String, String> input = Map.of();
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateTableConfig(parent, input);
     assertThat(actual).isEqualTo(parent);
     assertThat(messages).hasSize(0);
@@ -738,7 +738,7 @@ class TestConfigMigrator {
             BasicConfig.CLIENT_ID, "child-client-id",
             BasicConfig.CLIENT_SECRET, "child-client-secret",
             BasicConfig.SCOPE, "table-scope");
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateTableConfig(parent, input);
     assertThat(actual).isEqualTo(parent);
     assertThat(messages).hasSize(3);
@@ -764,7 +764,7 @@ class TestConfigMigrator {
             .build();
     Map<String, String> input =
         ImmutableMap.<String, String>builder().put(BasicConfig.TOKEN, "access-token-123").build();
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateTableConfig(parent, input);
     assertThat(actual)
         .isEqualTo(
@@ -804,7 +804,7 @@ class TestConfigMigrator {
             .put(TokenExchangeConfig.ACTOR_TOKEN, ConfigUtil.PARENT_TOKEN)
             .put(TokenExchangeConfig.ACTOR_TOKEN_TYPE, OAuth2Properties.ACCESS_TOKEN_TYPE)
             .build();
-    ConfigMigrator migrator = new ConfigMigrator(consumer);
+    LegacyConfigAdaptor migrator = new LegacyConfigAdaptor(consumer);
     OAuth2Config actual = migrator.migrateTableConfig(parent, input);
     assertThat(actual)
         .isEqualTo(

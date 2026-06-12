@@ -44,11 +44,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A component for migrating from legacy OAuth2 properties (from {@link OAuth2Properties}) to the
- * new OAuth2 properties (as declared in {@link OAuth2Config}).
+ * A component for adapting from legacy OAuth2 properties (from {@link OAuth2Properties}) to the new
+ * OAuth2 properties (as declared in {@link OAuth2Config}).
  */
 @SuppressWarnings("deprecation")
-final class ConfigMigrator {
+final class LegacyConfigAdaptor {
 
   /**
    * The default client ID to use when no client ID is provided in the legacy {@link
@@ -56,7 +56,7 @@ final class ConfigMigrator {
    */
   public static final ClientID DEFAULT_CLIENT_ID = new ClientID("iceberg");
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(ConfigMigrator.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(LegacyConfigAdaptor.class);
 
   private static final Splitter CREDENTIAL_SPLITTER = Splitter.on(":").limit(2).trimResults();
 
@@ -110,16 +110,16 @@ final class ConfigMigrator {
 
   private final BiConsumer<String, String[]> logConsumer;
 
-  ConfigMigrator() {
+  LegacyConfigAdaptor() {
     this(LOGGER);
   }
 
-  ConfigMigrator(Logger logger) {
+  LegacyConfigAdaptor(Logger logger) {
     this(logger::warn);
   }
 
   @VisibleForTesting
-  ConfigMigrator(BiConsumer<String, String[]> logConsumer) {
+  LegacyConfigAdaptor(BiConsumer<String, String[]> logConsumer) {
     this.logConsumer = logConsumer;
   }
 
