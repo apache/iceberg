@@ -1329,8 +1329,7 @@ public class TableMetadata implements Serializable {
           snapshot != null, "Cannot set %s to unknown snapshot: %s", name, snapshotId);
       ValidationException.check(
           !SnapshotRef.MAIN_BRANCH.equals(name) || ref.isBranch(),
-          "Cannot set %s to a tag: %s must be a branch",
-          SnapshotRef.MAIN_BRANCH,
+          "Cannot set %s to a tag, it must be a branch",
           SnapshotRef.MAIN_BRANCH);
 
       if (SnapshotRef.MAIN_BRANCH.equals(name)) {

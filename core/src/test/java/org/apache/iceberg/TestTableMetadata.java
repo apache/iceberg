@@ -2177,7 +2177,7 @@ public class TestTableMetadata {
                         SnapshotRef.MAIN_BRANCH,
                         SnapshotRef.tagBuilder(snapshot.snapshotId()).build()))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot set main to a tag: main must be a branch");
+        .hasMessage("Cannot set main to a tag, it must be a branch");
 
     // any other ref name can still be a tag
     TableMetadata withTag =

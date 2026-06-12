@@ -336,7 +336,7 @@ public class TestSnapshotManager extends TestBase {
                     .createTag(SnapshotRef.MAIN_BRANCH, stagedSnapshot.snapshotId())
                     .commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot set main to a tag: main must be a branch");
+        .hasMessage("Cannot set main to a tag, it must be a branch");
 
     // the failed commit must not have created the main ref
     assertThat(table.ops().refresh().ref(SnapshotRef.MAIN_BRANCH)).isNull();
