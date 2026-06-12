@@ -30,7 +30,7 @@ import org.openjdk.jmh.annotations.Param;
  * Spark data source for Iceberg.
  *
  * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-4.1: <code>
- *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1:jmh
+ *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1_2.13:jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetPosDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-pos-delete-benchmark-result.txt
  * </code>
