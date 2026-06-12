@@ -73,7 +73,137 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  spark-test-matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      spark-matrix-excludes-json: ${{ steps.detect.outputs.spark-matrix-excludes-json }}
+      spark-versions: ${{ steps.detect.outputs.spark-versions }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect Spark versions to test
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          all_versions=()
+          selected_versions=()
+          run_all=false
+          spark_workflow=".github/workflows/spark-ci.yml"
+
+          while IFS= read -r version; do
+            all_versions+=("${version}")
+          done < <(git ls-tree -d --name-only HEAD:spark | sed -n 's/^v\([0-9].*\)$/\1/p' | sort -V)
+
+          if [[ "${#all_versions[@]}" -eq 0 ]]; then
+            echo "No Spark versions found" >&2
+            exit 1
+          fi
+
+          select_version() {
+            if [[ "${#selected_versions[@]}" -gt 0 ]]; then
+              for selected_version in "${selected_versions[@]}"; do
+                if [[ "${selected_version}" == "$1" ]]; then
+                  return
+                fi
+              done
+            fi
+
+            selected_versions+=("$1")
+          }
+
+          add_version_for_path() {
+            for version in "${all_versions[@]}"; do
+              if [[ "$1" == "spark/v${version}/"* ]]; then
+                select_version "${version}"
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          contains_version() {
+            for selected_version in "${selected[@]}"; do
+              if [[ "${selected_version}" == "$1" ]]; then
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+            run_all=true
+          elif [[ -z "${BASE_SHA}" ]]; then
+            echo "Missing pull request base SHA" >&2
+            exit 1
+          else
+            while IFS= read -r changed_file; do
+              if [[ -z "${changed_file}" ]]; then
+                continue
+              fi
+
+              # Ignore this workflow when paired with version-scoped Spark changes.
+              if [[ "${changed_file}" == "${spark_workflow}" ]]; then
+                continue
+              fi
+
+              # Only exclusively version-scoped Spark changes narrow the matrix.
+              # Shared or unknown paths keep the full Spark test matrix.
+              if ! add_version_for_path "${changed_file}"; then
+                run_all=true
+                break
+              fi
+            done < <(git diff --name-only "${BASE_SHA}...HEAD")
+          fi
+
+          selected=()
+          if [[ "${run_all}" == "true" ]]; then
+            selected=("${all_versions[@]}")
+          else
+            for version in "${all_versions[@]}"; do
+              if [[ "${#selected_versions[@]}" -gt 0 ]]; then
+                for selected_version in "${selected_versions[@]}"; do
+                  if [[ "${selected_version}" == "${version}" ]]; then
+                    selected+=("${version}")
+                  fi
+                done
+              fi
+            done
+
+            if [[ "${#selected[@]}" -eq 0 ]]; then
+              selected=("${all_versions[@]}")
+            fi
+          fi
+
+          spark_matrix_excludes_json=$(
+            {
+              # Scala 2.13 is the default; only Spark 3.5 needs Scala 2.12 coverage.
+              for version in "${all_versions[@]}"; do
+                if [[ "${version}" != "3.5" ]]; then
+                  jq -nc --arg spark "${version}" --arg scala "2.12" '{spark: $spark, scala: $scala}'
+                fi
+              done
+
+              for version in "${all_versions[@]}"; do
+                if ! contains_version "${version}"; then
+                  jq -nc --arg spark "${version}" '{spark: $spark}'
+                fi
+              done
+            } | jq -cs .
+          )
+
+          echo "spark-matrix-excludes-json=${spark_matrix_excludes_json}" >> "${GITHUB_OUTPUT}"
+          echo "spark-versions=${selected[*]}" >> "${GITHUB_OUTPUT}"
+          echo "Spark versions selected for CI: ${selected[*]}" >> "${GITHUB_STEP_SUMMARY}"
+
   spark-tests:
+    needs: spark-test-matrix
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -87,13 +217,7 @@ jobs:
         # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
         # so they run as concurrent jobs rather than serially in one job.
         tests: [core, extensions]
-        exclude:
-          # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
-          # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
-          - spark: '4.0'
-            scala: '2.12'
-          - spark: '4.1'
-            scala: '2.12'
+        exclude: ${{ fromJson(needs.spark-test-matrix.outputs.spark-matrix-excludes-json) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
