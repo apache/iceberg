@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import org.apache.iceberg.expressions.PathUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
@@ -57,7 +58,10 @@ class TestVariantExtractionPathResolver {
   void readerPathInsertsTypedValueAfterVariantColumn() {
     assertThat(
             VariantExtractionPathResolver.readerPath(
-                VARIANT_PATH, ImmutableList.of("pull_request", "user")))
+                VARIANT_PATH,
+                ImmutableList.of(
+                    new PathUtil.PathSegment.Name("pull_request"),
+                    new PathUtil.PathSegment.Name("user"))))
         .containsExactly("v", "typed_value", "pull_request", "user");
   }
 
@@ -73,7 +77,11 @@ class TestVariantExtractionPathResolver {
   void pathToSerializedFieldAppendsValueAfterObjectPath() {
     assertThat(
             VariantExtractionPathResolver.pathToSerializedField(
-                VARIANT_PATH, ImmutableList.of("pull_request", "user", "login")))
+                VARIANT_PATH,
+                ImmutableList.of(
+                    new PathUtil.PathSegment.Name("pull_request"),
+                    new PathUtil.PathSegment.Name("user"),
+                    new PathUtil.PathSegment.Name("login"))))
         .containsExactly("v", "typed_value", "pull_request", "user", "login", "value");
   }
 
@@ -82,13 +90,13 @@ class TestVariantExtractionPathResolver {
     // Each segment must be a direct child of the current typed_value container.
     assertThat(
             VariantExtractionPathResolver.resolveShreddedFieldGroup(
-                shreddedVariant, ImmutableList.of("pull_request")))
+                shreddedVariant, ImmutableList.of(new PathUtil.PathSegment.Name("pull_request"))))
         .isEqualTo(prGroup);
 
     GroupType flatUserVariant = shreddedObjectVariant("v", userGroup);
     assertThat(
             VariantExtractionPathResolver.resolveShreddedFieldGroup(
-                flatUserVariant, ImmutableList.of("user")))
+                flatUserVariant, ImmutableList.of(new PathUtil.PathSegment.Name("user"))))
         .isEqualTo(userGroup);
   }
 
@@ -98,11 +106,18 @@ class TestVariantExtractionPathResolver {
     // field names that are direct children of each typed_value group.
     assertThat(
             VariantExtractionPathResolver.resolveShreddedFieldGroup(
-                shreddedVariant, ImmutableList.of("pull_request", "user")))
+                shreddedVariant,
+                ImmutableList.of(
+                    new PathUtil.PathSegment.Name("pull_request"),
+                    new PathUtil.PathSegment.Name("user"))))
         .isNull();
     assertThat(
             VariantExtractionPathResolver.resolveShreddedFieldGroup(
-                shreddedVariant, ImmutableList.of("pull_request", "user", "login")))
+                shreddedVariant,
+                ImmutableList.of(
+                    new PathUtil.PathSegment.Name("pull_request"),
+                    new PathUtil.PathSegment.Name("user"),
+                    new PathUtil.PathSegment.Name("login"))))
         .isNull();
   }
 
@@ -117,15 +132,18 @@ class TestVariantExtractionPathResolver {
   void resolveShreddedFieldGroupReturnsNullForMissingOrUnshreddedPaths() {
     assertThat(
             VariantExtractionPathResolver.resolveShreddedFieldGroup(
-                shreddedVariant, ImmutableList.of("missing")))
+                shreddedVariant, ImmutableList.of(new PathUtil.PathSegment.Name("missing"))))
         .isNull();
     assertThat(
             VariantExtractionPathResolver.resolveShreddedFieldGroup(
-                shreddedVariant, ImmutableList.of("pull_request", "missing")))
+                shreddedVariant,
+                ImmutableList.of(
+                    new PathUtil.PathSegment.Name("pull_request"),
+                    new PathUtil.PathSegment.Name("missing"))))
         .isNull();
     assertThat(
             VariantExtractionPathResolver.resolveShreddedFieldGroup(
-                unshreddedVariant, ImmutableList.of("pull_request")))
+                unshreddedVariant, ImmutableList.of(new PathUtil.PathSegment.Name("pull_request"))))
         .isNull();
   }
 
@@ -144,16 +162,16 @@ class TestVariantExtractionPathResolver {
   }
 
   @Test
-  void objectPathBeforeFirstArrayTruncatesAtIndexSegment() {
+  void segmentsBeforeFirstIndexTruncatesAtIndexSegment() {
     assertThat(
-            VariantExtractionPathResolver.objectPathBeforeFirstArray(
-                ImmutableList.of("items", "[0]", "name")))
-        .containsExactly("items");
+            VariantExtractionPathResolver.segmentsBeforeFirstIndex(
+                PathUtil.parse("$.items[0].name")))
+        .containsExactly(new PathUtil.PathSegment.Name("items"));
     assertThat(
-            VariantExtractionPathResolver.objectPathBeforeFirstArray(
-                ImmutableList.of("actor", "login")))
-        .containsExactly("actor", "login");
-    assertThat(VariantExtractionPathResolver.objectPathBeforeFirstArray(ImmutableList.of("[0]")))
+            VariantExtractionPathResolver.segmentsBeforeFirstIndex(PathUtil.parse("$.actor.login")))
+        .containsExactly(
+            new PathUtil.PathSegment.Name("actor"), new PathUtil.PathSegment.Name("login"));
+    assertThat(VariantExtractionPathResolver.segmentsBeforeFirstIndex(PathUtil.parse("$[0]")))
         .isEmpty();
   }
 
