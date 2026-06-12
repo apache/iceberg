@@ -88,8 +88,6 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testRegisterTableAlreadyExistsFails() throws Exception {
-    long numRows = 1000;
-
     sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
@@ -108,8 +106,6 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testRegisterTableWithOverwriteNotSupported() throws Exception {
-    long numRows = 1000;
-
     sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     String metadataJson = TableUtil.metadataFileLocation(table);
