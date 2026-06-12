@@ -69,6 +69,12 @@ class SparkDefaultValues {
         columnName,
         type,
         defaultSql);
+    Preconditions.checkArgument(
+        type.typeId() != Type.TypeID.TIME,
+        "Column default for %s with type %s is not supported by Iceberg Spark DDL: %s",
+        columnName,
+        type,
+        defaultSql);
 
     Literal<?> literal = createLiteral(type, sparkValue).to(type);
     Preconditions.checkArgument(
