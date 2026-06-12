@@ -81,19 +81,7 @@ class PropertiesUpdate implements UpdateViewProperties {
           .throwRetryExhaustedException()
           .run(taskOps -> taskOps.commit(base, internalApply()));
     } catch (RetryExhaustedException e) {
-      if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
-            totalTimeoutMs,
-            COMMIT_TOTAL_RETRY_TIME_MS);
-      } else {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
-            numRetries,
-            COMMIT_NUM_RETRIES);
-      }
+      throw ViewCommitRetry.toCommitFailedException(e, numRetries, totalTimeoutMs);
     }
   }
 

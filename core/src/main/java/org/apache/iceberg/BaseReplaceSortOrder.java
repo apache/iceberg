@@ -71,19 +71,7 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
                 taskOps.commit(base, updated);
               });
     } catch (RetryExhaustedException e) {
-      if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
-            totalTimeoutMs,
-            COMMIT_TOTAL_RETRY_TIME_MS);
-      } else {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
-            numRetries,
-            COMMIT_NUM_RETRIES);
-      }
+      throw CommitRetry.toCommitFailedException(e, numRetries, totalTimeoutMs);
     }
   }
 
