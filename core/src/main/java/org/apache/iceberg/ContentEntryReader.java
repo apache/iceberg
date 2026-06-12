@@ -92,6 +92,20 @@ class ContentEntryReader extends CloseableGroup {
     return readEntries();
   }
 
+  /**
+   * Returns the colocated deletion vectors carried by live data rows in this data manifest, each
+   * projected as a {@link DeleteFile} with content {@link FileContent#POSITION_DELETES} and format
+   * {@link FileFormat#PUFFIN}. REPLACED rows are excluded — only live (ADDED or MODIFIED) rows
+   * surface their attached DV. Rows without a {@code deletion_vector} are skipped.
+   */
+  CloseableIterable<DeleteFile> colocatedDVDeleteFiles() {
+    Preconditions.checkArgument(
+        contentType == ManifestContent.DATA,
+        "Cannot read deletion vectors from a delete manifest: %s",
+        file.location());
+    return readDVDeleteFiles();
+  }
+
   /** Returns all entries (including deleted) as delete manifest entries. */
   CloseableIterable<ManifestEntry<DeleteFile>> deleteEntries() {
     Preconditions.checkArgument(
@@ -116,6 +130,7 @@ class ContentEntryReader extends CloseableGroup {
             .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
             .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
             .setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsReader.class)
+            .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
             .build();
 
     addCloseable(rows);
@@ -124,6 +139,99 @@ class ContentEntryReader extends CloseableGroup {
         (CloseableIterable)
             CloseableIterable.transform(
                 rows, row -> toManifestEntry((TrackedFileStruct) row.copy()));
+  }
+
+  private CloseableIterable<DeleteFile> readDVDeleteFiles() {
+    PartitionSpec defaultSpec = resolveDefaultSpec();
+    Schema contentEntrySchema = buildContentEntrySchema(defaultSpec);
+
+    CloseableIterable<TrackedFileStruct> rows =
+        InternalData.read(FileFormat.PARQUET, file)
+            .project(contentEntrySchema)
+            .setRootType(TrackedFileStruct.class)
+            .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
+            .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
+            .setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsReader.class)
+            .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
+            .build();
+
+    addCloseable(rows);
+
+    CloseableIterable<DeleteFile> dvs =
+        CloseableIterable.transform(
+            rows,
+            row -> {
+              TrackedFileStruct copy = (TrackedFileStruct) row.copy();
+              if (!isLiveDataRowWithDV(copy)) {
+                return null;
+              }
+              return toDVDeleteFile(copy);
+            });
+
+    return CloseableIterable.filter(dvs, dv -> dv != null);
+  }
+
+  // Builds a GenericDeleteFile from a v4+ colocated DV row. Using GenericDeleteFile (a BaseFile)
+  // rather than TrackedFileAdapters.asDVDeleteFile lets InheritableMetadata propagate the
+  // dataSequenceNumber from the parent manifest to the file — required for DeleteFileIndex's
+  // sequence-number checks (DeleteFile.dataSequenceNumber() must be non-null and >= the data
+  // file's sequence number).
+  private DeleteFile toDVDeleteFile(TrackedFileStruct row) {
+    Integer specId = row.specId();
+    PartitionSpec spec = specById(specId);
+    if (spec == null) {
+      spec = resolveDefaultSpec();
+    }
+
+    DeletionVector dv = row.deletionVector();
+    PartitionData partition = toPartitionData(row, spec);
+
+    GenericDeleteFile dvFile =
+        new GenericDeleteFile(
+            spec.specId(),
+            FileContent.POSITION_DELETES,
+            dv.location(),
+            FileFormat.PUFFIN,
+            partition,
+            dv.sizeInBytes(),
+            new Metrics(dv.cardinality(), null, null, null, null, null, null),
+            null /* no equality field ids */,
+            null /* DVs are unsorted per spec */,
+            null /* no split offsets */,
+            null /* no key metadata */,
+            row.location() /* referenced data file */,
+            dv.offset(),
+            dv.sizeInBytes());
+
+    // The DV's effective data sequence number is the sequence of the snapshot that wrote (or
+    // rewrote) this leaf manifest — the same as the manifest's sequenceNumber. Treat the DV row as
+    // a freshly ADDED entry so InheritableMetadata.fromManifest assigns the manifest's
+    // sequenceNumber to the DV. This matches v3 standalone DV-delete-manifest behavior, where the
+    // DV's dataSequenceNumber is inherited from the manifest that introduced it.
+    GenericManifestEntry<DeleteFile> entry = new GenericManifestEntry<>(spec.partitionType());
+    entry.wrapAppendPreservingFirstRowId(null, null, dvFile);
+    inheritableMetadata.apply(entry);
+    return entry.file();
+  }
+
+  private static boolean isLiveDataRowWithDV(TrackedFileStruct row) {
+    if (row.contentType() != FileContent.DATA) {
+      return false;
+    }
+
+    if (row.deletionVector() == null) {
+      return false;
+    }
+
+    Tracking tracking = row.tracking();
+    if (tracking == null) {
+      return false;
+    }
+
+    EntryStatus status = tracking.status();
+    return status == EntryStatus.ADDED
+        || status == EntryStatus.EXISTING
+        || status == EntryStatus.MODIFIED;
   }
 
   private PartitionSpec resolveDefaultSpec() {
