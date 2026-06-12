@@ -31,10 +31,13 @@ class VariantExtractionPathResolver {
 
   private VariantExtractionPathResolver() {}
 
-  static List<String> readerPath(Iterable<String> variantColumnPath, List<String> objectPathParts) {
+  static List<String> readerPath(
+      Iterable<String> variantColumnPath, List<PathUtil.PathSegment> objectPathParts) {
     List<String> path = Lists.newArrayList(variantColumnPath);
     path.add(TYPED_VALUE);
-    path.addAll(objectPathParts);
+    for (PathUtil.PathSegment seg : objectPathParts) {
+      path.add(((PathUtil.PathSegment.Name) seg).name());
+    }
     return path;
   }
 
@@ -46,7 +49,8 @@ class VariantExtractionPathResolver {
     return path.toArray(new String[0]);
   }
 
-  static GroupType resolveShreddedFieldGroup(GroupType variantGroup, List<String> objectPathParts) {
+  static GroupType resolveShreddedFieldGroup(
+      GroupType variantGroup, List<PathUtil.PathSegment> objectPathParts) {
     if (!ParquetSchemaUtil.hasField(variantGroup, TYPED_VALUE)) {
       return null;
     }
@@ -57,7 +61,12 @@ class VariantExtractionPathResolver {
     }
 
     GroupType current = typedValue.asGroupType();
-    for (String part : objectPathParts) {
+    for (PathUtil.PathSegment seg : objectPathParts) {
+      if (seg instanceof PathUtil.PathSegment.Index) {
+        // Array indexes are not shredded as Parquet fields.
+        return null;
+      }
+      String part = ((PathUtil.PathSegment.Name) seg).name();
       if (!ParquetSchemaUtil.hasField(current, part)) {
         return null;
       }
@@ -92,24 +101,27 @@ class VariantExtractionPathResolver {
   }
 
   static String[] pathToSerializedField(
-      List<String> variantColumnPath, List<String> objectPathParts) {
+      List<String> variantColumnPath, List<PathUtil.PathSegment> objectPathParts) {
     List<String> path = Lists.newArrayList(variantColumnPath);
     path.add(TYPED_VALUE);
-    path.addAll(objectPathParts);
+    for (PathUtil.PathSegment seg : objectPathParts) {
+      path.add(((PathUtil.PathSegment.Name) seg).name());
+    }
     path.add(VALUE);
     return path.toArray(new String[0]);
   }
 
   /**
-   * Returns the leading object-field path parts up to (but not including) the first array index
-   * part. For a purely object path such as {@code ["actor", "login"]} this is the full list.
+   * Returns the leading segments up to (but not including) the first {@link
+   * PathUtil.PathSegment.Index}. For a purely object path such as {@code [Name("actor"),
+   * Name("login")]} this is the full list.
    */
-  static List<String> objectPathBeforeFirstArray(List<String> pathParts) {
-    for (int i = 0; i < pathParts.size(); i++) {
-      if (PathUtil.isArrayIndexPart(pathParts.get(i))) {
-        return pathParts.subList(0, i);
+  static List<PathUtil.PathSegment> segmentsBeforeFirstIndex(List<PathUtil.PathSegment> segments) {
+    for (int i = 0; i < segments.size(); i++) {
+      if (segments.get(i) instanceof PathUtil.PathSegment.Index) {
+        return segments.subList(0, i);
       }
     }
-    return pathParts;
+    return segments;
   }
 }

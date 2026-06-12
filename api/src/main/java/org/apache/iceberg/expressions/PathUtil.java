@@ -96,47 +96,6 @@ public class PathUtil {
     return parseAfterRoot(path);
   }
 
-  /**
-   * Parses a JSON path into navigation steps for shredded variant extraction. Object field steps
-   * are plain strings; array index steps use {@code "[n]"} encoding (see {@link
-   * #isArrayIndexPart}).
-   */
-  public static List<String> parseObjectPath(String path) {
-    List<String> parts = Lists.newArrayList();
-    for (PathSegment segment : parse(path)) {
-      if (segment instanceof PathSegment.Name) {
-        parts.add(((PathSegment.Name) segment).name());
-      } else if (segment instanceof PathSegment.Index) {
-        parts.add("[" + ((PathSegment.Index) segment).index() + "]");
-      } else {
-        throw new IllegalStateException("Unknown segment: " + segment);
-      }
-    }
-    return parts;
-  }
-
-  /**
-   * Returns true when {@code part} is an array index step encoded as {@code "[n]"} by {@link
-   * #parseObjectPath}.
-   */
-  public static boolean isArrayIndexPart(String part) {
-    if (part.length() < 3 || part.charAt(0) != '[' || part.charAt(part.length() - 1) != ']') {
-      return false;
-    }
-    for (int i = 1; i < part.length() - 1; i++) {
-      if (!Character.isDigit(part.charAt(i))) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /** Returns the array index from a {@code "[n]"} part produced by {@link #parseObjectPath}. */
-  public static int parseArrayIndexPart(String part) {
-    Preconditions.checkArgument(isArrayIndexPart(part), "Invalid array index part: %s", part);
-    return Integer.parseInt(part.substring(1, part.length() - 1));
-  }
-
   /** Normalizes object field names only (no array indices). */
   public static String toNormalizedPath(Iterable<String> fields) {
     return toNormalizedPath(

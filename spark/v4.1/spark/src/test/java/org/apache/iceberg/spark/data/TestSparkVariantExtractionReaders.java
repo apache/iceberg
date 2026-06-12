@@ -230,6 +230,65 @@ class TestSparkVariantExtractionReaders {
         .isEqualTo((short) 42);
   }
 
+  @Test
+  void int64OverflowToIntReturnsNull() {
+    long overflowValue = (long) Integer.MAX_VALUE + 1;
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(overflowValue), DataTypes.IntegerType))
+        .isNull();
+  }
+
+  @Test
+  void int64OverflowToShortReturnsNull() {
+    long overflowValue = (long) Short.MAX_VALUE + 1;
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(overflowValue), DataTypes.ShortType))
+        .isNull();
+  }
+
+  @Test
+  void int64OverflowToByteReturnsNull() {
+    long overflowValue = (long) Byte.MAX_VALUE + 1;
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(overflowValue), DataTypes.ByteType))
+        .isNull();
+  }
+
+  @Test
+  void int32OverflowToShortReturnsNull() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of((int) Short.MAX_VALUE + 1), DataTypes.ShortType))
+        .isNull();
+  }
+
+  @Test
+  void int32OverflowToByteReturnsNull() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of((int) Byte.MAX_VALUE + 1), DataTypes.ByteType))
+        .isNull();
+  }
+
+  @Test
+  void doubleOutOfFloatRangeReturnsNull() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(Double.MAX_VALUE), DataTypes.FloatType))
+        .isNull();
+  }
+
+  @Test
+  void doubleInFloatRangeCastsToFloat() {
+    assertThat(
+            SparkVariantExtractionReaders.toSparkValueForTests(
+                Variants.of(1.5d), DataTypes.FloatType))
+        .isEqualTo(1.5f);
+  }
+
   private static StructField extractionField(
       int ordinal, String path, org.apache.spark.sql.types.DataType type) {
     Metadata variantMetadata =
