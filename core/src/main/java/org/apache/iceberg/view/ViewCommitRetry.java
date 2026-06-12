@@ -53,7 +53,6 @@ class ViewCommitRetry {
       return false;
     }
 
-    String message = cause.getMessage();
-    return message == null || !message.startsWith("Commit failed: view was updated");
+    return true;
   }
 }

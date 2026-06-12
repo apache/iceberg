@@ -53,7 +53,6 @@ class CommitRetry {
       return false;
     }
 
-    String message = cause.getMessage();
-    return message == null || !message.startsWith("Commit failed: table was updated");
+    return true;
   }
 }
