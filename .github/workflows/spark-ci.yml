@@ -73,27 +73,180 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  spark-test-matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      spark-versions: ${{ steps.detect.outputs.spark-versions }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect Spark versions to test
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          all_versions=("3.5" "4.0" "4.1")
+          selected_versions=()
+          run_all=false
+
+          is_ignored_path() {
+            case "$1" in
+              .github/ISSUE_TEMPLATE/*|\
+              .github/workflows/api-binary-compatibility.yml|\
+              .github/workflows/delta-conversion-ci.yml|\
+              .github/workflows/docs-ci.yml|\
+              .github/workflows/flink-ci.yml|\
+              .github/workflows/hive-ci.yml|\
+              .github/workflows/java-ci.yml|\
+              .github/workflows/jmh-benchmarks-ci.yml|\
+              .github/workflows/kafka-connect-ci.yml|\
+              .github/workflows/cve-scan.yml|\
+              .github/workflows/labeler.yml|\
+              .github/workflows/license-check.yml|\
+              .github/workflows/open-api.yml|\
+              .github/workflows/pr-title-check.yml|\
+              .github/workflows/publish-snapshot.yml|\
+              .github/workflows/recurring-jmh-benchmarks.yml|\
+              .github/workflows/site-ci.yml|\
+              .github/workflows/stale.yml|\
+              .gitignore|\
+              .asf.yaml|\
+              dev/*|\
+              docker/*|\
+              site/*|\
+              mr/*|\
+              flink/*|\
+              kafka-connect/*|\
+              docs/*|\
+              open-api/*|\
+              format/*|\
+              .gitattributes|\
+              CONTRIBUTING.md|\
+              doap.rdf|\
+              README.md|\
+              */README.md|\
+              LICENSE|\
+              */LICENSE|\
+              NOTICE|\
+              */NOTICE)
+                return 0
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          add_version_for_path() {
+            case "$1" in
+              spark/v3.5/*)
+                select_version "3.5"
+                ;;
+              spark/v4.0/*)
+                select_version "4.0"
+                ;;
+              spark/v4.1/*)
+                select_version "4.1"
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          select_version() {
+            if [[ "${#selected_versions[@]}" -gt 0 ]]; then
+              for selected_version in "${selected_versions[@]}"; do
+                if [[ "${selected_version}" == "$1" ]]; then
+                  return
+                fi
+              done
+            fi
+
+            selected_versions+=("$1")
+          }
+
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+            run_all=true
+          elif [[ -z "${BASE_SHA}" ]]; then
+            echo "Missing pull request base SHA" >&2
+            exit 1
+          else
+            while IFS= read -r changed_file; do
+              if [[ -z "${changed_file}" ]] || is_ignored_path "${changed_file}"; then
+                continue
+              fi
+
+              if ! add_version_for_path "${changed_file}"; then
+                run_all=true
+                break
+              fi
+            done < <(git diff --name-only "${BASE_SHA}" HEAD)
+          fi
+
+          selected=()
+          if [[ "${run_all}" == "true" ]]; then
+            selected=("${all_versions[@]}")
+          else
+            for version in "${all_versions[@]}"; do
+              if [[ "${#selected_versions[@]}" -gt 0 ]]; then
+                for selected_version in "${selected_versions[@]}"; do
+                  if [[ "${selected_version}" == "${version}" ]]; then
+                    selected+=("${version}")
+                  fi
+                done
+              fi
+            done
+
+            if [[ "${#selected[@]}" -eq 0 ]]; then
+              selected=("${all_versions[@]}")
+            fi
+          fi
+
+          entries=()
+          for spark in "${selected[@]}"; do
+            scalas=("2.13")
+            if [[ "${spark}" == "3.5" ]]; then
+              scalas=("2.12" "2.13")
+            fi
+
+            for jvm in 17 21; do
+              for scala in "${scalas[@]}"; do
+                for tests in core extensions; do
+                  entries+=("{\"jvm\":${jvm},\"spark\":\"${spark}\",\"scala\":\"${scala}\",\"tests\":\"${tests}\"}")
+                done
+              done
+            done
+          done
+
+          matrix="{\"include\":["
+          separator=""
+          for entry in "${entries[@]}"; do
+            matrix+="${separator}${entry}"
+            separator=","
+          done
+          matrix+="]}"
+
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+          echo "spark-versions=${selected[*]}" >> "${GITHUB_OUTPUT}"
+          echo "Spark versions selected for CI: ${selected[*]}" >> "${GITHUB_STEP_SUMMARY}"
+
   spark-tests:
+    needs: spark-test-matrix
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       # 20 is the Apache infra policy ceiling (https://infra.apache.org/github-actions-policy.html).
       # Keep matrix <= 20 jobs; exceeding it queues a second wave and slows CI.
       max-parallel: 20
-      matrix:
-        jvm: [17, 21]
-        spark: ['3.5', '4.0', '4.1']
-        scala: ['2.12', '2.13']
-        # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
-        # so they run as concurrent jobs rather than serially in one job.
-        tests: [core, extensions]
-        exclude:
-          # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
-          # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
-          - spark: '4.0'
-            scala: '2.12'
-          - spark: '4.1'
-            scala: '2.12'
+      # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
+      # so they run as concurrent jobs rather than serially in one job.
+      matrix: ${{ fromJson(needs.spark-test-matrix.outputs.matrix) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
