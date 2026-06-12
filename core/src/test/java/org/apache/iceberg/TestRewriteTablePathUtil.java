@@ -24,11 +24,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Set;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -283,23 +279,7 @@ public class TestRewriteTablePathUtil extends TestBase {
             sourcePrefix,
             targetPrefix,
             stagingDir,
-            new RewriteTablePathUtil.PositionDeleteReaderWriter() {
-              @Override
-              public CloseableIterable<Record> reader(
-                  InputFile inputFile, FileFormat format, PartitionSpec spec) {
-                return CloseableIterable.empty();
-              }
-
-              @Override
-              public PositionDeleteWriter<Record> writer(
-                  OutputFile outputFile,
-                  FileFormat format,
-                  PartitionSpec spec,
-                  StructLike partition,
-                  Schema rowSchema) {
-                throw new UnsupportedOperationException();
-              }
-            });
+            ImmutableMap.of());
 
     assertThat(deleteFileRewriteResult.toRewrite()).hasSize(2);
   }
