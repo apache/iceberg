@@ -26,8 +26,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -250,7 +253,6 @@ public class TestSnapshotJson {
 
   @Test
   public void testJsonConversionSummaryWithoutOperation() {
-    // This behavior is out of spec, but we don't want to fail on it.
     // Instead, the operation will be set to overwrite, to ensure that it will produce
     // correct metadata when it is written
 
@@ -319,5 +321,113 @@ public class TestSnapshotJson {
                 + "}",
             currentMs);
     assertThat(SnapshotParser.toJson(snap)).isEqualTo(expected);
+  }
+
+  @Test
+  public void testV4JsonConversionWithRootManifest() throws IOException {
+    int snapshotId = 42;
+    Long parentId = null;
+    String rootManifest = createRootManifestWithManifestFiles(snapshotId, parentId);
+
+    Snapshot expected =
+        new BaseSnapshot(
+            4,
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            DataOperations.APPEND,
+            ImmutableMap.of("files-added", "1"),
+            1,
+            null,
+            rootManifest,
+            null,
+            null,
+            null);
+
+    String json = SnapshotParser.toJson(expected);
+    assertThat(json).contains("\"root-manifest\"");
+    assertThat(json).doesNotContain("\"manifest-list\"");
+
+    Snapshot snapshot = SnapshotParser.fromJson(json);
+    assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
+    assertThat(snapshot.rootManifestLocation()).isEqualTo(rootManifest);
+    assertThat(snapshot.manifestListLocation()).isNull();
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.APPEND);
+    assertThat(snapshot.summary()).isEqualTo(ImmutableMap.of("files-added", "1"));
+    assertThat(snapshot.schemaId()).isEqualTo(1);
+  }
+
+  @Test
+  public void testV4JsonConversionBackwardsCompatManifestList() throws IOException {
+    // Parsing an existing v2/v3 snapshot JSON with manifest-list still works after adding v4
+    // support
+    int snapshotId = 99;
+    Long parentId = null;
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
+
+    Snapshot expected =
+        new BaseSnapshot(
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            DataOperations.APPEND,
+            null,
+            null,
+            manifestList,
+            null,
+            null,
+            null);
+
+    String json = SnapshotParser.toJson(expected);
+    assertThat(json).contains("\"manifest-list\"");
+    assertThat(json).doesNotContain("\"root-manifest\"");
+
+    Snapshot snapshot = SnapshotParser.fromJson(json);
+    assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
+    assertThat(snapshot.manifestListLocation()).isEqualTo(manifestList);
+    assertThat(snapshot.rootManifestLocation()).isNull();
+    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
+  }
+
+  private String createRootManifestWithManifestFiles(long snapshotId, Long parentSnapshotId)
+      throws IOException {
+    OutputFile outputFile = new InMemoryOutputFile();
+
+    ManifestFile manifest =
+        new GenericManifestFile(
+            "file:/tmp/data-manifest1.parquet",
+            4096L,
+            0,
+            ManifestContent.DATA,
+            1L,
+            1L,
+            snapshotId,
+            null,
+            null,
+            1,
+            100L,
+            0,
+            0L,
+            0,
+            0L,
+            null);
+
+    try (RootManifestWriter writer =
+        RootManifests.write(
+            4,
+            outputFile,
+            PlaintextEncryptionManager.instance(),
+            snapshotId,
+            parentSnapshotId,
+            1L,
+            null,
+            new Schema(Types.NestedField.required(1, "id", Types.LongType.get())),
+            ImmutableMap.of(0, PartitionSpec.unpartitioned()))) {
+      writer.add(manifest);
+    }
+
+    return outputFile.location();
   }
 }
