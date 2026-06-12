@@ -630,6 +630,8 @@ class TrackedFileAdapters {
 
   /** Wraps a {@link DataFile} as a {@link TrackedFile} row. */
   static class DataTrackedFile extends ContentTrackedFile<DataFile> {
+    private DeletionVector dv;
+
     DataTrackedFile(
         int formatVersion,
         Schema tableSchema,
@@ -644,8 +646,22 @@ class TrackedFileAdapters {
      * Tracking} to encode the entry's status and sequence numbers.
      */
     public DataTrackedFile wrap(DataFile newFile, Tracking tracking) {
+      return wrap(newFile, tracking, null);
+    }
+
+    /**
+     * Re-points this wrapper at {@code newFile} with a colocated {@link DeletionVector} attached to
+     * the data-file entry (v4+ colocated DVs). Passing {@code null} clears any DV from a prior use.
+     */
+    public DataTrackedFile wrap(DataFile newFile, Tracking tracking, DeletionVector newDv) {
       wrapWithTracking(newFile, tracking);
+      this.dv = newDv;
       return this;
+    }
+
+    @Override
+    public DeletionVector deletionVector() {
+      return dv;
     }
 
     @Override

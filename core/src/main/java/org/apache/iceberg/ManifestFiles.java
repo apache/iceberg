@@ -205,6 +205,35 @@ public class ManifestFiles {
   }
 
   /**
+   * Returns the colocated deletion vectors carried by live data rows in a v4+ leaf data manifest as
+   * {@link DeleteFile} instances. Legacy (pre-v4) manifests are not inspected — the returned
+   * iterable is empty for them.
+   *
+   * <p>Used by scan planning to feed v4+ colocated DVs into the {@link DeleteFileIndex} alongside
+   * delete-manifest contents.
+   */
+  static CloseableIterable<DeleteFile> readColocatedDVs(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        manifest.content() == ManifestContent.DATA,
+        "Cannot read colocated deletion vectors from a delete manifest: %s",
+        manifest);
+    if (manifest.formatVersion() < TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
+      return CloseableIterable.empty();
+    }
+
+    InputFile file = newInputFile(io, manifest);
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    ContentEntryReader reader =
+        ContentEntryReader.forData(
+            file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+    CloseableIterable<DeleteFile> dvs = reader.colocatedDVDeleteFiles();
+    // Ownership: the reader registers Parquet read state as closeables. Close it when the iterable
+    // is closed so we don't leak the underlying Parquet row iterator.
+    return CloseableIterable.combine(dvs, reader);
+  }
+
+  /**
    * Create a new {@link ManifestWriter}.
    *
    * <p>Manifests created by this writer have all entry snapshot IDs set to null. All entries will
