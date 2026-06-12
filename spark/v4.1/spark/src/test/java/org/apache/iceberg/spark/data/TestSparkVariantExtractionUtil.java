@@ -72,26 +72,6 @@ class TestSparkVariantExtractionUtil {
   }
 
   @Test
-  void parseObjectPathSupportsDotAndBracketKeys() {
-    assertThat(SparkVariantExtractionUtil.parseObjectPath("$.size")).containsExactly("size");
-    assertThat(SparkVariantExtractionUtil.parseObjectPath("$.pull_request.user.login"))
-        .containsExactly("pull_request", "user", "login");
-    assertThat(SparkVariantExtractionUtil.parseObjectPath("$['city']")).containsExactly("city");
-    assertThat(SparkVariantExtractionUtil.parseObjectPath("$['pull_request']['user']['login']"))
-        .containsExactly("pull_request", "user", "login");
-  }
-
-  @Test
-  void parseObjectPathSupportsArrayIndexes() {
-    assertThat(SparkVariantExtractionUtil.parseObjectPath("$.commits[0].author.name"))
-        .containsExactly("commits", "[0]", "author", "name");
-    assertThat(SparkVariantExtractionUtil.parseObjectPath("$.a[1][2].b"))
-        .containsExactly("a", "[1]", "[2]", "b");
-    assertThat(SparkVariantExtractionUtil.parseObjectPath("$['issue']['labels'][0]['name']"))
-        .containsExactly("issue", "labels", "[0]", "name");
-  }
-
-  @Test
   void isSupportedExtractionPathAcceptsAllValidPaths() {
     assertThat(SparkVariantExtractionUtil.isSupportedExtractionPath("$.size")).isTrue();
     assertThat(SparkVariantExtractionUtil.isSupportedExtractionPath("$.pull_request.user.login"))
@@ -101,14 +81,5 @@ class TestSparkVariantExtractionUtil {
     assertThat(
             SparkVariantExtractionUtil.isSupportedExtractionPath("$['issue']['labels'][0]['name']"))
         .isTrue();
-  }
-
-  @Test
-  void isArrayIndexPartDetectsNumericBrackets() {
-    assertThat(SparkVariantExtractionUtil.isArrayIndexPart("[0]")).isTrue();
-    assertThat(SparkVariantExtractionUtil.isArrayIndexPart("[12]")).isTrue();
-    assertThat(SparkVariantExtractionUtil.isArrayIndexPart("commits")).isFalse();
-    assertThat(SparkVariantExtractionUtil.isArrayIndexPart("['field']")).isFalse();
-    assertThat(SparkVariantExtractionUtil.isArrayIndexPart("[x]")).isFalse();
   }
 }

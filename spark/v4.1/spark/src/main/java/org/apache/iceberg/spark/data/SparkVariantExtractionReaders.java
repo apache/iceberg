@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.iceberg.expressions.PathUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetVariantExtractionReaders;
 import org.apache.iceberg.parquet.ParquetVariantExtractionReaders.VariantExtractionField;
@@ -66,8 +67,7 @@ public class SparkVariantExtractionReaders {
           new VariantExtractionField(
               ordinal,
               SparkVariantExtractionUtil.isPlaceholderExtraction(field),
-              SparkVariantExtractionUtil.parseObjectPath(
-                  SparkVariantExtractionUtil.extractionPath(field))));
+              PathUtil.parse(SparkVariantExtractionUtil.extractionPath(field))));
     }
 
     ParquetValueReader<VariantExtractionRow> parquetReader =
@@ -146,13 +146,25 @@ public class SparkVariantExtractionReaders {
       return asLong(value);
     } else if (DataTypes.IntegerType.sameType(targetType)) {
       Long longValue = asLong(value);
-      return longValue != null ? (int) (long) longValue : null;
+      if (longValue == null) {
+        return null;
+      }
+      int intValue = (int) (long) longValue;
+      return (long) intValue == longValue ? intValue : null;
     } else if (DataTypes.ByteType.sameType(targetType)) {
       Long longValue = asLong(value);
-      return longValue != null ? (byte) (long) longValue : null;
+      if (longValue == null) {
+        return null;
+      }
+      byte byteValue = (byte) (long) longValue;
+      return (long) byteValue == longValue ? byteValue : null;
     } else if (DataTypes.ShortType.sameType(targetType)) {
       Long longValue = asLong(value);
-      return longValue != null ? (short) (long) longValue : null;
+      if (longValue == null) {
+        return null;
+      }
+      short shortValue = (short) (long) longValue;
+      return (long) shortValue == longValue ? shortValue : null;
     } else if (DataTypes.DateType.sameType(targetType)) {
       return asDateDays(value);
     } else if (targetType instanceof TimestampType) {
@@ -167,7 +179,11 @@ public class SparkVariantExtractionReaders {
       return asDouble(value);
     } else if (DataTypes.FloatType.sameType(targetType)) {
       Double doubleValue = asDouble(value);
-      return doubleValue != null ? (float) (double) doubleValue : null;
+      if (doubleValue == null) {
+        return null;
+      }
+      float floatValue = (float) (double) doubleValue;
+      return Float.isInfinite(floatValue) && !Double.isInfinite(doubleValue) ? null : floatValue;
     } else if (targetType instanceof DecimalType) {
       DecimalType decimalType = (DecimalType) targetType;
       BigDecimal decimal = asDecimal(value);

@@ -163,39 +163,9 @@ public class TestPathUtil {
   }
 
   @Test
-  void testParseObjectPathSupportsDotAndBracketKeys() {
-    assertThat(PathUtil.parseObjectPath("$.size")).containsExactly("size");
-    assertThat(PathUtil.parseObjectPath("$.pull_request.user.login"))
-        .containsExactly("pull_request", "user", "login");
-    assertThat(PathUtil.parseObjectPath("$['city']")).containsExactly("city");
-    assertThat(PathUtil.parseObjectPath("$['pull_request']['user']['login']"))
-        .containsExactly("pull_request", "user", "login");
-  }
-
-  @Test
-  void testParseObjectPathSupportsArrayIndexes() {
-    assertThat(PathUtil.parseObjectPath("$.commits[0].author.name"))
-        .containsExactly("commits", "[0]", "author", "name");
-    assertThat(PathUtil.parseObjectPath("$.a[1][2].b")).containsExactly("a", "[1]", "[2]", "b");
-    assertThat(PathUtil.parseObjectPath("$['issue']['labels'][0]['name']"))
-        .containsExactly("issue", "labels", "[0]", "name");
-  }
-
-  @Test
-  void testIsArrayIndexPartDetectsNumericBrackets() {
-    assertThat(PathUtil.isArrayIndexPart("[0]")).isTrue();
-    assertThat(PathUtil.isArrayIndexPart("[12]")).isTrue();
-    assertThat(PathUtil.isArrayIndexPart("commits")).isFalse();
-    assertThat(PathUtil.isArrayIndexPart("['field']")).isFalse();
-    assertThat(PathUtil.isArrayIndexPart("[x]")).isFalse();
-  }
-
-  @Test
-  void testParseArrayIndexPart() {
-    assertThat(PathUtil.parseArrayIndexPart("[0]")).isEqualTo(0);
-    assertThat(PathUtil.parseArrayIndexPart("[12]")).isEqualTo(12);
-    assertThatThrownBy(() -> PathUtil.parseArrayIndexPart("commits"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid array index part");
+  void testNameAndIndexSegmentsAreDistinct() {
+    // $[0] is an array index; $['[0]'] is a field whose name is literally "[0]" — must not conflate
+    assertThat(PathUtil.parse("$[0]")).containsExactly(new Index(0));
+    assertThat(PathUtil.parse("$['[0]']")).containsExactly(new Name("[0]"));
   }
 }

@@ -137,9 +137,10 @@ public class ParquetVariantExtractionReaders {
   public static final class VariantExtractionField {
     private final int ordinal;
     private final boolean placeholder;
-    private final List<String> pathParts;
+    private final List<PathUtil.PathSegment> pathParts;
 
-    public VariantExtractionField(int ordinal, boolean placeholder, List<String> pathParts) {
+    public VariantExtractionField(
+        int ordinal, boolean placeholder, List<PathUtil.PathSegment> pathParts) {
       this.ordinal = ordinal;
       this.placeholder = placeholder;
       this.pathParts = pathParts;
@@ -153,7 +154,7 @@ public class ParquetVariantExtractionReaders {
       return placeholder;
     }
 
-    public List<String> pathParts() {
+    public List<PathUtil.PathSegment> pathParts() {
       return pathParts;
     }
   }
@@ -175,7 +176,8 @@ public class ParquetVariantExtractionReaders {
     private final int rootValueDefinitionLevel;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> columnCursors;
-    private final Map<List<String>, RowCachedReader> rowCachedReaders = Maps.newHashMap();
+    private final Map<List<PathUtil.PathSegment>, RowCachedReader> rowCachedReaders =
+        Maps.newHashMap();
     private long rowPosition = 0L;
     private long rootValuePosition = 0L;
 
@@ -282,19 +284,22 @@ public class ParquetVariantExtractionReaders {
         GroupType variantGroup,
         List<String> variantColumnPath,
         FieldSpec field) {
-      if (field.pathParts().size() <= 1 || PathUtil.isArrayIndexPart(field.pathParts().get(0))) {
+      if (field.pathParts().size() <= 1
+          || field.pathParts().get(0) instanceof PathUtil.PathSegment.Index) {
         return null;
       }
-      String topKey = field.pathParts().get(0);
+      String topKey = ((PathUtil.PathSegment.Name) field.pathParts().get(0)).name();
       GroupType topGroup =
           VariantExtractionPathResolver.resolveShreddedFieldGroup(
-              variantGroup, ImmutableList.of(topKey));
+              variantGroup, ImmutableList.of(new PathUtil.PathSegment.Name(topKey)));
       if (topGroup == null) {
         return null;
       }
       List<String> topPath =
-          VariantExtractionPathResolver.readerPath(variantColumnPath, ImmutableList.of(topKey));
-      List<String> remainingPath = field.pathParts().subList(1, field.pathParts().size());
+          VariantExtractionPathResolver.readerPath(
+              variantColumnPath, ImmutableList.of(new PathUtil.PathSegment.Name(topKey)));
+      List<PathUtil.PathSegment> remainingPath =
+          field.pathParts().subList(1, field.pathParts().size());
       ParquetVariantReaders.VariantValueReader selective =
           buildSelectivePathReader(fileSchema, topGroup, topPath, remainingPath);
       if (selective == null) {
@@ -361,7 +366,8 @@ public class ParquetVariantExtractionReaders {
         GroupType variantGroup,
         List<String> variantColumnPath,
         FieldSpec field) {
-      if (field.pathParts().isEmpty() || !PathUtil.isArrayIndexPart(field.pathParts().get(0))) {
+      if (field.pathParts().isEmpty()
+          || !(field.pathParts().get(0) instanceof PathUtil.PathSegment.Index)) {
         return null;
       }
       RowCachedReader cachedReader =
@@ -400,16 +406,16 @@ public class ParquetVariantExtractionReaders {
         MessageType fileSchema,
         GroupType currentGroup,
         List<String> currentPath,
-        List<String> pathParts) {
+        List<PathUtil.PathSegment> pathParts) {
       // Base case: leaf reached or array index step — build a full reader for this group.
-      if (pathParts.isEmpty() || PathUtil.isArrayIndexPart(pathParts.get(0))) {
+      if (pathParts.isEmpty() || pathParts.get(0) instanceof PathUtil.PathSegment.Index) {
         return (ParquetVariantReaders.VariantValueReader)
             ParquetVariantVisitor.visitShreddedValueGroup(
                 currentGroup, new VariantReaderBuilder(fileSchema, currentPath));
       }
 
-      String fieldKey = pathParts.get(0);
-      List<String> remainingPath = pathParts.subList(1, pathParts.size());
+      String fieldKey = ((PathUtil.PathSegment.Name) pathParts.get(0)).name();
+      List<PathUtil.PathSegment> remainingPath = pathParts.subList(1, pathParts.size());
 
       // Build a reader for the serialized value blob at this level — used when typed_value absent.
       ParquetVariantReaders.VariantValueReader valueReader = null;
@@ -600,7 +606,7 @@ public class ParquetVariantExtractionReaders {
       return field.placeholder();
     }
 
-    private List<String> pathParts() {
+    private List<PathUtil.PathSegment> pathParts() {
       return field.pathParts();
     }
   }
@@ -642,9 +648,10 @@ public class ParquetVariantExtractionReaders {
 
   private static class PathNavigatingFieldReader implements FieldValueReader {
     private final RowCachedReader cachedReader;
-    private final List<String> remainingPath;
+    private final List<PathUtil.PathSegment> remainingPath;
 
-    private PathNavigatingFieldReader(RowCachedReader cachedReader, List<String> remainingPath) {
+    private PathNavigatingFieldReader(
+        RowCachedReader cachedReader, List<PathUtil.PathSegment> remainingPath) {
       this.cachedReader = cachedReader;
       this.remainingPath = remainingPath;
     }
@@ -767,18 +774,19 @@ public class ParquetVariantExtractionReaders {
     }
   }
 
-  private static VariantValue extractPath(VariantValue value, List<String> pathParts) {
+  private static VariantValue extractPath(
+      VariantValue value, List<PathUtil.PathSegment> pathParts) {
     VariantValue current = value;
-    for (String part : pathParts) {
+    for (PathUtil.PathSegment segment : pathParts) {
       if (current == null || current.type() == PhysicalType.NULL) {
         return null;
       }
 
-      if (PathUtil.isArrayIndexPart(part)) {
+      if (segment instanceof PathUtil.PathSegment.Index) {
         if (current.type() != PhysicalType.ARRAY) {
           return null;
         }
-        int index = PathUtil.parseArrayIndexPart(part);
+        int index = ((PathUtil.PathSegment.Index) segment).index();
         VariantArray array = current.asArray();
         if (index >= array.numElements()) {
           return null;
@@ -788,7 +796,7 @@ public class ParquetVariantExtractionReaders {
         if (current.type() != PhysicalType.OBJECT) {
           return null;
         }
-        current = current.asObject().get(part);
+        current = current.asObject().get(((PathUtil.PathSegment.Name) segment).name());
       }
     }
 

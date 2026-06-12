@@ -1349,13 +1349,11 @@ class TestParquetVariantExtractionReaders {
     return new VariantExtractionField(ordinal, placeholder, pathParts(jsonPath));
   }
 
-  private static List<String> pathParts(String jsonPath) {
+  private static List<PathUtil.PathSegment> pathParts(String jsonPath) {
     if (PLACEHOLDER_PATH.equals(jsonPath)) {
       return ImmutableList.of();
     }
-    // Handles dot-separated object steps, bracket array indexes, and mixed paths
-    // (e.g. "$.user.login", "$[0]", "$.items[0].name") via PathUtil.parseObjectPath.
-    return PathUtil.parseObjectPath(jsonPath);
+    return PathUtil.parse(jsonPath);
   }
 
   private static GroupType shreddedObjectVariant(String name, GroupType... objectFields) {
