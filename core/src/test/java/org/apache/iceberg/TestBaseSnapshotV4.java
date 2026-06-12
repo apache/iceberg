@@ -41,6 +41,9 @@ public class TestBaseSnapshotV4 {
   private static final String MANIFEST_PATH = "file:/tmp/data-manifest.parquet";
   private static final String MANIFEST_LIST_PATH = "file:/tmp/snap-1.avro";
   private static final String ROOT_MANIFEST_PATH = "file:/tmp/snap-1-root.parquet";
+
+  // Minimal schema + spec map used to drive the v4+ root manifest writer's union partition type
+  // computation. Tests use an unpartitioned spec so the partition column is the placeholder.
   private static final Schema TABLE_SCHEMA =
       new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
   private static final Map<Integer, PartitionSpec> SPECS_BY_ID =
