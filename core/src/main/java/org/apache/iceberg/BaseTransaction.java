@@ -787,8 +787,10 @@ public class BaseTransaction implements Transaction {
 
   private static CommitFailedException toCommitFailedException(
       RetryExhaustedException ex, Map<String, String> properties) {
+    String message = ex.getCause() != null ? ex.getCause().getMessage() : null;
     if (ex.getCause() instanceof CommitFailedException
-        && ex.getCause().getMessage().startsWith("Commit failed: Requirement failed:")) {
+        && message != null
+        && message.startsWith("Commit failed: Requirement failed:")) {
       return (CommitFailedException) ex.getCause();
     }
 

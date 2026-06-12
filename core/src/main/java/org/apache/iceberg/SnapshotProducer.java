@@ -531,22 +531,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } catch (CommitStateUnknownException commitStateUnknownException) {
         throw commitStateUnknownException;
       } catch (RetryExhaustedException e) {
-        int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
-        int totalTimeoutMs =
-            base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
-        if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
-          throw new CommitFailedException(
-              e,
-              "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
-              totalTimeoutMs,
-              COMMIT_TOTAL_RETRY_TIME_MS);
-        } else {
-          throw new CommitFailedException(
-              e,
-              "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
-              numRetries,
-              COMMIT_NUM_RETRIES);
-        }
+        throw toCommitFailedException(e);
       } catch (RuntimeException e) {
         if (!strictCleanup || e instanceof CleanableFailure) {
           Exceptions.suppressAndThrow(e, this::cleanAll);
@@ -940,6 +925,40 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
     }
+  }
+
+  private CommitFailedException toCommitFailedException(RetryExhaustedException ex) {
+    if (shouldPreserveCommitFailure(ex.getCause())) {
+      return (CommitFailedException) ex.getCause();
+    }
+
+    int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    if (ex.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
+      return new CommitFailedException(
+          ex,
+          "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
+          totalTimeoutMs,
+          COMMIT_TOTAL_RETRY_TIME_MS);
+    } else {
+      return new CommitFailedException(
+          ex,
+          "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
+          numRetries,
+          COMMIT_NUM_RETRIES);
+    }
+  }
+
+  private static boolean shouldPreserveCommitFailure(Throwable cause) {
+    if (!(cause instanceof CommitFailedException)) {
+      return false;
+    }
+
+    String message = cause.getMessage();
+    return message != null
+        && (message.startsWith("Commit failed: Requirement failed:")
+            || message.startsWith("Commit failed: Validation failed, please retry:"));
   }
 
   private static void updateTotal(
