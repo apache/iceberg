@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -301,7 +302,9 @@ public class TestReplaceTransaction extends TestBase {
     // keep failing to trigger eventual transaction failure
     ((TestTables.TestTableOperations) ((BaseTransaction) replace).ops()).failCommits(100);
 
-    InternalTestHelpers.assertCommitRetryExhausted(replace::commitTransaction);
+    assertThatThrownBy(replace::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     assertThat(version()).isEqualTo(1);
 

@@ -101,7 +101,6 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
-import org.apache.iceberg.util.CommitRetry;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.BaseView;
@@ -622,7 +621,6 @@ public class CatalogHandlers {
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .onRetryExhausted(CommitRetry::retryExhaustedException)
           .run(
               taskOps -> {
                 TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
@@ -785,7 +783,6 @@ public class CatalogHandlers {
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .onRetryExhausted(CommitRetry::retryExhaustedException)
           .run(
               taskOps -> {
                 ViewMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();

@@ -248,7 +248,9 @@ public class TestTransaction extends TestBase {
     // cause the transaction commit to fail
     table.ops().failCommits(1);
 
-    InternalTestHelpers.assertCommitRetryExhausted(txn::commitTransaction);
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
   }
 
   @TestTemplate
@@ -280,7 +282,9 @@ public class TestTransaction extends TestBase {
 
     // cause the transaction commit to fail
     tableWithBulkIO.ops().failCommits(1);
-    InternalTestHelpers.assertCommitRetryExhausted(txn::commitTransaction);
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
 
     // ensure both files are deleted on transaction failure
     Mockito.verify(spyFileIO).deleteFiles(Set.of(appendManifest.path(), txnManifestList));
