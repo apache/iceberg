@@ -195,7 +195,7 @@ public interface ManifestFile {
   /**
    * Returns the number of files with status REPLACED in the manifest file, or null if not tracked.
    *
-   * <p>REPLACED files are the prior-state entries of v4 REPLACED/MODIFIED pairs and are not live.
+   * <p>REPLACED files are the prior-state entries of v4+ REPLACED/MODIFIED pairs and are not live.
    * Returns null for manifest files written by pre-v4 writers.
    */
   default Integer replacedFilesCount() {
@@ -210,6 +210,14 @@ public interface ManifestFile {
    */
   default Long replacedRowsCount() {
     return null;
+  }
+
+  /**
+   * Returns the format version of the manifest file, or {@link #LEGACY_FORMAT_VERSION} for pre-v4
+   * manifests.
+   */
+  default int formatVersion() {
+    return LEGACY_FORMAT_VERSION;
   }
 
   /**
@@ -239,14 +247,6 @@ public interface ManifestFile {
   /** Returns the number of records in the manifest file, or {@code null} for pre-v4 manifests. */
   default Long recordCount() {
     return null;
-  }
-
-  /**
-   * Returns the format version of the manifest file, or {@link #LEGACY_FORMAT_VERSION} for pre-v4
-   * manifests.
-   */
-  default int formatVersion() {
-    return LEGACY_FORMAT_VERSION;
   }
 
   /**

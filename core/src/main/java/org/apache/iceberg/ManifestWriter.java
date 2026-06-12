@@ -245,16 +245,21 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   public ManifestFile toManifestFile() {
-    return buildManifestFile(null /* recordCount */, ManifestFile.LEGACY_FORMAT_VERSION);
+    return buildManifestFile(
+        null /* recordCount */,
+        ManifestFile.LEGACY_FORMAT_VERSION,
+        null /* replacedFilesCount */,
+        null /* replacedRowsCount */);
   }
 
   /**
    * Builds the {@link GenericManifestFile} for this writer. v4+ subclasses override {@link
-   * #toManifestFile()} to supply the v4+ {@code recordCount} and {@code formatVersion}; pre-v4
-   * writers pass null/{@link ManifestFile#LEGACY_FORMAT_VERSION} and the v4+ fields remain at their
-   * defaults.
+   * #toManifestFile()} to supply the v4+ {@code recordCount}, {@code formatVersion}, and (for leaf
+   * writers that track REPLACED entries) {@code replacedFilesCount} / {@code replacedRowsCount};
+   * pre-v4 writers pass null/{@link ManifestFile#LEGACY_FORMAT_VERSION} for these fields.
    */
-  protected GenericManifestFile buildManifestFile(Long recordCount, int formatVersion) {
+  protected GenericManifestFile buildManifestFile(
+      Long recordCount, int formatVersion, Integer replacedFilesCount, Long replacedRowsCount) {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
 
     ByteBuffer keyMetadataBuffer = keyMetadataBuffer();
@@ -281,7 +286,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedRows,
         firstRowId,
         recordCount,
-        formatVersion);
+        formatVersion,
+        replacedFilesCount,
+        replacedRowsCount);
   }
 
   private ByteBuffer keyMetadataBuffer() {
@@ -461,7 +468,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       // Set the on-disk record_count for the leaf manifest reference so the v4+ root manifest's
       // content_entry row at field id 103 carries the actual entry count (including any statuses
       // not surfaced through the per-status accessors on ManifestFile).
-      return buildManifestFile((long) entriesWritten(), ManifestFile.V4_FORMAT_VERSION);
+      return buildManifestFile(
+          (long) entriesWritten(),
+          ManifestFile.V4_FORMAT_VERSION,
+          null /* replacedFilesCount */,
+          null /* replacedRowsCount */);
     }
 
     @Override
@@ -539,7 +550,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     public ManifestFile toManifestFile() {
       // See V4Writer.toManifestFile for why record_count is set explicitly on v4+ leaf writers.
-      return buildManifestFile((long) entriesWritten(), ManifestFile.V4_FORMAT_VERSION);
+      return buildManifestFile(
+          (long) entriesWritten(),
+          ManifestFile.V4_FORMAT_VERSION,
+          null /* replacedFilesCount */,
+          null /* replacedRowsCount */);
     }
 
     @Override
