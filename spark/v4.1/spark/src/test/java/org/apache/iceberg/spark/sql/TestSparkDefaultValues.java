@@ -168,6 +168,55 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testReplaceTableWithDefaults() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    sql(
+        "REPLACE TABLE %s (id INT, data STRING DEFAULT 'replace-default') USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.schema().findField("data").initialDefault()).isEqualTo("replace-default");
+    assertThat(table.schema().findField("data").writeDefault()).isEqualTo("replace-default");
+
+    sql("INSERT INTO %s VALUES (1, DEFAULT)", commitTarget());
+
+    assertEquals(
+        "Should use default value from REPLACE TABLE DDL",
+        ImmutableList.of(row(1, "replace-default")),
+        sql("SELECT * FROM %s", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testCreateOrReplaceTableWithDefaults() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql(
+        "CREATE OR REPLACE TABLE %s (id INT, data STRING DEFAULT 'create-or-replace-default') "
+            + "USING iceberg TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.schema().findField("data").initialDefault())
+        .isEqualTo("create-or-replace-default");
+    assertThat(table.schema().findField("data").writeDefault())
+        .isEqualTo("create-or-replace-default");
+
+    sql("INSERT INTO %s VALUES (1, DEFAULT)", commitTarget());
+
+    assertEquals(
+        "Should use default value from CREATE OR REPLACE TABLE DDL",
+        ImmutableList.of(row(1, "create-or-replace-default")),
+        sql("SELECT * FROM %s", selectTarget()));
+  }
+
+  @TestTemplate
   public void testAlterTableAddColumnWithDefault() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
