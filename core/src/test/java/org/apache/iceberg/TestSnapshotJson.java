@@ -421,7 +421,11 @@ public class TestSnapshotJson {
             snapshotId,
             parentSnapshotId,
             1L,
-            null)) {
+            null,
+            new Schema(
+                org.apache.iceberg.types.Types.NestedField.required(
+                    1, "id", org.apache.iceberg.types.Types.LongType.get())),
+            ImmutableMap.of(0, PartitionSpec.unpartitioned()))) {
       writer.add(manifest);
     }
 

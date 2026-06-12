@@ -73,6 +73,17 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
   private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
 
+  /**
+   * Opt-in property that forces {@link #close()} to materialize a valid empty Parquet file when no
+   * rows were added. {@link ParquetWriter} is lazy: the underlying {@link ParquetFileWriter} is
+   * created on the first row, so a writer that never receives a row closes without producing a file
+   * on disk. Callers that require on-disk presence regardless of row count (e.g., v4's root
+   * manifest, which must always materialize so that snapshots referencing an empty manifest set
+   * remain readable, matching v3's empty-Avro-manifest-list behavior) should set this property to
+   * {@code "true"} via the writer builder's {@code set(...)} chain.
+   */
+  static final String MATERIALIZE_EMPTY_FILE = "iceberg.parquet.materialize-empty-file";
+
   @SuppressWarnings("unchecked")
   ParquetWriter(
       Configuration conf,
@@ -281,6 +292,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       this.closed = true;
       flushRowGroup(true);
       writeStore.close();
+      if (writer == null && conf.getBoolean(MATERIALIZE_EMPTY_FILE, false)) {
+        ensureWriterInitialized();
+      }
       if (writer != null) {
         writer.end(metadata);
       }

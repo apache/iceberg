@@ -24,10 +24,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 /** Tests for v4 {@link BaseSnapshot} constructor behavior and cacheManifests dispatch. */
@@ -38,6 +41,13 @@ public class TestBaseSnapshotV4 {
   private static final String MANIFEST_PATH = "file:/tmp/data-manifest.parquet";
   private static final String MANIFEST_LIST_PATH = "file:/tmp/snap-1.avro";
   private static final String ROOT_MANIFEST_PATH = "file:/tmp/snap-1-root.parquet";
+
+  // Minimal schema + spec map used to drive the v4 root manifest writer's union partition type
+  // computation. Tests use an unpartitioned spec so the partition column is the placeholder.
+  private static final Schema TABLE_SCHEMA =
+      new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+  private static final Map<Integer, PartitionSpec> SPECS_BY_ID =
+      ImmutableMap.of(0, PartitionSpec.unpartitioned());
 
   @Test
   public void testV4ConstructionWithRootManifest() {
@@ -162,7 +172,9 @@ public class TestBaseSnapshotV4 {
             SNAPSHOT_ID,
             null,
             SEQ_NUM,
-            null)) {
+            null,
+            TABLE_SCHEMA,
+            SPECS_BY_ID)) {
       writer.add(dataManifest);
     }
 
