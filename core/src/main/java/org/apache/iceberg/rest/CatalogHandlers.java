@@ -20,9 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.io.IOException;
@@ -105,7 +103,6 @@ import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
@@ -624,7 +621,6 @@ public class CatalogHandlers {
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .throwRetryExhaustedException()
           .run(
               taskOps -> {
                 TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
@@ -662,20 +658,6 @@ public class CatalogHandlers {
                 taskOps.commit(base, updated);
               });
 
-    } catch (RetryExhaustedException e) {
-      if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
-            COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-            COMMIT_TOTAL_RETRY_TIME_MS);
-      } else {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
-            COMMIT_NUM_RETRIES_DEFAULT,
-            COMMIT_NUM_RETRIES);
-      }
     } catch (ValidationFailureException e) {
       throw e.wrapped();
     }
@@ -801,7 +783,6 @@ public class CatalogHandlers {
               COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .throwRetryExhaustedException()
           .run(
               taskOps -> {
                 ViewMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
@@ -830,20 +811,6 @@ public class CatalogHandlers {
                 taskOps.commit(base, updated);
               });
 
-    } catch (RetryExhaustedException e) {
-      if (e.reason() == RetryExhaustedException.Reason.TIMEOUT_EXCEEDED) {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry timeout (%d ms) reached. Consider increasing '%s'",
-            COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-            COMMIT_TOTAL_RETRY_TIME_MS);
-      } else {
-        throw new CommitFailedException(
-            e,
-            "Commit failed and retry limit (%d) reached. Consider increasing '%s'",
-            COMMIT_NUM_RETRIES_DEFAULT,
-            COMMIT_NUM_RETRIES);
-      }
     } catch (ValidationFailureException e) {
       throw e.wrapped();
     }
