@@ -78,6 +78,8 @@ Untracked metadata files are also deleted as part of [orphan file deletion](#del
 | write.metadata.delete-after-commit.enabled           | false      | Controls whether to delete the oldest **tracked** version metadata files after each table commit |
 | write.metadata.previous-versions-max                 | 100        | The max number of previous version metadata files to track                                       |
 
+Setting `write.metadata.previous-versions-max=0` keeps no previous metadata files, so the `metadata-log` is always empty. With `write.metadata.delete-after-commit.enabled=true`, the superseded metadata file is deleted on every commit, leaving only the current metadata file; lowering the property to `0` also deletes any files still tracked in the existing `metadata-log` on the next commit.
+
 Examples:
 
 * With `write.metadata.delete-after-commit.enabled=false` and `write.metadata.previous-versions-max=10`, after 100 commits, one will have 10 tracked metadata files and 90 orphaned metadata files. These 90 orphaned metadata files cannot be deleted by setting `write.metadata.delete-after-commit.enabled=true` because they are already untracked. They can only be cleaned with an orphan file deletion procedure.

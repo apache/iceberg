@@ -3231,6 +3231,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
       assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
     }
+
+    // with previous-versions-max=0 no previous metadata files are tracked, so each commit deletes
+    // the superseded metadata file and only the current one remains
+    table.updateProperties().set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "0").commit();
+
+    for (int i = 1; i <= 5; i++) {
+      table.updateSchema().addColumn("f" + i, Types.LongType.get()).commit();
+      metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
+      assertThat(metadataFileLocations).hasSize(1);
+    }
   }
 
   @Test

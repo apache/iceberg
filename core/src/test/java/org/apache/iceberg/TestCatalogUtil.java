@@ -26,6 +26,8 @@ import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -49,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 public class TestCatalogUtil {
 
@@ -318,6 +321,61 @@ public class TestCatalogUtil {
 
     assertThatCode(() -> CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata))
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void deletesSupersededMetadataFileWhenPreviousVersionsMaxIsZero() {
+    FileIO io = mock(FileIO.class);
+
+    TableMetadata.MetadataLogEntry entry1 =
+        new TableMetadata.MetadataLogEntry(
+            System.currentTimeMillis(), "s3://bucket/metadata/v1.json");
+
+    TableMetadata base = mock(TableMetadata.class);
+    TableMetadata metadata = mock(TableMetadata.class);
+
+    when(metadata.propertyAsBoolean(
+            eq(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED), anyBoolean()))
+        .thenReturn(true);
+    when(base.previousFiles()).thenReturn(ImmutableList.of(entry1));
+    when(base.metadataFileLocation()).thenReturn("s3://bucket/metadata/v2.json");
+    when(metadata.previousFiles()).thenReturn(ImmutableList.of());
+    // a freshly built metadata has no location set until it is written, so it is null at this point
+
+    CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata);
+
+    ArgumentCaptor<String> deleted = ArgumentCaptor.forClass(String.class);
+    verify(io, times(2)).deleteFile(deleted.capture());
+    assertThat(deleted.getAllValues())
+        .containsExactlyInAnyOrder("s3://bucket/metadata/v1.json", "s3://bucket/metadata/v2.json");
+  }
+
+  @Test
+  public void keepsSupersededMetadataFileWhenStillTracked() {
+    FileIO io = mock(FileIO.class);
+
+    TableMetadata.MetadataLogEntry entry1 =
+        new TableMetadata.MetadataLogEntry(
+            System.currentTimeMillis(), "s3://bucket/metadata/v1.json");
+    TableMetadata.MetadataLogEntry entry2 =
+        new TableMetadata.MetadataLogEntry(
+            System.currentTimeMillis(), "s3://bucket/metadata/v2.json");
+
+    TableMetadata base = mock(TableMetadata.class);
+    TableMetadata metadata = mock(TableMetadata.class);
+
+    when(metadata.propertyAsBoolean(
+            eq(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED), anyBoolean()))
+        .thenReturn(true);
+    when(base.previousFiles()).thenReturn(ImmutableList.of(entry1));
+    when(base.metadataFileLocation()).thenReturn("s3://bucket/metadata/v2.json");
+    when(metadata.previousFiles()).thenReturn(ImmutableList.of(entry2));
+
+    CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata);
+
+    ArgumentCaptor<String> deleted = ArgumentCaptor.forClass(String.class);
+    verify(io, times(1)).deleteFile(deleted.capture());
+    assertThat(deleted.getAllValues()).containsExactly("s3://bucket/metadata/v1.json");
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {

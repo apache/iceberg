@@ -597,12 +597,21 @@ public class CatalogUtil {
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      deleteFiles(
-          io,
+
+      Set<String> metadataFilesToDelete =
           removedPreviousMetadataFiles.stream()
               .map(TableMetadata.MetadataLogEntry::file)
-              .collect(Collectors.toSet()),
-          "metadata");
+              .collect(Collectors.toCollection(Sets::newHashSet));
+      // also delete base's superseded metadata file, unless the new metadata still references it
+      String superseded = base.metadataFileLocation();
+      if (superseded != null
+          && !superseded.equals(metadata.metadataFileLocation())
+          && metadata.previousFiles().stream()
+              .noneMatch(entry -> superseded.equals(entry.file()))) {
+        metadataFilesToDelete.add(superseded);
+      }
+
+      deleteFiles(io, metadataFilesToDelete, "metadata");
     }
   }
 }
