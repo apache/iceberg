@@ -268,7 +268,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
 |                  | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
 |                  | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
-|                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed, precision must be 38 or less     |
+|                  | **`decimal(P, S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed, precision must be 38 or less     |
 |                  | **`date`**         | Calendar date without timezone or time                                   |                                                  |
 |                  | **`time`**         | Time of day, microsecond precision, without date, timezone               |                                                  |
 |                  | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [1]                                              |
@@ -1482,7 +1482,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`long`**|`long`||
 |**`float`**|`float`||
 |**`double`**|`double`||
-|**`decimal(P,S)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": minBytesRequired(P),`<br />&nbsp;&nbsp;`"logicalType": "decimal",`<br />&nbsp;&nbsp;`"precision": P,`<br />&nbsp;&nbsp;`"scale": S }`|Stored as fixed using the minimum number of bytes for the given precision.|
+|**`decimal(P, S)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": minBytesRequired(P),`<br />&nbsp;&nbsp;`"logicalType": "decimal",`<br />&nbsp;&nbsp;`"precision": P,`<br />&nbsp;&nbsp;`"scale": S }`|Stored as fixed using the minimum number of bytes for the given precision.|
 |**`date`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "date" }`|Stores days from 1970-01-01.|
 |**`time`**|`{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "time-micros" }`|Stores microseconds from midnight.|
 |**`timestamp`**      | `{ "type": "long",`<br />&nbsp;&nbsp;`"logicalType": "timestamp-micros",`<br />&nbsp;&nbsp;`"adjust-to-utc": false }` | Stores microseconds from 1970-01-01 00:00:00.000000. [1]            |
@@ -1537,7 +1537,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`long`**         | `int64`                                                                                                                                      |                                             |                                                                |
 | **`float`**        | `float`                                                                                                                                      |                                             |                                                                |
 | **`double`**       | `double`                                                                                                                                     |                                             |                                                                |
-| **`decimal(P,S)`** | `P <= 9`: `int32`,<br />`P <= 18`: `int64`,<br />`fixed` otherwise                                                                           | `DECIMAL(P,S)`                              | Fixed must use the minimum number of bytes that can store `P`. |
+| **`decimal(P, S)`** | `P <= 9`: `int32`,<br />`P <= 18`: `int64`,<br />`fixed` otherwise                                                                           | `DECIMAL(P, S)`                             | Fixed must use the minimum number of bytes that can store `P`. |
 | **`date`**         | `int32`                                                                                                                                      | `DATE`                                      | Stores days from 1970-01-01.                                   |
 | **`time`**         | `int64`                                                                                                                                      | `TIME_MICROS` with `adjustToUtc=false`      | Stores microseconds from midnight.                             |
 | **`timestamp`**    | `int64`                                                                                                                                      | `TIMESTAMP_MICROS` with `adjustToUtc=false` | Stores microseconds from 1970-01-01 00:00:00.000000.           |
@@ -1569,7 +1569,7 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`long`**         | `long`              |                                                      |                                                                                         |
 | **`float`**        | `float`             |                                                      |                                                                                         |
 | **`double`**       | `double`            |                                                      |                                                                                         |
-| **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
+| **`decimal(P, S)`** | `decimal`           |                                                      |                                                                                         |
 | **`date`**         | `date`              |                                                      |                                                                                         |
 | **`time`**         | `long`              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
 | **`timestamp`**    | `timestamp`         | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
@@ -1611,7 +1611,7 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 |--------------------|-------------------------------------------|--------------------------------------------|
 | **`int`**          | `hashLong(long(v))`          [1]          | `34` ￫ `2017239379`                        |
 | **`long`**         | `hashBytes(littleEndianBytes(v))`         | `34L` ￫ `2017239379`                       |
-| **`decimal(P,S)`** | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
+| **`decimal(P, S)`** | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
 | **`date`**         | `hashInt(daysFromUnixEpoch(v))`           | `2017-11-16` ￫ `-653330422`                |
 | **`time`**         | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
 | **`timestamp`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001` ￫ `-1207196810` |
@@ -1675,13 +1675,15 @@ Types are serialized according to this table:
 |**`uuid`**|`JSON string: "uuid"`|`"uuid"`|
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
-|**`decimal(P, S)`**|`JSON string: "decimal(<P>,<S>)"`|`"decimal(9,2)"`,<br />`"decimal(9, 2)"`|
+|**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
 |**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>,<E>)"`|`"geography(srid:4326,spherical)"`|
+
+The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
 
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 
@@ -1861,7 +1863,7 @@ The binary single-value serialization can be used to store the lower and upper b
 | **`long`**         | **`JSON long`**                           | `34`                                       | |
 | **`float`**        | **`JSON number`**                         | `1.0`                                      | |
 | **`double`**       | **`JSON number`**                         | `1.0`                                      | |
-| **`decimal(P,S)`** | **`JSON string`**                         | `"14.20"`, `"2E+20"`                       | Stores the string representation of the decimal value, specifically, for values with a positive scale, the number of digits to the right of the decimal point is used to indicate scale, for values with a negative scale, the scientific notation is used and the exponent must equal the negated scale |
+| **`decimal(P, S)`** | **`JSON string`**                         | `"14.20"`, `"2E+20"`                       | Stores the string representation of the decimal value, specifically, for values with a positive scale, the number of digits to the right of the decimal point is used to indicate scale, for values with a negative scale, the scientific notation is used and the exponent must equal the negated scale |
 | **`date`**         | **`JSON string`**                         | `"2017-11-16"`                             | Stores ISO-8601 standard date |
 | **`time`**         | **`JSON string`**                         | `"22:31:08.123456"`                        | Stores ISO-8601 standard time with microsecond precision |
 | **`timestamp`**    | **`JSON string`**                         | `"2017-11-16T22:31:08.123456"`             | Stores ISO-8601 standard timestamp with microsecond precision; must not include a zone offset |
