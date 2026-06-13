@@ -22,9 +22,13 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
+/**
+ * Adapts {@link TrackedFile} entries to the {@link DataFile}, {@link DeleteFile}, and {@link
+ * ManifestFile} APIs.
+ */
 class TrackedFileAdapters {
 
   private TrackedFileAdapters() {}
@@ -51,6 +55,15 @@ class TrackedFileAdapters {
         "Invalid content type for equality delete file: %s",
         file.contentType());
     return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
+  }
+
+  static ManifestFile asManifestFile(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA_MANIFEST
+            || file.contentType() == FileContent.DELETE_MANIFEST,
+        "Invalid content type for ManifestFile: %s",
+        file.contentType());
+    return new TrackedManifestFile(file);
   }
 
   /** Shared base for all tracked file adapters. */
@@ -402,6 +415,137 @@ class TrackedFileAdapters {
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
       return copy();
+    }
+  }
+
+  /**
+   * Adapts a TrackedFile DATA_MANIFEST or DELETE_MANIFEST entry to the {@link ManifestFile}
+   * interface.
+   */
+  private static class TrackedManifestFile implements ManifestFile {
+    private final TrackedFile file;
+
+    private TrackedManifestFile(TrackedFile file) {
+      Preconditions.checkArgument(
+          file.tracking() != null, "Cannot create manifest file: no tracking");
+      Preconditions.checkArgument(
+          file.tracking().dataSequenceNumber() != null,
+          "Cannot create manifest file: no data sequence number");
+      Preconditions.checkArgument(
+          file.tracking().snapshotId() != null, "Cannot create manifest file: no snapshot ID");
+      Preconditions.checkArgument(
+          file.manifestInfo() != null, "Cannot create manifest file: no manifest info");
+      Preconditions.checkArgument(
+          file.contentType() != FileContent.DELETE_MANIFEST || file.tracking().firstRowId() == null,
+          "Delete manifest must not have a first row ID: %s",
+          file.tracking().firstRowId());
+      this.file = file;
+    }
+
+    @Override
+    public String path() {
+      return file.location();
+    }
+
+    @Override
+    public long length() {
+      return file.fileSizeInBytes();
+    }
+
+    @Override
+    public int partitionSpecId() {
+      throw new UnsupportedOperationException(
+          "Tracked manifests are not bound to a single partition spec");
+    }
+
+    @Override
+    public ManifestContent content() {
+      return file.contentType() == FileContent.DATA_MANIFEST
+          ? ManifestContent.DATA
+          : ManifestContent.DELETES;
+    }
+
+    @Override
+    public long sequenceNumber() {
+      return file.tracking().dataSequenceNumber();
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return file.manifestInfo().minSequenceNumber();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return file.tracking().snapshotId();
+    }
+
+    @Override
+    public Integer addedFilesCount() {
+      return file.manifestInfo().addedFilesCount();
+    }
+
+    @Override
+    public Long addedRowsCount() {
+      return file.manifestInfo().addedRowsCount();
+    }
+
+    @Override
+    public Integer existingFilesCount() {
+      return file.manifestInfo().existingFilesCount();
+    }
+
+    @Override
+    public Long existingRowsCount() {
+      return file.manifestInfo().existingRowsCount();
+    }
+
+    @Override
+    public Integer deletedFilesCount() {
+      return file.manifestInfo().deletedFilesCount();
+    }
+
+    @Override
+    public Long deletedRowsCount() {
+      return file.manifestInfo().deletedRowsCount();
+    }
+
+    @Override
+    // v4 does not store partition summaries on manifests, so return null.
+    public List<PartitionFieldSummary> partitions() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return file.keyMetadata();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return file.tracking().firstRowId();
+    }
+
+    @Override
+    public ManifestFile copy() {
+      return new TrackedManifestFile(file.copy());
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (!(other instanceof TrackedManifestFile)) {
+        return false;
+      }
+
+      TrackedManifestFile that = (TrackedManifestFile) other;
+      return Objects.equal(path(), that.path());
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(path());
     }
   }
 
