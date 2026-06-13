@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
@@ -602,13 +603,10 @@ public class CatalogUtil {
           removedPreviousMetadataFiles.stream()
               .map(TableMetadata.MetadataLogEntry::file)
               .collect(Collectors.toCollection(Sets::newHashSet));
-      // also delete base's superseded metadata file, unless the new metadata still references it
-      String superseded = base.metadataFileLocation();
-      if (superseded != null
-          && !superseded.equals(metadata.metadataFileLocation())
-          && metadata.previousFiles().stream()
-              .noneMatch(entry -> superseded.equals(entry.file()))) {
-        metadataFilesToDelete.add(superseded);
+      // delete base's metadata file too if log is empty
+      if (metadata.previousFiles().isEmpty()
+          && !Objects.equals(base.metadataFileLocation(), metadata.metadataFileLocation())) {
+        metadataFilesToDelete.add(base.metadataFileLocation());
       }
 
       deleteFiles(io, metadataFilesToDelete, "metadata");
