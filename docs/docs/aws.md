@@ -674,6 +674,9 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.s3.metrics-publisher-impl=org.example.MyMetricPublisher
 ```
 
+!!! note
+    The CRT-based async S3 client does not honor a custom `MetricPublisher`. When `s3.crt.enabled` is `true` (the default), the async client is built via the CRT builder, which exposes no metric-publisher configuration, so a `s3.metrics-publisher-impl` set alongside it has no effect on async S3 operations. Set `s3.crt.enabled` to `false` to use a custom `MetricPublisher` with the async client.
+
 ## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
