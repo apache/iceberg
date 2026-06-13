@@ -342,7 +342,6 @@ public class TestCatalogUtil {
     when(base.previousFiles()).thenReturn(ImmutableList.of(entry1));
     when(base.metadataFileLocation()).thenReturn("s3://bucket/metadata/v2.json");
     when(metadata.previousFiles()).thenReturn(ImmutableList.of());
-    // a freshly built metadata has no location set until it is written, so it is null at this point
 
     CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata);
 
