@@ -23,9 +23,11 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -376,6 +378,22 @@ public class TestCatalogUtil {
     ArgumentCaptor<String> deleted = ArgumentCaptor.forClass(String.class);
     verify(io, times(1)).deleteFile(deleted.capture());
     assertThat(deleted.getAllValues()).containsExactly("s3://bucket/metadata/v1.json");
+  }
+
+  @Test
+  public void doesNotDeleteCurrentMetadataFileWhenBaseEqualsMetadata() {
+    FileIO io = mock(FileIO.class);
+
+    TableMetadata metadata = mock(TableMetadata.class);
+    when(metadata.propertyAsBoolean(
+            eq(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED), anyBoolean()))
+        .thenReturn(true);
+    when(metadata.previousFiles()).thenReturn(ImmutableList.of());
+    when(metadata.metadataFileLocation()).thenReturn("s3://bucket/metadata/v1.json");
+
+    CatalogUtil.deleteRemovedMetadataFiles(io, metadata, metadata);
+
+    verify(io, never()).deleteFile(anyString());
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {
