@@ -1331,9 +1331,7 @@ public class Parquet {
 
     @Override
     public ReadBuilder withFilterHint(Expression newFilter) {
-      this.filter = this.filter == null
-          ? newFilter
-          : Expressions.and(this.filter, newFilter);
+      this.filter = this.filter == null ? newFilter : Expressions.and(this.filter, newFilter);
       return this;
     }
 

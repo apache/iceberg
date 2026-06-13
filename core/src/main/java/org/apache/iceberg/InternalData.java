@@ -94,8 +94,8 @@ public class InternalData {
   /**
    * Returns a {@link ReadBuilder} configured with the given filter hint. The hint is passed to the
    * format reader as a best-effort optimization (e.g. Parquet row-group skipping); callers must
-   * still apply a residual filter for correctness. Use {@link #read(FileFormat, InputFile)} when
-   * no filter hint is needed.
+   * still apply a residual filter for correctness. Use {@link #read(FileFormat, InputFile)} when no
+   * filter hint is needed.
    */
   public static ReadBuilder read(FileFormat format, InputFile file, Expression filterHint) {
     Function<InputFile, ReadBuilder> readBuilder = READ_BUILDERS.get(format);
@@ -182,10 +182,9 @@ public class InternalData {
     ReadBuilder project(Schema projectedSchema);
 
     /**
-     * Hints to the reader about a filter expression. Implementations may use this to skip data
-     * they can prove will not match, but are not required to. Correctness must always be ensured
-     * by the caller through residual filtering. Parquet uses this for row-group skipping; Avro
-     * ignores it.
+     * Hints to the reader about a filter expression. Implementations may use this to skip data they
+     * can prove will not match, but are not required to. Correctness must always be ensured by the
+     * caller through residual filtering. Parquet uses this for row-group skipping; Avro ignores it.
      */
     default ReadBuilder withFilterHint(Expression filter) {
       return this;
