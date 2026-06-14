@@ -58,7 +58,7 @@ hadoop3 = "3.4.3"
 httpcomponents-httpclient5 = "5.6.1"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
-jackson-annotations = "2.21"
+jackson-annotations = "2.22"
 jackson-bom = "2.21.4"
 jackson214 = { strictly = "2.14.2"}
 jackson215 = { strictly = "2.15.2"} # see rich version usage explanation above
