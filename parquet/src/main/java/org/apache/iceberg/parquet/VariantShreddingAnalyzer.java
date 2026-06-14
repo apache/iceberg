@@ -48,9 +48,9 @@ import org.apache.parquet.schema.Types;
  * determinism is not guaranteed.
  *
  * <ul>
- *   <li>Object fields use a TreeMap, so field ordering is alphabetical and deterministic.
- *   <li>Type selection picks the most common type with explicit tie-break priority (see
- *       TIE_BREAK_PRIORITY), not enum ordinal.
+ *   <li>Object fields are emitted in alphabetical order in the shredded schema.
+ *   <li>Type selection picks the most common type with explicit tie-break priority (see {@link
+ *       FieldInfo#TIE_BREAK_PRIORITY}), not enum ordinal.
  *   <li>Integer types (INT8/16/32/64) and decimal types (DECIMAL4/8/16) are each promoted to the
  *       widest observed before competing with other types.
  *   <li>Fields below {@code MIN_FIELD_FREQUENCY} are pruned. Above {@code MAX_SHREDDED_FIELDS}, the
@@ -275,8 +275,12 @@ public abstract class VariantShreddingAnalyzer<T, S> {
 
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(Type.Repetition.OPTIONAL);
     boolean hasFields = false;
-    for (PathNode child : node.objectChildren.values()) {
-      Type fieldType = buildFieldGroup(child);
+    // Sort by field name so the emitted schema field order is deterministic.
+    List<Map.Entry<String, PathNode>> sortedChildren =
+        Lists.newArrayList(node.objectChildren.entrySet());
+    sortedChildren.sort(Map.Entry.comparingByKey());
+    for (Map.Entry<String, PathNode> entry : sortedChildren) {
+      Type fieldType = buildFieldGroup(entry.getValue());
       if (fieldType != null) {
         builder.addField(fieldType);
         hasFields = true;
@@ -312,7 +316,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
 
   private static class PathNode {
     private final String fieldName;
-    private final Map<String, PathNode> objectChildren = Maps.newTreeMap();
+    private final Map<String, PathNode> objectChildren = Maps.newHashMap();
     private PathNode arrayElement = null;
     private FieldInfo info = null;
 
@@ -425,6 +429,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
             PhysicalType.DECIMAL8, 1,
             PhysicalType.DECIMAL16, 2);
 
+    /** Tie-break ordering when two physical types have equal counts. Higher value wins. */
     private static final Map<PhysicalType, Integer> TIE_BREAK_PRIORITY =
         ImmutableMap.<PhysicalType, Integer>builder()
             .put(PhysicalType.BOOLEAN_TRUE, 0)
