@@ -59,6 +59,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     super(BASE_TYPE, type);
   }
 
+  /** Constructor for Java serialization. */
+  TrackingStruct() {
+    super(BASE_TYPE.fields().size());
+  }
+
   private TrackingStruct(TrackingStruct toCopy) {
     super(toCopy);
     this.status = toCopy.status;
@@ -79,7 +84,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.manifestPos = toCopy.manifestPos;
   }
 
-  private TrackingStruct(
+  TrackingStruct(
       EntryStatus status,
       Long snapshotId,
       Long dataSequenceNumber,
@@ -88,7 +93,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       Long firstRowId,
       byte[] deletedPositions,
       byte[] replacedPositions) {
-    super(BASE_TYPE, BASE_TYPE);
+    super(BASE_TYPE.fields().size());
     this.status = status;
     this.snapshotId = snapshotId;
     this.dataSequenceNumber = dataSequenceNumber;
@@ -249,95 +254,17 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
   }
 
-  static Builder builder() {
-    return new Builder();
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("status", status)
-        .add("snapshot_id", snapshotId == null ? "null" : snapshotId)
-        .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
-        .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
-        .add("dv_snapshot_id", dvSnapshotId == null ? "null" : dvSnapshotId)
-        .add("first_row_id", firstRowId == null ? "null" : firstRowId)
+        .add("snapshot_id", snapshotId)
+        .add("data_sequence_number", dataSequenceNumber)
+        .add("file_sequence_number", fileSequenceNumber)
+        .add("dv_snapshot_id", dvSnapshotId)
+        .add("first_row_id", firstRowId)
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
         .toString();
-  }
-
-  static class Builder {
-    private EntryStatus status = null;
-    private Long snapshotId = null;
-    private Long dataSequenceNumber = null;
-    private Long fileSequenceNumber = null;
-    private Long dvSnapshotId = null;
-    private Long firstRowId = null;
-    private byte[] deletedPositions = null;
-    private byte[] replacedPositions = null;
-
-    Builder status(EntryStatus entryStatus) {
-      this.status = entryStatus;
-      return this;
-    }
-
-    Builder snapshotId(Long id) {
-      this.snapshotId = id;
-      return this;
-    }
-
-    Builder dataSequenceNumber(Long sequenceNumber) {
-      this.dataSequenceNumber = sequenceNumber;
-      return this;
-    }
-
-    Builder fileSequenceNumber(Long sequenceNumber) {
-      this.fileSequenceNumber = sequenceNumber;
-      return this;
-    }
-
-    Builder dvSnapshotId(Long id) {
-      this.dvSnapshotId = id;
-      return this;
-    }
-
-    Builder firstRowId(Long rowId) {
-      this.firstRowId = rowId;
-      return this;
-    }
-
-    Builder deletedPositions(ByteBuffer positions) {
-      this.deletedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
-      return this;
-    }
-
-    Builder deletedPositions(byte[] positions) {
-      this.deletedPositions = positions;
-      return this;
-    }
-
-    Builder replacedPositions(ByteBuffer positions) {
-      this.replacedPositions = positions != null ? ByteBuffers.toByteArray(positions) : null;
-      return this;
-    }
-
-    Builder replacedPositions(byte[] positions) {
-      this.replacedPositions = positions;
-      return this;
-    }
-
-    TrackingStruct build() {
-      Preconditions.checkArgument(status != null, "Invalid status: null");
-      return new TrackingStruct(
-          status,
-          snapshotId,
-          dataSequenceNumber,
-          fileSequenceNumber,
-          dvSnapshotId,
-          firstRowId,
-          deletedPositions,
-          replacedPositions);
-    }
   }
 }

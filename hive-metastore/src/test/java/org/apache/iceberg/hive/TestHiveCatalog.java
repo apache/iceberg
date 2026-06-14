@@ -1253,7 +1253,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     Schema schema = new Schema(Types.NestedField.required(1, "col1", Types.StringType.get()));
     TableMetadata tableMetadata =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), "file:///tmp/table", ImmutableMap.of());
 
     HMSTablePropertyHelper.setMetadataHash(tableMetadata, hiveTblProperties);
 

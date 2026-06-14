@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 
 class SerializedArray implements VariantArray, SerializedValue {
   private static final int HEADER_SIZE = 1;
@@ -64,7 +65,7 @@ class SerializedArray implements VariantArray, SerializedValue {
     Preconditions.checkArgument(
         value.remaining() >= HEADER_SIZE + numElementsSize,
         "Invalid variant array: buffer too small for element count field");
-    int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
     Preconditions.checkArgument(
         numElements >= 0, "Invalid variant array: negative element count %s", numElements);
     this.offsetListOffset = HEADER_SIZE + numElementsSize;
@@ -86,10 +87,10 @@ class SerializedArray implements VariantArray, SerializedValue {
   public VariantValue get(int index) {
     if (null == array[index]) {
       int offset =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * index), offsetSize);
       int next =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
       long dataLen = value.remaining() - (long) dataOffset;
       Preconditions.checkArgument(

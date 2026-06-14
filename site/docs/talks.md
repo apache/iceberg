@@ -23,6 +23,9 @@ title: "Talks"
 Official Apache Iceberg Youtube Channel:
 ### [https://www.youtube.com/@ApacheIceberg](https://www.youtube.com/@ApacheIceberg)
 
+Apache Iceberg Summit 2026 Playlist:
+### [Iceberg Summit 2026](https://www.youtube.com/watch?v=4Bg64WnkfgE&list=PLkifVhhWtccxSA6VskdKdLnIwCJevOqFL&pp=gAQB)
+
 Apache Iceberg Summit 2025 Playlist:
 ### [Iceberg Summit 2025](https://www.youtube.com/watch?v=3N2KEUs7224&list=PLkifVhhWtccxMcqWlXXFvjJybisFF7ESh&pp=gAQB)
 

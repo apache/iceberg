@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ByteBuffers;
 
 class SerializedObject implements VariantObject, SerializedValue {
   private static final int HEADER_SIZE = 1;
@@ -76,7 +77,7 @@ class SerializedObject implements VariantObject, SerializedValue {
     Preconditions.checkArgument(
         value.remaining() >= HEADER_SIZE + numElementsSize,
         "Invalid variant object: buffer too small for element count field");
-    int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
     Preconditions.checkArgument(
         numElements >= 0, "Invalid variant object: negative element count %s", numElements);
     this.fieldIdListOffset = HEADER_SIZE + numElementsSize;
@@ -105,14 +106,14 @@ class SerializedObject implements VariantObject, SerializedValue {
     Map<Integer, Integer> offsetToLength = Maps.newHashMap();
     for (int index = 0; index < numElements; index += 1) {
       offsets[index] =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (index * offsetSize), offsetSize);
 
       offsetToLength.put(offsets[index], 0);
     }
 
     int dataLength =
-        VariantUtil.readLittleEndianUnsigned(
+        ByteBuffers.readLittleEndianUnsigned(
             value, offsetListOffset + (numElements * offsetSize), offsetSize);
     long dataLen = value.remaining() - (long) dataOffset;
     Preconditions.checkArgument(
@@ -198,7 +199,7 @@ class SerializedObject implements VariantObject, SerializedValue {
     if (null == fieldIds[index]) {
       int dictSize = metadata.dictionarySize();
       int id =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, fieldIdListOffset + (index * fieldIdSize), fieldIdSize);
       Preconditions.checkArgument(
           id >= 0 && id < dictSize,
