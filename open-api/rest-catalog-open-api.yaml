@@ -3713,24 +3713,30 @@ components:
             A list of columns that require specific actions to be applied when reading.
             A server must not return an action for a column whose type is not listed in
             that action's "Applicable to" set. If absent or empty, no required actions
-            apply.
+            apply; columns not listed are not subject to any required action.
 
-            Each entry binds an action to a column by field-id. The reader applies the
-            entry's action to that column and presents the result under the original
-            column name. For example, if the action for column 'cc' is mask-alphanum,
-            the reader returns the masked value as 'cc' in the query output. Columns
-            not listed are read as-is. A field-id must appear at most once.
+            1. For each column listed, the reader must apply the specified action before
+              returning values for that column.
+
+            2. The reader must replace all output references to the column with the result
+              of the action, presenting the result under the original column name. For
+              example, if the action for column 'cc' is mask-alphanum, the reader must
+              return the masked value as 'cc' in the query output.
+
+            3. A column must appear at most once in required-column-projections.
           type: array
           items:
             $ref: '#/components/schemas/Action'
         required-row-filter:
           description: >
-            An expression that filters out rows the authenticated principal does not have
-            access to. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg
-            expressions never produce NULL). A reader must discard any row for which the
-            filter evaluates to FALSE, and no information derived from discarded rows may
-            be included in the query result. If absent, null, or always true, no mandatory
-            filtering applies.
+            An expression that filters rows in the table that the authenticated principal does not have access to.
+
+            1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg expressions
+              never produce NULL). A reader must discard any row for which the filter
+              evaluates to FALSE, and no information derived from discarded rows may be
+              included in the query result.
+
+            2. If this property is absent, null, or always true then no mandatory filtering is required.
           allOf:
             - $ref: '#/components/schemas/Expression'
 
