@@ -1051,6 +1051,15 @@ paths:
         table. The configuration key "token" is used to pass an access token to be used as a bearer token
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+
+
+        The response may include a read-restrictions field. A client should support this field;
+        if it does, it must fail any read against the loaded table when it cannot apply a returned
+        restriction. This includes unrecognized action or expression types, and actions whose
+        definition cannot be loaded, parsed, or evaluated. These restrictions apply to every read
+        performed using this response (including subsequent planTableScan and fetchScanTasks
+        calls), only to the authenticated principal associated with the request, and must not be
+        interpreted as global policy.
       parameters:
         - $ref: '#/components/parameters/data-access'
         - name: If-None-Match
@@ -3635,60 +3644,44 @@ components:
     ReadRestrictions:
       type: object
       description: >
-          Read restrictions for a table, including column projections and row filter expressions.
+          Read restrictions for a table.
 
-          A client should support the read-restrictions field. If a client supports
-          read-restrictions, it must fail if it cannot apply any returned restriction
-          (including unrecognized action or expression types). Read restrictions returned
-          in a loadTable response apply to every read operation on the loaded table
-          performed using this response, including subsequent planTableScan and
-          fetchScanTasks calls.
+          A reader evaluates the row filter against original, untransformed column
+          values, then applies required-column-projections to the surviving rows.
+          Each action must produce a value of the same type as the input column.
+          If a reader cannot apply any returned restriction (a filter expression
+          or an action), it must fail the query and must not silently return raw,
+          partial, or empty results.
 
-          In this section, "reader" refers to the read-side actor that applies restrictions
-          per row or per column. "Engine" refers to the broader query-execution context
-          that defines query lifetime and scope (e.g. a SQL session, a single PyIceberg
-          scan), and is the actor responsible for query-scoped behavior such as salt
-          generation in sha-256-query-local.
-
-          These restrictions apply only to the authenticated principal, user, or account
-          associated with the request. They must not be interpreted as global policy and
-          must not be applied beyond the entity identified by the Authentication header
-          (or other applicable authentication mechanism).
+          If a projection targets a field, that action governs every value reachable
+          through it; other projections in the same object that target a descendant
+          of that field have no effect.
 
           An empty ReadRestrictions object (no required-column-projections and no
-          required-row-filter) imposes no restrictions and is equivalent to the field
-          being absent from the response.
-          A server must not return an action for a column whose type is not listed in
-          that action's "Applicable to" set.
-
-          NULL handling is action-specific. Each action's description specifies its
-          behavior on NULL input.
-
-          If a column projection targets a struct-typed field, other column projections
-          in the same ReadRestrictions must not target any of that struct's subfields
-          (at any depth). This avoids ambiguity about which action governs a given
-          leaf value.
-
-          Example:
-
-            {
-              "required-column-projections": [
-                { "field-id": 4, "action": "show-last-4" },
-                { "field-id": 6, "action": "replace-with-null" },
-                { "field-id": 8, "action": "truncate-to-year" },
-                { "field-id": 10, "action": "sha-256-global" },
-                { "field-id": 12, "action": "mask-alphanum" }
-              ],
-              "required-row-filter": {
-                "type": "eq",
-                "term": "region",
-                "value": "US"
-              }
-            }
+          required-row-filter) imposes no restrictions and is equivalent to the
+          field being absent from the response.
+      example:
+        required-column-projections:
+          - field-id: 4
+            action: show-last-4
+          - field-id: 6
+            action: replace-with-null
+          - field-id: 8
+            action: truncate-to-year
+          - field-id: 10
+            action: sha-256-global
+          - field-id: 12
+            action: mask-alphanum
+        required-row-filter:
+          type: eq
+          term: region
+          value: US
       properties:
         required-column-projections:
           description: >
             A list of columns that require specific actions to be applied when reading.
+            A server must not return an action for a column whose type is not listed in
+            that action's "Applicable to" set.
 
             If this property is present, each listed column must have its specified
             action applied. Columns not listed in required-column-projections
@@ -3711,9 +3704,6 @@ components:
               the caller. The reader must not silently return raw, partial, or empty
               results to mask the failure.
 
-            5. Each action defines the output type for its column. For all predefined
-              actions, the output type matches the input column type.
-
           type: array
           items:
             $ref: '#/components/schemas/Action'
@@ -3726,14 +3716,7 @@ components:
               the filter evaluates to FALSE, and no information derived from discarded rows
               may be included in the query result.
 
-            2. Row filters must be evaluated against the original, untransformed column values.
-              Required projections must be applied only after row filters are applied.
-
-            3. If a reader cannot interpret or evaluate a provided filter expression, it must
-              fail the query with an error to the caller. The reader must not silently return
-              partial, raw, or empty results to mask the failure.
-
-            4. If this property is absent, null, or always true then no mandatory filtering is required.
+            2. If this property is absent, null, or always true then no mandatory filtering is required.
           allOf:
             - $ref: '#/components/schemas/Expression'
 
