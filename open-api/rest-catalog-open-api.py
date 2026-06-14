@@ -1674,29 +1674,10 @@ class AddSchemaUpdate(BaseUpdate):
 
 class ReadRestrictions(BaseModel):
     """
-    Read restrictions for a table, including column projections and row filter expressions.
-    A client should support the read-restrictions field. If a client supports read-restrictions, it must fail if it cannot apply any returned restriction (including unrecognized action or expression types). Read restrictions returned in a loadTable response apply to every read operation on the loaded table performed using this response, including subsequent planTableScan and fetchScanTasks calls.
-    In this section, "reader" refers to the read-side actor that applies restrictions per row or per column. "Engine" refers to the broader query-execution context that defines query lifetime and scope (e.g. a SQL session, a single PyIceberg scan), and is the actor responsible for query-scoped behavior such as salt generation in sha-256-query-local.
-    These restrictions apply only to the authenticated principal, user, or account associated with the request. They must not be interpreted as global policy and must not be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
-    An empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions and is equivalent to the field being absent from the response. A server must not return an action for a column whose type is not listed in that action's "Applicable to" set.
-    NULL handling is action-specific. Each action's description specifies its behavior on NULL input.
-    If a column projection targets a struct-typed field, other column projections in the same ReadRestrictions must not target any of that struct's subfields (at any depth). This avoids ambiguity about which action governs a given leaf value.
-    Example:
-
-      {
-        "required-column-projections": [
-          { "field-id": 4, "action": "show-last-4" },
-          { "field-id": 6, "action": "replace-with-null" },
-          { "field-id": 8, "action": "truncate-to-year" },
-          { "field-id": 10, "action": "sha-256-global" },
-          { "field-id": 12, "action": "mask-alphanum" }
-        ],
-        "required-row-filter": {
-          "type": "eq",
-          "term": "region",
-          "value": "US"
-        }
-      }
+    Read restrictions for a table.
+    A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
+    If a projection targets a field, that action governs every value reachable through it; other projections in the same object that target a descendant of that field have no effect.
+    An empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions and is equivalent to the field being absent from the response.
 
     """
 
@@ -1716,12 +1697,12 @@ class ReadRestrictions(BaseModel):
     ) = Field(
         None,
         alias='required-column-projections',
-        description="A list of columns that require specific actions to be applied when reading.\nIf this property is present, each listed column must have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader must apply\n  the specified action before returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader must\n  return the masked value as cc in the query output.\n\n3. A column must appear at most once in required-column-projections.\n4. If a projected column's action cannot be evaluated by the reader (including\n  unrecognized action types), the reader must fail the query with an error to\n  the caller. The reader must not silently return raw, partial, or empty\n  results to mask the failure.\n\n5. Each action defines the output type for its column. For all predefined\n  actions, the output type matches the input column type.\n",
+        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set.\nIf this property is present, each listed column must have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader must apply\n  the specified action before returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader must\n  return the masked value as cc in the query output.\n\n3. A column must appear at most once in required-column-projections.\n4. If a projected column\'s action cannot be evaluated by the reader (including\n  unrecognized action types), the reader must fail the query with an error to\n  the caller. The reader must not silently return raw, partial, or empty\n  results to mask the failure.\n',
     )
     required_row_filter: Expression | None = Field(
         None,
         alias='required-row-filter',
-        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg expressions\n  never produce NULL). A reader must discard any row for which\n  the filter evaluates to FALSE, and no information derived from discarded rows\n  may be included in the query result.\n\n2. Row filters must be evaluated against the original, untransformed column values.\n  Required projections must be applied only after row filters are applied.\n\n3. If a reader cannot interpret or evaluate a provided filter expression, it must\n  fail the query with an error to the caller. The reader must not silently return\n  partial, raw, or empty results to mask the failure.\n\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
+        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg expressions\n  never produce NULL). A reader must discard any row for which\n  the filter evaluates to FALSE, and no information derived from discarded rows\n  may be included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n',
     )
 
 
