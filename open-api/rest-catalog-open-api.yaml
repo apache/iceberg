@@ -3735,7 +3735,7 @@ components:
 
     MaskAlphanum:
       description: >
-        Redacts the column value Unicode code point by code point using the following rules:
+        Redacts the column value using the following rules to transform Unicode code points:
 
         - Digits (U+0030–U+0039, 0-9) are replaced with 'n'
         - The following punctuation characters are kept as-is:
@@ -3748,9 +3748,9 @@ components:
         - All other Unicode characters (including letters, whitespace, and any punctuation
           not listed above) are replaced with 'x'
 
-        For example: "prashant010696@gmail.com" → "xxxxxxxxnnnnnn@xxxxx.xxx"
+        For example: "prashant010696@gmail.com" -> "xxxxxxxxnnnnnn@xxxxx.xxx"
 
-        NULL input is preserved (NULL → NULL).
+        NULL input is preserved (NULL -> NULL).
 
         Applicable to: string
       allOf:
@@ -3762,7 +3762,7 @@ components:
 
     MaskToFixedValue:
       description: >
-        Replaces the column value with a predefined type-specific fixed value.
+        Replaces the column value with a type-specific fixed value.
         Readers must use exactly the values listed below to ensure consistency
         across implementations.
 
@@ -3772,7 +3772,7 @@ components:
         - long: 0
         - float: 0.0
         - double: 0.0
-        - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2))
+        - decimal(p, s): 0 (the unscaled value is 0)
         - string: "XXXXXXXX"
         - date: 1970-01-01
         - time: 00:00:00
@@ -3802,10 +3802,10 @@ components:
 
     ReplaceWithNull:
       description: >
-        Replaces the entire column value with NULL. NULL input is preserved (NULL → NULL).
-        A server must not return this action for a non-nullable (required) column.
+        Replaces the entire column value with NULL. NULL input is preserved (NULL -> NULL).
+        A server must not return this action for a required (non-nullable) column.
 
-        Applicable to: all nullable types
+        Applicable to: all optional types
       allOf:
         - $ref: '#/components/schemas/Action'
       properties:
@@ -3819,9 +3819,9 @@ components:
         using mask-alphanum rules (see MaskAlphanum for the exact character rules).
         Values with 4 or fewer Unicode code points are returned unchanged.
 
-        For example: "prashant010696@gmail.com" → "prasxxxxnnnnnn@xxxxx.xxx"
+        For example: "prashant010696@gmail.com" -> "prasxxxxnnnnnn@xxxxx.xxx"
 
-        NULL input is preserved (NULL → NULL).
+        NULL input is preserved (NULL -> NULL).
 
         Applicable to: string
       allOf:
@@ -3837,9 +3837,9 @@ components:
         (see MaskAlphanum for the exact character rules).
         Values with 4 or fewer Unicode code points are returned unchanged.
 
-        For example: "4111-1111-1111-4444" → "nnnn-nnnn-nnnn-4444"
+        For example: "4111-1111-1111-4444" -> "nnnn-nnnn-nnnn-4444"
 
-        NULL input is preserved (NULL → NULL).
+        NULL input is preserved (NULL -> NULL).
 
         Applicable to: string
       allOf:
@@ -3854,10 +3854,10 @@ components:
         Truncates the column value to year precision, setting month, day, and time components
         to their minimum values. The output type matches the input type.
 
-        For example: 2024-07-15 → 2024-01-01
+        For example: 2024-07-15 -> 2024-01-01
         For timestamptz and timestamptz_ns, truncation is performed in UTC.
 
-        NULL input is preserved (NULL → NULL).
+        NULL input is preserved (NULL -> NULL).
 
         Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
       allOf:
@@ -3872,10 +3872,10 @@ components:
         Truncates the column value to year and month precision, setting day and time components
         to their minimum values. The output type matches the input type.
 
-        For example: 2024-07-15 → 2024-07-01
+        For example: 2024-07-15 -> 2024-07-01
         For timestamptz and timestamptz_ns, truncation is performed in UTC.
 
-        NULL input is preserved (NULL → NULL).
+        NULL input is preserved (NULL -> NULL).
 
         Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
       allOf:
@@ -3887,7 +3887,7 @@ components:
 
     Sha256Global:
       description: |
-        Applies SHA-256 as specified in NIST FIPS 180-4. Deterministic across all queries
+        Applies SHA-256. Deterministic across all queries
         and engines — the same input always produces the same output.
 
         Input-to-bytes encoding by type:
@@ -3898,11 +3898,11 @@ components:
 
         Output encoding by type:
         - string: 64-character lowercase hexadecimal string
-        - int: first 4 bytes of the digest, read as a signed two's complement little-endian int
-        - long: first 8 bytes of the digest, read as a signed two's complement little-endian long
+        - int: first 4 bytes of the digest, read as a little-endian int
+        - long: first 8 bytes of the digest, read as a little-endian long
         - binary: the full 32-byte raw SHA-256 digest
 
-        NULL input is preserved (NULL → NULL).
+        NULL input is preserved (NULL -> NULL).
 
         Applicable to: string, int, long, binary
       allOf:
@@ -3915,7 +3915,8 @@ components:
     Sha256QueryLocal:
       description: |
         Applies SHA-256 with a per-query random salt, making the output non-deterministic
-        across queries while remaining consistent within a single query.
+        across queries while remaining consistent within a single query. The definition
+        of a query is left to the implementation.
 
         The engine must generate a cryptographically random salt of at least 16 bytes for each query.
 
@@ -3925,7 +3926,7 @@ components:
 
         Output encoding follows the same rules as sha-256-global.
 
-        NULL input is preserved (NULL → NULL).
+        NULL input is preserved (NULL -> NULL).
 
         Applicable to: string, int, long, binary
       allOf:

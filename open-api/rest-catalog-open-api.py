@@ -597,7 +597,7 @@ class Action(BaseModel):
 
 class MaskAlphanum(Action):
     """
-    Redacts the column value Unicode code point by code point using the following rules:
+    Redacts the column value using the following rules to transform Unicode code points:
     - Digits (U+0030–U+0039, 0-9) are replaced with 'n' - The following punctuation characters are kept as-is:
         U+0028 '('  LEFT PARENTHESIS
         U+0029 ')'  RIGHT PARENTHESIS
@@ -608,8 +608,8 @@ class MaskAlphanum(Action):
     - All other Unicode characters (including letters, whitespace, and any punctuation
       not listed above) are replaced with 'x'
 
-    For example: "prashant010696@gmail.com" → "xxxxxxxxnnnnnn@xxxxx.xxx"
-    NULL input is preserved (NULL → NULL).
+    For example: "prashant010696@gmail.com" -> "xxxxxxxxnnnnnn@xxxxx.xxx"
+    NULL input is preserved (NULL -> NULL).
     Applicable to: string
 
     """
@@ -619,8 +619,8 @@ class MaskAlphanum(Action):
 
 class MaskToFixedValue(Action):
     """
-    Replaces the column value with a predefined type-specific fixed value. Readers must use exactly the values listed below to ensure consistency across implementations.
-    Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2)) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {} - geometry: POINT EMPTY - geography: POINT EMPTY - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
+    Replaces the column value with a type-specific fixed value. Readers must use exactly the values listed below to ensure consistency across implementations.
+    Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (the unscaled value is 0) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {} - geometry: POINT EMPTY - geography: POINT EMPTY - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
     NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
     Applicable to: all data types
 
@@ -631,8 +631,8 @@ class MaskToFixedValue(Action):
 
 class ReplaceWithNull(Action):
     """
-    Replaces the entire column value with NULL. NULL input is preserved (NULL → NULL). A server must not return this action for a non-nullable (required) column.
-    Applicable to: all nullable types
+    Replaces the entire column value with NULL. NULL input is preserved (NULL -> NULL). A server must not return this action for a required (non-nullable) column.
+    Applicable to: all optional types
 
     """
 
@@ -642,8 +642,8 @@ class ReplaceWithNull(Action):
 class ShowFirst4(Action):
     """
     Preserves the first 4 Unicode code points of the column value and redacts the remainder using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
-    For example: "prashant010696@gmail.com" → "prasxxxxnnnnnn@xxxxx.xxx"
-    NULL input is preserved (NULL → NULL).
+    For example: "prashant010696@gmail.com" -> "prasxxxxnnnnnn@xxxxx.xxx"
+    NULL input is preserved (NULL -> NULL).
     Applicable to: string
 
     """
@@ -654,8 +654,8 @@ class ShowFirst4(Action):
 class ShowLast4(Action):
     """
     Redacts all Unicode code points except the last 4 using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
-    For example: "4111-1111-1111-4444" → "nnnn-nnnn-nnnn-4444"
-    NULL input is preserved (NULL → NULL).
+    For example: "4111-1111-1111-4444" -> "nnnn-nnnn-nnnn-4444"
+    NULL input is preserved (NULL -> NULL).
     Applicable to: string
 
     """
@@ -666,8 +666,8 @@ class ShowLast4(Action):
 class TruncateToYear(Action):
     """
     Truncates the column value to year precision, setting month, day, and time components to their minimum values. The output type matches the input type.
-    For example: 2024-07-15 → 2024-01-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
-    NULL input is preserved (NULL → NULL).
+    For example: 2024-07-15 -> 2024-01-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
+    NULL input is preserved (NULL -> NULL).
     Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
 
     """
@@ -678,8 +678,8 @@ class TruncateToYear(Action):
 class TruncateToMonth(Action):
     """
     Truncates the column value to year and month precision, setting day and time components to their minimum values. The output type matches the input type.
-    For example: 2024-07-15 → 2024-07-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
-    NULL input is preserved (NULL → NULL).
+    For example: 2024-07-15 -> 2024-07-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
+    NULL input is preserved (NULL -> NULL).
     Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
 
     """
@@ -689,7 +689,7 @@ class TruncateToMonth(Action):
 
 class Sha256Global(Action):
     """
-    Applies SHA-256 as specified in NIST FIPS 180-4. Deterministic across all queries
+    Applies SHA-256. Deterministic across all queries
     and engines — the same input always produces the same output.
 
     Input-to-bytes encoding by type:
@@ -700,11 +700,11 @@ class Sha256Global(Action):
 
     Output encoding by type:
     - string: 64-character lowercase hexadecimal string
-    - int: first 4 bytes of the digest, read as a signed two's complement little-endian int
-    - long: first 8 bytes of the digest, read as a signed two's complement little-endian long
+    - int: first 4 bytes of the digest, read as a little-endian int
+    - long: first 8 bytes of the digest, read as a little-endian long
     - binary: the full 32-byte raw SHA-256 digest
 
-    NULL input is preserved (NULL → NULL).
+    NULL input is preserved (NULL -> NULL).
 
     Applicable to: string, int, long, binary
 
@@ -716,7 +716,8 @@ class Sha256Global(Action):
 class Sha256QueryLocal(Action):
     """
     Applies SHA-256 with a per-query random salt, making the output non-deterministic
-    across queries while remaining consistent within a single query.
+    across queries while remaining consistent within a single query. The definition
+    of a query is left to the implementation.
 
     The engine must generate a cryptographically random salt of at least 16 bytes for each query.
 
@@ -726,7 +727,7 @@ class Sha256QueryLocal(Action):
 
     Output encoding follows the same rules as sha-256-global.
 
-    NULL input is preserved (NULL → NULL).
+    NULL input is preserved (NULL -> NULL).
 
     Applicable to: string, int, long, binary
 
