@@ -35,6 +35,7 @@ class SerializedArray implements VariantArray, SerializedValue {
     return from(metadata, ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
+  @VisibleForTesting
   static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header) {
     return from(metadata, value, header, 0);
   }

@@ -40,6 +40,7 @@ class VariantUtil {
 
   private VariantUtil() {}
 
+  /** Parses a variant value from {@code value} using {@code metadata} for field-name resolution. */
   static VariantValue fromBuffer(VariantMetadata metadata, ByteBuffer value, int depth) {
     Preconditions.checkArgument(
         depth <= MAX_VARIANT_DEPTH,
