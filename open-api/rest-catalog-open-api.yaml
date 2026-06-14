@@ -3668,8 +3668,8 @@ components:
       description: >
           Read restrictions for a table, including column projections and row filter expressions.
 
-          A client SHOULD support the read-restrictions field. If a client supports
-          read-restrictions, it MUST fail if it cannot apply any returned restriction
+          A client should support the read-restrictions field. If a client supports
+          read-restrictions, it must fail if it cannot apply any returned restriction
           (including unrecognized action or expression types). Read restrictions returned
           in a loadTable response apply to every read operation on the loaded table
           performed using this response, including subsequent planTableScan and
@@ -3682,21 +3682,21 @@ components:
           generation in sha-256-query-local.
 
           These restrictions apply only to the authenticated principal, user, or account
-          associated with the request. They MUST NOT be interpreted as global policy and
-          MUST NOT be applied beyond the entity identified by the Authentication header
+          associated with the request. They must not be interpreted as global policy and
+          must not be applied beyond the entity identified by the Authentication header
           (or other applicable authentication mechanism).
 
           An empty ReadRestrictions object (no required-column-projections and no
           required-row-filter) imposes no restrictions and is equivalent to the field
           being absent from the response.
-          A server MUST NOT return an action for a column whose type is not listed in
+          A server must not return an action for a column whose type is not listed in
           that action's "Applicable to" set.
 
           NULL handling is action-specific. Each action's description specifies its
           behavior on NULL input.
 
           If a column projection targets a struct-typed field, other column projections
-          in the same ReadRestrictions MUST NOT target any of that struct's subfields
+          in the same ReadRestrictions must not target any of that struct's subfields
           (at any depth). This avoids ambiguity about which action governs a given
           leaf value.
 
@@ -3721,34 +3721,28 @@ components:
           description: >
             A list of columns that require specific actions to be applied when reading.
 
-            If this property is absent, a reader MAY access all columns of the table as-is
-            without any mandatory transformations.
-
-            If this property is present, each listed column MUST have its specified
+            If this property is present, each listed column must have its specified
             action applied. Columns not listed in required-column-projections
             are not subject to any read restrictions.
 
             When this list is present:
 
-            1. For each column listed in required-column-projections, the reader MUST apply
+            1. For each column listed in required-column-projections, the reader must apply
               the specified action before returning values for that column.
 
-            2. The reader MUST replace all output references to the column with the result
+            2. The reader must replace all output references to the column with the result
               of the action, presenting the result under the original column name. For
-              example, if the action for column cc is mask-alphanum, the reader MUST
+              example, if the action for column cc is mask-alphanum, the reader must
               return the masked value as cc in the query output.
 
-            3. Columns not listed in required-column-projections MAY be projected normally
-              by the reader without any mandatory transformations.
+            3. A column must appear at most once in required-column-projections.
 
-            4. A column MUST appear at most once in required-column-projections.
-
-            5. If a projected column's action cannot be evaluated by the reader (including
-              unrecognized action types), the reader MUST fail the query with an error to
-              the caller. The reader MUST NOT silently return raw, partial, or empty
+            4. If a projected column's action cannot be evaluated by the reader (including
+              unrecognized action types), the reader must fail the query with an error to
+              the caller. The reader must not silently return raw, partial, or empty
               results to mask the failure.
 
-            6. Each action defines the output type for its column. For all predefined
+            5. Each action defines the output type for its column. For all predefined
               actions, the output type matches the input column type.
 
           type: array
@@ -3758,16 +3752,16 @@ components:
           description: >
             An expression that filters rows in the table that the authenticated principal does not have access to.
 
-            1. The expression MUST evaluate to a boolean (TRUE or FALSE; Iceberg expressions
-              never produce NULL). A reader MUST discard any row for which
+            1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg expressions
+              never produce NULL). A reader must discard any row for which
               the filter evaluates to FALSE, and no information derived from discarded rows
-              MAY be included in the query result.
+              may be included in the query result.
 
-            2. Row filters MUST be evaluated against the original, untransformed column values.
-              Required projections MUST be applied only after row filters are applied.
+            2. Row filters must be evaluated against the original, untransformed column values.
+              Required projections must be applied only after row filters are applied.
 
-            3. If a reader cannot interpret or evaluate a provided filter expression, it MUST
-              fail the query with an error to the caller. The reader MUST NOT silently return
+            3. If a reader cannot interpret or evaluate a provided filter expression, it must
+              fail the query with an error to the caller. The reader must not silently return
               partial, raw, or empty results to mask the failure.
 
             4. If this property is absent, null, or always true then no mandatory filtering is required.
@@ -3828,7 +3822,7 @@ components:
     MaskToFixedValue:
       description: >
         Replaces the column value with a predefined type-specific fixed value.
-        Readers MUST use exactly the values listed below to ensure consistency
+        Readers must use exactly the values listed below to ensure consistency
         across implementations.
 
         Fixed values by type:
@@ -3868,7 +3862,7 @@ components:
     ReplaceWithNull:
       description: >
         Replaces the entire column value with NULL. NULL input is preserved (NULL → NULL).
-        A server MUST NOT return this action for a non-nullable (required) column.
+        A server must not return this action for a non-nullable (required) column.
 
         Applicable to: all nullable types
       allOf:
@@ -3982,9 +3976,9 @@ components:
         Applies SHA-256 with a per-query random salt, making the output non-deterministic
         across queries while remaining consistent within a single query.
 
-        The engine MUST generate a cryptographically random salt of at least 16 bytes for each query.
+        The engine must generate a cryptographically random salt of at least 16 bytes for each query.
 
-        For each column value, the engine MUST encode the value to bytes using
+        For each column value, the engine must encode the value to bytes using
         sha-256-global's input rules, prepend the per-query salt, and compute
         SHA-256 over the result.
 
