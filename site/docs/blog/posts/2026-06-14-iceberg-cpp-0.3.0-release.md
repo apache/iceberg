@@ -50,7 +50,6 @@ The Apache Iceberg community is pleased to announce the 0.3.0 release of Apache 
 - [S3 FileIO integration](https://github.com/apache/iceberg-cpp/pull/548) built on Arrow filesystem support
 - [Streaming FileIO APIs](https://github.com/apache/iceberg-cpp/pull/641) and [bulk delete support](https://github.com/apache/iceberg-cpp/pull/659) for more efficient object-store operations
 - [SQL catalog support](https://github.com/apache/iceberg-cpp/pull/693) backed by SQLite, PostgreSQL, and MySQL stores
-- [Hive metastore build skeleton](https://github.com/apache/iceberg-cpp/pull/689) and [Hive 3.1 metastore Thrift IDL vendoring](https://github.com/apache/iceberg-cpp/pull/694)
 
 ### Metrics and Observability
 - [Scan and commit metrics reporting](https://github.com/apache/iceberg-cpp/pull/589), including report JSON serialization and reporter loading
