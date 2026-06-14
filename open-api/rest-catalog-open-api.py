@@ -619,7 +619,7 @@ class MaskAlphanum(Action):
 
 class MaskToFixedValue(Action):
     """
-    Replaces the column value with a predefined type-specific fixed value. Readers MUST use exactly the values listed below to ensure consistency across implementations.
+    Replaces the column value with a predefined type-specific fixed value. Readers must use exactly the values listed below to ensure consistency across implementations.
     Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2)) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: {} - geometry: POINT EMPTY - geography: POINT EMPTY - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
     NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
     Applicable to: all data types
@@ -631,7 +631,7 @@ class MaskToFixedValue(Action):
 
 class ReplaceWithNull(Action):
     """
-    Replaces the entire column value with NULL. NULL input is preserved (NULL → NULL). A server MUST NOT return this action for a non-nullable (required) column.
+    Replaces the entire column value with NULL. NULL input is preserved (NULL → NULL). A server must not return this action for a non-nullable (required) column.
     Applicable to: all nullable types
 
     """
@@ -718,9 +718,9 @@ class Sha256QueryLocal(Action):
     Applies SHA-256 with a per-query random salt, making the output non-deterministic
     across queries while remaining consistent within a single query.
 
-    The engine MUST generate a cryptographically random salt of at least 16 bytes for each query.
+    The engine must generate a cryptographically random salt of at least 16 bytes for each query.
 
-    For each column value, the engine MUST encode the value to bytes using
+    For each column value, the engine must encode the value to bytes using
     sha-256-global's input rules, prepend the per-query salt, and compute
     SHA-256 over the result.
 
@@ -1675,12 +1675,12 @@ class AddSchemaUpdate(BaseUpdate):
 class ReadRestrictions(BaseModel):
     """
     Read restrictions for a table, including column projections and row filter expressions.
-    A client SHOULD support the read-restrictions field. If a client supports read-restrictions, it MUST fail if it cannot apply any returned restriction (including unrecognized action or expression types). Read restrictions returned in a loadTable response apply to every read operation on the loaded table performed using this response, including subsequent planTableScan and fetchScanTasks calls.
+    A client should support the read-restrictions field. If a client supports read-restrictions, it must fail if it cannot apply any returned restriction (including unrecognized action or expression types). Read restrictions returned in a loadTable response apply to every read operation on the loaded table performed using this response, including subsequent planTableScan and fetchScanTasks calls.
     In this section, "reader" refers to the read-side actor that applies restrictions per row or per column. "Engine" refers to the broader query-execution context that defines query lifetime and scope (e.g. a SQL session, a single PyIceberg scan), and is the actor responsible for query-scoped behavior such as salt generation in sha-256-query-local.
-    These restrictions apply only to the authenticated principal, user, or account associated with the request. They MUST NOT be interpreted as global policy and MUST NOT be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
-    An empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions and is equivalent to the field being absent from the response. A server MUST NOT return an action for a column whose type is not listed in that action's "Applicable to" set.
+    These restrictions apply only to the authenticated principal, user, or account associated with the request. They must not be interpreted as global policy and must not be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
+    An empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions and is equivalent to the field being absent from the response. A server must not return an action for a column whose type is not listed in that action's "Applicable to" set.
     NULL handling is action-specific. Each action's description specifies its behavior on NULL input.
-    If a column projection targets a struct-typed field, other column projections in the same ReadRestrictions MUST NOT target any of that struct's subfields (at any depth). This avoids ambiguity about which action governs a given leaf value.
+    If a column projection targets a struct-typed field, other column projections in the same ReadRestrictions must not target any of that struct's subfields (at any depth). This avoids ambiguity about which action governs a given leaf value.
     Example:
 
       {
@@ -1716,12 +1716,12 @@ class ReadRestrictions(BaseModel):
     ) = Field(
         None,
         alias='required-column-projections',
-        description="A list of columns that require specific actions to be applied when reading.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action before returning values for that column.\n\n2. The reader MUST replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader MUST\n  return the masked value as cc in the query output.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader (including\n  unrecognized action types), the reader MUST fail the query with an error to\n  the caller. The reader MUST NOT silently return raw, partial, or empty\n  results to mask the failure.\n\n6. Each action defines the output type for its column. For all predefined\n  actions, the output type matches the input column type.\n",
+        description="A list of columns that require specific actions to be applied when reading.\nIf this property is present, each listed column must have its specified action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader must apply\n  the specified action before returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column cc is mask-alphanum, the reader must\n  return the masked value as cc in the query output.\n\n3. A column must appear at most once in required-column-projections.\n4. If a projected column's action cannot be evaluated by the reader (including\n  unrecognized action types), the reader must fail the query with an error to\n  the caller. The reader must not silently return raw, partial, or empty\n  results to mask the failure.\n\n5. Each action defines the output type for its column. For all predefined\n  actions, the output type matches the input column type.\n",
     )
     required_row_filter: Expression | None = Field(
         None,
         alias='required-row-filter',
-        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression MUST evaluate to a boolean (TRUE or FALSE; Iceberg expressions\n  never produce NULL). A reader MUST discard any row for which\n  the filter evaluates to FALSE, and no information derived from discarded rows\n  MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If a reader cannot interpret or evaluate a provided filter expression, it MUST\n  fail the query with an error to the caller. The reader MUST NOT silently return\n  partial, raw, or empty results to mask the failure.\n\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
+        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg expressions\n  never produce NULL). A reader must discard any row for which\n  the filter evaluates to FALSE, and no information derived from discarded rows\n  may be included in the query result.\n\n2. Row filters must be evaluated against the original, untransformed column values.\n  Required projections must be applied only after row filters are applied.\n\n3. If a reader cannot interpret or evaluate a provided filter expression, it must\n  fail the query with an error to the caller. The reader must not silently return\n  partial, raw, or empty results to mask the failure.\n\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
     )
 
 
