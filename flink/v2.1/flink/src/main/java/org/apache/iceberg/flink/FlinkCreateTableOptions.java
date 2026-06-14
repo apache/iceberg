@@ -21,21 +21,13 @@ package org.apache.iceberg.flink;
 import java.util.Map;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.JsonUtil;
 
 class FlinkCreateTableOptions {
-  private final String catalogName;
-  private final String catalogDb;
-  private final String catalogTable;
-  private final Map<String, String> catalogProps;
 
-  private FlinkCreateTableOptions(
-      String catalogName, String catalogDb, String catalogTable, Map<String, String> props) {
-    this.catalogName = catalogName;
-    this.catalogDb = catalogDb;
-    this.catalogTable = catalogTable;
-    this.catalogProps = props;
-  }
+  private FlinkCreateTableOptions() {}
 
   public static final ConfigOption<String> CATALOG_NAME =
       ConfigOptions.key("catalog-name")
@@ -60,12 +52,6 @@ class FlinkCreateTableOptions {
           .stringType()
           .noDefaultValue()
           .withDescription("Table name managed in the underlying iceberg catalog and database.");
-
-  public static final ConfigOption<Map<String, String>> CATALOG_PROPS =
-      ConfigOptions.key("catalog-props")
-          .mapType()
-          .noDefaultValue()
-          .withDescription("Properties for the underlying catalog for iceberg table.");
 
   public static final ConfigOption<Boolean> USE_DYNAMIC_ICEBERG_SINK =
       ConfigOptions.key("use-dynamic-iceberg-sink")
@@ -97,38 +83,30 @@ class FlinkCreateTableOptions {
           gen.writeStringField(CATALOG_NAME.key(), catalogName);
           gen.writeStringField(CATALOG_DATABASE.key(), catalogDb);
           gen.writeStringField(CATALOG_TABLE.key(), catalogTable);
-          JsonUtil.writeStringMap(CATALOG_PROPS.key(), catalogProps, gen);
+
+          String catalogType = catalogProps.get(CATALOG_TYPE.key());
+          if (catalogType != null) {
+            gen.writeStringField(CATALOG_TYPE.key(), catalogType);
+          }
+
+          String catalogImpl = catalogProps.get(CatalogProperties.CATALOG_IMPL);
+          if (catalogImpl != null) {
+            gen.writeStringField(CatalogProperties.CATALOG_IMPL, catalogImpl);
+          }
+
           gen.writeEndObject();
         },
         false);
   }
 
-  static FlinkCreateTableOptions fromJson(String createTableOptions) {
+  static Map<String, String> fromJson(String createTableOptions) {
     return JsonUtil.parse(
         createTableOptions,
         node -> {
-          String catalogName = JsonUtil.getString(CATALOG_NAME.key(), node);
-          String catalogDb = JsonUtil.getString(CATALOG_DATABASE.key(), node);
-          String catalogTable = JsonUtil.getString(CATALOG_TABLE.key(), node);
-          Map<String, String> catalogProps = JsonUtil.getStringMap(CATALOG_PROPS.key(), node);
-
-          return new FlinkCreateTableOptions(catalogName, catalogDb, catalogTable, catalogProps);
+          ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
+          node.fieldNames()
+              .forEachRemaining(field -> properties.put(field, JsonUtil.getString(field, node)));
+          return properties.build();
         });
-  }
-
-  String catalogName() {
-    return catalogName;
-  }
-
-  String catalogDb() {
-    return catalogDb;
-  }
-
-  String catalogTable() {
-    return catalogTable;
-  }
-
-  Map<String, String> catalogProps() {
-    return catalogProps;
   }
 }

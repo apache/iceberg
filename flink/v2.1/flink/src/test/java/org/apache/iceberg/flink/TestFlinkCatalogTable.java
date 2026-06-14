@@ -218,9 +218,21 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
 
   @TestTemplate
   public void testCreateTableLikeInFlinkCatalog() throws TableNotExistException {
-    sql("CREATE TABLE tl(id BIGINT)");
+    // Create a separate source catalog  with an arbitrary extra property
+    // (catalog-cred), alongside the warehouse and uri set by the fixture, so we can assert
+    // the LIKE allowlist drops every catalog property outside catalog-type, catalog-impl.
+    String credentialKey = "catalog-cred";
+    String credentialValue = "secret-value";
+    String sourceCatalog = catalogName + "_with_cred";
+    String sourceDatabase = "db_with_cred";
+    String sourceFlinkDatabase = sourceCatalog + "." + sourceDatabase;
+    Map<String, String> sourceConfig = Maps.newHashMap(config);
+    sourceConfig.put(credentialKey, credentialValue);
+    sql("CREATE CATALOG %s WITH %s", sourceCatalog, toWithClause(sourceConfig));
+    sql("CREATE DATABASE %s", sourceFlinkDatabase);
+    sql("CREATE TABLE %s.tl(id BIGINT)", sourceFlinkDatabase);
 
-    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
+    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE %s.tl", sourceFlinkDatabase);
 
     CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
     assertThat(catalogTable.getUnresolvedSchema())
@@ -234,24 +246,36 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // Only catalog-type / catalog-impl are retained for the LIKE target to reconstruct the
     // catalog; everything else (e.g. warehouse) must be supplied explicitly via WITH.
     Map<String, String> filteredOptions = Maps.newHashMap();
-    if (config.containsKey(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE)) {
+    if (sourceConfig.containsKey(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE)) {
       filteredOptions.put(
           FlinkCatalogFactory.ICEBERG_CATALOG_TYPE,
-          config.get(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE));
+          sourceConfig.get(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE));
     }
-    if (config.containsKey(CatalogProperties.CATALOG_IMPL)) {
+    if (sourceConfig.containsKey(CatalogProperties.CATALOG_IMPL)) {
       filteredOptions.put(
-          CatalogProperties.CATALOG_IMPL, config.get(CatalogProperties.CATALOG_IMPL));
+          CatalogProperties.CATALOG_IMPL, sourceConfig.get(CatalogProperties.CATALOG_IMPL));
     }
 
-    String srcCatalogProps =
-        FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", filteredOptions);
+    String expectedSourceCatalogProps =
+        FlinkCreateTableOptions.toJson(sourceCatalog, sourceDatabase, "tl", filteredOptions);
     Map<String, String> options = catalogTable.getOptions();
     assertThat(options)
         .containsEntry(
             FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
             FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
-        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, expectedSourceCatalogProps);
+
+    Map<String, String> srcCatalogProps =
+        FlinkCreateTableOptions.fromJson(
+            options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY));
+    assertThat(srcCatalogProps)
+        .doesNotContainKey(credentialKey)
+        .doesNotContainKey(CatalogProperties.URI)
+        .doesNotContainKey(CatalogProperties.WAREHOUSE_LOCATION);
+
+    sql("DROP TABLE IF EXISTS %s.tl", sourceFlinkDatabase);
+    dropDatabase(sourceFlinkDatabase, true);
+    dropCatalog(sourceCatalog, true);
   }
 
   @TestTemplate
