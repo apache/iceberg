@@ -4,6 +4,7 @@ com.fasterxml.jackson.core:jackson-databind:2.18
 com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.18
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18
 com.fasterxml.woodstox:woodstox-core:7.0
+com.github.ben-manes.caffeine:caffeine:3.1
 com.google.android:annotations:4.1
 com.google.api-client:google-api-client:2.7
 com.google.api.grpc:gapic-google-cloud-storage-v2:2.68
@@ -30,8 +31,9 @@ com.google.apis:google-api-services-storage:v1-rev20260204-2.0
 com.google.auth:google-auth-library-credentials:1.47
 com.google.auth:google-auth-library-oauth2-http:1.47
 com.google.auto.value:auto-value-annotations:1.11
-com.google.cloud.gcs.analytics:client:1.2
-com.google.cloud.gcs.analytics:gcs-analytics-core:1.2
+com.google.cloud.gcs.analytics:client:1.3
+com.google.cloud.gcs.analytics:common:1.3
+com.google.cloud.gcs.analytics:gcs-analytics-core:1.3
 com.google.cloud.opentelemetry:detector-resources-support:0.33
 com.google.cloud.opentelemetry:exporter-metrics:0.33
 com.google.cloud.opentelemetry:shared-resourcemapping:0.33
@@ -86,6 +88,7 @@ io.opentelemetry.semconv:opentelemetry-semconv:1.29
 io.opentelemetry:opentelemetry-api:1.57
 io.opentelemetry:opentelemetry-common:1.57
 io.opentelemetry:opentelemetry-context:1.57
+io.opentelemetry:opentelemetry-exporter-logging:1.52
 io.opentelemetry:opentelemetry-sdk-common:1.57
 io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:1.57
 io.opentelemetry:opentelemetry-sdk-logs:1.57
