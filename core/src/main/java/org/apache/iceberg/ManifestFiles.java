@@ -562,15 +562,6 @@ public class ManifestFiles {
     return writer.toManifestFile();
   }
 
-  static InputFile newInputFile(FileIO io, ManifestListFile manifestList) {
-    InputFile input = io.newInputFile(manifestList);
-    if (cachingEnabled(io)) {
-      return contentCache(io).tryCache(input);
-    }
-
-    return input;
-  }
-
   private static InputFile newInputFile(FileIO io, ManifestFile manifest) {
     InputFile input = io.newInputFile(manifest);
     if (cachingEnabled(io)) {
