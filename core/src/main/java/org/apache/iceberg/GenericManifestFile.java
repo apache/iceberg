@@ -60,6 +60,8 @@ public class GenericManifestFile extends SupportsIndexProjection
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
   private Long firstRowId = null;
+  // set when the manifest list is read; not part of the manifest schema
+  private String baseLocation = null;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -172,6 +174,7 @@ public class GenericManifestFile extends SupportsIndexProjection
             ? null
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.firstRowId = toCopy.firstRowId;
+    this.baseLocation = toCopy.baseLocation;
   }
 
   /** Constructor for Java serialization. */
@@ -270,6 +273,14 @@ public class GenericManifestFile extends SupportsIndexProjection
   @Override
   public Long firstRowId() {
     return firstRowId;
+  }
+
+  String baseLocation() {
+    return baseLocation;
+  }
+
+  void setBaseLocation(String baseLocation) {
+    this.baseLocation = baseLocation;
   }
 
   @Override

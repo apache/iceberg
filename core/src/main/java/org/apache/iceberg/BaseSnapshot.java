@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.LocationUtil;
 
 class BaseSnapshot implements Snapshot {
   private final long snapshotId;
@@ -46,6 +47,8 @@ class BaseSnapshot implements Snapshot {
   private final Long firstRowId;
   private final Long addedRows;
   private final String keyId;
+  // base location for resolving relative data file paths; null when paths are absolute
+  private final String tableLocation;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -68,6 +71,34 @@ class BaseSnapshot implements Snapshot {
       Long firstRowId,
       Long addedRows,
       String keyId) {
+    this(
+        sequenceNumber,
+        snapshotId,
+        parentId,
+        timestampMillis,
+        operation,
+        summary,
+        schemaId,
+        manifestList,
+        firstRowId,
+        addedRows,
+        keyId,
+        null);
+  }
+
+  BaseSnapshot(
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String manifestList,
+      Long firstRowId,
+      Long addedRows,
+      String keyId,
+      String tableLocation) {
     Preconditions.checkArgument(
         firstRowId == null || firstRowId >= 0,
         "Invalid first-row-id (cannot be negative): %s",
@@ -91,6 +122,7 @@ class BaseSnapshot implements Snapshot {
     this.firstRowId = firstRowId;
     this.addedRows = firstRowId != null ? addedRows : null;
     this.keyId = keyId;
+    this.tableLocation = tableLocation;
   }
 
   BaseSnapshot(
@@ -114,6 +146,7 @@ class BaseSnapshot implements Snapshot {
     this.firstRowId = null;
     this.addedRows = null;
     this.keyId = null;
+    this.tableLocation = null;
   }
 
   @Override
@@ -185,6 +218,7 @@ class BaseSnapshot implements Snapshot {
       this.allManifests =
           ManifestLists.read(
               fileIO.newInputFile(new BaseManifestListFile(manifestListLocation, keyId)));
+      tagDataManifestsForRelativePaths(allManifests);
     }
 
     if (dataManifests == null || deleteManifests == null) {
@@ -196,6 +230,20 @@ class BaseSnapshot implements Snapshot {
           ImmutableList.copyOf(
               Iterables.filter(
                   allManifests, manifest -> manifest.content() == ManifestContent.DELETES));
+    }
+  }
+
+  private void tagDataManifestsForRelativePaths(List<ManifestFile> manifests) {
+    if (tableLocation == null) {
+      return;
+    }
+
+    // strip the trailing separator so the base matches TableMetadata.location()
+    String baseLocation = LocationUtil.stripTrailingSlash(tableLocation);
+    for (ManifestFile manifest : manifests) {
+      if (manifest.content() == ManifestContent.DATA && manifest instanceof GenericManifestFile) {
+        ((GenericManifestFile) manifest).setBaseLocation(baseLocation);
+      }
     }
   }
 

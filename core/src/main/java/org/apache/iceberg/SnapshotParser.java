@@ -122,6 +122,10 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(JsonNode node) {
+    return fromJson(node, null);
+  }
+
+  static Snapshot fromJson(JsonNode node, String tableLocation) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -190,7 +194,8 @@ public class SnapshotParser {
           manifestList,
           firstRowId,
           addedRows,
-          keyId);
+          keyId,
+          tableLocation);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be

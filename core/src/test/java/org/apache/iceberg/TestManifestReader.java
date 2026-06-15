@@ -22,10 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -283,5 +285,137 @@ public class TestManifestReader extends TestBase {
       assertThat(entry.status()).isEqualTo(Status.EXISTING);
       assertThat(entry.file().location()).isEqualTo(FILE_A.location());
     }
+  }
+
+  @TestTemplate
+  public void testRelativeDataFilePathIsResolvedWhenManifestTagged() throws IOException {
+    DataFile relativeFile = relativeDataFile("data/relative-file.parquet");
+    ManifestFile manifest = writeManifest(1000L, relativeFile);
+    ((GenericManifestFile) manifest).setBaseLocation("file:/table/location");
+
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.specs())) {
+      DataFile file = Iterables.getOnlyElement(reader.entries()).file();
+      assertThat(file.location()).isEqualTo("file:/table/location/data/relative-file.parquet");
+    }
+  }
+
+  @TestTemplate
+  public void testAbsoluteDataFilePathIsNotResolvedWhenManifestTagged() throws IOException {
+    // a path with a URI scheme is already absolute and left unchanged
+    DataFile absoluteFile = relativeDataFile("file:/somewhere/else/abs-file.parquet");
+    ManifestFile manifest = writeManifest(1000L, absoluteFile);
+    ((GenericManifestFile) manifest).setBaseLocation("file:/table/location");
+
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.specs())) {
+      DataFile file = Iterables.getOnlyElement(reader.entries()).file();
+      assertThat(file.location()).isEqualTo("file:/somewhere/else/abs-file.parquet");
+    }
+  }
+
+  @TestTemplate
+  public void testRelativeDataFilePathIsNotResolvedWithoutBaseLocation() throws IOException {
+    // without a base location, paths are left as stored
+    DataFile relativeFile = relativeDataFile("data/relative-file.parquet");
+    ManifestFile manifest = writeManifest(1000L, relativeFile);
+
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.specs())) {
+      DataFile file = Iterables.getOnlyElement(reader.entries()).file();
+      assertThat(file.location()).isEqualTo("data/relative-file.parquet");
+    }
+  }
+
+  @TestTemplate
+  public void testSnapshotResolvesRelativeDataFilePaths() throws IOException {
+    String tableLocation = "file:/table/location";
+    DataFile relativeFile = relativeDataFile("data/relative-file.parquet");
+    ManifestFile dataManifest = writeManifest(1000L, relativeFile);
+    String manifestList = writeManifestList(1000L, dataManifest);
+
+    Snapshot snapshot =
+        new BaseSnapshot(
+            0L,
+            1000L,
+            null,
+            0L,
+            DataOperations.APPEND,
+            null,
+            0,
+            manifestList,
+            null,
+            null,
+            null,
+            tableLocation);
+
+    List<ManifestFile> dataManifests = snapshot.dataManifests(FILE_IO);
+    assertThat(dataManifests).hasSize(1);
+    assertThat(((GenericManifestFile) dataManifests.get(0)).baseLocation())
+        .isEqualTo(tableLocation);
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(dataManifests.get(0), FILE_IO, table.specs())) {
+      DataFile file = Iterables.getOnlyElement(reader.entries()).file();
+      assertThat(file.location()).isEqualTo("file:/table/location/data/relative-file.parquet");
+    }
+  }
+
+  @TestTemplate
+  public void testSnapshotDoesNotTagDeleteManifests() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2 or higher")
+        .isGreaterThanOrEqualTo(2);
+    DataFile relativeFile = relativeDataFile("data/relative-file.parquet");
+    ManifestFile dataManifest = writeManifest(1000L, relativeFile);
+    ManifestFile deleteManifest = writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES);
+    String manifestList = writeManifestList(1000L, dataManifest, deleteManifest);
+
+    Snapshot snapshot =
+        new BaseSnapshot(
+            0L,
+            1000L,
+            null,
+            0L,
+            DataOperations.OVERWRITE,
+            null,
+            0,
+            manifestList,
+            null,
+            null,
+            null,
+            "file:/table/location");
+
+    assertThat(((GenericManifestFile) snapshot.dataManifests(FILE_IO).get(0)).baseLocation())
+        .as("data manifests are tagged")
+        .isEqualTo("file:/table/location");
+    assertThat(((GenericManifestFile) snapshot.deleteManifests(FILE_IO).get(0)).baseLocation())
+        .as("delete manifests are not tagged")
+        .isNull();
+  }
+
+  private DataFile relativeDataFile(String path) {
+    return DataFiles.builder(SPEC)
+        .withPath(path)
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withRecordCount(1)
+        .build();
+  }
+
+  private String writeManifestList(long snapshotId, ManifestFile... manifests) throws IOException {
+    File manifestList = temp.resolve("manifests" + System.nanoTime()).toFile();
+    try (ManifestListWriter writer =
+        ManifestLists.write(
+            formatVersion,
+            org.apache.iceberg.Files.localOutput(manifestList),
+            PlaintextEncryptionManager.instance(),
+            snapshotId,
+            null,
+            0L,
+            0L)) {
+      for (ManifestFile manifest : manifests) {
+        writer.add(manifest);
+      }
+    }
+
+    return org.apache.iceberg.Files.localInput(manifestList).location();
   }
 }
