@@ -35,18 +35,18 @@ The Apache Iceberg community is pleased to announce the 0.3.0 release of Apache 
 
 ### Scan Planning and Data Access
 - [Incremental scan APIs](https://github.com/apache/iceberg-cpp/pull/559), [incremental append scans](https://github.com/apache/iceberg-cpp/pull/590), and [incremental changelog scans](https://github.com/apache/iceberg-cpp/pull/611) for planning table changes between snapshots
-- Merge-on-read data access with a [MOR file scan task reader](https://github.com/apache/iceberg-cpp/pull/657), [delete filter support](https://github.com/apache/iceberg-cpp/pull/650), and a [DeleteLoader for position and equality delete files](https://github.com/apache/iceberg-cpp/pull/610)
+- Merge-on-read data access with a [MOR file scan task reader](https://github.com/apache/iceberg-cpp/pull/657), [delete filter support](https://github.com/apache/iceberg-cpp/pull/650), and a [DeleteLoader for v2 position and equality delete files](https://github.com/apache/iceberg-cpp/pull/610)
 - [Column selection in table scan planning](https://github.com/apache/iceberg-cpp/pull/550) and [ManifestGroup file filtering](https://github.com/apache/iceberg-cpp/pull/664)
 - [Roaring-based position bitmaps](https://github.com/apache/iceberg-cpp/pull/595), a [position delete index](https://github.com/apache/iceberg-cpp/pull/605), and [range coalescing for position deletes](https://github.com/apache/iceberg-cpp/pull/645)
 
 ### Table Operations and Maintenance
-- [MergingSnapshotUpdate](https://github.com/apache/iceberg-cpp/pull/682) for rewrite-style operations
+- [MergingSnapshotUpdate](https://github.com/apache/iceberg-cpp/pull/682) lays the groundwork for table overwrite, delete, update, and various maintainances.
 - [SnapshotManager](https://github.com/apache/iceberg-cpp/pull/542) support and [retried transaction commits](https://github.com/apache/iceberg-cpp/pull/626)
 - Snapshot expiration cleanup strategies for [reachable file cleanup](https://github.com/apache/iceberg-cpp/pull/592) and [incremental file cleanup](https://github.com/apache/iceberg-cpp/pull/648)
 - [Partition statistics updates](https://github.com/apache/iceberg-cpp/pull/538) and [schema update mapping](https://github.com/apache/iceberg-cpp/pull/561)
 
 ### Catalogs and Integrations
-- REST catalog improvements including [initial OAuth2 support](https://github.com/apache/iceberg-cpp/pull/577), [OAuth2 token auto-refresh](https://github.com/apache/iceberg-cpp/pull/646), [Basic authentication](https://github.com/apache/iceberg-cpp/pull/564), [snapshot loading mode](https://github.com/apache/iceberg-cpp/pull/543), [namespace separators](https://github.com/apache/iceberg-cpp/pull/617), and [server-side REST scan planning endpoints](https://github.com/apache/iceberg-cpp/pull/614)
+- REST catalog improvements including [initial OAuth2 support](https://github.com/apache/iceberg-cpp/pull/577), [OAuth2 token auto-refresh](https://github.com/apache/iceberg-cpp/pull/646), [basic authentication](https://github.com/apache/iceberg-cpp/pull/564), [snapshot loading mode](https://github.com/apache/iceberg-cpp/pull/543), [namespace separators](https://github.com/apache/iceberg-cpp/pull/617), and [server-side scan planning endpoints](https://github.com/apache/iceberg-cpp/pull/614)
 - [S3 FileIO integration](https://github.com/apache/iceberg-cpp/pull/548) built on Arrow filesystem support
 - FileIO interface enrichment with new [InputFile and OutputFile interfaces](https://github.com/apache/iceberg-cpp/pull/641) and [bulk delete support](https://github.com/apache/iceberg-cpp/pull/659)
 - [SQL catalog support](https://github.com/apache/iceberg-cpp/pull/693) backed by SQLite, PostgreSQL, and MySQL stores
@@ -57,7 +57,7 @@ The Apache Iceberg community is pleased to announce the 0.3.0 release of Apache 
 
 ### Metadata and File Format Support
 - Puffin support with [basic data structures](https://github.com/apache/iceberg-cpp/pull/588), [format constants and JSON serialization](https://github.com/apache/iceberg-cpp/pull/603), and [file reader/writer support](https://github.com/apache/iceberg-cpp/pull/624)
-- Iceberg v3 support for the [unknown type](https://github.com/apache/iceberg-cpp/pull/662) and [nanosecond timestamp primitive types](https://github.com/apache/iceberg-cpp/pull/653)
+- Iceberg v3 support for the [unknown type](https://github.com/apache/iceberg-cpp/pull/662) and [nanosecond timestamp types](https://github.com/apache/iceberg-cpp/pull/653)
 - Expression serialization with [operation JSON serialization](https://github.com/apache/iceberg-cpp/pull/532), [expression JSON serialization](https://github.com/apache/iceberg-cpp/pull/553), and [typed literal binding after serialization](https://github.com/apache/iceberg-cpp/pull/562)
 
 ## Contributors
