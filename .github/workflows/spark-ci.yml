@@ -217,14 +217,21 @@ jobs:
           cache-read-only: true
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - name: Run tests
+        env:
+          MATRIX_SCALA: ${{ matrix.scala }}
+          MATRIX_SPARK: ${{ matrix.spark }}
+          MATRIX_TESTS: ${{ matrix.tests }}
         run: |
-          if [[ "${{ matrix.tests }}" == "core" ]]; then
-            projects=":iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          if [[ "${MATRIX_TESTS}" == "core" ]]; then
+            projects=(":iceberg-spark:iceberg-spark-${MATRIX_SPARK}_${MATRIX_SCALA}:check")
           else
-            projects=":iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check"
+            projects=(
+              ":iceberg-spark:iceberg-spark-extensions-${MATRIX_SPARK}_${MATRIX_SCALA}:check"
+              ":iceberg-spark:iceberg-spark-runtime-${MATRIX_SPARK}_${MATRIX_SCALA}:check"
+            )
           fi
-          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DflinkVersions= -DkafkaVersions= \
-            $projects -Pquick=true -x javadoc -DtestParallelism=auto
+          ./gradlew -DsparkVersions="${MATRIX_SPARK}" -DscalaVersion="${MATRIX_SCALA}" -DflinkVersions= -DkafkaVersions= \
+            "${projects[@]}" -Pquick=true -x javadoc -DtestParallelism=auto
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
