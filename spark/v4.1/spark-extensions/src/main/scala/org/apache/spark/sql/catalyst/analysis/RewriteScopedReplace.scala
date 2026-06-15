@@ -18,6 +18,7 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.ProjectingInternalRow
 import org.apache.spark.sql.catalyst.expressions.Alias
@@ -52,14 +53,12 @@ import org.apache.spark.sql.catalyst.util.RowDeltaUtils.OPERATION_COLUMN
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils.WRITE_OPERATION
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils.WRITE_WITH_METADATA_OPERATION
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
-import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /**
  * Lowers a [[ReplaceScopedData]] command into Iceberg's row-level write path.
@@ -83,14 +82,14 @@ object RewriteScopedReplace extends RewriteRowLevelCommand {
         if rsd.resolved && source.resolved =>
 
       EliminateSubqueryAliases(aliasedTable) match {
-        case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _, _) =>
+        case r @ DataSourceV2Relation(tbl: SparkTable, _, _, _, options, _) =>
           if (source.output.size != r.output.size) {
             throw analysisError(
               "The source query of a scoped replace must produce the same number of columns as " +
                 s"the target table ${r.name}: expected ${r.output.size}, got ${source.output.size}")
           }
 
-          val operationTable = buildOperationTable(tbl, MERGE, CaseInsensitiveStringMap.empty())
+          val operationTable = buildOperationTable(tbl, MERGE, options)
           val alignedSource = alignSourceColumns(r, source)
           operationTable.operation match {
             case deltaOperation: SupportsDelta =>

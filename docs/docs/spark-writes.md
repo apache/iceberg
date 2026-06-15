@@ -36,6 +36,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [SQL update](#update)                            | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
 | [DataFrame append](#appending-data)              | ✔️      |                                                                             |
 | [DataFrame overwrite](#overwriting-data)         | ✔️      |                                                                             |
+| [DataFrame scoped replace](#scoped-replacement)  | ✔️      | ⚠ Requires Iceberg Spark extensions and Spark 4.1 or higher                 |
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️      | ⚠ Requires DSv2 API                                                         |
 | [DataFrame merge into](#merging-data)            | ✔️      | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
 
@@ -338,6 +339,34 @@ To explicitly overwrite partitions, use `overwrite` to supply a filter:
 ```scala
 data.writeTo("prod.db.table").overwrite($"level" === "INFO")
 ```
+
+### Scoped replacement
+
+Iceberg Spark extensions in Spark 4.1 and higher support scoped replacement writes through the
+`DataFrameWriterV2` API. A scoped replace deletes existing target rows whose replacement scope
+appears in the source `DataFrame`, then inserts all rows from the source in the same commit.
+
+```scala
+val staged: DataFrame = ...
+
+staged.writeTo("prod.db.sample")
+    .option("replace-using", "category")
+    .overwrite(lit(true))
+```
+
+Use the `replace-using` write option to list the target columns that define the replacement scope.
+Multiple columns are comma-separated:
+
+```scala
+staged.writeTo("prod.db.sample")
+    .option("replace-using", "tenant_id,business_date")
+    .option("target-file-size-bytes", "134217728")
+    .overwrite(lit(true))
+```
+
+The `overwrite(lit(true))` call is required so Spark applies overwrite privileges and Iceberg can
+replace matching target rows. Other Iceberg write options, such as target file size, compression,
+distribution, snapshot properties, and branch selection, can be supplied with `option` as usual.
 
 ### Creating tables
 
