@@ -210,29 +210,32 @@ abstract class BaseCommitService<T> implements Closeable {
   }
 
   private void commitReadyCommitGroups() {
-    Set<T> batch = null;
     if (canCreateCommitGroup()) {
+      // Hold the lock across the commit so that commits are serialized. Otherwise concurrent
+      // callers (e.g. multiple rewrite threads offering completed groups while partial progress is
+      // enabled) would each extract a batch and then run commitOrClean in parallel, producing
+      // conflicting commits on the table. Producers can still enqueue into completedRewrites while
+      // a commit is in progress; they only wait before starting another commit.
       synchronized (completedRewrites) {
         if (canCreateCommitGroup()) {
-          batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
+          Set<T> batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
           for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
             batch.add(completedRewrites.poll());
           }
+
+          String inProgressCommitToken = UUID.randomUUID().toString();
+          inProgressCommits.add(inProgressCommitToken);
+          try {
+            commitOrClean(batch);
+            committedRewrites.addAll(batch);
+            succeededCommits++;
+          } catch (Exception e) {
+            LOG.error(
+                "Failure during rewrite commit process, partial progress enabled. Ignoring", e);
+          }
+          inProgressCommits.remove(inProgressCommitToken);
         }
       }
-    }
-
-    if (batch != null) {
-      String inProgressCommitToken = UUID.randomUUID().toString();
-      inProgressCommits.add(inProgressCommitToken);
-      try {
-        commitOrClean(batch);
-        committedRewrites.addAll(batch);
-        succeededCommits++;
-      } catch (Exception e) {
-        LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
-      }
-      inProgressCommits.remove(inProgressCommitToken);
     }
   }
 
