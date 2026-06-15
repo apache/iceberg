@@ -236,6 +236,8 @@ class SchemaUtils {
           if (Decimal.LOGICAL_NAME.equals(valueSchema.name())) {
             int scale = Integer.parseInt(valueSchema.parameters().get(Decimal.SCALE_FIELD));
             return DecimalType.of(38, scale);
+          } else if ("uuid".equals(valueSchema.name())) {
+            return UUIDType.get();
           }
           return BinaryType.get();
         case INT8:
