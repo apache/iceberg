@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ByteBuffers;
 
 class SerializedObject implements VariantObject, SerializedValue {
   private static final int HEADER_SIZE = 1;
@@ -67,7 +68,7 @@ class SerializedObject implements VariantObject, SerializedValue {
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     this.fieldIdSize = 1 + ((header & FIELD_ID_SIZE_MASK) >> FIELD_ID_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
-    int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
     this.fieldIdListOffset = HEADER_SIZE + numElementsSize;
     this.fieldIds = new Integer[numElements];
     this.offsetListOffset = fieldIdListOffset + (numElements * fieldIdSize);
@@ -86,14 +87,14 @@ class SerializedObject implements VariantObject, SerializedValue {
     Map<Integer, Integer> offsetToLength = Maps.newHashMap();
     for (int index = 0; index < numElements; index += 1) {
       offsets[index] =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (index * offsetSize), offsetSize);
 
       offsetToLength.put(offsets[index], 0);
     }
 
     int dataLength =
-        VariantUtil.readLittleEndianUnsigned(
+        ByteBuffers.readLittleEndianUnsigned(
             value, offsetListOffset + (numElements * offsetSize), offsetSize);
     offsetToLength.put(dataLength, 0);
 
@@ -163,7 +164,7 @@ class SerializedObject implements VariantObject, SerializedValue {
   private int id(int index) {
     if (null == fieldIds[index]) {
       fieldIds[index] =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, fieldIdListOffset + (index * fieldIdSize), fieldIdSize);
     }
 

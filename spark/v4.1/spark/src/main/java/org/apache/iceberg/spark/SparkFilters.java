@@ -70,6 +70,13 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
+/**
+ * Converts Spark DSv1 filters into Iceberg expressions.
+ *
+ * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link SparkV2Filters} which converts
+ *     Spark DSv2 {@link org.apache.spark.sql.connector.expressions.filter.Predicate} instead.
+ */
+@Deprecated
 public class SparkFilters {
 
   private static final Pattern BACKTICKS_PATTERN = Pattern.compile("([`])(.|$)");

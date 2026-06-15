@@ -256,12 +256,20 @@ class SortOrder(BaseModel):
 
 class EncryptedKey(BaseModel):
     key_id: str = Field(..., alias='key-id')
-    encrypted_key_metadata: Base64Str = Field(..., alias='encrypted-key-metadata')
+    encrypted_key_metadata: Base64Str = Field(
+        ...,
+        alias='encrypted-key-metadata',
+        json_schema_extra={'contentEncoding': 'base64'},
+    )
     encrypted_by_id: str | None = Field(None, alias='encrypted-by-id')
     properties: dict[str, str] | None = None
 
 
 class Summary(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+    )
+    __pydantic_extra__: dict[str, str]
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
 
@@ -807,9 +815,27 @@ class ListTablesResponse(BaseModel):
     identifiers: list[TableIdentifier] | None = None
 
 
+class ListFunctionsResponse(BaseModel):
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    identifiers: list[CatalogObjectIdentifier] | None = None
+
+
 class ListNamespacesResponse(BaseModel):
     next_page_token: PageToken | None = Field(None, alias='next-page-token')
     namespaces: list[Namespace] | None = None
+
+
+class FunctionSQLRepresentation(BaseModel):
+    type: Literal['sql']
+    dialect: str = Field(
+        ..., description='SQL dialect identifier (e.g., "spark", "trino").'
+    )
+    sql: str = Field(..., description='SQL expression text.')
+
+
+class FunctionDefinitionVersionRef(BaseModel):
+    definition_id: str = Field(..., alias='definition-id')
+    version_id: int = Field(..., alias='version-id')
 
 
 class UpdateNamespacePropertiesResponse(BaseModel):
@@ -1139,6 +1165,25 @@ class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class FunctionRepresentation(RootModel[FunctionSQLRepresentation]):
+    root: FunctionSQLRepresentation = Field(
+        ..., description='UDF implementation representation.'
+    )
+
+
+class FunctionDefinitionLogEntry(BaseModel):
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when the function was updated to use the definition versions.',
+    )
+    definition_versions: list[FunctionDefinitionVersionRef] = Field(
+        ...,
+        alias='definition-versions',
+        description='Mapping of each definition to its selected version at this time.',
+    )
+
+
 class StatisticsFile(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     statistics_path: str = Field(..., alias='statistics-path')
@@ -1214,6 +1259,30 @@ class SetStatisticsUpdate(BaseUpdate):
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
     )
     statistics: StatisticsFile
+
+
+class FunctionDefinitionVersion(BaseModel):
+    version_id: int = Field(
+        ...,
+        alias='version-id',
+        description='Monotonically increasing identifier of the definition version.',
+    )
+    representations: list[FunctionRepresentation] = Field(
+        ..., description='UDF implementations.'
+    )
+    deterministic: bool | None = Field(
+        False, description='Whether the function is deterministic.'
+    )
+    on_null_input: Literal['return-null', 'call'] | None = Field(
+        'call',
+        alias='on-null-input',
+        description='Defines how the UDF behaves when any input parameter is NULL.',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Creation timestamp of this version (unix epoch millis).',
+    )
 
 
 class UnaryExpression(BaseModel):
@@ -1634,6 +1703,136 @@ class ScanReport(BaseModel):
     metadata: dict[str, str] | None = None
 
 
+class LoadFunctionResult(BaseModel):
+    """
+    Result returned when a function is loaded from the catalog.
+
+
+    The function metadata JSON is returned in the `metadata` field. The location of the metadata
+    file is returned in the `metadata-location` field, if available.
+
+    """
+
+    metadata_location: str | None = Field(None, alias='metadata-location')
+    metadata: FunctionMetadata
+
+
+class FunctionMetadata(BaseModel):
+    """
+    Portable UDF metadata format.
+
+
+    Each function is represented by a self-contained metadata file. The `format-version` field
+    identifies the UDF metadata format.
+
+    """
+
+    function_uuid: UUID = Field(
+        ...,
+        alias='function-uuid',
+        description='A UUID that identifies this UDF, generated once at creation.',
+    )
+    format_version: int = Field(
+        ...,
+        alias='format-version',
+        description='UDF specification format version (must be 1).',
+        ge=1,
+        le=1,
+    )
+    definitions: list[FunctionDefinition] = Field(
+        ..., description='List of function definition entities.'
+    )
+    definition_log: list[FunctionDefinitionLogEntry] = Field(
+        ...,
+        alias='definition-log',
+        description="History of versions within the function's definitions.",
+    )
+    location: str | None = Field(
+        None,
+        description="The function's base location. This is used to store function metadata files.",
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='A string-to-string map of properties.'
+    )
+    secure: bool | None = Field(False, description='Whether it is a secure function.')
+    doc: str | None = Field(None, description='Documentation string.')
+
+
+class FunctionDefinition(BaseModel):
+    definition_id: str = Field(
+        ...,
+        alias='definition-id',
+        description='A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.',
+    )
+    parameters: list[FunctionParameter] = Field(
+        ...,
+        description='Ordered list of function parameters. Invocation order must match this list.',
+    )
+    return_type: FunctionDataType = Field(..., alias='return-type')
+    return_nullable: bool | None = Field(
+        True,
+        alias='return-nullable',
+        description='A hint to indicate whether the return value is nullable or not.',
+    )
+    versions: list[FunctionDefinitionVersion] = Field(
+        ..., description='Versioned implementations of this definition.'
+    )
+    current_version_id: int = Field(
+        ...,
+        alias='current-version-id',
+        description='Identifier of the current version for this definition.',
+    )
+    function_type: Literal['udf', 'udtf'] = Field(
+        ...,
+        alias='function-type',
+        description='Function type. When set to "udtf", "return-type" must be a struct describing the output schema.',
+    )
+    doc: str | None = Field(None, description='Documentation string.')
+
+
+class FunctionParameter(BaseModel):
+    type: FunctionDataType
+    name: str
+    doc: str | None = Field(None, description='Parameter documentation.')
+
+
+class FunctionListType(BaseModel):
+    """
+    UDF list type object.
+    """
+
+    type: Literal['list']
+    element: FunctionDataType
+
+
+class FunctionMapType(BaseModel):
+    """
+    UDF map type object.
+    """
+
+    type: Literal['map']
+    key: FunctionDataType
+    value: FunctionDataType
+
+
+class FunctionStructType(BaseModel):
+    """
+    UDF struct type object.
+    """
+
+    type: Literal['struct']
+    fields: list[FunctionStructField]
+
+
+class FunctionStructField(BaseModel):
+    """
+    UDF struct field.
+    """
+
+    name: str
+    type: FunctionDataType
+
+
 class CommitTableResponse(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: TableMetadata
@@ -1831,6 +2030,15 @@ class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class FunctionDataType(
+    RootModel[str | FunctionListType | FunctionMapType | FunctionStructType]
+):
+    root: str | FunctionListType | FunctionMapType | FunctionStructType = Field(
+        ...,
+        description='A type for function parameters or return value. It is encoded either as a type string or as a JSON object for nested types (struct, list, map) following the UDF spec Types section.\n\nPrimitive and semi-structured type strings are encoded based on the Iceberg type JSON representation (e.g., "int", "string", "timestamp", "decimal(9,2)", "variant"). Type strings must contain no spaces or quote characters.\n\nNested types are based on the Iceberg type JSON representation, but the UDF spec only requires a subset of fields (e.g., list requires `type` and `element`; map requires `type`, `key`, and `value`; struct requires `type` and `fields`). Any other fields must be ignored.\n',
+    )
+
+
 class CompletedPlanningWithIDResult(CompletedPlanningResult):
     plan_id: str = Field(
         ..., alias='plan-id', description='ID used to track a planning request'
@@ -1886,6 +2094,14 @@ CommitViewRequest.model_rebuild()
 CreateTableRequest.model_rebuild()
 CreateViewRequest.model_rebuild()
 ScanReport.model_rebuild()
+LoadFunctionResult.model_rebuild()
+FunctionMetadata.model_rebuild()
+FunctionDefinition.model_rebuild()
+FunctionParameter.model_rebuild()
+FunctionListType.model_rebuild()
+FunctionMapType.model_rebuild()
+FunctionStructType.model_rebuild()
+FunctionStructField.model_rebuild()
 PlanTableScanRequest.model_rebuild()
 FileScanTask.model_rebuild()
 CompletedPlanningResult.model_rebuild()

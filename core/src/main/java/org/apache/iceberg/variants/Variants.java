@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.UUID;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class Variants {
@@ -73,23 +74,25 @@ public class Variants {
     ByteBuffer buffer = ByteBuffer.allocate(totalSize).order(ByteOrder.LITTLE_ENDIAN);
 
     buffer.put(0, header);
-    VariantUtil.writeLittleEndianUnsigned(buffer, numElements, 1, offsetSize);
+    ByteBuffers.writeLittleEndianUnsigned(buffer, numElements, 1, offsetSize);
 
     // write offsets and strings
     int nextOffset = 0;
     int index = 0;
     for (ByteBuffer nameBuffer : nameBuffers) {
       // write the offset and the string
-      VariantUtil.writeLittleEndianUnsigned(
+      ByteBuffers.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
-      int nameSize = VariantUtil.writeBufferAbsolute(buffer, dataOffset + nextOffset, nameBuffer);
+      buffer.put(
+          dataOffset + nextOffset, nameBuffer, nameBuffer.position(), nameBuffer.remaining());
+      int nameSize = nameBuffer.remaining();
       // update the offset and index
       nextOffset += nameSize;
       index += 1;
     }
 
     // write the final size of the data section
-    VariantUtil.writeLittleEndianUnsigned(
+    ByteBuffers.writeLittleEndianUnsigned(
         buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
     return SerializedMetadata.from(buffer);
@@ -118,7 +121,7 @@ public class Variants {
   }
 
   public static boolean isNull(ByteBuffer valueBuffer) {
-    return VariantUtil.readByte(valueBuffer, 0) == 0;
+    return ByteBuffers.readByte(valueBuffer, 0) == 0;
   }
 
   public static ValueArray array() {
