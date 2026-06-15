@@ -201,7 +201,9 @@ public abstract class BaseFormatModelTests<T> {
             FEATURE_READER_DEFAULT,
             FEATURE_AES_STREAM_ENCRYPTION,
             FEATURE_NATIVE_ENCRYPTION
-          });
+          },
+          FileFormat.PARQUET,
+          new String[] {FEATURE_AES_STREAM_ENCRYPTION});
 
   private InMemoryFileIO fileIO;
   private EncryptedOutputFile encryptedFile;
@@ -1752,6 +1754,7 @@ public abstract class BaseFormatModelTests<T> {
     EncryptedOutputFile encryptedOutputFile =
         EncryptedFiles.plainAsEncryptedOutput(fileIO.newOutputFile(location));
 
+    // keyMetadata is mainly used for parsing during reading, so this call is required here.
     FileWriterBuilder<DataWriter<T>, ?> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedOutputFile)
             .keyMetadata(keyMetadata)
