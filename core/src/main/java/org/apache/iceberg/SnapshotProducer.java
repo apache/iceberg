@@ -531,6 +531,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } catch (CommitStateUnknownException commitStateUnknownException) {
         throw commitStateUnknownException;
       } catch (RetryExhaustedException e) {
+        cleanAll();
         throw toCommitFailedException(e);
       } catch (RuntimeException e) {
         if (!strictCleanup || e instanceof CleanableFailure) {

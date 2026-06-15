@@ -335,6 +335,7 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (RetryExhaustedException e) {
+      cleanAllUpdates();
       throw toCommitFailedException(e, props);
 
     } catch (RuntimeException e) {
