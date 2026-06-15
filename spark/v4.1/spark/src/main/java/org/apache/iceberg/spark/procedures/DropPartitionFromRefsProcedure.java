@@ -19,16 +19,18 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.actions.DropPartitionFromRefs;
 import org.apache.iceberg.actions.DropPartitionFromRefs.RefType;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
+import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
+import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -43,7 +45,7 @@ import org.apache.spark.unsafe.types.UTF8String;
  * <pre>
  * CALL catalog.system.drop_partition_from_refs(
  *     table  => 'db.tbl',
- *     where  => 'date = ''2024-01-01''',
+ *     where  => 'date = "2024-01-01"',
  *     refs   => 'tags',         -- optional: 'tags' | 'branches' | 'all', default 'tags'
  *     dry_run => false          -- optional, default false
  * )
@@ -57,13 +59,13 @@ public class DropPartitionFromRefsProcedure extends BaseProcedure {
   static final String NAME = "drop_partition_from_refs";
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+      requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter WHERE_PARAM =
-      ProcedureParameter.required("where", DataTypes.StringType);
+      requiredInParameter("where", DataTypes.StringType);
   private static final ProcedureParameter REFS_PARAM =
-      ProcedureParameter.optional("refs", DataTypes.StringType);
+      optionalInParameter("refs", DataTypes.StringType);
   private static final ProcedureParameter DRY_RUN_PARAM =
-      ProcedureParameter.optional("dry_run", DataTypes.BooleanType);
+      optionalInParameter("dry_run", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {TABLE_PARAM, WHERE_PARAM, REFS_PARAM, DRY_RUN_PARAM};
@@ -90,17 +92,17 @@ public class DropPartitionFromRefsProcedure extends BaseProcedure {
   }
 
   @Override
+  public BoundProcedure bind(StructType inputType) {
+    return this;
+  }
+
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }
 
   @Override
-  public StructType outputType() {
-    return OUTPUT_TYPE;
-  }
-
-  @Override
-  public InternalRow[] call(InternalRow args) {
+  public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
     Identifier tableIdent = input.ident(TABLE_PARAM);
@@ -126,22 +128,30 @@ public class DropPartitionFromRefsProcedure extends BaseProcedure {
           table.refs().forEach((name, ref) -> previousSnapshotIds.put(name, ref.snapshotId()));
 
           DropPartitionFromRefs.Result result =
-              SparkActions.get(spark())
+              actions()
                   .dropPartitionFromRefs(table)
                   .filter(filter)
                   .refType(refType)
                   .dryRun(dryRun)
                   .execute();
 
-          return result.updatedRefs().entrySet().stream()
-              .map(
-                  e ->
-                      newInternalRow(
-                          UTF8String.fromString(e.getKey()),
-                          previousSnapshotIds.getOrDefault(e.getKey(), -1L),
-                          e.getValue()))
-              .toArray(InternalRow[]::new);
+          InternalRow[] rows =
+              result.updatedRefs().entrySet().stream()
+                  .map(
+                      e ->
+                          newInternalRow(
+                              UTF8String.fromString(e.getKey()),
+                              previousSnapshotIds.getOrDefault(e.getKey(), -1L),
+                              e.getValue()))
+                  .toArray(InternalRow[]::new);
+
+          return asScanIterator(OUTPUT_TYPE, rows);
         });
+  }
+
+  @Override
+  public String name() {
+    return NAME;
   }
 
   @Override
