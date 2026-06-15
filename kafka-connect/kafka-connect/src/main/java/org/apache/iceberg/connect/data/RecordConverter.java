@@ -255,17 +255,90 @@ class RecordConverter {
                   }
                 }
                 if (!hasSchemaUpdates) {
-                  result.setField(
-                      tableField.name(),
-                      convertValue(
-                          struct.get(recordField),
-                          tableField.type(),
-                          tableField.fieldId(),
-                          schemaUpdateConsumer));
+                  Object recordFieldValue = struct.get(recordField);
+                  // If the value is null and schema evolution is on, then evolve the table schema
+                  // from the connect record schema
+                  if (recordFieldValue == null && schemaUpdateConsumer != null) {
+                    evolveSchemaFromConnectSchema(
+                        recordField.schema(),
+                        tableField.type(),
+                        tableField.fieldId(),
+                        schemaUpdateConsumer);
+                  } else {
+                    // If the value is not null, then convert the value (and handle any schema
+                    // updates)
+                    result.setField(
+                        tableField.name(),
+                        convertValue(
+                            recordFieldValue,
+                            tableField.type(),
+                            tableField.fieldId(),
+                            schemaUpdateConsumer));
+                  }
                 }
               }
             });
     return result;
+  }
+
+  private void evolveSchemaFromConnectSchema(
+      org.apache.kafka.connect.data.Schema recordSchema,
+      Type tableType,
+      int tableFieldId,
+      SchemaUpdate.Consumer schemaUpdateConsumer) {
+    if (recordSchema == null) {
+      return;
+    }
+    switch (recordSchema.type()) {
+      case STRUCT:
+        if (tableType.isStructType()) {
+          StructType structType = tableType.asStructType();
+          for (Field field : recordSchema.fields()) {
+            NestedField nestedField = lookupStructField(field.name(), structType, tableFieldId);
+            if (nestedField == null) {
+              String parentFieldName = tableSchema.findColumnName(tableFieldId);
+              Type type = SchemaUtils.toIcebergType(field.schema(), config);
+              schemaUpdateConsumer.addColumn(parentFieldName, field.name(), type);
+            } else {
+              PrimitiveType evolveDataType =
+                  SchemaUtils.needsDataTypeUpdate(nestedField.type(), field.schema());
+              if (evolveDataType != null) {
+                String fieldName = tableSchema.findColumnName(nestedField.fieldId());
+                schemaUpdateConsumer.updateType(fieldName, evolveDataType);
+              }
+              if (nestedField.isRequired() && field.schema().isOptional()) {
+                String fieldName = tableSchema.findColumnName(nestedField.fieldId());
+                schemaUpdateConsumer.makeOptional(fieldName);
+              }
+              evolveSchemaFromConnectSchema(
+                  field.schema(), nestedField.type(), nestedField.fieldId(), schemaUpdateConsumer);
+            }
+          }
+        }
+        break;
+      case ARRAY:
+        if (tableType.isListType()) {
+          ListType listType = tableType.asListType();
+          evolveSchemaFromConnectSchema(
+              recordSchema.valueSchema(),
+              listType.elementType(),
+              listType.elementId(),
+              schemaUpdateConsumer);
+        }
+        break;
+      case MAP:
+        if (tableType.isMapType()) {
+          MapType mapType = tableType.asMapType();
+          evolveSchemaFromConnectSchema(
+              recordSchema.valueSchema(),
+              mapType.valueType(),
+              mapType.valueId(),
+              schemaUpdateConsumer);
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   private NestedField lookupStructField(String fieldName, StructType schema, int structFieldId) {
