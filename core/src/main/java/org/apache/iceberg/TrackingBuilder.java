@@ -116,7 +116,6 @@ class TrackingBuilder {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set deleted positions on ADDED entry");
     this.deletedPositions = ByteBuffers.toByteArray(positions);
-    this.dvSnapshotId = newSnapshotId;
     this.status = EntryStatus.MODIFIED;
     return this;
   }
@@ -126,7 +125,6 @@ class TrackingBuilder {
     Preconditions.checkState(
         status != EntryStatus.ADDED, "Cannot set replaced positions on ADDED entry");
     this.replacedPositions = ByteBuffers.toByteArray(positions);
-    this.dvSnapshotId = newSnapshotId;
     this.status = EntryStatus.MODIFIED;
     return this;
   }

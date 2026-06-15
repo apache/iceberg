@@ -457,9 +457,10 @@ class TestTrackingStruct {
     Tracking modified =
         TrackingBuilder.from(addedSource, 999L).deletedPositions(deletedBytes).build();
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
-    // the entry snapshot id is preserved; only the DV snapshot id advances to the commit snapshot
+    // the entry snapshot id is preserved
     assertThat(modified.snapshotId()).isEqualTo(addedSource.snapshotId()).isNotEqualTo(999L);
-    assertThat(modified.dvSnapshotId()).isEqualTo(999L);
+    // DV snapshot ID must not be set for leaf manifest entries
+    assertThat(modified.dvSnapshotId()).isNull();
     assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
   }
 
@@ -538,7 +539,6 @@ class TestTrackingStruct {
     Tracking deserialized = TestHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(deserialized.dvSnapshotId()).isEqualTo(1L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }
@@ -567,7 +567,6 @@ class TestTrackingStruct {
     Tracking deserialized = TestHelpers.KryoHelpers.roundTripSerialize(tracking);
 
     assertThat(deserialized.status()).isEqualTo(EntryStatus.MODIFIED);
-    assertThat(deserialized.dvSnapshotId()).isEqualTo(1L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2}));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(new byte[] {3, 4}));
   }
