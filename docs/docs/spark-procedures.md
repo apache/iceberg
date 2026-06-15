@@ -247,6 +247,49 @@ Fast-forward the main branch to the head of `audit-branch`
 CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch');
 ```
 
+### `drop_partition_from_refs`
+
+Remove all data files matching a partition filter from tags and/or branches, without touching the `main` branch.
+
+Each matching ref gets a new snapshot with the selected partition deleted. Refs that share the same underlying snapshot are deduplicated: the partition is deleted once and all sharing refs are advanced to the resulting snapshot in a single `ManageSnapshots` commit.
+
+#### Usage
+
+| Argument Name | Required? | Type    | Description |
+|---------------|-----------|---------|-------------|
+| `table`       | ✔️        | string  | Name of the table to update |
+| `where`       | ✔️        | string  | SQL predicate identifying the partition to drop (e.g. `'dt = "2024-01-01"'`) |
+| `refs`        |           | string  | Which refs to target: `TAGS` (default), `BRANCHES`, or `ALL`. The `main` branch is always excluded. |
+| `dry_run`     |           | boolean | When `true`, report what would change without committing (default `false`) |
+
+#### Output
+
+One row per updated ref.
+
+| Output Name           | Type   | Description |
+|-----------------------|--------|-------------|
+| `ref_name`            | string | Name of the updated ref |
+| `previous_snapshot_id`| long   | Snapshot ID before the partition was dropped |
+| `new_snapshot_id`     | long   | Snapshot ID after the partition was dropped |
+
+#### Examples
+
+Drop the `dt = '2024-01-01'` partition from all tags:
+```sql
+CALL catalog_name.system.drop_partition_from_refs(
+    table   => 'db.events',
+    where   => 'dt = "2024-01-01"');
+```
+
+Drop the same partition from all non-`main` branches, with a dry run first:
+```sql
+CALL catalog_name.system.drop_partition_from_refs(
+    table   => 'db.events',
+    where   => 'dt = "2024-01-01"',
+    refs    => 'branches',
+    dry_run => true);
+```
+
 ## Metadata management
 
 Many [maintenance actions](maintenance.md) can be performed using Iceberg stored procedures.
