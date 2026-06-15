@@ -104,11 +104,17 @@ Required and optional properties to include while using `sigv4` authentication
 | `rest.access-key-id`                      | null           | Configure the static access key ID used for SigV4 signing. |
 | `rest.secret-access-key`                  | null           | Configure the static secret access key used for SigV4 signing. |
 | `rest.session-token`                      | null           | Configure the static session token used for SigV4. |
-| `client.credentials-provider`             | null           | When set, REST catalog requests will use this provider to get AWS credentials to sign the request instead of reading the default credential chain. |
+| `client.credentials-provider`             | null           | When configured, REST catalog requests will use this provider to get AWS credentials to sign the request instead of reading the default credential chain. |
+| `client.assume-role.arn`            | null, requires user input                | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume  |
+| `client.assume-role.region`         | null, requires user input                | All AWS clients except the STS client will use the given region instead of the default region chain  |
+| `client.assume-role.external-id`    | null                                     | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)  |
+| `client.assume-role.timeout-sec`    | 1 hour                                   | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through an STS client.  |
 
-When `rest.access-key-id`, `rest.secret-access-key`, and optionally `rest.session-token` are set, REST Catalog requests will be signed with the provided basic or session credentials instead of using the default credential chain. If `rest.session-token` is set, session credential is used, otherwise basic credential is used. 
+When `rest.access-key-id`, `rest.secret-access-key`, and optionally `rest.session-token` are configured, REST Catalog requests will be signed with the provided basic or session credentials instead of using the default credential chain. If `rest.session-token` is set, session credential is used, otherwise basic credential is used.
 
 When basic or session credentials are provided, the provided credentials will be used instead of `client.credentials-provider`. `client.credentials-provider` must contain a static `create` or `create(Map<String, String>)` method to be used by REST catalog requests.
+
+When `client.assume-role.arn` and `client.assume-role.region` are configured, Iceberg will assume the role using the default credential chain to sign REST catalog requests. These parameters will have no effect if `rest.access-key-id`, `rest.secret-access-key`, or `client.credentials-provider` are configured.
 
 #### Google auth properties
 Required and optional properties to include while using `google` authentication
