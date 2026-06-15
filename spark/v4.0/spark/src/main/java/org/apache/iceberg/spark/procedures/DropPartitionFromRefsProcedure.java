@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.actions.DropPartitionFromRefs;
 import org.apache.iceberg.actions.DropPartitionFromRefs.RefType;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -124,7 +124,7 @@ public class DropPartitionFromRefsProcedure extends BaseProcedure {
           Expression filter = filterExpression(tableIdent, where);
 
           // capture previous snapshot IDs before the action mutates the refs
-          Map<String, Long> previousSnapshotIds = new HashMap<>();
+          Map<String, Long> previousSnapshotIds = Maps.newHashMap();
           table.refs().forEach((name, ref) -> previousSnapshotIds.put(name, ref.snapshotId()));
 
           DropPartitionFromRefs.Result result =
