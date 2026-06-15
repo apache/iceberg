@@ -63,6 +63,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
@@ -330,5 +331,13 @@ public class TestSchemaUtils {
     // skip infer for object if values are empty objects
     assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of("nested", ImmutableMap.of()), config))
         .isNull();
+  }
+
+  @Test
+  public void testToIcebergTypeUUIDLogicalTypeOnString() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+
+    Schema uuidSchema = SchemaBuilder.string().name("uuid").build();
+    assertThat(SchemaUtils.toIcebergType(uuidSchema, config)).isInstanceOf(UUIDType.class);
   }
 }
