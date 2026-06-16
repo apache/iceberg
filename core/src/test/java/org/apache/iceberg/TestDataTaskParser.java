@@ -236,7 +236,7 @@ public class TestDataTaskParser {
                 null));
 
     return StaticDataTask.of(
-        Files.localInput("file:/tmp/metadata2.json"),
+        "/tmp/metadata2.json",
         SNAPSHOT_SCHEMA,
         SNAPSHOT_SCHEMA,
         snapshots,
