@@ -69,6 +69,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
@@ -229,7 +230,7 @@ public abstract class BaseFormatModelTests<T> {
     Schema schema = supportedSchema(dataGenerator);
     List<Record> genericRecords = project(dataGenerator.generateRecords(), schema);
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
-    writeEngineRecords(fileFormat, schema, engineRecords);
+    writeEngineRecords(fileFormat, schema, engineRecords, engineSchema(schema));
     readAndAssertGenericRecords(fileFormat, schema, genericRecords);
   }
 
@@ -1447,7 +1448,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  void testReadMetadataColumnRowLinage(FileFormat fileFormat) throws IOException {
+  void testReadMetadataColumnRowLineage(FileFormat fileFormat) throws IOException {
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
@@ -1480,7 +1481,7 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  void testReadMetadataColumnRowLinageExistValue(FileFormat fileFormat) throws IOException {
+  void testReadMetadataColumnRowLineageExistingValues(FileFormat fileFormat) throws IOException {
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema dataSchema = dataGenerator.schema();
@@ -2282,8 +2283,8 @@ public abstract class BaseFormatModelTests<T> {
     Map<Integer, ByteBuffer> upperBounds = file.upperBounds();
     for (Types.NestedField field : schema.columns()) {
       if (field.type().isPrimitiveType()) {
-        assertThat(lowerBounds == null || lowerBounds.get(field.fieldId()) == null).isTrue();
-        assertThat(upperBounds == null || upperBounds.get(field.fieldId()) == null).isTrue();
+        assertMetricMissing(lowerBounds, field, "lower bounds");
+        assertMetricMissing(upperBounds, field, "upper bounds");
       }
     }
   }
@@ -2309,10 +2310,18 @@ public abstract class BaseFormatModelTests<T> {
     Map<Integer, Long> nullValueCounts = file.nullValueCounts();
     for (Types.NestedField field : schema.columns()) {
       if (field.type().isPrimitiveType()) {
-        assertThat(valueCounts == null || valueCounts.get(field.fieldId()) == null).isTrue();
-        assertThat(nullValueCounts == null || nullValueCounts.get(field.fieldId()) == null)
-            .isTrue();
+        assertMetricMissing(valueCounts, field, "value counts");
+        assertMetricMissing(nullValueCounts, field, "null value counts");
       }
+    }
+  }
+
+  private static <T> void assertMetricMissing(
+      Map<Integer, T> metrics, Types.NestedField field, String metricName) {
+    if (metrics != null) {
+      assertThat(metrics)
+          .as("%s should not contain field '%s' (id=%s)", metricName, field.name(), field.fieldId())
+          .doesNotContainKey(field.fieldId());
     }
   }
 
@@ -2499,7 +2508,7 @@ public abstract class BaseFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<T> readRecords;
 
-    var readerBuilder =
+    ReadBuilder<T, ?> readerBuilder =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(projectionSchema);
 
@@ -2569,15 +2578,31 @@ public abstract class BaseFormatModelTests<T> {
 
   private DataFile writeEngineRecords(FileFormat fileFormat, Schema schema, List<T> records)
       throws IOException {
-    return writeEngineRecords(fileFormat, schema, records, false /* overwrite */);
+    return writeEngineRecords(fileFormat, schema, records, false /* overwrite */, null);
+  }
+
+  private DataFile writeEngineRecords(
+      FileFormat fileFormat, Schema schema, List<T> records, Object engineSchema)
+      throws IOException {
+    return writeEngineRecords(fileFormat, schema, records, false /* overwrite */, engineSchema);
   }
 
   private DataFile writeEngineRecords(
       FileFormat fileFormat, Schema schema, List<T> records, boolean overwrite) throws IOException {
+    return writeEngineRecords(fileFormat, schema, records, overwrite, null);
+  }
+
+  private DataFile writeEngineRecords(
+      FileFormat fileFormat, Schema schema, List<T> records, boolean overwrite, Object engineSchema)
+      throws IOException {
     FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
 
     writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned());
+
+    if (engineSchema != null) {
+      writerBuilder.engineSchema(engineSchema);
+    }
 
     if (overwrite) {
       writerBuilder.overwrite();
