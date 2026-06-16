@@ -26,6 +26,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
@@ -54,6 +55,7 @@ import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import scala.collection.JavaConverters;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -428,15 +430,38 @@ public class SparkSessionCatalog<
   public Identifier[] listViews(String... namespace) {
     try {
       if (null != asViewCatalog) {
-        return asViewCatalog.listViews(namespace);
+        return ArrayUtil.concat(
+            Identifier.class,
+            asViewCatalog.listViews(namespace),
+            listSessionCatalogViews(namespace));
       } else if (isViewCatalog()) {
-        getSessionCatalog().listViews(namespace);
+        return getSessionCatalog().listViews(namespace);
       }
     } catch (NoSuchNamespaceException e) {
       throw new RuntimeException(e);
     }
 
-    return new Identifier[0];
+    // Session catalog can contain Spark SQL views even when it is not exposed as a ViewCatalog.
+    return listSessionCatalogViews(namespace);
+  }
+
+  private Identifier[] listSessionCatalogViews(String[] namespace) {
+    // Spark's SessionCatalog lists views by database name, which maps to single-part namespaces.
+    if (namespace.length != 1) {
+      return new Identifier[0];
+    }
+
+    return JavaConverters.seqAsJavaListConverter(
+            SparkSession.active().sessionState().catalog().listViews(namespace[0], "*"))
+        .asJava()
+        .stream()
+        .map(
+            view -> {
+              String[] viewNamespace =
+                  view.database().isDefined() ? new String[] {view.database().get()} : namespace;
+              return Identifier.of(viewNamespace, view.table());
+            })
+        .toArray(Identifier[]::new);
   }
 
   @Override
