@@ -465,6 +465,7 @@ public abstract class VariantShreddingAnalyzer<T, S> {
             .buildOrThrow();
 
     void observe(VariantValue value) {
+      mostCommonComputed = false;
       observationCount++;
       // Use BOOLEAN_TRUE for both TRUE/FALSE values
       PhysicalType type =
