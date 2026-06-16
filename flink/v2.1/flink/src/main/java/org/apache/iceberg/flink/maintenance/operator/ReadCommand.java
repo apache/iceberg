@@ -26,7 +26,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 
 /**
- * Envelope from the {@link EqualityConvertPlanner} to the {@link EqualityConvertReader}, wrapping
+ * Envelope from the {@code EqualityConvertPlanner} to the {@code EqualityConvertReader}, wrapping
  * an Iceberg {@link ContentScanTask} plus the metadata the reader needs to process it.
  *
  * <p>The wrapped task is either:

@@ -24,7 +24,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.DeleteFile;
 
 /**
- * Result from the {@link EqualityConvertDVWriter} containing new and rewritten DV files written by
+ * Result from the {@code EqualityConvertDVWriter} containing new and rewritten DV files written by
  * a single resolver task. A result with {@link #hasError()} signals that the writer failed; the
  * committer must not commit data files in that case.
  */

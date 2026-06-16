@@ -22,7 +22,7 @@ import java.io.Serializable;
 import org.apache.flink.annotation.Internal;
 
 /**
- * Command from the {@link EqualityConvertPlanner} to the {@link EqualityConvertPKIndex}.
+ * Command from the {@code EqualityConvertPlanner} to the {@code EqualityConvertPKIndex}.
  *
  * <p>{@link Type#ADD_DATA_ROW} adds an existing main-data row to the worker's PK index shard
  * immediately, so this cycle's delete can remove it. {@link Type#ADD_STAGING_DATA_ROW} adds a

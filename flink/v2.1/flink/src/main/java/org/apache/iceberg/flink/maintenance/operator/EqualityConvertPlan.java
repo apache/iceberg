@@ -26,8 +26,8 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
- * Result of equality convert planning. Produced by {@link EqualityConvertPlanner} and consumed by
- * both {@link EqualityConvertDVWriter} (for partition info and DV merge gating) and {@link
+ * Result of equality convert planning. Produced by {@code EqualityConvertPlanner} and consumed by
+ * both {@code EqualityConvertDVWriter} (for partition info and DV merge gating) and {@code
  * EqualityConvertCommitter} (for data files and staging deletes to commit).
  *
  * <p>A no-op cycle is encoded by {@link #stagingSnapshotId()} == {@link

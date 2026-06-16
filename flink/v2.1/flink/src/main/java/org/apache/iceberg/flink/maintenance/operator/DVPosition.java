@@ -22,7 +22,7 @@ import java.io.Serializable;
 import org.apache.flink.annotation.Internal;
 
 /**
- * A deletion vector position emitted by {@link EqualityConvertPKIndex} when resolving an equality
+ * A deletion vector position emitted by {@code EqualityConvertPKIndex} when resolving an equality
  * delete. Identifies a specific row (by file path and position) to be marked as deleted, and
  * carries the data file's {@code specId} + encoded partition so the downstream resolver can write
  * the DV without re-reading data manifests.
