@@ -55,16 +55,16 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
   // Logical types available in Avro 1.12 only; evaluate lazily to keep compat with Avro 1.11
-  private static Schema TIMESTAMP_NANO_SCHEMA;
-  private static Schema TIMESTAMPTZ_NANO_SCHEMA;
+  private static Schema timestampNanoSchema;
+  private static Schema timestampTzNanoSchema;
 
   private static void initializeTimestampNanoSchema() {
-    TIMESTAMP_NANO_SCHEMA =
+    timestampNanoSchema =
         LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   }
 
   private static void initializeTimestampTzNanoSchema() {
-    TIMESTAMPTZ_NANO_SCHEMA =
+    timestampTzNanoSchema =
         LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   }
 
@@ -85,8 +85,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       initializeTimestampNanoSchema();
       initializeTimestampTzNanoSchema();
 
-      TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
-      TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+      timestampNanoSchema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+      timestampTzNanoSchema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
     }
   }
 
@@ -274,9 +274,9 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
+          primitiveSchema = timestampTzNanoSchema;
         } else {
-          primitiveSchema = TIMESTAMP_NANO_SCHEMA;
+          primitiveSchema = timestampNanoSchema;
         }
         break;
       case STRING:
