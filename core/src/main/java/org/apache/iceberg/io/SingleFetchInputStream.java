@@ -36,13 +36,12 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
 
   @Override
   public long getPos() throws IOException {
-    checkOpen();
     return position;
   }
 
   @Override
   public void seek(long newPos) throws IOException {
-    checkOpen();
+    Preconditions.checkState(!closed, "Cannot seek: already closed");
     Preconditions.checkArgument(newPos >= 0, "position is negative: %s", newPos);
     if (newPos > contents.length) {
       throw new EOFException(
@@ -53,7 +52,7 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
 
   @Override
   public int read() throws IOException {
-    checkOpen();
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     if (position >= contents.length) {
       return -1;
     }
@@ -62,7 +61,7 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    checkOpen();
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     Preconditions.checkPositionIndexes(off, off + len, b.length);
     if (len == 0) {
       return 0;
@@ -78,7 +77,6 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
 
   @Override
   public long skip(long n) throws IOException {
-    checkOpen();
     if (n <= 0) {
       return 0;
     }
@@ -89,15 +87,14 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
 
   @Override
   public int available() throws IOException {
-    checkOpen();
     return contents.length - position;
   }
 
   @Override
   public void readFully(long pos, byte[] buffer, int offset, int length) throws IOException {
-    checkOpen();
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
-    if (pos + length > contents.length) {
+    Preconditions.checkArgument(pos >= 0, "position is negative: %s", pos);
+    if (pos > contents.length || length > contents.length - pos) {
       throw new EOFException(
           "Cannot read "
               + length
@@ -111,7 +108,6 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
 
   @Override
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
-    checkOpen();
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
     int bytesToCopy = Math.min(length, contents.length);
     System.arraycopy(contents, contents.length - bytesToCopy, buffer, offset, bytesToCopy);
@@ -121,11 +117,5 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
   @Override
   public void close() throws IOException {
     closed = true;
-  }
-
-  private void checkOpen() throws IOException {
-    if (closed) {
-      throw new IOException("Cannot read: already closed");
-    }
   }
 }

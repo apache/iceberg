@@ -198,21 +198,12 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       if (singleFetchThreshold <= 0) {
         this.lazyInputFiles = raw;
       } else {
-        Map<String, Long> sizes = Maps.newHashMapWithExpectedSize(raw.size());
-        taskGroup.tasks().stream()
-            .flatMap(this::referencedFiles)
-            .forEach(file -> sizes.put(file.location(), file.fileSizeInBytes()));
-
         Map<String, InputFile> wrapped = Maps.newHashMapWithExpectedSize(raw.size());
         for (Map.Entry<String, InputFile> entry : raw.entrySet()) {
-          Long size = sizes.get(entry.getKey());
-          if (size == null) {
-            wrapped.put(entry.getKey(), entry.getValue());
-          } else {
-            wrapped.put(
-                entry.getKey(),
-                new SingleFetchInputFile(entry.getValue(), size, singleFetchThreshold));
-          }
+          InputFile file = entry.getValue();
+          wrapped.put(
+              entry.getKey(),
+              new SingleFetchInputFile(file, file.getLength(), singleFetchThreshold));
         }
         this.lazyInputFiles = wrapped;
       }
