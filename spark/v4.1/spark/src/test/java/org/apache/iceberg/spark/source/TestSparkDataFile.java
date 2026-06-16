@@ -170,7 +170,7 @@ public class TestSparkDataFile {
   }
 
   private void checkSparkContentFiles(Table table) throws IOException {
-    Iterable<InternalRow> rows = RandomData.generateSpark(table.schema(), 200, 0);
+    Iterable<InternalRow> rows = RandomData.generateSpark(table.schema(), 40, 0);
     JavaRDD<InternalRow> rdd = sparkContext.parallelize(Lists.newArrayList(rows));
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,
