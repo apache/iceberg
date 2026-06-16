@@ -368,8 +368,9 @@ public class VortexFormatModel<D, S, R>
           schema.columns().stream()
               .filter(
                   field ->
-                      !constants.containsKey(field.fieldId())
-                          && !MetadataColumns.isMetadataColumn(field.name()))
+                      (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId())
+                          || !constants.containsKey(field.fieldId())
+                              && !MetadataColumns.isMetadataColumn(field.name()))
               .map(Types.NestedField::name)
               .toList();
 

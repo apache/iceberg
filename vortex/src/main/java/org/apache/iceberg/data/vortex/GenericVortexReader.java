@@ -82,15 +82,23 @@ public class GenericVortexReader implements VortexRowReader<Record> {
         this.readers[i] = GenericVortexReaders.constants(constants.get(id));
       } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
         this.readers[i] = GenericVortexReaders.constants(false);
+      } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+        this.readers[i] = GenericVortexReaders.longs();
+        this.columnNames[i] = field.name();
       } else {
         Field arrowField = arrowFieldsByName.get(field.name());
         if (arrowField == null) {
-          // The expected field is neither a constant nor present in the data file (for example an
-          // unsupplied metadata column). Fill it with null rather than reading a missing column.
-          this.readers[i] = GenericVortexReaders.constants(null);
+          if (field.isOptional()) {
+            // The expected field is neither a constant nor present in the data file (for example an
+            // unsupplied metadata column). Fill it with null rather than reading a missing column.
+            this.readers[i] = GenericVortexReaders.constants(null);
+          } else {
+            throw new IllegalArgumentException(
+                String.format("Missing required field: %s", field.name()));
+          }
         } else {
           this.readers[i] = VortexSchemaWithTypeVisitor.visit(field.type(), arrowField, builder);
-          this.columnNames[i] = arrowField.getName();
+          this.columnNames[i] = field.name();
         }
       }
     }

@@ -92,7 +92,7 @@ spark41 = "4.1.1"
 sqlite-jdbc = "3.53.1.0"
 testcontainers = "2.0.5"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
-vortex = "0.74.0"
+vortex = "0.75.0"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }

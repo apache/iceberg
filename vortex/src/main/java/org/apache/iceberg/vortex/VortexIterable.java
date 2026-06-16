@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableGroup;
@@ -43,6 +45,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -118,10 +121,24 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
             .map(Field::getName)
             .collect(Collectors.toUnmodifiableSet());
 
-    String[] projectionNames =
-        projection.stream().filter(fileColumns::contains).toArray(String[]::new);
+    ImmutableList.Builder<String> fieldNames = ImmutableList.builder();
+    ImmutableList.Builder<dev.vortex.api.Expression> expressions = ImmutableList.builder();
+
+    for (String name : projection) {
+      if (fileColumns.contains(name)) {
+        fieldNames.add(name);
+        expressions.add(dev.vortex.api.Expression.column(name));
+      } else if (Objects.equals(name, MetadataColumns.ROW_POSITION.name())) {
+        fieldNames.add(name);
+        expressions.add(dev.vortex.api.Expression.rowIdx());
+      }
+    }
+
     dev.vortex.api.Expression scanProjection =
-        dev.vortex.api.Expression.select(projectionNames, dev.vortex.api.Expression.root());
+        dev.vortex.api.Expression.pack(
+            fieldNames.build().toArray(String[]::new),
+            expressions.build().toArray(dev.vortex.api.Expression[]::new),
+            false);
 
     ImmutableScanOptions.Builder optionsBuilder = ScanOptions.builder().projection(scanProjection);
     scanFilter.ifPresent(optionsBuilder::filter);
