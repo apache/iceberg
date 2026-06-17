@@ -186,9 +186,8 @@ public class EncryptionUtil {
   }
 
   /**
-   * Returns {@link TableMetadata} with encrypted keys from an {@param encryptionManager} that are
-   * required to read the snapshots in the given {@param metadata}. Only adds keys that are still
-   * referenced in metadata.
+   * Adds {@link EncryptedKey}'s from the {@param encryptionManager} that are needed to read the
+   * snapshots in the given {@param metadata}.
    */
   public static TableMetadata addEmKeysToMetadata(
       TableMetadata metadata, EncryptionManager encryptionManager) {
