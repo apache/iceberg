@@ -143,13 +143,43 @@ public class ParquetVariantReaders {
   }
 
   private static class VariantMetadataReader extends PrimitiveReader<VariantMetadata> {
+    // Caches the last parsed metadata for adjacent rows with identical bytes.
+    private byte[] lastMetadataBytes;
+    private VariantMetadata cachedMetadata;
+
     private VariantMetadataReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public VariantMetadata read(VariantMetadata reuse) {
-      return Variants.metadata(readBinary(column));
+      ByteBuffer data = column.nextBinary().toByteBuffer();
+      int length = data.remaining();
+
+      if (cachedMetadata != null
+          && lastMetadataBytes != null
+          && lastMetadataBytes.length == length
+          && bufferEquals(data, lastMetadataBytes)) {
+        return cachedMetadata;
+      }
+
+      byte[] bytes = new byte[length];
+      data.get(bytes, 0, length);
+      VariantMetadata parsed =
+          Variants.metadata(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
+      this.lastMetadataBytes = bytes;
+      this.cachedMetadata = parsed;
+      return parsed;
+    }
+
+    private static boolean bufferEquals(ByteBuffer buffer, byte[] expected) {
+      int pos = buffer.position();
+      for (int i = 0; i < expected.length; i++) {
+        if (buffer.get(pos + i) != expected[i]) {
+          return false;
+        }
+      }
+      return true;
     }
   }
 

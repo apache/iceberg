@@ -1349,6 +1349,95 @@ public class TestVariantReaders {
         .hasMessageContaining("Invalid variant, conflicting value and typed_value");
   }
 
+  @Test
+  public void testMetadataCachingWithIdenticalRows() throws IOException {
+    GroupType variantType = variant("var", 2);
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 50; i++) {
+      GenericRecord variant =
+          record(
+              variantType,
+              Map.of(
+                  "metadata", TEST_METADATA_BUFFER.duplicate(),
+                  "value", serialize(Variants.of(i))));
+      records.add(record(parquetSchema, Map.of("id", i, "var", variant)));
+    }
+
+    List<Record> results = writeAndRead(parquetSchema, records);
+    assertThat(results).hasSize(50);
+    for (int i = 0; i < 50; i++) {
+      Record actual = results.get(i);
+      assertThat(actual.getField("id")).isEqualTo(i);
+      Variant actualVariant = (Variant) actual.getField("var");
+      VariantTestUtil.assertEqual(TEST_METADATA, actualVariant.metadata());
+      VariantTestUtil.assertEqual(Variants.of(i), actualVariant.value());
+    }
+  }
+
+  @Test
+  public void testMetadataCachingWithMixedMetadata() throws IOException {
+    ByteBuffer metaA = VariantTestUtil.createMetadata(ImmutableList.of("x", "y"), true);
+    ByteBuffer metaB = VariantTestUtil.createMetadata(ImmutableList.of("p", "q", "r"), true);
+    VariantMetadata expectedA = Variants.metadata(metaA);
+    VariantMetadata expectedB = Variants.metadata(metaB);
+
+    GroupType variantType = variant("var", 2);
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 15; i++) {
+      ByteBuffer meta = (i / 5) % 2 == 0 ? metaA.duplicate() : metaB.duplicate();
+      GenericRecord variant =
+          record(variantType, Map.of("metadata", meta, "value", serialize(Variants.of(i))));
+      records.add(record(parquetSchema, Map.of("id", i, "var", variant)));
+    }
+
+    List<Record> results = writeAndRead(parquetSchema, records);
+    assertThat(results).hasSize(15);
+    for (int i = 0; i < 15; i++) {
+      Record actual = results.get(i);
+      assertThat(actual.getField("id")).isEqualTo(i);
+      Variant actualVariant = (Variant) actual.getField("var");
+      VariantMetadata expectedMeta = (i / 5) % 2 == 0 ? expectedA : expectedB;
+      VariantTestUtil.assertEqual(expectedMeta, actualVariant.metadata());
+      VariantTestUtil.assertEqual(Variants.of(i), actualVariant.value());
+    }
+  }
+
+  @Test
+  public void testMetadataCachingByteCompare() throws IOException {
+    ByteBuffer metaA = VariantTestUtil.createMetadata(ImmutableList.of("x", "y"), true);
+    ByteBuffer metaC = VariantTestUtil.createMetadata(ImmutableList.of("a", "b"), true);
+    assertThat(metaA.remaining()).isEqualTo(metaC.remaining());
+
+    VariantMetadata expectedA = Variants.metadata(metaA);
+    VariantMetadata expectedC = Variants.metadata(metaC);
+
+    GroupType variantType = variant("var", 2);
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      ByteBuffer meta = (i % 2 == 0) ? metaA.duplicate() : metaC.duplicate();
+      GenericRecord variant =
+          record(variantType, Map.of("metadata", meta, "value", serialize(Variants.of(i))));
+      records.add(record(parquetSchema, Map.of("id", i, "var", variant)));
+    }
+
+    List<Record> results = writeAndRead(parquetSchema, records);
+    assertThat(results).hasSize(10);
+    for (int i = 0; i < 10; i++) {
+      Record actual = results.get(i);
+      assertThat(actual.getField("id")).isEqualTo(i);
+      Variant actualVariant = (Variant) actual.getField("var");
+      VariantMetadata expected = (i % 2 == 0) ? expectedA : expectedC;
+      VariantTestUtil.assertEqual(expected, actualVariant.metadata());
+      VariantTestUtil.assertEqual(Variants.of(i), actualVariant.value());
+    }
+  }
+
   private static ByteBuffer serialize(VariantValue value) {
     ByteBuffer buffer = ByteBuffer.allocate(value.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     value.writeTo(buffer, 0);
