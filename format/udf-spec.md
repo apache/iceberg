@@ -136,8 +136,7 @@ Examples of complete definition-id signatures:
 The `specific-name` is an optional, user-assignable name for a single definition, analogous to the SQL standard's
 routine *specific name*. It provides a stable, human-readable handle for a definition that is independent of its
 signature (e.g., for SQL statements such as `DROP SPECIFIC FUNCTION`).
-
-* When present, `specific-name` **must** be unique among all definitions within the UDF metadata.
+When present, `specific-name` **must** be unique among all definitions within the UDF metadata.
 
 ### Definition Version
 
