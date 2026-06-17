@@ -53,8 +53,8 @@ import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
@@ -137,8 +137,8 @@ abstract class BaseSparkAction<ThisT> {
 
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {
     Preconditions.checkArgument(
-            metadata.metadataFileLocation() != null,
-            "Cannot create static table: metadata file location is null");
+        metadata.metadataFileLocation() != null,
+        "Cannot create static table: metadata file location is null");
     StaticTableOperations ops = new StaticTableOperations(metadata, io);
     return new BaseTable(ops, metadata.metadataFileLocation());
   }
