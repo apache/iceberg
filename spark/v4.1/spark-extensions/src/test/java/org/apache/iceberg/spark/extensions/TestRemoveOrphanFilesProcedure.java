@@ -42,6 +42,7 @@ import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.ReachableFileUtil;
@@ -70,6 +71,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
+
+  // Orphan-file detection enumerates the table directory through Hadoop FileSystem, which only
+  // sees files written to local disk. Run with disk-backed FileIOs so the listing matches the
+  // files Iceberg manages.
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return catalogParametersWithDiskBackedFileIo();
+  }
 
   @AfterEach
   public void removeTable() {

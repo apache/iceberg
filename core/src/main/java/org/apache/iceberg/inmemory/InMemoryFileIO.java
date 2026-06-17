@@ -27,6 +27,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -133,7 +134,7 @@ public class InMemoryFileIO implements FileIO {
     if (file == null || !file.exists()) {
       return null;
     }
-    return Files.localInput(file);
+    return new LocationPreservingInputFile(location, Files.localInput(file));
   }
 
   private static boolean deleteLocalIfExists(String location) {
@@ -153,5 +154,46 @@ public class InMemoryFileIO implements FileIO {
     }
     String path = location.startsWith("file:") ? location.substring("file:".length()) : location;
     return new File(path);
+  }
+
+  /**
+   * Delegates an {@link InputFile} while preserving the requested {@code location} string. The
+   * delegate may canonicalize paths (for example, stripping a {@code file:} scheme), but Iceberg
+   * components key {@code InputFile} maps off the original location, so callers expect {@link
+   * #location()} to return the value passed to {@link #newInputFile(String)} verbatim.
+   */
+  private static final class LocationPreservingInputFile implements InputFile {
+    private final String location;
+    private final InputFile delegate;
+
+    private LocationPreservingInputFile(String location, InputFile delegate) {
+      this.location = location;
+      this.delegate = delegate;
+    }
+
+    @Override
+    public long getLength() {
+      return delegate.getLength();
+    }
+
+    @Override
+    public SeekableInputStream newStream() {
+      return delegate.newStream();
+    }
+
+    @Override
+    public String location() {
+      return location;
+    }
+
+    @Override
+    public boolean exists() {
+      return delegate.exists();
+    }
+
+    @Override
+    public String toString() {
+      return location;
+    }
   }
 }

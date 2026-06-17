@@ -65,6 +65,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.DeleteGranularity;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
@@ -114,8 +115,14 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         "testhive",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default"),
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            CatalogProperties.FILE_IO_IMPL,
+            InMemoryFileIO.class.getName(),
+            InMemoryFileIO.DISK_FALLBACK,
+            "true"),
         FileFormat.ORC,
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
@@ -128,8 +135,14 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         "testhive",
         SparkCatalog.class.getName(),
         ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default"),
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            CatalogProperties.FILE_IO_IMPL,
+            InMemoryFileIO.class.getName(),
+            InMemoryFileIO.DISK_FALLBACK,
+            "true"),
         FileFormat.PARQUET,
         true,
         WRITE_DISTRIBUTION_MODE_HASH,
@@ -141,16 +154,15 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
       {
         "spark_catalog",
         SparkSessionCatalog.class.getName(),
-        ImmutableMap.of(
-            "type",
-            "rest",
-            CatalogProperties.URI,
-            restCatalog.properties().get(CatalogProperties.URI),
-            "default-namespace",
-            "default",
-            "cache-enabled",
-            "false" // Spark will delete tables using v1, leaving the cache out of sync
-            ),
+        ImmutableMap.<String, String>builder()
+            .put("type", "rest")
+            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+            .put("default-namespace", "default")
+            // Spark will delete tables using v1, leaving the cache out of sync
+            .put("cache-enabled", "false")
+            .put(CatalogProperties.FILE_IO_IMPL, InMemoryFileIO.class.getName())
+            .put(InMemoryFileIO.DISK_FALLBACK, "true")
+            .build(),
         FileFormat.AVRO,
         false,
         WRITE_DISTRIBUTION_MODE_RANGE,

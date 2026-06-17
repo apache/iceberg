@@ -197,6 +197,22 @@ public class TestInMemoryFileIO {
   }
 
   @Test
+  public void diskFallbackPreservesRequestedLocation(@TempDir Path tempDir) throws IOException {
+    File diskFile = tempDir.resolve("preserve.bin").toFile();
+    Files.write(diskFile.toPath(), "bytes".getBytes());
+    String requestedLocation = "file:" + diskFile.getAbsolutePath();
+
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.initialize(ImmutableMap.of(InMemoryFileIO.DISK_FALLBACK, "true"));
+
+    // Iceberg components key InputFile maps off the requested location string. The disk-backed
+    // delegate would otherwise drop the file: scheme and break those lookups.
+    InputFile input = fileIO.newInputFile(requestedLocation);
+    assertThat(input.location()).isEqualTo(requestedLocation);
+    assertThat(input.toString()).isEqualTo(requestedLocation);
+  }
+
+  @Test
   public void diskFallbackOffStillThrowsForUnknownLocation() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     assertThatExceptionOfType(NotFoundException.class)

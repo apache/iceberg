@@ -33,6 +33,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -50,6 +51,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotTableProcedure extends ExtensionsTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
+
+  // Snapshot procedure copies parquet files from a Hive source table that lives on disk, and
+  // several tests open Iceberg-managed manifests directly through Files.localInput(...). Both
+  // require disk-backed FileIOs. Run with disk-backed FileIOs so files round-trip on disk.
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return catalogParametersWithDiskBackedFileIo();
+  }
 
   // Currently we can only Snapshot only out of the Spark Session Catalog
   @AfterEach

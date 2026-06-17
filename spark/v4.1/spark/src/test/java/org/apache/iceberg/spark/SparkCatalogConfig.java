@@ -45,15 +45,16 @@ public enum SparkCatalogConfig {
   INMEMORY(
       "testinmemory",
       SparkCatalog.class.getName(),
-      ImmutableMap.of(
-          CatalogProperties.CATALOG_IMPL,
-          InMemoryCatalog.class.getName(),
-          InMemoryCatalog.SHARED_STORE_ID,
-          "testinmemory",
-          "default-namespace",
-          "default",
-          "cache-enabled",
-          "false")),
+      ImmutableMap.<String, String>builder()
+          .put(CatalogProperties.CATALOG_IMPL, InMemoryCatalog.class.getName())
+          .put(InMemoryCatalog.SHARED_STORE_ID, "testinmemory")
+          .put("default-namespace", "default")
+          .put("cache-enabled", "false")
+          // InMemoryCatalog forwards its catalog properties to the FileIO it constructs; turning
+          // disk fallback on lets it round-trip Spark's native (on-disk) writes alongside the
+          // Iceberg-managed in-memory files.
+          .put(InMemoryFileIO.DISK_FALLBACK, "true")
+          .build()),
   REST(
       "testrest",
       SparkCatalog.class.getName(),
@@ -81,15 +82,13 @@ public enum SparkCatalogConfig {
   SPARK_WITH_VIEWS(
       "spark_with_views",
       SparkCatalog.class.getName(),
-      ImmutableMap.of(
-          CatalogProperties.CATALOG_IMPL,
-          InMemoryCatalog.class.getName(),
-          InMemoryCatalog.SHARED_STORE_ID,
-          "spark_with_views",
-          "default-namespace",
-          "default",
-          "cache-enabled",
-          "false")),
+      ImmutableMap.<String, String>builder()
+          .put(CatalogProperties.CATALOG_IMPL, InMemoryCatalog.class.getName())
+          .put(InMemoryCatalog.SHARED_STORE_ID, "spark_with_views")
+          .put("default-namespace", "default")
+          .put("cache-enabled", "false")
+          .put(InMemoryFileIO.DISK_FALLBACK, "true")
+          .build()),
   SPARK_SESSION_WITH_VIEWS(
       "spark_catalog",
       SparkSessionCatalog.class.getName(),

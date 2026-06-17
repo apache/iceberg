@@ -44,6 +44,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.RESTCatalogServer;
 import org.apache.iceberg.rest.RESTServerExtension;
@@ -76,7 +77,15 @@ public abstract class TestBaseWithCatalog extends TestBase {
               "include-credentials",
               "true",
               "gcs.oauth2.token",
-              "dummyToken"));
+              "dummyToken",
+              // Server-side reads (server-side scan planning, snapshot validation) must use the
+              // same FileIO as Spark clients so that JVM-wide in-memory writes are visible from
+              // both sides. Disk fallback covers tests that mix Spark's native (on-disk) writes
+              // with Iceberg-managed in-memory metadata.
+              CatalogProperties.FILE_IO_IMPL,
+              InMemoryFileIO.class.getName(),
+              InMemoryFileIO.DISK_FALLBACK,
+              "true"));
 
   protected static RESTCatalog restCatalog;
 

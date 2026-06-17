@@ -29,6 +29,7 @@ import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
@@ -47,6 +48,15 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
   @TempDir private Path staging;
   @TempDir private Path targetTableDir;
+
+  // RewriteTablePathUtil enforces a path-prefix relationship between the table location and
+  // each file location (delete, manifest, metadata). InMemoryCatalog uses an empty warehouse,
+  // which produces bare paths like "/default/table" while writers emit "file:/default/table/..."
+  // and break the prefix check. Run with disk-backed FileIOs so paths line up.
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return catalogParametersWithDiskBackedFileIo();
+  }
 
   @BeforeEach
   public void setupTableLocation() {

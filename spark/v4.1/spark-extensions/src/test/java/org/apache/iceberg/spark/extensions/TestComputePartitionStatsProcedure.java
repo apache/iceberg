@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
@@ -37,6 +38,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestComputePartitionStatsProcedure extends ExtensionsTestBase {
+
+  // This procedure writes statistics files via table.io() and then asserts they exist on disk via
+  // java.io.File. Run with disk-backed FileIOs so the writes round-trip through real storage.
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return catalogParametersWithDiskBackedFileIo();
+  }
 
   @AfterEach
   public void removeTable() {
