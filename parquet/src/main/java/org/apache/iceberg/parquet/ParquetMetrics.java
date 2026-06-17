@@ -44,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
@@ -62,6 +61,7 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 class ParquetMetrics {
@@ -203,7 +203,7 @@ class ParquetMetrics {
 
     @Override
     public Iterable<FieldMetrics<ByteBuffer>> primitive(
-        PrimitiveType iPrimitive, org.apache.parquet.schema.PrimitiveType primitive) {
+        org.apache.iceberg.types.Type.PrimitiveType iPrimitive, PrimitiveType primitive) {
       Type.ID id = primitive.getId();
       if (null == id) {
         return ImmutableList.of();
@@ -231,7 +231,8 @@ class ParquetMetrics {
     }
 
     private FieldMetrics<ByteBuffer> metricsFromFieldMetrics(
-        int fieldId, PrimitiveType icebergType, int truncateLength) {
+        int fieldId, org.apache.iceberg.types.Type.PrimitiveType icebergType,
+        int truncateLength) {
       FieldMetrics<?> fieldMetrics = metricsById.get(fieldId);
       if (null == fieldMetrics) {
         return null;
@@ -261,11 +262,10 @@ class ParquetMetrics {
 
     private FieldMetrics<ByteBuffer> metricsFromFooter(
         int fieldId,
-        PrimitiveType icebergType,
-        org.apache.parquet.schema.PrimitiveType primitive,
+        org.apache.iceberg.types.Type.PrimitiveType icebergType,
+        PrimitiveType primitive,
         int truncateLength) {
-      if (primitive.getPrimitiveTypeName()
-          == org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96) {
+      if (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
         return null;
       } else if (truncateLength <= 0 || isGeospatial(icebergType)) {
         // Parquet lexicographic min/max is not meaningful for spatial WKB.
@@ -275,7 +275,8 @@ class ParquetMetrics {
       }
     }
 
-    private static boolean isGeospatial(PrimitiveType icebergType) {
+    private static boolean isGeospatial(
+        org.apache.iceberg.types.Type.PrimitiveType icebergType) {
       TypeID typeId = Preconditions.checkNotNull(icebergType, "Invalid type: null").typeId();
       return typeId == TypeID.GEOMETRY || typeId == TypeID.GEOGRAPHY;
     }
@@ -300,8 +301,8 @@ class ParquetMetrics {
 
     private <T> FieldMetrics<ByteBuffer> bounds(
         int fieldId,
-        PrimitiveType icebergType,
-        org.apache.parquet.schema.PrimitiveType primitive,
+        org.apache.iceberg.types.Type.PrimitiveType icebergType,
+        PrimitiveType primitive,
         int truncateLength) {
       if (icebergType == null) {
         return null;
@@ -498,7 +499,7 @@ class ParquetMetrics {
 
       @Override
       public Iterable<ParquetVariantUtil.VariantMetrics> metadata(
-          org.apache.parquet.schema.PrimitiveType metadata) {
+          PrimitiveType metadata) {
         ParquetVariantUtil.VariantMetrics counts = counts();
         if (counts != null) {
           return ImmutableList.of(counts);
@@ -509,7 +510,7 @@ class ParquetMetrics {
 
       @Override
       public Iterable<ParquetVariantUtil.VariantMetrics> serialized(
-          org.apache.parquet.schema.PrimitiveType value) {
+          PrimitiveType value) {
         ParquetVariantUtil.VariantMetrics counts = counts();
         if (counts != null) {
           return ImmutableList.of(counts);
@@ -520,7 +521,7 @@ class ParquetMetrics {
 
       @Override
       public Iterable<ParquetVariantUtil.VariantMetrics> primitive(
-          org.apache.parquet.schema.PrimitiveType primitive) {
+          PrimitiveType primitive) {
         ParquetVariantUtil.VariantMetrics result = metrics(primitive);
         if (result != null) {
           return ImmutableList.of(result);
@@ -559,8 +560,7 @@ class ParquetMetrics {
       }
 
       @SuppressWarnings("CyclomaticComplexity")
-      private <T> ParquetVariantUtil.VariantMetrics metrics(
-          org.apache.parquet.schema.PrimitiveType primitive) {
+      private <T> ParquetVariantUtil.VariantMetrics metrics(PrimitiveType primitive) {
         PhysicalType variantType = ParquetVariantUtil.convert(primitive);
         if (null == variantType) {
           // the type could not be converted and is either invalid or unsupported
@@ -625,7 +625,8 @@ class ParquetMetrics {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> T truncateLowerBound(PrimitiveType type, T value, int length) {
+  private static <T> T truncateLowerBound(
+      org.apache.iceberg.types.Type.PrimitiveType type, T value, int length) {
     if (null == value) {
       return null;
     }
@@ -641,7 +642,8 @@ class ParquetMetrics {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> T truncateUpperBound(PrimitiveType type, T value, int length) {
+  private static <T> T truncateUpperBound(
+      org.apache.iceberg.types.Type.PrimitiveType type, T value, int length) {
     if (null == value) {
       return null;
     }
