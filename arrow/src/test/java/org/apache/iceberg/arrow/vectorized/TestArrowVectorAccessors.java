@@ -20,11 +20,10 @@ package org.apache.iceberg.arrow.vectorized;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -118,7 +117,7 @@ public class TestArrowVectorAccessors {
         new Field(
             "ree",
             FieldType.notNullable(ArrowType.RunEndEncoded.INSTANCE),
-            Arrays.asList(runEndsField, valuesField));
+            List.of(runEndsField, valuesField));
 
     IntVector runEnds = (IntVector) runEndsField.createVector(allocator);
     IntVector values = (IntVector) valuesField.createVector(allocator);
@@ -149,8 +148,7 @@ public class TestArrowVectorAccessors {
   public void listViewAccessor() {
     Field dataField = new Field("item", FieldType.nullable(new ArrowType.Int(32, true)), null);
     Field listViewField =
-        new Field(
-            "list", FieldType.nullable(ArrowType.ListView.INSTANCE), Arrays.asList(dataField));
+        new Field("list", FieldType.nullable(ArrowType.ListView.INSTANCE), List.of(dataField));
     try (ListViewVector vector = (ListViewVector) listViewField.createVector(allocator)) {
       vector.allocateNew();
       IntVector data = (IntVector) vector.getDataVector();
@@ -170,8 +168,8 @@ public class TestArrowVectorAccessors {
 
       ArrowVectorAccessor<BigDecimal, String, Object, ValueVector> accessor =
           accessorFor(vector, PrimitiveTypeName.INT32, listField());
-      assertThat(accessor.getArray(0)).isEqualTo(Arrays.asList(10, 20, 30));
-      assertThat(accessor.getArray(1)).isEqualTo(Arrays.asList(40));
+      assertThat(accessor.getArray(0)).isEqualTo(List.of(10, 20, 30));
+      assertThat(accessor.getArray(1)).isEqualTo(List.of(40));
     }
   }
 
@@ -179,8 +177,7 @@ public class TestArrowVectorAccessors {
   public void largeListViewAccessor() {
     Field dataField = new Field("item", FieldType.nullable(new ArrowType.Int(32, true)), null);
     Field largeListViewField =
-        new Field(
-            "list", FieldType.nullable(ArrowType.LargeListView.INSTANCE), Arrays.asList(dataField));
+        new Field("list", FieldType.nullable(ArrowType.LargeListView.INSTANCE), List.of(dataField));
     try (LargeListViewVector vector =
         (LargeListViewVector) largeListViewField.createVector(allocator)) {
       vector.allocateNew();
@@ -201,8 +198,8 @@ public class TestArrowVectorAccessors {
 
       ArrowVectorAccessor<BigDecimal, String, Object, ValueVector> accessor =
           accessorFor(vector, PrimitiveTypeName.INT32, listField());
-      assertThat(accessor.getArray(0)).isEqualTo(Arrays.asList(10, 20, 30));
-      assertThat(accessor.getArray(1)).isEqualTo(Arrays.asList(40));
+      assertThat(accessor.getArray(0)).isEqualTo(List.of(10, 20, 30));
+      assertThat(accessor.getArray(1)).isEqualTo(List.of(40));
     }
   }
 
@@ -210,8 +207,7 @@ public class TestArrowVectorAccessors {
   public void largeListAccessor() {
     Field dataField = new Field("item", FieldType.nullable(new ArrowType.Int(32, true)), null);
     Field largeListField =
-        new Field(
-            "list", FieldType.nullable(ArrowType.LargeList.INSTANCE), Arrays.asList(dataField));
+        new Field("list", FieldType.nullable(ArrowType.LargeList.INSTANCE), List.of(dataField));
     try (LargeListVector vector = (LargeListVector) largeListField.createVector(allocator)) {
       // row 0 -> [10, 20, 30], row 1 -> [40]
       UnionLargeListWriter writer = vector.getWriter();
@@ -227,8 +223,8 @@ public class TestArrowVectorAccessors {
 
       ArrowVectorAccessor<BigDecimal, String, Object, ValueVector> accessor =
           accessorFor(vector, PrimitiveTypeName.INT32, listField());
-      assertThat(accessor.getArray(0)).isEqualTo(Arrays.asList(10, 20, 30));
-      assertThat(accessor.getArray(1)).isEqualTo(Arrays.asList(40));
+      assertThat(accessor.getArray(0)).isEqualTo(List.of(10, 20, 30));
+      assertThat(accessor.getArray(1)).isEqualTo(List.of(40));
     }
   }
 
@@ -280,7 +276,7 @@ public class TestArrowVectorAccessors {
     @Override
     public Object ofRow(ValueVector childData, int elementStart, int numElements) {
       IntVector child = (IntVector) childData;
-      List<Integer> values = new ArrayList<>(numElements);
+      List<Integer> values = Lists.newArrayListWithCapacity(numElements);
       for (int i = 0; i < numElements; i++) {
         values.add(child.get(elementStart + i));
       }
