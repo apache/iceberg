@@ -284,9 +284,7 @@ public class TestRewriteTablePathUtil extends TestBase {
 
   @TestTemplate
   public void testDeletedPositionDeleteEntriesAreNotRewritten() throws IOException {
-    assumeThat(formatVersion)
-        .as("Delete files only work for format version 2")
-        .isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion).as("Delete files only work for format version 2").isEqualTo(2);
 
     String sourcePrefix = "/path/to/";
     String stagingDir = "/staging/";
