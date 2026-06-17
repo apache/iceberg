@@ -266,8 +266,7 @@ class ParquetMetrics {
         int truncateLength) {
       if (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
         return null;
-      } else if (truncateLength <= 0
-          || (icebergType != null && isGeospatial(icebergType))) {
+      } else if (truncateLength <= 0 || isGeospatial(icebergType)) {
         // Parquet lexicographic min/max is not meaningful for spatial WKB.
         return counts(fieldId);
       } else {
