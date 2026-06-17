@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,6 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class TestTrackedFileStruct {
   private static final int WRITER_FORMAT_VERSION_V4 = 4;
@@ -325,6 +328,48 @@ class TestTrackedFileStruct {
     }
   }
 
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA", "DATA_MANIFEST"})
+  public void testSettingFirstRowId(FileContent content) {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            existingTracking(),
+            content,
+            WRITER_FORMAT_VERSION_V4,
+            "s3://bucket/data/file",
+            FileFormat.PARQUET,
+            new PartitionData(Types.StructType.of()),
+            0L,
+            0L);
+
+    file.setFirstRowId(42);
+
+    assertThat(file.tracking().firstRowId()).isEqualTo(42L);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"EQUALITY_DELETES", "DELETE_MANIFEST"})
+  public void testSettingFirstRowIdNotAllowedForSomeContentTypes(FileContent content) {
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            existingTracking(),
+            content,
+            WRITER_FORMAT_VERSION_V4,
+            "s3://bucket/data/file",
+            FileFormat.PARQUET,
+            new PartitionData(Types.StructType.of()),
+            0L,
+            0L);
+
+    assertThatThrownBy(() -> file.setFirstRowId(42))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot set first row id on an equality delete or delete manifest entry");
+  }
+
   @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     TrackedFileStruct file = createFullTrackedFile();
@@ -410,6 +455,13 @@ class TestTrackedFileStruct {
     partition.set(0, idBucket);
     partition.set(1, category);
     return partition;
+  }
+
+  private static TrackingStruct existingTracking() {
+    TrackingStruct source = (TrackingStruct) TrackingBuilder.added(5L).build();
+    source.set(2, 10L);
+    source.set(3, 11L);
+    return (TrackingStruct) TrackingBuilder.from(source, 20L).build();
   }
 
   static TrackedFileStruct createTrackedFileWithStats() {

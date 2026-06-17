@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -160,6 +161,14 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         toCopy.equalityIds != null
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
+  }
+
+  /** Sets the first row id on this {@link TrackedFileStruct} */
+  public void setFirstRowId(int firstRowId) {
+    Preconditions.checkState(
+        contentType == FileContent.DATA || contentType == FileContent.DATA_MANIFEST,
+        "Cannot set first row id on an equality delete or delete manifest entry");
+    ((TrackingStruct) tracking).setFirstRowId(firstRowId);
   }
 
   @Override
