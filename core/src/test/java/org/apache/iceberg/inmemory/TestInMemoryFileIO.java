@@ -21,15 +21,20 @@ package org.apache.iceberg.inmemory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestInMemoryFileIO {
 
@@ -137,6 +142,78 @@ public class TestInMemoryFileIO {
     Map<String, String> properties = ImmutableMap.of("key1", "value1", "key2", "value2");
     io.initialize(properties);
     assertThat(io.properties()).isEqualTo(properties);
+  }
+
+  @Test
+  public void tryRenameMovesInMemoryEntry() {
+    String from = randomLocation();
+    String to = randomLocation();
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.addFile(from, "payload".getBytes());
+
+    assertThat(InMemoryFileIO.tryRename(from, to)).isTrue();
+    assertThat(fileIO.fileExists(from)).isFalse();
+    assertThat(fileIO.fileExists(to)).isTrue();
+  }
+
+  @Test
+  public void tryRenameReturnsFalseWhenSourceMissing() {
+    assertThat(InMemoryFileIO.tryRename("s3://nope/" + UUID.randomUUID(), "s3://nope/other"))
+        .isFalse();
+  }
+
+  @Test
+  public void diskFallbackReadsLocalFileWhenNotInMemory(@TempDir Path tempDir) throws IOException {
+    File diskFile = tempDir.resolve("payload.bin").toFile();
+    Files.write(diskFile.toPath(), "from-disk".getBytes());
+
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.initialize(ImmutableMap.of(InMemoryFileIO.DISK_FALLBACK, "true"));
+
+    InputFile input = fileIO.newInputFile("file:" + diskFile.getAbsolutePath());
+    try (InputStream stream = input.newStream()) {
+      byte[] buf = new byte[(int) input.getLength()];
+      assertThat(stream.read(buf)).isEqualTo(buf.length);
+      assertThat(new String(buf)).isEqualTo("from-disk");
+    }
+  }
+
+  @Test
+  public void diskFallbackDoesNotShadowInMemoryReads(@TempDir Path tempDir) throws IOException {
+    File diskFile = tempDir.resolve("shared.bin").toFile();
+    Files.write(diskFile.toPath(), "from-disk".getBytes());
+    String location = "file:" + diskFile.getAbsolutePath();
+
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.initialize(ImmutableMap.of(InMemoryFileIO.DISK_FALLBACK, "true"));
+    fileIO.addFile(location, "from-memory".getBytes());
+
+    InputFile input = fileIO.newInputFile(location);
+    try (InputStream stream = input.newStream()) {
+      byte[] buf = new byte[(int) input.getLength()];
+      assertThat(stream.read(buf)).isEqualTo(buf.length);
+      assertThat(new String(buf)).isEqualTo("from-memory");
+    }
+  }
+
+  @Test
+  public void diskFallbackOffStillThrowsForUnknownLocation() {
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    assertThatExceptionOfType(NotFoundException.class)
+        .isThrownBy(() -> fileIO.newInputFile("file:/var/empty/" + UUID.randomUUID()))
+        .withMessageContaining("No in-memory file found");
+  }
+
+  @Test
+  public void diskFallbackDeleteRemovesLocalFile(@TempDir Path tempDir) throws IOException {
+    File diskFile = tempDir.resolve("delete-me.bin").toFile();
+    Files.write(diskFile.toPath(), "bytes".getBytes());
+
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.initialize(ImmutableMap.of(InMemoryFileIO.DISK_FALLBACK, "true"));
+    fileIO.deleteFile("file:" + diskFile.getAbsolutePath());
+
+    assertThat(diskFile).doesNotExist();
   }
 
   private String randomLocation() {

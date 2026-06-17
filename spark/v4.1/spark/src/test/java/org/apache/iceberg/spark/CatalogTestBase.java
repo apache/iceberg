@@ -37,9 +37,9 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
         SparkCatalogConfig.HIVE.properties()
       },
       {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties()
+        SparkCatalogConfig.INMEMORY.catalogName(),
+        SparkCatalogConfig.INMEMORY.implementation(),
+        SparkCatalogConfig.INMEMORY.properties()
       },
       {
         SparkCatalogConfig.SPARK_SESSION.catalogName(),

@@ -31,6 +31,7 @@ import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -41,6 +42,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.RESTCatalogServer;
@@ -52,6 +54,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
+import scala.collection.JavaConverters;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestBaseWithCatalog extends TestBase {
@@ -81,9 +84,9 @@ public abstract class TestBaseWithCatalog extends TestBase {
   protected static Object[][] parameters() {
     return new Object[][] {
       {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties()
+        SparkCatalogConfig.INMEMORY.catalogName(),
+        SparkCatalogConfig.INMEMORY.implementation(),
+        SparkCatalogConfig.INMEMORY.properties()
       },
     };
   }
@@ -132,7 +135,17 @@ public abstract class TestBaseWithCatalog extends TestBase {
           this.validationCatalog = restCatalog;
           break;
         case ICEBERG_CATALOG_TYPE_HIVE:
-          this.validationCatalog = catalog;
+          // If the test's catalogConfig overrides FileIO, the shared TestBase.catalog (which
+          // uses HadoopFileIO) won't see files written through Spark's HiveCatalog. Build a
+          // fresh HiveCatalog with the same FileIO so reads round-trip.
+          if (catalogConfig.containsKey(CatalogProperties.FILE_IO_IMPL)) {
+            this.validationCatalog =
+                (HiveCatalog)
+                    CatalogUtil.loadCatalog(
+                        HiveCatalog.class.getName(), "hive", catalogConfig, hiveConf);
+          } else {
+            this.validationCatalog = catalog;
+          }
           break;
         default:
           throw new IllegalArgumentException("Unknown catalog type: " + catalogType);
@@ -140,7 +153,11 @@ public abstract class TestBaseWithCatalog extends TestBase {
     } else if (catalogConfig.containsKey(CATALOG_IMPL)) {
       switch (catalogConfig.get(CATALOG_IMPL)) {
         case "org.apache.iceberg.inmemory.InMemoryCatalog":
-          this.validationCatalog = new InMemoryCatalog();
+          // Initialize a separate InMemoryCatalog instance with the same SHARED_STORE_ID so
+          // that it shares namespaces, tables, and views with Spark's catalog.
+          InMemoryCatalog inMemoryCatalog = new InMemoryCatalog();
+          inMemoryCatalog.initialize(catalogName, catalogConfig);
+          this.validationCatalog = inMemoryCatalog;
           break;
         default:
           throw new IllegalArgumentException("Unknown catalog impl");
@@ -151,7 +168,20 @@ public abstract class TestBaseWithCatalog extends TestBase {
 
   @BeforeEach
   public void before() {
-    configureValidationCatalog();
+    // Clear any stale Spark catalog properties left over from a previous parameterization.
+    // The shared static SparkSession persists configuration across test classes, so a leftover
+    // key like spark.sql.catalog.<name>.io-impl from a previous run would silently override the
+    // current test's catalog configuration and cause cross-FileIO contamination.
+    String prefix = "spark.sql.catalog." + catalogName + ".";
+    Map<String, String> currentConf = JavaConverters.mapAsJavaMap(spark.conf().getAll());
+    currentConf
+        .keySet()
+        .forEach(
+            key -> {
+              if (key.equals("spark.sql.catalog." + catalogName) || key.startsWith(prefix)) {
+                spark.conf().unset(key);
+              }
+            });
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
     catalogConfig.forEach(
@@ -161,10 +191,14 @@ public abstract class TestBaseWithCatalog extends TestBase {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 
+    configureValidationCatalog();
+
     this.tableName =
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
-    sql("CREATE NAMESPACE IF NOT EXISTS default");
+    if (!validationNamespaceCatalog.namespaceExists(Namespace.of("default"))) {
+      validationNamespaceCatalog.createNamespace(Namespace.of("default"));
+    }
   }
 
   protected String tableName(String name) {
