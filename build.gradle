@@ -1173,7 +1173,6 @@ project(':iceberg-open-api') {
       from tasks.testFixturesJar
     }
   }
-  build.dependsOn 'installRESTServer'
 
   jar {
     enabled = false
