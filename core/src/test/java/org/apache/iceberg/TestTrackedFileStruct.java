@@ -35,11 +35,14 @@ class TestTrackedFileStruct {
           Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
           Types.NestedField.optional(1001, "category", Types.StringType.get()));
 
+  // Ordinal of MetadataColumns.ROW_POSITION within TrackingStruct's BASE_TYPE,
+  // which appends ROW_POSITION after the Tracking schema fields.
+  private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
+
   @Test
   void testFieldAccess() {
     TrackedFileStruct file = new TrackedFileStruct();
-    TrackingStruct tracking =
-        TrackingStruct.builder().status(EntryStatus.ADDED).snapshotId(42L).build();
+    Tracking tracking = TrackingBuilder.added(42L).build();
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")
@@ -98,9 +101,9 @@ class TestTrackedFileStruct {
   void testReaderSideFields() {
     TrackedFileStruct file = new TrackedFileStruct();
 
-    TrackingStruct tracking = TrackingStruct.builder().status(EntryStatus.ADDED).build();
+    TrackingStruct tracking = new TrackingStruct();
     tracking.setManifestLocation("s3://bucket/metadata/manifest.avro");
-    tracking.set(8, 7L);
+    tracking.set(MANIFEST_POS_ORDINAL, 7L);
 
     file.set(0, tracking);
     file.set(1, FileContent.DATA.id());
@@ -328,14 +331,9 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking =
-        TrackingStruct.builder()
-            .status(EntryStatus.ADDED)
-            .snapshotId(42L)
-            .dataSequenceNumber(10L)
-            .build();
+    TrackingStruct tracking = (TrackingStruct) TrackingBuilder.added(42L).build();
     tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.set(8, 3L);
+    tracking.set(MANIFEST_POS_ORDINAL, 3L);
 
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
@@ -377,20 +375,20 @@ class TestTrackedFileStruct {
                 10000,
                 "1",
                 Types.StructType.of(
-                    Types.NestedField.optional(10001, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10002, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10003, "nan_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(10006, "lower_bound", Types.IntegerType.get()),
-                    Types.NestedField.optional(10007, "upper_bound", Types.IntegerType.get()))),
+                    Types.NestedField.optional(10001, "lower_bound", Types.IntegerType.get()),
+                    Types.NestedField.optional(10002, "upper_bound", Types.IntegerType.get()),
+                    Types.NestedField.optional(10004, "value_count", Types.LongType.get()),
+                    Types.NestedField.optional(10005, "null_value_count", Types.LongType.get()),
+                    Types.NestedField.optional(10006, "nan_value_count", Types.LongType.get()))),
             Types.NestedField.optional(
                 20000,
                 "2",
                 Types.StructType.of(
-                    Types.NestedField.optional(20001, "value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20002, "null_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20003, "nan_value_count", Types.LongType.get()),
-                    Types.NestedField.optional(20006, "lower_bound", Types.FloatType.get()),
-                    Types.NestedField.optional(20007, "upper_bound", Types.FloatType.get()))));
+                    Types.NestedField.optional(20001, "lower_bound", Types.FloatType.get()),
+                    Types.NestedField.optional(20002, "upper_bound", Types.FloatType.get()),
+                    Types.NestedField.optional(20004, "value_count", Types.LongType.get()),
+                    Types.NestedField.optional(20005, "null_value_count", Types.LongType.get()),
+                    Types.NestedField.optional(20006, "nan_value_count", Types.LongType.get()))));
 
     List<FieldStats<?>> fieldStatsList =
         ImmutableList.of(
