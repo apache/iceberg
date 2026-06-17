@@ -86,7 +86,7 @@ When making changes to the local files and test them out, you can build the imag
 
 ```bash
 # Build the project from iceberg root directory
-./gradlew :iceberg-open-api:installRESTServer
+./gradlew :iceberg-open-api:stageRESTFixtureRuntime
 
 # Rebuild the docker image
 docker image rm -f apache/iceberg-rest-fixture && docker build -t apache/iceberg-rest-fixture -f docker/iceberg-rest-fixture/Dockerfile .
