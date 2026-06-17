@@ -277,6 +277,7 @@ class TestEqualityConvertReader extends OperatorTestBase {
 
       assertThat(harness.extractOutputValues()).isEmpty();
       assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      assertThat(harness.getSideOutput(EqualityConvertReader.READER_ABORT_STREAM)).hasSize(1);
     }
   }
 
@@ -335,6 +336,41 @@ class TestEqualityConvertReader extends OperatorTestBase {
 
       assertThat(harness.extractOutputValues()).isEmpty();
       assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      assertThat(harness.getSideOutput(EqualityConvertReader.READER_ABORT_STREAM)).hasSize(1);
+    }
+  }
+
+  @Test
+  void throwsOnV2PositionalDeleteAttachedToMainDataFile() throws Exception {
+    Table table = createTableWithDelete(3);
+
+    DataFile dataFile =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+            .writeFile(Lists.newArrayList(createRecord(1, "a")));
+    table.newAppend().appendFile(dataFile).commit();
+    table.refresh();
+
+    DeleteFile posDelete = writePosDeleteFile(table, dataFile.location(), 0L);
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    List<Integer> fieldIds = Lists.newArrayList(1);
+
+    try (OneInputStreamOperatorTestHarness<ReadCommand, IndexCommand> harness =
+        createHarness(fieldIds)) {
+      harness.open();
+
+      // A V2 positional delete attached to a main data file means the target is not a DV-only V3
+      // target, the reader must route to the error output.
+      ReadCommand cmd =
+          ReadCommand.dataFile(
+              new FlinkAddedRowsScanTask(dataFile, spec, Lists.newArrayList(posDelete)),
+              0L,
+              0L,
+              0L);
+      harness.processElement(cmd, 0);
+
+      assertThat(harness.extractOutputValues()).isEmpty();
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      assertThat(harness.getSideOutput(EqualityConvertReader.READER_ABORT_STREAM)).hasSize(1);
     }
   }
 
