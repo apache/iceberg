@@ -266,10 +266,14 @@ class IcebergToGlueConverter {
       Map<String, String> existingColumnMap = null;
       if (existingTable != null) {
         List<Column> existingColumns = existingTable.storageDescriptor().columns();
+        // First-seen-wins on duplicate names. toColumns writes current-schema columns before
+        // historical-schema columns. Preserve the current-schema comment.
         existingColumnMap =
             existingColumns.stream()
                 .filter(column -> column.comment() != null)
-                .collect(Collectors.toMap(Column::name, Column::comment));
+                .collect(
+                    Collectors.toMap(
+                        Column::name, Column::comment, (existing, duplicate) -> existing));
       } else {
         existingColumnMap = Collections.emptyMap();
       }
