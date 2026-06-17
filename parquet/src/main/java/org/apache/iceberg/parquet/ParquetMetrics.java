@@ -33,6 +33,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -265,7 +266,8 @@ class ParquetMetrics {
         int truncateLength) {
       if (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
         return null;
-      } else if (truncateLength <= 0 || isGeospatial(icebergType)) {
+      } else if (truncateLength <= 0
+          || (icebergType != null && isGeospatial(icebergType))) {
         // Parquet lexicographic min/max is not meaningful for spatial WKB.
         return counts(fieldId);
       } else {
@@ -274,11 +276,7 @@ class ParquetMetrics {
     }
 
     private static boolean isGeospatial(org.apache.iceberg.types.Type.PrimitiveType icebergType) {
-      if (icebergType == null) {
-        return false;
-      }
-
-      TypeID typeId = icebergType.typeId();
+      TypeID typeId = Preconditions.checkNotNull(icebergType, "Invalid type: null").typeId();
       return typeId == TypeID.GEOMETRY || typeId == TypeID.GEOGRAPHY;
     }
 
