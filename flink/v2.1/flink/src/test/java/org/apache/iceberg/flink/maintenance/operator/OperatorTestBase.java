@@ -450,6 +450,19 @@ public class OperatorTestBase {
         SCHEMA_WITH_PRIMARY_KEY);
   }
 
+  protected DeleteFile writePosDeleteFile(Table table, String dataFilePath, long pos)
+      throws IOException {
+    File file = File.createTempFile("junit", null, warehouseDir.toFile());
+    assertThat(file.delete()).isTrue();
+    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
+    GenericRecord nested = GenericRecord.create(table.schema());
+    nested.set(0, 1);
+    nested.set(1, "a");
+    posDelete.set(dataFilePath, pos, nested);
+    return FileHelpers.writePosDeleteFile(
+        table, Files.localOutput(file), null, Lists.newArrayList(posDelete), 2);
+  }
+
   private DeleteFile writePosDelete(
       Table table, CharSequence path, Integer pos, Integer id, String oldData, int formatVersion)
       throws IOException {
