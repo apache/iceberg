@@ -20,7 +20,6 @@ package org.apache.iceberg.arrow.vectorized;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -41,6 +40,7 @@ import org.apache.arrow.vector.complex.impl.UnionLargeListWriter;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.parquet.column.ColumnDescriptor;
