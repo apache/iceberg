@@ -168,29 +168,6 @@ public class TestSparkFileRewriteRunners extends TestBase {
     assertThat(rewriter.description()).isEqualTo("HILBERT");
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .containsExactlyInAnyOrder(
-            SparkHilbertFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE,
-            SparkHilbertFileRewriteRunner.BITS_PER_COLUMN);
-  }
-
-  @Test
-  public void testInvalidValuesForHilbertDataOptions() {
-    Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
-    ImmutableList<String> hilbertCols = ImmutableList.of("id");
-    SparkHilbertFileRewriteRunner rewriter =
-        new SparkHilbertFileRewriteRunner(spark, table, hilbertCols);
-
-    Map<String, String> notMultipleOfEight =
-        ImmutableMap.of(SparkHilbertFileRewriteRunner.BITS_PER_COLUMN, "7");
-    assertThatThrownBy(() -> rewriter.init(notMultipleOfEight))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("must be a positive multiple of 8 no greater than 64")
-        .hasMessageContaining("'bits-per-column'");
-
-    Map<String, String> tooLarge =
-        ImmutableMap.of(SparkHilbertFileRewriteRunner.BITS_PER_COLUMN, "72");
-    assertThatThrownBy(() -> rewriter.init(tooLarge))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("must be a positive multiple of 8 no greater than 64");
+        .containsExactlyInAnyOrder(SparkHilbertFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE);
   }
 }
