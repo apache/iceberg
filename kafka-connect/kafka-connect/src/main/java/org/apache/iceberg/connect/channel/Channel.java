@@ -162,23 +162,28 @@ abstract class Channel {
     try {
       producer.close();
     } catch (RuntimeException e) {
-      failure = e;
+      failure = appendFailure(failure, e);
       LOG.warn("Error closing channel producer", e);
     }
 
     try {
       consumer.close();
     } catch (RuntimeException e) {
-      if (failure != null) {
-        failure.addSuppressed(e);
-      } else {
-        failure = e;
-      }
+      failure = appendFailure(failure, e);
       LOG.warn("Error closing channel consumer", e);
     }
 
     if (failure != null) {
       throw failure;
     }
+  }
+
+  static RuntimeException appendFailure(RuntimeException failure, RuntimeException next) {
+    if (failure == null) {
+      return next;
+    }
+
+    failure.addSuppressed(next);
+    return failure;
   }
 }

@@ -120,17 +120,13 @@ class Worker extends Channel {
     try {
       super.stop();
     } catch (RuntimeException e) {
-      failure = e;
+      failure = Channel.appendFailure(failure, e);
     }
 
     try {
       sinkWriter.close();
     } catch (RuntimeException e) {
-      if (failure != null) {
-        failure.addSuppressed(e);
-      } else {
-        failure = e;
-      }
+      failure = Channel.appendFailure(failure, e);
     }
 
     if (failure != null) {

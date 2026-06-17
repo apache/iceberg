@@ -165,7 +165,7 @@ public class CommitterImpl implements Committer {
     try {
       stopWorker();
     } catch (RuntimeException e) {
-      failure = appendFailure(failure, e);
+      failure = Channel.appendFailure(failure, e);
       LOG.warn("Committer {} failed to stop worker, continuing cleanup", taskId, e);
     }
 
@@ -184,7 +184,7 @@ public class CommitterImpl implements Committer {
       try {
         stopCoordinator();
       } catch (RuntimeException e) {
-        failure = appendFailure(failure, e);
+        failure = Channel.appendFailure(failure, e);
         LOG.warn("Committer {} failed to stop coordinator", taskId, e);
       }
       if (failure != null) {
@@ -194,24 +194,24 @@ public class CommitterImpl implements Committer {
     }
 
     // Normal close: if leader partition is lost, stop coordinator.
-    boolean stopCoordinator = false;
+    boolean shouldStopCoordinator = false;
     try {
-      stopCoordinator = hasLeaderPartition(closedPartitions);
+      shouldStopCoordinator = hasLeaderPartition(closedPartitions);
     } catch (RuntimeException e) {
-      failure = appendFailure(failure, e);
-      stopCoordinator = true;
+      failure = Channel.appendFailure(failure, e);
+      shouldStopCoordinator = true;
       LOG.warn(
           "Committer {} could not determine whether leader partition was lost, stopping coordinator",
           taskId,
           e);
     }
 
-    if (stopCoordinator) {
+    if (shouldStopCoordinator) {
       LOG.info("Committer {} lost leader partition. Stopping coordinator.", taskId);
       try {
         stopCoordinator();
       } catch (RuntimeException e) {
-        failure = appendFailure(failure, e);
+        failure = Channel.appendFailure(failure, e);
         LOG.warn("Committer {} failed to stop coordinator", taskId, e);
       }
     }
@@ -221,7 +221,7 @@ public class CommitterImpl implements Committer {
     try {
       KafkaUtils.seekToLastCommittedOffsets(context);
     } catch (RuntimeException e) {
-      failure = appendFailure(failure, e);
+      failure = Channel.appendFailure(failure, e);
       LOG.warn("Committer {} failed to seek to last committed offsets", taskId, e);
     }
 
@@ -280,14 +280,5 @@ public class CommitterImpl implements Committer {
       coordinatorThread.terminate();
       coordinatorThread = null;
     }
-  }
-
-  private RuntimeException appendFailure(RuntimeException failure, RuntimeException next) {
-    if (failure == null) {
-      return next;
-    }
-
-    failure.addSuppressed(next);
-    return failure;
   }
 }

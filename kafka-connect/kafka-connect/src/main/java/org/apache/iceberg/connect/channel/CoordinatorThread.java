@@ -71,7 +71,7 @@ class CoordinatorThread extends Thread {
     try {
       coordinator.terminate();
     } catch (RuntimeException e) {
-      failure = e;
+      failure = Channel.appendFailure(failure, e);
     }
 
     if (Thread.currentThread() != this) {
@@ -80,21 +80,13 @@ class CoordinatorThread extends Thread {
         if (isAlive()) {
           ConnectException timeout =
               new ConnectException("Timed out waiting for coordinator thread shutdown");
-          if (failure != null) {
-            failure.addSuppressed(timeout);
-          } else {
-            failure = timeout;
-          }
+          failure = Channel.appendFailure(failure, timeout);
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         ConnectException interrupted =
             new ConnectException("Interrupted while waiting for coordinator thread shutdown", e);
-        if (failure != null) {
-          failure.addSuppressed(interrupted);
-        } else {
-          failure = interrupted;
-        }
+        failure = Channel.appendFailure(failure, interrupted);
       }
     }
 
