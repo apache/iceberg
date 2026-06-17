@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.data;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -31,10 +33,13 @@ import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.iceberg.data.vortex.GenericVortexReaders;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.vortex.VortexValueReader;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkVortexValueReaders {
   private SparkVortexValueReaders() {}
@@ -60,6 +65,10 @@ public class SparkVortexValueReaders {
   public static VortexValueReader<Long> time(TimeUnit timeUnit) {
     // Spark's TimeType is stored as microseconds since midnight (Long).
     return new TimeReader(timeUnit);
+  }
+
+  public static VortexValueReader<VariantVal> variants() {
+    return VariantReader.INSTANCE;
   }
 
   static class UTF8Reader implements VortexValueReader<UTF8String> {
@@ -154,6 +163,37 @@ public class SparkVortexValueReaders {
         case MILLISECOND -> Math.multiplyExact(measure, 1_000L);
         case SECOND -> Math.multiplyExact(measure, 1_000_000L);
       };
+    }
+  }
+
+  // Converts the Iceberg Variant produced by the shared Vortex reader into Spark's VariantVal by
+  // re-serializing metadata and value to little-endian buffers (mirrors SparkParquetReaders).
+  static class VariantReader implements VortexValueReader<VariantVal> {
+    static final VariantReader INSTANCE = new VariantReader();
+
+    private final VortexValueReader<Variant> delegate = GenericVortexReaders.variants();
+
+    private VariantReader() {}
+
+    @Override
+    public VariantVal read(FieldVector vector, int row) {
+      Variant variant = delegate.read(vector, row);
+      return variant == null ? null : toVariantVal(variant);
+    }
+
+    @Override
+    public VariantVal readNonNull(FieldVector vector, int row) {
+      return toVariantVal(delegate.readNonNull(vector, row));
+    }
+
+    private static VariantVal toVariantVal(Variant variant) {
+      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+      variant.metadata().writeTo(ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+
+      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+      variant.value().writeTo(ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+
+      return new VariantVal(valueBytes, metadataBytes);
     }
   }
 }

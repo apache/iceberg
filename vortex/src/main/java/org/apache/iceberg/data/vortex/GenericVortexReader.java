@@ -191,6 +191,11 @@ public class GenericVortexReader implements VortexRowReader<Record> {
       return simpleReader(arrowType);
     }
 
+    @Override
+    public VortexValueReader<?> variant(Types.VariantType variantType, Field variantField) {
+      return GenericVortexReaders.variants();
+    }
+
     private static VortexValueReader<?> simpleReader(ArrowType arrowType) {
       if (arrowType instanceof ArrowType.Bool) {
         return GenericVortexReaders.bools();

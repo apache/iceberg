@@ -40,6 +40,8 @@ public abstract class VortexSchemaWithTypeVisitor<T> {
 
   public abstract T primitive(Type.PrimitiveType iPrimitive, Field primField);
 
+  public abstract T variant(Types.VariantType variantType, Field variantField);
+
   public static <T> T visit(
       Schema expectedSchema,
       org.apache.arrow.vector.types.pojo.Schema fileSchema,
@@ -48,6 +50,10 @@ public abstract class VortexSchemaWithTypeVisitor<T> {
   }
 
   public static <T> T visit(Type iType, Field field, VortexSchemaWithTypeVisitor<T> visitor) {
+    if (isVariant(iType, field)) {
+      return visitor.variant(iType != null ? iType.asVariantType() : null, field);
+    }
+
     ArrowType arrowType = field.getType();
     if (arrowType instanceof ArrowType.Struct) {
       return visitStruct(iType != null ? iType.asStructType() : null, field.getChildren(), visitor);
@@ -61,6 +67,10 @@ public abstract class VortexSchemaWithTypeVisitor<T> {
     } else {
       return visitor.primitive(iType != null ? iType.asPrimitiveType() : null, field);
     }
+  }
+
+  private static boolean isVariant(Type iType, Field field) {
+    return (iType != null && iType.isVariantType()) || VortexSchemas.isVariantField(field);
   }
 
   private static <T> T visitStruct(

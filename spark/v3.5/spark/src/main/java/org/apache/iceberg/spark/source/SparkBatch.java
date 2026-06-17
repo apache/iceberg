@@ -38,6 +38,8 @@ import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.VortexBatchReadConf;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -191,9 +193,12 @@ class SparkBatch implements Batch {
   }
 
   // conditions for using Vortex batch reads:
+  // - no variant is projected (ArrowColumnVector cannot surface a variant as Spark's VariantVal, so
+  //   variant projections fall back to the row-based reader, which does support variant)
   // - all tasks are of FileScanTask type and read only Vortex files
   private boolean useVortexBatchReads() {
-    return taskGroups.stream().allMatch(this::supportsVortexBatchReads);
+    return TypeUtil.find(expectedSchema, Type::isVariantType) == null
+        && taskGroups.stream().allMatch(this::supportsVortexBatchReads);
   }
 
   private boolean supportsVortexBatchReads(ScanTask task) {

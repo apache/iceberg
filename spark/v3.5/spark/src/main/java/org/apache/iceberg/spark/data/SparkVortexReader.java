@@ -148,6 +148,12 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     }
 
     @Override
+    public VortexValueReader<?> variant(Types.VariantType variantType, Field variantField) {
+      // Spark 3.5 has no VariantType/VariantVal, so variant columns cannot be read here.
+      throw new UnsupportedOperationException("Variant is not supported for Spark 3.5");
+    }
+
+    @Override
     public VortexValueReader<?> primitive(Type.PrimitiveType icebergType, Field primField) {
       return switch (icebergType.typeId()) {
         case BOOLEAN -> GenericVortexReaders.bools();

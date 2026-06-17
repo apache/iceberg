@@ -31,6 +31,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -40,6 +41,12 @@ import org.apache.iceberg.types.Types;
 public final class VortexSchemas {
   /** Canonical Arrow extension name for UUIDs (matches {@code arrow.vector.extension.UuidType}). */
   static final String UUID_EXTENSION_NAME = "arrow.uuid";
+
+  /**
+   * Canonical Arrow extension name for Parquet variant (matches {@code
+   * arrow.vector.extension.ParquetVariant}).
+   */
+  static final String VARIANT_EXTENSION_NAME = "arrow.parquet.variant";
 
   private VortexSchemas() {}
 
@@ -228,6 +235,25 @@ public final class VortexSchemas {
 
         yield new Field(
             name, new FieldType(nullable, ArrowType.Struct.INSTANCE, null), children.build());
+      }
+      case VARIANT -> {
+        Map<String, String> extMetadata =
+            ImmutableMap.of(
+                ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME,
+                VARIANT_EXTENSION_NAME,
+                ArrowType.ExtensionType.EXTENSION_METADATA_KEY_METADATA,
+                "");
+
+        ImmutableList.Builder<Field> children = ImmutableList.builder();
+        children.add(
+            new Field("metadata", new FieldType(false, ArrowType.Binary.INSTANCE, null), null));
+        children.add(
+            new Field("value", new FieldType(true, ArrowType.Binary.INSTANCE, null), null));
+
+        yield new Field(
+            name,
+            new FieldType(nullable, ArrowType.Struct.INSTANCE, null, extMetadata),
+            children.build());
       }
       default ->
           throw new UnsupportedOperationException(
@@ -459,6 +485,9 @@ public final class VortexSchemas {
             null,
             children.build());
       }
+      case VARIANT -> {
+        yield toVortexVariantArrowField(name, nullable);
+      }
       default ->
           throw new UnsupportedOperationException(
               "Unsupported Iceberg type for Arrow conversion: " + type);
@@ -485,13 +514,47 @@ public final class VortexSchemas {
         children);
   }
 
+  private static dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field
+      toVortexVariantArrowField(String name, boolean nullable) {
+    Map<String, String> extMetadata =
+        ImmutableMap.of(
+            dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType
+                .EXTENSION_METADATA_KEY_NAME,
+            VARIANT_EXTENSION_NAME,
+            dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType
+                .EXTENSION_METADATA_KEY_METADATA,
+            "");
+
+    ImmutableList.Builder<dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field> children =
+        ImmutableList.builder();
+    children.add(
+        toVortexArrowField(
+            "metadata",
+            new dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Binary(),
+            false));
+    children.add(
+        toVortexArrowField(
+            "value",
+            new dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Binary(),
+            true));
+
+    return toVortexArrowField(
+        name,
+        new dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Struct(),
+        nullable,
+        extMetadata,
+        children.build());
+  }
+
   private static Type toIcebergType(Field field, AtomicInteger nextId) {
     // UUID is conveyed as the {@code arrow.uuid} extension over
     // FixedSizeBinary(16). Check metadata directly so this works whether or not
     // the extension is registered with ExtensionTypeRegistry.
-    if (isUuidField(field)) {
-      return Types.UUIDType.get();
+    Type extensionType = toIcebergExtensionType(field);
+    if (extensionType != null) {
+      return extensionType;
     }
+
     ArrowType arrowType = field.getType();
     if (arrowType instanceof ArrowType.Int intType) {
       return intType.getBitWidth() <= Integer.SIZE ? Types.IntegerType.get() : Types.LongType.get();
@@ -513,11 +576,26 @@ public final class VortexSchemas {
     return toIcebergSimpleType(arrowType);
   }
 
-  private static Type toIcebergType(
-      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field, AtomicInteger nextId) {
+  private static Type toIcebergExtensionType(Field field) {
     if (isUuidField(field)) {
       return Types.UUIDType.get();
     }
+
+    if (isVariantField(field)) {
+      validateVariantField(field);
+      return Types.VariantType.get();
+    }
+
+    return null;
+  }
+
+  private static Type toIcebergType(
+      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field, AtomicInteger nextId) {
+    Type extensionType = toIcebergExtensionType(field);
+    if (extensionType != null) {
+      return extensionType;
+    }
+
     dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType arrowType = field.getType();
     if (arrowType
         instanceof dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.Int intType) {
@@ -551,6 +629,19 @@ public final class VortexSchemas {
       return Types.StructType.of(convertVortexFields(field.getChildren(), nextId));
     }
     return toIcebergSimpleType(arrowType);
+  }
+
+  private static Type toIcebergExtensionType(
+      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field) {
+    if (isUuidField(field)) {
+      return Types.UUIDType.get();
+    }
+
+    if (isVariantField(field)) {
+      return Types.VariantType.get();
+    }
+
+    return null;
   }
 
   private static Type toIcebergSimpleType(ArrowType arrowType) {
@@ -620,6 +711,69 @@ public final class VortexSchemas {
     };
   }
 
+  private static void validateVariantField(Field field) {
+    Preconditions.checkArgument(
+        field.getType() instanceof ArrowType.Struct,
+        "Invalid Arrow variant field %s: expected struct storage type, found %s",
+        field.getName(),
+        field.getType());
+
+    Field metadata = findChild(field, "metadata");
+    Preconditions.checkArgument(
+        metadata != null,
+        "Invalid Arrow variant field %s: missing metadata child",
+        field.getName());
+    Preconditions.checkArgument(
+        !metadata.isNullable(),
+        "Invalid Arrow variant field %s: metadata child must be non-nullable",
+        field.getName());
+    Preconditions.checkArgument(
+        isBinaryLike(metadata.getType()),
+        "Invalid Arrow variant field %s: metadata child must be binary, found %s",
+        field.getName(),
+        metadata.getType());
+
+    Field value = findChild(field, "value");
+    if (value != null) {
+      Preconditions.checkArgument(
+          value.isNullable(),
+          "Invalid Arrow variant field %s: value child must be nullable",
+          field.getName());
+      Preconditions.checkArgument(
+          isBinaryLike(value.getType()),
+          "Invalid Arrow variant field %s: value child must be binary, found %s",
+          field.getName(),
+          value.getType());
+    }
+
+    Field typedValue = findChild(field, "typed_value");
+    if (typedValue != null) {
+      Preconditions.checkArgument(
+          typedValue.isNullable(),
+          "Invalid Arrow variant field %s: typed_value child must be nullable",
+          field.getName());
+    }
+
+    Preconditions.checkArgument(
+        value != null || typedValue != null,
+        "Invalid Arrow variant field %s: expected value or typed_value child",
+        field.getName());
+  }
+
+  private static Field findChild(Field field, String name) {
+    for (Field child : field.getChildren()) {
+      if (name.equals(child.getName())) {
+        return child;
+      }
+    }
+
+    return null;
+  }
+
+  private static boolean isBinaryLike(ArrowType arrowType) {
+    return arrowType instanceof ArrowType.Binary || arrowType instanceof ArrowType.LargeBinary;
+  }
+
   private static Type toIcebergTimestamp(ArrowType.Timestamp tsType) {
     boolean isNano = tsType.getUnit() == TimeUnit.NANOSECOND;
     if (tsType.getTimezone() == null) {
@@ -678,6 +832,29 @@ public final class VortexSchemas {
       return UUID_EXTENSION_NAME.equals(ext.extensionName());
     }
     return UUID_EXTENSION_NAME.equals(
+        field
+            .getMetadata()
+            .get(
+                dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType
+                    .EXTENSION_METADATA_KEY_NAME));
+  }
+
+  public static boolean isVariantField(Field field) {
+    if (field.getType() instanceof ArrowType.ExtensionType ext) {
+      return VARIANT_EXTENSION_NAME.equals(ext.extensionName());
+    }
+    return VARIANT_EXTENSION_NAME.equals(
+        field.getMetadata().get(ArrowType.ExtensionType.EXTENSION_METADATA_KEY_NAME));
+  }
+
+  public static boolean isVariantField(
+      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Field field) {
+    if (field.getType()
+        instanceof
+        dev.vortex.relocated.org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType ext) {
+      return VARIANT_EXTENSION_NAME.equals(ext.extensionName());
+    }
+    return VARIANT_EXTENSION_NAME.equals(
         field
             .getMetadata()
             .get(

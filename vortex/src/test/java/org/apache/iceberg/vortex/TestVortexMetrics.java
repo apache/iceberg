@@ -148,6 +148,24 @@ public class TestVortexMetrics {
   }
 
   @Test
+  public void testVariantColumnReportsRowCountWithoutBounds() {
+    Schema variantSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "payload", Types.VariantType.get()));
+    FieldMetrics<Long> idMetrics = new FieldMetrics<>(1, 3, 0, 10L, 12L);
+
+    Metrics metrics =
+        VortexMetrics.buildMetrics(
+            3L, variantSchema, MetricsConfig.getDefault(), Stream.of(idMetrics));
+
+    assertThat(metrics.valueCounts()).containsEntry(2, 3L);
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(2);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
   public void testMetricsNoneMode() {
     MetricsConfig noneConfig =
         MetricsConfig.fromProperties(

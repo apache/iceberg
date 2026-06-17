@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.UUID;
 import org.apache.arrow.vector.BigIntVector;
@@ -43,9 +45,11 @@ import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.vortex.VortexValueWriter;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 /** Writes Spark {@link InternalRow} objects to Arrow vectors for Vortex file output. */
 public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
@@ -66,7 +70,7 @@ public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
       FieldVector vector = root.getVector(fieldIndex);
 
       if (field.isOptional() && datum.isNullAt(fieldIndex)) {
-        vector.setNull(rowIndex);
+        writeNull(vector, field.type(), rowIndex);
         continue;
       }
 
@@ -163,9 +167,44 @@ public class SparkVortexWriter implements VortexValueWriter<InternalRow> {
         // Mark the struct slot itself as non-null for this row.
         structVector.setIndexDefined(rowIndex);
         break;
+      case VARIANT:
+        writeVariant((StructVector) vector, row.getVariant(fieldIndex), rowIndex);
+        break;
       default:
         throw new UnsupportedOperationException(
             "Unsupported Iceberg type for Vortex write: " + type);
+    }
+  }
+
+  private static void writeNull(
+      FieldVector vector, org.apache.iceberg.types.Type type, int rowIndex) {
+    if (type.isVariantType()) {
+      writeNullVariant((StructVector) vector, rowIndex);
+    } else {
+      vector.setNull(rowIndex);
+    }
+  }
+
+  // Variant storage is an Arrow struct of { required metadata, optional value }. Spark's VariantVal
+  // already holds the serialized little-endian metadata and value, so copy them straight across.
+  private static void writeVariant(StructVector vector, VariantVal variant, int rowIndex) {
+    vector.getChild("metadata", VarBinaryVector.class).setSafe(rowIndex, variant.getMetadata());
+    vector.getChild("value", VarBinaryVector.class).setSafe(rowIndex, variant.getValue());
+    vector.setIndexDefined(rowIndex);
+  }
+
+  // The metadata child is required, so a null variant still needs a valid (empty) metadata entry.
+  private static void writeNullVariant(StructVector vector, int rowIndex) {
+    vector.setNull(rowIndex);
+
+    VariantMetadata empty = VariantMetadata.empty();
+    byte[] metadataBytes = new byte[empty.sizeInBytes()];
+    empty.writeTo(ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+    vector.getChild("metadata", VarBinaryVector.class).setSafe(rowIndex, metadataBytes);
+
+    VarBinaryVector valueVector = vector.getChild("value", VarBinaryVector.class);
+    if (valueVector != null) {
+      valueVector.setNull(rowIndex);
     }
   }
 }

@@ -90,6 +90,8 @@ final class VortexMetrics {
           }
         });
 
+    addVariantValueCounts(rowCount, schema, metricsConfig, valueCounts);
+
     return new Metrics(
         rowCount,
         null, // columnSizes not available without Vortex JNI support
@@ -99,6 +101,19 @@ final class VortexMetrics {
         lowerBounds.isEmpty() ? null : lowerBounds,
         upperBounds.isEmpty() ? null : upperBounds,
         originalTypes.isEmpty() ? null : originalTypes);
+  }
+
+  private static void addVariantValueCounts(
+      long rowCount, Schema schema, MetricsConfig metricsConfig, Map<Integer, Long> valueCounts) {
+    for (Types.NestedField column : schema.columns()) {
+      int id = column.fieldId();
+      MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, id);
+      if (column.type().isVariantType()
+          && mode != MetricsModes.None.get()
+          && !valueCounts.containsKey(id)) {
+        valueCounts.put(id, rowCount);
+      }
+    }
   }
 
   private static int truncateLength(MetricsModes.MetricsMode mode) {

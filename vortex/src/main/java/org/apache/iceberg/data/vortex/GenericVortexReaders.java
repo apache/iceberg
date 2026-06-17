@@ -20,6 +20,7 @@ package org.apache.iceberg.data.vortex;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -53,6 +54,9 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.vortex.VortexValueReader;
 
 public class GenericVortexReaders {
@@ -92,6 +96,10 @@ public class GenericVortexReaders {
 
   public static VortexValueReader<UUID> uuids() {
     return UuidReader.INSTANCE;
+  }
+
+  public static VortexValueReader<Variant> variants() {
+    return VariantReader.INSTANCE;
   }
 
   public static VortexValueReader<LocalDate> date(boolean isMillis) {
@@ -312,6 +320,77 @@ public class GenericVortexReaders {
       return (FixedSizeBinaryVector) ext.getUnderlyingVector();
     }
     return (FixedSizeBinaryVector) vector;
+  }
+
+  private static class VariantReader implements VortexValueReader<Variant> {
+    static final VariantReader INSTANCE = new VariantReader();
+
+    private VariantReader() {}
+
+    @Override
+    public Variant read(FieldVector vector, int row) {
+      StructVector storage = variantStorage(vector);
+      VarBinaryVector valueVector = storage.getChild("value", VarBinaryVector.class);
+      if (vector.isNull(row) || isMissingBinary(valueVector, row)) {
+        FieldVector typedValueVector = (FieldVector) storage.getChild("typed_value");
+        if (typedValueVector != null && !typedValueVector.isNull(row)) {
+          throw new UnsupportedOperationException(
+              "Reading shredded Variant values from Vortex is not supported yet");
+        }
+
+        return null;
+      }
+
+      return readVariant(storage, valueVector, row);
+    }
+
+    @Override
+    public Variant readNonNull(FieldVector vector, int row) {
+      StructVector storage = variantStorage(vector);
+      VarBinaryVector valueVector = storage.getChild("value", VarBinaryVector.class);
+      if (isMissingBinary(valueVector, row)) {
+        throw new UnsupportedOperationException(
+            "Reading shredded Variant values from Vortex is not supported yet");
+      }
+
+      return readVariant(storage, valueVector, row);
+    }
+
+    private Variant readVariant(StructVector storage, VarBinaryVector valueVector, int row) {
+      VarBinaryVector metadataVector = storage.getChild("metadata", VarBinaryVector.class);
+
+      if (metadataVector == null || metadataVector.isNull(row)) {
+        throw new IllegalStateException("Invalid Vortex variant: metadata is null");
+      }
+
+      byte[] metadataBytes = metadataVector.get(row);
+      byte[] valueBytes = valueVector.get(row);
+      if (metadataBytes.length == 0 || valueBytes.length == 0) {
+        throw new IllegalStateException(
+            "Invalid Vortex variant: serialized value is empty (metadata="
+                + metadataBytes.length
+                + ", value="
+                + valueBytes.length
+                + ")");
+      }
+
+      VariantMetadata metadata =
+          VariantMetadata.from(ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(metadata, ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN));
+      return Variant.of(metadata, value);
+    }
+  }
+
+  private static boolean isMissingBinary(VarBinaryVector vector, int row) {
+    return vector == null || vector.isNull(row) || vector.get(row).length == 0;
+  }
+
+  private static StructVector variantStorage(FieldVector vector) {
+    if (vector instanceof ExtensionTypeVector<?> ext) {
+      return (StructVector) ext.getUnderlyingVector();
+    }
+    return (StructVector) vector;
   }
 
   private static class DateReader implements VortexValueReader<LocalDate> {

@@ -148,6 +148,11 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     }
 
     @Override
+    public VortexValueReader<?> variant(Types.VariantType variantType, Field variantField) {
+      return SparkVortexValueReaders.variants();
+    }
+
+    @Override
     public VortexValueReader<?> primitive(Type.PrimitiveType icebergType, Field primField) {
       return switch (icebergType.typeId()) {
         case BOOLEAN -> GenericVortexReaders.bools();

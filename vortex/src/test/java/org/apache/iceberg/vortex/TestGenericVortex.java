@@ -48,7 +48,12 @@ public class TestGenericVortex extends DataTestBase {
 
   @Override
   protected boolean supportsVariant() {
-    return false;
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
   }
 
   @Override
