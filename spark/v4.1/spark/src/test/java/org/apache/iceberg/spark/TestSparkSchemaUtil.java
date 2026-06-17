@@ -35,6 +35,11 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.catalyst.util.ResolveDefaultColumnsUtils$;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeographyType$;
+import org.apache.spark.sql.types.GeometryType;
+import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -91,6 +96,40 @@ public class TestSparkSchemaUtil {
             .isFalse();
       }
     }
+  }
+
+  @Test
+  public void testGeospatialTypeConversion() {
+    Types.GeometryType geometry = Types.GeometryType.of("EPSG:3857");
+    DataType sparkGeometry = SparkSchemaUtil.convert(geometry);
+    assertThat(sparkGeometry).isInstanceOf(GeometryType.class);
+    assertThat(((GeometryType) sparkGeometry).crs()).isEqualTo("EPSG:3857");
+    assertThat(SparkSchemaUtil.convert(sparkGeometry)).isEqualTo(geometry);
+
+    Types.GeographyType geography = Types.GeographyType.of("EPSG:4326");
+    DataType sparkGeography = SparkSchemaUtil.convert(geography);
+    assertThat(sparkGeography).isInstanceOf(GeographyType.class);
+    assertThat(((GeographyType) sparkGeography).crs()).isEqualTo("EPSG:4326");
+    assertThat(SparkSchemaUtil.convert(sparkGeography)).isEqualTo(geography);
+
+    assertThat(SparkSchemaUtil.convert(GeometryType$.MODULE$.apply("EPSG:3857")))
+        .isEqualTo(geometry);
+    assertThat(SparkSchemaUtil.convert(GeographyType$.MODULE$.apply("EPSG:4326")))
+        .isEqualTo(geography);
+  }
+
+  @Test
+  public void testPruneGeospatialTypes() {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.of("EPSG:3857")),
+            optional(2, "geog", Types.GeographyType.of("EPSG:4326")),
+            optional(3, "id", Types.LongType.get()));
+
+    StructType requestedType = SparkSchemaUtil.convert(schema);
+    Schema pruned = SparkSchemaUtil.prune(schema, requestedType);
+
+    assertThat(pruned.asStruct()).isEqualTo(schema.asStruct());
   }
 
   @Test

@@ -34,6 +34,8 @@ import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.DecimalType$;
 import org.apache.spark.sql.types.DoubleType$;
 import org.apache.spark.sql.types.FloatType$;
+import org.apache.spark.sql.types.GeographyType$;
+import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.MapType$;
@@ -145,6 +147,12 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
         return BinaryType$.MODULE$;
       case BINARY:
         return BinaryType$.MODULE$;
+      case GEOMETRY:
+        Types.GeometryType geometry = (Types.GeometryType) primitive;
+        return GeometryType$.MODULE$.apply(geometry.crs());
+      case GEOGRAPHY:
+        Types.GeographyType geography = (Types.GeographyType) primitive;
+        return GeographyType$.MODULE$.apply(geography.crs());
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());
