@@ -24,14 +24,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
@@ -44,13 +47,61 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.view.View;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   private InMemoryCatalog catalog;
+  private final List<InMemoryCatalog> trackedCatalogs = Lists.newArrayList();
+  private final Set<String> trackedSharedStoreIds = Sets.newHashSet();
+
+  @AfterEach
+  public void cleanupTrackedResources() throws IOException {
+    IOException firstFailure = null;
+    for (InMemoryCatalog tracked : trackedCatalogs) {
+      try {
+        tracked.close();
+      } catch (IOException e) {
+        if (firstFailure == null) {
+          firstFailure = e;
+        }
+      }
+    }
+    trackedCatalogs.clear();
+    for (String storeId : trackedSharedStoreIds) {
+      InMemoryCatalog.clearSharedStore(storeId);
+    }
+    trackedSharedStoreIds.clear();
+    if (firstFailure != null) {
+      throw firstFailure;
+    }
+  }
+
+  /**
+   * Initializes a fresh {@link InMemoryCatalog} and registers it for {@link AfterEach} close. The
+   * registration is best-effort: if the test asserts before reaching the registration call the
+   * normal JVM cleanup still applies.
+   */
+  private InMemoryCatalog newTrackedCatalog(String name, Map<String, String> properties) {
+    InMemoryCatalog tracked = new InMemoryCatalog();
+    tracked.initialize(name, properties);
+    trackedCatalogs.add(tracked);
+    return tracked;
+  }
+
+  /**
+   * Marks a shared-store ID for {@link AfterEach} cleanup and clears any leftover state from a
+   * previous run before returning the same id. Returning the id keeps tests one-liner.
+   */
+  private String reservedSharedStoreId(String storeId) {
+    InMemoryCatalog.clearSharedStore(storeId);
+    trackedSharedStoreIds.add(storeId);
+    return storeId;
+  }
 
   @BeforeEach
   public void before() {
@@ -123,229 +174,218 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   }
 
   @Test
-  public void sharedStoreSharesNamespacesAndTablesFromFirstToSecond() throws IOException {
-    String storeId = "shared-store-tables-forward";
-    InMemoryCatalog.clearSharedStore(storeId);
-    Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
+  public void sharedStoreSharesNamespacesAndTablesFromFirstToSecond() {
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-store-tables-forward"));
+    InMemoryCatalog first = newTrackedCatalog("first", sharedProps);
+    InMemoryCatalog second = newTrackedCatalog("second", sharedProps);
 
-    InMemoryCatalog first = new InMemoryCatalog();
-    first.initialize("first", sharedProps);
-    InMemoryCatalog second = new InMemoryCatalog();
-    second.initialize("second", sharedProps);
+    first.createNamespace(TBL.namespace());
+    first.buildTable(TBL, SCHEMA).create();
 
-    try {
-      first.createNamespace(TBL.namespace());
-      first.buildTable(TBL, SCHEMA).create();
-
-      assertThat(second.namespaceExists(TBL.namespace()))
-          .as("Namespace created via first instance should be visible to second")
-          .isTrue();
-      assertThat(second.tableExists(TBL))
-          .as("Table created via first instance should be visible to second")
-          .isTrue();
-      assertThat(second.loadTable(TBL).schema().asStruct())
-          .as("Schema observed via second instance should match first")
-          .isEqualTo(first.loadTable(TBL).schema().asStruct());
-    } finally {
-      first.close();
-      second.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    assertThat(second.namespaceExists(TBL.namespace()))
+        .as("Namespace created via first instance should be visible to second")
+        .isTrue();
+    assertThat(second.tableExists(TBL))
+        .as("Table created via first instance should be visible to second")
+        .isTrue();
+    assertThat(second.loadTable(TBL).schema().asStruct())
+        .as("Schema observed via second instance should match first")
+        .isEqualTo(first.loadTable(TBL).schema().asStruct());
   }
 
   @Test
-  public void sharedStoreSharesWritesFromSecondBackToFirst() throws IOException {
-    String storeId = "shared-store-tables-reverse";
-    InMemoryCatalog.clearSharedStore(storeId);
-    Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
+  public void sharedStoreSharesWritesFromSecondBackToFirst() {
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-store-tables-reverse"));
+    InMemoryCatalog first = newTrackedCatalog("first", sharedProps);
+    InMemoryCatalog second = newTrackedCatalog("second", sharedProps);
 
-    InMemoryCatalog first = new InMemoryCatalog();
-    first.initialize("first", sharedProps);
-    InMemoryCatalog second = new InMemoryCatalog();
-    second.initialize("second", sharedProps);
+    second.createNamespace(TBL.namespace());
+    second.buildTable(TBL, SCHEMA).create();
+    assertThat(first.tableExists(TBL))
+        .as("Table created via second instance should be visible to first")
+        .isTrue();
 
-    try {
-      second.createNamespace(TBL.namespace());
-      second.buildTable(TBL, SCHEMA).create();
-
-      assertThat(first.tableExists(TBL))
-          .as("Table created via second instance should be visible to first")
-          .isTrue();
-
-      second.dropTable(TBL, false);
-      assertThat(first.tableExists(TBL))
-          .as("Table dropped via second instance should disappear from first")
-          .isFalse();
-    } finally {
-      first.close();
-      second.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    second.dropTable(TBL, false);
+    assertThat(first.tableExists(TBL))
+        .as("Table dropped via second instance should disappear from first")
+        .isFalse();
   }
 
   @Test
-  public void sharedStoreSharesViewsAcrossInstances() throws IOException {
-    String storeId = "shared-store-views";
-    InMemoryCatalog.clearSharedStore(storeId);
-    Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
-
-    InMemoryCatalog first = new InMemoryCatalog();
-    first.initialize("first", sharedProps);
-    InMemoryCatalog second = new InMemoryCatalog();
-    second.initialize("second", sharedProps);
+  public void sharedStoreSharesViewsAcrossInstances() {
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-store-views"));
+    InMemoryCatalog first = newTrackedCatalog("first", sharedProps);
+    InMemoryCatalog second = newTrackedCatalog("second", sharedProps);
 
     TableIdentifier viewIdentifier = TableIdentifier.of(TBL.namespace(), "vw");
-    try {
-      first.createNamespace(TBL.namespace());
-      first
-          .buildView(viewIdentifier)
-          .withSchema(SCHEMA)
-          .withDefaultNamespace(TBL.namespace())
-          .withQuery("spark", "SELECT 1")
-          .create();
+    first.createNamespace(TBL.namespace());
+    first
+        .buildView(viewIdentifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(TBL.namespace())
+        .withQuery("spark", "SELECT 1")
+        .create();
 
-      assertThat(second.viewExists(viewIdentifier))
-          .as("View created via first instance should be visible to second")
-          .isTrue();
+    assertThat(second.viewExists(viewIdentifier))
+        .as("View created via first instance should be visible to second")
+        .isTrue();
 
-      View viewFromSecond = second.loadView(viewIdentifier);
-      assertThat(viewFromSecond.schema().asStruct())
-          .as("View schema observed via second instance should match first")
-          .isEqualTo(SCHEMA.asStruct());
+    View viewFromSecond = second.loadView(viewIdentifier);
+    assertThat(viewFromSecond.schema().asStruct())
+        .as("View schema observed via second instance should match first")
+        .isEqualTo(SCHEMA.asStruct());
 
-      second.dropView(viewIdentifier);
-      assertThat(first.viewExists(viewIdentifier))
-          .as("View dropped via second instance should disappear from first")
-          .isFalse();
-    } finally {
-      first.close();
-      second.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    second.dropView(viewIdentifier);
+    assertThat(first.viewExists(viewIdentifier))
+        .as("View dropped via second instance should disappear from first")
+        .isFalse();
   }
 
   @Test
-  public void sharedStoreSharesRenameTableAndNamespacePropertyEdits() throws IOException {
-    String storeId = "shared-store-rename-and-props";
-    InMemoryCatalog.clearSharedStore(storeId);
-    Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
-
-    InMemoryCatalog first = new InMemoryCatalog();
-    first.initialize("first", sharedProps);
-    InMemoryCatalog second = new InMemoryCatalog();
-    second.initialize("second", sharedProps);
+  public void sharedStoreSharesRenameTable() {
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-store-rename"));
+    InMemoryCatalog first = newTrackedCatalog("first", sharedProps);
+    InMemoryCatalog second = newTrackedCatalog("second", sharedProps);
 
     TableIdentifier renamed = TableIdentifier.of(TBL.namespace(), "renamed");
-    try {
-      first.createNamespace(TBL.namespace());
-      first.buildTable(TBL, SCHEMA).create();
+    first.createNamespace(TBL.namespace());
+    first.buildTable(TBL, SCHEMA).create();
 
-      first.renameTable(TBL, renamed);
-      assertThat(second.tableExists(renamed))
-          .as("renameTable on first should be observed at the new identifier on second")
-          .isTrue();
-      assertThat(second.tableExists(TBL))
-          .as("renameTable on first should remove the old identifier from second")
-          .isFalse();
-
-      second.setProperties(TBL.namespace(), ImmutableMap.of("origin", "second"));
-      assertThat(first.loadNamespaceMetadata(TBL.namespace()))
-          .as("setProperties on second should be observable from first")
-          .containsEntry("origin", "second");
-
-      second.removeProperties(TBL.namespace(), java.util.Collections.singleton("origin"));
-      assertThat(first.loadNamespaceMetadata(TBL.namespace()))
-          .as("removeProperties on second should be observable from first")
-          .doesNotContainKey("origin");
-    } finally {
-      first.close();
-      second.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    first.renameTable(TBL, renamed);
+    assertThat(second.tableExists(renamed))
+        .as("renameTable on first should be observed at the new identifier on second")
+        .isTrue();
+    assertThat(second.tableExists(TBL))
+        .as("renameTable on first should remove the old identifier from second")
+        .isFalse();
   }
 
   @Test
-  public void sharedStoreDropNamespaceEnforcesEmptiness() throws IOException {
-    String storeId = "shared-store-drop-namespace";
-    InMemoryCatalog.clearSharedStore(storeId);
-    Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
+  public void sharedStoreSharesSetProperties() {
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-store-set-props"));
+    InMemoryCatalog first = newTrackedCatalog("first", sharedProps);
+    InMemoryCatalog second = newTrackedCatalog("second", sharedProps);
 
-    InMemoryCatalog first = new InMemoryCatalog();
-    first.initialize("first", sharedProps);
-    InMemoryCatalog second = new InMemoryCatalog();
-    second.initialize("second", sharedProps);
+    first.createNamespace(TBL.namespace());
 
-    try {
-      first.createNamespace(TBL.namespace());
-      first.buildTable(TBL, SCHEMA).create();
-
-      assertThatThrownBy(() -> second.dropNamespace(TBL.namespace()))
-          .as("dropNamespace from second must see the table created via first")
-          .isInstanceOf(NamespaceNotEmptyException.class)
-          .hasMessageContaining("not empty");
-
-      first.dropTable(TBL, false);
-      assertThat(second.dropNamespace(TBL.namespace()))
-          .as("dropNamespace from second should succeed once the table is removed via first")
-          .isTrue();
-    } finally {
-      first.close();
-      second.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    second.setProperties(TBL.namespace(), ImmutableMap.of("origin", "second"));
+    assertThat(first.loadNamespaceMetadata(TBL.namespace()))
+        .as("setProperties on second should be observable from first")
+        .containsEntry("origin", "second");
   }
 
   @Test
-  public void distinctSharedStoreIdsKeepStateIsolated() throws IOException {
-    String firstId = "isolated-first";
-    String secondId = "isolated-second";
-    InMemoryCatalog.clearSharedStore(firstId);
-    InMemoryCatalog.clearSharedStore(secondId);
+  public void sharedStoreSharesRemoveProperties() {
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-store-remove-props"));
+    InMemoryCatalog first = newTrackedCatalog("first", sharedProps);
+    InMemoryCatalog second = newTrackedCatalog("second", sharedProps);
 
-    InMemoryCatalog firstCatalog = new InMemoryCatalog();
-    firstCatalog.initialize("first", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, firstId));
-    InMemoryCatalog secondCatalog = new InMemoryCatalog();
-    secondCatalog.initialize("second", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, secondId));
+    first.createNamespace(TBL.namespace(), ImmutableMap.of("origin", "first"));
 
-    try {
-      firstCatalog.createNamespace(TBL.namespace());
-      firstCatalog.buildTable(TBL, SCHEMA).create();
-
-      assertThat(secondCatalog.namespaceExists(TBL.namespace()))
-          .as("Namespace from first instance must not leak to a different shared-store id")
-          .isFalse();
-      assertThat(secondCatalog.tableExists(TBL))
-          .as("Table from first instance must not leak to a different shared-store id")
-          .isFalse();
-    } finally {
-      firstCatalog.close();
-      secondCatalog.close();
-      InMemoryCatalog.clearSharedStore(firstId);
-      InMemoryCatalog.clearSharedStore(secondId);
-    }
+    second.removeProperties(TBL.namespace(), Collections.singleton("origin"));
+    assertThat(first.loadNamespaceMetadata(TBL.namespace()))
+        .as("removeProperties on second should be observable from first")
+        .doesNotContainKey("origin");
   }
 
   @Test
-  public void instancesWithoutSharedStoreIdKeepStateIsolated() throws IOException {
-    InMemoryCatalog firstCatalog = new InMemoryCatalog();
-    firstCatalog.initialize("first", ImmutableMap.of());
-    InMemoryCatalog secondCatalog = new InMemoryCatalog();
-    secondCatalog.initialize("second", ImmutableMap.of());
+  public void sharedStoreDropNamespaceEnforcesEmptiness() {
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-store-drop-namespace"));
+    InMemoryCatalog first = newTrackedCatalog("first", sharedProps);
+    InMemoryCatalog second = newTrackedCatalog("second", sharedProps);
 
-    try {
-      firstCatalog.createNamespace(TBL.namespace());
-      firstCatalog.buildTable(TBL, SCHEMA).create();
+    first.createNamespace(TBL.namespace());
+    first.buildTable(TBL, SCHEMA).create();
 
-      assertThat(secondCatalog.namespaceExists(TBL.namespace()))
-          .as("Two catalogs without a shared-store id must not share namespaces")
-          .isFalse();
-      assertThat(secondCatalog.tableExists(TBL))
-          .as("Two catalogs without a shared-store id must not share tables")
-          .isFalse();
-    } finally {
-      firstCatalog.close();
-      secondCatalog.close();
-    }
+    assertThatThrownBy(() -> second.dropNamespace(TBL.namespace()))
+        .as("dropNamespace from second must see the table created via first")
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("not empty");
+
+    first.dropTable(TBL, false);
+    assertThat(second.dropNamespace(TBL.namespace()))
+        .as("dropNamespace from second should succeed once the table is removed via first")
+        .isTrue();
+  }
+
+  @Test
+  public void dropNamespaceRejectsSiblingPrefixCollisions() {
+    InMemoryCatalog cat = newTrackedCatalog("prefix-collision", ImmutableMap.of());
+    Namespace parent = Namespace.of("a", "b");
+    Namespace siblingPrefix = Namespace.of("a", "bb");
+    Namespace nestedUnderSibling = Namespace.of("a", "bb", "c");
+    cat.createNamespace(Namespace.of("a"));
+    cat.createNamespace(parent);
+    cat.createNamespace(siblingPrefix);
+    cat.createNamespace(nestedUnderSibling);
+
+    assertThat(cat.dropNamespace(parent))
+        .as("dropNamespace must succeed for an empty namespace despite a sibling-prefix neighbor")
+        .isTrue();
+
+    assertThatThrownBy(() -> cat.dropNamespace(siblingPrefix))
+        .as("dropNamespace must reject a parent that still has nested children")
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("child namespace");
+
+    assertThat(cat.dropNamespace(nestedUnderSibling)).isTrue();
+    assertThat(cat.dropNamespace(siblingPrefix))
+        .as("Once nested namespace is removed, the sibling parent drops cleanly")
+        .isTrue();
+  }
+
+  @Test
+  public void distinctSharedStoreIdsKeepStateIsolated() {
+    InMemoryCatalog firstCatalog =
+        newTrackedCatalog(
+            "first",
+            ImmutableMap.of(
+                InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("isolated-first")));
+    InMemoryCatalog secondCatalog =
+        newTrackedCatalog(
+            "second",
+            ImmutableMap.of(
+                InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("isolated-second")));
+
+    firstCatalog.createNamespace(TBL.namespace());
+    firstCatalog.buildTable(TBL, SCHEMA).create();
+
+    assertThat(secondCatalog.namespaceExists(TBL.namespace()))
+        .as("Namespace from first instance must not leak to a different shared-store ID")
+        .isFalse();
+    assertThat(secondCatalog.tableExists(TBL))
+        .as("Table from first instance must not leak to a different shared-store ID")
+        .isFalse();
+  }
+
+  @Test
+  public void instancesWithoutSharedStoreIdKeepStateIsolated() {
+    InMemoryCatalog firstCatalog = newTrackedCatalog("first", ImmutableMap.of());
+    InMemoryCatalog secondCatalog = newTrackedCatalog("second", ImmutableMap.of());
+
+    firstCatalog.createNamespace(TBL.namespace());
+    firstCatalog.buildTable(TBL, SCHEMA).create();
+
+    assertThat(secondCatalog.namespaceExists(TBL.namespace()))
+        .as("Two catalogs without a shared-store ID must not share namespaces")
+        .isFalse();
+    assertThat(secondCatalog.tableExists(TBL))
+        .as("Two catalogs without a shared-store ID must not share tables")
+        .isFalse();
   }
 
   @Test
@@ -354,49 +394,41 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
     privateCatalog.initialize("private", ImmutableMap.of());
     privateCatalog.createNamespace(TBL.namespace());
     privateCatalog.buildTable(TBL, SCHEMA).create();
+    assertThat(privateCatalog.namespaceExists(TBL.namespace()))
+        .as("Sanity: namespace must be present before close()")
+        .isTrue();
+
     privateCatalog.close();
 
-    InMemoryCatalog reopened = new InMemoryCatalog();
-    reopened.initialize("private", ImmutableMap.of());
-    try {
-      assertThat(reopened.namespaceExists(TBL.namespace()))
-          .as("Private state should be cleared on close")
-          .isFalse();
-    } finally {
-      reopened.close();
-    }
+    assertThat(privateCatalog.namespaceExists(TBL.namespace()))
+        .as("close() on a private instance must clear its store entries")
+        .isFalse();
+    assertThat(privateCatalog.tableExists(TBL))
+        .as("close() on a private instance must clear its table entries")
+        .isFalse();
   }
 
   @Test
   public void closeOnSharedInstancePreservesStore() throws IOException {
-    String storeId = "shared-survives-close";
-    InMemoryCatalog.clearSharedStore(storeId);
-    Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
-    try {
-      InMemoryCatalog firstShared = new InMemoryCatalog();
-      firstShared.initialize("first", sharedProps);
-      firstShared.createNamespace(TBL.namespace());
-      firstShared.buildTable(TBL, SCHEMA).create();
-      firstShared.close();
+    Map<String, String> sharedProps =
+        ImmutableMap.of(
+            InMemoryCatalog.SHARED_STORE_ID, reservedSharedStoreId("shared-survives-close"));
 
-      InMemoryCatalog secondShared = new InMemoryCatalog();
-      secondShared.initialize("second", sharedProps);
-      try {
-        assertThat(secondShared.tableExists(TBL))
-            .as("Closing one shared instance must not drop the shared store")
-            .isTrue();
-      } finally {
-        secondShared.close();
-      }
-    } finally {
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    InMemoryCatalog firstShared = new InMemoryCatalog();
+    firstShared.initialize("first", sharedProps);
+    firstShared.createNamespace(TBL.namespace());
+    firstShared.buildTable(TBL, SCHEMA).create();
+    firstShared.close();
+
+    InMemoryCatalog secondShared = newTrackedCatalog("second", sharedProps);
+    assertThat(secondShared.tableExists(TBL))
+        .as("Closing one shared instance must not drop the shared store")
+        .isTrue();
   }
 
   @Test
   public void clearSharedStoreRemovesStateForFutureInstances() throws IOException {
-    String storeId = "clear-store";
-    InMemoryCatalog.clearSharedStore(storeId);
+    String storeId = reservedSharedStoreId("clear-store");
     Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
 
     InMemoryCatalog firstCatalog = new InMemoryCatalog();
@@ -407,115 +439,109 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
 
     InMemoryCatalog.clearSharedStore(storeId);
 
-    InMemoryCatalog secondCatalog = new InMemoryCatalog();
-    secondCatalog.initialize("second", sharedProps);
-    try {
-      assertThat(secondCatalog.namespaceExists(TBL.namespace()))
-          .as("Shared store should be empty for new instances after clearSharedStore")
-          .isFalse();
-      assertThat(secondCatalog.tableExists(TBL))
-          .as("Shared store should drop tables for new instances after clearSharedStore")
-          .isFalse();
-    } finally {
-      secondCatalog.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    InMemoryCatalog secondCatalog = newTrackedCatalog("second", sharedProps);
+    assertThat(secondCatalog.namespaceExists(TBL.namespace()))
+        .as("Shared store should be empty for new instances after clearSharedStore")
+        .isFalse();
+    assertThat(secondCatalog.tableExists(TBL))
+        .as("Shared store should drop tables for new instances after clearSharedStore")
+        .isFalse();
   }
 
   @Test
-  public void clearSharedStoreLeavesLiveInstancesPointingAtTheirStore() throws IOException {
-    String storeId = "clear-while-live";
-    InMemoryCatalog.clearSharedStore(storeId);
+  public void clearSharedStoreLeavesLiveInstancesPointingAtTheirStore() {
+    String storeId = reservedSharedStoreId("clear-while-live");
     Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
 
-    InMemoryCatalog live = new InMemoryCatalog();
-    live.initialize("live", sharedProps);
-    try {
-      live.createNamespace(TBL.namespace());
-      live.buildTable(TBL, SCHEMA).create();
+    InMemoryCatalog live = newTrackedCatalog("live", sharedProps);
+    live.createNamespace(TBL.namespace());
+    live.buildTable(TBL, SCHEMA).create();
 
-      InMemoryCatalog.clearSharedStore(storeId);
+    InMemoryCatalog.clearSharedStore(storeId);
 
-      assertThat(live.tableExists(TBL))
-          .as("Live instances retain a reference to the prior store after clearSharedStore")
-          .isTrue();
+    assertThat(live.tableExists(TBL))
+        .as("Live instances retain a reference to the prior store after clearSharedStore")
+        .isTrue();
 
-      InMemoryCatalog freshlyOpened = new InMemoryCatalog();
-      freshlyOpened.initialize("fresh", sharedProps);
-      try {
-        assertThat(freshlyOpened.tableExists(TBL))
-            .as("Newly initialized instances see a fresh store after clearSharedStore")
-            .isFalse();
-      } finally {
-        freshlyOpened.close();
-      }
-    } finally {
-      live.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    InMemoryCatalog freshlyOpened = newTrackedCatalog("fresh", sharedProps);
+    assertThat(freshlyOpened.tableExists(TBL))
+        .as("Newly initialized instances see a fresh store after clearSharedStore")
+        .isFalse();
   }
 
   @Test
   public void clearSharedStoreIsNoOpForUnknownId() {
     assertThatCode(() -> InMemoryCatalog.clearSharedStore("never-registered"))
-        .as("Clearing an unknown shared-store id should be a safe no-op")
+        .as("Clearing an unknown shared-store ID should be a safe no-op")
         .doesNotThrowAnyException();
   }
 
   @Test
-  public void emptySharedStoreIdValuePartitionsItsOwnStore() throws IOException {
-    InMemoryCatalog.clearSharedStore("");
-    Map<String, String> emptyKeyProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, "");
-
-    InMemoryCatalog first = new InMemoryCatalog();
-    first.initialize("first", emptyKeyProps);
-    InMemoryCatalog second = new InMemoryCatalog();
-    second.initialize("second", emptyKeyProps);
-
-    try {
-      first.createNamespace(TBL.namespace());
-      first.buildTable(TBL, SCHEMA).create();
-
-      assertThat(second.tableExists(TBL))
-          .as("Two instances using the empty-string shared-store id should share that store")
-          .isTrue();
-    } finally {
-      first.close();
-      second.close();
-      InMemoryCatalog.clearSharedStore("");
-    }
+  public void emptyStringSharedStoreIdIsRejected() {
+    assertThatThrownBy(
+            () -> newTrackedCatalog("empty", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, "")))
+        .as("Empty-string shared-store ID is rejected to prevent silent shared-mode misconfig")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(InMemoryCatalog.SHARED_STORE_ID);
   }
 
   @Test
-  public void reinitializeWithoutSharedStoreIdSwitchesToPrivateStore() throws IOException {
-    String storeId = "reinit-to-private";
-    InMemoryCatalog.clearSharedStore(storeId);
+  public void whitespaceSharedStoreIdIsRejected() {
+    assertThatThrownBy(
+            () ->
+                newTrackedCatalog(
+                    "whitespace", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, "   ")))
+        .as("Whitespace-only shared-store ID is rejected to prevent silent shared-mode misconfig")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(InMemoryCatalog.SHARED_STORE_ID);
+  }
 
-    InMemoryCatalog reusable = new InMemoryCatalog();
-    try {
-      reusable.initialize("reusable", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId));
-      reusable.createNamespace(TBL.namespace());
-      reusable.buildTable(TBL, SCHEMA).create();
+  @Test
+  public void reinitializeWithoutSharedStoreIdSwitchesToPrivateStore() {
+    String storeId = reservedSharedStoreId("reinit-to-private");
+    InMemoryCatalog reusable =
+        newTrackedCatalog("reusable", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId));
+    reusable.createNamespace(TBL.namespace());
+    reusable.buildTable(TBL, SCHEMA).create();
 
-      reusable.initialize("reusable", ImmutableMap.of());
+    reusable.initialize("reusable", ImmutableMap.of());
 
-      assertThat(reusable.namespaceExists(TBL.namespace()))
-          .as("Reinitializing without a shared-store id must switch to a fresh private store")
-          .isFalse();
-      assertThat(reusable.tableExists(TBL))
-          .as("Reinitializing without a shared-store id must not see the previously shared table")
-          .isFalse();
-    } finally {
-      reusable.close();
-      InMemoryCatalog.clearSharedStore(storeId);
-    }
+    assertThat(reusable.namespaceExists(TBL.namespace()))
+        .as("Reinitializing without a shared-store ID must switch to a fresh private store")
+        .isFalse();
+    assertThat(reusable.tableExists(TBL))
+        .as("Reinitializing without a shared-store ID must not see the previously shared table")
+        .isFalse();
+  }
+
+  @Test
+  public void reinitializeAcrossSharedStoreIdsRetargetsBackingStore() {
+    String first = reservedSharedStoreId("reinit-source");
+    String second = reservedSharedStoreId("reinit-target");
+
+    InMemoryCatalog reusable =
+        newTrackedCatalog("reusable", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, first));
+    reusable.createNamespace(TBL.namespace());
+    reusable.buildTable(TBL, SCHEMA).create();
+
+    reusable.initialize("reusable", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, second));
+
+    assertThat(reusable.tableExists(TBL))
+        .as("Reinitializing onto a different shared-store ID must not carry state across")
+        .isFalse();
+
+    InMemoryCatalog observerOnFirst =
+        newTrackedCatalog(
+            "observer-first", ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, first));
+    assertThat(observerOnFirst.tableExists(TBL))
+        .as("The original shared store must still hold state after the source instance moves away")
+        .isTrue();
   }
 
   @Test
   public void concurrentInitializeWithSameSharedStoreIdConvergesOnOneStore()
       throws InterruptedException, ExecutionException {
-    String storeId = "concurrent-init";
-    InMemoryCatalog.clearSharedStore(storeId);
+    String storeId = reservedSharedStoreId("concurrent-init");
     Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
 
     int parallelism = 8;
@@ -548,11 +574,11 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
 
       for (InMemoryCatalog reader : catalogs) {
         assertThat(reader.tableExists(TBL))
-            .as("All instances racing to initialize on the same shared-store id share state")
+            .as("All instances racing to initialize on the same shared-store ID share state")
             .isTrue();
       }
       threw = false;
-    } catch (java.util.concurrent.TimeoutException e) {
+    } catch (TimeoutException e) {
       throw new RuntimeException("Concurrent initialize timed out", e);
     } finally {
       executor.shutdownNow();
@@ -565,15 +591,13 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
           }
         }
       }
-      InMemoryCatalog.clearSharedStore(storeId);
     }
   }
 
   @Test
   public void concurrentCreateOfSameTableThroughSharedStoreSerializes()
       throws InterruptedException, ExecutionException {
-    String storeId = "concurrent-create";
-    InMemoryCatalog.clearSharedStore(storeId);
+    String storeId = reservedSharedStoreId("concurrent-create");
     Map<String, String> sharedProps = ImmutableMap.of(InMemoryCatalog.SHARED_STORE_ID, storeId);
 
     Namespace namespace = Namespace.of("ns");
@@ -594,6 +618,7 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
       CountDownLatch start = new CountDownLatch(1);
       AtomicInteger successes = new AtomicInteger();
       AtomicInteger alreadyExists = new AtomicInteger();
+      AtomicInteger unexpected = new AtomicInteger();
       List<Future<?>> futures = Lists.newArrayList();
       for (InMemoryCatalog cat : catalogs) {
         futures.add(
@@ -605,8 +630,11 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
                     successes.incrementAndGet();
                   } catch (AlreadyExistsException expected) {
                     alreadyExists.incrementAndGet();
-                  } catch (InterruptedException ex) {
+                  } catch (InterruptedException expected) {
                     Thread.currentThread().interrupt();
+                  } catch (RuntimeException unexpectedError) {
+                    unexpected.incrementAndGet();
+                    throw unexpectedError;
                   }
                   return null;
                 }));
@@ -617,6 +645,9 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
         future.get(30, TimeUnit.SECONDS);
       }
 
+      assertThat(unexpected.get())
+          .as("No racer should fail with anything other than AlreadyExistsException")
+          .isEqualTo(0);
       assertThat(successes.get())
           .as("Exactly one racer should successfully create the shared table")
           .isEqualTo(1);
@@ -627,7 +658,7 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
           .as("The shared table should be visible from any racer")
           .isTrue();
       threw = false;
-    } catch (java.util.concurrent.TimeoutException e) {
+    } catch (TimeoutException e) {
       throw new RuntimeException("Concurrent create timed out", e);
     } finally {
       executor.shutdownNow();
@@ -640,7 +671,6 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
           }
         }
       }
-      InMemoryCatalog.clearSharedStore(storeId);
     }
   }
 }

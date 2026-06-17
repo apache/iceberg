@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -45,9 +46,9 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
@@ -69,13 +70,20 @@ import org.apache.iceberg.view.ViewUtil;
  * to others, and {@link #close()} leaves the shared store intact so the remaining instances
  * continue to observe it. The shared store survives for the lifetime of the JVM unless {@link
  * #clearSharedStore} is called explicitly.
+ *
+ * <p>Mutating operations synchronize on the backing store rather than on this catalog instance, so
+ * all instances pointing at the same shared store serialize through the same monitor. The catalog
+ * instance's intrinsic lock is not the synchronization root and must not be relied on for external
+ * coordination.
  */
 public class InMemoryCatalog extends BaseMetastoreViewCatalog
     implements SupportsNamespaces, Closeable {
   /**
    * Catalog property whose value identifies a JVM-wide shared store. Two {@link InMemoryCatalog}
    * instances initialized with the same value of this property share the same namespaces, tables,
-   * views, and synchronization monitor. When unset, each instance keeps a private store.
+   * views, and synchronization monitor. When unset, each instance keeps a private store. Empty or
+   * whitespace-only values are rejected because they are typically a misconfiguration produced by
+   * config layers that map "missing" to the empty string.
    */
   public static final String SHARED_STORE_ID = "in-memory-catalog.shared-store-id";
 
@@ -91,7 +99,6 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
    * shared store is a no-op. Intended for harnesses that need to release accumulated state between
    * runs.
    */
-  @VisibleForTesting
   public static void clearSharedStore(String sharedStoreId) {
     SHARED_STORES.remove(sharedStoreId);
   }
@@ -115,8 +122,24 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     return catalogName;
   }
 
+  /**
+   * Initializes the catalog. May be called more than once on the same instance: a subsequent call
+   * closes the previous {@link CloseableGroup} (and the {@link FileIO} / metrics reporter it holds)
+   * and reselects the backing store from the new properties. There is no thread-safety guarantee
+   * for re-initialization concurrent with in-flight catalog operations.
+   */
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    String sharedStoreId = properties.get(SHARED_STORE_ID);
+    if (sharedStoreId != null) {
+      Preconditions.checkArgument(
+          !sharedStoreId.trim().isEmpty(),
+          "%s must not be empty or whitespace; either omit the property or provide a non-blank value",
+          SHARED_STORE_ID);
+    }
+
+    closePreviousCloseableGroup();
+
     this.catalogName = name != null ? name : InMemoryCatalog.class.getSimpleName();
     this.catalogProperties = ImmutableMap.copyOf(properties);
     this.uniqueTableLocation =
@@ -128,7 +151,6 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
 
-    String sharedStoreId = properties.get(SHARED_STORE_ID);
     if (sharedStoreId != null) {
       this.store = SHARED_STORES.computeIfAbsent(sharedStoreId, k -> new Store());
       this.ownsStore = false;
@@ -137,17 +159,13 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       this.ownsStore = true;
     }
 
-    // Close any resources from a prior initialize() to avoid leaking the previous FileIO and
-    // metrics reporter when this catalog is re-initialized in place.
-    closePreviousResources();
-
     this.io = CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
 
-  private void closePreviousResources() {
+  private void closePreviousCloseableGroup() {
     CloseableGroup previous = this.closeableGroup;
     this.closeableGroup = null;
     if (previous != null) {
@@ -278,7 +296,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
         return false;
       }
 
-      long childNamespaces = countChildNamespaces(currentStore, namespace);
+      long childNamespaces = childNamespacesOf(currentStore, namespace).count();
       if (childNamespaces > 0) {
         throw new NamespaceNotEmptyException(
             "Namespace %s is not empty. Contains %d child namespace(s).",
@@ -301,13 +319,18 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private static long countChildNamespaces(Store snapshot, Namespace parent) {
-    String prefix = parent.isEmpty() ? "" : DOT.join(parent.levels()) + ".";
-    return snapshot.namespaces.keySet().stream()
-        .filter(n -> !n.isEmpty())
-        .filter(n -> DOT.join(n.levels()).startsWith(prefix))
-        .filter(n -> n.levels().length > parent.levels().length)
-        .count();
+  /**
+   * Returns the namespaces that are strict descendants of {@code parent} in {@code currentStore}.
+   * Implemented as a single shared traversal so that {@link #dropNamespace(Namespace)} and {@link
+   * #listNamespaces(Namespace)} cannot drift apart on prefix-collision edge cases (for example,
+   * {@code a.b} as a parent must not match {@code a.bb.c}).
+   */
+  private static Stream<Namespace> childNamespacesOf(Store currentStore, Namespace parent) {
+    int parentLength = parent.levels().length;
+    String[] parentLevels = parent.levels();
+    return currentStore.namespaces.keySet().stream()
+        .filter(n -> n.levels().length > parentLength)
+        .filter(n -> Arrays.equals(Arrays.copyOf(n.levels(), parentLength), parentLevels));
   }
 
   private static long countIdentifiersInNamespace(
@@ -381,26 +404,21 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    final String searchNamespaceString =
-        namespace.isEmpty() ? "" : DOT.join(namespace.levels()) + ".";
-    final int searchNumberOfLevels = namespace.levels().length;
-
     Store currentStore = store;
-    List<Namespace> filteredNamespaces =
-        currentStore.namespaces.keySet().stream()
-            .filter(n -> !n.isEmpty())
-            .filter(n -> DOT.join(n.levels()).startsWith(searchNamespaceString))
-            .collect(Collectors.toList());
+    int rootLength = namespace.levels().length;
+
+    List<Namespace> descendants =
+        childNamespacesOf(currentStore, namespace).collect(Collectors.toList());
 
     // If the namespace does not exist and the namespace is not a prefix of another namespace,
     // throw an exception.
-    if (!currentStore.namespaces.containsKey(namespace) && filteredNamespaces.isEmpty()) {
+    if (!currentStore.namespaces.containsKey(namespace) && descendants.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    return filteredNamespaces.stream()
+    return descendants.stream()
         // List only the child-namespaces roots.
-        .map(n -> Namespace.of(Arrays.copyOf(n.levels(), searchNumberOfLevels + 1)))
+        .map(n -> Namespace.of(Arrays.copyOf(n.levels(), rootLength + 1)))
         .distinct()
         .sorted(Comparator.comparing(n -> DOT.join(n.levels())))
         .collect(Collectors.toList());
@@ -418,10 +436,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       closeableGroup.close();
     }
     if (ownsStore) {
-      Store currentStore = store;
-      currentStore.namespaces.clear();
-      currentStore.tables.clear();
-      currentStore.views.clear();
+      store.clear();
     }
   }
 
@@ -637,5 +652,11 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
         Maps.newConcurrentMap();
     private final ConcurrentMap<TableIdentifier, String> tables = Maps.newConcurrentMap();
     private final ConcurrentMap<TableIdentifier, String> views = Maps.newConcurrentMap();
+
+    void clear() {
+      namespaces.clear();
+      tables.clear();
+      views.clear();
+    }
   }
 }
