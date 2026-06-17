@@ -277,9 +277,9 @@ class RecordConverter {
   }
 
   /**
-   * This method evolves schemas when the value is null. Note: logic should be kept consistent
-   * with equivalent method used when value is not null:
-   * {@link #convertToStruct(Struct, StructType, int, SchemaUpdate.Consumer)}
+   * This method evolves schemas when the value is null. Note: logic should be kept consistent with
+   * equivalent method used when value is not null: {@link #convertToStruct(Struct, StructType, int,
+   * SchemaUpdate.Consumer)}
    */
   private void evolveSchemaFromConnectSchema(
       org.apache.kafka.connect.data.Schema recordSchema,
@@ -331,10 +331,7 @@ class RecordConverter {
         if (tableType.isMapType()) {
           MapType mapType = tableType.asMapType();
           evolveSchemaFromConnectSchema(
-              recordSchema.keySchema(),
-              mapType.keyType(),
-              mapType.keyId(),
-              schemaUpdateConsumer);
+              recordSchema.keySchema(), mapType.keyType(), mapType.keyId(), schemaUpdateConsumer);
           evolveSchemaFromConnectSchema(
               recordSchema.valueSchema(),
               mapType.valueType(),

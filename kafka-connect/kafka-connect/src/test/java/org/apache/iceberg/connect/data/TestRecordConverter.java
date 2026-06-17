@@ -1149,9 +1149,7 @@ public class TestRecordConverter {
         new org.apache.iceberg.Schema(
             NestedField.required(1, "id", IntegerType.get()),
             NestedField.required(
-                2,
-                "nested",
-                StructType.of(NestedField.required(3, "x", IntegerType.get()))));
+                2, "nested", StructType.of(NestedField.required(3, "x", IntegerType.get()))));
 
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(tableSchema);
@@ -1212,12 +1210,10 @@ public class TestRecordConverter {
             .field("k1", Schema.STRING_SCHEMA)
             .field("k2", Schema.OPTIONAL_STRING_SCHEMA)
             .build();
-    Schema mapSchema = SchemaBuilder.map(keySchema, Schema.OPTIONAL_STRING_SCHEMA).optional().build();
+    Schema mapSchema =
+        SchemaBuilder.map(keySchema, Schema.OPTIONAL_STRING_SCHEMA).optional().build();
     Schema connectSchema =
-        SchemaBuilder.struct()
-            .field("id", Schema.INT32_SCHEMA)
-            .field("data", mapSchema)
-            .build();
+        SchemaBuilder.struct().field("id", Schema.INT32_SCHEMA).field("data", mapSchema).build();
 
     Struct data = new Struct(connectSchema).put("id", 1).put("data", null);
 
