@@ -231,8 +231,7 @@ class ParquetMetrics {
     }
 
     private FieldMetrics<ByteBuffer> metricsFromFieldMetrics(
-        int fieldId, org.apache.iceberg.types.Type.PrimitiveType icebergType,
-        int truncateLength) {
+        int fieldId, org.apache.iceberg.types.Type.PrimitiveType icebergType, int truncateLength) {
       FieldMetrics<?> fieldMetrics = metricsById.get(fieldId);
       if (null == fieldMetrics) {
         return null;
@@ -275,8 +274,7 @@ class ParquetMetrics {
       }
     }
 
-    private static boolean isGeospatial(
-        org.apache.iceberg.types.Type.PrimitiveType icebergType) {
+    private static boolean isGeospatial(org.apache.iceberg.types.Type.PrimitiveType icebergType) {
       TypeID typeId = Preconditions.checkNotNull(icebergType, "Invalid type: null").typeId();
       return typeId == TypeID.GEOMETRY || typeId == TypeID.GEOGRAPHY;
     }
@@ -498,8 +496,7 @@ class ParquetMetrics {
       }
 
       @Override
-      public Iterable<ParquetVariantUtil.VariantMetrics> metadata(
-          PrimitiveType metadata) {
+      public Iterable<ParquetVariantUtil.VariantMetrics> metadata(PrimitiveType metadata) {
         ParquetVariantUtil.VariantMetrics counts = counts();
         if (counts != null) {
           return ImmutableList.of(counts);
@@ -509,8 +506,7 @@ class ParquetMetrics {
       }
 
       @Override
-      public Iterable<ParquetVariantUtil.VariantMetrics> serialized(
-          PrimitiveType value) {
+      public Iterable<ParquetVariantUtil.VariantMetrics> serialized(PrimitiveType value) {
         ParquetVariantUtil.VariantMetrics counts = counts();
         if (counts != null) {
           return ImmutableList.of(counts);
@@ -520,8 +516,7 @@ class ParquetMetrics {
       }
 
       @Override
-      public Iterable<ParquetVariantUtil.VariantMetrics> primitive(
-          PrimitiveType primitive) {
+      public Iterable<ParquetVariantUtil.VariantMetrics> primitive(PrimitiveType primitive) {
         ParquetVariantUtil.VariantMetrics result = metrics(primitive);
         if (result != null) {
           return ImmutableList.of(result);
