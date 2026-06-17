@@ -254,33 +254,33 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                 }
+                Object recordFieldValue = struct.get(recordField);
+                if (recordFieldValue == null && schemaUpdateConsumer != null) {
+                  evolveSchemaFromConnectSchema(
+                      recordField.schema(),
+                      tableField.type(),
+                      tableField.fieldId(),
+                      schemaUpdateConsumer);
+                }
                 if (!hasSchemaUpdates) {
-                  Object recordFieldValue = struct.get(recordField);
-                  // If the value is null and schema evolution is on, then evolve the table schema
-                  // from the connect record schema
-                  if (recordFieldValue == null && schemaUpdateConsumer != null) {
-                    evolveSchemaFromConnectSchema(
-                        recordField.schema(),
-                        tableField.type(),
-                        tableField.fieldId(),
-                        schemaUpdateConsumer);
-                  } else {
-                    // If the value is not null, then convert the value (and handle any schema
-                    // updates)
-                    result.setField(
-                        tableField.name(),
-                        convertValue(
-                            recordFieldValue,
-                            tableField.type(),
-                            tableField.fieldId(),
-                            schemaUpdateConsumer));
-                  }
+                  result.setField(
+                      tableField.name(),
+                      convertValue(
+                          recordFieldValue,
+                          tableField.type(),
+                          tableField.fieldId(),
+                          schemaUpdateConsumer));
                 }
               }
             });
     return result;
   }
 
+  /**
+   * This method evolves schemas when the value is null. Note: logic should be kept consistent
+   * with equivalent method used when value is not null:
+   * {@link #convertToStruct(Struct, StructType, int, SchemaUpdate.Consumer)}
+   */
   private void evolveSchemaFromConnectSchema(
       org.apache.kafka.connect.data.Schema recordSchema,
       Type tableType,
@@ -296,7 +296,8 @@ class RecordConverter {
           for (Field field : recordSchema.fields()) {
             NestedField nestedField = lookupStructField(field.name(), structType, tableFieldId);
             if (nestedField == null) {
-              String parentFieldName = tableSchema.findColumnName(tableFieldId);
+              String parentFieldName =
+                  tableFieldId < 0 ? null : tableSchema.findColumnName(tableFieldId);
               Type type = SchemaUtils.toIcebergType(field.schema(), config);
               schemaUpdateConsumer.addColumn(parentFieldName, field.name(), type);
             } else {
@@ -329,6 +330,11 @@ class RecordConverter {
       case MAP:
         if (tableType.isMapType()) {
           MapType mapType = tableType.asMapType();
+          evolveSchemaFromConnectSchema(
+              recordSchema.keySchema(),
+              mapType.keyType(),
+              mapType.keyId(),
+              schemaUpdateConsumer);
           evolveSchemaFromConnectSchema(
               recordSchema.valueSchema(),
               mapType.valueType(),

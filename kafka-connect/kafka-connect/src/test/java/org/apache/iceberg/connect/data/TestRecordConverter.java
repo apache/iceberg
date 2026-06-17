@@ -885,9 +885,12 @@ public class TestRecordConverter {
     Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
-    Collection<AddColumn> addCols = consumer.addColumns();
+    Record result = converter.convert(data, consumer);
 
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
     assertThat(addCols).hasSize(1);
     AddColumn addCol = addCols.iterator().next();
     assertThat(addCol.parentName()).isEqualTo("nested");
@@ -933,9 +936,14 @@ public class TestRecordConverter {
     Struct data = new Struct(connectSchema).put("items", ImmutableList.of(item));
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
-    Collection<AddColumn> addCols = consumer.addColumns();
+    Record result = converter.convert(data, consumer);
 
+    List<Record> items = (List<Record>) result.getField("items");
+    assertThat(items).hasSize(1);
+    assertThat(items.get(0).getField("product_id")).isEqualTo(101);
+    assertThat(items.get(0).getField("details")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
     assertThat(addCols).hasSize(1);
     AddColumn addCol = addCols.iterator().next();
     assertThat(addCol.parentName()).isEqualTo("items.element.details");
@@ -982,9 +990,14 @@ public class TestRecordConverter {
     Struct data = new Struct(connectSchema).put("metadata", ImmutableMap.of("source", mapValue));
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
-    Collection<AddColumn> addCols = consumer.addColumns();
+    Record result = converter.convert(data, consumer);
 
+    Map<String, Record> metadata = (Map<String, Record>) result.getField("metadata");
+    assertThat(metadata).containsKey("source");
+    assertThat(metadata.get("source").getField("key")).isEqualTo("source_system");
+    assertThat(metadata.get("source").getField("info")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
     assertThat(addCols).hasSize(1);
     AddColumn addCol = addCols.iterator().next();
     assertThat(addCol.parentName()).isEqualTo("metadata.value.info");
@@ -1031,9 +1044,12 @@ public class TestRecordConverter {
     Struct data = new Struct(connectSchema).put("id", 1).put("customer", null);
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
-    Collection<AddColumn> addCols = consumer.addColumns();
+    Record result = converter.convert(data, consumer);
 
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("customer")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
     assertThat(addCols).hasSize(1);
     AddColumn addCol = addCols.iterator().next();
     assertThat(addCol.parentName()).isEqualTo("customer.details");
@@ -1071,9 +1087,12 @@ public class TestRecordConverter {
     Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
-    Collection<UpdateType> updates = consumer.updateTypes();
+    Record result = converter.convert(data, consumer);
 
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<UpdateType> updates = consumer.updateTypes();
     assertThat(updates).hasSize(2);
     Map<String, UpdateType> updateMap = Maps.newHashMap();
     updates.forEach(update -> updateMap.put(update.name(), update));
@@ -1111,14 +1130,109 @@ public class TestRecordConverter {
     Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
-    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+    Record result = converter.convert(data, consumer);
 
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
     assertThat(makeOptionals).hasSize(2);
     Map<String, SchemaUpdate.MakeOptional> optionalMap = Maps.newHashMap();
     makeOptionals.forEach(mo -> optionalMap.put(mo.name(), mo));
     assertThat(optionalMap).containsKey("nested.a");
     assertThat(optionalMap).containsKey("nested.b");
+  }
+
+  @Test
+  public void testSchemaEvolutionForFieldAndNestedFields() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(
+                2,
+                "nested",
+                StructType.of(NestedField.required(3, "x", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema nestedSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("x", Schema.INT32_SCHEMA)
+            .field("y", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", nestedSchema)
+            .build();
+
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+    assertThat(makeOptionals).hasSize(1);
+    assertThat(makeOptionals.iterator().next().name()).isEqualTo("nested");
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("nested");
+    assertThat(addCol.name()).isEqualTo("y");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testNestedSchemaEvolutionMapKeyWithNullValue() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2,
+                "data",
+                MapType.ofRequired(
+                    3,
+                    4,
+                    StructType.of(NestedField.required(5, "k1", StringType.get())),
+                    StringType.get())));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema keySchema =
+        SchemaBuilder.struct()
+            .field("k1", Schema.STRING_SCHEMA)
+            .field("k2", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema mapSchema = SchemaBuilder.map(keySchema, Schema.OPTIONAL_STRING_SCHEMA).optional().build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("data", mapSchema)
+            .build();
+
+    Struct data = new Struct(connectSchema).put("id", 1).put("data", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("data")).isNull();
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("data.key");
+    assertThat(addCol.name()).isEqualTo("k2");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
   }
 
   @Test
