@@ -1632,6 +1632,7 @@ public class TestMergeAppend extends TestBase {
 
   @TestTemplate
   public void testAutoFlushManifestsSurviveCommitRetry() {
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_DATA_FILES_TO_FLUSH, "3").commit();
     table.ops().failCommits(1);
 
     List<DataFile> dataFiles = Lists.newArrayList();
@@ -1639,7 +1640,7 @@ public class TestMergeAppend extends TestBase {
       dataFiles.add(newDataFile("data_bucket=0"));
     }
 
-    MergeAppend append = new MergeAppend("test", table.ops(), 3);
+    MergeAppend append = new MergeAppend("test", table.ops());
     dataFiles.forEach(append::appendFile);
     Snapshot snapshot = commit(table, append, branch);
 

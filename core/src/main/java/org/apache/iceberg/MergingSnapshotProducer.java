@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.MANIFEST_MIN_DATA_FILES_TO_FLUSH;
+import static org.apache.iceberg.TableProperties.MANIFEST_MIN_DATA_FILES_TO_FLUSH_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
@@ -125,10 +127,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private static final int ESTIMATED_BYTES_PER_METRIC_COLUMN = 30;
 
   MergingSnapshotProducer(String tableName, TableOperations ops) {
-    this(tableName, ops, computeFlushThreshold(ThreadPools.WORKER_THREAD_POOL_SIZE, ops.current()));
-  }
-
-  MergingSnapshotProducer(String tableName, TableOperations ops, long flushThreshold) {
     super(ops);
     this.tableName = tableName;
     long targetSizeBytes =
@@ -141,6 +139,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             .propertyAsBoolean(
                 TableProperties.MANIFEST_MERGE_ENABLED,
                 TableProperties.MANIFEST_MERGE_ENABLED_DEFAULT);
+    long configuredFlushThreshold =
+        ops.current()
+            .propertyAsLong(
+                MANIFEST_MIN_DATA_FILES_TO_FLUSH, MANIFEST_MIN_DATA_FILES_TO_FLUSH_DEFAULT);
+    long flushThreshold =
+        configuredFlushThreshold > 0
+            ? configuredFlushThreshold
+            : computeFlushThreshold(ThreadPools.WORKER_THREAD_POOL_SIZE, ops.current());
     this.dataFileAccumulator =
         new FlushingDataFileAccumulator(
             flushThreshold,
@@ -210,7 +216,21 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return deleteExpression;
   }
 
-  protected CloseableIterable<DataFile> addedDataFiles() {
+  /**
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #addedDataFilesIterable()}
+   *     which streams lazily through flushed manifests instead of materializing all files in
+   *     memory.
+   */
+  @Deprecated
+  protected List<DataFile> addedDataFiles() {
+    try (CloseableIterable<DataFile> files = dataFileAccumulator.allAddedFiles()) {
+      return ImmutableList.copyOf(files);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read added data files", e);
+    }
+  }
+
+  protected CloseableIterable<DataFile> addedDataFilesIterable() {
     return dataFileAccumulator.allAddedFiles();
   }
 

@@ -26,10 +26,6 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
     super(tableName, ops);
   }
 
-  MergeAppend(String tableName, TableOperations ops, int flushThreshold) {
-    super(tableName, ops, flushThreshold);
-  }
-
   @Override
   protected AppendFiles self() {
     return this;

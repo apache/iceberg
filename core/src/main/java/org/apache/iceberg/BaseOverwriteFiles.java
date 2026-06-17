@@ -44,10 +44,6 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     super(tableName, ops);
   }
 
-  BaseOverwriteFiles(String tableName, TableOperations ops, int flushThreshold) {
-    super(tableName, ops, flushThreshold);
-  }
-
   @Override
   protected OverwriteFiles self() {
     return this;
@@ -154,7 +150,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
       StrictMetricsEvaluator metrics =
           new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
 
-      try (CloseableIterable<DataFile> addedFiles = addedDataFiles()) {
+      try (CloseableIterable<DataFile> addedFiles = addedDataFilesIterable()) {
         for (DataFile file : addedFiles) {
           // the real test is that the strict or metrics test matches the file, indicating that all
           // records in the file match the filter. inclusive is used to avoid testing the metrics,

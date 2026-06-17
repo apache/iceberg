@@ -340,6 +340,7 @@ public class TestOverwrite extends TestBase {
   @TestTemplate
   public void testOverwriteAutoFlushWithDelete() {
     TestTables.TestTableOperations ops = ((TestTables.TestTable) table).ops();
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_DATA_FILES_TO_FLUSH, "3").commit();
     ops.failCommits(1);
 
     List<DataFile> newFiles = Lists.newArrayList();
@@ -347,7 +348,7 @@ public class TestOverwrite extends TestBase {
       newFiles.add(newDataFile(table, "date=2018-06-08"));
     }
 
-    BaseOverwriteFiles overwrite = new BaseOverwriteFiles(TABLE_NAME, ops, 3);
+    BaseOverwriteFiles overwrite = new BaseOverwriteFiles(TABLE_NAME, ops);
     overwrite.deleteFile(FILE_0_TO_4);
     newFiles.forEach(overwrite::addFile);
     Snapshot snapshot = commit(table, overwrite, branch);

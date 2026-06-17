@@ -573,30 +573,6 @@ acceptedBreaks:
         \ org.apache.iceberg.PartitionStatsHandler::readPartitionStatsFile(org.apache.iceberg.Schema,\
         \ org.apache.iceberg.io.InputFile)"
       justification: "Removed deprecated functionality for partition stats"
-    - code: "java.method.returnTypeChanged"
-      old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles()\
-        \ @ org.apache.iceberg.BaseOverwriteFiles"
-      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.DataFile>\
-        \ org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles() @ org.apache.iceberg.BaseOverwriteFiles"
-      justification: "Change addedDataFiles() return type to CloseableIterable for lazy streaming of flushed manifests"
-    - code: "java.method.returnTypeChanged"
-      old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles()\
-        \ @ org.apache.iceberg.BaseReplacePartitions"
-      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.DataFile>\
-        \ org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles() @ org.apache.iceberg.BaseReplacePartitions"
-      justification: "Change addedDataFiles() return type to CloseableIterable for lazy streaming of flushed manifests"
-    - code: "java.method.returnTypeChanged"
-      old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles()\
-        \ @ org.apache.iceberg.BaseRowDelta"
-      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.DataFile>\
-        \ org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles() @ org.apache.iceberg.BaseRowDelta"
-      justification: "Change addedDataFiles() return type to CloseableIterable for lazy streaming of flushed manifests"
-    - code: "java.method.returnTypeChanged"
-      old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles()\
-        \ @ org.apache.iceberg.StreamingDelete"
-      new: "method org.apache.iceberg.io.CloseableIterable<org.apache.iceberg.DataFile>\
-        \ org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDataFiles() @ org.apache.iceberg.StreamingDelete"
-      justification: "Change addedDataFiles() return type to CloseableIterable for lazy streaming of flushed manifests"
   "1.2.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.field.constantValueChanged"
