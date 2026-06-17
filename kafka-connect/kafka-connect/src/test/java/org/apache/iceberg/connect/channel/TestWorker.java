@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
@@ -82,6 +84,7 @@ public class TestWorker extends ChannelTestBase {
 
       Worker worker = new Worker(config, clientFactory, sinkWriter, context);
       worker.start();
+      verify(clientFactory, never()).createAdmin();
 
       // init consumer after subscribe()
       initConsumer();
