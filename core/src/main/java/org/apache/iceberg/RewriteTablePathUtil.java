@@ -706,7 +706,7 @@ public class RewriteTablePathUtil {
     }
 
     try (PuffinWriter writer =
-        Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
+        Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).overwrite().build()) {
       rewrittenBlobs.forEach(writer::write);
     }
   }
