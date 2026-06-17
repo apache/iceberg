@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.spark.sql.functions.array;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.NullOrder;
@@ -31,11 +30,10 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ZOrderByteUtils;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -55,15 +53,18 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
           .build();
 
   /**
-   * Controls the number of bits taken from each input column when computing the Hilbert index. Must
-   * be a positive multiple of 8, no greater than 64. Default is 64.
+   * The number of bits contributed by each column to the Hilbert index.
+   *
+   * <p>This is fixed at the full width of {@link ZOrderByteUtils#PRIMITIVE_BUFFER_SIZE}. A smaller,
+   * configurable width is unsafe with the shared {@link ZOrderByteUtils} encodings: whole-number
+   * types (int, date, small longs, ...) are widened into an 8-byte key with their magnitude in the
+   * low-order bytes, so truncating to fewer high-order bytes would discard all magnitude and
+   * collapse those columns to a single coordinate. Supporting a narrower width correctly would
+   * require tracking each column's significant bit width, which is out of scope here.
    */
-  public static final String BITS_PER_COLUMN = "bits-per-column";
-
-  public static final int BITS_PER_COLUMN_DEFAULT = 64;
+  private static final int BITS_PER_COLUMN = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE * Byte.SIZE;
 
   private final List<String> hilbertColNames;
-  private int bitsPerColumn;
 
   SparkHilbertFileRewriteRunner(SparkSession spark, Table table, List<String> hilbertColNames) {
     super(spark, table);
@@ -73,17 +74,6 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
   @Override
   public String description() {
     return "HILBERT";
-  }
-
-  @Override
-  public Set<String> validOptions() {
-    return ImmutableSet.<String>builder().addAll(super.validOptions()).add(BITS_PER_COLUMN).build();
-  }
-
-  @Override
-  public void init(Map<String, String> options) {
-    super.init(options);
-    this.bitsPerColumn = bitsPerColumn(options);
   }
 
   @Override
@@ -114,11 +104,11 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
   }
 
   private Column hilbertValue(Dataset<Row> df) {
-    int bytesPerColumn = bitsPerColumn / 8;
-    // Reuse the Z-order byte conversions; force every column to contribute exactly bytesPerColumn
-    // bytes so the Hilbert transform sees a uniform per-dimension width.
+    // Reuse the Z-order byte conversions. Every column contributes the full primitive width so the
+    // Hilbert transform sees a uniform per-dimension width with no magnitude loss.
     SparkZOrderUDF byteUDF =
-        new SparkZOrderUDF(hilbertColNames.size(), bytesPerColumn, Integer.MAX_VALUE);
+        new SparkZOrderUDF(
+            hilbertColNames.size(), ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE, Integer.MAX_VALUE);
 
     Column[] orderedCols =
         hilbertColNames.stream()
@@ -126,18 +116,8 @@ class SparkHilbertFileRewriteRunner extends SparkShufflingFileRewriteRunner {
             .map(col -> byteUDF.sortedLexicographically(df.col(col.name()), col.dataType()))
             .toArray(Column[]::new);
 
-    SparkHilbertUDF hilbertUDF = new SparkHilbertUDF(hilbertColNames.size(), bitsPerColumn);
+    SparkHilbertUDF hilbertUDF = new SparkHilbertUDF(hilbertColNames.size(), BITS_PER_COLUMN);
     return hilbertUDF.hilbertValue(array(orderedCols));
-  }
-
-  private int bitsPerColumn(Map<String, String> options) {
-    int value = PropertyUtil.propertyAsInt(options, BITS_PER_COLUMN, BITS_PER_COLUMN_DEFAULT);
-    Preconditions.checkArgument(
-        value > 0 && value % 8 == 0 && value <= 64,
-        "Invalid '%s': must be a positive multiple of 8 no greater than 64, was %s",
-        BITS_PER_COLUMN,
-        value);
-    return value;
   }
 
   private List<String> validHilbertColNames(

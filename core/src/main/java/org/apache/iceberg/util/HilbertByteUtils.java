@@ -89,36 +89,36 @@ public class HilbertByteUtils {
   }
 
   // please refer to the paper
-  private static void axesToTranspose(long[] x, int bits) {
-    int numColumns = x.length;
+  private static void axesToTranspose(long[] axes, int bits) {
+    int numColumns = axes.length;
 
     for (int b = bits - 1; b > 0; b--) {
-      long q = 1L << b;
-      long p = q - 1;
+      long bit = 1L << b;
+      long lowerMask = bit - 1;
       for (int i = 0; i < numColumns; i++) {
-        if ((x[i] & q) != 0) {
-          x[0] ^= p;
+        if ((axes[i] & bit) != 0) {
+          axes[0] ^= lowerMask;
         } else {
-          long t = (x[0] ^ x[i]) & p;
-          x[0] ^= t;
-          x[i] ^= t;
+          long swap = (axes[0] ^ axes[i]) & lowerMask;
+          axes[0] ^= swap;
+          axes[i] ^= swap;
         }
       }
     }
 
     // Gray encode.
     for (int i = 1; i < numColumns; i++) {
-      x[i] ^= x[i - 1];
+      axes[i] ^= axes[i - 1];
     }
-    long t = 0;
+    long adjust = 0;
     for (int b = bits - 1; b > 0; b--) {
-      long q = 1L << b;
-      if ((x[numColumns - 1] & q) != 0) {
-        t ^= q - 1;
+      long bit = 1L << b;
+      if ((axes[numColumns - 1] & bit) != 0) {
+        adjust ^= bit - 1;
       }
     }
     for (int i = 0; i < numColumns; i++) {
-      x[i] ^= t;
+      axes[i] ^= adjust;
     }
   }
 

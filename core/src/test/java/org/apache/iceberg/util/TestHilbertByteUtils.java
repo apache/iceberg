@@ -21,18 +21,18 @@ package org.apache.iceberg.util;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.HashSet;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 public class TestHilbertByteUtils {
 
   private static int toInt(byte[] bytes) {
-    int v = 0;
+    int value = 0;
     for (byte b : bytes) {
-      v = (v << 8) | (b & 0xFF);
+      value = (value << 8) | (b & 0xFF);
     }
-    return v;
+    return value;
   }
 
   /**
@@ -41,13 +41,15 @@ public class TestHilbertByteUtils {
    */
   @Test
   public void testBijectionTwoDimensions() {
-    Set<Integer> seen = new HashSet<>();
+    Set<Integer> seen = Sets.newHashSet();
     for (int x = 0; x < 256; x++) {
       for (int y = 0; y < 256; y++) {
         byte[][] cols = new byte[][] {new byte[] {(byte) x}, new byte[] {(byte) y}};
-        int d = toInt(HilbertByteUtils.hilbertIndex(cols, 8));
-        assertThat(seen.add(d)).as("duplicate hilbert index %s for (%s,%s)", d, x, y).isTrue();
-        assertThat(d).isBetween(0, 65535);
+        int index = toInt(HilbertByteUtils.hilbertIndex(cols, 8));
+        assertThat(seen.add(index))
+            .as("duplicate hilbert index %s for (%s,%s)", index, x, y)
+            .isTrue();
+        assertThat(index).isBetween(0, 65535);
       }
     }
     assertThat(seen).hasSize(65536);
@@ -64,15 +66,18 @@ public class TestHilbertByteUtils {
     for (int x = 0; x < 256; x++) {
       for (int y = 0; y < 256; y++) {
         byte[][] cols = new byte[][] {new byte[] {(byte) x}, new byte[] {(byte) y}};
-        int d = toInt(HilbertByteUtils.hilbertIndex(cols, 8));
-        xByIndex[d] = x;
-        yByIndex[d] = y;
+        int index = toInt(HilbertByteUtils.hilbertIndex(cols, 8));
+        xByIndex[index] = x;
+        yByIndex[index] = y;
       }
     }
-    for (int d = 1; d < 65536; d++) {
+    for (int index = 1; index < 65536; index++) {
       int manhattan =
-          Math.abs(xByIndex[d] - xByIndex[d - 1]) + Math.abs(yByIndex[d] - yByIndex[d - 1]);
-      assertThat(manhattan).as("indices %s and %s are not adjacent", d - 1, d).isEqualTo(1);
+          Math.abs(xByIndex[index] - xByIndex[index - 1])
+              + Math.abs(yByIndex[index] - yByIndex[index - 1]);
+      assertThat(manhattan)
+          .as("indices %s and %s are not adjacent", index - 1, index)
+          .isEqualTo(1);
     }
   }
 
@@ -103,11 +108,12 @@ public class TestHilbertByteUtils {
   /** Only the high {@code bitsPerColumn} bits of each column participate. */
   @Test
   public void testReadsLeadingBytesOnly() {
-    byte[][] a =
+    byte[][] leadingOnly =
         new byte[][] {new byte[] {5, 0, 0, 0, 0, 0, 0, 0}, new byte[] {9, 0, 0, 0, 0, 0, 0, 0}};
-    byte[][] b =
+    byte[][] withTrailing =
         new byte[][] {new byte[] {5, 77, 0, 0, 0, 0, 0, 0}, new byte[] {9, 13, 0, 0, 0, 0, 0, 0}};
-    assertThat(HilbertByteUtils.hilbertIndex(a, 8)).isEqualTo(HilbertByteUtils.hilbertIndex(b, 8));
+    assertThat(HilbertByteUtils.hilbertIndex(leadingOnly, 8))
+        .isEqualTo(HilbertByteUtils.hilbertIndex(withTrailing, 8));
   }
 
   @Test
