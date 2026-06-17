@@ -30,9 +30,11 @@ class TestNaNUtil {
 
     assertThat(NaNUtil.isNaN(null)).isFalse();
     assertThat(NaNUtil.isNaN(1.0d)).isFalse();
+    assertThat(NaNUtil.isNaN(-0.0d)).isFalse();
     assertThat(NaNUtil.isNaN(Double.POSITIVE_INFINITY)).isFalse();
     assertThat(NaNUtil.isNaN(Double.NEGATIVE_INFINITY)).isFalse();
     assertThat(NaNUtil.isNaN(1.0f)).isFalse();
+    assertThat(NaNUtil.isNaN(-0.0f)).isFalse();
     assertThat(NaNUtil.isNaN(Float.POSITIVE_INFINITY)).isFalse();
     assertThat(NaNUtil.isNaN("NaN")).isFalse();
     assertThat(NaNUtil.isNaN(1)).isFalse();
