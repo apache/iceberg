@@ -34,6 +34,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class TestTrackedFileAdapters {
 
+  private static final int WRITER_FORMAT_VERSION = 4;
   private static final String MANIFEST_LOCATION = "s3://bucket/table/manifest.parquet";
   private static final String DATA_FILE_LOCATION = "s3://bucket/data/file.parquet";
   private static final String DV_LOCATION = "s3://bucket/puffin/dv-file.bin";
@@ -91,6 +92,7 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             createTracking(),
             FileContent.DATA,
+            WRITER_FORMAT_VERSION,
             DATA_FILE_LOCATION,
             FileFormat.PARQUET,
             partition,
@@ -152,6 +154,7 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             createTracking(),
             FileContent.EQUALITY_DELETES,
+            WRITER_FORMAT_VERSION,
             "s3://bucket/eq-delete.avro",
             FileFormat.AVRO,
             partition,
@@ -222,6 +225,7 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             createTracking(),
             FileContent.DATA,
+            WRITER_FORMAT_VERSION,
             DATA_FILE_LOCATION,
             FileFormat.PARQUET,
             partition,
@@ -397,7 +401,14 @@ class TestTrackedFileAdapters {
   /** Minimal file with no tracking, used by the rejection and null-tracking tests. */
   private static TrackedFileStruct trackedFile(FileContent contentType) {
     return new TrackedFileStruct(
-        null, contentType, "s3://bucket/file", FileFormat.PARQUET, NO_PARTITION, 1L, 1L);
+        null,
+        contentType,
+        WRITER_FORMAT_VERSION,
+        "s3://bucket/file",
+        FileFormat.PARQUET,
+        NO_PARTITION,
+        1L,
+        1L);
   }
 
   private static TrackingStruct createTracking() {
