@@ -55,6 +55,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -97,6 +98,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private boolean listAllTables = false;
   private boolean uniqueTableLocation;
   private Map<String, String> catalogProperties;
+  private CloseableGroup closeableGroup;
 
   public HiveCatalog() {}
 
@@ -140,6 +142,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
             CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
 
     this.clients = new CachedClientPool(conf, properties);
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(keyManagementClient);
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
@@ -833,10 +841,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    super.close();
-
-    if (keyManagementClient != null) {
-      keyManagementClient.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
     }
   }
 
