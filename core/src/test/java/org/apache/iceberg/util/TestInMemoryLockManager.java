@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
@@ -294,5 +295,41 @@ public class TestInMemoryLockManager {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @Test
+  @Timeout(value = 30)
+  public void testAcquireCancelsOrphanedHeartbeatOnTakeover() {
+    // A holder that never releases leaves its heartbeat tracked in HEARTBEATS. Once the lock
+    // expires, another owner can take it over, and acquireOnce must cancel the stale heartbeat and
+    // replace it. This is the only path that reaches the non-null branch of the cleanup, since
+    // release() always removes the heartbeat first.
+    lockManager.initialize(
+        ImmutableMap.of(
+            CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS, "10",
+            CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, "60000",
+            CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "10",
+            CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "10000"));
+
+    // Acquire without releasing so the heartbeat is left behind; the long heartbeat interval means
+    // the lock is renewed once and then expires for good.
+    lockManager.acquireOnce(lockEntityId, ownerId);
+    ScheduledFuture<?> orphaned = LockManagers.InMemoryLockManager.heartbeat(lockEntityId);
+    assertThat((Object) orphaned).as("the first acquire should track a heartbeat").isNotNull();
+
+    // acquire() retries until the lock expires, then a new owner takes it over.
+    String newOwner = UUID.randomUUID().toString();
+    assertThat(lockManager.acquire(lockEntityId, newOwner))
+        .as("takeover of an expired lock should succeed")
+        .isTrue();
+
+    assertThat(orphaned.isCancelled())
+        .as("the orphaned heartbeat should be cancelled on takeover")
+        .isTrue();
+    assertThat((Object) LockManagers.InMemoryLockManager.heartbeat(lockEntityId))
+        .as("a fresh heartbeat should replace the orphaned one")
+        .isNotNull()
+        .isNotSameAs(orphaned);
+    assertThat(LockManagers.InMemoryLockManager.heartbeatCount()).isOne();
   }
 }

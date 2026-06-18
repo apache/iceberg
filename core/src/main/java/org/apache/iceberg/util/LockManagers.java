@@ -191,6 +191,11 @@ public class LockManagers {
     }
 
     @VisibleForTesting
+    static ScheduledFuture<?> heartbeat(String entityId) {
+      return HEARTBEATS.get(entityId);
+    }
+
+    @VisibleForTesting
     void acquireOnce(String entityId, String ownerId) {
       InMemoryLockContent content = LOCKS.get(entityId);
       if (content != null && content.expireMs() > System.currentTimeMillis()) {
