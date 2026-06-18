@@ -18,7 +18,7 @@
 """
 MkDocs hook: latest URL alias.
 
-The canonical built directory for the current release is /docs/<icebergVersion>/.
+The canonical built directory is /docs/<icebergVersion>/.
 This hook copies it to /docs/latest/ so both URLs resolve.
 
 A real copy (not a symlink) is required because `mkdocs gh-deploy` invokes

@@ -16,7 +16,7 @@
 # under the License.
 
 """
-MkDocs hook: keep only the current version's docs in the search index.
+MkDocs hook: keep only the configured version's docs in the search index.
 
 Excludes every page under ``docs/<segment>/`` where ``<segment>`` is not the
 current ``extra.icebergVersion``. Top-level site pages (community, blog, etc.)

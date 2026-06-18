@@ -67,9 +67,9 @@ The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/doc
  1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documentation source files (`/docs`) during release. These versions are mounted at the `/site/versioned-docs/<version>` directory at build time.
  1. [`javadoc`](https://github.com/apache/iceberg/tree/javadoc) - contains prior statically generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` directory at  build time.
 
-The current release is built directly from `versioned-docs/<icebergVersion>` (where `icebergVersion` is set in `mkdocs.yml`). The `/docs/latest/` URL is created post-build as a copy of `/docs/<icebergVersion>/` by [`hooks/version_alias.py`](hooks/version_alias.py), so both URLs resolve. The `nightly` version is a soft link to the current local state of the `/docs` markdown files.
+The configured version is built directly from `versioned-docs/<icebergVersion>` (where `icebergVersion` is set in `mkdocs.yml`). The `/docs/latest/` URL is created post-build as a copy of `/docs/<icebergVersion>/` by [`hooks/version_alias.py`](hooks/version_alias.py), so both URLs resolve. The `nightly` version is a soft link to the current local state of the `/docs` markdown files.
 
-The site search index is restricted to the current release by [`hooks/search_index_current_version_only.py`](hooks/search_index_current_version_only.py), so prior versions and nightly docs do not appear in search results.
+The site search index is restricted to the configured version by [`hooks/search_index_current_version_only.py`](hooks/search_index_current_version_only.py), so prior versions and nightly docs do not appear in search results.
 
 The docs are built, run, and released using [make](https://www.gnu.org/software/make/manual/make.html). The [Makefile](Makefile) and the [common shell script](dev/common.sh) support the following command:
 
@@ -79,7 +79,7 @@ The docs are built, run, and released using [make](https://www.gnu.org/software/
 > [deploy](dev/deploy.sh): Clean, build, and deploy the Iceberg docs site.
 > help: Show help for each of the Makefile recipes.
 > [serve](dev/serve.sh): Clean, build, and run the site locally.
-> [serve-dev](dev/serve-dev.sh): Fast iterative development mode - only builds nightly and latest.
+> [serve-dev](dev/serve-dev.sh): Fast iterative development mode - only builds nightly and the configured version.
 > [lint](dev/lint.sh): Scan markdown files for style issues.
 > [lint-fix](dev/lint.sh): Run linting with auto-fix on the markdown files.
 
@@ -95,22 +95,21 @@ This step will generate the staged source code which blends into the original so
 ./site/
 ├── versioned-docs
 │   ├── nightly (symlink to /docs/)
-│   ├── <icebergVersion> (current release, e.g. 1.11.0)
-│   ├── 1.10.2
-│   ├── 1.10.1
+│   ├── <icebergVersion> (configured version, e.g. 1.11.0)
 │   └── ...
 ├── docs
 │   ├── javadoc
-│   │   ├── nightly (symlink to latest)
+│   │   ├── nightly (currently symlink to latest)
 │   │   ├── latest (symlink to <icebergVersion>)
 │   │   ├── <icebergVersion>
-│   │   ├── 1.10.2
 │   │   └── ...
 │   └─.asf.yaml
 └── mkdocs.yml
 ```
 
-After `mkdocs build`, the post-build hook copies `site/docs/<icebergVersion>` to `site/docs/latest`, so `/docs/latest/` and `/docs/<icebergVersion>/` both resolve to the current release.
+After `mkdocs build`, the post-build hook copies `site/docs/<icebergVersion>` to `site/docs/latest`, so `/docs/latest/` and `/docs/<icebergVersion>/` both resolve to the configured version.
+
+The `javadoc` branch stores released versions. The `javadoc/nightly` path is currently an alias to `javadoc/latest` so nightly docs can keep resolving Javadoc links until separate nightly Javadocs are published.
 
 #### Linting
 
@@ -146,7 +145,7 @@ make serve-dev
 ```
 
 This development mode:
-- **Only builds `nightly` and `latest` versions** - Skips all historical versions
+- **Only builds `nightly` and the configured version** - Skips all historical versions
 - **Significantly reduces build time** - Typically 5-10x faster than building all versions
 - **Perfect for iterative development** - Great for working on documentation content
 
@@ -196,9 +195,7 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 │   ├── <icebergVersion>
 │   │   ├── docs
 │   │   └── mkdocs.yml
-│   └── 1.10.2
-│       ├── docs
-│       └── mkdocs.yml
+│   └── ...
 ├── docs
 │   └─ javadoc
 │      ├── nightly
