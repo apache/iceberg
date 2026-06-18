@@ -48,7 +48,7 @@ theme:
     - content.code.annotate
 
 hooks:
-  # Post-build: copy docs/<icebergVersion>/ to docs/latest/ so both URLs resolve.
+  # Resolve docs/latest links during build and copy docs/<icebergVersion>/ after build.
   - hooks/version_alias.py
   # Restrict the search index to docs/<icebergVersion>/ and top-level pages;
   # all other docs/<segment>/ pages (nightly, prior releases) are excluded.

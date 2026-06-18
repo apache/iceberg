@@ -19,7 +19,7 @@ title: "Hive and Iceberg Quickstart"
  -->
 
 This guide will get you up and running with Apache Iceberg™ using Apache Hive™, including sample code to
-highlight some powerful features. You can learn more about Iceberg's Hive runtime by checking out the [Hive](docs/{{ icebergVersion }}/hive.md) section.
+highlight some powerful features. You can learn more about Iceberg's Hive runtime by checking out the [Hive](docs/latest/hive.md) section.
 
 - [Docker Images](#docker-images)
 - [Creating a Table](#creating-a-table)
@@ -63,7 +63,7 @@ show databases;
 
 ### Creating a Table
 
-To create your first Iceberg table in Hive, run a [`CREATE TABLE`](docs/{{ icebergVersion }}/hive.md#create-table) command. Let's create a table
+To create your first Iceberg table in Hive, run a [`CREATE TABLE`](docs/latest/hive.md#create-table) command. Let's create a table
 using `nyc.taxis` where `nyc` is the database name and `taxis` is the table name.
 ```sql
 CREATE DATABASE nyc;
@@ -80,11 +80,11 @@ PARTITIONED BY (vendor_id bigint) STORED BY ICEBERG;
 ```
 Iceberg catalogs support the full range of SQL DDL commands, including:
 
-* [`CREATE TABLE`](docs/{{ icebergVersion }}/hive.md#create-table)
-* [`CREATE TABLE AS SELECT`](docs/{{ icebergVersion }}/hive.md#create-table-as-select)
-* [`CREATE TABLE LIKE TABLE`](docs/{{ icebergVersion }}/hive.md#create-table-like-table)
-* [`ALTER TABLE`](docs/{{ icebergVersion }}/hive.md#alter-table)
-* [`DROP TABLE`](docs/{{ icebergVersion }}/hive.md#drop-table)
+* [`CREATE TABLE`](docs/latest/hive.md#create-table)
+* [`CREATE TABLE AS SELECT`](docs/latest/hive.md#create-table-as-select)
+* [`CREATE TABLE LIKE TABLE`](docs/latest/hive.md#create-table-like-table)
+* [`ALTER TABLE`](docs/latest/hive.md#alter-table)
+* [`DROP TABLE`](docs/latest/hive.md#drop-table)
 
 ### Writing Data to a Table
 
@@ -105,8 +105,8 @@ SELECT * FROM nyc.taxis;
 
 #### Adding Iceberg to Hive
 
-If you already have a Hive 4.0.0 or later environment, it comes with the Iceberg included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/{{ icebergVersion }}/hive.md#hive-23x-hive-31x).
+If you already have a Hive 4.0.0 or later environment, it comes with the Iceberg included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#hive-23x-hive-31x).
 
 #### Learn More
 
-To learn more about setting up a database other than Derby, see [Apache Hive Quick Start](https://hive.apache.org/developement/quickstart/). You can also [set up a standalone metastore, HS2 and Postgres](https://github.com/apache/hive/blob/master/packaging/src/docker/docker-compose.yml) or [use Hive Metastore as Iceberg REST Catalog](https://hive.apache.org/docs/latest/admin/iceberg-rest-catalog/). Now that you're up and running with Iceberg and Hive, check out the [Iceberg-Hive docs](docs/{{ icebergVersion }}/hive.md) to learn more!
+To learn more about setting up a database other than Derby, see [Apache Hive Quick Start](https://hive.apache.org/developement/quickstart/). You can also [set up a standalone metastore, HS2 and Postgres](https://github.com/apache/hive/blob/master/packaging/src/docker/docker-compose.yml) or [use Hive Metastore as Iceberg REST Catalog](https://hive.apache.org/docs/latest/admin/iceberg-rest-catalog/). Now that you're up and running with Iceberg and Hive, check out the [Iceberg-Hive docs](docs/latest/hive.md) to learn more!

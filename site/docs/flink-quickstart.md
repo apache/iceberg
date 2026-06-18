@@ -19,7 +19,7 @@ title: "Flink and Iceberg Quickstart"
  -->
 
 This guide will get you up and running with Apache Iceberg™ using Apache Flink™, including sample code to
-highlight some powerful features. You can learn more about Iceberg's Flink runtime by checking out the [Flink](docs/{{ icebergVersion }}/flink.md) section.
+highlight some powerful features. You can learn more about Iceberg's Flink runtime by checking out the [Flink](docs/latest/flink.md) section.
 
 ## Quickstart environment
 
@@ -53,7 +53,7 @@ docker exec -it jobmanager ./bin/sql-client.sh
 
 Iceberg has several catalog back-ends that can be used to track tables, like JDBC, Hive MetaStore and Glue.
 In this guide we use a REST catalog, backed by S3.
-To learn more, check out the [Catalog](docs/{{ icebergVersion }}/flink-configuration.md#catalog-configuration) page in the Flink section.
+To learn more, check out the [Catalog](docs/latest/flink-configuration.md#catalog-configuration) page in the Flink section.
 
 First up, we need to define a Flink catalog.
 Tables within this catalog will be stored on S3 blob store:
@@ -80,7 +80,7 @@ CREATE DATABASE IF NOT EXISTS iceberg_catalog.nyc;
 
 ## Creating a Table
 
-To create your first Iceberg table in Flink, run a [`CREATE TABLE`](docs/{{ icebergVersion }}/flink-ddl.md#create-table) command.
+To create your first Iceberg table in Flink, run a [`CREATE TABLE`](docs/latest/flink-ddl.md#create-table) command.
 Let's create a table using `iceberg_catalog.nyc.taxis` where `iceberg_catalog` is the catalog name, `nyc` is the database name, and `taxis` is the table name.
 
 ```sql
@@ -96,9 +96,9 @@ CREATE TABLE iceberg_catalog.nyc.taxis
 
 Iceberg catalogs support the full range of Flink SQL DDL commands, including:
 
-* [`CREATE TABLE ... PARTITIONED BY`](docs/{{ icebergVersion }}/flink-ddl.md#partitioned-by)
-* [`ALTER TABLE`](docs/{{ icebergVersion }}/flink-ddl.md#alter-table)
-* [`DROP TABLE`](docs/{{ icebergVersion }}/flink-ddl.md#drop-table)
+* [`CREATE TABLE ... PARTITIONED BY`](docs/latest/flink-ddl.md#partitioned-by)
+* [`ALTER TABLE`](docs/latest/flink-ddl.md#alter-table)
+* [`DROP TABLE`](docs/latest/flink-ddl.md#drop-table)
 
 ## Writing Data to a Table
 
@@ -129,7 +129,7 @@ SELECT * FROM iceberg_catalog.nyc.taxis;
 ## Creating a Table with Inline Configuration
 
 Creating a Flink catalog as shown above, backed by an Iceberg REST Catalog, is one way to use Iceberg in Flink.
-Another way is to use the [Flink connector](docs/{{ icebergVersion }}/flink-connector.md) and specify the catalog connection details directly in the table definition. This still connects to the same external Iceberg REST Catalog - the difference is just that you don't need a separate `CREATE CATALOG` statement.
+Another way is to use the [Flink connector](docs/latest/flink-connector.md) and specify the catalog connection details directly in the table definition. This still connects to the same external Iceberg REST Catalog - the difference is just that you don't need a separate `CREATE CATALOG` statement.
 
 Create a table using inline configuration:
 
@@ -171,4 +171,4 @@ docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml down
     If you want to include Iceberg in your Flink installation, add the Iceberg Flink runtime to Flink's `jars` folder.
     You can download the runtime from the [Releases](releases.md) page.
 
-Now that you're up and running with Iceberg and Flink, check out the [Iceberg Flink docs](docs/{{ icebergVersion }}/flink.md) to learn more!
+Now that you're up and running with Iceberg and Flink, check out the [Iceberg Flink docs](docs/latest/flink.md) to learn more!
