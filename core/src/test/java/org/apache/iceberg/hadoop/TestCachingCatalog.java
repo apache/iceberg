@@ -19,9 +19,14 @@
 package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import java.io.Closeable;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
@@ -434,6 +439,24 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     // cache should have been invalidated by registerTable
     assertThat(catalog.cache().asMap()).doesNotContainKey(targetIdent);
+  }
+
+  @Test
+  void closePropagatesToWrappedCatalog() throws IOException {
+    HadoopCatalog backing = spy(hadoopCatalog());
+    Closeable caching = (Closeable) CachingCatalog.wrap(backing);
+
+    caching.close();
+
+    verify(backing).close();
+  }
+
+  @Test
+  void closeIsSafeWhenWrappedCatalogIsNotCloseable() {
+    Catalog nonCloseable = mock(Catalog.class);
+    Closeable caching = (Closeable) CachingCatalog.wrap(nonCloseable);
+
+    assertThatCode(caching::close).doesNotThrowAnyException();
   }
 
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {
