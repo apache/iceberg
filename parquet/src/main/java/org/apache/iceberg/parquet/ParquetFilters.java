@@ -188,7 +188,7 @@ class ParquetFilters {
         case BINARY:
           return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case UUID:
-          return pred(op, FilterApi.binaryColumn(path), getParquetUUID(lit));
+          return uuidPred(op, path, lit);
         case DECIMAL:
           return decimalPred(
               op,
@@ -212,6 +212,19 @@ class ParquetFilters {
         return AlwaysFalse.INSTANCE;
       }
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
+    }
+  }
+
+  private static FilterPredicate uuidPred(Operation op, String path, Literal<?> lit) {
+    switch (op) {
+      case IS_NULL:
+      case NOT_NULL:
+      case EQ:
+      case NOT_EQ:
+        return pred(op, FilterApi.binaryColumn(path), getParquetUUID(lit));
+      default:
+        // Parquet UUID ordering is unsigned lexicographic, which does not match UUID.compareTo.
+        return AlwaysTrue.INSTANCE;
     }
   }
 
