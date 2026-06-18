@@ -295,7 +295,8 @@ public class TestParquet {
     GenericData.Record second = new GenericData.Record(avroSchema);
     second.put("geom", ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06}));
 
-    write(file, binarySchema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, first, second);
+    write(
+        file, binarySchema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, first, second);
 
     InputFile inputFile = Files.localInput(file);
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
