@@ -155,6 +155,52 @@ public class TestRESTUtil {
   }
 
   @Test
+  public void encodePathAsOldAndNewClientDecodeAsOldServer() {
+    String input = " +%20";
+
+    // old Java client would call encodeString
+    String encodedOldJava = RESTUtil.encodeString(input);
+    assertThat(encodedOldJava).isEqualTo("+%2B%2520");
+
+    // new Java client would call encodePathSegment
+    String encodedNewJava = RESTUtil.encodePathSegment(input);
+    assertThat(encodedNewJava).isEqualTo("%20%2B%2520");
+
+    // another client (e.g. Iceberg Go) would encode using strict RFC 3986, "+" is not
+    // percent-encoded
+    String encodedOther = "%20+%2520";
+
+    // old server would decode with decodeString; should work for both old and new Java clients,
+    // but not for clients sending a literal "+"
+    assertThat(RESTUtil.decodeString(encodedOldJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodeString(encodedNewJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodeString(encodedOther)).isNotEqualTo(input).isEqualTo("  %20");
+  }
+
+  @Test
+  public void encodePathAsOldAndNewClientDecodeAsNewServer() {
+    String input = " +%20";
+
+    // old Java client would call encodeString
+    String encodedOldJava = RESTUtil.encodeString(input);
+    assertThat(encodedOldJava).isEqualTo("+%2B%2520");
+
+    // new Java client would call encodePathSegment
+    String encodedNewJava = RESTUtil.encodePathSegment(input);
+    assertThat(encodedNewJava).isEqualTo("%20%2B%2520");
+
+    // another client (e.g. Iceberg Go) would encode using strict RFC 3986, "+" is not
+    // percent-encoded
+    String encodedOther = "%20+%2520";
+
+    // new server would decode with decodePathSegment; should work for both new Java clients and
+    // clients sending a literal "+", but not for old Java clients
+    assertThat(RESTUtil.decodePathSegment(encodedOldJava)).isNotEqualTo(input).isEqualTo("++%20");
+    assertThat(RESTUtil.decodePathSegment(encodedNewJava)).isEqualTo(input);
+    assertThat(RESTUtil.decodePathSegment(encodedOther)).isEqualTo(input);
+  }
+
+  @Test
   public void encodeAsOldClientAndDecodeAsNewServer() {
     Namespace namespace = Namespace.of("first", "second", "third");
     // old client would call encodeNamespace without specifying a separator
