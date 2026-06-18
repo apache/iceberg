@@ -19,8 +19,10 @@
 package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.parquet.schema.Types.buildMessage;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
@@ -53,14 +55,14 @@ class TestParquetFilters {
       ParquetSchemaUtil.convert(TABLE_SCHEMA, "table");
 
   private static final MessageType BINARY_DECIMAL_PARQUET_SCHEMA =
-      org.apache.parquet.schema.Types.buildMessage()
+      buildMessage()
           .optional(PrimitiveTypeName.BINARY)
           .as(LogicalTypeAnnotation.decimalType(2, 9))
           .named("decimal_int")
           .named("table");
 
   private static final MessageType EXTENDED_FIXED_DECIMAL_PARQUET_SCHEMA =
-      org.apache.parquet.schema.Types.buildMessage()
+      buildMessage()
           .optional(PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
           .length(16)
           .as(LogicalTypeAnnotation.decimalType(2, 19))
@@ -180,6 +182,17 @@ class TestParquetFilters {
 
     assertThat(predicate.getColumn().getColumnType()).isEqualTo(Binary.class);
     assertThat(((Binary) predicate.getValue()).getBytes()).isEqualTo(UUIDUtil.convert(uuid));
+  }
+
+  @Test
+  void skipsUuidOrderingPredicate() {
+    FilterCompat.Filter filter =
+        ParquetFilters.convert(
+            PARQUET_SCHEMA,
+            lessThan("uuid_col", UUID.fromString("00000000-0000-0000-0000-000000000001")),
+            true);
+
+    assertThat(filter).isSameAs(FilterCompat.NOOP);
   }
 
   private static <P extends FilterPredicate> P predicate(Expression expression, Class<P> type) {
