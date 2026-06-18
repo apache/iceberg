@@ -387,12 +387,15 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
 
     try (OSSInputStream in = new OSSInputStream(mockClient, uri)) {
       // single-byte read exhausts all retries
-      assertThatThrownBy(() -> in.read()).isInstanceOf(SocketTimeoutException.class);
+      assertThatThrownBy(() -> in.read())
+          .isInstanceOf(SocketTimeoutException.class)
+          .hasMessage("timeout");
 
       // bulk read also exhausts all retries
       byte[] buf = new byte[64];
       assertThatThrownBy(() -> in.read(buf, 0, buf.length))
-          .isInstanceOf(SocketTimeoutException.class);
+          .isInstanceOf(SocketTimeoutException.class)
+          .hasMessage("timeout");
     }
   }
 
