@@ -139,7 +139,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(identifier.namespace()),
         "tables",
-        RESTUtil.encodeString(identifier.name()),
+        RESTUtil.encodePathSegment(identifier.name()),
         "sign");
   }
 
