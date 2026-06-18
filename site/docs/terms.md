@@ -28,7 +28,7 @@ You may think of Iceberg as a format for managing data in a single table, but th
 
 The first step when using an Iceberg client is almost always initializing and configuring a catalog. The configured catalog is then used by compute engines to execute catalog operations. Multiple types of compute engines using a shared Iceberg catalog allows them to share a common data layer.
 
-A catalog is almost always configured through the processing engine which passes along a set of properties during initialization. Different processing engines have different ways to configure a catalog. When configuring a catalog, it’s always best to refer to the [Iceberg documentation](docs/latest/configuration.md#catalog-properties) as well as the docs for the specific processing engine being used. Ultimately, these configurations boil down to a common set of catalog properties that will be passed to configure the Iceberg catalog.
+A catalog is almost always configured through the processing engine which passes along a set of properties during initialization. Different processing engines have different ways to configure a catalog. When configuring a catalog, it’s always best to refer to the [Iceberg documentation](docs/{{ icebergVersion }}/configuration.md#catalog-properties) as well as the docs for the specific processing engine being used. Ultimately, these configurations boil down to a common set of catalog properties that will be passed to configure the Iceberg catalog.
 
 ### Catalog Implementations
 
@@ -66,11 +66,11 @@ Each manifest file in the manifest list is stored with information about its con
 
 A **manifest file** is a metadata file that lists a subset of data files that make up a snapshot.
 
-Each data file in a manifest is stored with a [partition tuple](#partition-tuple), column-level stats, and summary information used to prune splits during [scan planning](docs/latest/performance.md#scan-planning).
+Each data file in a manifest is stored with a [partition tuple](#partition-tuple), column-level stats, and summary information used to prune splits during [scan planning](docs/{{ icebergVersion }}/performance.md#scan-planning).
 
 ## Partition spec
 
-A **partition spec** is a description of how to [partition](docs/latest/partitioning.md) data in a table.
+A **partition spec** is a description of how to [partition](docs/{{ icebergVersion }}/partitioning.md) data in a table.
 
 A spec consists of a list of source columns and transforms. A transform produces a partition value from a source value. For example, `date(ts)` produces the date associated with a timestamp column named `ts`.
 
