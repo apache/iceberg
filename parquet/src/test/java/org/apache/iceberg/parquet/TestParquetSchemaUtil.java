@@ -417,8 +417,11 @@ public class TestParquetSchemaUtil {
     assertThat(actualSchema.asStruct())
         .as("Geometry and geography annotations must convert to the expected Iceberg types")
         .isEqualTo(expectedSchema.asStruct());
+    assertThat(actualSchema.findType("geom_bare").toString()).isEqualTo("geometry(OGC:CRS84)");
     assertThat(actualSchema.findType("geom_explicit_default").toString())
         .isEqualTo("geometry(OGC:CRS84)");
+    assertThat(actualSchema.findType("geog_bare").toString())
+        .isEqualTo("geography(OGC:CRS84, spherical)");
     assertThat(actualSchema.findType("geog_explicit_spherical").toString())
         .isEqualTo("geography(EPSG:4326, spherical)");
   }

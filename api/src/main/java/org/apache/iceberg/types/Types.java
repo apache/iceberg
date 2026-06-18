@@ -59,8 +59,8 @@ public class Types {
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
           .put(VariantType.get().toString(), VariantType.get())
-          .put(GeometryType.crs84().toString(), GeometryType.crs84())
-          .put(GeographyType.crs84().toString(), GeographyType.crs84())
+          .put("geometry", GeometryType.crs84())
+          .put("geography", GeographyType.crs84())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -584,12 +584,12 @@ public class Types {
     private final String crs;
 
     private GeometryType() {
-      crs = null;
+      crs = DEFAULT_CRS;
     }
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = crs;
+      this.crs = crs != null ? crs : DEFAULT_CRS;
     }
 
     @Override
@@ -598,7 +598,7 @@ public class Types {
     }
 
     public String crs() {
-      if (crs == null || DEFAULT_CRS.equalsIgnoreCase(crs)) {
+      if (DEFAULT_CRS.equalsIgnoreCase(crs)) {
         return DEFAULT_CRS;
       }
 
@@ -624,10 +624,6 @@ public class Types {
 
     @Override
     public String toString() {
-      if (crs == null) {
-        return "geometry";
-      }
-
       return String.format("geometry(%s)", crs);
     }
   }
@@ -652,14 +648,14 @@ public class Types {
     private final EdgeAlgorithm algorithm;
 
     private GeographyType() {
-      this.crs = null;
-      this.algorithm = null;
+      this.crs = DEFAULT_CRS;
+      this.algorithm = DEFAULT_ALGORITHM;
     }
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = crs;
-      this.algorithm = algorithm;
+      this.crs = crs != null ? crs : DEFAULT_CRS;
+      this.algorithm = algorithm != null ? algorithm : DEFAULT_ALGORITHM;
     }
 
     @Override
@@ -668,7 +664,7 @@ public class Types {
     }
 
     public String crs() {
-      if (crs == null || DEFAULT_CRS.equalsIgnoreCase(crs)) {
+      if (DEFAULT_CRS.equalsIgnoreCase(crs)) {
         return DEFAULT_CRS;
       }
 
@@ -676,7 +672,7 @@ public class Types {
     }
 
     public EdgeAlgorithm algorithm() {
-      return algorithm != null ? algorithm : DEFAULT_ALGORITHM;
+      return algorithm;
     }
 
     @Override
@@ -699,13 +695,7 @@ public class Types {
 
     @Override
     public String toString() {
-      if (algorithm != null) {
-        return String.format("geography(%s, %s)", crs(), algorithm());
-      } else if (crs != null) {
-        return String.format("geography(%s)", crs);
-      } else {
-        return "geography";
-      }
+      return String.format("geography(%s, %s)", crs, algorithm);
     }
   }
 
