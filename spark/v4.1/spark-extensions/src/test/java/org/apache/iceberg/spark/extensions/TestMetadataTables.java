@@ -643,9 +643,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
         "Result should match the table property history",
         ImmutableList.of(
             row(
-                DateTimeUtils.toJavaTimestamp(
-                    metadataLogEntries.getFirst().timestampMillis() * 1000),
-                metadataLogEntries.getFirst().file(),
+                DateTimeUtils.toJavaTimestamp(metadataLogEntries.get(0).timestampMillis() * 1000),
+                metadataLogEntries.get(0).file(),
                 null,
                 tableMetadata.properties()),
             row(
