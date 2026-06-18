@@ -234,6 +234,21 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testEmptyListAndMapConvert() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = Maps.newHashMap(createMapData());
+    data.put("li", ImmutableList.of());
+    data.put("ma", ImmutableMap.of());
+
+    Record record = converter.convert(data);
+    assertThat((List<?>) record.getField("li")).isEmpty();
+    assertThat((Map<?, ?>) record.getField("ma")).isEmpty();
+  }
+
+  @Test
   public void testUUIDConversionWithParquet() {
     Table table = mock(Table.class);
     when(table.schema())
