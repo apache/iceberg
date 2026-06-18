@@ -139,7 +139,8 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - Test classes and methods should be package private unless required by inheritance.
 - Compute expected values, don't hardcode. Tests belong in the module that owns the code.
 - Write the most direct test for the bug. Parameterized tests for type variations.
-- JUnit 5 + AssertJ: `@Test` (no `test` prefix), `assertThat`, `assertThatThrownBy`.
+- JUnit 5 + AssertJ: `@Test`, `assertThat`, `assertThatThrownBy`.
+- Avoid using `test` prefixes for newly added tests.
 - `waitUntilAfter` for time-dependent tests. Separate tests over combined.
 
 ### REST / OpenAPI Spec
