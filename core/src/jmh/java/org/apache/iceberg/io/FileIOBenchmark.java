@@ -24,8 +24,6 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -37,6 +35,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -99,7 +99,7 @@ public class FileIOBenchmark {
     "java.", "sun.", "jdk.", "os.", "user.", "file.", "line.", "path.", "awt."
   };
 
-  @Param({"org.apache.iceberg.hadoop.HadoopFileIO"})
+  @Param("org.apache.iceberg.hadoop.HadoopFileIO")
   private String fileIOClass;
 
   @Param({"1", "64", "1024", "16384", "131072"})
@@ -118,7 +118,7 @@ public class FileIOBenchmark {
   private Random random;
 
   @Setup(Level.Trial)
-  public void setUp() {
+  public void before() {
     // allow system properties to override @Param values (e.g. -Dbenchmark.fileIOClass=...)
     String fileIOOverride = System.getProperty("benchmark.fileIOClass");
     if (fileIOOverride != null && !fileIOOverride.isEmpty()) {
@@ -165,7 +165,7 @@ public class FileIOBenchmark {
     }
 
     runDir = basePath + "/bench-" + UUID.randomUUID();
-    createdFiles = new ArrayList<>();
+    createdFiles = Lists.newArrayList();
     writeCounter = new AtomicLong(0);
     random = new Random(42);
 
@@ -182,7 +182,7 @@ public class FileIOBenchmark {
   }
 
   @TearDown(Level.Trial)
-  public void tearDown() {
+  public void after() {
     if (fileIO == null) {
       return;
     }
@@ -328,7 +328,7 @@ public class FileIOBenchmark {
   }
 
   private Map<String, String> loadProperties() {
-    Map<String, String> result = new HashMap<>();
+    Map<String, String> result = Maps.newHashMap();
 
     // 1. Try loading from properties file
     Properties fileProps = new Properties();
