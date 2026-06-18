@@ -589,7 +589,7 @@ public class Types {
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+      this.crs = crs;
     }
 
     @Override
@@ -598,7 +598,11 @@ public class Types {
     }
 
     public String crs() {
-      return crs != null ? crs : DEFAULT_CRS;
+      if (crs == null || DEFAULT_CRS.equalsIgnoreCase(crs)) {
+        return DEFAULT_CRS;
+      }
+
+      return crs;
     }
 
     @Override
@@ -610,12 +614,12 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return Objects.equals(crs, that.crs);
+      return crs().equals(that.crs());
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeometryType.class, crs);
+      return Objects.hash(GeometryType.class, crs());
     }
 
     @Override
@@ -654,7 +658,7 @@ public class Types {
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+      this.crs = crs;
       this.algorithm = algorithm;
     }
 
@@ -664,7 +668,11 @@ public class Types {
     }
 
     public String crs() {
-      return crs != null ? crs : DEFAULT_CRS;
+      if (crs == null || DEFAULT_CRS.equalsIgnoreCase(crs)) {
+        return DEFAULT_CRS;
+      }
+
+      return crs;
     }
 
     public EdgeAlgorithm algorithm() {
@@ -691,7 +699,7 @@ public class Types {
 
     @Override
     public String toString() {
-      if (algorithm() != DEFAULT_ALGORITHM) {
+      if (algorithm != null) {
         return String.format("geography(%s, %s)", crs(), algorithm());
       } else if (crs != null) {
         return String.format("geography(%s)", crs);

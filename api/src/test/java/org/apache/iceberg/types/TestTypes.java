@@ -166,6 +166,8 @@ public class TestTypes {
   @Test
   public void testGeospatialTypeToString() {
     assertThat(Types.GeometryType.crs84().toString()).isEqualTo("geometry");
+    assertThat(Types.GeometryType.of(Types.GeometryType.DEFAULT_CRS).toString())
+        .isEqualTo("geometry(OGC:CRS84)");
     assertThat(Types.GeometryType.of("srid:4326").toString()).isEqualTo("geometry(srid:4326)");
     assertThat(Types.GeographyType.crs84().toString()).isEqualTo("geography");
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.KARNEY).toString())
@@ -175,9 +177,9 @@ public class TestTypes {
     assertThat(
             Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.SPHERICAL)
                 .toString())
-        .isEqualTo("geography");
+        .isEqualTo("geography(OGC:CRS84, spherical)");
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).toString())
-        .isEqualTo("geography(srid:4326)");
+        .isEqualTo("geography(srid:4326, spherical)");
   }
 
   @Test
@@ -185,6 +187,9 @@ public class TestTypes {
     // the default CRS and edge algorithm normalize so that equivalent type specs are equal
     assertThat(Types.GeometryType.of(Types.GeometryType.DEFAULT_CRS))
         .isEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.GeometryType.of("ogc:crs84"))
+        .isEqualTo(Types.GeometryType.crs84())
+        .hasSameHashCodeAs(Types.GeometryType.crs84());
     assertThat(Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS))
         .isEqualTo(Types.GeographyType.crs84());
     assertThat(Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.SPHERICAL))
