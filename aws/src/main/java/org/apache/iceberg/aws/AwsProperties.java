@@ -32,6 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -50,6 +52,8 @@ import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AwsProperties implements Serializable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
 
   /**
    * The ID of the Glue Data Catalog where the tables reside. If none is provided, Glue
@@ -504,7 +508,15 @@ public class AwsProperties implements Serializable {
     // with the assumed-role credentials so that they do not diverge from the credentials used for
     // S3, Glue, KMS and DynamoDB. See https://github.com/apache/iceberg/issues/16667.
     if (!Strings.isNullOrEmpty(this.clientAssumeRoleArn)) {
-      return assumeRoleCredentialsProvider();
+      if (!Strings.isNullOrEmpty(this.clientAssumeRoleRegion)) {
+        return assumeRoleCredentialsProvider();
+      }
+
+      LOG.warn(
+          "Cannot assume role {} to sign REST requests because {} is not set; "
+              + "falling back to the default credentials provider.",
+          this.clientAssumeRoleArn,
+          CLIENT_ASSUME_ROLE_REGION);
     }
 
     // Create a new credential provider for each client
@@ -512,12 +524,6 @@ public class AwsProperties implements Serializable {
   }
 
   private StsAssumeRoleCredentialsProvider assumeRoleCredentialsProvider() {
-    Preconditions.checkArgument(
-        !Strings.isNullOrEmpty(this.clientAssumeRoleRegion),
-        "Cannot assume role %s to sign REST requests: %s is required",
-        this.clientAssumeRoleArn,
-        CLIENT_ASSUME_ROLE_REGION);
-
     String sessionName =
         this.clientAssumeRoleSessionName != null
             ? this.clientAssumeRoleSessionName

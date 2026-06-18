@@ -25,7 +25,6 @@ import static org.apache.iceberg.aws.AwsProperties.GLUE_CATALOG_ID;
 import static org.apache.iceberg.aws.AwsProperties.REST_ACCESS_KEY_ID;
 import static org.apache.iceberg.aws.AwsProperties.REST_SECRET_ACCESS_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import org.apache.iceberg.TestHelpers;
@@ -97,13 +96,13 @@ public class TestAwsProperties {
   }
 
   @Test
-  public void testRestCredentialsProviderRequiresRegionToAssumeRole() {
+  public void testRestCredentialsProviderFallsBackToDefaultWhenAssumeRoleRegionMissing() {
     AwsProperties awsProperties =
         new AwsProperties(
             ImmutableMap.of(CLIENT_ASSUME_ROLE_ARN, "arn:aws:iam::123456789012:role/test"));
 
-    assertThatThrownBy(awsProperties::restCredentialsProvider)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(CLIENT_ASSUME_ROLE_REGION);
+    assertThat(awsProperties.restCredentialsProvider())
+        .as("Missing assume-role region should fall back to the default credentials chain")
+        .isInstanceOf(DefaultCredentialsProvider.class);
   }
 }
