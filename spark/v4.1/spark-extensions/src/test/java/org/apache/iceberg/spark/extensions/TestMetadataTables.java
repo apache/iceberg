@@ -629,41 +629,35 @@ public class TestMetadataTables extends ExtensionsTestBase {
             + "TBLPROPERTIES ('format-version'='%s')",
         tableName, formatVersion);
     List<SimpleRecord> recordA = Lists.newArrayList(new SimpleRecord(1, "a"));
-    spark
-        .createDataset(recordA, Encoders.bean(SimpleRecord.class))
-        .writeTo(tableName)
-        .append();
+    spark.createDataset(recordA, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     long snapshotId1 = table.currentSnapshot().snapshotId();
     TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
-            Lists.newArrayList(tableMetadata.previousFiles());
+        Lists.newArrayList(tableMetadata.previousFiles());
 
-    List<Object[]> propertiesLogs = sql("SELECT * FROM %s.table_properties_log ORDER BY timestamp", tableName);
+    List<Object[]> propertiesLogs =
+        sql("SELECT * FROM %s.table_properties_log ORDER BY timestamp", tableName);
     assertEquals(
-            "Result should match the table property history",
-            ImmutableList.of(
-                    row(
-                            DateTimeUtils.toJavaTimestamp(metadataLogEntries.getFirst().timestampMillis() * 1000),
-                            metadataLogEntries.getFirst().file(),
-                            null,
-                            tableMetadata.properties()),
-                    row(
-                            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
-                            tableMetadata.metadataFileLocation(),
-                            snapshotId1,
-                            tableMetadata.properties())),
-            propertiesLogs
-    );
-
+        "Result should match the table property history",
+        ImmutableList.of(
+            row(
+                DateTimeUtils.toJavaTimestamp(
+                    metadataLogEntries.getFirst().timestampMillis() * 1000),
+                metadataLogEntries.getFirst().file(),
+                null,
+                tableMetadata.properties()),
+            row(
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+                tableMetadata.metadataFileLocation(),
+                snapshotId1,
+                tableMetadata.properties())),
+        propertiesLogs);
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('key'='value')", tableName);
     List<SimpleRecord> recordB = Lists.newArrayList(new SimpleRecord(2, "b"));
-    spark
-        .createDataset(recordB, Encoders.bean(SimpleRecord.class))
-        .writeTo(tableName)
-        .append();
+    spark.createDataset(recordB, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
     table.refresh();
     long snapshotId2 = table.currentSnapshot().snapshotId();
     TableMetadata currentMetadata = ((HasTableOperations) table).operations().current();
@@ -675,14 +669,14 @@ public class TestMetadataTables extends ExtensionsTestBase {
             tableName, snapshotId2);
     assertThat(propertiesLogsFilters).as("table_properties_log should return 1 row").hasSize(1);
     assertEquals(
-            "Result should match the latest metadata entry",
-            ImmutableList.of(
-                    row(
-                            DateTimeUtils.toJavaTimestamp(currentMetadata.lastUpdatedMillis() * 1000),
-                            currentMetadata.metadataFileLocation(),
-                            currentMetadata.currentSnapshot().snapshotId(),
-                            currentMetadata.properties())),
-            propertiesLogsFilters);
+        "Result should match the latest metadata entry",
+        ImmutableList.of(
+            row(
+                DateTimeUtils.toJavaTimestamp(currentMetadata.lastUpdatedMillis() * 1000),
+                currentMetadata.metadataFileLocation(),
+                currentMetadata.currentSnapshot().snapshotId(),
+                currentMetadata.properties())),
+        propertiesLogsFilters);
   }
 
   @TestTemplate

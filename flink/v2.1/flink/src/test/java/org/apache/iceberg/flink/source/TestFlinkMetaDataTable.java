@@ -69,7 +69,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -676,28 +675,33 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     Long snapshotId1 = table.currentSnapshot().snapshotId();
     List<Row> propertiesLog = sql("SELECT * FROM %s$table_properties_log", TABLE_NAME);
     assertThat(propertiesLog)
-            .hasSize(3)
-            .element(propertiesLog.size() - 1)
-            .extracting(latest -> latest.getField("latest_snapshot_id")).isEqualTo(snapshotId1);
+        .hasSize(3)
+        .element(propertiesLog.size() - 1)
+        .extracting(latest -> latest.getField("latest_snapshot_id"))
+        .isEqualTo(snapshotId1);
     assertThat(propertiesLog)
-            .element(propertiesLog.size() - 1)
-            .extracting(latest -> latest.getField("properties"))
-            .asInstanceOf(MAP)
-            .containsExactlyInAnyOrderEntriesOf(Map.of("write.format.default", "AVRO", "write.parquet.compression-codec", "zstd"));
+        .element(propertiesLog.size() - 1)
+        .extracting(latest -> latest.getField("properties"))
+        .asInstanceOf(MAP)
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of("write.format.default", "AVRO", "write.parquet.compression-codec", "zstd"));
 
     table.updateProperties().set("key", "value").commit();
     sql("INSERT INTO %s VALUES (3, 'c', 30)", TABLE_NAME);
     table.refresh();
 
     Long snapshotId2 = table.currentSnapshot().snapshotId();
-    List<Row> snapshotFilters = sql("SELECT * FROM %s$table_properties_log WHERE latest_snapshot_id = %s", TABLE_NAME, snapshotId2);
+    List<Row> snapshotFilters =
+        sql(
+            "SELECT * FROM %s$table_properties_log WHERE latest_snapshot_id = %s",
+            TABLE_NAME, snapshotId2);
     assertThat(snapshotFilters)
-            .as("Should contain the expected key-value property")
-            .hasSize(1)
-            .element(0)
-            .extracting(row -> row.getField("properties"))
-            .asInstanceOf(MAP)
-            .containsEntry("key", "value");
+        .as("Should contain the expected key-value property")
+        .hasSize(1)
+        .element(0)
+        .extracting(row -> row.getField("properties"))
+        .asInstanceOf(MAP)
+        .containsEntry("key", "value");
   }
 
   @TestTemplate
