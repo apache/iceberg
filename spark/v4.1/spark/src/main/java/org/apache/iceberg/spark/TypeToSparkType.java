@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -152,6 +153,10 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
         return GeometryType$.MODULE$.apply(geometry.crs());
       case GEOGRAPHY:
         Types.GeographyType geography = (Types.GeographyType) primitive;
+        if (geography.algorithm() != EdgeAlgorithm.SPHERICAL) {
+          throw new UnsupportedOperationException(
+              "Spark does not support geography edge algorithm: " + geography.algorithm());
+        }
         return GeographyType$.MODULE$.apply(geography.crs());
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;

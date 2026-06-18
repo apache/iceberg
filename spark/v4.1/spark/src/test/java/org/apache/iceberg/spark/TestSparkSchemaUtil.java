@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -29,6 +30,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
@@ -116,6 +118,12 @@ public class TestSparkSchemaUtil {
         .isEqualTo(geometry);
     assertThat(SparkSchemaUtil.convert(GeographyType$.MODULE$.apply("EPSG:4326")))
         .isEqualTo(geography);
+
+    Types.GeographyType vincentyGeography =
+        Types.GeographyType.of("EPSG:4326", EdgeAlgorithm.VINCENTY);
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(vincentyGeography))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Spark does not support geography edge algorithm: vincenty");
   }
 
   @Test
