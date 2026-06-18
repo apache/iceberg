@@ -330,6 +330,8 @@ public class TestInMemoryLockManager {
         .as("a fresh heartbeat should replace the orphaned one")
         .isNotNull()
         .isNotSameAs(orphaned);
-    assertThat(LockManagers.InMemoryLockManager.heartbeatCount()).isOne();
+    assertThat(LockManagers.InMemoryLockManager.heartbeatCount())
+        .as("exactly one heartbeat should remain after takeover")
+        .isOne();
   }
 }
