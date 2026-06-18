@@ -169,8 +169,7 @@ public class TestTypes {
     assertThat(Types.GeometryType.of(Types.GeometryType.DEFAULT_CRS).toString())
         .isEqualTo("geometry(OGC:CRS84)");
     assertThat(Types.GeometryType.of("srid:4326").toString()).isEqualTo("geometry(srid:4326)");
-    assertThat(Types.GeographyType.crs84().toString())
-        .isEqualTo("geography(OGC:CRS84, spherical)");
+    assertThat(Types.GeographyType.crs84().toString()).isEqualTo("geography(OGC:CRS84, spherical)");
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.KARNEY).toString())
         .isEqualTo("geography(srid:4326, karney)");
     assertThat(Types.GeographyType.of(null, EdgeAlgorithm.KARNEY).toString())
