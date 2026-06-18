@@ -26,6 +26,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.TwoInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
@@ -193,12 +194,14 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
   }
 
   @Test
-  void writesDVForStagingDataFile() throws Exception {
+  void mergesStagingDVIntoWrittenDV() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
 
     String dataFilePath = getFirstDataFilePath(table);
-    DataFile stagingDataFile = getFirstDataFile(table);
+
+    // Staging DV for the data file at position 0, produced but not committed to the target branch.
+    DeleteFile stagingDV = writeStagingDV(dataFilePath, 0);
 
     try (TwoInputStreamOperatorTestHarness<DVPosition, EqualityConvertPlan, DVWriteResult> harness =
         createHarness()) {
@@ -207,10 +210,11 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
       long time = System.currentTimeMillis();
       EqualityConvertPlan planResult =
           new EqualityConvertPlan(
-              Lists.newArrayList(stagingDataFile), Lists.newArrayList(), 1L, null, 0L, 0L);
+              Lists.newArrayList(), Lists.newArrayList(stagingDV), 1L, null, 0L, 0L);
 
+      // New position 1 in the same file. Must merge it with the staged position 0.
       harness.processElement1(
-          new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
+          new StreamRecord<>(new DVPosition(dataFilePath, 1, 0, EMPTY_PARTITION, 0L), time));
       harness.processElement2(new StreamRecord<>(planResult, time));
 
       harness.processBothWatermarks(new Watermark(time));
@@ -219,6 +223,43 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
       assertThat(output).hasSize(1);
       assertThat(output.get(0).hasError()).isFalse();
       assertThat(output.get(0).dvFiles()).hasSize(1);
+      assertThat(output.get(0).dvFiles().get(0).recordCount()).isEqualTo(2);
+      assertThat(output.get(0).rewrittenDvFiles()).hasSize(1);
+      assertThat(output.get(0).rewrittenDvFiles().get(0).location())
+          .isEqualTo(stagingDV.location());
+    }
+  }
+
+  @Test
+  void abortsWhenMainSnapshotChangedSincePlanning() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    String dataFilePath = getFirstDataFilePath(table);
+    long plannedSnapshotId = table.currentSnapshot().snapshotId();
+
+    try (TwoInputStreamOperatorTestHarness<DVPosition, EqualityConvertPlan, DVWriteResult> harness =
+        createHarness()) {
+      harness.open();
+
+      long time = System.currentTimeMillis();
+      EqualityConvertPlan planResult =
+          new EqualityConvertPlan(
+              Lists.newArrayList(), Lists.newArrayList(), 1L, plannedSnapshotId, 0L, 0L);
+
+      harness.processElement1(
+          new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
+      harness.processElement2(new StreamRecord<>(planResult, time));
+
+      // Advance the target branch after planning. The writer must refuse to write stale DVs.
+      insert(table, 2, "b");
+
+      harness.processBothWatermarks(new Watermark(time));
+
+      List<DVWriteResult> output = harness.extractOutputValues();
+      assertThat(output).hasSize(1);
+      assertThat(output.get(0).hasError()).isTrue();
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
     }
   }
 
@@ -380,6 +421,21 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
     throw new IllegalStateException("No data file for partition: " + partitionValue);
   }
 
+  private DeleteFile writeStagingDV(String dataFilePath, long position) throws Exception {
+    try (TwoInputStreamOperatorTestHarness<DVPosition, EqualityConvertPlan, DVWriteResult> harness =
+        createHarness()) {
+      harness.open();
+
+      long time = System.currentTimeMillis();
+      harness.processElement1(
+          new StreamRecord<>(new DVPosition(dataFilePath, position, 0, EMPTY_PARTITION, 0L), time));
+      harness.processElement2(new StreamRecord<>(emptyEqualityConvertPlan(), time));
+      harness.processBothWatermarks(new Watermark(time));
+
+      return harness.extractOutputValues().get(0).dvFiles().get(0);
+    }
+  }
+
   private EqualityConvertDVWriter newResolver() {
     return new EqualityConvertDVWriter(
         DUMMY_TABLE_NAME, DUMMY_TASK_NAME, tableLoader(), SnapshotRef.MAIN_BRANCH);
@@ -396,21 +452,6 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
 
   private static String getFirstDataFilePath(Table table) {
     return getDataFilePaths(table).get(0);
-  }
-
-  private static DataFile getFirstDataFile(Table table) {
-    for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
-      try (ManifestReader<DataFile> reader =
-          ManifestFiles.read(manifest, table.io(), table.specs())) {
-        for (DataFile file : reader) {
-          return file.copy();
-        }
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    throw new IllegalStateException("No data files found");
   }
 
   private static List<String> getDataFilePaths(Table table) {
