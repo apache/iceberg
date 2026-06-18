@@ -19,9 +19,8 @@
 MkDocs hook: latest URL alias.
 
 The canonical built directory is /docs/<icebergVersion>/.
-This hook copies it to /docs/latest/ so both URLs resolve. The source alias is
-created during config processing so links to docs/latest/*.md are resolved by
-MkDocs. The rendered output alias is created after the build.
+This hook adds a source alias during config processing so links to
+docs/latest/*.md resolve, then copies the rendered output to /docs/latest/.
 
 A real output copy (not a symlink) is required because `mkdocs gh-deploy`
 invokes ghp-import with its default `followlinks=False`, which silently drops
@@ -32,48 +31,45 @@ import logging
 import shutil
 from pathlib import Path
 
-from mkdocs.structure.files import InclusionLevel
-
 log = logging.getLogger("mkdocs.hooks.version_alias")
 
 
 def on_config(config):
-    version = _configured_version(config)
+    version = config.get("extra", {}).get("icebergVersion")
     if not version:
         log.warning("extra.icebergVersion is not set; skipping docs/latest alias")
         return config
 
-    _copy_latest_alias(Path(config["docs_dir"]), version, "source")
+    docs_dir = Path(config["docs_dir"])
+    version_dir = docs_dir / "docs" / version
+    latest_dir = docs_dir / "docs" / "latest"
+
+    if not version_dir.exists():
+        log.warning("docs/%s not found in docs source; skipping latest alias", version)
+        return config
+
+    if latest_dir.is_symlink() or latest_dir.is_file():
+        latest_dir.unlink()
+    elif latest_dir.is_dir():
+        shutil.rmtree(latest_dir)
+
+    latest_dir.symlink_to(version)
+    log.info("Created latest source alias: docs/latest -> docs/%s", version)
     return config
 
 
-def on_files(files, config):
-    for file in files:
-        if file.src_uri.startswith("docs/latest/"):
-            file.inclusion = InclusionLevel.EXCLUDED
-
-    return files
-
-
 def on_post_build(config):
-    version = _configured_version(config)
+    version = config.get("extra", {}).get("icebergVersion")
     if not version:
         log.warning("extra.icebergVersion is not set; skipping docs/latest alias")
         return
 
-    _copy_latest_alias(Path(config["site_dir"]), version, "output")
+    site_dir = Path(config["site_dir"])
+    version_dir = site_dir / "docs" / version
+    latest_dir = site_dir / "docs" / "latest"
 
-
-def _configured_version(config):
-    version = config.get("extra", {}).get("icebergVersion")
-    return version
-
-
-def _copy_latest_alias(root_dir, version, alias_type):
-    version_dir = root_dir / "docs" / version
-    latest_dir = root_dir / "docs" / "latest"
     if not version_dir.exists():
-        log.warning("docs/%s not found in %s tree; skipping latest alias", version, alias_type)
+        log.warning("docs/%s not found in site output; skipping latest alias", version)
         return
 
     if latest_dir.is_symlink() or latest_dir.is_file():
@@ -82,4 +78,4 @@ def _copy_latest_alias(root_dir, version, alias_type):
         shutil.rmtree(latest_dir)
 
     shutil.copytree(version_dir, latest_dir, symlinks=False)
-    log.info("Created latest %s alias: docs/latest (copy of docs/%s)", alias_type, version)
+    log.info("Created latest alias: docs/latest (copy of docs/%s)", version)
