@@ -441,6 +441,21 @@ sorted columns are used during queries. This mode is used by default if a table 
 sort-order. Further division and coalescing of tasks may take place because of
 [Spark's Adaptive Query planning](#controlling-file-sizes).
 
+### Distribution modes and skewed data
+
+Real datasets are often skewed: a few "hot" partitions hold most of the rows while a long tail of
+partitions hold very little. Changing the distribution mode does not consolidate that long tail. Both
+`hash` and `range` cluster on the table's partition columns first - Iceberg prepends the partition
+fields to the write ordering - and a data file can never span a partition boundary, so every partition
+that receives rows still produces at least one file of its own.
+
+What the mode does change is how a *hot* partition is written. With `hash`, all rows of one partition
+value are routed to a single task, which writes them as a sequence of files rolled over at
+`write.target-file-size-bytes`; that task can become a straggler. With `range`, a hot partition is
+spread over several range tasks and is written in parallel, at the cost of a global sampling pass. To
+reduce the number of small files in the long tail, compact after writing rather than changing the
+distribution mode.
+
 ## Controlling File Sizes
 
 When writing data to Iceberg with Spark, it's important to note that Spark cannot write a file larger than a Spark
@@ -464,3 +479,24 @@ compressed with a lower ratio) and not the write file size (typically, is column
 ratio), so a larger value than the target file size will need to be specified. The ratio of these two kinds of
 size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this parameter at
 write time to match the `write.target-file-size-bytes`.
+
+The initial number of write tasks is set by `spark.sql.shuffle.partitions`; AQE then coalesces and splits
+those tasks toward `spark.sql.adaptive.advisoryPartitionSizeInBytes`. Both therefore influence how many
+files each partition is split into, while `write.target-file-size-bytes` does not enter this calculation -
+it is applied only later, inside each task.
+
+Keep in mind that `write.target-file-size-bytes` is only ever an *upper* bound applied within a single
+Spark task: Iceberg rolls over to a new file once a task has written that many bytes, but it never merges
+data across tasks and never enlarges a file whose task simply ran out of input. Raising the target
+therefore only affects partitions large enough to exceed it; it cannot increase the size of files written
+for small partitions. Because a file also cannot span a partition boundary, a table with many small
+partitions will always produce at least one (small) file per such partition at write time, regardless of
+distribution mode or target size.
+
+When write-side tuning cannot reach the file sizes you want - for example a table with a long tail of small
+partitions - run compaction after writing. The [`rewrite_data_files`](spark-procedures.md#rewrite_data_files)
+Spark procedure (or the [`rewriteDataFiles` action](maintenance.md#compact-data-files)) bin-packs small
+files into larger ones independently per partition and is built to scale to large tables. For a table with
+thousands of partitions, use `partial-progress.enabled` to commit incrementally,
+`max-concurrent-file-group-rewrites` to bound parallelism, `rewrite-job-order=files-desc` to attack the
+worst partitions first, and the `where` filter to compact partition-by-partition.
