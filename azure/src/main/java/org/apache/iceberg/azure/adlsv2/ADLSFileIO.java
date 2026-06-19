@@ -112,10 +112,14 @@ public class ADLSFileIO implements DelegateFileIO {
     // and other FileIO providers ignore failure.  Log the failure for
     // now as it is not a required operation for Iceberg.
     try {
-      fileClient(path).delete();
+      deleteFileThrowing(path);
     } catch (RuntimeException e) {
       LOG.warn("Failed to delete path: {}", path, e);
     }
+  }
+
+  private void deleteFileThrowing(String path) {
+    fileClient(path).delete();
   }
 
   @Override
@@ -202,10 +206,16 @@ public class ADLSFileIO implements DelegateFileIO {
         .suppressFailureWhenFinished()
         .onFailure(
             (file, exc) -> {
+              if (exc instanceof DataLakeStorageException dse && dse.getStatusCode() == 404) {
+                // The object is already gone, which is the desired end state for a delete. Other
+                // FileIO implementations skip the delete if nothing is found, so mimic that here
+                // rather than counting it as a failure.
+                return;
+              }
               failureCount.incrementAndGet();
               LOG.warn("Failed to delete file {}", file, exc);
             })
-        .run(this::deleteFile);
+        .run(this::deleteFileThrowing);
 
     if (failureCount.get() > 0) {
       throw new BulkDeletionFailureException(failureCount.get());
