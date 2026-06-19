@@ -156,8 +156,13 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
               }
 
               @Override
-              public void close() throws IOException {
-                reader.close();
+              public void close() {
+                // No-op. The RowDataReaders are owned by the enclosing CloseableGroup
+                // (resources) and closed exactly once from close(). SortedMerge cannot be the
+                // sole owner because it filters out empty iterators (for example a file whose
+                // rows are all removed by deletes), so those readers would never be closed
+                // through the merge. Closing here as well would double-close the readers that
+                // SortedMerge does drain.
               }
             });
   }
@@ -261,9 +266,12 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
       int fieldId = sortField.sourceId();
       if (projection.findField(fieldId) == null) {
         Types.NestedField tableField = tableSchema.findField(fieldId);
-        if (tableField != null) {
-          missingFields.add(tableField);
-        }
+        Preconditions.checkState(
+            tableField != null,
+            "Cannot find sort field id %s in schema of table %s",
+            fieldId,
+            table.name());
+        missingFields.add(tableField);
       }
     }
 
