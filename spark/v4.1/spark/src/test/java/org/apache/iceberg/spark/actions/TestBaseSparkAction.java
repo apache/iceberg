@@ -41,7 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestBaseSparkAction extends TestBase {
+class TestBaseSparkAction extends TestBase {
   private static final HadoopTables TABLES = new HadoopTables();
 
   private static final Schema SCHEMA = new Schema(required(1, "id", Types.LongType.get()));
@@ -49,7 +49,7 @@ public class TestBaseSparkAction extends TestBase {
   @TempDir private Path temp;
 
   @Test
-  public void testNewStaticTableFailsWhenMetadataLocationIsNull() throws IOException {
+  void rejectsNullMetadataLocation() throws IOException {
     File tableLocation = Files.createTempDirectory(temp, "junit").toFile();
     assertThat(tableLocation.delete()).isTrue();
 
