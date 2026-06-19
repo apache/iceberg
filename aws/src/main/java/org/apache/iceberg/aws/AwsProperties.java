@@ -411,6 +411,22 @@ public class AwsProperties implements Serializable {
   }
 
   /**
+   * Add the interceptor to assign a catalog id to a glue client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     GlueClient.builder().applyMutation(awsProperties::applyGlueCatalogIdConfigurations)
+   * </pre>
+   */
+  public <T extends GlueClientBuilder> void applyGlueCatalogIdConfigurations(T builder) {
+    if (!Strings.isNullOrEmpty(glueCatalogId)) {
+      builder.overrideConfiguration(
+          c -> c.addExecutionInterceptor(new GlueCatalogIdInterceptor(glueCatalogId)));
+    }
+  }
+
+  /**
    * Override the endpoint for a dynamoDb client.
    *
    * <p>Sample usage:
