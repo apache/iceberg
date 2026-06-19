@@ -46,6 +46,7 @@ public class SingleValueParser {
   private static final String KEYS = "keys";
   private static final String VALUES = "values";
 
+  @SuppressWarnings("MethodLength")
   public static Object fromJson(Type type, JsonNode defaultValue) {
     if (defaultValue == null || defaultValue.isNull()) {
       return null;
