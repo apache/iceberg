@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * planner (input 2). Assembles the final file lists and commits using a {@link RowDelta} operation
  * once the plan result and done-timestamp watermark have both arrived.
  *
- * <p>Watermarks are absorbed while a cycle is active.
+ * <p>The commit is gated on the plan's done-timestamp watermark.
  *
  * <p>Emits a {@link Trigger} after each cycle (commit, no-op, or error) so the downstream {@link
  * TaskResultAggregator} can track task completion. This is the sole source of Trigger records for
