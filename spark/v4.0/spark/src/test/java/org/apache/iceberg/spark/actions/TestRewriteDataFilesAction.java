@@ -106,6 +106,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -183,6 +184,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @AfterAll
   public static void clearCachedDataFiles() {
+    // A same-JVM rerun may recreate inputCacheDir, so clear entries that point at old files.
     CACHED_DATA_FILES.clear();
   }
 
@@ -921,7 +923,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       records.add(new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i % 4)));
     }
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
-    writeDF(df);
+    writeDF(df, this.tableLocation);
 
     List<Object[]> expectedRecords = currentData();
 
@@ -2464,7 +2466,7 @@ public class TestRewriteDataFilesAction extends TestBase {
               .map(FileScanTask::file)
               // Clear v3 first_row_id so each fresh target table assigns its own on re-append.
               .map(file -> DataFiles.builder(spec).copy(file).withFirstRowId(null).build())
-              .collect(Collectors.toList());
+              .collect(ImmutableList.toImmutableList());
 
       List<DataFile> existingDataFiles = CACHED_DATA_FILES.putIfAbsent(key, dataFiles);
       return existingDataFiles != null ? existingDataFiles : dataFiles;
@@ -2477,6 +2479,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       Table targetTable, PartitionSpec spec, List<DataFile> dataFiles) {
     AppendFiles append = targetTable.newAppend();
     dataFiles.stream()
+        // Ensure reused files don't carry first_row_id from the cache table into the target table.
         .map(file -> DataFiles.builder(spec).copy(file).withFirstRowId(null).build())
         .forEach(append::appendFile);
     append.commit();
@@ -2562,10 +2565,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).repartition(files);
     writeDF(df, location);
-  }
-
-  private void writeDF(Dataset<Row> df) {
-    writeDF(df, this.tableLocation);
   }
 
   private void writeDF(Dataset<Row> df, String location) {
