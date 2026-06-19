@@ -166,72 +166,39 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case 0:
-        return addedFilesCount;
-      case 1:
-        return existingFilesCount;
-      case 2:
-        return deletedFilesCount;
-      case 3:
-        return replacedFilesCount;
-      case 4:
-        return addedRowsCount;
-      case 5:
-        return existingRowsCount;
-      case 6:
-        return deletedRowsCount;
-      case 7:
-        return replacedRowsCount;
-      case 8:
-        return minSequenceNumber;
-      case 9:
-        return dv();
-      case 10:
-        return dvCardinality;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> addedFilesCount;
+      case 1 -> existingFilesCount;
+      case 2 -> deletedFilesCount;
+      case 3 -> replacedFilesCount;
+      case 4 -> addedRowsCount;
+      case 5 -> existingRowsCount;
+      case 6 -> deletedRowsCount;
+      case 7 -> replacedRowsCount;
+      case 8 -> minSequenceNumber;
+      case 9 -> dv();
+      case 10 -> dvCardinality;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
-        this.addedFilesCount = (Integer) value;
-        break;
-      case 1:
-        this.existingFilesCount = (Integer) value;
-        break;
-      case 2:
-        this.deletedFilesCount = (Integer) value;
-        break;
-      case 3:
-        this.replacedFilesCount = (Integer) value;
-        break;
-      case 4:
-        this.addedRowsCount = (Long) value;
-        break;
-      case 5:
-        this.existingRowsCount = (Long) value;
-        break;
-      case 6:
-        this.deletedRowsCount = (Long) value;
-        break;
-      case 7:
-        this.replacedRowsCount = (Long) value;
-        break;
-      case 8:
-        this.minSequenceNumber = (Long) value;
-        break;
-      case 9:
-        this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
-        break;
-      case 10:
-        this.dvCardinality = (Long) value;
-        break;
-      default:
+      case 0 -> this.addedFilesCount = (Integer) value;
+      case 1 -> this.existingFilesCount = (Integer) value;
+      case 2 -> this.deletedFilesCount = (Integer) value;
+      case 3 -> this.replacedFilesCount = (Integer) value;
+      case 4 -> this.addedRowsCount = (Long) value;
+      case 5 -> this.existingRowsCount = (Long) value;
+      case 6 -> this.deletedRowsCount = (Long) value;
+      case 7 -> this.replacedRowsCount = (Long) value;
+      case 8 -> this.minSequenceNumber = (Long) value;
+      case 9 -> this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 10 -> this.dvCardinality = (Long) value;
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 

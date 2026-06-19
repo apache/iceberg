@@ -41,24 +41,29 @@ public class GenericDataUtil {
     }
 
     switch (type.typeId()) {
-      case DATE:
+      case DATE -> {
         return DateTimeUtil.dateFromDays((Integer) value);
-      case TIME:
+      }
+      case TIME -> {
         return DateTimeUtil.timeFromMicros((Long) value);
-      case TIMESTAMP:
+      }
+      case TIMESTAMP -> {
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
           return DateTimeUtil.timestamptzFromMicros((Long) value);
         } else {
           return DateTimeUtil.timestampFromMicros((Long) value);
         }
-      case TIMESTAMP_NANO:
+      }
+      case TIMESTAMP_NANO -> {
         if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
           return DateTimeUtil.timestamptzFromNanos((Long) value);
         } else {
           return DateTimeUtil.timestampFromNanos((Long) value);
         }
-      case FIXED:
+      }
+      case FIXED -> {
         return ByteBuffers.toByteArray((ByteBuffer) value);
+      }
     }
 
     return value;

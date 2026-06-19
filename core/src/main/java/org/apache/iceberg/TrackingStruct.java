@@ -195,62 +195,35 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case 0:
-        return status != null ? status.id() : null;
-      case 1:
-        return snapshotId();
-      case 2:
-        return dataSequenceNumber();
-      case 3:
-        return fileSequenceNumber();
-      case 4:
-        return dvSnapshotId;
-      case 5:
-        return firstRowId;
-      case 6:
-        return deletedPositions();
-      case 7:
-        return replacedPositions();
-      case 8:
-        return manifestPos;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> status != null ? status.id() : null;
+      case 1 -> snapshotId();
+      case 2 -> dataSequenceNumber();
+      case 3 -> fileSequenceNumber();
+      case 4 -> dvSnapshotId;
+      case 5 -> firstRowId;
+      case 6 -> deletedPositions();
+      case 7 -> replacedPositions();
+      case 8 -> manifestPos;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
-        this.status = EntryStatus.fromId((Integer) value);
-        break;
-      case 1:
-        this.snapshotId = (Long) value;
-        break;
-      case 2:
-        this.dataSequenceNumber = (Long) value;
-        break;
-      case 3:
-        this.fileSequenceNumber = (Long) value;
-        break;
-      case 4:
-        this.dvSnapshotId = (Long) value;
-        break;
-      case 5:
-        this.firstRowId = (Long) value;
-        break;
-      case 6:
-        this.deletedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
-        break;
-      case 7:
-        this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
-        break;
-      case 8:
-        this.manifestPos = (long) value;
-        break;
-      default:
+      case 0 -> this.status = EntryStatus.fromId((Integer) value);
+      case 1 -> this.snapshotId = (Long) value;
+      case 2 -> this.dataSequenceNumber = (Long) value;
+      case 3 -> this.fileSequenceNumber = (Long) value;
+      case 4 -> this.dvSnapshotId = (Long) value;
+      case 5 -> this.firstRowId = (Long) value;
+      case 6 -> this.deletedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 7 -> this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 8 -> this.manifestPos = (long) value;
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 

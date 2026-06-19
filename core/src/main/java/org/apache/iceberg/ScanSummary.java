@@ -388,37 +388,37 @@ public class ScanSummary {
     for (UnboundPredicate<Long> pred : timeFilters) {
       long value = pred.literal().value();
       switch (pred.op()) {
-        case LT:
+        case LT -> {
           if (value - 1 < maxTimestamp) {
             maxTimestamp = value - 1;
           }
-          break;
-        case LT_EQ:
+        }
+        case LT_EQ -> {
           if (value < maxTimestamp) {
             maxTimestamp = value;
           }
-          break;
-        case GT:
+        }
+        case GT -> {
           if (value + 1 > minTimestamp) {
             minTimestamp = value + 1;
           }
-          break;
-        case GT_EQ:
+        }
+        case GT_EQ -> {
           if (value > minTimestamp) {
             minTimestamp = value;
           }
-          break;
-        case EQ:
+        }
+        case EQ -> {
           if (value < maxTimestamp) {
             maxTimestamp = value;
           }
           if (value > minTimestamp) {
             minTimestamp = value;
           }
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot filter timestamps using predicate: " + pred);
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Cannot filter timestamps using predicate: " + pred);
       }
     }
 

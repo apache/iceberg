@@ -48,7 +48,7 @@ public class VariantVisitor<R> {
 
   public static <R> R visit(VariantValue value, VariantVisitor<R> visitor) {
     switch (value.type()) {
-      case ARRAY:
+      case ARRAY -> {
         VariantArray array = value.asArray();
         List<R> elementResults = Lists.newArrayList();
         for (int index = 0; index < array.numElements(); index += 1) {
@@ -61,8 +61,8 @@ public class VariantVisitor<R> {
         }
 
         return visitor.array(array, elementResults);
-
-      case OBJECT:
+      }
+      case OBJECT -> {
         VariantObject object = value.asObject();
         List<String> fieldNames = Lists.newArrayList();
         List<R> fieldResults = Lists.newArrayList();
@@ -77,9 +77,10 @@ public class VariantVisitor<R> {
         }
 
         return visitor.object(object, fieldNames, fieldResults);
-
-      default:
+      }
+      default -> {
         return visitor.primitive(value.asPrimitive());
+      }
     }
   }
 }

@@ -288,102 +288,102 @@ public class GenericManifestFile extends SupportsIndexProjection
   }
 
   private Object getByPos(int basePos) {
-    switch (basePos) {
-      case 0:
-        return manifestPath;
-      case 1:
-        return lazyLength();
-      case 2:
-        return specId;
-      case 3:
-        return content.id();
-      case 4:
-        return sequenceNumber;
-      case 5:
-        return minSequenceNumber;
-      case 6:
-        return snapshotId;
-      case 7:
-        return addedFilesCount;
-      case 8:
-        return existingFilesCount;
-      case 9:
-        return deletedFilesCount;
-      case 10:
-        return addedRowsCount;
-      case 11:
-        return existingRowsCount;
-      case 12:
-        return deletedRowsCount;
-      case 13:
-        return partitions();
-      case 14:
-        return keyMetadata();
-      case 15:
-        return firstRowId();
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
-    }
+    return switch (basePos) {
+      case 0 -> manifestPath;
+      case 1 -> lazyLength();
+      case 2 -> specId;
+      case 3 -> content.id();
+      case 4 -> sequenceNumber;
+      case 5 -> minSequenceNumber;
+      case 6 -> snapshotId;
+      case 7 -> addedFilesCount;
+      case 8 -> existingFilesCount;
+      case 9 -> deletedFilesCount;
+      case 10 -> addedRowsCount;
+      case 11 -> existingRowsCount;
+      case 12 -> deletedRowsCount;
+      case 13 -> partitions();
+      case 14 -> keyMetadata();
+      case 15 -> firstRowId();
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int basePos, T value) {
     switch (basePos) {
-      case 0:
+      case 0 -> {
         // always coerce to String for Serializable
         this.manifestPath = value.toString();
         return;
-      case 1:
+      }
+      case 1 -> {
         this.length = (Long) value;
         return;
-      case 2:
+      }
+      case 2 -> {
         this.specId = (Integer) value;
         return;
-      case 3:
+      }
+      case 3 -> {
         this.content =
             value != null ? ManifestContent.fromId((Integer) value) : ManifestContent.DATA;
         return;
-      case 4:
+      }
+      case 4 -> {
         this.sequenceNumber = value != null ? (Long) value : 0;
         return;
-      case 5:
+      }
+      case 5 -> {
         this.minSequenceNumber = value != null ? (Long) value : 0;
         return;
-      case 6:
+      }
+      case 6 -> {
         this.snapshotId = (Long) value;
         return;
-      case 7:
+      }
+      case 7 -> {
         this.addedFilesCount = (Integer) value;
         return;
-      case 8:
+      }
+      case 8 -> {
         this.existingFilesCount = (Integer) value;
         return;
-      case 9:
+      }
+      case 9 -> {
         this.deletedFilesCount = (Integer) value;
         return;
-      case 10:
+      }
+      case 10 -> {
         this.addedRowsCount = (Long) value;
         return;
-      case 11:
+      }
+      case 11 -> {
         this.existingRowsCount = (Long) value;
         return;
-      case 12:
+      }
+      case 12 -> {
         this.deletedRowsCount = (Long) value;
         return;
-      case 13:
+      }
+      case 13 -> {
         this.partitions =
             value == null
                 ? null
                 : ((List<PartitionFieldSummary>) value).toArray(new PartitionFieldSummary[0]);
         return;
-      case 14:
+      }
+      case 14 -> {
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
-      case 15:
+      }
+      case 15 -> {
         this.firstRowId = (Long) value;
         return;
-      default:
+      }
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 

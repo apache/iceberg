@@ -110,18 +110,18 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   void addEntry(ManifestEntry<F> entry) {
     switch (entry.status()) {
-      case ADDED:
+      case ADDED -> {
         addedFiles += 1;
         addedRows += entry.file().recordCount();
-        break;
-      case EXISTING:
+      }
+      case EXISTING -> {
         existingFiles += 1;
         existingRows += entry.file().recordCount();
-        break;
-      case DELETED:
+      }
+      case DELETED -> {
         deletedFiles += 1;
         deletedRows += entry.file().recordCount();
-        break;
+      }
     }
 
     stats.update(entry.file().partition());

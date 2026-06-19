@@ -101,14 +101,17 @@ public class SortingPositionOnlyDeleteWriter<T>
   public void close() throws IOException {
     if (result == null) {
       switch (granularity) {
-        case FILE:
+        case FILE -> {
           this.result = writeFileDeletes();
           return;
-        case PARTITION:
+        }
+        case PARTITION -> {
           this.result = writePartitionDeletes();
           return;
-        default:
-          throw new UnsupportedOperationException("Unsupported delete granularity: " + granularity);
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported delete granularity: " + granularity);
       }
     }
   }

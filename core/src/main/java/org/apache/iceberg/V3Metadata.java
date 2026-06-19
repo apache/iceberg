@@ -87,16 +87,20 @@ class V3Metadata {
 
     private Object get(int pos) {
       switch (pos) {
-        case 0:
+        case 0 -> {
           return wrapped.path();
-        case 1:
+        }
+        case 1 -> {
           return wrapped.length();
-        case 2:
+        }
+        case 2 -> {
           return wrapped.partitionSpecId();
-        case 3:
+        }
+        case 3 -> {
           checkContentType(wrapped.content());
           return wrapped.content().id();
-        case 4:
+        }
+        case 4 -> {
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // if the sequence number is being assigned here, then the manifest must be created by
             // the current
@@ -109,7 +113,8 @@ class V3Metadata {
           } else {
             return wrapped.sequenceNumber();
           }
-        case 5:
+        }
+        case 5 -> {
           if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // same sanity check as above
             Preconditions.checkState(
@@ -124,25 +129,35 @@ class V3Metadata {
           } else {
             return wrapped.minSequenceNumber();
           }
-        case 6:
+        }
+        case 6 -> {
           return wrapped.snapshotId();
-        case 7:
+        }
+        case 7 -> {
           return wrapped.addedFilesCount();
-        case 8:
+        }
+        case 8 -> {
           return wrapped.existingFilesCount();
-        case 9:
+        }
+        case 9 -> {
           return wrapped.deletedFilesCount();
-        case 10:
+        }
+        case 10 -> {
           return wrapped.addedRowsCount();
-        case 11:
+        }
+        case 11 -> {
           return wrapped.existingRowsCount();
-        case 12:
+        }
+        case 12 -> {
           return wrapped.deletedRowsCount();
-        case 13:
+        }
+        case 13 -> {
           return wrapped.partitions();
-        case 14:
+        }
+        case 14 -> {
           return wrapped.keyMetadata();
-        case 15:
+        }
+        case 15 -> {
           if (wrappedFirstRowId != null) {
             // if first-row-id is assigned, ensure that it is valid
             Preconditions.checkState(
@@ -158,8 +173,8 @@ class V3Metadata {
                 "Found unassigned first-row-id for file: " + wrapped.path());
             return wrapped.firstRowId();
           }
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+        }
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
     }
 
@@ -338,11 +353,13 @@ class V3Metadata {
 
     private Object get(int pos) {
       switch (pos) {
-        case 0:
+        case 0 -> {
           return wrapped.status().id();
-        case 1:
+        }
+        case 1 -> {
           return wrapped.snapshotId();
-        case 2:
+        }
+        case 2 -> {
           if (wrapped.dataSequenceNumber() == null) {
             // if the entry's data sequence number is null,
             // then it will inherit the sequence number of the current commit.
@@ -361,12 +378,14 @@ class V3Metadata {
             return null;
           }
           return wrapped.dataSequenceNumber();
-        case 3:
+        }
+        case 3 -> {
           return wrapped.fileSequenceNumber();
-        case 4:
+        }
+        case 4 -> {
           return fileWrapper.wrap(wrapped.file());
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+        }
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
     }
 
@@ -454,63 +473,83 @@ class V3Metadata {
 
     private Object get(int pos) {
       switch (pos) {
-        case 0:
+        case 0 -> {
           checkContentType(wrapped.content());
           return wrapped.content().id();
-        case 1:
+        }
+        case 1 -> {
           return wrapped.location();
-        case 2:
+        }
+        case 2 -> {
           return wrapped.format() != null ? wrapped.format().toString() : null;
-        case 3:
+        }
+        case 3 -> {
           return wrapped.partition();
-        case 4:
+        }
+        case 4 -> {
           return wrapped.recordCount();
-        case 5:
+        }
+        case 5 -> {
           return wrapped.fileSizeInBytes();
-        case 6:
+        }
+        case 6 -> {
           return wrapped.columnSizes();
-        case 7:
+        }
+        case 7 -> {
           return wrapped.valueCounts();
-        case 8:
+        }
+        case 8 -> {
           return wrapped.nullValueCounts();
-        case 9:
+        }
+        case 9 -> {
           return wrapped.nanValueCounts();
-        case 10:
+        }
+        case 10 -> {
           return wrapped.lowerBounds();
-        case 11:
+        }
+        case 11 -> {
           return wrapped.upperBounds();
-        case 12:
+        }
+        case 12 -> {
           return wrapped.keyMetadata();
-        case 13:
+        }
+        case 13 -> {
           return wrapped.splitOffsets();
-        case 14:
+        }
+        case 14 -> {
           return wrapped.equalityFieldIds();
-        case 15:
+        }
+        case 15 -> {
           return wrapped.sortOrderId();
-        case 16:
+        }
+        case 16 -> {
           if (wrapped.content() == FileContent.DATA) {
             return wrapped.firstRowId();
           } else {
             return null;
           }
-        case 17:
+        }
+        case 17 -> {
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).referencedDataFile();
           } else {
             return null;
           }
-        case 18:
+        }
+        case 18 -> {
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentOffset();
           } else {
             return null;
           }
-        case 19:
+        }
+        case 19 -> {
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentSizeInBytes();
           } else {
             return null;
           }
+        }
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }

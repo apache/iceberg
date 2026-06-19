@@ -67,17 +67,19 @@ class ManifestLists {
       long sequenceNumber,
       Long firstRowId) {
     switch (formatVersion) {
-      case 1:
+      case 1 -> {
         Preconditions.checkArgument(
             sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
             "Invalid sequence number for v1 manifest list: %s",
             sequenceNumber);
         return new ManifestListWriter.V1Writer(
             manifestListFile, encryptionManager, snapshotId, parentSnapshotId);
-      case 2:
+      }
+      case 2 -> {
         return new ManifestListWriter.V2Writer(
             manifestListFile, encryptionManager, snapshotId, parentSnapshotId, sequenceNumber);
-      case 3:
+      }
+      case 3 -> {
         return new ManifestListWriter.V3Writer(
             manifestListFile,
             encryptionManager,
@@ -85,7 +87,8 @@ class ManifestLists {
             parentSnapshotId,
             sequenceNumber,
             firstRowId);
-      case 4:
+      }
+      case 4 -> {
         return new ManifestListWriter.V4Writer(
             manifestListFile,
             encryptionManager,
@@ -93,6 +96,7 @@ class ManifestLists {
             parentSnapshotId,
             sequenceNumber,
             firstRowId);
+      }
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);
