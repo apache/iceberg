@@ -27,12 +27,14 @@ import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
@@ -41,6 +43,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.AfterEach;
@@ -151,7 +154,68 @@ class TestMergingSortedRowDataReader extends TestBase {
     assertThat(extractIds(rows)).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9);
   }
 
+  @Test
+  void mergeWithSortKeyNotInProjection() throws IOException {
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"), record(5, "e"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"), record(6, "f"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    // Project only "data". The sort key "id" is missing from the projection, so it is added to
+    // the read schema for the merge comparator and stripped from the rows returned to Spark.
+    Schema dataOnly = table.schema().select("data");
+    List<InternalRow> rows = readMerged(table, dataOnly);
+
+    // Rows come back ordered by id even though id is not projected.
+    assertThat(extractData(rows, 0)).containsExactly("a", "b", "c", "d", "e", "f");
+    // Only the projected column is present in the returned rows.
+    assertThat(rows.get(0).numFields()).isEqualTo(1);
+  }
+
+  @Test
+  void mergeAfterSortOrderEvolution() throws IOException {
+    // Evolve the sort order from "id" to "data". The reader should merge by the current order.
+    table.replaceSortOrder().asc("data").commit();
+
+    DataFile file1 = writeDataFile(record(5, "a"), record(3, "c"), record(1, "e"));
+    DataFile file2 = writeDataFile(record(6, "b"), record(4, "d"), record(2, "f"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    // Ordered by data, not by id.
+    assertThat(extractData(rows, 1)).containsExactly("a", "b", "c", "d", "e", "f");
+  }
+
+  @Test
+  void mergeWithPositionDeletes() throws IOException {
+    // File1: [1, 3, 5], File2: [2, 4, 6]
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"), record(5, "e"));
+    DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"), record(6, "f"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    // Delete the row at position 1 in file1 (value 3).
+    DeleteFile deleteFile =
+        FileHelpers.writeDeleteFile(
+                table,
+                Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+                Lists.newArrayList(Pair.of(file1.location(), 1L)),
+                TableUtil.formatVersion(table))
+            .first();
+    table.newRowDelta().addDeletes(deleteFile).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    assertThat(extractIds(rows)).containsExactly(1, 2, 4, 5, 6);
+  }
+
   private List<InternalRow> readMerged(Table tbl) throws IOException {
+    return readMerged(tbl, tbl.schema());
+  }
+
+  private List<InternalRow> readMerged(Table tbl, Schema projection) throws IOException {
     tbl.refresh();
 
     List<FileScanTask> fileTasks = Lists.newArrayList();
@@ -173,7 +237,7 @@ class TestMergingSortedRowDataReader extends TestBase {
             taskGroup,
             tableBroadcast,
             fileIOBroadcast,
-            SchemaParser.toJson(tbl.schema()),
+            SchemaParser.toJson(projection),
             true,
             new String[0],
             false);
@@ -190,6 +254,10 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   private List<Integer> extractIds(List<InternalRow> rows) {
     return rows.stream().map(row -> row.isNullAt(0) ? null : row.getInt(0)).toList();
+  }
+
+  private List<String> extractData(List<InternalRow> rows, int ordinal) {
+    return rows.stream().map(row -> row.getUTF8String(ordinal).toString()).toList();
   }
 
   private Record record(int id, String data) {
