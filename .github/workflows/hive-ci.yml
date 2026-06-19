@@ -28,43 +28,7 @@ on:
     tags:
     - 'apache-iceberg-**'
   pull_request:
-    paths-ignore:
-    - '.github/ISSUE_TEMPLATE/**'
-    - '.github/workflows/api-binary-compatibility.yml'
-    - '.github/workflows/delta-conversion-ci.yml'
-    - '.github/workflows/docs-ci.yml'
-    - '.github/workflows/flink-ci.yml'
-    - '.github/workflows/java-ci.yml'
-    - '.github/workflows/jmh-benchmarks-ci.yml'
-    - '.github/workflows/kafka-connect-ci.yml'
-    - '.github/workflows/cve-scan.yml'
-    - '.github/workflows/labeler.yml'
-    - '.github/workflows/license-check.yml'
-    - '.github/workflows/open-api.yml'
-    - '.github/workflows/pr-title-check.yml'
-    - '.github/workflows/publish-snapshot.yml'
-    - '.github/workflows/recurring-jmh-benchmarks.yml'
-    - '.github/workflows/site-ci.yml'
-    - '.github/workflows/spark-ci.yml'
-    - '.github/workflows/stale.yml'
-    - '.gitignore'
-    - '.asf.yaml'
-    - 'dev/**'
-    - 'docker/**'
-    - 'arrow/**'
-    - 'spark/**'
-    - 'flink/**'
-    - 'kafka-connect/**'
-    - 'docs/**'
-    - 'site/**'
-    - 'open-api/**'
-    - 'format/**'
-    - '.gitattributes'
-    - '**/README.md'
-    - 'CONTRIBUTING.md'
-    - '**/LICENSE'
-    - '**/NOTICE'
-    - 'doap.rdf'
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -74,12 +38,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      jvm_matrix: ${{ steps.plan.outputs.jvm_matrix }}
+      run_hive: ${{ steps.plan.outputs.run_hive }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - id: plan
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        FULL_CI_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+      run: bash .github/scripts/plan-pr-ci.sh
+
   hive2-tests:
+    needs: plan
+    if: needs.plan.outputs.run_hive == 'true'
     runs-on: ubuntu-24.04
     strategy:
       max-parallel: 15
-      matrix:
-        jvm: [17, 21]
+      matrix: ${{ fromJson(needs.plan.outputs.jvm_matrix) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
