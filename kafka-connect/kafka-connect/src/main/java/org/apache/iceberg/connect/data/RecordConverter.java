@@ -80,8 +80,12 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RecordConverter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(RecordConverter.class);
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -277,9 +281,12 @@ class RecordConverter {
   }
 
   /**
-   * This method evolves schemas when the value is null. Note: logic should be kept consistent with
-   * equivalent method used when value is not null: {@link #convertToStruct(Struct, StructType, int,
-   * SchemaUpdate.Consumer)}
+   * Recursively traverses the Connect schema and emits all evolution events (addColumn, updateType,
+   * and makeOptional) at every nested level.
+   *
+   * <p>Unlike {@link #convertToStruct(Struct, StructType, int, SchemaUpdate.Consumer)} which skips
+   * a field's children once an update is detected (deferring nested discovery to re-conversion),
+   * this method always recurses through the full schema.
    */
   private void evolveSchemaFromConnectSchema(
       org.apache.kafka.connect.data.Schema recordSchema,
@@ -315,6 +322,8 @@ class RecordConverter {
                   field.schema(), nestedField.type(), nestedField.fieldId(), schemaUpdateConsumer);
             }
           }
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
         }
         break;
       case ARRAY:
@@ -325,6 +334,8 @@ class RecordConverter {
               listType.elementType(),
               listType.elementId(),
               schemaUpdateConsumer);
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
         }
         break;
       case MAP:
@@ -337,11 +348,19 @@ class RecordConverter {
               mapType.valueType(),
               mapType.valueId(),
               schemaUpdateConsumer);
+        } else {
+          logMismatchedType(recordSchema.type(), tableType);
         }
         break;
       default:
         break;
     }
+  }
+
+  private void logMismatchedType(
+      org.apache.kafka.connect.data.Schema.Type recordSchemaType, Type tableType) {
+    LOG.warn(
+        "Record schema of type {} does not match table of type {}", recordSchemaType, tableType);
   }
 
   private NestedField lookupStructField(String fieldName, StructType schema, int structFieldId) {

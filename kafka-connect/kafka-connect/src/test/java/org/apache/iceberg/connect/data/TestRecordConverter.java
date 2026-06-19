@@ -899,6 +899,39 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testNoSchemaEvolutionStructWithNullValue() {
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectNestedSchema =
+        SchemaBuilder.struct().optional().field("a", Schema.INT32_SCHEMA).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    assertThat(result.getField("nested")).isNull();
+
+    assertThat(consumer.addColumns()).isEmpty();
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+    assertThat(consumer.empty()).isTrue();
+  }
+
+  @Test
   public void testNestedSchemaEvolutionListOfStructsWithNullValue() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
