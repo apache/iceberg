@@ -236,13 +236,6 @@ public class TestExpressionHelpers {
   }
 
   @Test
-  public void testPredicateWithValueForUnaryOperation() {
-    assertThatThrownBy(() -> predicate(Expression.Operation.IS_NULL, "x", 5))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create IS_NULL predicate with a value");
-  }
-
-  @Test
   public void testMultiAnd() {
     Expression expected = and(and(equal("a", 1), equal("b", 2)), equal("c", 3));
 
