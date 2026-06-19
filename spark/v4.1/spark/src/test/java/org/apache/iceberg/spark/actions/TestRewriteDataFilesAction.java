@@ -2462,6 +2462,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       List<DataFile> dataFiles =
           Streams.stream(tasks)
               .map(FileScanTask::file)
+              // Clear v3 first_row_id so each fresh target table assigns its own on re-append.
               .map(file -> DataFiles.builder(spec).copy(file).withFirstRowId(null).build())
               .collect(Collectors.toList());
 
