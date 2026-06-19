@@ -245,11 +245,10 @@ class RemoveSnapshots implements ExpireSnapshots {
       Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
       reachableSchemas.add(base.currentSchemaId());
       Set<String> reachableKeyIds =
-          Sets.newConcurrentHashSet(
-              base.encryptionKeys().stream()
-                  .map(EncryptedKey::encryptedById)
-                  .filter(Objects::nonNull)
-                  .collect(Collectors.toSet()));
+          base.encryptionKeys().stream()
+              .map(EncryptedKey::encryptedById)
+              .filter(Objects::nonNull)
+              .collect(Collectors.toCollection(Sets::newConcurrentHashSet));
 
       boolean mayHaveExpiredSpecs = base.specs().size() > 1;
 
@@ -264,7 +263,9 @@ class RemoveSnapshots implements ExpireSnapshots {
                       .forEach(reachableSpecs::add);
                 }
                 reachableSchemas.add(snapshot.schemaId());
-                Optional.ofNullable(snapshot.keyId()).ifPresent(reachableKeyIds::add);
+                if (snapshot.keyId() != null) {
+                  reachableKeyIds.add(snapshot.keyId());
+                }
               });
 
       Set<Integer> specsToRemove =
