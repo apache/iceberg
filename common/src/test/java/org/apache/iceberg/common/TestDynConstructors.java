@@ -77,9 +77,22 @@ public class TestDynConstructors {
     assertThat(ctor.newInstance()).isInstanceOf(MyClass.class);
   }
 
+  @Test
+  public void testNewInstancePreservesInstantiationException() throws Exception {
+    DynConstructors.Ctor<MyAbstractClass> ctor =
+        DynConstructors.builder().hiddenImpl(MyAbstractClass.class).buildChecked();
+    assertThatThrownBy(ctor::newInstance)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("InstantiationException")
+        .cause()
+        .isInstanceOf(InstantiationException.class);
+  }
+
   public interface MyInterface {}
 
   public static class MyClass implements MyInterface {}
 
   public static class MyUnrelatedClass {}
+
+  public abstract static class MyAbstractClass {}
 }
