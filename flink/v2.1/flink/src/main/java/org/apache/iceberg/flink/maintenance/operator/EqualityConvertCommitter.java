@@ -172,7 +172,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
     for (DVWriteResult result : bufferedResults) {
       if (result.isAbort()) {
         LOG.warn(
-            "Skipping commit for table {} task {}: a DV resolver reported an error.",
+            "Skipping commit for table {} task {}: a DV writer reported an error.",
             tableName,
             taskName);
         deleteUncommittedDVs();
@@ -295,7 +295,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
 
     // When stagingBranch == targetBranch, the writer already committed data files and DVs to the
     // target branch. Re-adding them here would produce duplicate manifest entries. Skip those
-    // paths; only the new DVs from the resolver need to be added.
+    // paths; only the new DVs from the writer need to be added.
     if (!stagingOnTargetBranch) {
       for (DataFile dataFile : dataFiles) {
         rowDelta.addRows(dataFile);
@@ -325,7 +325,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
     for (DeleteFile stagingDelete : stagingDVFiles) {
       // V3 allows one DV per data file. When a staging snapshot contains both a writer-committed
       // DV and an eq-delete that resolves to additional positions in the same data file, the
-      // resolver folds the staging DV into a new merged DV (via
+      // writer folds the staging DV into a new merged DV (via
       // EqualityConvertDVWriter.collectExistingDVs). Skip the superseded staging DV; adding both
       // would commit two DVs for the same data file.
       if (ContentFileUtil.isDV(stagingDelete)

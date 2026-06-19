@@ -100,7 +100,7 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
   }
 
   @Test
-  void abortsCommitWhenDVMergerFailed() throws Exception {
+  void abortsCommitWhenDVWriterFailed() throws Exception {
     Table table = createTable(3, FileFormat.PARQUET);
     insert(table, 1, "a");
 
