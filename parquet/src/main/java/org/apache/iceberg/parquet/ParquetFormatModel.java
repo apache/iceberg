@@ -46,12 +46,16 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetFormatModel.class);
+
   private final boolean isBatchReader;
   private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
-  private final UnaryOperator<D> copyFunc;
+  private final Function<S, UnaryOperator<D>> copyFuncFactory;
 
   public static <D> ParquetFormatModel<PositionDelete<D>, Void, Object> forPositionDeletes() {
     return new ParquetFormatModel<>(
@@ -67,6 +71,11 @@ public class ParquetFormatModel<D, S, R>
         type, schemaType, writerFunction, readerFunction, false, null, null);
   }
 
+  /**
+   * @deprecated Will be removed in 1.13.0; use {@link #create(Class, Class, WriterFunction,
+   *     ReaderFunction, VariantShreddingAnalyzer, Function)} instead.
+   */
+  @Deprecated
   public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
       Class<D> type,
       Class<S> schemaType,
@@ -74,8 +83,24 @@ public class ParquetFormatModel<D, S, R>
       ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
       UnaryOperator<D> copyFunc) {
+    return create(
+        type,
+        schemaType,
+        writerFunction,
+        readerFunction,
+        variantAnalyzer,
+        (Function<S, UnaryOperator<D>>) unused -> copyFunc);
+  }
+
+  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
+      Class<D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
+      VariantShreddingAnalyzer<D, S> variantAnalyzer,
+      Function<S, UnaryOperator<D>> copyFuncFactory) {
     return new ParquetFormatModel<>(
-        type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFunc);
+        type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFuncFactory);
   }
 
   public static <D, S> ParquetFormatModel<D, S, VectorizedReader<?>> create(
@@ -92,11 +117,11 @@ public class ParquetFormatModel<D, S, R>
       ReaderFunction<R, S, MessageType> readerFunction,
       boolean isBatchReader,
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
-      UnaryOperator<D> copyFunc) {
+      Function<S, UnaryOperator<D>> copyFuncFactory) {
     super(type, schemaType, writerFunction, readerFunction);
     this.isBatchReader = isBatchReader;
     this.variantAnalyzer = variantAnalyzer;
-    this.copyFunc = copyFunc;
+    this.copyFuncFactory = copyFuncFactory;
   }
 
   @Override
@@ -106,7 +131,8 @@ public class ParquetFormatModel<D, S, R>
 
   @Override
   public ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
-    return new WriteBuilderWrapper<>(outputFile, writerFunction(), variantAnalyzer, copyFunc);
+    return new WriteBuilderWrapper<>(
+        outputFile, writerFunction(), variantAnalyzer, copyFuncFactory);
   }
 
   @Override
@@ -118,7 +144,7 @@ public class ParquetFormatModel<D, S, R>
     private final Parquet.WriteBuilder internal;
     private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
     private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
-    private final UnaryOperator<D> copyFunc;
+    private final Function<S, UnaryOperator<D>> copyFuncFactory;
     private Schema schema;
     private S engineSchema;
     private FileContent content;
@@ -129,11 +155,11 @@ public class ParquetFormatModel<D, S, R>
         EncryptedOutputFile outputFile,
         WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
         VariantShreddingAnalyzer<D, S> variantAnalyzer,
-        UnaryOperator<D> copyFunc) {
+        Function<S, UnaryOperator<D>> copyFuncFactory) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
       this.variantAnalyzer = variantAnalyzer;
-      this.copyFunc = copyFunc;
+      this.copyFuncFactory = copyFuncFactory;
     }
 
     @Override
@@ -267,11 +293,20 @@ public class ParquetFormatModel<D, S, R>
      * top-level fields.
      */
     private FileAppender<D> buildShreddedAppender() {
+      Preconditions.checkState(copyFuncFactory != null, "copyFuncFactory must not be null");
+      UnaryOperator<D> copyFunc = copyFuncFactory.apply(engineSchema);
+      Preconditions.checkState(copyFunc != null, "copyFunc must not return null");
+      LOG.debug("Building shredded variant appender with bufferSize={}", bufferSize);
+
       return new BufferedFileAppender<>(
           bufferSize,
           bufferedRows -> {
             Map<Integer, Type> shreddedTypes =
                 variantAnalyzer.analyzeVariantColumns(bufferedRows, schema, engineSchema);
+            LOG.debug(
+                "Variant inference: rows={}, shredded fields={}",
+                bufferedRows.size(),
+                shreddedTypes.size());
 
             if (!shreddedTypes.isEmpty()) {
               internal.variantShreddingFunc((fieldId, name) -> shreddedTypes.get(fieldId));

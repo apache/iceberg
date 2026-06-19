@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
@@ -373,13 +374,17 @@ public class OperatorTestBase {
     Configuration conf = new Configuration();
     if (jobClient != null) {
       if (savepointDir != null) {
-        // Stop with savepoint
-        jobClient.stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL);
-        // Wait until the savepoint is created and the job has been stopped
-        Awaitility.await().until(() -> savepointDir.listFiles(File::isDirectory).length == 1);
-        conf.set(
-            SavepointConfigOptions.SAVEPOINT_PATH,
-            savepointDir.listFiles(File::isDirectory)[0].getAbsolutePath());
+        // Stop with a savepoint; get() blocks until it is fully written and returns its path, so
+        // that a job restoring from it does not race the savepoint completion
+        try {
+          conf.set(
+              SavepointConfigOptions.SAVEPOINT_PATH,
+              jobClient
+                  .stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL)
+                  .get());
+        } catch (InterruptedException | ExecutionException e) {
+          throw new RuntimeException(e);
+        }
       } else {
         jobClient.cancel();
       }
@@ -446,6 +451,19 @@ public class OperatorTestBase {
         new PartitionData(PartitionSpec.unpartitioned().partitionType()),
         Lists.newArrayList(SimpleDataUtil.createRecord(id, oldData)),
         SCHEMA_WITH_PRIMARY_KEY);
+  }
+
+  protected DeleteFile writePosDeleteFile(Table table, String dataFilePath, long pos)
+      throws IOException {
+    File file = File.createTempFile("junit", null, warehouseDir.toFile());
+    assertThat(file.delete()).isTrue();
+    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
+    GenericRecord nested = GenericRecord.create(table.schema());
+    nested.set(0, 1);
+    nested.set(1, "a");
+    posDelete.set(dataFilePath, pos, nested);
+    return FileHelpers.writePosDeleteFile(
+        table, Files.localOutput(file), null, Lists.newArrayList(posDelete), 2);
   }
 
   private DeleteFile writePosDelete(

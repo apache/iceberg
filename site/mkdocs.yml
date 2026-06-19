@@ -47,6 +47,10 @@ theme:
     - content.code.copy
     - content.code.annotate
 
+hooks:
+  # Symlinks docs/<version>/ to docs/latest/ so both URLs resolve.
+  - hooks/version_alias.py
+
 plugins:
   - search
   - blog:
@@ -77,9 +81,9 @@ plugins:
         'docs/nightly/daft.md': 'integrations/daft.md'
         'docs/nightly/risingwave.md': 'integrations/risingwave.md'
   - exclude-search:
-      # Index only docs/nightly/* to avoid duplicate hits across versions.
+      # Index only docs/latest/* to avoid duplicate hits across versions.
       exclude:
-        - 'docs/latest*'  # excludes latest and its children
+        - 'docs/nightly*'  # excludes nightly and its children
         - 'docs/[0-9]*'    # excludes docs/<x.y.z> and their children
 
 markdown_extensions:
@@ -107,11 +111,11 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.10.1'
-  nessieVersion: '0.104.5'
-  flinkVersion: '2.0.0'
-  flinkVersionMajor: '2.0'
-  sparkVersionMajor: '4.0_2.13'
+  icebergVersion: '1.11.0'
+  nessieVersion: '0.105.3'
+  flinkVersion: '2.1.0'
+  flinkVersionMajor: '2.1'
+  sparkVersionMajor: '4.1_2.13'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'

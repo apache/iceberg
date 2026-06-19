@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.configuration.Configuration;
@@ -182,6 +183,18 @@ public class OperatorTestBase {
             TestFixtures.TABLE_IDENTIFIER,
             SCHEMA_WITH_PRIMARY_KEY,
             PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of(
+                "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
+  }
+
+  protected static Table createPartitionedTableWithDelete(int formatVersion) {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_WITH_PRIMARY_KEY,
+            PartitionSpec.builderFor(SCHEMA_WITH_PRIMARY_KEY).identity("data").build(),
             null,
             ImmutableMap.of(
                 "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
@@ -373,11 +386,15 @@ public class OperatorTestBase {
   protected static String closeJobClient(JobClient jobClient, File savepointDir) {
     if (jobClient != null) {
       if (savepointDir != null) {
-        // Stop with savepoint
-        jobClient.stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL);
-        // Wait until the savepoint is created and the job has been stopped
-        Awaitility.await().until(() -> savepointDir.listFiles(File::isDirectory).length == 1);
-        return savepointDir.listFiles(File::isDirectory)[0].getAbsolutePath();
+        // Stop with a savepoint; get() blocks until it is fully written and returns its path, so
+        // that a job restoring from it does not race the savepoint completion
+        try {
+          return jobClient
+              .stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL)
+              .get();
+        } catch (InterruptedException | ExecutionException e) {
+          throw new RuntimeException(e);
+        }
       } else {
         jobClient.cancel();
       }
@@ -443,6 +460,19 @@ public class OperatorTestBase {
         new PartitionData(PartitionSpec.unpartitioned().partitionType()),
         Lists.newArrayList(SimpleDataUtil.createRecord(id, oldData)),
         SCHEMA_WITH_PRIMARY_KEY);
+  }
+
+  protected DeleteFile writePosDeleteFile(Table table, String dataFilePath, long pos)
+      throws IOException {
+    File file = File.createTempFile("junit", null, warehouseDir.toFile());
+    assertThat(file.delete()).isTrue();
+    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
+    GenericRecord nested = GenericRecord.create(table.schema());
+    nested.set(0, 1);
+    nested.set(1, "a");
+    posDelete.set(dataFilePath, pos, nested);
+    return FileHelpers.writePosDeleteFile(
+        table, Files.localOutput(file), null, Lists.newArrayList(posDelete), 2);
   }
 
   private DeleteFile writePosDelete(
