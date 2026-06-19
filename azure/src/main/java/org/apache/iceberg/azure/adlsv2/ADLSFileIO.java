@@ -33,6 +33,9 @@ import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
+import org.apache.iceberg.io.FailureCategory;
+import org.apache.iceberg.io.FailureHandler;
+import org.apache.iceberg.io.FileFailure;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -196,9 +199,16 @@ public class ADLSFileIO implements DelegateFileIO {
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    deleteFiles(pathsToDelete, FailureHandler.NOOP);
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete, FailureHandler failureHandler)
+      throws BulkDeletionFailureException {
     // Azure batch operations are not supported in all cases, e.g. with a user
     // delegation SAS token, so avoid using it for now
 
+    FailureHandler handler = failureHandler != null ? failureHandler : FailureHandler.NOOP;
     AtomicInteger failureCount = new AtomicInteger();
     Tasks.foreach(pathsToDelete)
         .executeWith(ThreadPools.getWorkerPool())
@@ -206,14 +216,17 @@ public class ADLSFileIO implements DelegateFileIO {
         .suppressFailureWhenFinished()
         .onFailure(
             (file, exc) -> {
-              if (exc instanceof DataLakeStorageException dse && dse.getStatusCode() == 404) {
-                // The object is already gone, which is the desired end state for a delete. Other
-                // FileIO implementations skip the delete if nothing is found, so mimic that here
-                // rather than counting it as a failure.
+              FailureCategory category = ADLSErrorInterpreter.categorize(exc);
+              if (category == FailureCategory.NOT_FOUND) {
+                // The object is already gone, which is the desired end state for a delete. Treat
+                // it as success: do not count it as a failure or report it to the handler.
                 return;
               }
               failureCount.incrementAndGet();
               LOG.warn("Failed to delete file {}", file, exc);
+              String rawCode = ADLSErrorInterpreter.rawErrorCode(exc);
+              FailureHandler.safeNotify(
+                  LOG, handler, new FileFailure(file, category, rawCode, exc));
             })
         .run(this::deleteFileThrowing);
 

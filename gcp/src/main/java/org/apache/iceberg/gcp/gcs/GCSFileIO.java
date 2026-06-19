@@ -42,6 +42,9 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
+import org.apache.iceberg.io.FailureCategory;
+import org.apache.iceberg.io.FailureHandler;
+import org.apache.iceberg.io.FileFailure;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -319,16 +322,24 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   public void deletePrefix(String prefix) {
     internalDeleteFiles(
         Streams.stream(listPrefix(prefix))
-            .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())));
+            .map(fileInfo -> BlobId.fromGsUtilUri(fileInfo.location())),
+        FailureHandler.NOOP);
   }
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri));
+    deleteFiles(pathsToDelete, FailureHandler.NOOP);
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete, FailureHandler failureHandler)
+      throws BulkDeletionFailureException {
+    FailureHandler handler = failureHandler != null ? failureHandler : FailureHandler.NOOP;
+    internalDeleteFiles(Streams.stream(pathsToDelete).map(BlobId::fromGsUtilUri), handler);
   }
 
   @SuppressWarnings("resource")
-  private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
+  private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete, FailureHandler handler) {
     AtomicInteger failureCount = new AtomicInteger();
     Streams.stream(
             Iterators.partition(
@@ -341,13 +352,17 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
               }
               Storage storage = clientForStoragePath(batch.get(0).toGsUtilUri()).storage();
               try {
-                // A false result means the object did not exist, which is the desired end state
-                // for a delete, so it is treated as success.
+                // A false result means the object did not exist. For a delete that is the desired
+                // end state, so it is treated as success and not reported to the handler.
                 storage.delete(batch);
               } catch (StorageException e) {
-                // Best effort: log and keep deleting the remaining batches rather than failing
-                // fast, then surface the failure as BulkDeletionFailureException at the end.
                 LOG.warn("Encountered failure when deleting GCS batch", e);
+                FailureCategory category = GCSErrorInterpreter.categorize(e);
+                String rawCode = GCSErrorInterpreter.rawErrorCode(e);
+                for (BlobId id : batch) {
+                  FailureHandler.safeNotify(
+                      LOG, handler, new FileFailure(id.toGsUtilUri(), category, rawCode, e));
+                }
                 failureCount.addAndGet(batch.size());
               }
             });

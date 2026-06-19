@@ -41,6 +41,9 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
 import org.apache.iceberg.io.DelegateFileIO;
+import org.apache.iceberg.io.FailureCategory;
+import org.apache.iceberg.io.FailureHandler;
+import org.apache.iceberg.io.FileFailure;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -200,6 +203,13 @@ public class S3FileIO
    */
   @Override
   public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
+    deleteFiles(paths, FailureHandler.NOOP);
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> paths, FailureHandler failureHandler)
+      throws BulkDeletionFailureException {
+    FailureHandler handler = failureHandler != null ? failureHandler : FailureHandler.NOOP;
     S3FileIOProperties s3FileIOProperties = clientForStoragePath(ROOT_PREFIX).s3FileIOProperties();
     if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       Tasks.foreach(paths)
@@ -232,7 +242,7 @@ public class S3FileIO
         if (bucketToObjects.get(bucket).size() == client.s3FileIOProperties().deleteBatchSize()) {
           Set<String> keys = Sets.newHashSet(bucketToObjects.get(bucket));
           Future<List<String>> deletionTask =
-              executorService().submit(() -> deleteBatch(client, bucket, keys));
+              executorService().submit(() -> deleteBatch(client, bucket, keys, handler));
           deletionTasks.add(deletionTask);
           bucketToObjects.removeAll(bucket);
         }
@@ -245,7 +255,9 @@ public class S3FileIO
         Collection<String> keys = bucketToObjectsEntry.getValue();
         Future<List<String>> deletionTask =
             executorService()
-                .submit(() -> deleteBatch(clientForStoragePath("s3://" + bucket), bucket, keys));
+                .submit(
+                    () ->
+                        deleteBatch(clientForStoragePath("s3://" + bucket), bucket, keys, handler));
         deletionTasks.add(deletionTask);
       }
 
@@ -297,7 +309,10 @@ public class S3FileIO
   }
 
   private List<String> deleteBatch(
-      PrefixedS3Client client, String bucket, Collection<String> keysToDelete) {
+      PrefixedS3Client client,
+      String bucket,
+      Collection<String> keysToDelete,
+      FailureHandler handler) {
     List<ObjectIdentifier> objectIds =
         keysToDelete.stream()
             .map(key -> ObjectIdentifier.builder().key(key).build())
@@ -311,19 +326,32 @@ public class S3FileIO
     try {
       DeleteObjectsResponse response = client.s3().deleteObjects(request);
       if (response.hasErrors()) {
-        failures.addAll(
-            response.errors().stream()
-                .map(error -> String.format("s3://%s/%s", request.bucket(), error.key()))
-                .collect(Collectors.toList()));
+        response
+            .errors()
+            .forEach(
+                error -> {
+                  String path = s3Path(request.bucket(), error.key());
+                  FailureCategory category = S3ErrorInterpreter.categorize(error);
+                  FailureHandler.safeNotify(
+                      LOG, handler, new FileFailure(path, category, error.code(), null));
+                  failures.add(path);
+                });
       }
     } catch (Exception e) {
       LOG.warn("Encountered failure when deleting batch", e);
-      failures.addAll(
-          request.delete().objects().stream()
-              .map(obj -> String.format("s3://%s/%s", request.bucket(), obj.key()))
-              .collect(Collectors.toList()));
+      FailureCategory category = S3ErrorInterpreter.categorize(e);
+      String rawCode = S3ErrorInterpreter.rawErrorCode(e);
+      for (ObjectIdentifier obj : request.delete().objects()) {
+        String path = s3Path(request.bucket(), obj.key());
+        FailureHandler.safeNotify(LOG, handler, new FileFailure(path, category, rawCode, e));
+        failures.add(path);
+      }
     }
     return failures;
+  }
+
+  private static String s3Path(String bucket, String key) {
+    return String.format("s3://%s/%s", bucket, key);
   }
 
   @Override
