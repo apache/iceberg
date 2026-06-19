@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.util.List;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -33,6 +34,9 @@ import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -403,11 +407,104 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
     }
   }
 
+  @Test
+  void removesRewrittenStagingDvOnSharedBranch() throws Exception {
+    // Shared branch: stagingBranch == targetBranch == main, so the writer's DVs are already on
+    // target. A staging DV folded into a merged conversion DV must be removed, else the data file
+    // would carry two DVs (V3 allows one per data file).
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    DataFile dataFile = getFirstDataFile(table);
+
+    // Staging DV already committed on the shared target branch; the writer rewrites it by folding
+    // it into a merged DV for the same data file.
+    DeleteFile stagingDv = writeDV(table, dataFile.location(), 0L);
+    table.newRowDelta().addDeletes(stagingDv).commit();
+    table.refresh();
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+
+    DeleteFile mergedDv = writeDV(table, dataFile.location(), 0L);
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        sharedBranchHarness()) {
+      harness.open();
+
+      long doneTs = System.currentTimeMillis();
+      EqualityConvertPlan planResult =
+          new EqualityConvertPlan(
+              Lists.newArrayList(),
+              Lists.newArrayList(stagingDv),
+              123L,
+              mainSnapshotId,
+              doneTs - 1,
+              doneTs);
+
+      harness.processElement1(
+          new StreamRecord<>(
+              new DVWriteResult(Lists.newArrayList(mergedDv), Lists.newArrayList(stagingDv)),
+              doneTs));
+      harness.processElement2(new StreamRecord<>(planResult, doneTs - 1));
+      harness.processBothWatermarks(new Watermark(doneTs));
+
+      assertThat(harness.extractOutputValues()).hasSize(1);
+
+      // Exactly one DV references the data file: the merged DV, with the rewritten staging DV
+      // removed rather than left as a second DV on the same data file.
+      table.refresh();
+      List<DeleteFile> dvs = deletesForDataFile(table, dataFile.location());
+      assertThat(dvs).hasSize(1);
+      assertThat(dvs.get(0).location()).isEqualTo(mergedDv.location());
+    }
+  }
+
   private TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger>
       createHarness() throws Exception {
     return new TwoInputStreamOperatorTestHarness<>(
         new EqualityConvertCommitter(
             DUMMY_TABLE_NAME, DUMMY_TASK_NAME, tableLoader(), "staging", SnapshotRef.MAIN_BRANCH));
+  }
+
+  private TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger>
+      sharedBranchHarness() throws Exception {
+    return new TwoInputStreamOperatorTestHarness<>(
+        new EqualityConvertCommitter(
+            DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            tableLoader(),
+            SnapshotRef.MAIN_BRANCH,
+            SnapshotRef.MAIN_BRANCH));
+  }
+
+  private static List<DeleteFile> deletesForDataFile(Table table, String dataFilePath) {
+    List<DeleteFile> deletes = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        for (DeleteFile file : reader) {
+          if (dataFilePath.equals(file.referencedDataFile())) {
+            deletes.add(file.copy());
+          }
+        }
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    return deletes;
+  }
+
+  private static DeleteFile writeDV(Table table, String dataFilePath, long... positions)
+      throws IOException {
+    List<PositionDelete<?>> deletes = Lists.newArrayList();
+    GenericRecord nested = GenericRecord.create(table.schema());
+    for (long pos : positions) {
+      PositionDelete<GenericRecord> delete = PositionDelete.create();
+      delete.set(dataFilePath, pos, nested);
+      deletes.add(delete);
+    }
+
+    return FileHelpers.writePosDeleteFile(table, null, null, deletes, 3);
   }
 
   private static DataFile getFirstDataFile(Table table) {
