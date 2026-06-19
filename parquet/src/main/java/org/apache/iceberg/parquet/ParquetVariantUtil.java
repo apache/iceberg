@@ -367,7 +367,7 @@ class ParquetVariantUtil {
           return truncatedString != null ? Variants.of(PhysicalType.STRING, truncatedString) : null;
         case BINARY:
           ByteBuffer truncatedBuffer =
-              BinaryUtil.truncateBinaryMin((ByteBuffer) value.asPrimitive().get(), 16);
+              BinaryUtil.truncateBinaryMax((ByteBuffer) value.asPrimitive().get(), 16);
           return truncatedBuffer != null ? Variants.of(PhysicalType.BINARY, truncatedBuffer) : null;
         default:
           return value;
