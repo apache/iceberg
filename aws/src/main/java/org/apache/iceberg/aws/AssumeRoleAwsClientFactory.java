@@ -76,6 +76,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return GlueClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .applyMutation(awsProperties::applyGlueCatalogIdConfigurations)
         .applyMutation(awsClientProperties::applyRetryConfigurations)
         .build();
   }
