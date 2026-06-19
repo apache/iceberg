@@ -188,6 +188,18 @@ public class OperatorTestBase {
                 "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
   }
 
+  protected static Table createPartitionedTableWithDelete(int formatVersion) {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_WITH_PRIMARY_KEY,
+            PartitionSpec.builderFor(SCHEMA_WITH_PRIMARY_KEY).identity("data").build(),
+            null,
+            ImmutableMap.of(
+                "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
+  }
+
   protected static Table createPartitionedTable(int formatVersion, FileFormat fileFormat) {
     return CATALOG_EXTENSION
         .catalog()
