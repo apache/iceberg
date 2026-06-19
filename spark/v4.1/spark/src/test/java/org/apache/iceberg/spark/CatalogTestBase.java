@@ -37,9 +37,9 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
         SparkCatalogConfig.HIVE.properties()
       },
       {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties()
+        SparkCatalogConfig.INMEMORY.catalogName(),
+        SparkCatalogConfig.INMEMORY.implementation(),
+        SparkCatalogConfig.INMEMORY.properties()
       },
       {
         SparkCatalogConfig.SPARK_SESSION.catalogName(),
@@ -53,6 +53,36 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
             .putAll(SparkCatalogConfig.REST.properties())
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
             .build()
+      }
+    };
+  }
+
+  /**
+   * Catalog parameters for tests that must inspect files on disk (for example, asserting that an
+   * Iceberg-managed file exists via {@code java.io.File#exists()} or listing a directory with
+   * Hadoop {@code FileSystem}). Drops the {@code testinmemory} catalog (its {@link
+   * org.apache.iceberg.inmemory.InMemoryCatalog} cannot back a real filesystem) and the {@code
+   * testrest} catalog (the shared REST server writes initial metadata through its own in-memory
+   * {@link org.apache.iceberg.inmemory.InMemoryFileIO}, which a disk-only client cannot read).
+   * Remaining catalogs strip the in-memory {@code FileIO} so {@code table.io()} round-trips through
+   * real on-disk storage.
+   */
+  protected static Object[][] catalogParametersWithDiskBackedFileIo() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.propertiesWithoutFileIo()
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties()
+      },
+      {
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.propertiesWithoutFileIo()
       }
     };
   }

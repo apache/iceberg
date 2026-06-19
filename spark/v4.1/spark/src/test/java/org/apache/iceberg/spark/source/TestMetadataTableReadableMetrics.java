@@ -83,10 +83,13 @@ public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
   protected static Object[][] parameters() {
     return new Object[][] {
       {
+        // This test creates tables via TestBase.catalog (HadoopFileIO) and writes data files
+        // via Files.localOutput (on disk), so Spark must use HadoopFileIO too for reads to
+        // round-trip; opt out of the in-memory FileIO that HIVE applies by default.
         // only SparkCatalog supports metadata table sql queries
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties()
+        SparkCatalogConfig.HIVE.propertiesWithoutFileIo()
       },
     };
   }

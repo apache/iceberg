@@ -113,7 +113,9 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     assertThatThrownBy(() -> threeColDF.writeTo(tableName).option("merge-schema", "true").append())
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            "Cannot write to `testhadoop`.`default`.`table`, the reason is too many data columns");
+            String.format(
+                "Cannot write to `%s`.`default`.`table`, the reason is too many data columns",
+                catalogName));
   }
 
   @TestTemplate

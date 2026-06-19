@@ -20,6 +20,7 @@ package org.apache.iceberg.inmemory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -46,6 +48,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
@@ -57,18 +60,51 @@ import org.apache.iceberg.view.ViewOperations;
 import org.apache.iceberg.view.ViewUtil;
 
 /**
- * Catalog implementation that uses in-memory data-structures to store the namespaces and tables.
- * This class doesn't touch external resources and can be utilized to write unit tests without side
- * effects. It uses {@link InMemoryFileIO}.
+ * Catalog implementation that uses in-memory data-structures to store namespaces, tables, and
+ * views. It uses {@link InMemoryFileIO} so it does not touch external resources, which makes it
+ * well-suited to writing unit tests.
+ *
+ * <p>By default each instance owns a private store and {@link #close()} clears it. Setting the
+ * {@link #SHARED_STORE_ID} catalog property links instances initialized with the same value to a
+ * shared, JVM-wide store: namespaces, tables, and views committed through one instance are visible
+ * to others, and {@link #close()} leaves the shared store intact so the remaining instances
+ * continue to observe it. The shared store survives for the lifetime of the JVM unless {@link
+ * #clearSharedStore} is called explicitly.
+ *
+ * <p>Mutating operations synchronize on the backing store rather than on this catalog instance, so
+ * all instances pointing at the same shared store serialize through the same monitor. The catalog
+ * instance's intrinsic lock is not the synchronization root and must not be relied on for external
+ * coordination.
  */
 public class InMemoryCatalog extends BaseMetastoreViewCatalog
     implements SupportsNamespaces, Closeable {
+  /**
+   * Catalog property whose value identifies a JVM-wide shared store. Two {@link InMemoryCatalog}
+   * instances initialized with the same value of this property share the same namespaces, tables,
+   * views, and synchronization monitor. When unset, each instance keeps a private store. Empty or
+   * whitespace-only values are rejected because they are typically a misconfiguration produced by
+   * config layers that map "missing" to the empty string.
+   */
+  public static final String SHARED_STORE_ID = "in-memory-catalog.shared-store-id";
+
   private static final Joiner SLASH = Joiner.on("/");
   private static final Joiner DOT = Joiner.on(".");
 
-  private final ConcurrentMap<Namespace, Map<String, String>> namespaces;
-  private final ConcurrentMap<TableIdentifier, String> tables;
-  private final ConcurrentMap<TableIdentifier, String> views;
+  private static final ConcurrentMap<String, Store> SHARED_STORES = Maps.newConcurrentMap();
+
+  /**
+   * Drops the shared store associated with the given {@link #SHARED_STORE_ID} value. Subsequent
+   * instances initialized with that value start with an empty store; live instances that already
+   * hold a reference to the previous store keep observing it. Calling this with a value that has no
+   * shared store is a no-op. Intended for harnesses that need to release accumulated state between
+   * runs.
+   */
+  public static void clearSharedStore(String sharedStoreId) {
+    SHARED_STORES.remove(sharedStoreId);
+  }
+
+  private volatile Store store;
+  private boolean ownsStore;
   private FileIO io;
   private String catalogName;
   private String warehouseLocation;
@@ -77,9 +113,8 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private Map<String, String> catalogProperties;
 
   public InMemoryCatalog() {
-    this.namespaces = Maps.newConcurrentMap();
-    this.tables = Maps.newConcurrentMap();
-    this.views = Maps.newConcurrentMap();
+    this.store = new Store();
+    this.ownsStore = true;
   }
 
   @Override
@@ -87,8 +122,24 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     return catalogName;
   }
 
+  /**
+   * Initializes the catalog. May be called more than once on the same instance: a subsequent call
+   * closes the previous {@link CloseableGroup} (and the {@link FileIO} / metrics reporter it holds)
+   * and reselects the backing store from the new properties. There is no thread-safety guarantee
+   * for re-initialization concurrent with in-flight catalog operations.
+   */
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    String sharedStoreId = properties.get(SHARED_STORE_ID);
+    if (sharedStoreId != null) {
+      Preconditions.checkArgument(
+          !sharedStoreId.trim().isEmpty(),
+          "%s must not be empty or whitespace; either omit the property or provide a non-blank value",
+          SHARED_STORE_ID);
+    }
+
+    closePreviousCloseableGroup();
+
     this.catalogName = name != null ? name : InMemoryCatalog.class.getSimpleName();
     this.catalogProperties = ImmutableMap.copyOf(properties);
     this.uniqueTableLocation =
@@ -99,10 +150,31 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
+
+    if (sharedStoreId != null) {
+      this.store = SHARED_STORES.computeIfAbsent(sharedStoreId, k -> new Store());
+      this.ownsStore = false;
+    } else {
+      this.store = new Store();
+      this.ownsStore = true;
+    }
+
     this.io = CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
+  }
+
+  private void closePreviousCloseableGroup() {
+    CloseableGroup previous = this.closeableGroup;
+    this.closeableGroup = null;
+    if (previous != null) {
+      try {
+        previous.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close previous catalog resources", e);
+      }
+    }
   }
 
   @Override
@@ -134,8 +206,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       lastMetadata = null;
     }
 
-    synchronized (this) {
-      if (null == tables.remove(tableIdentifier)) {
+    Store currentStore = store;
+    synchronized (currentStore) {
+      if (null == currentStore.tables.remove(tableIdentifier)) {
         return false;
       }
     }
@@ -149,12 +222,13 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    if (!namespaceExists(namespace) && !namespace.isEmpty()) {
+    Store currentStore = store;
+    if (!currentStore.namespaces.containsKey(namespace) && !namespace.isEmpty()) {
       throw new NoSuchNamespaceException(
           "Cannot list tables for namespace. Namespace does not exist: %s", namespace);
     }
 
-    return tables.keySet().stream()
+    return currentStore.tables.keySet().stream()
         .filter(t -> t.namespace().equals(namespace))
         .sorted(Comparator.comparing(TableIdentifier::toString))
         .collect(Collectors.toList());
@@ -166,27 +240,28 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       return;
     }
 
-    synchronized (this) {
-      if (!namespaceExists(to.namespace())) {
+    Store currentStore = store;
+    synchronized (currentStore) {
+      if (!currentStore.namespaces.containsKey(to.namespace())) {
         throw new NoSuchNamespaceException(
             "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
       }
 
-      String fromLocation = tables.get(from);
+      String fromLocation = currentStore.tables.get(from);
       if (null == fromLocation) {
         throw new NoSuchTableException("Cannot rename %s to %s. Table does not exist", from, to);
       }
 
-      if (tables.containsKey(to)) {
+      if (currentStore.tables.containsKey(to)) {
         throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
       }
 
-      if (views.containsKey(to)) {
+      if (currentStore.views.containsKey(to)) {
         throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
       }
 
-      tables.put(to, fromLocation);
-      tables.remove(from);
+      currentStore.tables.put(to, fromLocation);
+      currentStore.tables.remove(from);
     }
   }
 
@@ -197,60 +272,82 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    synchronized (this) {
-      if (namespaceExists(namespace)) {
+    Store currentStore = store;
+    synchronized (currentStore) {
+      if (currentStore.namespaces.containsKey(namespace)) {
         throw new AlreadyExistsException(
             "Cannot create namespace %s. Namespace already exists", namespace);
       }
 
-      namespaces.put(namespace, ImmutableMap.copyOf(metadata));
+      currentStore.namespaces.put(namespace, ImmutableMap.copyOf(metadata));
     }
   }
 
   @Override
   public boolean namespaceExists(Namespace namespace) {
-    return namespaces.containsKey(namespace);
+    return store.namespaces.containsKey(namespace);
   }
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    synchronized (this) {
-      if (!namespaceExists(namespace)) {
+    Store currentStore = store;
+    synchronized (currentStore) {
+      if (!currentStore.namespaces.containsKey(namespace)) {
         return false;
       }
 
-      List<Namespace> childNamespaces = listNamespaces(namespace);
-      if (!childNamespaces.isEmpty()) {
+      long childNamespaces = childNamespacesOf(currentStore, namespace).count();
+      if (childNamespaces > 0) {
         throw new NamespaceNotEmptyException(
             "Namespace %s is not empty. Contains %d child namespace(s).",
-            namespace, childNamespaces.size());
+            namespace, childNamespaces);
       }
 
-      List<TableIdentifier> tableIdentifiers = listTables(namespace);
-      if (!tableIdentifiers.isEmpty()) {
+      long tablesInNamespace = countIdentifiersInNamespace(currentStore.tables, namespace);
+      if (tablesInNamespace > 0) {
         throw new NamespaceNotEmptyException(
-            "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
+            "Namespace %s is not empty. Contains %d table(s).", namespace, tablesInNamespace);
       }
 
-      List<TableIdentifier> viewIdentifiers = listViews(namespace);
-      if (!viewIdentifiers.isEmpty()) {
+      long viewsInNamespace = countIdentifiersInNamespace(currentStore.views, namespace);
+      if (viewsInNamespace > 0) {
         throw new NamespaceNotEmptyException(
-            "Namespace %s is not empty. Contains %d view(s).", namespace, viewIdentifiers.size());
+            "Namespace %s is not empty. Contains %d view(s).", namespace, viewsInNamespace);
       }
 
-      return namespaces.remove(namespace) != null;
+      return currentStore.namespaces.remove(namespace) != null;
     }
+  }
+
+  /**
+   * Returns the namespaces that are strict descendants of {@code parent} in {@code currentStore}.
+   * Implemented as a single shared traversal so that {@link #dropNamespace(Namespace)} and {@link
+   * #listNamespaces(Namespace)} cannot drift apart on prefix-collision edge cases (for example,
+   * {@code a.b} as a parent must not match {@code a.bb.c}).
+   */
+  private static Stream<Namespace> childNamespacesOf(Store currentStore, Namespace parent) {
+    int parentLength = parent.levels().length;
+    String[] parentLevels = parent.levels();
+    return currentStore.namespaces.keySet().stream()
+        .filter(n -> n.levels().length > parentLength)
+        .filter(n -> Arrays.equals(Arrays.copyOf(n.levels(), parentLength), parentLevels));
+  }
+
+  private static long countIdentifiersInNamespace(
+      ConcurrentMap<TableIdentifier, String> identifiers, Namespace namespace) {
+    return identifiers.keySet().stream().filter(id -> id.namespace().equals(namespace)).count();
   }
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties)
       throws NoSuchNamespaceException {
-    synchronized (this) {
-      if (!namespaceExists(namespace)) {
+    Store currentStore = store;
+    synchronized (currentStore) {
+      if (!currentStore.namespaces.containsKey(namespace)) {
         throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
       }
 
-      namespaces.computeIfPresent(
+      currentStore.namespaces.computeIfPresent(
           namespace,
           (k, v) ->
               ImmutableMap.<String, String>builder()
@@ -265,12 +362,13 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties)
       throws NoSuchNamespaceException {
-    synchronized (this) {
-      if (!namespaceExists(namespace)) {
+    Store currentStore = store;
+    synchronized (currentStore) {
+      if (!currentStore.namespaces.containsKey(namespace)) {
         throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
       }
 
-      namespaces.computeIfPresent(
+      currentStore.namespaces.computeIfPresent(
           namespace,
           (k, v) -> {
             Map<String, String> newProperties = Maps.newHashMap(v);
@@ -285,7 +383,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
-    Map<String, String> properties = namespaces.get(namespace);
+    Map<String, String> properties = store.namespaces.get(namespace);
     if (properties == null) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -295,7 +393,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<Namespace> listNamespaces() {
-    return namespaces.keySet().stream()
+    return store.namespaces.keySet().stream()
         .filter(n -> !n.isEmpty())
         .map(n -> n.level(0))
         .distinct()
@@ -306,46 +404,51 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    final String searchNamespaceString =
-        namespace.isEmpty() ? "" : DOT.join(namespace.levels()) + ".";
-    final int searchNumberOfLevels = namespace.levels().length;
+    Store currentStore = store;
+    int rootLength = namespace.levels().length;
 
-    List<Namespace> filteredNamespaces =
-        namespaces.keySet().stream()
-            .filter(n -> !n.isEmpty())
-            .filter(n -> DOT.join(n.levels()).startsWith(searchNamespaceString))
-            .collect(Collectors.toList());
+    List<Namespace> descendants =
+        childNamespacesOf(currentStore, namespace).collect(Collectors.toList());
 
     // If the namespace does not exist and the namespace is not a prefix of another namespace,
     // throw an exception.
-    if (!namespaces.containsKey(namespace) && filteredNamespaces.isEmpty()) {
+    if (!currentStore.namespaces.containsKey(namespace) && descendants.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    return filteredNamespaces.stream()
+    return descendants.stream()
         // List only the child-namespaces roots.
-        .map(n -> Namespace.of(Arrays.copyOf(n.levels(), searchNumberOfLevels + 1)))
+        .map(n -> Namespace.of(Arrays.copyOf(n.levels(), rootLength + 1)))
         .distinct()
         .sorted(Comparator.comparing(n -> DOT.join(n.levels())))
         .collect(Collectors.toList());
   }
 
+  /**
+   * Closes resources held by this catalog. When the instance owns a private store the in-memory
+   * namespaces, tables, and views are cleared. When it shares a store (initialized with {@link
+   * #SHARED_STORE_ID}) the store is left intact so other instances continue to observe it; use
+   * {@link #clearSharedStore} to drop it explicitly.
+   */
   @Override
   public void close() throws IOException {
-    closeableGroup.close();
-    namespaces.clear();
-    tables.clear();
-    views.clear();
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
+    if (ownsStore) {
+      store.clear();
+    }
   }
 
   @Override
   public List<TableIdentifier> listViews(Namespace namespace) {
-    if (!namespaceExists(namespace) && !namespace.isEmpty()) {
+    Store currentStore = store;
+    if (!currentStore.namespaces.containsKey(namespace) && !namespace.isEmpty()) {
       throw new NoSuchNamespaceException(
           "Cannot list views for namespace. Namespace does not exist: %s", namespace);
     }
 
-    return views.keySet().stream()
+    return currentStore.views.keySet().stream()
         .filter(v -> v.namespace().equals(namespace))
         .sorted(Comparator.comparing(TableIdentifier::toString))
         .collect(Collectors.toList());
@@ -358,8 +461,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public boolean dropView(TableIdentifier identifier) {
-    synchronized (this) {
-      return null != views.remove(identifier);
+    Store currentStore = store;
+    synchronized (currentStore) {
+      return null != currentStore.views.remove(identifier);
     }
   }
 
@@ -369,27 +473,28 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       return;
     }
 
-    synchronized (this) {
-      if (!namespaceExists(to.namespace())) {
+    Store currentStore = store;
+    synchronized (currentStore) {
+      if (!currentStore.namespaces.containsKey(to.namespace())) {
         throw new NoSuchNamespaceException(
             "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
       }
 
-      String fromViewLocation = views.get(from);
+      String fromViewLocation = currentStore.views.get(from);
       if (null == fromViewLocation) {
         throw new NoSuchViewException("Cannot rename %s to %s. View does not exist", from, to);
       }
 
-      if (tables.containsKey(to)) {
+      if (currentStore.tables.containsKey(to)) {
         throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
       }
 
-      if (views.containsKey(to)) {
+      if (currentStore.views.containsKey(to)) {
         throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
       }
 
-      views.put(to, fromViewLocation);
-      views.remove(from);
+      currentStore.views.put(to, fromViewLocation);
+      currentStore.views.remove(from);
     }
   }
 
@@ -411,7 +516,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     @Override
     public void doRefresh() {
-      String latestLocation = tables.get(tableIdentifier);
+      String latestLocation = store.tables.get(tableIdentifier);
       if (latestLocation == null) {
         disableRefresh();
       } else {
@@ -424,19 +529,20 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       String newLocation = writeNewMetadataIfRequired(base == null, metadata);
       String oldLocation = base == null ? null : base.metadataFileLocation();
 
-      synchronized (InMemoryCatalog.this) {
-        if (null == base && !namespaceExists(tableIdentifier.namespace())) {
+      Store currentStore = store;
+      synchronized (currentStore) {
+        if (null == base && !currentStore.namespaces.containsKey(tableIdentifier.namespace())) {
           throw new NoSuchNamespaceException(
               "Cannot create table %s. Namespace does not exist: %s",
               tableIdentifier, tableIdentifier.namespace());
         }
 
-        if (views.containsKey(tableIdentifier)) {
+        if (currentStore.views.containsKey(tableIdentifier)) {
           throw new AlreadyExistsException(
               "View with same name already exists: %s", tableIdentifier);
         }
 
-        tables.compute(
+        currentStore.tables.compute(
             tableIdentifier,
             (k, existingLocation) -> {
               if (!Objects.equal(existingLocation, oldLocation)) {
@@ -482,7 +588,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     @Override
     public void doRefresh() {
-      String latestLocation = views.get(identifier);
+      String latestLocation = store.views.get(identifier);
       if (latestLocation == null) {
         disableRefresh();
       } else {
@@ -495,18 +601,19 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       String newLocation = writeNewMetadataIfRequired(metadata);
       String oldLocation = base == null ? null : currentMetadataLocation();
 
-      synchronized (InMemoryCatalog.this) {
-        if (null == base && !namespaceExists(identifier.namespace())) {
+      Store currentStore = store;
+      synchronized (currentStore) {
+        if (null == base && !currentStore.namespaces.containsKey(identifier.namespace())) {
           throw new NoSuchNamespaceException(
               "Cannot create view %s. Namespace does not exist: %s",
               identifier, identifier.namespace());
         }
 
-        if (tables.containsKey(identifier)) {
+        if (currentStore.tables.containsKey(identifier)) {
           throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
         }
 
-        views.compute(
+        currentStore.views.compute(
             identifier,
             (k, existingLocation) -> {
               if (!Objects.equal(existingLocation, oldLocation)) {
@@ -537,6 +644,19 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     @Override
     protected String viewName() {
       return fullViewName;
+    }
+  }
+
+  private static final class Store {
+    private final ConcurrentMap<Namespace, Map<String, String>> namespaces =
+        Maps.newConcurrentMap();
+    private final ConcurrentMap<TableIdentifier, String> tables = Maps.newConcurrentMap();
+    private final ConcurrentMap<TableIdentifier, String> views = Maps.newConcurrentMap();
+
+    void clear() {
+      namespaces.clear();
+      tables.clear();
+      views.clear();
     }
   }
 }

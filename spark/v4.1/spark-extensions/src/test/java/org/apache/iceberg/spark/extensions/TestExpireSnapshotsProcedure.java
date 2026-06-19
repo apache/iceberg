@@ -37,6 +37,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
@@ -59,6 +60,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
+
+  // Several tests assert that statistics, partition stats, and manifest files exist on disk via
+  // java.io.File after writing through table.io(). Run with disk-backed FileIOs so the writes
+  // round-trip through real storage.
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  public static Object[][] parameters() {
+    return catalogParametersWithDiskBackedFileIo();
+  }
 
   @AfterEach
   public void removeTables() {

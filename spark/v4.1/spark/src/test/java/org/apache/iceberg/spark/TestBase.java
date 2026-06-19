@@ -40,6 +40,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -158,6 +159,12 @@ public abstract class TestBase extends SparkTestHelperBase {
   }
 
   private void move(String location, String newLocation) {
+    // Iceberg-managed files written through InMemoryFileIO live in a JVM-wide map rather
+    // than on disk, so swap them in place there before falling through to a disk move.
+    if (InMemoryFileIO.tryRename(location, newLocation)) {
+      return;
+    }
+
     Path path = Paths.get(URI.create(location));
     Path tempPath = Paths.get(URI.create(newLocation));
 

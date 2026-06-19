@@ -99,6 +99,11 @@ public class TestCompressionSettings extends CatalogTestBase {
 
   @TempDir private java.nio.file.Path temp;
 
+  // Compression checks read raw Parquet/ORC/Avro files via Hadoop, so they require on-disk
+  // data and cannot use SPARK_SESSION's default InMemoryFileIO.
+  private static final Map<String, String> SESSION_PROPS_ON_DISK =
+      SparkCatalogConfig.SPARK_SESSION.propertiesWithoutFileIo();
+
   @Parameters(
       name =
           "catalogName = {0}, implementation = {1}, config = {2}, format = {3}, properties = {4}")
@@ -107,35 +112,35 @@ public class TestCompressionSettings extends CatalogTestBase {
       {
         SparkCatalogConfig.SPARK_SESSION.catalogName(),
         SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
+        SESSION_PROPS_ON_DISK,
         PARQUET,
         ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")
       },
       {
         SparkCatalogConfig.SPARK_SESSION.catalogName(),
         SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
+        SESSION_PROPS_ON_DISK,
         PARQUET,
         ImmutableMap.of(COMPRESSION_CODEC, "gzip")
       },
       {
         SparkCatalogConfig.SPARK_SESSION.catalogName(),
         SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
+        SESSION_PROPS_ON_DISK,
         ORC,
         ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "speed")
       },
       {
         SparkCatalogConfig.SPARK_SESSION.catalogName(),
         SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
+        SESSION_PROPS_ON_DISK,
         ORC,
         ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_STRATEGY, "compression")
       },
       {
         SparkCatalogConfig.SPARK_SESSION.catalogName(),
         SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
+        SESSION_PROPS_ON_DISK,
         AVRO,
         ImmutableMap.of(COMPRESSION_CODEC, "snappy", COMPRESSION_LEVEL, "3")
       }
