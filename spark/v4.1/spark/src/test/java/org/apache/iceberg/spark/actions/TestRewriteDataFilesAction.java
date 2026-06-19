@@ -153,8 +153,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   @TempDir private static File inputCacheDir;
-  // Cache pre-written input data files by table/data shape so identical test inputs are
-  // materialized with Spark once and reused on fresh tables.
+  // Cache pre-written input data files by table/data shape so identical test inputs can be
+  // reused on fresh tables.
   private static final Map<CachedDataFilesKey, List<DataFile>> CACHED_DATA_FILES =
       Maps.newConcurrentMap();
   private static final Schema SCHEMA =
@@ -2248,6 +2248,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected void shouldHaveNoOrphans(Table table) {
+    // Cached input files live outside table.location(), so this only checks the fresh target table.
     assertThat(
             actions()
                 .deleteOrphanFiles(table)
@@ -2459,6 +2460,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     writeRecords(files, numRecords, partitionCount, cacheTable.location());
     cacheTable.refresh();
 
+    // includeColumnStats preserves bounds and value counts needed by tests that inspect file stats.
     try (CloseableIterable<FileScanTask> tasks =
         cacheTable.newScan().includeColumnStats().planFiles()) {
       List<DataFile> dataFiles =
