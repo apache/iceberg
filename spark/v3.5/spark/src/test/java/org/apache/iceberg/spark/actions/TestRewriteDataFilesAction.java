@@ -145,11 +145,12 @@ import org.mockito.Mockito;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRewriteDataFilesAction extends TestBase {
 
-  @TempDir private static File tableRootDir;
+  @TempDir private File tableDir;
   private static final int SCALE = 400000;
   private static final int INPUT_PARQUET_ROW_GROUP_SIZE_BYTES = 20 * 1024;
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
+  @TempDir private static File inputCacheDir;
   // Cache pre-written input data files by table/data shape so identical test inputs are
   // materialized with Spark once and reused on fresh tables.
   private static final Map<CachedDataFilesKey, List<DataFile>> CACHED_DATA_FILES =
@@ -186,7 +187,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @BeforeEach
   public void setupTableLocation() {
-    this.tableLocation = new File(tableRootDir, UUID.randomUUID().toString()).toURI().toString();
+    this.tableLocation = tableDir.toURI().toString();
   }
 
   private RewriteDataFilesSparkAction basicRewrite(Table table) {
@@ -2302,20 +2303,19 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected Table createTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options =
-        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
-    return createTable(this.tableLocation, spec, options);
+    return createTable(this.tableLocation, spec, unpartitionedTableOptions());
+  }
+
+  private Map<String, String> unpartitionedTableOptions() {
+    return ImmutableMap.of(
+        TableProperties.FORMAT_VERSION,
+        String.valueOf(formatVersion),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+        Integer.toString(INPUT_PARQUET_ROW_GROUP_SIZE_BYTES));
   }
 
   private Table createTable(String location, PartitionSpec spec, Map<String, String> options) {
     Table table = TABLES.create(SCHEMA, spec, options, location);
-    table
-        .updateProperties()
-        .set(
-            TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
-            Integer.toString(INPUT_PARQUET_ROW_GROUP_SIZE_BYTES))
-        .commit();
-
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
     return table;
   }
@@ -2328,8 +2328,9 @@ public class TestRewriteDataFilesAction extends TestBase {
    */
   protected Table createTable(int files) {
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = createTable();
-    writeRecords(table, spec, formatVersion, files, SCALE);
+    Map<String, String> options = unpartitionedTableOptions();
+    Table table = createTable(this.tableLocation, spec, options);
+    writeRecords(table, spec, options, files, SCALE);
     table.refresh();
     return table;
   }
@@ -2339,13 +2340,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Table table = createTable(this.tableLocation, spec, options);
 
-    writeRecords(
-        table,
-        spec,
-        Integer.parseInt(options.get(TableProperties.FORMAT_VERSION)),
-        files,
-        numRecords,
-        partitionCount);
+    writeRecords(table, spec, options, files, numRecords, partitionCount);
     table.refresh();
     return table;
   }
@@ -2366,20 +2361,20 @@ public class TestRewriteDataFilesAction extends TestBase {
         ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
   }
 
-  // Reuse cached input files when available; otherwise write records normally and cache them.
+  // Reuse cached input files when available; otherwise materialize them under the cache dir.
   private void writeRecords(
       Table targetTable,
       PartitionSpec spec,
-      int tableFormatVersion,
+      Map<String, String> tableOptions,
       int files,
       int numRecords) {
-    writeRecords(targetTable, spec, tableFormatVersion, files, numRecords, 0);
+    writeRecords(targetTable, spec, tableOptions, files, numRecords, 0);
   }
 
   private void writeRecords(
       Table targetTable,
       PartitionSpec spec,
-      int tableFormatVersion,
+      Map<String, String> tableOptions,
       int files,
       int numRecords,
       int partitionCount) {
@@ -2390,31 +2385,50 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
 
     CachedDataFilesKey key =
-        new CachedDataFilesKey(spec, tableFormatVersion, files, numRecords, partitionCount);
+        new CachedDataFilesKey(spec, tableOptions, files, numRecords, partitionCount);
     List<DataFile> cachedDataFiles = CACHED_DATA_FILES.get(key);
-    if (cachedDataFiles != null) {
-      AppendFiles append = targetTable.newAppend();
-      cachedDataFiles.stream()
-          .map(file -> DataFiles.builder(spec).copy(file).withFirstRowId(null).build())
-          .forEach(append::appendFile);
-      append.commit();
-      return;
+    if (cachedDataFiles == null) {
+      cachedDataFiles = cacheDataFiles(key, spec, tableOptions, files, numRecords, partitionCount);
     }
 
-    writeRecords(files, numRecords, partitionCount, targetTable.location());
-    targetTable.refresh();
+    appendDataFiles(targetTable, spec, cachedDataFiles);
+  }
+
+  private List<DataFile> cacheDataFiles(
+      CachedDataFilesKey key,
+      PartitionSpec spec,
+      Map<String, String> tableOptions,
+      int files,
+      int numRecords,
+      int partitionCount) {
+    String cacheLocation = new File(inputCacheDir, UUID.randomUUID().toString()).toURI().toString();
+    Table cacheTable = createTable(cacheLocation, spec, tableOptions);
+
+    writeRecords(files, numRecords, partitionCount, cacheTable.location());
+    cacheTable.refresh();
 
     try (CloseableIterable<FileScanTask> tasks =
-        targetTable.newScan().includeColumnStats().planFiles()) {
+        cacheTable.newScan().includeColumnStats().planFiles()) {
       List<DataFile> dataFiles =
           Streams.stream(tasks)
               .map(FileScanTask::file)
               .map(file -> DataFiles.builder(spec).copy(file).withFirstRowId(null).build())
               .collect(Collectors.toList());
-      CACHED_DATA_FILES.putIfAbsent(key, dataFiles);
+
+      List<DataFile> existingDataFiles = CACHED_DATA_FILES.putIfAbsent(key, dataFiles);
+      return existingDataFiles != null ? existingDataFiles : dataFiles;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to plan cached data files", e);
     }
+  }
+
+  private static void appendDataFiles(
+      Table targetTable, PartitionSpec spec, List<DataFile> dataFiles) {
+    AppendFiles append = targetTable.newAppend();
+    dataFiles.stream()
+        .map(file -> DataFiles.builder(spec).copy(file).withFirstRowId(null).build())
+        .forEach(append::appendFile);
+    append.commit();
   }
 
   private Table createTypeTestTable() {
@@ -2727,17 +2741,19 @@ public class TestRewriteDataFilesAction extends TestBase {
   // Key fields that determine the generated input file set.
   private static class CachedDataFilesKey {
     private final PartitionSpec spec;
-    private final int formatVersion;
-    private final int parquetRowGroupSizeBytes;
+    private final Map<String, String> tableOptions;
     private final int files;
     private final int numRecords;
     private final int partitionCount;
 
     CachedDataFilesKey(
-        PartitionSpec spec, int formatVersion, int files, int numRecords, int partitionCount) {
+        PartitionSpec spec,
+        Map<String, String> tableOptions,
+        int files,
+        int numRecords,
+        int partitionCount) {
       this.spec = spec;
-      this.formatVersion = formatVersion;
-      this.parquetRowGroupSizeBytes = INPUT_PARQUET_ROW_GROUP_SIZE_BYTES;
+      this.tableOptions = ImmutableMap.copyOf(tableOptions);
       this.files = files;
       this.numRecords = numRecords;
       this.partitionCount = partitionCount;
@@ -2755,8 +2771,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
       CachedDataFilesKey that = (CachedDataFilesKey) other;
       return spec.equals(that.spec)
-          && formatVersion == that.formatVersion
-          && parquetRowGroupSizeBytes == that.parquetRowGroupSizeBytes
+          && tableOptions.equals(that.tableOptions)
           && files == that.files
           && numRecords == that.numRecords
           && partitionCount == that.partitionCount;
@@ -2764,8 +2779,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     @Override
     public int hashCode() {
-      return Objects.hash(
-          spec, formatVersion, parquetRowGroupSizeBytes, files, numRecords, partitionCount);
+      return Objects.hash(spec, tableOptions, files, numRecords, partitionCount);
     }
   }
 
