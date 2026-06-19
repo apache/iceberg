@@ -179,7 +179,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     integrationImplementation platform(libs.jackson.bom)
     integrationImplementation libs.jackson.core
     integrationImplementation libs.jackson.databind
-    integrationImplementation libs.jackson.databind
     integrationImplementation libs.kafka.clients
     integrationImplementation libs.kafka.connect.api
     integrationImplementation libs.kafka.connect.json
