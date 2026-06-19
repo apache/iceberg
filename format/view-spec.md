@@ -49,7 +49,7 @@ When queried, engines may return the precomputed data for the materialized views
 
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
 Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
-Refresh metadata contains information about the "source tables", "source views", and/or "source materialized views", which are the tables/views/materialized views referenced in the query definition of the materialized view.
+Refresh metadata contains information about the "source tables", "source views", and/or "source materialized views", which are the tables/views/materialized views used in the computation of the query results of the materialized view.
 
 ## Specification
 
@@ -60,9 +60,9 @@ Refresh metadata contains information about the "source tables", "source views",
 * **Storage table** -- Iceberg table that stores the precomputed data of a materialized view.
 * **Refresh state** -- A record stored in the storage table's snapshot summary that captures the state of source tables and views at the time of the last refresh operation.
 * **Dependency graph** -- The graph of all source tables, views, and materialized views that a materialized view depends on, including nested dependencies.
-* **Source table** -- A table reference that occurs in the query definition of a materialized view.
-* **Source view** -- A view reference that occurs in the query definition of a materialized view.
-* **Source materialized view** -- A materialized view reference that occurs in the query definition of a materialized view.
+* **Source table** -- A table reference that is used in the computation of the query results of a materialized view.
+* **Source view** -- A view reference that is used in the computation of the query results of a materialized view.
+* **Source materialized view** -- A materialized view reference that is used in the computation of the query results of a materialized view.
 
 ### View Metadata
 
@@ -204,7 +204,7 @@ A change to the materialized view's definition produces a new `view-version-id`;
 
 #### Refresh state
 
-The refresh state record captures the state of dependencies that the producer chose to track from the materialized view's dependency graph. A dependency is recorded in `source-states` as either a `table` entry (a source table or an upstream materialized view's storage table) and/or a `view` entry. Upstream materialized views can be stored as a `view` and a `table` entry.
+The refresh state record captures the state of dependencies that the producer chose to track from the materialized view's dependency graph. A dependency is recorded in `source-states` as either a `table` entry (a source table or an source materialized view's storage table) and/or a `view` entry. Source materialized views can be stored as a `view` and a `table` entry.
 
 The refresh state has the following fields:
 
@@ -229,7 +229,7 @@ When writing the refresh state, producers:
 Consumers may use any combination of the following to assess the state of dependencies used to produce the storage table.
 
 - **Recency policy.** Accept the storage table when `refresh-start-timestamp-ms` falls within a staleness window. A recency policy bounds data age but does not establish freshness.
-- **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for upstream materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
+- **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for source materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
 - **Verify by parsing the view query.** Derive the dependency set from the SQL and confirm every dependency is covered by `source-states` and matches the current state. Treat any uncovered dependency as undetermined.
 
 If a consumer's assessment passes, it reads from the storage table. If not, the consumer may fail the query, evaluate the view query directly, or apply another strategy.
@@ -240,10 +240,10 @@ Source state records capture the state of objects referenced by a materialized v
 
 | Type    | Description |
 |---------|-------------|
-| `table` | An Iceberg table — either a source table in the dependency graph, or the storage table of an upstream materialized view |
+| `table` | An Iceberg table — either a source table in the dependency graph, or the storage table of a source materialized view |
 | `view`  | An Iceberg view in the dependency graph |
 
-An upstream materialized view may be recorded as a `view` entry referencing its view metadata and one ore more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
+A source materialized view may be recorded as a `view` entry referencing its view metadata and one ore more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
 
 #### Source table state
 
@@ -553,23 +553,20 @@ Producers may select different sets of dependencies to record in the refresh sta
 - `B` (regular view): `SELECT ... FROM E JOIN D ON ...`
 - `C` (regular view or materialized view, varies by strategy): `SELECT ... FROM F JOIN G ON ...`
 - `D` (regular view or materialized view, varies by strategy): `SELECT ... FROM H WHERE ...`
-- `E`, `F`, `G`, `H`: base Iceberg tables
+- `E`, `F`, `G`, `H`: source Iceberg tables
 
-### Strategy 1: Track all nested tables and views (no nested MVs)
+### Strategy 1: Empty refresh state (recency only)
 
-The refresh query reads only base tables and regular views. The refresh state tracks snapshot IDs of all deeply nested base tables and version IDs of all views traversed. Reuse of the storage table is sensitive to changes in any of them.
+The producer leaves `source-states` empty and relies entirely on `refresh-start-timestamp-ms`. Consumers reuse the storage table based on a recency policy alone.
 
-`C` and `D` are regular views.
+`A`'s refresh state:
 
-```
-A [MV — being refreshed]
-├── B [VIEW]                            <-- recorded in A: version-id: 5
-│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
-│   └── D [VIEW]                        <-- recorded in A: version-id: 9
-│       └── H [TABLE]                   <-- recorded in A: snapshot-id: 104
-└── C [VIEW]                            <-- recorded in A: version-id: 7
-    ├── F [TABLE]                       <-- recorded in A: snapshot-id: 102
-    └── G [TABLE]                       <-- recorded in A: snapshot-id: 103
+```json
+{
+  "view-version-id": 1,
+  "refresh-start-timestamp-ms": 1573518435000,
+  "source-states": []
+}
 ```
 
 ### Strategy 2: Treat nested materialized views as tables
@@ -631,25 +628,11 @@ A [MV — being refreshed]
 
 Snapshots of `E`, `F`, `G`, `H` are not recorded. Reuse is sensitive to view-definition changes but insensitive to data changes in the underlying tables.
 
-### Strategy 5: Empty refresh state (recency only)
-
-The producer leaves `source-states` empty and relies entirely on `refresh-start-timestamp-ms`. Consumers reuse the storage table based on a recency policy alone.
-
-`A`'s refresh state:
-
-```json
-{
-  "view-version-id": 1,
-  "refresh-start-timestamp-ms": 1573518435000,
-  "source-states": []
-}
-```
-
-### Strategy 6: Skip non-Iceberg dependencies
+### Strategy 5: Skip non-Iceberg dependencies
 
 The producer records only Iceberg sources and omits non-Iceberg dependencies entirely. Useful when the view query reads from a mix of Iceberg and non-Iceberg sources and the producer chooses to track only the Iceberg side.
 
-Assume the query reads from base Iceberg tables `E`, `F`, `G`, `H` and an additional non-Iceberg table `N`.
+Assume the query reads from source Iceberg tables `E`, `F`, `G`, `H` and an additional non-Iceberg table `N`.
 
 ```
 A [MV — being refreshed]
