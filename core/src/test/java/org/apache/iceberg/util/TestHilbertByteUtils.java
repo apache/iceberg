@@ -75,9 +75,7 @@ public class TestHilbertByteUtils {
       int manhattan =
           Math.abs(xByIndex[index] - xByIndex[index - 1])
               + Math.abs(yByIndex[index] - yByIndex[index - 1]);
-      assertThat(manhattan)
-          .as("indices %s and %s are not adjacent", index - 1, index)
-          .isEqualTo(1);
+      assertThat(manhattan).as("indices %s and %s are not adjacent", index - 1, index).isEqualTo(1);
     }
   }
 
