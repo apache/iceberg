@@ -822,7 +822,8 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot mix identity sort columns and a Zorder sort expression:" + " c1,zorder(c2,c3)");
+            "Cannot mix identity sort columns and a Zorder or Hilbert sort expression:"
+                + " c1,zorder(c2,c3)");
   }
 
   @TestTemplate
