@@ -73,8 +73,6 @@ public class ClusteredPositionDeleteWriter<T>
     return switch (granularity) {
       case FILE -> new FileScopedPositionDeleteWriter<>(() -> newRollingWriter(spec, partition));
       case PARTITION -> newRollingWriter(spec, partition);
-      default ->
-          throw new UnsupportedOperationException("Unsupported delete granularity: " + granularity);
     };
   }
 

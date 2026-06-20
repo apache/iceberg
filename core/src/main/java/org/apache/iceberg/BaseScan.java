@@ -322,8 +322,6 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return switch (content) {
       case DATA -> BaseScan.SCAN_COLUMNS;
       case DELETES -> BaseScan.DELETE_SCAN_COLUMNS;
-      default ->
-          throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
     };
   }
 }

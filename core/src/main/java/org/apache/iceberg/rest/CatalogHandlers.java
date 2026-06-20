@@ -526,9 +526,6 @@ public class CatalogHandlers {
                     .withMetadataLocation(loadedMetadata.metadataFileLocation())
                     .suppressHistoricalSnapshots()
                     .build();
-            default ->
-                throw new IllegalArgumentException(
-                    String.format("Invalid snapshot mode: %s", mode));
           };
 
       return LoadTableResponse.builder().withTableMetadata(metadata).build();

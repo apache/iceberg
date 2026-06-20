@@ -247,7 +247,6 @@ abstract class BaseDistributedDataScan
           remoteParallelism() <= localParallelism
               || manifests.size() <= 2 * localParallelism
               || totalSize(manifests) <= localPlanningSizeThreshold;
-      default -> throw new IllegalArgumentException("Unknown planning mode: " + mode);
     };
   }
 

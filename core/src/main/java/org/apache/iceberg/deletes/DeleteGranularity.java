@@ -51,7 +51,6 @@ public enum DeleteGranularity {
     return switch (this) {
       case FILE -> "file";
       case PARTITION -> "partition";
-      default -> throw new IllegalArgumentException("Unknown delete granularity: " + this);
     };
   }
 

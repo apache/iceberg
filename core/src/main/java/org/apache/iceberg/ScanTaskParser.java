@@ -119,8 +119,6 @@ public class ScanTaskParser {
       case FILES_TABLE_TASK -> FilesTableTaskParser.fromJson(jsonNode);
       case ALL_MANIFESTS_TABLE_TASK -> AllManifestsTableTaskParser.fromJson(jsonNode);
       case MANIFEST_ENTRIES_TABLE_TASK -> ManifestEntriesTableTaskParser.fromJson(jsonNode);
-      default ->
-          throw new UnsupportedOperationException("Unsupported task type: " + taskType.typeName());
     };
   }
 }

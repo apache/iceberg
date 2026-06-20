@@ -258,9 +258,6 @@ public class Avro {
                 case GZIP ->
                     CodecFactory.deflateCodec(
                         compressionLevelAsInt(compressionLevel, GZIP_COMPRESSION_LEVEL_DEFAULT));
-                default ->
-                    throw new IllegalArgumentException(
-                        "Unsupported compression codec: " + codecAsString);
               };
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);

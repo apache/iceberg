@@ -74,7 +74,6 @@ public class PuffinReader implements Closeable {
         footerCompression =
             switch (flag) {
               case FOOTER_PAYLOAD_COMPRESSED -> PuffinFormat.FOOTER_COMPRESSION_CODEC;
-              default -> throw new IllegalStateException("Unsupported flag: " + flag);
             };
       }
 
