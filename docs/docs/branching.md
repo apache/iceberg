@@ -25,7 +25,7 @@ title: "Branching and Tagging"
 
 Iceberg table metadata maintains a snapshot log, which represents the changes applied to a table.
 Snapshots are fundamental in Iceberg as they are the basis for reader isolation and time travel queries.
-For controlling metadata size and storage costs, Iceberg provides snapshot lifecycle management procedures such as [`expire_snapshots`](spark-procedures.md#expire-snapshots) for removing unused snapshots and no longer necessary data files based on table snapshot retention properties.
+For controlling metadata size and storage costs, Iceberg provides snapshot lifecycle management procedures such as [`expire_snapshots`](spark-procedures.md#expire_snapshots) for removing unused snapshots and no longer necessary data files based on table snapshot retention properties.
 
 **For more sophisticated snapshot lifecycle management, Iceberg supports branches and tags which are named references to snapshots with their own independent lifecycles. This lifecycle is controlled by branch and tag level retention policies.**
 Branches are independent lineages of snapshots and point to the head of the lineage.
@@ -109,7 +109,7 @@ Creating, querying and writing to branches and tags are supported in the Iceberg
 
 - [Iceberg Java Library](java-api-quickstart.md#branching-and-tagging)
 - [Spark DDLs](spark-ddl.md#branching-and-tagging-ddl)
-- [Spark Reads](spark-queries.md#time-travel)
+- [Spark Reads](spark-queries.md#time-travel-queries-with-sql)
 - [Spark Branch Writes](spark-writes.md#writing-to-branches)
 - [Flink Reads](flink-queries.md#reading-branches-and-tags-with-SQL)
 - [Flink Branch Writes](flink-writes.md#branch-writes)
