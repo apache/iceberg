@@ -412,6 +412,33 @@ public class TestRecordConverter {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  public void testNameMappingWithDifferentCaseAlias(boolean caseInsensitive) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    NameMapping nameMapping = NameMapping.of(MappedField.of(1, ImmutableList.of("II")));
+    when(table.properties())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)));
+    when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // exact-case alias always matches
+    assertThat(converter.convert(ImmutableMap.of("II", 100)).getField("ii")).isEqualTo(100);
+
+    // different-case input matches only when case-insensitive
+    Object actual = converter.convert(ImmutableMap.of("ii", 200)).getField("ii");
+    if (caseInsensitive) {
+      assertThat(actual).isEqualTo(200);
+    } else {
+      assertThat(actual).isNull();
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   public void testCaseSensitivity(boolean caseInsensitive) {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
