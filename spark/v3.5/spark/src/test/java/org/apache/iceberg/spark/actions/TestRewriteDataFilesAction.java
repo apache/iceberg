@@ -141,7 +141,12 @@ import org.mockito.Mockito;
 public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
-  private static final int SCALE = 400000;
+  // Most tests only assert on file/snapshot counts and rewrite structure, which do not depend on
+  // the absolute data volume, so they use a small scale to keep CI fast. The few tests whose
+  // assertions genuinely depend on large files (size-based splitting, sort/z-order shuffle output)
+  // use LARGE_SCALE to stay byte-for-byte equivalent to the original behavior.
+  private static final int SCALE = 400;
+  private static final int LARGE_SCALE = 400000;
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -290,7 +295,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackAfterPartitionChange() {
     Table table = createTable();
 
-    writeRecords(20, SCALE, 20);
+    writeRecords(20, LARGE_SCALE, 20);
     table.refresh();
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.ref("c1")).commit();
@@ -935,7 +940,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackSplitLargeFile() {
-    Table table = createTable(1);
+    Table table = createTable(1, LARGE_SCALE);
     shouldHaveFiles(table, 1);
 
     List<Object[]> expectedRecords = currentData();
@@ -962,12 +967,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMixedFiles() {
-    Table table = createTable(1); // 400000
+    Table table = createTable(1, LARGE_SCALE); // 400000
     shouldHaveFiles(table, 1);
 
     // Add one more small file, and one large file
-    writeRecords(1, SCALE);
-    writeRecords(1, SCALE * 3);
+    writeRecords(1, LARGE_SCALE);
+    writeRecords(1, LARGE_SCALE * 3);
     table.refresh();
     shouldHaveFiles(table, 3);
 
@@ -1004,7 +1009,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMediumFiles() {
-    Table table = createTable(4);
+    Table table = createTable(4, LARGE_SCALE);
     shouldHaveFiles(table, 4);
 
     List<Object[]> expectedRecords = currentData();
@@ -1616,7 +1621,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
-    writeRecords(20, SCALE, partitions);
+    writeRecords(20, LARGE_SCALE, partitions);
     table.refresh();
     shouldHaveLastCommitUnsorted(table, "c3");
 
@@ -1683,7 +1688,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testAutoSortShuffleOutput() throws IOException {
-    Table table = createTable(20);
+    Table table = createTable(20, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
 
@@ -1775,7 +1780,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testZOrderSort() {
     int originalFiles = 20;
-    Table table = createTable(originalFiles);
+    Table table = createTable(originalFiles, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, originalFiles);
 
@@ -2305,8 +2310,12 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
+    return createTable(files, SCALE);
+  }
+
+  protected Table createTable(int files, int numRecords) {
     Table table = createTable();
-    writeRecords(files, SCALE);
+    writeRecords(files, numRecords);
     table.refresh();
     return table;
   }
