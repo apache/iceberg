@@ -20,13 +20,19 @@ package org.apache.iceberg.gcp.gcs;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobSourceOption;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -179,6 +185,39 @@ public class TestGCSInputStream {
 
     assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
         .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
+  }
+
+  @Test
+  public void testReadTailPartialRead() throws Exception {
+    BlobId blobId = BlobId.fromGsUtilUri("gs://bucket/path/to/tail.dat");
+    byte[] data = randomData(16);
+
+    Storage mockStorage = mock(Storage.class);
+    ReadChannel mockChannel = mock(ReadChannel.class);
+    when(mockStorage.reader(any(BlobId.class), any(BlobSourceOption[].class)))
+        .thenReturn(mockChannel);
+
+    // First read returns half of the requested bytes, the second read returns the rest.
+    when(mockChannel.read(any(ByteBuffer.class)))
+        .thenAnswer(invocation -> fill(invocation.getArgument(0), data, 0, data.length / 2))
+        .thenAnswer(
+            invocation -> fill(invocation.getArgument(0), data, data.length / 2, data.length / 2))
+        .thenReturn(-1);
+
+    byte[] buffer = new byte[data.length];
+    try (RangeReadable in =
+        new GCSInputStream(
+            mockStorage, blobId, (long) data.length, gcpProperties, MetricsContext.nullMetrics())) {
+      int totalRead = in.readTail(buffer, 0, data.length);
+
+      assertThat(totalRead).isEqualTo(data.length);
+      assertThat(buffer).isEqualTo(data);
+    }
+  }
+
+  private static int fill(ByteBuffer buffer, byte[] source, int sourceOffset, int count) {
+    buffer.put(source, sourceOffset, count);
+    return count;
   }
 
   @Test
