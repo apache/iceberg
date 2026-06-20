@@ -79,3 +79,6 @@ derby.log
 
 # git hooks like pre-commit
 .githooks/
+
+# claude code
+.claude/
