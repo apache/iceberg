@@ -178,20 +178,21 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
-  void emitsDataFileFromInsertOnlySnapshotForActiveFieldSets() throws Exception {
+  void emitsDataFileFromInsertOnlyStagingSnapshot() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
 
     table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
     table.refresh();
 
-    // S1: eq delete targeting main data (activates a field set in the worker index)
+    // S1: eq delete targeting main data
     DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
     table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
     table.refresh();
     long s1SnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
 
-    // S2: insert-only (no eq deletes, but its data must be indexed for the active field set)
+    // S2: insert-only (no eq deletes), but its data must still be indexed for the configured
+    // equality fields
     DataFile insertS2 = writeDataFile(table, createRecord(2, "b"));
     table.newAppend().appendFile(insertS2).toBranch(STAGING_BRANCH).commit();
     table.refresh();
@@ -200,16 +201,16 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
         createHarness(STAGING_BRANCH)) {
       harness.open();
 
-      // Trigger 1: processes S1 (eq delete), activates the field set
+      // Trigger 1: processes S1 (eq delete)
       sendTrigger(harness);
       int afterFirst = harness.extractOutputValues().size();
       assertThat(countEqDeleteTasks(harness.extractOutputValues())).isEqualTo(1);
 
-      // Simulate the committer writing the S1 conversion to main so the planner
-      // promotes its pending cursor before processing S2.
+      // Record S1's conversion on main, so the planner walks past S1 before processing S2.
       simulateConvertCommit(table, s1SnapshotId);
 
-      // Trigger 2: processes S2 (insert-only). Must emit its data file for the active field set.
+      // Trigger 2: processes S2 (insert-only). Must emit its data file so the configured equality
+      // fields stay indexed.
       sendTrigger(harness);
       List<ReadCommand> allCommands = harness.extractOutputValues();
       List<ReadCommand> trigger2Commands = allCommands.subList(afterFirst, allCommands.size());
@@ -570,10 +571,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
     table.refresh();
 
-    // Stage MULTIPLE eq-delete snapshots before the first trigger arrives. Without bootstrap we
-    // would create the index entry lazily over multiple cycles. With bootstrap, the first trigger
-    // discovers every unprocessed schema (just one in this case, since both deletes use the same
-    // schema) and creates it once before any cycle processes.
+    // Stage MULTIPLE eq-delete snapshots before the first trigger arrives. The first trigger
+    // bootstraps the index from main for the configured equality fields before processing any eq
+    // deletes, then processes one snapshot per trigger (oldest first).
     DeleteFile eqDelete1 = writeEqualityDelete(table, 1, "a");
     table.newRowDelta().addDeletes(eqDelete1).toBranch(STAGING_BRANCH).commit();
     DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
@@ -588,17 +588,15 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       sendTrigger(harness);
       int afterFirst = harness.extractOutputValues().size();
 
-      // First trigger processes the OLDER staging snapshot (eqDelete1). Bootstrap created the
-      // index entry for the eq-delete schema once: 2 main DATA_FILE + 1 EQ_DELETE_FILE = 3
-      // commands.
+      // First trigger processes the OLDER staging snapshot (eqDelete1). Bootstrap built the index
+      // from main once: 2 main DATA_FILE + 1 EQ_DELETE_FILE = 3 commands.
       assertThat(afterFirst).isEqualTo(3);
       assertThat(countDataFileTasks(harness.extractOutputValues())).isEqualTo(2);
       assertThat(countEqDeleteTasks(harness.extractOutputValues())).isEqualTo(1);
 
       simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).parentId());
 
-      // Second trigger processes the newer staging snapshot. The index entry already exists — no
-      // main re-emission, just the new eq delete.
+      // Second trigger processes the newer staging snapshot. The index is already up-to-date.
       sendTrigger(harness);
       List<ReadCommand> allCommands = harness.extractOutputValues();
       List<ReadCommand> trigger2Commands = allCommands.subList(afterFirst, allCommands.size());
@@ -671,21 +669,10 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       sendTrigger(harness);
       int firstTriggerCount = harness.extractOutputValues().size();
 
-      // Simulate converter's own commit referencing the staging snapshot that the
-      // first trigger processed. The planner promotes pendingStagingSnapshotId on the
-      // next trigger, so this ID is in the index high-water mark when the property
-      // is checked.
-      DataFile dummyFile =
-          new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
-              .writeFile(Lists.newArrayList(createRecord(10, "z")));
-      table
-          .newRowDelta()
-          .addRows(dummyFile)
-          .set(
-              EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY,
-              String.valueOf(indexedStagingSnapshotId))
-          .commit();
-      table.refresh();
+      // Record the converter's own commit (COMMITTED_STAGING_SNAPSHOT property) for the staging
+      // snapshot the first trigger processed. The next trigger reads the property off main and
+      // advances lastStagingSnapshotId. No reindex should be triggered.
+      simulateConvertCommit(table, indexedStagingSnapshotId);
 
       DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
       table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
@@ -863,24 +850,24 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
         createHarness(STAGING_BRANCH)) {
       harness.open();
 
-      // First trigger processes the staging snapshot and sets pendingStagingSnapshotId.
+      // First trigger bootstraps the index and processes the staging snapshot.
       sendTrigger(harness);
       int commandCount = harness.extractOutputValues().size();
       assertThat(commandCount).isGreaterThan(0);
 
-      // Simulate the committer committing S1's conversion to main so the planner promotes
-      // pendingStagingSnapshotId on the second trigger.
+      // Record S1's conversion on main (committer marker) so the planner advances
+      // lastStagingSnapshotId on the second trigger.
       simulateConvertCommit(table, stagingSnapshotId);
 
-      // Second trigger promotes pendingStagingSnapshotId to lastStagingSnapshotId
-      // (which is the state that gets checkpointed).
+      // Second trigger reads the marker and advances lastStagingSnapshotId.
       sendTrigger(harness);
       assertThat(harness.extractOutputValues()).hasSize(commandCount);
 
       state = harness.snapshot(1, System.currentTimeMillis());
     }
 
-    // Restore from checkpoint: staging snapshot is already in persisted state, should be skipped.
+    // Restore from checkpoint: the restored index is not re-indexed because its state matches the
+    // snapshot COMMITTED_STAGING_SNAPSHOT_PROPERTY property.
     try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
         createHarness(STAGING_BRANCH)) {
       harness.initializeState(state);
@@ -955,6 +942,43 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       // though the staging snapshot itself is already committed and skipped. Main now has the
       // original insert plus simulateConvertCommit's marker file = 2 data files.
       assertThat(countDataFileTasks(commands)).isEqualTo(2);
+    }
+  }
+
+  @Test
+  void failsWhenCommitMarkerDisappears() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+    long stagingSnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
+
+    simulateConvertCommit(table, stagingSnapshotId);
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+      sendTrigger(harness);
+
+      table.manageSnapshots().rollbackTo(startSnapshotId).commit();
+      table.refresh();
+
+      sendTrigger(harness);
+
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      assertThat(
+              harness
+                  .getSideOutput(TaskResultAggregator.ERROR_STREAM)
+                  .poll()
+                  .getValue()
+                  .getMessage())
+          .contains("No COMMITTED_STAGING_SNAPSHOT marker reachable");
     }
   }
 
@@ -1058,7 +1082,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   private static boolean isEqDelete(ReadCommand cmd) {
-    return !(cmd.task() instanceof FileScanTask);
+    return cmd.task() instanceof EqualityDeleteFileScanTask;
   }
 
   private static String filePath(ReadCommand cmd) {
