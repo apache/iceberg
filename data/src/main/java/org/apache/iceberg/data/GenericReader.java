@@ -43,13 +43,15 @@ class GenericReader implements Serializable {
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
+  private final EqualityDeletes sharedEqDeletes;
 
-  GenericReader(TableScan scan, boolean reuseContainers) {
+  GenericReader(TableScan scan, boolean reuseContainers, boolean shareEqDeletes) {
     this.io = EncryptingFileIO.combine(scan.table().io(), scan.table().encryption());
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
+    this.sharedEqDeletes = shareEqDeletes ? new EqualityDeletes(scan.table().specs()) : null;
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
@@ -62,7 +64,7 @@ class GenericReader implements Serializable {
 
   private CloseableIterable<Record> open(FileScanTask task, InputFilesDecryptor decryptor) {
     DeleteFilter<Record> deletes =
-        new GenericDeleteFilter(decryptor, task, tableSchema, projection);
+        new GenericDeleteFilter(decryptor, task, sharedEqDeletes, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
     CloseableIterable<Record> records = openFile(task, readSchema, decryptor);
