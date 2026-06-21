@@ -251,6 +251,36 @@ public class RewriteTablePathUtil {
   /**
    * Rewrite a manifest list representing a snapshot, replacing path references.
    *
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #rewriteManifestList(Snapshot,
+   *     FileIO, TableMetadata, Set, String, String, String, String, Map)}, which records the
+   *     rewritten manifest length so that manifest_length stays consistent with the rewritten
+   *     manifest file on disk.
+   */
+  @Deprecated
+  public static RewriteResult<ManifestFile> rewriteManifestList(
+      Snapshot snapshot,
+      FileIO io,
+      TableMetadata tableMetadata,
+      Set<String> manifestsToRewrite,
+      String sourcePrefix,
+      String targetPrefix,
+      String stagingDir,
+      String outputPath) {
+    return rewriteManifestList(
+        snapshot,
+        io,
+        tableMetadata,
+        manifestsToRewrite,
+        sourcePrefix,
+        targetPrefix,
+        stagingDir,
+        outputPath,
+        ImmutableMap.of());
+  }
+
+  /**
+   * Rewrite a manifest list representing a snapshot, replacing path references.
+   *
    * @param snapshot snapshot represented by the manifest list
    * @param io file io
    * @param tableMetadata metadata of table
@@ -259,6 +289,8 @@ public class RewriteTablePathUtil {
    * @param targetPrefix target prefix that will replace it
    * @param stagingDir staging directory
    * @param outputPath location to write the manifest list
+   * @param rewrittenManifestLengths map from source manifest path to the byte length of its
+   *     rewritten manifest; entries absent from the map keep their original length
    * @return a copy plan for manifest files whose metadata were contained in the rewritten manifest
    *     list
    */
@@ -270,7 +302,8 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix,
       String stagingDir,
-      String outputPath) {
+      String outputPath,
+      Map<String, Long> rewrittenManifestLengths) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
     OutputFile outputFile = io.newOutputFile(outputPath);
 
@@ -301,6 +334,8 @@ public class RewriteTablePathUtil {
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
+        ((StructLike) newFile)
+            .set(1, rewrittenManifestLengths.getOrDefault(file.path(), file.length()));
         writer.add(newFile);
 
         if (manifestsToRewrite.contains(file.path())) {
@@ -329,6 +364,25 @@ public class RewriteTablePathUtil {
   }
 
   /**
+   * Identify the manifest files in a snapshot's manifest list that are selected for rewrite.
+   *
+   * <p>Reads the snapshot's manifest list and filters it by {@code manifestsToRewrite} without
+   * writing anything, so callers can enumerate the manifests to rewrite before producing the
+   * rewritten manifest list (which needs the rewritten manifest lengths).
+   *
+   * @param snapshot snapshot whose manifest list is read
+   * @param io file io
+   * @param manifestsToRewrite paths of manifests selected for rewrite
+   * @return the manifest files in the snapshot that are selected for rewrite
+   */
+  public static Set<ManifestFile> manifestsToRewriteForSnapshot(
+      Snapshot snapshot, FileIO io, Set<String> manifestsToRewrite) {
+    return manifestFilesInSnapshot(io, snapshot).stream()
+        .filter(manifestFile -> manifestsToRewrite.contains(manifestFile.path()))
+        .collect(Collectors.toSet());
+  }
+
+  /**
    * Rewrite a data manifest, replacing path references.
    *
    * @param manifestFile source manifest file to rewrite
@@ -340,7 +394,11 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
    * @return a copy plan of content files in the manifest that was rewritten
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     #rewriteDataManifestWithLength}, which also returns the rewritten manifest length so that
+   *     manifest_length can be recorded accurately in the manifest list.
    */
+  @Deprecated
   public static RewriteResult<DataFile> rewriteDataManifest(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
@@ -351,17 +409,64 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix)
       throws IOException {
+    return rewriteDataManifestWithLength(
+            manifestFile,
+            snapshotIds,
+            outputFile,
+            io,
+            format,
+            specsById,
+            sourcePrefix,
+            targetPrefix)
+        .first();
+  }
+
+  /**
+   * Rewrite a data manifest, replacing path references, and return the rewritten manifest's byte
+   * length.
+   *
+   * <p>The length is measured from the manifest writer after it is closed (rather than via a
+   * separate {@code getLength()}/HEAD call) so it is accurate even on file systems where the length
+   * of an in-progress write underreports. Callers record this length as the {@code manifest_length}
+   * of the rewritten manifest in the manifest list.
+   *
+   * @param manifestFile source manifest file to rewrite
+   * @param snapshotIds snapshot ids for filtering returned data manifest entries
+   * @param outputFile output file to rewrite manifest file to
+   * @param io file io
+   * @param format format of the manifest file
+   * @param specsById map of partition specs by id
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix that will replace it
+   * @return the copy plan of content files in the rewritten manifest, paired with the rewritten
+   *     manifest's byte length
+   */
+  public static Pair<RewriteResult<DataFile>, Long> rewriteDataManifestWithLength(
+      ManifestFile manifestFile,
+      Set<Long> snapshotIds,
+      OutputFile outputFile,
+      FileIO io,
+      int format,
+      Map<Integer, PartitionSpec> specsById,
+      String sourcePrefix,
+      String targetPrefix)
+      throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
-    try (ManifestWriter<DataFile> writer =
-            ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
+    RewriteResult<DataFile> result;
+    try (writer;
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(
-              entry ->
-                  writeDataFileEntry(entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
-          .reduce(new RewriteResult<>(), RewriteResult::append);
+      result =
+          StreamSupport.stream(reader.entries().spliterator(), false)
+              .map(
+                  entry ->
+                      writeDataFileEntry(
+                          entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
+              .reduce(new RewriteResult<>(), RewriteResult::append);
     }
+    return Pair.of(result, writer.length());
   }
 
   /**
@@ -378,10 +483,10 @@ public class RewriteTablePathUtil {
    * @param stagingLocation staging location for rewritten files (referred delete file will be
    *     rewritten here)
    * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use the overload that accepts the map of
-   *     rewritten position delete file sizes. This overload records the original {@code
-   *     file_size_in_bytes}, which can be inconsistent with the rewritten file size on disk once
-   *     embedded data file paths change length.
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
+   *     #rewriteDeleteManifestWithLength}, which accepts the map of rewritten position delete file
+   *     sizes and also returns the rewritten manifest length so that {@code file_size_in_bytes}
+   *     and {@code manifest_length} stay consistent with the rewritten files on disk.
    */
   @Deprecated
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
@@ -428,7 +533,11 @@ public class RewriteTablePathUtil {
    * @param rewrittenDeleteFileSizes map from source position delete file path to the actual size of
    *     the rewritten file; entries absent from the map keep their original size
    * @return a copy plan of content files in the manifest that was rewritten
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
+   *     #rewriteDeleteManifestWithLength}, which also returns the rewritten manifest length so that
+   *     manifest_length can be recorded accurately in the manifest list.
    */
+  @Deprecated
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
       ManifestFile manifestFile,
       Set<Long> snapshotIds,
@@ -441,26 +550,84 @@ public class RewriteTablePathUtil {
       String stagingLocation,
       Map<String, Long> rewrittenDeleteFileSizes)
       throws IOException {
+    return rewriteDeleteManifestWithLength(
+            manifestFile,
+            snapshotIds,
+            outputFile,
+            io,
+            format,
+            specsById,
+            sourcePrefix,
+            targetPrefix,
+            stagingLocation,
+            rewrittenDeleteFileSizes)
+        .first();
+  }
+
+  /**
+   * Rewrite a delete manifest, replacing path references, and return the rewritten manifest's byte
+   * length.
+   *
+   * <p>This is a metadata-only operation: position delete file content is rewritten separately (see
+   * {@link #rewritePositionDelete}). The actual sizes of those rewritten files are supplied via
+   * {@code rewrittenDeleteFileSizes} and recorded in the manifest so that {@code
+   * file_size_in_bytes} stays consistent with the rewritten file on disk.
+   *
+   * <p>The manifest length is measured from the manifest writer after it is closed (rather than via
+   * a separate {@code getLength()}/HEAD call) so it is accurate even on file systems where the
+   * length of an in-progress write underreports. Callers record this length as the {@code
+   * manifest_length} of the rewritten manifest in the manifest list.
+   *
+   * @param manifestFile source delete manifest to rewrite
+   * @param snapshotIds snapshot ids for filtering returned delete manifest entries
+   * @param outputFile output file to rewrite manifest file to
+   * @param io file io
+   * @param format format of the manifest file
+   * @param specsById map of partition specs by id
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix that will replace it
+   * @param stagingLocation staging location for rewritten position delete files
+   * @param rewrittenDeleteFileSizes map from source position delete file path to the actual size of
+   *     the rewritten file; entries absent from the map keep their original size
+   * @return the copy plan of content files in the rewritten manifest, paired with the rewritten
+   *     manifest's byte length
+   */
+  public static Pair<RewriteResult<DeleteFile>, Long> rewriteDeleteManifestWithLength(
+      ManifestFile manifestFile,
+      Set<Long> snapshotIds,
+      OutputFile outputFile,
+      FileIO io,
+      int format,
+      Map<Integer, PartitionSpec> specsById,
+      String sourcePrefix,
+      String targetPrefix,
+      String stagingLocation,
+      Map<String, Long> rewrittenDeleteFileSizes)
+      throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
-    try (ManifestWriter<DeleteFile> writer =
-            ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
+    ManifestWriter<DeleteFile> writer =
+        ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
+    RewriteResult<DeleteFile> result;
+    try (writer;
         ManifestReader<DeleteFile> reader =
             ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
                 .select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(
-              entry ->
-                  writeDeleteFileEntry(
-                      entry,
-                      snapshotIds,
-                      spec,
-                      sourcePrefix,
-                      targetPrefix,
-                      stagingLocation,
-                      writer,
-                      rewrittenDeleteFileSizes))
-          .reduce(new RewriteResult<>(), RewriteResult::append);
+      result =
+          StreamSupport.stream(reader.entries().spliterator(), false)
+              .map(
+                  entry ->
+                      writeDeleteFileEntry(
+                          entry,
+                          snapshotIds,
+                          spec,
+                          sourcePrefix,
+                          targetPrefix,
+                          stagingLocation,
+                          writer,
+                          rewrittenDeleteFileSizes))
+              .reduce(new RewriteResult<>(), RewriteResult::append);
     }
+    return Pair.of(result, writer.length());
   }
 
   private static RewriteResult<DataFile> writeDataFileEntry(
