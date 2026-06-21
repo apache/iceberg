@@ -37,10 +37,6 @@ Bodo supports Apache Iceberg tables as a first-class table format and storage, e
 tables with Bodo's high-performance data processing engine. Bodo is available as a cloud service on
 AWS and Azure, and as well as an on-premises solution.
 
-### [CelerData](https://celerdata.com)
-
-CelerData provides commercial offerings for [StarRocks](https://www.starrocks.io/), a distributed MPP SQL engine for enterprise analytics on Iceberg. With its fully vectorized technology, local caching, and intelligent materialized view, StarRocks delivers sub-second query latency for both batch and real-time analytics. CelerData offers both an [enterprise deployment](https://celerdata.com/celerdata-enterprise) and a [cloud service](https://celerdata.com/celerdata-cloud) to help customers use StarRocks more smoothly. Learn more about how to query Iceberg with StarRocks [here](https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog).
-
 ### [ClickHouse](https://clickhouse.com/)
 ClickHouse is a column-oriented database that enables its users to generate powerful analytics, using SQL queries, in real-time. ClickHouse integrates well with Iceberg and offers two options to work with it:
 1. Via Iceberg [table function](https://clickhouse.com/docs/en/sql-reference/table-functions/iceberg): Provides a read-only table-like interface to Apache Iceberg tables in Amazon S3.
@@ -152,6 +148,10 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 ### [Oracle](https://oracle.com/)
 
 As a fully-managed Oracle AI Database service, Oracle [Autonomous AI Lakehouse](https://www.oracle.com/autonomous-database/autonomous-ai-lakehouse/) combines the openness of Apache Iceberg with the performance, automation, and security of Oracle Autonomous Database and Oracle Exadata. Available across Oracle Cloud Infrastructure (OCI), Microsoft Azure, Google Cloud, AWS, and on-premises, Oracle AI Database provides a multicloud and hybrid open lakehouse architecture with high-performance access to Iceberg tables through integration with existing catalogs and support for the Apache Iceberg REST Catalog specification. Oracle enables interoperability across engines such as Apache Spark, Trino, and Apache Flink while minimizing data movement and preserving vendor independence. Built-in AI, vector search, graph analytics, and JSON-relational capabilities allow organizations to run advanced analytics and AI workloads directly on Iceberg data with enterprise-grade governance, availability, and serverless scalability.
+
+### [PhoenixAI](https://www.phoenixdata.ai/)
+
+PhoenixAI provides commercial offerings for [StarRocks](https://www.starrocks.io/), a distributed MPP SQL engine for enterprise analytics on Iceberg. With its fully vectorized technology, local caching, and intelligent materialized view, StarRocks delivers sub-second query latency for both batch and real-time analytics. PhoenixAI offers both an [enterprise deployment](https://www.phoenixdata.ai/product/) and a [cloud service](https://www.phoenixdata.ai/product) to help customers use StarRocks more smoothly. Learn more about how to query Iceberg with StarRocks [here](https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog).
 
 ### [PuppyGraph](https://puppygraph.com)
 
