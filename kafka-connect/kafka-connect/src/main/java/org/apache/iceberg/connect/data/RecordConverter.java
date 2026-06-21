@@ -259,7 +259,7 @@ class RecordConverter {
                   }
                 }
                 Object recordFieldValue = struct.get(recordField);
-                if (recordFieldValue == null && schemaUpdateConsumer != null) {
+                if (recordFieldValue == null && schemaUpdateConsumer != null && !hasSchemaUpdates) {
                   evolveSchemaFromConnectSchema(
                       recordField.schema(),
                       tableField.type(),
@@ -341,8 +341,6 @@ class RecordConverter {
       case MAP:
         if (tableType.isMapType()) {
           MapType mapType = tableType.asMapType();
-          evolveSchemaFromConnectSchema(
-              recordSchema.keySchema(), mapType.keyType(), mapType.keyId(), schemaUpdateConsumer);
           evolveSchemaFromConnectSchema(
               recordSchema.valueSchema(),
               mapType.valueType(),

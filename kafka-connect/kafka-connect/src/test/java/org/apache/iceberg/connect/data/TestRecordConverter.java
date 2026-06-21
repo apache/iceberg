@@ -932,6 +932,7 @@ public class TestRecordConverter {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testNestedSchemaEvolutionListOfStructsWithNullValue() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
@@ -985,6 +986,7 @@ public class TestRecordConverter {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testNestedSchemaEvolutionMapOfStructsWithNullValue() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
@@ -1177,7 +1179,7 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testSchemaEvolutionForFieldAndNestedFields() {
+  public void testSchemaEvolutionForFieldAndNestedFieldsAcrossTwoRecords() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
             NestedField.required(1, "id", IntegerType.get()),
@@ -1213,15 +1215,32 @@ public class TestRecordConverter {
     assertThat(makeOptionals.iterator().next().name()).isEqualTo("nested");
 
     Collection<AddColumn> addCols = consumer.addColumns();
-    assertThat(addCols).hasSize(1);
-    AddColumn addCol = addCols.iterator().next();
-    assertThat(addCol.parentName()).isEqualTo("nested");
-    assertThat(addCol.name()).isEqualTo("y");
-    assertThat(addCol.type()).isInstanceOf(StringType.class);
+    assertThat(addCols).hasSize(0);
+
+    org.apache.iceberg.Schema updatedSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "x", IntegerType.get()))));
+    when(table.schema()).thenReturn(updatedSchema);
+    RecordConverter converter2 = new RecordConverter(table, config);
+
+    SchemaUpdate.Consumer consumer2 = new SchemaUpdate.Consumer();
+    Record result2 = converter2.convert(data, consumer2);
+
+    assertThat(result2.getField("id")).isEqualTo(1);
+    assertThat(result2.getField("nested")).isNull();
+
+    Collection<AddColumn> addCols2 = consumer2.addColumns();
+    assertThat(addCols2).hasSize(1);
+    AddColumn addCol2 = addCols2.iterator().next();
+    assertThat(addCol2.parentName()).isEqualTo("nested");
+    assertThat(addCol2.name()).isEqualTo("y");
+    assertThat(addCol2.type()).isInstanceOf(StringType.class);
   }
 
   @Test
-  public void testNestedSchemaEvolutionMapKeyWithNullValue() {
+  public void testNoNestedSchemaEvolutionMapKeyWithNullValue() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
             NestedField.required(1, "id", IntegerType.get()),
@@ -1257,11 +1276,7 @@ public class TestRecordConverter {
     assertThat(result.getField("data")).isNull();
 
     Collection<AddColumn> addCols = consumer.addColumns();
-    assertThat(addCols).hasSize(1);
-    AddColumn addCol = addCols.iterator().next();
-    assertThat(addCol.parentName()).isEqualTo("data.key");
-    assertThat(addCol.name()).isEqualTo("k2");
-    assertThat(addCol.type()).isInstanceOf(StringType.class);
+    assertThat(addCols).hasSize(0);
   }
 
   @Test
