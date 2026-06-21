@@ -90,7 +90,7 @@ io.grpc:grpc-core:1.81
 io.grpc:grpc-googleapis:1.81
 io.grpc:grpc-grpclb:1.81
 io.grpc:grpc-inprocess:1.81
-io.grpc:grpc-netty-shaded:1.81
+io.grpc:grpc-netty-shaded:1.82
 io.grpc:grpc-opentelemetry:1.81
 io.grpc:grpc-protobuf-lite:1.81
 io.grpc:grpc-protobuf:1.81
