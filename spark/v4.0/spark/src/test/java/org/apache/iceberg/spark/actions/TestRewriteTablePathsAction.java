@@ -366,12 +366,11 @@ public class TestRewriteTablePathsAction extends TestBase {
   @TestTemplate
   public void testManifestLengthAfterRewrite() throws Exception {
     // Rewriting a manifest embeds the new (here, longer) data-file paths, so the rewritten manifest
-    // differs in byte size from the source. The rewritten manifest list must record that new size
-    // in
-    // manifest_length; otherwise readers that validate the field (e.g. Trino) fail with "Incorrect
-    // file size (end of stream not reached)". The manifest holds many data files so the byte-size
-    // change from the prefix is dominated by the data block (not the constant Avro schema header),
-    // making the difference unambiguous.
+    // differs in byte size from the source. Every rewritten manifest list - for the current and all
+    // historical snapshots - must record that new size in manifest_length; otherwise readers that
+    // validate the field (e.g. Trino) fail with "Incorrect file size (end of stream not reached)".
+    // Each snapshot's manifest holds many data files so the byte-size change from the prefix is
+    // dominated by the data block (not the constant Avro schema header), making it unambiguous.
     String sourceLocation = newTableLocation();
     Table sourceTable =
         TABLES.create(
@@ -380,19 +379,24 @@ public class TestRewriteTablePathsAction extends TestBase {
             ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
             sourceLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList();
-    for (int i = 0; i < 50; i++) {
-      records.add(new ThreeColumnRecord(i, "row-" + i, "data-" + i));
+    // Two appends produce two snapshots so the older snapshot is exercised as a historical one.
+    for (int snapshotNo = 0; snapshotNo < 2; snapshotNo++) {
+      List<ThreeColumnRecord> records = Lists.newArrayList();
+      for (int i = 0; i < 30; i++) {
+        int id = snapshotNo * 100 + i;
+        records.add(new ThreeColumnRecord(id, "row-" + id, "data-" + id));
+      }
+      spark
+          .createDataFrame(records, ThreeColumnRecord.class)
+          .repartition(30)
+          .select("c1", "c2", "c3")
+          .write()
+          .format("iceberg")
+          .mode("append")
+          .save(sourceLocation);
     }
-    spark
-        .createDataFrame(records, ThreeColumnRecord.class)
-        .repartition(50)
-        .select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(sourceLocation);
     sourceTable.refresh();
+    assertThat(sourceTable.snapshots()).hasSizeGreaterThan(1);
 
     String targetLocation =
         targetTableLocation() + "this/is/a/much/longer/nested/target/prefix/than/the/source";
@@ -407,15 +411,21 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     Table targetTable = TABLES.load(targetLocation);
     FileIO io = targetTable.io();
-    List<ManifestFile> manifests = targetTable.currentSnapshot().allManifests(io);
-    assertThat(manifests).as("Rewritten snapshot should have manifests").isNotEmpty();
-    for (ManifestFile manifest : manifests) {
-      assertThat(manifest.length())
-          .as(
-              "manifest_length in the rewritten manifest list must match the on-disk size of %s",
-              manifest.path())
-          .isEqualTo(io.newInputFile(manifest.path()).getLength());
+    int checkedManifests = 0;
+    for (Snapshot snapshot : targetTable.snapshots()) {
+      for (ManifestFile manifest : snapshot.allManifests(io)) {
+        assertThat(manifest.length())
+            .as(
+                "manifest_length in the rewritten manifest list of snapshot %s must match the"
+                    + " on-disk size of %s",
+                snapshot.snapshotId(), manifest.path())
+            .isEqualTo(io.newInputFile(manifest.path()).getLength());
+        checkedManifests++;
+      }
     }
+    assertThat(checkedManifests)
+        .as("should validate manifests across all (current and historical) snapshots")
+        .isGreaterThan(1);
   }
 
   @TestTemplate
