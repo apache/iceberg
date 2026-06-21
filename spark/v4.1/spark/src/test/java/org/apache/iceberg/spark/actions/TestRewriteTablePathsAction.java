@@ -364,6 +364,61 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testManifestLengthAfterRewrite() throws Exception {
+    // Rewriting a manifest embeds the new (here, longer) data-file paths, so the rewritten manifest
+    // differs in byte size from the source. The rewritten manifest list must record that new size
+    // in
+    // manifest_length; otherwise readers that validate the field (e.g. Trino) fail with "Incorrect
+    // file size (end of stream not reached)". The manifest holds many data files so the byte-size
+    // change from the prefix is dominated by the data block (not the constant Avro schema header),
+    // making the difference unambiguous.
+    String sourceLocation = newTableLocation();
+    Table sourceTable =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            sourceLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 50; i++) {
+      records.add(new ThreeColumnRecord(i, "row-" + i, "data-" + i));
+    }
+    spark
+        .createDataFrame(records, ThreeColumnRecord.class)
+        .repartition(50)
+        .select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(sourceLocation);
+    sourceTable.refresh();
+
+    String targetLocation =
+        targetTableLocation() + "this/is/a/much/longer/nested/target/prefix/than/the/source";
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(sourceTable.location(), targetLocation)
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetLocation);
+    FileIO io = targetTable.io();
+    List<ManifestFile> manifests = targetTable.currentSnapshot().allManifests(io);
+    assertThat(manifests).as("Rewritten snapshot should have manifests").isNotEmpty();
+    for (ManifestFile manifest : manifests) {
+      assertThat(manifest.length())
+          .as(
+              "manifest_length in the rewritten manifest list must match the on-disk size of %s",
+              manifest.path())
+          .isEqualTo(io.newInputFile(manifest.path()).getLength());
+    }
+  }
+
+  @TestTemplate
   public void testManifestRewriteAndIncrementalCopy() throws Exception {
     RewriteTablePath.Result initialResult =
         actions()
