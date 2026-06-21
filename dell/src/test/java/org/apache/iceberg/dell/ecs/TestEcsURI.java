@@ -62,8 +62,8 @@ public class TestEcsURI {
 
   @Test
   public void testNullLocation() {
-    assertThatThrownBy(() -> new EcsURI((String) null))
+    assertThatThrownBy(() -> new EcsURI(null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("can not be null");
+        .hasMessage("Location can not be null");
   }
 }
