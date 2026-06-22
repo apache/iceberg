@@ -19,6 +19,8 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
@@ -49,7 +51,11 @@ class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    return new OSSOutputStream(client(), uri(), aliyunProperties(), metrics());
+    try {
+      return new OSSOutputStream(client(), uri(), aliyunProperties(), metrics());
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to create output stream for " + uri(), e);
+    }
   }
 
   @Override

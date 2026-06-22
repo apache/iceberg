@@ -20,6 +20,7 @@ package org.apache.iceberg.aliyun;
 
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -76,11 +77,31 @@ public class AliyunProperties implements Serializable {
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
 
+  /** The size of each part for multipart upload. Minimum is 5MB. */
+  public static final String OSS_MULTIPART_SIZE = "oss.multipart.part-size-bytes";
+
+  public static final int OSS_MULTIPART_SIZE_DEFAULT = 8 * 1024 * 1024;
+  public static final int OSS_MULTIPART_SIZE_MIN = 5 * 1024 * 1024;
+
+  /**
+   * The threshold factor to switch from single putObject to multipart upload. Multipart upload is
+   * initiated when total bytes written >= partSize * thresholdFactor.
+   */
+  public static final String OSS_MULTIPART_THRESHOLD_FACTOR = "oss.multipart.threshold";
+
+  public static final double OSS_MULTIPART_THRESHOLD_FACTOR_DEFAULT = 1.5;
+
+  /** The number of threads used for uploading parts to OSS. */
+  public static final String OSS_MULTIPART_UPLOAD_THREADS = "oss.multipart.num-threads";
+
   private final String ossEndpoint;
   private final String accessKeyId;
   private final String accessKeySecret;
   private final String securityToken;
   private final String ossStagingDirectory;
+  private final int ossMultipartSize;
+  private final double ossMultipartThresholdFactor;
+  private final int ossMultipartUploadThreads;
 
   public AliyunProperties() {
     this(ImmutableMap.of());
@@ -96,6 +117,24 @@ public class AliyunProperties implements Serializable {
     this.ossStagingDirectory =
         PropertyUtil.propertyAsString(
             properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
+
+    this.ossMultipartSize =
+        PropertyUtil.propertyAsInt(properties, OSS_MULTIPART_SIZE, OSS_MULTIPART_SIZE_DEFAULT);
+    Preconditions.checkArgument(
+        ossMultipartSize >= OSS_MULTIPART_SIZE_MIN,
+        "Minimum multipart upload size is %s bytes: configured %s",
+        OSS_MULTIPART_SIZE_MIN,
+        ossMultipartSize);
+
+    this.ossMultipartThresholdFactor =
+        PropertyUtil.propertyAsDouble(
+            properties, OSS_MULTIPART_THRESHOLD_FACTOR, OSS_MULTIPART_THRESHOLD_FACTOR_DEFAULT);
+    Preconditions.checkArgument(
+        ossMultipartThresholdFactor >= 1.0, "Multipart threshold factor must be >= 1.0");
+
+    this.ossMultipartUploadThreads =
+        PropertyUtil.propertyAsInt(
+            properties, OSS_MULTIPART_UPLOAD_THREADS, Runtime.getRuntime().availableProcessors());
   }
 
   public String ossEndpoint() {
@@ -116,5 +155,17 @@ public class AliyunProperties implements Serializable {
 
   public String ossStagingDirectory() {
     return ossStagingDirectory;
+  }
+
+  public int ossMultipartSize() {
+    return ossMultipartSize;
+  }
+
+  public double ossMultipartThresholdFactor() {
+    return ossMultipartThresholdFactor;
+  }
+
+  public int ossMultipartUploadThreads() {
+    return ossMultipartUploadThreads;
   }
 }
