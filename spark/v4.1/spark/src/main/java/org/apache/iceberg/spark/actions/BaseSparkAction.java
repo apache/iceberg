@@ -136,8 +136,8 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {
-    Preconditions.checkArgument(
-        metadata.metadataFileLocation() != null,
+    Preconditions.checkNotNull(
+        metadata.metadataFileLocation(),
         "Cannot create static table: metadata file location is null");
     StaticTableOperations ops = new StaticTableOperations(metadata, io);
     return new BaseTable(ops, metadata.metadataFileLocation());

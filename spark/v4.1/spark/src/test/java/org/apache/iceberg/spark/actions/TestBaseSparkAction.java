@@ -35,7 +35,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -62,8 +61,8 @@ class TestBaseSparkAction extends TestBase {
     assertThat(metadata.metadataFileLocation()).isNull();
 
     TestAction action = new TestAction();
-    assertThatThrownBy(() -> action.callNewStaticTable(metadata, table.io()))
-        .isInstanceOf(IllegalArgumentException.class)
+    assertThatThrownBy(() -> action.newStaticTable(metadata, table.io()))
+        .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("metadata file location is null");
   }
 
@@ -72,13 +71,9 @@ class TestBaseSparkAction extends TestBase {
       super(spark);
     }
 
-    Table callNewStaticTable(TableMetadata metadata, FileIO io) {
-      return newStaticTable(metadata, io);
-    }
-
     @Override
     protected TestAction self() {
-      return null;
+      return this;
     }
   }
 }
