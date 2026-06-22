@@ -30,6 +30,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
@@ -41,6 +42,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
@@ -49,10 +51,12 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
@@ -65,14 +69,18 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -846,6 +854,87 @@ public class TestRewriteTablePathsAction extends TestBase {
         }
       }
     }
+  }
+
+  // Regression test: a single Puffin file can hold multiple DVs (one blob per data file)
+  // referenced by distinct DeleteFile entries that share the same location. The rewrite must
+  // rewrite
+  // the physical Puffin file once (rather than colliding on the staging path) and stamp the
+  // rewritten size into every referencing manifest entry.
+  @TestTemplate
+  public void testSharedPuffinDeleteFileSizeAfterRewrite() throws Exception {
+    assumeThat(formatVersion)
+        .as("DVs are introduced in v3; v4 writes parquet manifests the test setup cannot read")
+        .isEqualTo(3);
+
+    Table tableWithDVs =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithSharedPuffin"), 2);
+
+    List<String> dataFilePaths = Lists.newArrayList();
+    tableWithDVs
+        .snapshots()
+        .forEach(
+            snapshot ->
+                snapshot
+                    .addedDataFiles(tableWithDVs.io())
+                    .forEach(dataFile -> dataFilePaths.add(dataFile.location())));
+    assertThat(dataFilePaths).as("Expected two data files to back two DVs").hasSize(2);
+
+    List<DeleteFile> dvs = writeDVsForDataFiles(tableWithDVs, dataFilePaths);
+    assertThat(dvs)
+        .as("Both DVs should live in a single Puffin file")
+        .hasSize(2)
+        .allSatisfy(dv -> assertThat(dv.location()).isEqualTo(dvs.get(0).location()));
+
+    RowDelta rowDelta = tableWithDVs.newRowDelta();
+    dvs.forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithDVs)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithDVs.location(), targetTableLocation())
+            .execute();
+    assertThat(result.rewrittenDeleteFilePathsCount())
+        .as("Two DVs are two delete files with rewritten paths")
+        .isEqualTo(2);
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    Set<String> rewrittenLocations = Sets.newHashSet();
+    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          rewrittenLocations.add(df.location());
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(df.fileSizeInBytes())
+              .as("file_size_in_bytes should match the rewritten Puffin size for %s", df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
+    assertThat(rewrittenLocations)
+        .as("Both DVs should point at the single rewritten Puffin file")
+        .hasSize(1);
+  }
+
+  // Writes one DV per data file path into a single Puffin file, returning the resulting DeleteFiles
+  // (which share a location but carry distinct blob offsets).
+  private List<DeleteFile> writeDVsForDataFiles(Table targetTable, List<String> dataFilePaths)
+      throws IOException {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(targetTable, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (String path : dataFilePaths) {
+        closeableWriter.delete(path, 0L, targetTable.spec(), (StructLike) null);
+      }
+    }
+
+    return writer.result().deleteFiles();
   }
 
   @TestTemplate

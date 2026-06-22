@@ -378,7 +378,7 @@ public class RewriteTablePathUtil {
    * @param stagingLocation staging location for rewritten files (referred delete file will be
    *     rewritten here)
    * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use the overload that accepts the map of
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use the overload that accepts the map of
    *     rewritten position delete file sizes. This overload records the original {@code
    *     file_size_in_bytes}, which can be inconsistent with the rewritten file size on disk once
    *     embedded data file paths change length.
@@ -412,7 +412,7 @@ public class RewriteTablePathUtil {
    * Rewrite a delete manifest, replacing path references.
    *
    * <p>This is a metadata-only operation: position delete file content is rewritten separately (see
-   * {@link #rewritePositionDeleteFile}). The actual sizes of those rewritten files are supplied via
+   * {@link #rewritePositionDelete}). The actual sizes of those rewritten files are supplied via
    * {@code rewrittenDeleteFileSizes} and recorded in the manifest so that {@code
    * file_size_in_bytes} stays consistent with the rewritten file on disk.
    *
@@ -506,9 +506,8 @@ public class RewriteTablePathUtil {
 
     switch (file.content()) {
       case POSITION_DELETES:
-        // Rewriting the embedded data file paths changes the file size, so record the actual size
-        // measured when the file was rewritten. Falls back to the original size for entries whose
-        // file was not rewritten (e.g. deleted entries that are not copied to the target).
+        // Path rewrites change the file size; use the measured size, falling back to the original
+        // for entries that were not rewritten (e.g. deleted entries not copied to the target).
         long fileSizeInBytes =
             rewrittenDeleteFileSizes.getOrDefault(file.location(), file.fileSizeInBytes());
         DeleteFile posDeleteFile =
@@ -672,7 +671,11 @@ public class RewriteTablePathUtil {
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix to replace it
    * @param posDeleteReaderWriter class to read and write position delete files
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #rewritePositionDelete} which
+   *     returns the size of the rewritten file so callers can record an accurate {@code
+   *     file_size_in_bytes}.
    */
+  @Deprecated
   public static void rewritePositionDeleteFile(
       DeleteFile deleteFile,
       OutputFile outputFile,
@@ -682,7 +685,7 @@ public class RewriteTablePathUtil {
       String targetPrefix,
       PositionDeleteReaderWriter posDeleteReaderWriter)
       throws IOException {
-    rewritePositionDeleteFileReturningLength(
+    rewritePositionDelete(
         deleteFile, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
   }
 
@@ -704,7 +707,7 @@ public class RewriteTablePathUtil {
    * @param posDeleteReaderWriter class to read and write position delete files
    * @return the size in bytes of the rewritten file
    */
-  public static long rewritePositionDeleteFileReturningLength(
+  public static long rewritePositionDelete(
       DeleteFile deleteFile,
       OutputFile outputFile,
       FileIO io,
@@ -768,6 +771,7 @@ public class RewriteTablePathUtil {
    * @param io file io
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix to replace it
+   * @return the size in bytes of the rewritten DV file
    */
   private static long rewriteDVFile(
       DeleteFile deleteFile,

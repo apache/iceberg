@@ -279,7 +279,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    * <ul>
    *   <li>Rebuild version files to staging
    *   <li>Rebuild manifest list files to staging
-   *   <li>Rebuild manifest to staging
+   *   <li>Rewrite referenced position delete files to staging
+   *   <li>Rebuild manifests to staging
    *   <li>Get all files needed to move
    * </ul>
    */
@@ -315,32 +316,29 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
     manifestListResults.forEach(rewriteManifestListResult::append);
 
-    // rebuild manifest files
-    Set<ManifestFile> metaFiles = rewriteManifestListResult.toRewrite();
+    Set<ManifestFile> manifestFiles = rewriteManifestListResult.toRewrite();
 
-    // Enumerate the distinct position delete files referenced by the delete manifests being
-    // rewritten (metadata-only pass).
-    Set<DeleteFile> deleteFilesToRewrite = positionDeletesToRewrite(metaFiles);
-
-    // Rewrite those delete files in parallel (deduped by path) and collect the actual size of each
-    // rewritten file. The size is measured from the writer on the executor that produced the file,
-    // avoiding both the end-of-job burst of getLength()/HEAD calls and the file system races where
-    // an in-progress write underreports its length.
+    // rebuild position delete files
+    Set<ManifestFile> deleteManifests =
+        manifestFiles.stream()
+            .filter(manifest -> manifest.content() == ManifestContent.DELETES)
+            .collect(Collectors.toSet());
+    Set<DeleteFile> deleteFilesToRewrite = positionDeletesToRewrite(deleteManifests);
     Map<String, Long> rewrittenDeleteFileSizes = rewritePositionDeletes(deleteFilesToRewrite);
 
-    // Rewrite manifests (metadata-only), stamping file_size_in_bytes from the measured sizes.
+    // rebuild manifest files
     RewriteContentFileResult rewriteManifestResult =
         rewriteManifests(
             deltaSnapshots,
             endMetadata,
-            metaFiles,
+            manifestFiles,
             sparkContext().broadcast(rewrittenDeleteFileSizes));
 
     ImmutableRewriteTablePath.Result.Builder builder =
         ImmutableRewriteTablePath.Result.builder()
             .stagingLocation(stagingDir)
             .rewrittenDeleteFilePathsCount(deleteFilesToRewrite.size())
-            .rewrittenManifestFilePathsCount(metaFiles.size())
+            .rewrittenManifestFilePathsCount(manifestFiles.size())
             .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
 
     if (!createFileList) {
@@ -712,15 +710,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   /**
-   * Enumerate the distinct position delete files referenced by the delete manifests being
-   * rewritten. Equality delete files are excluded because they hold no absolute paths and are not
-   * rewritten.
+   * Enumerate the distinct position delete files referenced by the given delete manifests. Deduped
+   * by identity (location, offset, size) so a file shared across manifests is counted once; the
+   * physical rewrite is further deduped by location in {@link #rewritePositionDeletes}.
    */
-  private Set<DeleteFile> positionDeletesToRewrite(Set<ManifestFile> metaFiles) {
-    Set<ManifestFile> deleteManifests =
-        metaFiles.stream()
-            .filter(manifest -> manifest.content() == ManifestContent.DELETES)
-            .collect(Collectors.toSet());
+  private Set<DeleteFile> positionDeletesToRewrite(Set<ManifestFile> deleteManifests) {
     if (deleteManifests.isEmpty()) {
       return Collections.emptySet();
     }
@@ -736,11 +730,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .flatMap(positionDeletesInManifest(tableBroadcast()), deleteFileEncoder)
             .collectAsList();
 
-    // DeleteFile does not override equals(); DeleteFileSet dedupes by path so a delete file shared
-    // across manifests is rewritten only once.
-    DeleteFileSet distinct = DeleteFileSet.create();
-    distinct.addAll(referencedDeleteFiles);
-    return distinct;
+    return DeleteFileSet.of(referencedDeleteFiles);
   }
 
   private static FlatMapFunction<ManifestFile, DeleteFile> positionDeletesInManifest(
@@ -762,21 +752,29 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   /**
    * Rewrite the given position delete files in parallel, returning a map from each source delete
-   * file path to the size of its rewritten file.
+   * file path to the size of its rewritten file. Physical files are deduped by location, so a
+   * Puffin file holding multiple DVs is rewritten once and its size keyed once.
    */
   private Map<String, Long> rewritePositionDeletes(Set<DeleteFile> toRewrite) {
     if (toRewrite.isEmpty()) {
       return Collections.emptyMap();
     }
 
+    // Multiple DVs can share one Puffin file at different blob offsets; rewrite each physical file
+    // once. The measured size is keyed by location and applied to every referencing manifest entry.
+    Map<String, DeleteFile> byLocation = Maps.newHashMapWithExpectedSize(toRewrite.size());
+    for (DeleteFile deleteFile : toRewrite) {
+      byLocation.putIfAbsent(deleteFile.location(), deleteFile);
+    }
+    List<DeleteFile> physicalFiles = Lists.newArrayList(byLocation.values());
+
     Encoder<DeleteFile> deleteFileEncoder = Encoders.javaSerialization(DeleteFile.class);
-    Dataset<DeleteFile> deleteFileDS =
-        spark().createDataset(Lists.newArrayList(toRewrite), deleteFileEncoder);
+    Dataset<DeleteFile> deleteFileDS = spark().createDataset(physicalFiles, deleteFileEncoder);
 
     PositionDeleteReaderWriter posDeleteReaderWriter = new SparkPositionDeleteReaderWriter();
     List<Tuple2<String, Long>> rewrittenSizes =
         deleteFileDS
-            .repartition(toRewrite.size())
+            .repartition(physicalFiles.size())
             .map(
                 rewritePositionDelete(
                     tableBroadcast(),
@@ -787,7 +785,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 Encoders.tuple(Encoders.STRING(), Encoders.LONG()))
             .collectAsList();
 
-    Map<String, Long> sizesBySourcePath = Maps.newHashMap();
+    Map<String, Long> sizesBySourcePath = Maps.newHashMapWithExpectedSize(rewrittenSizes.size());
     for (Tuple2<String, Long> entry : rewrittenSizes) {
       sizesBySourcePath.put(entry._1(), entry._2());
     }
@@ -808,7 +806,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       OutputFile outputFile = io.newOutputFile(newPath);
       PartitionSpec spec = tableArg.getValue().specs().get(deleteFile.specId());
       long rewrittenLength =
-          RewriteTablePathUtil.rewritePositionDeleteFileReturningLength(
+          RewriteTablePathUtil.rewritePositionDelete(
               deleteFile,
               outputFile,
               io,
