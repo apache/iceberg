@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Literal
+from typing import Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -256,13 +256,24 @@ class SortOrder(BaseModel):
 
 class EncryptedKey(BaseModel):
     key_id: str = Field(..., alias='key-id')
-    encrypted_key_metadata: Base64Str = Field(..., alias='encrypted-key-metadata')
+    encrypted_key_metadata: Base64Str = Field(
+        ...,
+        alias='encrypted-key-metadata',
+        json_schema_extra={'contentEncoding': 'base64'},
+    )
     encrypted_by_id: str | None = Field(None, alias='encrypted-by-id')
     properties: dict[str, str] | None = None
 
 
 class Summary(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+    )
     operation: Literal['append', 'replace', 'overwrite', 'delete']
+
+
+Summary.__annotations__['__pydantic_extra__'] = Dict[str, str]
+Summary.model_rebuild(force=True)
 
 
 class Snapshot(BaseModel):

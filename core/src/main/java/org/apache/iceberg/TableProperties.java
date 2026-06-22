@@ -197,6 +197,9 @@ public class TableProperties {
   public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
       "write.parquet.stats-enabled.column.";
 
+  public static final String PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX =
+      "write.parquet.dict-encoding-enabled.column.";
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
