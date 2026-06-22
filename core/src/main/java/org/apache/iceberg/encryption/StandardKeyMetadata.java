@@ -144,18 +144,9 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
   @Override
   public void put(int i, Object v) {
     switch (i) {
-      case 0 -> {
-        this.encryptionKey = (ByteBuffer) v;
-        return;
-      }
-      case 1 -> {
-        this.aadPrefix = (ByteBuffer) v;
-        return;
-      }
-      case 2 -> {
-        this.fileLength = (Long) v;
-        return;
-      }
+      case 0 -> this.encryptionKey = (ByteBuffer) v;
+      case 1 -> this.aadPrefix = (ByteBuffer) v;
+      case 2 -> this.fileLength = (Long) v;
       default -> {
         // ignore the object, it must be from a newer version of the format
       }

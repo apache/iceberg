@@ -157,26 +157,11 @@ class GenericManifestEntry<F extends ContentFile<F>>
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
     switch (i) {
-      case 0 -> {
-        this.status = Status.fromId((Integer) v);
-        return;
-      }
-      case 1 -> {
-        this.snapshotId = (Long) v;
-        return;
-      }
-      case 2 -> {
-        this.dataSequenceNumber = (Long) v;
-        return;
-      }
-      case 3 -> {
-        this.fileSequenceNumber = (Long) v;
-        return;
-      }
-      case 4 -> {
-        this.file = (F) v;
-        return;
-      }
+      case 0 -> this.status = Status.fromId((Integer) v);
+      case 1 -> this.snapshotId = (Long) v;
+      case 2 -> this.dataSequenceNumber = (Long) v;
+      case 3 -> this.fileSequenceNumber = (Long) v;
+      case 4 -> this.file = (F) v;
       default -> {
         // ignore the object, it must be from a newer version of the format
       }

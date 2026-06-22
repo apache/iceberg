@@ -273,22 +273,20 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   @Override
   public Schema primitive(Schema primitive) {
     // check for type promotion
-    switch (primitive.getType()) {
+    return switch (primitive.getType()) {
       case INT -> {
         if (current.typeId() == Type.TypeID.LONG) {
-          return Schema.create(Schema.Type.LONG);
+          yield Schema.create(Schema.Type.LONG);
         }
-        return primitive;
+        yield primitive;
       }
       case FLOAT -> {
         if (current.typeId() == Type.TypeID.DOUBLE) {
-          return Schema.create(Schema.Type.DOUBLE);
+          yield Schema.create(Schema.Type.DOUBLE);
         }
-        return primitive;
+        yield primitive;
       }
-      default -> {
-        return primitive;
-      }
-    }
+      default -> primitive;
+    };
   }
 }

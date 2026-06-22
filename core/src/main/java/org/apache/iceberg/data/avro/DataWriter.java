@@ -111,34 +111,28 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
     public ValueWriter<?> primitive(Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date" -> {
-            return GenericWriters.dates();
-          }
-          case "time-micros" -> {
-            return GenericWriters.times();
-          }
+        return switch (logicalType.getName()) {
+          case "date" -> GenericWriters.dates();
+          case "time-micros" -> GenericWriters.times();
           case "timestamp-micros" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericWriters.timestamptz();
+              yield GenericWriters.timestamptz();
             }
-            return GenericWriters.timestamps();
+            yield GenericWriters.timestamps();
           }
           case "timestamp-nanos" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericWriters.timestamptzNanos();
+              yield GenericWriters.timestamptzNanos();
             }
-            return GenericWriters.timestampNanos();
+            yield GenericWriters.timestampNanos();
           }
           case "decimal" -> {
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+            yield ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
           }
-          case "uuid" -> {
-            return ValueWriters.uuids();
-          }
+          case "uuid" -> ValueWriters.uuids();
           default -> throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
-        }
+        };
       }
 
       return switch (primitive.getType()) {

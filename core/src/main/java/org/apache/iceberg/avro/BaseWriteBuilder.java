@@ -74,28 +74,18 @@ abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
   public ValueWriter<?> primitive(Schema primitive) {
     LogicalType logicalType = primitive.getLogicalType();
     if (logicalType != null) {
-      switch (logicalType.getName()) {
-        case "date" -> {
-          return ValueWriters.ints();
-        }
-        case "time-micros" -> {
-          return ValueWriters.longs();
-        }
-        case "timestamp-micros" -> {
-          return ValueWriters.longs();
-        }
-        case "timestamp-nanos" -> {
-          return ValueWriters.longs();
-        }
+      return switch (logicalType.getName()) {
+        case "date" -> ValueWriters.ints();
+        case "time-micros" -> ValueWriters.longs();
+        case "timestamp-micros" -> ValueWriters.longs();
+        case "timestamp-nanos" -> ValueWriters.longs();
         case "decimal" -> {
           LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-          return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+          yield ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
         }
-        case "uuid" -> {
-          return ValueWriters.uuids();
-        }
+        case "uuid" -> ValueWriters.uuids();
         default -> throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
-      }
+      };
     }
 
     return switch (primitive.getType()) {

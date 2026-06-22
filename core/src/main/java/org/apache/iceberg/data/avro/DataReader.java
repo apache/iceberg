@@ -127,41 +127,34 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     public ValueReader<?> primitive(Type.PrimitiveType ignored, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date" -> {
-            return GenericReaders.dates();
-          }
-          case "time-micros" -> {
-            return GenericReaders.times();
-          }
+        return switch (logicalType.getName()) {
+          case "date" -> GenericReaders.dates();
+          case "time-micros" -> GenericReaders.times();
           case "timestamp-micros" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericReaders.timestamptz();
+              yield GenericReaders.timestamptz();
             }
-            return GenericReaders.timestamps();
+            yield GenericReaders.timestamps();
           }
           case "timestamp-nanos" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericReaders.timestamptzNanos();
+              yield GenericReaders.timestamptzNanos();
             }
-            return GenericReaders.timestampNanos();
+            yield GenericReaders.timestampNanos();
           }
           case "timestamp-millis" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericReaders.timestamptzMillis();
+              yield GenericReaders.timestamptzMillis();
             }
-            return GenericReaders.timestampMillis();
+            yield GenericReaders.timestampMillis();
           }
-          case "decimal" -> {
-            return ValueReaders.decimal(
-                ValueReaders.decimalBytesReader(primitive),
-                ((LogicalTypes.Decimal) logicalType).getScale());
-          }
-          case "uuid" -> {
-            return ValueReaders.uuids();
-          }
+          case "decimal" ->
+              ValueReaders.decimal(
+                  ValueReaders.decimalBytesReader(primitive),
+                  ((LogicalTypes.Decimal) logicalType).getScale());
+          case "uuid" -> ValueReaders.uuids();
           default -> throw new IllegalArgumentException("Unknown logical type: " + logicalType);
-        }
+        };
       }
 
       return switch (primitive.getType()) {

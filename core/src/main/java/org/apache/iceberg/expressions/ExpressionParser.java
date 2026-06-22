@@ -295,23 +295,18 @@ public class ExpressionParser {
     }
 
     Expression.Operation op = fromType(type);
-    switch (op) {
-      case NOT -> {
-        return Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
-      }
-      case AND -> {
-        return Expressions.and(
-            fromJson(JsonUtil.get(LEFT, json), schema),
-            fromJson(JsonUtil.get(RIGHT, json), schema));
-      }
-      case OR -> {
-        return Expressions.or(
-            fromJson(JsonUtil.get(LEFT, json), schema),
-            fromJson(JsonUtil.get(RIGHT, json), schema));
-      }
-    }
-
-    return predicateFromJson(op, json, schema);
+    return switch (op) {
+      case NOT -> Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
+      case AND ->
+          Expressions.and(
+              fromJson(JsonUtil.get(LEFT, json), schema),
+              fromJson(JsonUtil.get(RIGHT, json), schema));
+      case OR ->
+          Expressions.or(
+              fromJson(JsonUtil.get(LEFT, json), schema),
+              fromJson(JsonUtil.get(RIGHT, json), schema));
+      default -> predicateFromJson(op, json, schema);
+    };
   }
 
   private static Expression.Operation fromType(String type) {
@@ -331,14 +326,14 @@ public class ExpressionParser {
       convertValue = valueNode -> (T) ExpressionParser.asObject(valueNode);
     }
 
-    switch (op) {
+    return switch (op) {
       case IS_NULL, NOT_NULL, IS_NAN, NOT_NAN -> {
         // unary predicates
         Preconditions.checkArgument(
             !node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
         Preconditions.checkArgument(
             !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
-        return Expressions.predicate(op, term);
+        yield Expressions.predicate(op, term);
       }
       case LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ, STARTS_WITH, NOT_STARTS_WITH -> {
         // literal predicates
@@ -347,7 +342,7 @@ public class ExpressionParser {
         Preconditions.checkArgument(
             !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
         T value = literal(JsonUtil.get(VALUE, node), convertValue);
-        return Expressions.predicate(op, term, ImmutableList.of(value));
+        yield Expressions.predicate(op, term, ImmutableList.of(value));
       }
       case IN, NOT_IN -> {
         // literal set predicates
@@ -358,14 +353,14 @@ public class ExpressionParser {
         JsonNode valuesNode = JsonUtil.get(VALUES, node);
         Preconditions.checkArgument(
             valuesNode.isArray(), "Cannot parse literals from non-array: %s", valuesNode);
-        return Expressions.predicate(
+        yield Expressions.predicate(
             op,
             term,
             Iterables.transform(
                 ((ArrayNode) valuesNode)::elements, valueNode -> literal(valueNode, convertValue)));
       }
       default -> throw new UnsupportedOperationException("Unsupported operation: " + op);
-    }
+    };
   }
 
   private static <T> T literal(JsonNode valueNode, Function<JsonNode, T> toValue) {
@@ -400,18 +395,16 @@ public class ExpressionParser {
       return Expressions.ref(node.asText());
     } else if (node.isObject()) {
       String type = JsonUtil.getString(TYPE, node);
-      switch (type) {
-        case REFERENCE -> {
-          return Expressions.ref(JsonUtil.getString(TERM, node));
-        }
+      return switch (type) {
+        case REFERENCE -> Expressions.ref(JsonUtil.getString(TERM, node));
         case TRANSFORM -> {
           UnboundTerm<T> child = term(JsonUtil.get(TERM, node));
           String transform = JsonUtil.getString(TRANSFORM, node);
-          return (UnboundTerm<T>)
+          yield (UnboundTerm<T>)
               Expressions.transform(child.ref().name(), Transforms.fromString(transform));
         }
         default -> throw new IllegalArgumentException("Cannot parse type as a reference: " + type);
-      }
+      };
     }
 
     throw new IllegalArgumentException(
