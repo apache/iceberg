@@ -97,6 +97,14 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String DELTA_VERSION_TAG_PREFIX = "delta-version-";
   private static final String DELTA_TIMESTAMP_TAG_PREFIX = "delta-ts-";
+  private static final Set<String> UNSUPPORTED_DELTA_OPERATIONS =
+      Set.of(
+          "ADD COLUMNS",
+          "CHANGE COLUMN",
+          "RENAME COLUMN",
+          "DROP COLUMN",
+          "ADD CONSTRAINT",
+          "SET TBLPROPERTIES"); // The operations will be supported eventually
 
   private final ImmutableMap.Builder<String, String> icebergPropertiesBuilder =
       ImmutableMap.builder();
@@ -228,7 +236,10 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     try (CloseableIterator<FilteredColumnarBatch> changes = scan.getScanFiles(deltaEngine)) {
 
       commitDeltaColumnarBatchToIcebergTransaction(
-          Iterators.transform(changes, batch -> batch::getData), transaction, processedDataFiles);
+          deltaSnapshot.getVersion(),
+          Iterators.transform(changes, batch -> batch::getData),
+          transaction,
+          processedDataFiles);
       tagCurrentSnapshot(
           deltaSnapshot.getVersion(), deltaSnapshot.getTimestamp(deltaEngine), transaction);
     }
@@ -253,6 +264,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
 
         Long commitTimestamp =
             commitDeltaColumnarBatchToIcebergTransaction(
+                currDeltaVersion,
                 Iterators.transform(changes, batch -> () -> batch),
                 transaction,
                 processedDataFiles);
@@ -305,6 +317,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
    * @return number of added data files
    */
   private Long commitDeltaColumnarBatchToIcebergTransaction(
+      Long deltaVersion,
       Iterator<Supplier<ColumnarBatch>> changes,
       Transaction transaction,
       Set<String> processedDataFiles)
@@ -325,6 +338,8 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
             Row commitInfo = row.getStruct(row.getSchema().indexOf("commitInfo"));
             originalCommitTimestamp =
                 commitInfo.getLong(commitInfo.getSchema().indexOf("timestamp"));
+
+            assertSupportedDeltaOperation(deltaVersion, commitInfo);
           } else if (DeltaLakeActionsTranslationUtil.isAdd(row)) {
             AddFile addFile = DeltaLakeActionsTranslationUtil.toAdd(row);
 
@@ -583,6 +598,18 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         String.format(
             "Delta Lake table does not exist at the given location: %s", deltaTableLocation),
         exception);
+  }
+
+  private static void assertSupportedDeltaOperation(Long deltaVersion, Row commitInfo) {
+    String operation = commitInfo.getString(commitInfo.getSchema().indexOf("operation"));
+    if (UNSUPPORTED_DELTA_OPERATIONS.contains(operation)) {
+      throw new IllegalStateException(
+          String.format(
+              java.util.Locale.ROOT,
+              "Cannot convert Delta table: schema evolution operation '%s' is not supported (detected at Delta version %d).",
+              operation,
+              deltaVersion));
+    }
   }
 
   @VisibleForTesting

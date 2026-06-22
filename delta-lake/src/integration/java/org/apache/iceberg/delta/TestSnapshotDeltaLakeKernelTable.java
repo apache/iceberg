@@ -19,6 +19,7 @@
 package org.apache.iceberg.delta;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import java.io.File;
@@ -54,6 +55,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String NAMESPACE = "delta_conversion_test_ns";
@@ -246,6 +249,39 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
     checkLatestSnapshotIntegrity(sourceTable, newTableIdentifier);
     checkTagContentAndOrder(sourceTable, sourceTableLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, sourceTableLocation);
+  }
+
+  @ParameterizedTest
+  @CsvSource(
+      useHeadersInDisplayName = false,
+      value = {
+        "ALTER TABLE %s ADD COLUMNS (new_col string), ADD COLUMNS",
+        "ALTER TABLE %s ALTER COLUMN price COMMENT 'new price comment', CHANGE COLUMN",
+        "ALTER TABLE %s SET TBLPROPERTIES ('new_prop' = 'value'), SET TBLPROPERTIES",
+        "COMMENT ON TABLE %s IS 'new table comment', SET TBLPROPERTIES"
+      })
+  public void testSchemaEvolutionAddColumn(String sqlTemplate, String expectedOperation) {
+    String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "add_column_table");
+    String sourceTableLocation = sourceLocation.toURI().toString();
+
+    writeDeltaTable(genericDataFrame, sourceTable, sourceTableLocation);
+
+    // Schema evolution
+    spark.sql(String.format(sqlTemplate, sourceTable));
+
+    String newTableIdentifier = toFullTableName(ICEBERG_CATALOG_NAME, "iceberg_add_column_table");
+
+    // Act & Assert
+    SnapshotDeltaLakeTable conversionAction =
+        DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeKernelTable(
+            spark, newTableIdentifier, sourceTableLocation);
+
+    assertThatThrownBy(conversionAction::execute)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            String.format(
+                "Cannot convert Delta table: schema evolution operation '%s' is not supported (detected at Delta version 1).",
+                expectedOperation));
   }
 
   private void checkLatestSnapshotIntegrity(
