@@ -514,9 +514,6 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   public void testDeleteFilesNoValidation() {
-    // v4 root manifest is missing on no-op snapshots — production bug surfaced during
-    // Phase 10 triage. Tracking as Tier 1 architectural follow-up; gated for now.
-    assumeThat(formatVersion).isLessThan(4);
     Snapshot append = commit(table, table.newFastAppend().appendFile(FILE_B), branch);
     assertThat(append.summary())
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
