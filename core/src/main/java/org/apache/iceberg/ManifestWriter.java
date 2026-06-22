@@ -233,8 +233,14 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    * <p>Only meaningful for v4+ data manifests; non-v4+ writers throw {@link
    * UnsupportedOperationException}. The pair must be followed immediately by a {@link
    * #modifiedEntry(ManifestEntry, DeletionVector)} call for the same data file.
+   *
+   * @param entry the manifest entry for the data file in its prior live state
+   * @param priorDv the deletion vector attached to the data file before this commit, or null if the
+   *     prior state had no DV. Preserving the prior DV on the REPLACED row lets readers (e.g.
+   *     {@code SnapshotChanges.removedDeleteFiles}) identify the DV that was superseded by the
+   *     paired MODIFIED row without consulting the parent manifest.
    */
-  void replacedEntry(ManifestEntry<F> entry) {
+  void replacedEntry(ManifestEntry<F> entry, DeletionVector priorDv) {
     throw new UnsupportedOperationException(
         "REPLACED entries require a v4 manifest writer; use V4Writer");
   }
@@ -648,11 +654,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    void replacedEntry(ManifestEntry<DataFile> entry) {
-      // Emit the prior-state row (REPLACED — not live) without a DV.
+    void replacedEntry(ManifestEntry<DataFile> entry, DeletionVector priorDv) {
+      // Emit the prior-state row (REPLACED — not live), preserving the prior DV when present so
+      // downstream change-detection (e.g. SnapshotChanges.removedDeleteFiles) can identify the DV
+      // that was superseded by the paired MODIFIED row.
       long snapshotId = writerSnapshotId() != null ? writerSnapshotId() : 0L;
-      trackedFile.wrap(
-          entry.file(),
+      TrackingStruct tracking =
           new TrackingStruct(
               EntryStatus.REPLACED,
               snapshotId,
@@ -661,7 +668,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
               null,
               entry.file().firstRowId(),
               null,
-              null));
+              null);
+      if (priorDv != null) {
+        trackedFile.wrap(entry.file(), tracking, priorDv);
+      } else {
+        trackedFile.wrap(entry.file(), tracking);
+      }
+
       addReplacedEntry(writerEntry.wrap(entry, trackedFile));
     }
 

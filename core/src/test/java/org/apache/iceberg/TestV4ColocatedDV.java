@@ -181,9 +181,9 @@ public class TestV4ColocatedDV {
     assertThat(replacedRow).as("must have a REPLACED row for FILE_A").isNotNull();
     assertThat(modifiedRow).as("must have a MODIFIED row for FILE_A").isNotNull();
 
-    // REPLACED row must not carry a DV
+    // REPLACED row carries the prior DV (null here because FILE_A had no DV before snap2)
     assertThat(replacedRow.deletionVector())
-        .as("REPLACED row must not carry a deletion_vector")
+        .as("REPLACED row must carry the prior DV (null when prior state had no DV)")
         .isNull();
 
     // MODIFIED row must carry the DV
@@ -554,5 +554,149 @@ public class TestV4ColocatedDV {
         .doesNotContainKey(SnapshotSummary.REMOVED_DVS_PROP)
         .doesNotContainKey(SnapshotSummary.ADDED_POS_DELETES_PROP)
         .doesNotContainKey(SnapshotSummary.REMOVED_POS_DELETES_PROP);
+  }
+
+  // ---- SnapshotChanges / BaseSnapshot visibility for v4 colocated DVs --------
+
+  /**
+   * Adding a DV to an existing data file via a v4 RowDelta must surface through {@link
+   * SnapshotChanges}:
+   *
+   * <ul>
+   *   <li>{@code addedDataFiles()} is empty — the data file is still live, only its DV changed.
+   *   <li>{@code addedDeleteFiles()} contains exactly the new DV.
+   *   <li>{@code removedDeleteFiles()} is empty — no prior DV was superseded.
+   * </ul>
+   */
+  @Test
+  public void testSnapshotChangesAddDV() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    DeleteFile dv = FileGenerationUtil.generateDV(table, FILE_A);
+    table.newRowDelta().addDeletes(dv).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snap2).build();
+
+    assertThat(changes.addedDataFiles())
+        .as("DV-only commit must not report any added data files")
+        .isEmpty();
+    assertThat(changes.removedDataFiles())
+        .as("DV-only commit must not report any removed data files")
+        .isEmpty();
+    assertThat(changes.addedDeleteFiles())
+        .as("DV-only commit must report the new DV as an added delete file")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv.location());
+    assertThat(changes.removedDeleteFiles())
+        .as("first-time DV add must not report any removed delete files")
+        .isEmpty();
+  }
+
+  /**
+   * Replacing an existing DV (DV1 → DV2) across two snapshots must surface DV2 as added and DV1 as
+   * removed in the second snapshot's {@link SnapshotChanges}.
+   */
+  @Test
+  public void testSnapshotChangesReplaceDV() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    DeleteFile dv1 = FileGenerationUtil.generateDV(table, FILE_A);
+    table.newRowDelta().addDeletes(dv1).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    DeleteFile dv2 = FileGenerationUtil.generateDV(table, FILE_A);
+    table
+        .newRowDelta()
+        .removeDeletes(dv1)
+        .addDeletes(dv2)
+        .validateFromSnapshot(snap2.snapshotId())
+        .commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snap3).build();
+
+    assertThat(changes.addedDataFiles())
+        .as("DV-only replace must not report any added data files")
+        .isEmpty();
+    assertThat(changes.removedDataFiles())
+        .as("DV-only replace must not report any removed data files")
+        .isEmpty();
+    assertThat(changes.addedDeleteFiles())
+        .as("DV-only replace must report DV2 as the new delete file")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv2.location());
+    assertThat(changes.removedDeleteFiles())
+        .as("DV-only replace must report DV1 as a removed delete file")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv1.location());
+  }
+
+  /**
+   * A born-with-DV commit (data file + DV in the same snapshot) must surface BOTH the new data file
+   * and the new DV through {@link SnapshotChanges}.
+   */
+  @Test
+  public void testSnapshotChangesBornWithDV() {
+    DeleteFile dv = FileGenerationUtil.generateDV(table, FILE_A);
+    table.newRowDelta().addRows(FILE_A).addDeletes(dv).commit();
+    Snapshot snap = table.currentSnapshot();
+
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snap).build();
+
+    assertThat(changes.addedDataFiles())
+        .as("born-with-DV must report the new data file")
+        .extracting(DataFile::location)
+        .containsExactly(FILE_A.location());
+    assertThat(changes.removedDataFiles()).isEmpty();
+    assertThat(changes.addedDeleteFiles())
+        .as("born-with-DV must report the embedded DV as an added delete file")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv.location());
+    assertThat(changes.removedDeleteFiles()).isEmpty();
+  }
+
+  /**
+   * The deprecated {@code snapshot.addedDataFiles(io)} / {@code snapshot.removedDataFiles(io)}
+   * accessors must not misclassify v4 REPLACED/MODIFIED rows as data-file changes. Before this fix,
+   * a DV-only update threw an {@code IllegalStateException} from {@code
+   * BaseSnapshot.cacheDataFileChanges} because the legacy reader projected REPLACED → DELETED which
+   * the switch did not expect.
+   */
+  @Test
+  public void testSnapshotAddedDataFilesIgnoresDVRewrite() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    DeleteFile dv = FileGenerationUtil.generateDV(table, FILE_A);
+    table.newRowDelta().addDeletes(dv).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    assertThat(snap2.addedDataFiles(table.io()))
+        .as("DV-only commit must not surface any added data files via deprecated API")
+        .isEmpty();
+    assertThat(snap2.removedDataFiles(table.io()))
+        .as("DV-only commit must not surface any removed data files via deprecated API")
+        .isEmpty();
+  }
+
+  /**
+   * The deprecated {@code snapshot.addedDeleteFiles(io)} accessor must surface v4 colocated DVs as
+   * added delete files alongside legacy delete-manifest entries.
+   */
+  @Test
+  public void testSnapshotAddedDeleteFilesIncludesColocatedDV() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    DeleteFile dv = FileGenerationUtil.generateDV(table, FILE_A);
+    table.newRowDelta().addDeletes(dv).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    assertThat(snap2.addedDeleteFiles(table.io()))
+        .as("v4 colocated DV must surface as an added delete file via deprecated API")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv.location());
+    assertThat(snap2.removedDeleteFiles(table.io()))
+        .as("first-time DV add must not surface any removed delete files via deprecated API")
+        .isEmpty();
   }
 }

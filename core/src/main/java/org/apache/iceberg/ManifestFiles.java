@@ -234,6 +234,86 @@ public class ManifestFiles {
   }
 
   /**
+   * Returns colocated DV changes for a v4+ leaf data manifest as {@code (status, DeleteFile)}
+   * pairs: {@link ManifestEntry.Status#ADDED} for newly-live DVs (born-with-DV or DV added/updated)
+   * and {@link ManifestEntry.Status#DELETED} for prior DVs that were superseded (preserved on
+   * REPLACED rows). Legacy (pre-v4) manifests have no colocated DVs and produce an empty iterable.
+   *
+   * <p>Used by {@code SnapshotChanges} and {@code BaseSnapshot} to report v4+ DV changes as
+   * delete-file deltas alongside legacy delete-manifest entries.
+   */
+  static CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> readColocatedDVChanges(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        manifest.content() == ManifestContent.DATA,
+        "Cannot read colocated deletion vector changes from a delete manifest: %s",
+        manifest);
+
+    if (manifest.formatVersion() < TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
+      return CloseableIterable.empty();
+    }
+
+    InputFile file = newInputFile(io, manifest);
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    ContentEntryReader reader =
+        ContentEntryReader.forData(
+            file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+    CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> changes = reader.colocatedDVChanges();
+    return CloseableIterable.combine(changes, reader);
+  }
+
+  /**
+   * Returns true if the manifest uses the v4+ {@code content_entry} schema shape (Parquet with the
+   * tracking struct), false for legacy Avro {@code manifest_entry} manifests. Visible for {@link
+   * SnapshotChanges} and {@link BaseSnapshot} to dispatch between v4+-aware and legacy read paths.
+   */
+  static boolean isV4ContentEntryManifest(ManifestFile manifest, FileIO io) {
+    return manifest.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE;
+  }
+
+  /**
+   * Returns data-file changes from a v4+ leaf data manifest as {@code (v4+ status, DataFile)}
+   * pairs. Unlike {@link #read(ManifestFile, FileIO, Map)}, which collapses REPLACED → DELETED and
+   * MODIFIED → EXISTING for legacy consumers, this path surfaces the v4+ tracking status directly
+   * so callers can distinguish data-file changes (ADDED, DELETED) from DV-state transitions
+   * (REPLACED, MODIFIED). Returns an empty iterable for legacy (pre-v4) manifests; callers should
+   * dispatch via {@link #isV4ContentEntryManifest(ManifestFile, FileIO)} before invoking.
+   */
+  static CloseableIterable<Pair<ManifestEntry.Status, DataFile>> readDataFileChanges(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        manifest.content() == ManifestContent.DATA,
+        "Cannot read data file changes from a delete manifest: %s",
+        manifest);
+
+    if (manifest.formatVersion() < TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
+      return CloseableIterable.empty();
+    }
+
+    InputFile file = newInputFile(io, manifest);
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    ContentEntryReader reader =
+        ContentEntryReader.forData(
+            file, manifest.partitionSpecId(), specsById, inheritableMetadata);
+
+    // Surface only ADDED and DELETED rows from the v4+ tracking; REPLACED and MODIFIED are
+    // DV-state transitions and not data-file changes. Project the v4+ EntryStatus to the legacy
+    // ManifestEntry.Status (ADDED → ADDED, DELETED → DELETED) so callers can switch on a single
+    // enum.
+    CloseableIterable<Pair<ManifestEntry.Status, DataFile>> changes =
+        CloseableIterable.transform(
+            reader.dataFileChanges(),
+            pair -> {
+              ManifestEntry.Status status =
+                  pair.first() == EntryStatus.ADDED
+                      ? ManifestEntry.Status.ADDED
+                      : ManifestEntry.Status.DELETED;
+              return Pair.of(status, pair.second());
+            });
+    return CloseableIterable.combine(changes, reader);
+  }
+
+  /**
    * Create a new {@link ManifestWriter}.
    *
    * <p>Manifests created by this writer have all entry snapshot IDs set to null. All entries will

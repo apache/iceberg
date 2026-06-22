@@ -1531,8 +1531,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     String path = entry.file().location().toString();
     DeleteFile dv = dvsForExisting.get(path);
     if (dv != null) {
-      // Emit REPLACED (prior state, no DV) then MODIFIED (new state, with DV).
-      writer.replacedEntry(entry);
+      // Emit REPLACED (prior state, with prior DV if any) then MODIFIED (new state, with new
+      // DV). Preserving the prior DV on the REPLACED row lets SnapshotChanges identify the
+      // superseded DV as a "removed delete file" without walking the parent manifest.
+      DeleteFile priorDV = priorDVsByPath.get(path);
+      DeletionVector priorDvStruct = priorDV != null ? toDeletionVector(priorDV) : null;
+      writer.replacedEntry(entry, priorDvStruct);
       DeletionVector dvStruct = toDeletionVector(dv);
       writer.modifiedEntry(entry, dvStruct);
       affectedInThisManifest.add(path);
@@ -1542,7 +1546,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       collapsedDVAddedSummary.addedFile(spec(dv.specId()), dv);
       // If the prior live entry already carried a colocated DV, credit it as removed: the
       // REPLACED row drops it and the MODIFIED row supersedes it with the new DV.
-      DeleteFile priorDV = priorDVsByPath.get(path);
       if (priorDV != null) {
         collapsedDVRemovedSummary.deletedFile(spec(priorDV.specId()), priorDV);
       }
