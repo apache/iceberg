@@ -895,6 +895,8 @@ public class TestReplacePartitions extends TestBase {
   @TestTemplate
   public void replacingAndMergingOnePartitionAlsoRemovesDV() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    // v4 has no separate delete manifests; DVs are colocated (Phase 10 follow-up).
+    assumeThat(formatVersion).isLessThan(4);
     // ensure the overwrite results in a merge
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
 
