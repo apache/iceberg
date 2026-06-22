@@ -44,7 +44,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -113,8 +112,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     initialize(name, properties, projectId, projectLocation, client);
   }
 
-  @VisibleForTesting
-  void initialize(
+  public void initialize(
       String name,
       Map<String, String> properties,
       String initialProjectId,
