@@ -218,12 +218,12 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DATA,
         "Cannot read colocated deletion vectors from a delete manifest: %s",
         manifest);
-    InputFile file = newInputFile(io, manifest);
 
-    if (!usesContentEntrySchema(file, manifest.formatVersion())) {
+    if (manifest.formatVersion() < ManifestFile.V4_FORMAT_VERSION) {
       return CloseableIterable.empty();
     }
 
+    InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     ContentEntryReader reader =
         ContentEntryReader.forData(
@@ -249,12 +249,12 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DATA,
         "Cannot read colocated deletion vector changes from a delete manifest: %s",
         manifest);
-    InputFile file = newInputFile(io, manifest);
 
-    if (!usesContentEntrySchema(file, manifest.formatVersion())) {
+    if (manifest.formatVersion() < ManifestFile.V4_FORMAT_VERSION) {
       return CloseableIterable.empty();
     }
 
+    InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     ContentEntryReader reader =
         ContentEntryReader.forData(
@@ -269,8 +269,7 @@ public class ManifestFiles {
    * SnapshotChanges} and {@link BaseSnapshot} to dispatch between v4+-aware and legacy read paths.
    */
   static boolean isV4ContentEntryManifest(ManifestFile manifest, FileIO io) {
-    InputFile file = newInputFile(io, manifest);
-    return usesContentEntrySchema(file, manifest.formatVersion());
+    return manifest.formatVersion() >= ManifestFile.V4_FORMAT_VERSION;
   }
 
   /**
@@ -287,12 +286,12 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DATA,
         "Cannot read data file changes from a delete manifest: %s",
         manifest);
-    InputFile file = newInputFile(io, manifest);
 
-    if (!usesContentEntrySchema(file, manifest.formatVersion())) {
+    if (manifest.formatVersion() < ManifestFile.V4_FORMAT_VERSION) {
       return CloseableIterable.empty();
     }
 
+    InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     ContentEntryReader reader =
         ContentEntryReader.forData(
