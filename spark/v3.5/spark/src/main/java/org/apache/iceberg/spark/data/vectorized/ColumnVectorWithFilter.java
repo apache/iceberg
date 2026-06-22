@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import org.apache.spark.sql.types.CalendarIntervalType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -35,6 +36,8 @@ import org.apache.spark.unsafe.types.UTF8String;
  * modifying the underlying data.
  */
 public class ColumnVectorWithFilter extends ColumnVector {
+  private static final int NUM_INTERVAL_CHILDREN = 3;
+
   private final ColumnVector delegate;
   private final int[] rowIdMapping;
   private volatile ColumnVectorWithFilter[] children = null;
@@ -137,14 +140,19 @@ public class ColumnVectorWithFilter extends ColumnVector {
     if (children == null) {
       synchronized (this) {
         if (children == null) {
+          int numChildren;
           if (dataType() instanceof StructType) {
             StructType structType = (StructType) dataType();
-            this.children = new ColumnVectorWithFilter[structType.length()];
-            for (int index = 0; index < structType.length(); index++) {
-              children[index] = new ColumnVectorWithFilter(delegate.getChild(index), rowIdMapping);
-            }
+            numChildren = structType.length();
+          } else if (dataType() instanceof CalendarIntervalType) {
+            numChildren = NUM_INTERVAL_CHILDREN;
           } else {
-            throw new UnsupportedOperationException("Unsupported nested type: " + dataType());
+            return delegate.getChild(ordinal);
+          }
+
+          this.children = new ColumnVectorWithFilter[numChildren];
+          for (int index = 0; index < numChildren; index++) {
+            children[index] = new ColumnVectorWithFilter(delegate.getChild(index), rowIdMapping);
           }
         }
       }
