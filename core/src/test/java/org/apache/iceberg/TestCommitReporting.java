@@ -95,7 +95,7 @@ public class TestCommitReporting extends TestBase {
 
   @TestTemplate
   public void addAndDeleteDeleteFiles() {
-    // v4 requires DVs to be colocated with their data files; this test writes DVs for
+    // v4+ requires DVs to be colocated with their data files; this test writes DVs for
     // FILE_A/FILE_B/FILE_C2 without adding those data files (orphan-DV pattern
     // allowed in v3 only).
     assumeThat(formatVersion).isLessThan(4);

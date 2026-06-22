@@ -1093,7 +1093,7 @@ public class TestRewriteManifests extends TestBase {
   @TestTemplate
   public void testRewriteDataManifestsPreservesDeletes() {
     assumeThat(formatVersion).isGreaterThan(1);
-    // v4 colocates DVs by rewriting data manifests; the snapshot_id on rewritten entries
+    // v4+ colocates DVs by rewriting data manifests; the snapshot_id on rewritten entries
     // changes from the original snapshot to the rewriting snapshot, so v3 inheritance-based
     // snapshot-id assertions no longer hold (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
@@ -1159,7 +1159,7 @@ public class TestRewriteManifests extends TestBase {
   @TestTemplate
   public void testReplaceDeleteManifestsOnly() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    // v4 has no separate delete manifests; DVs are colocated in data manifests so the
+    // v4+ has no separate delete manifests; DVs are colocated in data manifests so the
     // v3 "replace delete manifests" operation is not applicable (Phase 10 follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -1248,7 +1248,7 @@ public class TestRewriteManifests extends TestBase {
   @TestTemplate
   public void testReplaceDataAndDeleteManifests() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    // v4 has no separate delete manifests; DVs are colocated in data manifests
+    // v4+ has no separate delete manifests; DVs are colocated in data manifests
     // (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -1370,7 +1370,7 @@ public class TestRewriteManifests extends TestBase {
   @TestTemplate
   public void testDeleteManifestReplacementConcurrentAppend() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    // v4 has no separate delete manifests (Phase 10 architectural follow-up).
+    // v4+ has no separate delete manifests (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
     // commit data files
@@ -1475,7 +1475,7 @@ public class TestRewriteManifests extends TestBase {
   @TestTemplate
   public void testDeleteManifestReplacementConcurrentDeleteFileRemoval() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    // v4 has no separate delete manifests (Phase 10 architectural follow-up).
+    // v4+ has no separate delete manifests (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
     // commit data files
@@ -1585,7 +1585,7 @@ public class TestRewriteManifests extends TestBase {
   @TestTemplate
   public void testDeleteManifestReplacementConflictingDeleteFileRemoval() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    // v4 has no separate delete manifests (Phase 10 architectural follow-up).
+    // v4+ has no separate delete manifests (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
     // commit data files
@@ -1641,7 +1641,7 @@ public class TestRewriteManifests extends TestBase {
   @TestTemplate
   public void testDeleteManifestReplacementFailure() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    // v4 has no separate delete manifests; assertManifestCounts assertions for separate
+    // v4+ has no separate delete manifests; assertManifestCounts assertions for separate
     // delete manifests no longer apply (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
