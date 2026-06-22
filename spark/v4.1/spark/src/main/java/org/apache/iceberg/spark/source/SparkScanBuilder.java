@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
@@ -47,6 +48,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -327,6 +329,11 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
 
     if (withStats) {
       scan = scan.includeColumnStats();
+    } else {
+      List<String> variantColumns = variantColumnNames(projection);
+      if (!variantColumns.isEmpty()) {
+        scan = scan.includeColumnStats(variantColumns);
+      }
     }
 
     if (endSnapshotId != null) {
@@ -365,9 +372,21 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
 
     if (withStats) {
       scan = scan.includeColumnStats();
+    } else {
+      List<String> variantColumns = variantColumnNames(projection);
+      if (!variantColumns.isEmpty()) {
+        scan = scan.includeColumnStats(variantColumns);
+      }
     }
 
     return configureSplitPlanning(scan);
+  }
+
+  private List<String> variantColumnNames(Schema projection) {
+    return projection.columns().stream()
+        .filter(field -> field.type().isVariantType())
+        .map(Types.NestedField::name)
+        .collect(Collectors.toList());
   }
 
   private BatchScan newIcebergBatchScan() {

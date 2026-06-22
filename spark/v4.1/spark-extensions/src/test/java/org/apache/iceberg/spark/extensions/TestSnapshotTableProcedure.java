@@ -397,11 +397,6 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
             catalogName, SOURCE_NAME, tableName);
     assertThat(result).as("Should have added one file").isEqualTo(1L);
 
-    // Disable vectorized reads for variant imported from non-Iceberg files (not yet supported)
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='false')",
-        tableName);
-
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1L, 123)),
@@ -427,11 +422,6 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
             "CALL %s.system.snapshot('%s', '%s', properties => map('format-version','3'))",
             catalogName, SOURCE_NAME, tableName);
     assertThat(result).as("Should have added two files").isEqualTo(2L);
-
-    // Disable vectorized reads for variant imported from non-Iceberg files (not yet supported)
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='false')",
-        tableName);
 
     assertEquals(
         "Should have expected rows",

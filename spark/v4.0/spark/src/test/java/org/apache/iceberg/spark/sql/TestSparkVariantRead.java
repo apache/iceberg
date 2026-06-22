@@ -23,12 +23,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
@@ -36,6 +40,8 @@ import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -412,6 +418,97 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", mergeTable);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testReadShreddedAfterPropertyToggled(boolean vectorized)
+      throws IOException, NoSuchTableException, ParseException {
+    String toggleTable = CATALOG + ".default.var_toggle";
+    sql("DROP TABLE IF EXISTS %s", toggleTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.parquet.shred-variants'='true')",
+        toggleTable);
+
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(
+          "INSERT INTO %s VALUES "
+              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+          toggleTable);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+
+    Table table = Spark3Util.loadIcebergTable(spark, toggleTable);
+    assertHasTypedValueSubtree(table);
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('write.parquet.shred-variants'='false')", toggleTable);
+    setVectorization(toggleTable, vectorized);
+
+    List<Row> rows = spark.table(toggleTable).select("id", "v").orderBy("id").collectAsList();
+    assertThat(rows).hasSize(2);
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("name").getString()).isEqualTo("alice");
+    assertThat(v1.getFieldByKey("age").getLong()).isEqualTo(30L);
+    Variant v2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    assertThat(v2.getFieldByKey("name").getString()).isEqualTo("bob");
+    assertThat(v2.getFieldByKey("age").getLong()).isEqualTo(25L);
+
+    sql("DROP TABLE IF EXISTS %s", toggleTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"none", "counts"})
+  public void testReadShreddedWithMetricsDisabled(String metricsMode)
+      throws IOException, NoSuchTableException, ParseException {
+    String noStatsTable = CATALOG + ".default.var_no_stats";
+    sql("DROP TABLE IF EXISTS %s", noStatsTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ("
+            + "'format-version'='3', "
+            + "'write.parquet.shred-variants'='true', "
+            + "'write.metadata.metrics.default'='%s')",
+        noStatsTable, metricsMode);
+
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(
+          "INSERT INTO %s VALUES "
+              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+          noStatsTable);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+
+    Table table = Spark3Util.loadIcebergTable(spark, noStatsTable);
+    assertHasTypedValueSubtree(table);
+    setVectorization(noStatsTable, true);
+
+    List<Row> rows = spark.table(noStatsTable).select("id", "v").orderBy("id").collectAsList();
+    assertThat(rows).hasSize(2);
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("name").getString()).isEqualTo("alice");
+    Variant v2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    assertThat(v2.getFieldByKey("name").getString()).isEqualTo("bob");
+
+    sql("DROP TABLE IF EXISTS %s", noStatsTable);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
@@ -422,5 +519,32 @@ public class TestSparkVariantRead extends TestBase {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
         table, Boolean.toString(on));
+  }
+
+  private static void assertHasTypedValueSubtree(Table table) throws IOException {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks).isNotEmpty();
+      for (FileScanTask task : tasks) {
+        HadoopInputFile inputFile =
+            HadoopInputFile.fromPath(new Path(task.file().location()), new Configuration());
+        try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
+          assertThat(containsTypedValue(reader.getFileMetaData().getSchema()))
+              .as("Expected variant column to be shredded with a typed_value subtree")
+              .isTrue();
+        }
+      }
+    }
+  }
+
+  private static boolean containsTypedValue(org.apache.parquet.schema.Type type) {
+    if (type.isPrimitive()) {
+      return false;
+    }
+    for (org.apache.parquet.schema.Type child : type.asGroupType().getFields()) {
+      if (child.getName().equals("typed_value") || containsTypedValue(child)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
