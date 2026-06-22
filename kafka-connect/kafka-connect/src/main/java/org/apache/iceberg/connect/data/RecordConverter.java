@@ -58,6 +58,7 @@ import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -300,28 +301,29 @@ class RecordConverter {
       Object value, ListType type, SchemaUpdate.Consumer schemaUpdateConsumer) {
     Preconditions.checkArgument(value instanceof List);
     List<?> list = (List<?>) value;
-    return list.stream()
-        .map(
-            element -> {
-              int fieldId = type.fields().get(0).fieldId();
-              return convertValue(element, type.elementType(), fieldId, schemaUpdateConsumer);
-            })
-        .collect(Collectors.toList());
+    int elementFieldId = type.fields().get(0).fieldId();
+    Type elementType = type.elementType();
+    List<Object> result = Lists.newArrayListWithCapacity(list.size());
+    for (Object element : list) {
+      result.add(convertValue(element, elementType, elementFieldId, schemaUpdateConsumer));
+    }
+    return result;
   }
 
   protected Map<Object, Object> convertMapValue(
       Object value, MapType type, SchemaUpdate.Consumer schemaUpdateConsumer) {
     Preconditions.checkArgument(value instanceof Map);
     Map<?, ?> map = (Map<?, ?>) value;
-    Map<Object, Object> result = Maps.newHashMap();
+    int keyFieldId = type.fields().get(0).fieldId();
+    int valueFieldId = type.fields().get(1).fieldId();
+    Type keyType = type.keyType();
+    Type valueType = type.valueType();
+    Map<Object, Object> result = Maps.newHashMapWithExpectedSize(map.size());
     map.forEach(
-        (k, v) -> {
-          int keyFieldId = type.fields().get(0).fieldId();
-          int valueFieldId = type.fields().get(1).fieldId();
-          result.put(
-              convertValue(k, type.keyType(), keyFieldId, schemaUpdateConsumer),
-              convertValue(v, type.valueType(), valueFieldId, schemaUpdateConsumer));
-        });
+        (k, v) ->
+            result.put(
+                convertValue(k, keyType, keyFieldId, schemaUpdateConsumer),
+                convertValue(v, valueType, valueFieldId, schemaUpdateConsumer)));
     return result;
   }
 
