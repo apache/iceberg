@@ -211,15 +211,15 @@ class ContentEntryAdapters {
     Preconditions.checkArgument(status != null, "Invalid status: null");
     // fromDataFile / fromDeleteFile project legacy ManifestEntry rows, whose status is ADDED,
     // EXISTING, or DELETED. MODIFIED and REPLACED have no legacy representation — they're written
-    // directly by V4Writer.prepareWithStatus via TrackedFileBuilder.from(source, sid).
-    // deletionVector(dv).build() (MODIFIED) and TrackedFileBuilder.replaced(source, sid)
+    // directly by V4Writer.prepareModified / prepareReplaced via TrackedFileBuilder.from(source,
+    // sid).deletionVector(dv).build() (MODIFIED) and TrackedFileBuilder.replaced(source, sid)
     // (REPLACED).
     Preconditions.checkArgument(
         status == EntryStatus.ADDED
             || status == EntryStatus.EXISTING
             || status == EntryStatus.DELETED,
-        "Unsupported status for content file entry: %s (use V4Writer.prepareWithStatus for "
-            + "MODIFIED/REPLACED transitions)",
+        "Unsupported status for content file entry: %s (use V4Writer.prepareModified / "
+            + "prepareReplaced for MODIFIED/REPLACED transitions)",
         status);
     PartitionData partition = toPartitionData(file, unionPartitionType);
     FileFormat format = file.format();

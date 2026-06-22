@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -187,6 +188,13 @@ class ManifestGroup {
                   Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
                   return ResidualEvaluator.of(spec, filter, caseSensitive);
                 });
+
+    // v4 leaf data manifests can carry colocated deletion vectors. Extract them so they index by
+    // referencedDataFile() in DeleteFileIndex just like v3 standalone DV manifests would.
+    Iterable<DeleteFile> colocatedDVs = readColocatedDVs();
+    if (colocatedDVs != null) {
+      deleteIndexBuilder.addDeleteFiles(colocatedDVs);
+    }
 
     DeleteFileIndex deleteFiles = deleteIndexBuilder.scanMetrics(scanMetrics).build();
 
@@ -402,6 +410,33 @@ class ManifestGroup {
           return new BaseFileScanTask(
               dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
         });
+  }
+
+  /**
+   * Reads colocated deletion vectors carried by v4 leaf data manifests and returns them as {@link
+   * DeleteFile} instances for {@link DeleteFileIndex} to index by {@code referencedDataFile()}.
+   * Legacy (pre-v4) data manifests do not carry colocated DVs and contribute nothing. Returns null
+   * if no v4 data manifests are present.
+   */
+  private Iterable<DeleteFile> readColocatedDVs() {
+    List<DeleteFile> dvs = null;
+    for (ManifestFile manifest : dataManifests) {
+      if (manifest.formatVersion() < 4) {
+        continue;
+      }
+      try (CloseableIterable<DeleteFile> iter =
+          ManifestFiles.readColocatedDVs(manifest, io, specsById)) {
+        for (DeleteFile dv : iter) {
+          if (dvs == null) {
+            dvs = Lists.newArrayList();
+          }
+          dvs.add(dv);
+        }
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to read colocated DVs from %s", manifest.path());
+      }
+    }
+    return dvs;
   }
 
   @FunctionalInterface

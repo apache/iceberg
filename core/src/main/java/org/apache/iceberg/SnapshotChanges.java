@@ -145,6 +145,10 @@ public class SnapshotChanges {
           case DELETED:
             deletes.add(pair.second());
             break;
+          default:
+            // EXISTING is filtered out in readDataManifest. REPLACED/MODIFIED are not data-file
+            // changes (the data file is still live, only its DV/column files changed) and are also
+            // filtered upstream.
         }
       }
     } catch (IOException e) {
@@ -157,6 +161,14 @@ public class SnapshotChanges {
 
   private CloseableIterable<Pair<ManifestEntry.Status, DataFile>> readDataManifest(
       ManifestFile manifest) {
+    // v4 leaves (content_entry schema) carry REPLACED/MODIFIED rows that the legacy reader
+    // collapses to DELETED/EXISTING. Route v4 manifests to ManifestFiles.readDataFileChanges
+    // which surfaces v4 tracking statuses directly so REPLACED (DV-state transition) is not
+    // mis-classified as a data-file removal.
+    if (ManifestFiles.isV4ContentEntryManifest(manifest, io)) {
+      return ManifestFiles.readDataFileChanges(manifest, io, specsById);
+    }
+
     CloseableIterable<ManifestEntry<DataFile>> entries =
         ManifestFiles.read(manifest, io, specsById).entries();
 
@@ -186,24 +198,49 @@ public class SnapshotChanges {
     Iterable<CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>>> manifestReadTasks =
         Iterables.transform(relevantDeleteManifests, this::readDeleteManifest);
 
+    // v4 colocated DVs live on data manifests' ADDED/MODIFIED rows (newly-live DVs) and REPLACED
+    // rows (superseded DVs preserved by V4Writer.prepareReplaced). Scan data manifests written by
+    // this snapshot to surface those DV changes as delete-file deltas. Legacy data manifests
+    // produce an empty iterable from readColocatedDVChanges, so this scan is a no-op for v1-v3.
+    Iterable<ManifestFile> relevantDataManifests =
+        Iterables.filter(
+            snapshot.dataManifests(io),
+            manifest -> Objects.equals(manifest.snapshotId(), snapshot.snapshotId()));
+    Iterable<CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>>> dataManifestDVTasks =
+        Iterables.transform(
+            relevantDataManifests,
+            manifest -> ManifestFiles.readColocatedDVChanges(manifest, io, specsById));
+
     try (CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> changedDeleteFiles =
-        iterate(manifestReadTasks)) {
-      for (Pair<ManifestEntry.Status, DeleteFile> pair : changedDeleteFiles) {
-        switch (pair.first()) {
-          case ADDED:
-            adds.add(pair.second());
-            break;
-          case DELETED:
-            deletes.add(pair.second());
-            break;
-        }
-      }
+            iterate(manifestReadTasks);
+        CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> changedColocatedDVs =
+            iterate(dataManifestDVTasks)) {
+      collectDeleteFileChanges(changedDeleteFiles, adds, deletes);
+      collectDeleteFileChanges(changedColocatedDVs, adds, deletes);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close manifest reader", e);
     }
 
     this.addedDeleteFiles = adds.build();
     this.removedDeleteFiles = deletes.build();
+  }
+
+  private static void collectDeleteFileChanges(
+      Iterable<Pair<ManifestEntry.Status, DeleteFile>> changes,
+      ImmutableList.Builder<DeleteFile> adds,
+      ImmutableList.Builder<DeleteFile> deletes) {
+    for (Pair<ManifestEntry.Status, DeleteFile> pair : changes) {
+      switch (pair.first()) {
+        case ADDED:
+          adds.add(pair.second());
+          break;
+        case DELETED:
+          deletes.add(pair.second());
+          break;
+        default:
+          // EXISTING is already filtered upstream; no other statuses are surfaced.
+      }
+    }
   }
 
   private CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> readDeleteManifest(

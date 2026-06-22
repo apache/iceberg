@@ -367,6 +367,7 @@ class DeleteFileIndex {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
     private final Iterable<DeleteFile> deleteFiles;
+    private Iterable<DeleteFile> extraDeleteFiles = null;
     private long minSequenceNumber = 0L;
     private Map<Integer, PartitionSpec> specsById = null;
     private Map<Integer, Schema> schemasById = null;
@@ -388,6 +389,22 @@ class DeleteFileIndex {
       this.io = null;
       this.deleteManifests = null;
       this.deleteFiles = deleteFiles;
+    }
+
+    /**
+     * Adds an iterable of pre-resolved delete files (e.g., v4 colocated DVs extracted from data
+     * manifests) to merge alongside the delete manifest source. Filters {@link
+     * #afterSequenceNumber} apply to these files as they do to delete-manifest entries.
+     */
+    Builder addDeleteFiles(Iterable<DeleteFile> newDeleteFiles) {
+      Preconditions.checkArgument(
+          deleteFiles == null,
+          "Cannot add extra delete files to an index already constructed from a delete-file iterable");
+      this.extraDeleteFiles =
+          extraDeleteFiles == null
+              ? newDeleteFiles
+              : Iterables.concat(extraDeleteFiles, newDeleteFiles);
+      return this;
     }
 
     Builder afterSequenceNumber(long seq) {
@@ -450,6 +467,11 @@ class DeleteFileIndex {
       return Iterables.filter(deleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
     }
 
+    private Iterable<DeleteFile> filterExtraDeleteFiles() {
+      return Iterables.filter(
+          extraDeleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
+    }
+
     private Collection<DeleteFile> loadDeleteFiles() {
       // read all of the matching delete manifests in parallel and accumulate the matching files in
       // a queue
@@ -492,6 +514,9 @@ class DeleteFileIndex {
       Map<Integer, Types.NestedField> fieldsById = Schema.indexFields(schemas());
       Function<Integer, Types.NestedField> fieldLookup = fieldsById::get;
       Iterable<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
+      if (extraDeleteFiles != null) {
+        files = Iterables.concat(files, filterExtraDeleteFiles());
+      }
 
       EqualityDeletes globalDeletes = new EqualityDeletes(fieldLookup);
       PartitionMap<EqualityDeletes> eqDeletesByPartition = PartitionMap.create(specsById);

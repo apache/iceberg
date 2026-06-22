@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 
 /**
@@ -93,6 +94,22 @@ class ContentEntryReader extends CloseableGroup {
   }
 
   /**
+   * Returns data-file changes encoded as {@code (v4 status, DataFile)} pairs. Unlike {@link
+   * #dataEntries()} which collapses REPLACED → DELETED and MODIFIED → EXISTING for legacy
+   * consumers, this method surfaces the v4 tracking status directly so callers can distinguish
+   * data-file changes (ADDED, DELETED) from DV-state transitions (REPLACED, MODIFIED). Used by
+   * {@code SnapshotChanges} and {@code BaseSnapshot} to correctly classify per-snapshot data-file
+   * changes on v4 leaves.
+   */
+  CloseableIterable<Pair<EntryStatus, DataFile>> dataFileChanges() {
+    Preconditions.checkArgument(
+        contentType == ManifestContent.DATA,
+        "Cannot read data file changes from a delete manifest: %s",
+        file.location());
+    return readDataFileChanges();
+  }
+
+  /**
    * Returns the colocated deletion vectors carried by live data rows in this data manifest, each
    * projected as a {@link DeleteFile} with content {@link FileContent#POSITION_DELETES} and format
    * {@link FileFormat#PUFFIN}. REPLACED rows are excluded — only live (ADDED or MODIFIED) rows
@@ -104,6 +121,29 @@ class ContentEntryReader extends CloseableGroup {
         "Cannot read deletion vectors from a delete manifest: %s",
         file.location());
     return readDVDeleteFiles();
+  }
+
+  /**
+   * Returns colocated DV changes encoded as {@code (status, DeleteFile)} pairs, suitable for
+   * computing per-snapshot delete-file deltas:
+   *
+   * <ul>
+   *   <li>{@link ManifestEntry.Status#ADDED} — DVs that became live in this manifest. Surfaced for
+   *       ADDED rows (born-with-DV) and MODIFIED rows (DV added or updated).
+   *   <li>{@link ManifestEntry.Status#DELETED} — DVs that were superseded. Surfaced for REPLACED
+   *       rows that carry the prior DV (preserved by {@code V4Writer.prepareReplaced}).
+   * </ul>
+   *
+   * <p>EXISTING rows (carried-over DVs that did not change) and rows without a {@code
+   * deletion_vector} are skipped. The result is intended for {@code SnapshotChanges} and {@code
+   * BaseSnapshot} to report DV adds/removes alongside legacy delete-manifest entries.
+   */
+  CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> colocatedDVChanges() {
+    Preconditions.checkArgument(
+        contentType == ManifestContent.DATA,
+        "Cannot read deletion vector changes from a delete manifest: %s",
+        file.location());
+    return readDVChanges();
   }
 
   /** Returns all entries (including deleted) as delete manifest entries. */
@@ -171,6 +211,101 @@ class ContentEntryReader extends CloseableGroup {
     return CloseableIterable.filter(dvs, dv -> dv != null);
   }
 
+  private CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> readDVChanges() {
+    PartitionSpec defaultSpec = resolveDefaultSpec();
+    Schema contentEntrySchema = buildContentEntrySchema(defaultSpec);
+
+    CloseableIterable<TrackedFileStruct> rows =
+        InternalData.read(FileFormat.PARQUET, file)
+            .project(contentEntrySchema)
+            .setRootType(TrackedFileStruct.class)
+            .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
+            .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
+            .setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsReader.class)
+            .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
+            .build();
+
+    addCloseable(rows);
+
+    CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> changes =
+        CloseableIterable.transform(
+            rows,
+            row -> {
+              TrackedFileStruct copy = (TrackedFileStruct) row.copy();
+              ManifestEntry.Status changeStatus = dvChangeStatus(copy);
+              if (changeStatus == null) {
+                return null;
+              }
+              return Pair.of(changeStatus, toDVDeleteFile(copy));
+            });
+
+    return CloseableIterable.filter(changes, p -> p != null);
+  }
+
+  private CloseableIterable<Pair<EntryStatus, DataFile>> readDataFileChanges() {
+    PartitionSpec defaultSpec = resolveDefaultSpec();
+    Schema contentEntrySchema = buildContentEntrySchema(defaultSpec);
+
+    CloseableIterable<TrackedFileStruct> rows =
+        InternalData.read(FileFormat.PARQUET, file)
+            .project(contentEntrySchema)
+            .setRootType(TrackedFileStruct.class)
+            .setCustomType(TrackedFile.TRACKING.fieldId(), TrackingStruct.class)
+            .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
+            .setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsReader.class)
+            .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
+            .build();
+
+    addCloseable(rows);
+
+    CloseableIterable<Pair<EntryStatus, DataFile>> changes =
+        CloseableIterable.transform(
+            rows,
+            row -> {
+              TrackedFileStruct copy = (TrackedFileStruct) row.copy();
+              if (copy.contentType() != FileContent.DATA) {
+                return null;
+              }
+
+              Tracking tracking = copy.tracking();
+              if (tracking == null) {
+                return null;
+              }
+
+              EntryStatus status = tracking.status();
+              if (status != EntryStatus.ADDED && status != EntryStatus.DELETED) {
+                return null;
+              }
+
+              Integer specId = copy.specId();
+              PartitionSpec spec = specById(specId);
+              if (spec == null) {
+                spec = resolveDefaultSpec();
+              }
+
+              DataFile dataFile = toDataFile(copy, spec, tracking);
+              // Apply InheritableMetadata so the returned DataFile carries the data/file sequence
+              // numbers callers expect (BaseFile fields populated from the parent manifest's
+              // sequence number for ADDED entries). Without this step DataFile.dataSequenceNumber()
+              // would return null, breaking SnapshotChanges.addedDataFiles() consumers that
+              // inspect sequence numbers.
+              GenericManifestEntry<DataFile> entry =
+                  new GenericManifestEntry<>(spec.partitionType());
+              ManifestEntry.Status manifestStatus = toManifestStatus(status);
+              setEntry(
+                  entry,
+                  manifestStatus,
+                  tracking.snapshotId(),
+                  tracking.dataSequenceNumber(),
+                  tracking.fileSequenceNumber(),
+                  dataFile);
+              inheritableMetadata.apply(entry);
+              return Pair.of(status, entry.file());
+            });
+
+    return CloseableIterable.filter(changes, p -> p != null);
+  }
+
   // Builds a GenericDeleteFile from a v4 colocated DV row. Using GenericDeleteFile (a BaseFile)
   // rather than TrackedFileAdapters.asDVDeleteFile lets InheritableMetadata propagate the
   // dataSequenceNumber from the parent manifest to the file — required for DeleteFileIndex's
@@ -232,6 +367,40 @@ class ContentEntryReader extends CloseableGroup {
     return status == EntryStatus.ADDED
         || status == EntryStatus.EXISTING
         || status == EntryStatus.MODIFIED;
+  }
+
+  // Maps a content_entry row to a per-snapshot DV-change status (ADDED for newly-live DVs,
+  // DELETED for superseded DVs), or returns null for rows that do not represent a DV change in
+  // this snapshot (no DV, equality-delete rows, or carried-over EXISTING/DELETED rows).
+  private static ManifestEntry.Status dvChangeStatus(TrackedFileStruct row) {
+    if (row.contentType() != FileContent.DATA) {
+      return null;
+    }
+
+    if (row.deletionVector() == null) {
+      return null;
+    }
+
+    Tracking tracking = row.tracking();
+    if (tracking == null) {
+      return null;
+    }
+
+    switch (tracking.status()) {
+      case ADDED:
+      case MODIFIED:
+        // ADDED-with-DV (born-with-DV) and MODIFIED-with-DV (DV added/updated) — both surface the
+        // DV as newly live in this snapshot.
+        return ManifestEntry.Status.ADDED;
+      case REPLACED:
+        // REPLACED-with-DV — the prior DV preserved on the REPLACED row (see
+        // V4Writer.prepareReplaced). Surfaced as removed in this snapshot.
+        return ManifestEntry.Status.DELETED;
+      default:
+        // EXISTING (DV carried over unchanged) and DELETED (data-file removal; DV removal is not
+        // tracked here) are ignored.
+        return null;
+    }
   }
 
   private PartitionSpec resolveDefaultSpec() {

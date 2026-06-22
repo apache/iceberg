@@ -217,8 +217,14 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    * <p>Only meaningful for v4 data manifests; non-v4 writers throw {@link
    * UnsupportedOperationException}. The pair must be followed immediately by a {@link
    * #modifiedEntry(ManifestEntry, DeletionVector)} call for the same data file.
+   *
+   * @param entry the manifest entry for the data file in its prior live state
+   * @param priorDv the deletion vector attached to the data file before this commit, or null if the
+   *     prior state had no DV. Preserving the prior DV on the REPLACED row lets readers (e.g.
+   *     {@code SnapshotChanges.removedDeleteFiles}) identify the DV that was superseded by the
+   *     paired MODIFIED row without consulting the parent manifest.
    */
-  void replacedEntry(ManifestEntry<F> entry) {
+  void replacedEntry(ManifestEntry<F> entry, DeletionVector priorDv) {
     throw new UnsupportedOperationException(
         "REPLACED entries require a v4 manifest writer; use V4Writer");
   }
@@ -582,33 +588,50 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    void replacedEntry(ManifestEntry<DataFile> entry) {
-      // Emit the prior-state row (REPLACED — not live) without a DV.
-      addReplacedEntry(prepareWithStatus(entry, null));
+    void replacedEntry(ManifestEntry<DataFile> entry, DeletionVector priorDv) {
+      // Emit the prior-state row (REPLACED — not live), preserving the prior DV when present so
+      // downstream change-detection (e.g. SnapshotChanges.removedDeleteFiles) can identify the DV
+      // that was superseded by the paired MODIFIED row.
+      addReplacedEntry(prepareReplaced(entry, priorDv));
     }
 
     @Override
     void modifiedEntry(ManifestEntry<DataFile> entry, DeletionVector dv) {
       // Emit the new live row (MODIFIED) with the attached DV.
-      addModifiedEntry(prepareWithStatus(entry, dv));
+      addModifiedEntry(prepareModified(entry, dv));
     }
 
-    // Produces a ManifestEntry whose StructLike representation carries the right EntryStatus for a
-    // v4 REPLACED/MODIFIED pair, bypassing the ManifestEntry.Status→EntryStatus mapping in
-    // prepare(). When {@code dv} is non-null the row is MODIFIED; when null the row is REPLACED.
-    // The resulting tracking row records the writer's snapshot id (not the source entry's) —
-    // both REPLACED and MODIFIED denote the commit performing the transition.
-    private ManifestEntry<DataFile> prepareWithStatus(
+    // Builds a MODIFIED row by promoting EXISTING → MODIFIED via TrackedFileBuilder.from(source)
+    // and attaching the new DV. TrackingBuilder.build() resets snapshot_id to the new commit's id.
+    private ManifestEntry<DataFile> prepareModified(
         ManifestEntry<DataFile> entry, DeletionVector dv) {
+      Preconditions.checkArgument(dv != null, "Invalid deletion vector for MODIFIED row: null");
+      TrackedFile source =
+          ContentEntryAdapters.fromDataFile(
+              entry, tableSchema, unionPartitionType, EntryStatus.EXISTING);
+      long snapshotId = writerSnapshotId() != null ? writerSnapshotId() : 0L;
+      TrackedFile trackedFile =
+          TrackedFileBuilder.from(source, snapshotId).deletionVector(dv).build();
+      return writerEntry.wrap(entry, trackedFile);
+    }
+
+    // Builds a REPLACED row from the prior live state. The prior DV (if any) is preserved on the
+    // row so downstream consumers can identify removed DVs without consulting the parent manifest.
+    private ManifestEntry<DataFile> prepareReplaced(
+        ManifestEntry<DataFile> entry, DeletionVector priorDv) {
       TrackedFile source =
           ContentEntryAdapters.fromDataFile(
               entry, tableSchema, unionPartitionType, EntryStatus.EXISTING);
       long snapshotId = writerSnapshotId() != null ? writerSnapshotId() : 0L;
       TrackedFile trackedFile;
-      if (dv != null) {
-        // MODIFIED: chain through TrackedFileBuilder.from(...).deletionVector(dv) which promotes
-        // EXISTING → MODIFIED. TrackingBuilder.build() resets snapshot_id to the new commit's id.
-        trackedFile = TrackedFileBuilder.from(source, snapshotId).deletionVector(dv).build();
+      if (priorDv != null) {
+        // Attach the prior DV to a transient EXISTING TrackedFile, then mark REPLACED via
+        // TrackedFileBuilder.replaced(...). TrackedFileBuilder.from(...).deletionVector(...) flips
+        // status to MODIFIED, but the subsequent replaced(...) overrides it with REPLACED. The DV
+        // is preserved through the terminal transition.
+        TrackedFile sourceWithDv =
+            TrackedFileBuilder.from(source, snapshotId).deletionVector(priorDv).build();
+        trackedFile = TrackedFileBuilder.replaced(sourceWithDv, snapshotId);
       } else {
         // REPLACED: terminal transition; the new row records the current commit's snapshot id.
         trackedFile = TrackedFileBuilder.replaced(source, snapshotId);
