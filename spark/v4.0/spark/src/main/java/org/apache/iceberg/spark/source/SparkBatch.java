@@ -34,6 +34,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
@@ -42,6 +43,7 @@ import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.Batch;
@@ -189,6 +191,15 @@ class SparkBatch implements Batch {
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
     if (field.type().isVariantType()) {
+      boolean shredVariants =
+          PropertyUtil.propertyAsBoolean(
+              table.properties(),
+              TableProperties.PARQUET_SHRED_VARIANTS,
+              TableProperties.PARQUET_SHRED_VARIANTS_DEFAULT);
+      if (shredVariants) {
+        return false;
+      }
+
       MetricsConfig metricsConfig = MetricsConfig.forTable(table);
       MetricsModes.MetricsMode mode =
           MetricsUtil.metricsMode(table.schema(), metricsConfig, field.fieldId());
