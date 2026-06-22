@@ -225,7 +225,9 @@ class BaseSnapshot implements Snapshot {
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
       if (formatVersion >= 4) {
-        this.allManifests = RootManifests.read(fileIO.newInputFile(rootManifestLocation));
+        this.allManifests =
+            RootManifests.read(
+                fileIO.newInputFile(new BaseManifestListFile(rootManifestLocation, keyId)));
       } else {
         this.allManifests =
             ManifestLists.read(

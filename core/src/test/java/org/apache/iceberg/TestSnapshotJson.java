@@ -422,7 +422,7 @@ public class TestSnapshotJson {
             snapshotId,
             parentSnapshotId,
             1L,
-            null,
+            0L,
             new Schema(Types.NestedField.required(1, "id", Types.LongType.get())),
             ImmutableMap.of(0, PartitionSpec.unpartitioned()))) {
       writer.add(manifest);

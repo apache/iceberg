@@ -218,6 +218,7 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DATA,
         "Cannot read colocated deletion vectors from a delete manifest: %s",
         manifest);
+
     if (manifest.formatVersion() < TableMetadata.MIN_FORMAT_VERSION_ADAPTIVE_MANIFEST_TREE) {
       return CloseableIterable.empty();
     }

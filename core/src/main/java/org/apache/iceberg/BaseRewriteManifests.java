@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -254,7 +255,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
                 } else {
                   rewrittenManifests.add(manifest);
                   try (ManifestReader<DataFile> reader =
-                      ManifestFiles.read(manifest, ops().io(), ops().current().specsById())
+                      ManifestFiles.read(
+                              manifest,
+                              EncryptingFileIO.combine(ops().io(), ops().encryption()),
+                              ops().current().specsById(),
+                              true)
                           .select(Collections.singletonList("*"))) {
                     reader
                         .liveEntries()
