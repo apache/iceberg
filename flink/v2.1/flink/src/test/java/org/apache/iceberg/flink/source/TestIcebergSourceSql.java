@@ -180,7 +180,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
     SqlHelpers.sql(
         getTableEnv(),
         "create table `default_catalog`.`default_database`.flink_table "
-            + "WITH ('warehouse'='%s') "
+            + "WITH ('catalog-type'='hadoop', 'warehouse'='%s') "
             + "LIKE iceberg_catalog.`default`.%s",
         CATALOG_EXTENSION.warehouse(),
         TestFixtures.TABLE);
@@ -203,7 +203,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
         "CREATE TABLE %s "
             + "(eventTS AS CAST(t1 AS TIMESTAMP(3)), "
             + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) "
-            + "WITH ('warehouse'='%s') "
+            + "WITH ('catalog-type'='hadoop', 'warehouse'='%s') "
             + "LIKE iceberg_catalog.`default`.%s",
         flinkTable,
         CATALOG_EXTENSION.warehouse(),
@@ -225,7 +225,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
         "CREATE TABLE %s "
             + "(eventTS AS CAST(t1 AS TIMESTAMP(3)), "
             + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) "
-            + "WITH ('watermark-column'='t1', 'warehouse'='%s') "
+            + "WITH ('catalog-type'='hadoop', 'warehouse'='%s', 'watermark-column'='t1') "
             + "LIKE iceberg_catalog.`default`.%s",
         flinkTable,
         CATALOG_EXTENSION.warehouse(),

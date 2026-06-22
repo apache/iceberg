@@ -249,9 +249,15 @@ public class FlinkDynamicTableFactory
     String srcCatalogProps = tableProps.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY);
     if (srcCatalogProps != null) {
       Map<String, String> mergedProps = Maps.newHashMap();
-      Map<String, String> inheritedCatalogProps = FlinkCreateTableOptions.fromJson(srcCatalogProps);
+      FlinkCreateTableOptions createTableOptions =
+          FlinkCreateTableOptions.fromJson(srcCatalogProps);
 
-      mergedProps.putAll(inheritedCatalogProps);
+      mergedProps.put(FlinkCreateTableOptions.CATALOG_NAME.key(), createTableOptions.catalogName());
+      mergedProps.put(
+          FlinkCreateTableOptions.CATALOG_DATABASE.key(), createTableOptions.catalogDb());
+      mergedProps.put(
+          FlinkCreateTableOptions.CATALOG_TABLE.key(), createTableOptions.catalogTable());
+
       tableProps.forEach(
           (k, v) -> {
             if (!FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equals(k)) {

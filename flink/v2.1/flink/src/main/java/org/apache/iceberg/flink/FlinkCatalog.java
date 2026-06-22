@@ -94,13 +94,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  */
 @Internal
 public class FlinkCatalog extends AbstractCatalog {
-
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
   private final Namespace baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
-  private final Map<String, String> catalogProps;
   private final boolean cacheEnabled;
 
   public FlinkCatalog(
@@ -113,7 +111,6 @@ public class FlinkCatalog extends AbstractCatalog {
       long cacheExpirationIntervalMs) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
-    this.catalogProps = catalogProps;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
 
@@ -346,7 +343,7 @@ public class FlinkCatalog extends AbstractCatalog {
     // props as json string to distinguish between catalog and table properties in createTable.
     String srcCatalogProps =
         FlinkCreateTableOptions.toJson(
-            getName(), tablePath.getDatabaseName(), tablePath.getObjectName(), catalogProps);
+            getName(), tablePath.getDatabaseName(), tablePath.getObjectName());
 
     Map<String, String> tableProps = table.properties();
     if (tableProps.containsKey(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY)

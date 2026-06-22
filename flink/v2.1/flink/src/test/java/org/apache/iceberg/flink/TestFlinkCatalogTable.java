@@ -37,7 +37,6 @@ import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -218,21 +217,9 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
 
   @TestTemplate
   public void testCreateTableLikeInFlinkCatalog() throws TableNotExistException {
-    // Create a separate source catalog  with an arbitrary extra property
-    // (catalog-cred), alongside the warehouse and uri set by the fixture, so we can assert
-    // the LIKE allowlist drops every catalog property outside catalog-type, catalog-impl.
-    String credentialKey = "catalog-cred";
-    String credentialValue = "secret-value";
-    String sourceCatalog = catalogName + "_with_cred";
-    String sourceDatabase = "db_with_cred";
-    String sourceFlinkDatabase = sourceCatalog + "." + sourceDatabase;
-    Map<String, String> sourceConfig = Maps.newHashMap(config);
-    sourceConfig.put(credentialKey, credentialValue);
-    sql("CREATE CATALOG %s WITH %s", sourceCatalog, toWithClause(sourceConfig));
-    sql("CREATE DATABASE %s", sourceFlinkDatabase);
-    sql("CREATE TABLE %s.tl(id BIGINT)", sourceFlinkDatabase);
+    sql("CREATE TABLE tl(id BIGINT)");
 
-    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE %s.tl", sourceFlinkDatabase);
+    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
 
     CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
     assertThat(catalogTable.getUnresolvedSchema())
@@ -241,41 +228,15 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 .column("id", DataTypes.BIGINT())
                 .build());
 
-    // `type` option is filtered out by Flink
-    // https://github.com/apache/flink/blob/edc3d68736de73665440f4313ddcfd9142d8d42b/flink-table/flink-table-common/src/main/java/org/apache/flink/table/factories/FactoryUtil.java#L378
-    // Only catalog-type / catalog-impl are retained for the LIKE target to reconstruct the
-    // catalog; everything else (e.g. warehouse) must be supplied explicitly via WITH.
-    Map<String, String> filteredOptions = Maps.newHashMap();
-    if (sourceConfig.containsKey(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE)) {
-      filteredOptions.put(
-          FlinkCatalogFactory.ICEBERG_CATALOG_TYPE,
-          sourceConfig.get(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE));
-    }
-    if (sourceConfig.containsKey(CatalogProperties.CATALOG_IMPL)) {
-      filteredOptions.put(
-          CatalogProperties.CATALOG_IMPL, sourceConfig.get(CatalogProperties.CATALOG_IMPL));
-    }
-
-    String expectedSourceCatalogProps =
-        FlinkCreateTableOptions.toJson(sourceCatalog, sourceDatabase, "tl", filteredOptions);
+    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl");
     Map<String, String> options = catalogTable.getOptions();
     assertThat(options)
         .containsEntry(
             FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
             FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
-        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, expectedSourceCatalogProps);
-
-    Map<String, String> srcCatalogProps =
-        FlinkCreateTableOptions.fromJson(
-            options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY));
-    assertThat(srcCatalogProps)
-        .doesNotContainKey(credentialKey)
-        .doesNotContainKey(CatalogProperties.URI)
-        .doesNotContainKey(CatalogProperties.WAREHOUSE_LOCATION);
-
-    sql("DROP TABLE IF EXISTS %s.tl", sourceFlinkDatabase);
-    dropDatabase(sourceFlinkDatabase, true);
-    dropCatalog(sourceCatalog, true);
+        .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .doesNotContain("extra-catalog-prop", "extra-value");
   }
 
   @TestTemplate

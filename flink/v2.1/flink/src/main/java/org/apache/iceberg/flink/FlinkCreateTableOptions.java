@@ -18,16 +18,20 @@
  */
 package org.apache.iceberg.flink;
 
-import java.util.Map;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.JsonUtil;
 
 class FlinkCreateTableOptions {
+  private final String catalogName;
+  private final String catalogDb;
+  private final String catalogTable;
 
-  private FlinkCreateTableOptions() {}
+  private FlinkCreateTableOptions(String catalogName, String catalogDb, String catalogTable) {
+    this.catalogName = catalogName;
+    this.catalogDb = catalogDb;
+    this.catalogTable = catalogTable;
+  }
 
   public static final ConfigOption<String> CATALOG_NAME =
       ConfigOptions.key("catalog-name")
@@ -75,38 +79,39 @@ class FlinkCreateTableOptions {
   public static final String CONNECTOR_PROPS_KEY = "connector";
   public static final String LOCATION_KEY = "location";
 
-  static String toJson(
-      String catalogName, String catalogDb, String catalogTable, Map<String, String> catalogProps) {
+  static String toJson(String catalogName, String catalogDb, String catalogTable) {
     return JsonUtil.generate(
         gen -> {
           gen.writeStartObject();
           gen.writeStringField(CATALOG_NAME.key(), catalogName);
           gen.writeStringField(CATALOG_DATABASE.key(), catalogDb);
           gen.writeStringField(CATALOG_TABLE.key(), catalogTable);
-
-          String catalogType = catalogProps.get(CATALOG_TYPE.key());
-          if (catalogType != null) {
-            gen.writeStringField(CATALOG_TYPE.key(), catalogType);
-          }
-
-          String catalogImpl = catalogProps.get(CatalogProperties.CATALOG_IMPL);
-          if (catalogImpl != null) {
-            gen.writeStringField(CatalogProperties.CATALOG_IMPL, catalogImpl);
-          }
-
           gen.writeEndObject();
         },
         false);
   }
 
-  static Map<String, String> fromJson(String createTableOptions) {
+  static FlinkCreateTableOptions fromJson(String createTableOptions) {
     return JsonUtil.parse(
         createTableOptions,
         node -> {
-          ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
-          node.fieldNames()
-              .forEachRemaining(field -> properties.put(field, JsonUtil.getString(field, node)));
-          return properties.build();
+          String catalogName = JsonUtil.getString(CATALOG_NAME.key(), node);
+          String catalogDb = JsonUtil.getString(CATALOG_DATABASE.key(), node);
+          String catalogTable = JsonUtil.getString(CATALOG_TABLE.key(), node);
+
+          return new FlinkCreateTableOptions(catalogName, catalogDb, catalogTable);
         });
+  }
+
+  String catalogName() {
+    return catalogName;
+  }
+
+  String catalogDb() {
+    return catalogDb;
+  }
+
+  String catalogTable() {
+    return catalogTable;
   }
 }
