@@ -734,7 +734,7 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     | 146 | **`content_stats`** | `content_stats` struct | *optional* | *optional* | Column stats. See [Column Stats Improvements](#column-stats-improvements). |
     | 150 | **`manifest_info`** | `manifest_info` struct | *optional* | *optional* | See manifest_info struct below. |
     | 131 | **`key_metadata`** | `binary` | *optional* | *optional* | Implementation-specific key metadata for encryption. |
-    | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data file. Must be sorted ascending. |
+    | 132 | **`split_offsets`** | `list<133: long>` | *optional* | *optional* | Split offsets for the data or equality delete file. Must be sorted ascending. |
     | 135 | **`equality_ids`** | `list<136: int>` | *optional* | *optional* | Field ids for row equality in equality delete files. |
     | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | *optional* | Row-level deletion vector for a data file. |
     | 158 | **`column_files`** | `list<column_file>` | *optional* | *optional* | Column update files associated with this entry. |
@@ -749,14 +749,15 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
     - `deletion_vector` may only be set when `content_type` is 0; must be null otherwise.
     - `equality_ids` must be set when `content_type` is 2; must be null otherwise.
     - `column_files` must be null when `content_type` is not 0 or 3.
-    - `sort_order_id` must be null when `content_type` is not 0.
+    - `sort_order_id` must be null when `content_type` is 3 or 4 (manifests).
+    - `split_offsets` must be null when `content_type` is 3 or 4 (manifests).
     - `tracking.deleted_positions` and `tracking.replaced_positions` must be null when `content_type` is not 3 or 4.
 
     **`tracking` struct (field 147)**
 
     | Field id | Name | Type | Write | Read | Description |
     |----------|------|------|-------|------|-------------|
-    | 0 | **`status`** | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED) | *required* | *required* | Used to track additions, deletions, and replacements. REPLACED indicates entries with data column updates or `deletion_vector` changes. Deleted entries are required when the snapshot has a non-null parent. Deletes are not used in scans. |
+    | 0 | **`status`** | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | *required* | *required* | Used to track additions, deletions, replacements, and modifications. When a data file's `deletion_vector` or `column_files` change, REPLACED marks the prior version of the entry and MODIFIED marks the new, live version. For leaf manifest entries, MODIFIED marks a live manifest whose `dv` changed. Deletes are not used in scans. |
     | 1 | **`snapshot_id`** | `long` | *optional* | *optional* | Snapshot ID where the file was added or deleted. Inherited when null. Optional for leaf manifests, required for root. |
     | 5 | **`dv_snapshot_id`** | `long` | *optional* | *optional* | Snapshot ID where the deletion vector was added. Inherited when null. Must be null when `deletion_vector` is null. |
     | 3 | **`sequence_number`** | `long` | *optional* | *optional* | Data sequence number of the file. Inherited when null and status is 1 (ADDED). Must equal `file_sequence_number` if `content_type` is 3 or 4. Optional for leaf manifests, required for root. |
@@ -792,7 +793,9 @@ In V1-V3, manifest entries are described by the `manifest_entry` struct. In V4, 
 
     When a file is added to the dataset, its content entry must set status to ADDED (1) and store the snapshot ID in which the file was added.
 
-    When a file's deletion vector or column files are updated, its content entry must set status to REPLACED (3) and store the snapshot ID of the update.
+    When a data file's deletion vector or column files are updated, the writer must record two content entries for the file in the snapshot: a REPLACED (3) entry for the prior version and a MODIFIED (4) entry for the new, live version. Both entries store the snapshot ID of the update. A MODIFIED data file entry must always have a corresponding REPLACED entry.
+
+    When a leaf manifest's `dv` is updated, its content entry must set status to MODIFIED (4) and store the snapshot ID of the update.
 
     When a file is deleted from the dataset, its content entry must set status to DELETED (2) and store the snapshot ID in which the file was deleted. Writers must include DELETED entries in the manifest for the snapshot that deletes the file. The next manifest written for those entries must omit the DELETED entries. The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected.
 
