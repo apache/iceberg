@@ -609,6 +609,7 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `location`    |    | string | Table location for the new table (delegated to the catalog by default) |
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
 | `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
+| `ignore_missing_files` |  | boolean | When true, skip source data files that cannot be found instead of failing (defaults to false) |
 
 #### Output
 
@@ -653,6 +654,7 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
 | `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
+| `ignore_missing_files` |  | boolean | When true, skip source data files that cannot be found instead of failing (defaults to false) |
 
 #### Output
 

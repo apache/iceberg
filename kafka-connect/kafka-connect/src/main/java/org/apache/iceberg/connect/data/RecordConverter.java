@@ -58,6 +58,7 @@ import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -330,14 +331,14 @@ class RecordConverter {
     org.apache.kafka.connect.data.Schema elementSchema =
         sourceSchema != null ? sourceSchema.valueSchema() : null;
     List<?> list = (List<?>) value;
-    return list.stream()
-        .map(
-            element -> {
-              int fieldId = type.fields().get(0).fieldId();
-              return convertValue(
-                  element, type.elementType(), fieldId, schemaUpdateConsumer, elementSchema);
-            })
-        .collect(Collectors.toList());
+    int elementFieldId = type.fields().get(0).fieldId();
+    Type elementType = type.elementType();
+    List<Object> result = Lists.newArrayListWithCapacity(list.size());
+    for (Object element : list) {
+      result.add(
+          convertValue(element, elementType, elementFieldId, schemaUpdateConsumer, elementSchema));
+    }
+    return result;
   }
 
   protected Map<Object, Object> convertMapValue(
@@ -356,15 +357,16 @@ class RecordConverter {
     org.apache.kafka.connect.data.Schema valueSchema =
         sourceSchema != null ? sourceSchema.valueSchema() : null;
     Map<?, ?> map = (Map<?, ?>) value;
-    Map<Object, Object> result = Maps.newHashMap();
+    int keyFieldId = type.fields().get(0).fieldId();
+    int valueFieldId = type.fields().get(1).fieldId();
+    Type keyType = type.keyType();
+    Type valueType = type.valueType();
+    Map<Object, Object> result = Maps.newHashMapWithExpectedSize(map.size());
     map.forEach(
-        (k, v) -> {
-          int keyFieldId = type.fields().get(0).fieldId();
-          int valueFieldId = type.fields().get(1).fieldId();
-          result.put(
-              convertValue(k, type.keyType(), keyFieldId, schemaUpdateConsumer, keySchema),
-              convertValue(v, type.valueType(), valueFieldId, schemaUpdateConsumer, valueSchema));
-        });
+        (k, v) ->
+            result.put(
+                convertValue(k, keyType, keyFieldId, schemaUpdateConsumer, keySchema),
+                convertValue(v, valueType, valueFieldId, schemaUpdateConsumer, valueSchema)));
     return result;
   }
 

@@ -24,8 +24,26 @@ interface FieldStats<T> extends StructLike {
   /** The field ID of the statistic */
   int fieldId();
 
-  /** The field type of the statistic */
+  /**
+   * The field type of the statistic.
+   *
+   * <p>For geo types (geometry/geography), this returns the bounding box struct type (geo_lower /
+   * geo_upper) rather than the column's geometry or geography type, because the type is inferred
+   * from the lower/upper bound schema fields.
+   */
   Type type();
+
+  /** The lower bound */
+  T lowerBound();
+
+  /** The upper bound */
+  T upperBound();
+
+  /**
+   * Whether {@link #lowerBound()} and {@link #upperBound()} are equal to the min and max values for
+   * the column.
+   */
+  boolean tightBounds();
 
   /** The total value count, including null and NaN */
   Long valueCount();
@@ -36,18 +54,9 @@ interface FieldStats<T> extends StructLike {
   /** The total NaN value count */
   Long nanValueCount();
 
-  /** The avg value size of variable-length types (String, Binary) */
-  Integer avgValueSize();
-
-  /** The max value size of variable-length types (String, Binary) */
-  Integer maxValueSize();
-
-  /** The lower bound */
-  T lowerBound();
-
-  /** The upper bound */
-  T upperBound();
-
-  /** Whether the upper/lower bound is exact or not. */
-  boolean hasExactBounds();
+  /**
+   * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
+   * variant)
+   */
+  Integer avgValueSizeInBytes();
 }
