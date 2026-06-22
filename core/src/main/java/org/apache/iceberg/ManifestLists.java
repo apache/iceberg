@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -33,7 +34,7 @@ class ManifestLists {
 
   static List<ManifestFile> read(InputFile manifestList) {
     if (!manifestList.exists()) {
-      throw new RuntimeIOException(
+      throw new NotFoundException(
           "Failed to read manifest list: file %s does not exist", manifestList.location());
     }
 
