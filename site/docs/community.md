@@ -51,7 +51,7 @@ Apache Iceberg mailing lists:
 
 ### Slack
 
-We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-3kclosz6r-3heAW3d~_PHefmN2A_~cAg).
+We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-3tkrk9gpf-1eFZ8ozS2In0~zM_BeZiRQ).
 
 Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
 

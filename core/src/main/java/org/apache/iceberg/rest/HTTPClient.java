@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
@@ -29,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import javax.net.ssl.HostnameVerifier;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
@@ -36,13 +36,14 @@ import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -163,7 +164,7 @@ public class HTTPClient extends BaseHTTPClient {
     return new HTTPClient(this, session);
   }
 
-  private static String extractResponseBodyAsString(CloseableHttpResponse response) {
+  private static String extractResponseBodyAsString(ClassicHttpResponse response) {
     try {
       if (response.getEntity() == null) {
         return null;
@@ -176,7 +177,7 @@ public class HTTPClient extends BaseHTTPClient {
     }
   }
 
-  private static boolean isSuccessful(CloseableHttpResponse response) {
+  private static boolean isSuccessful(ClassicHttpResponse response) {
     int code = response.getCode();
     return code == HttpStatus.SC_OK
         || code == HttpStatus.SC_ACCEPTED
@@ -184,7 +185,7 @@ public class HTTPClient extends BaseHTTPClient {
         || code == HttpStatus.SC_NOT_MODIFIED;
   }
 
-  private static ErrorResponse buildDefaultErrorResponse(CloseableHttpResponse response) {
+  private static ErrorResponse buildDefaultErrorResponse(ClassicHttpResponse response) {
     String responseReason = response.getReasonPhrase();
     String message =
         responseReason != null && !responseReason.isEmpty()
@@ -201,7 +202,7 @@ public class HTTPClient extends BaseHTTPClient {
   // Process a failed response through the provided errorHandler, and throw a RESTException if the
   // provided error handler doesn't already throw.
   private static void throwFailure(
-      CloseableHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
+      ClassicHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
     ErrorResponse errorResponse = null;
 
     if (responseBody != null) {
@@ -299,7 +300,6 @@ public class HTTPClient extends BaseHTTPClient {
         req, responseType, errorHandler, responseHeaders, ParserContext.builder().build());
   }
 
-  @SuppressWarnings("deprecation")
   @Override
   protected <T extends RESTResponse> T execute(
       HTTPRequest req,
@@ -317,62 +317,69 @@ public class HTTPClient extends BaseHTTPClient {
     }
 
     HttpContext context = HttpClientContext.create();
-    try (CloseableHttpResponse response = httpClient.execute(request, context)) {
-      Map<String, String> respHeaders = Maps.newHashMap();
-      for (Header header : response.getHeaders()) {
-        respHeaders.put(header.getName(), header.getValue());
-      }
-
-      responseHeaders.accept(respHeaders);
-
-      // Skip parsing the response stream for any successful request not expecting a response body
-      if (emptyBody(response, responseType)) {
-        if (response.getCode() == HttpStatus.SC_NOT_MODIFIED
-            && !req.headers().contains(HttpHeaders.IF_NONE_MATCH)) {
-          // 304-NOT_MODIFIED is used for freshness-aware loading and requires an ETag sent to the
-          // server via IF_NONE_MATCH header in the request. If no ETag was sent, we shouldn't
-          // receive a 304.
-          throw new RESTException(
-              "Invalid (NOT_MODIFIED) response for request: method=%s, path=%s",
-              req.method(), req.path());
-        }
-
-        return null;
-      }
-
-      String responseBody = extractResponseBodyAsString(response);
-
-      if (!isSuccessful(response)) {
-        // The provided error handler is expected to throw, but a RESTException is thrown if not.
-        throwFailure(response, responseBody, errorHandler);
-      }
-
-      if (responseBody == null) {
-        throw new RESTException(
-            "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
-            responseType.getSimpleName(), req.method(), req.path(), response.getCode());
-      }
-
-      try {
-        ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
-        if (parserContext != null && !parserContext.isEmpty()) {
-          reader = reader.with(parserContext.toInjectableValues());
-        }
-        return reader.readValue(responseBody);
-      } catch (JsonProcessingException e) {
-        throw new RESTException(
-            e,
-            "Received a success response code of %d, but failed to parse response body into %s",
-            response.getCode(),
-            responseType.getSimpleName());
-      }
+    try {
+      return httpClient.execute(
+          request,
+          context,
+          response ->
+              handleResponse(
+                  req, response, responseType, errorHandler, responseHeaders, parserContext));
     } catch (IOException e) {
       throw new RESTException(e, "Error occurred while processing %s request", req.method());
     }
   }
 
+  private <T extends RESTResponse> T handleResponse(
+      HTTPRequest request,
+      ClassicHttpResponse response,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext)
+      throws IOException {
+    Map<String, String> respHeaders = Maps.newHashMap();
+    for (Header header : response.getHeaders()) {
+      respHeaders.put(header.getName(), header.getValue());
+    }
+
+    responseHeaders.accept(respHeaders);
+
+    // Skip parsing the response stream for any successful request not expecting a response body
+    if (emptyBody(response, responseType)) {
+      if (response.getCode() == HttpStatus.SC_NOT_MODIFIED
+          && !request.headers().contains(HttpHeaders.IF_NONE_MATCH)) {
+        // 304-NOT_MODIFIED is used for freshness-aware loading and requires an ETag sent to the
+        // server via IF_NONE_MATCH header in the request. If no ETag was sent, we shouldn't
+        // receive a 304.
+        throw new RESTException(
+            "Invalid (NOT_MODIFIED) response for request: method=%s, path=%s",
+            request.method(), request.path());
+      }
+
+      return null;
+    }
+
+    if (!isSuccessful(response)) {
+      // The provided error handler is expected to throw, but a RESTException is thrown if not.
+      String responseBody = extractResponseBodyAsString(response);
+      throwFailure(response, responseBody, errorHandler);
+    }
+
+    if (response.getEntity() == null) {
+      throw new RESTException(
+          "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
+          responseType.getSimpleName(), request.method(), request.path(), response.getCode());
+    }
+
+    ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
+    if (parserContext != null && !parserContext.isEmpty()) {
+      reader = reader.with(parserContext.toInjectableValues());
+    }
+    return reader.readValue(response.getEntity().getContent());
+  }
+
   private <T extends RESTResponse> boolean emptyBody(
-      CloseableHttpResponse response, Class<T> responseType) {
+      ClassicHttpResponse response, Class<T> responseType) {
     return response.getCode() == HttpStatus.SC_NO_CONTENT
         || response.getCode() == HttpStatus.SC_NOT_MODIFIED
         || (responseType == null && isSuccessful(response));
@@ -410,13 +417,19 @@ public class HTTPClient extends BaseHTTPClient {
 
     TLSConfigurer tlsConfigurer = loadTlsConfigurer(properties);
     if (tlsConfigurer != null) {
+      HostnameVerifier customVerifier = tlsConfigurer.hostnameVerifier();
+      HostnameVerificationPolicy verificationPolicy =
+          customVerifier != null
+              ? HostnameVerificationPolicy.CLIENT
+              : HostnameVerificationPolicy.BUILTIN;
       connectionManagerBuilder.setTlsSocketStrategy(
           new DefaultClientTlsStrategy(
               tlsConfigurer.sslContext(),
               tlsConfigurer.supportedProtocols(),
               tlsConfigurer.supportedCipherSuites(),
               SSLBufferMode.STATIC,
-              tlsConfigurer.hostnameVerifier()));
+              verificationPolicy,
+              customVerifier));
     }
 
     return connectionManagerBuilder.build();

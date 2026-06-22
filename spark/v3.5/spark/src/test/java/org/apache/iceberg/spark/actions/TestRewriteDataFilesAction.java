@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
@@ -40,18 +41,23 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -101,10 +107,12 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
@@ -127,6 +135,8 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.types.DataTypes;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -140,6 +150,18 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
   private static final int SCALE = 400000;
+  // Row group size used by createTable(); part of the unpartitioned cache key so a future
+  // override of this property can't silently hand back cached files of a different shape.
+  private static final int INPUT_PARQUET_ROW_GROUP_SIZE_BYTES = 20 * 1024;
+
+  // Cache of pre-written input data files keyed by table shape (schema/spec/props are
+  // fixed per key), so identical large inputs are materialized via Spark only once per JVM
+  // fork and reused by every test that asks for the same shape. The Spark write of SCALE
+  // rows dominates these tests; the rewrite under test still runs per test on a fresh table.
+  @TempDir private static Path inputCacheDir;
+  private static final Map<String, List<DataFile>> INPUT_FILE_CACHE = Maps.newConcurrentMap();
+  private static final Map<String, Object> INPUT_CACHE_LOCKS = Maps.newConcurrentMap();
+  private static final AtomicInteger INPUT_CACHE_SEQ = new AtomicInteger();
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -167,6 +189,16 @@ public class TestRewriteDataFilesAction extends TestBase {
     spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
   }
 
+  @AfterAll
+  public static void clearInputFileCache() {
+    // inputCacheDir is a static @TempDir that JUnit recreates if the class runs twice in one JVM
+    // (IDE re-run, forkCount=0). Clear the cache so a second run can't return DataFiles pointing
+    // into the deleted first-run directory.
+    INPUT_FILE_CACHE.clear();
+    INPUT_CACHE_LOCKS.clear();
+    INPUT_CACHE_SEQ.set(0);
+  }
+
   @BeforeEach
   public void setupTableLocation() {
     this.tableLocation = tableDir.toURI().toString();
@@ -174,7 +206,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   private RewriteDataFilesSparkAction basicRewrite(Table table) {
     // Always compact regardless of input files
-    table.refresh();
     return actions()
         .rewriteDataFiles(table)
         .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1");
@@ -290,6 +321,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable();
 
     writeRecords(20, SCALE, 20);
+    table.refresh();
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.ref("c1")).commit();
 
@@ -363,7 +395,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
 
-    table.refresh();
     List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
     assertThat(newDataFiles).isEmpty();
 
@@ -413,7 +444,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
 
-    table.refresh();
     List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
     assertThat(newDataFiles).hasSize(1);
 
@@ -463,7 +493,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
 
-    table.refresh();
     List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
     assertThat(newDataFiles).hasSameSizeAs(dataFiles);
 
@@ -476,7 +505,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assumeThat(formatVersion).isEqualTo(2);
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
-    table.refresh();
 
     List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
@@ -493,7 +521,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
 
     rowDelta.commit();
-    table.refresh();
     List<Object[]> expectedRecords = currentData();
     long dataSizeBefore = testDataSize(table);
     Result result =
@@ -520,7 +547,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
-    table.refresh();
     List<Object[]> initialRecords = currentDataWithLineage();
     Set<Long> rowIds =
         initialRecords.stream().map(record -> (Long) record[0]).collect(Collectors.toSet());
@@ -552,7 +578,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
 
     rowDelta.commit();
-    table.refresh();
     List<Object[]> recordsWithLineageAfterDelete = currentDataWithLineage();
     rowIds.removeAll(rowIdsBeingRemoved);
     assertThat(rowIds)
@@ -631,7 +656,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
     assertThat(result.removedDeleteFilesCount()).isEqualTo(numDataFiles);
 
-    table.refresh();
     assertThat(TestHelpers.dataFiles(table)).hasSize(1);
     assertThat(TestHelpers.deleteFiles(table)).isEmpty();
 
@@ -682,7 +706,6 @@ public class TestRewriteDataFilesAction extends TestBase {
         .hasSize(1);
 
     // partition evolution
-    table.refresh();
     table.updateSpec().addField(Expressions.ref("c3")).commit();
 
     // data seq = 4, write 2 new data files in both partitions for evolved spec
@@ -780,7 +803,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(1, 1, 1);
     shouldHaveFiles(table, 1);
-    table.refresh();
 
     List<DataFile> dataFiles = TestHelpers.dataFiles(table);
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
@@ -796,7 +818,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
 
     rowDelta.commit();
-    table.refresh();
     List<Object[]> expectedRecords = currentData();
     long dataSizeBefore = testDataSize(table);
 
@@ -833,7 +854,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
-    table.refresh();
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
     long dataSizeBefore = testDataSize(table);
 
@@ -849,7 +869,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
 
-    table.refresh();
     assertThat(table.currentSnapshot().sequenceNumber())
         .as("Table sequence number should be incremented")
         .isGreaterThan(oldSequenceNumber);
@@ -870,7 +889,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTablePartitioned(4, 2, SCALE, properties);
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
-    table.refresh();
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
     assertThat(oldSequenceNumber).as("Table sequence number should be 0").isZero();
     long dataSizeBefore = testDataSize(table);
@@ -887,7 +905,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
 
-    table.refresh();
     assertThat(table.currentSnapshot().sequenceNumber())
         .as("Table sequence number should still be 0")
         .isEqualTo(oldSequenceNumber);
@@ -981,6 +998,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     // Add one more small file, and one large file
     writeRecords(1, SCALE);
     writeRecords(1, SCALE * 3);
+    table.refresh();
     shouldHaveFiles(table, 3);
 
     List<Object[]> expectedRecords = currentData();
@@ -1070,8 +1088,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 10 fileGroups").hasSize(10);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
-    table.refresh();
-
     shouldHaveSnapshots(table, 11);
     shouldHaveACleanCache(table);
 
@@ -1097,8 +1113,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 10 fileGroups").hasSize(10);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1126,8 +1140,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 10 fileGroups").hasSize(10);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1159,8 +1171,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(RuntimeException.class)
         .hasMessage("Rewrite Failed");
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1194,8 +1204,6 @@ public class TestRewriteDataFilesAction extends TestBase {
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Cannot commit rewrite");
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1227,8 +1235,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Arbitrary Failure");
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1262,8 +1268,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Rewrite Failed");
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1302,8 +1306,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteFailures()).hasSize(3);
     assertThat(result.failedDataFilesCount()).isEqualTo(6);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1345,8 +1347,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteFailures()).hasSize(3);
     assertThat(result.failedDataFilesCount()).isEqualTo(6);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1392,8 +1392,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 6 fileGroups").hasSize(6);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1432,8 +1430,6 @@ public class TestRewriteDataFilesAction extends TestBase {
         .hasMessageContaining(
             "1 rewrite commits failed. This is more than the maximum allowed failures of 0");
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1465,11 +1461,8 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "1");
     rewrite.execute();
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
-    table.refresh();
     assertThat(table.snapshots())
         .as("Table did not have the expected number of snapshots")
         // To tolerate 1 random commit failure
@@ -1545,8 +1538,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 10 fileGroups").hasSize(10);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1555,7 +1546,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSimpleSort() {
+  public void testSimpleSort() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.replaceSortOrder().asc("c2").commit();
@@ -1576,8 +1567,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1585,10 +1574,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
-  public void testSortAfterPartitionChange() {
+  public void testSortAfterPartitionChange() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.bucket("c1", 4)).commit();
@@ -1612,8 +1602,6 @@ public class TestRewriteDataFilesAction extends TestBase {
         .hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1621,10 +1609,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
-  public void testSortCustomSortOrder() {
+  public void testSortCustomSortOrder() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -1643,8 +1632,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1652,13 +1639,15 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
-  public void testSortCustomSortOrderRequiresRepartition() {
+  public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
     writeRecords(20, SCALE, partitions);
+    table.refresh();
     shouldHaveLastCommitUnsorted(table, "c3");
 
     // Add a partition column so this requires repartitioning
@@ -1682,8 +1671,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
-    table.refresh();
-
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -1692,10 +1679,40 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveLastCommitSorted(table, "c3");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
-  public void testAutoSortShuffleOutput() {
+  public void testSortPastTableSortOrderGetsAppliedToFiles() throws IOException {
+    Table table = createTable(1);
+
+    table.replaceSortOrder().asc("c3").commit();
+    SortOrder c3SortOrder = table.sortOrder();
+
+    table.replaceSortOrder().asc("c2").commit();
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    dataFilesShouldHaveSortOrderIdMatching(table, c3SortOrder);
+  }
+
+  @TestTemplate
+  public void testAutoSortShuffleOutput() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -1719,11 +1736,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1732,6 +1747,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
@@ -1767,6 +1783,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testZOrderWithZColumnCollision() {
+    Schema schema =
+        new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "c2", Types.StringType.get()),
+            optional(3, "ICEZVALUE", Types.StringType.get()));
+
+    Table table =
+        TABLES.create(
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    assertThatThrownBy(() -> basicRewrite(table).zOrder("c1", "c2").execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot zorder because the table has a column named 'ICEZVALUE'");
+  }
+
+  @TestTemplate
   public void testZOrderSort() {
     int originalFiles = 20;
     Table table = createTable(originalFiles);
@@ -1798,11 +1834,9 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
-
-    table.refresh();
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
@@ -1863,11 +1897,9 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(table.currentSnapshot().addedDataFiles(table.io()))
+    assertThat(SnapshotChanges.builderFor(table).build().addedDataFiles())
         .as("Should have written 1 file")
         .hasSize(1);
-
-    table.refresh();
 
     List<Row> postRaw =
         spark
@@ -2145,7 +2177,6 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected void shouldHaveMultipleFiles(Table table) {
-    table.refresh();
     int numFiles = Iterables.size(table.newScan().planFiles());
     assertThat(numFiles)
         .as(String.format("Should have multiple files, had %d", numFiles))
@@ -2153,7 +2184,6 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected void shouldHaveFiles(Table table, int numExpected) {
-    table.refresh();
     int numFiles = Iterables.size(table.newScan().planFiles());
     assertThat(numFiles).as("Did not have the expected number of files").isEqualTo(numExpected);
   }
@@ -2174,13 +2204,15 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected void shouldHaveSnapshots(Table table, int expectedSnapshots) {
-    table.refresh();
     assertThat(table.snapshots())
         .as("Table did not have the expected number of snapshots")
         .hasSize(expectedSnapshots);
   }
 
   protected void shouldHaveNoOrphans(Table table) {
+    // Cached input files live under the static inputCacheDir, outside table.location(), so
+    // deleteOrphanFiles (which only scans the table prefix) never sees them by design. Orphan
+    // coverage therefore does not extend to the shared cached inputs.
     assertThat(
             actions()
                 .deleteOrphanFiles(table)
@@ -2227,7 +2259,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   private <T> List<Pair<Pair<T, T>, Pair<T, T>>> checkForOverlappingFiles(
       Table table, String column) {
-    table.refresh();
     NestedField field = table.schema().caseInsensitiveFindField(column);
     Class<T> javaClass = (Class<T>) field.type().typeId().javaClass();
 
@@ -2294,7 +2325,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     table
         .updateProperties()
-        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(20 * 1024))
+        .set(
+            TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+            Integer.toString(INPUT_PARQUET_ROW_GROUP_SIZE_BYTES))
         .commit();
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
     return table;
@@ -2307,19 +2340,105 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
+    String key =
+        String.format(
+            "unpartitioned|fv=%d|rowGroup=%d|files=%d|rows=%d",
+            formatVersion, INPUT_PARQUET_ROW_GROUP_SIZE_BYTES, files, SCALE);
+    List<DataFile> inputFiles =
+        cachedInputFiles(
+            key,
+            () -> {
+              Table golden = createTable();
+              writeRecords(files, SCALE);
+              golden.refresh();
+              return golden;
+            });
     Table table = createTable();
-    writeRecords(files, SCALE);
+    appendInputFiles(table, inputFiles);
+    table.refresh();
     return table;
   }
 
   protected Table createTablePartitioned(
       int partitions, int files, int numRecords, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
+    String key =
+        String.format(
+            "partitioned|fv=%d|spec=%s|opts=%s|files=%d|rows=%d|partitions=%d",
+            formatVersion, spec, new TreeMap<>(options), files, numRecords, partitions);
+    List<DataFile> inputFiles =
+        cachedInputFiles(
+            key,
+            () -> {
+              Table golden = TABLES.create(SCHEMA, spec, options, tableLocation);
+              assertThat(golden.currentSnapshot()).as("Table must be empty").isNull();
+              writeRecords(files, numRecords, partitions);
+              golden.refresh();
+              return golden;
+            });
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
-
-    writeRecords(files, numRecords, partitions);
+    appendInputFiles(table, inputFiles);
+    table.refresh();
     return table;
+  }
+
+  /**
+   * Returns the input data files for a given table shape, materializing them with Spark exactly
+   * once per JVM fork and reusing them afterwards. On a cache miss the {@code goldenBuilder} writes
+   * the data into a stable cache location (kept alive for the whole class via a static {@link
+   * TempDir}); on a hit the cached {@link DataFile}s are returned and re-appended to a fresh table
+   * by {@link #appendInputFiles}. The data is deterministic (fixed RNG seed) so reuse is
+   * byte-identical to regenerating it.
+   */
+  private List<DataFile> cachedInputFiles(String key, Supplier<Table> goldenBuilder) {
+    List<DataFile> cached = INPUT_FILE_CACHE.get(key);
+    if (cached != null) {
+      return cached;
+    }
+    // Serialize builds per key: concurrent callers requesting the same table shape block on the
+    // first build and then reuse its result, instead of materializing identical input twice. The
+    // heavy Spark write happens outside any map lock, so distinct shapes can still build in
+    // parallel.
+    Object lock = INPUT_CACHE_LOCKS.computeIfAbsent(key, ignored -> new Object());
+    synchronized (lock) {
+      List<DataFile> existing = INPUT_FILE_CACHE.get(key);
+      if (existing != null) {
+        return existing;
+      }
+      String savedLocation = this.tableLocation;
+      try {
+        this.tableLocation =
+            inputCacheDir.resolve("input-" + INPUT_CACHE_SEQ.incrementAndGet()).toUri().toString();
+        Table golden = goldenBuilder.get();
+        // includeColumnStats() is required: a plain scan drops lower/upper bounds and
+        // value counts, and re-appending stat-less files breaks tests that read bounds.
+        // planFiles() returns a CloseableIterable holding manifest readers open, so close it via
+        // try-with-resources; otherwise every cache miss leaks file descriptors and can leave
+        // manifest files locked on Windows.
+        List<DataFile> built;
+        try (CloseableIterable<FileScanTask> tasks =
+            golden.newScan().includeColumnStats().planFiles()) {
+          built =
+              Streams.stream(tasks)
+                  .map(FileScanTask::file)
+                  .map(DataFile::copy)
+                  .collect(ImmutableList.toImmutableList());
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to plan cached input files", e);
+        }
+        INPUT_FILE_CACHE.put(key, built);
+        return built;
+      } finally {
+        this.tableLocation = savedLocation;
+      }
+    }
+  }
+
+  private static void appendInputFiles(Table table, List<DataFile> inputFiles) {
+    AppendFiles append = table.newAppend();
+    inputFiles.forEach(append::appendFile);
+    append.commit();
   }
 
   protected Table createTablePartitioned(int partitions, int files) {
@@ -2371,11 +2490,11 @@ public class TestRewriteDataFilesAction extends TestBase {
         .mode("append")
         .save(tableLocation);
 
+    table.refresh();
     return table;
   }
 
   protected int averageFileSize(Table table) {
-    table.refresh();
     return (int)
         Streams.stream(table.newScan().planFiles())
             .mapToLong(FileScanTask::length)
@@ -2609,6 +2728,23 @@ public class TestRewriteDataFilesAction extends TestBase {
         .isFalse();
   }
 
+  @TestTemplate
+  public void testZOrderUDFWithTimestampNTZType() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+    Dataset<Row> result =
+        spark
+            .sql("SELECT timestamp_ntz '2025-01-01 12:00:00' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.TimestampNTZType));
+
+    assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
+    byte[] zorderBytes = row.getAs("zorder_result");
+    assertThat(zorderBytes).isNotNull().isNotEmpty();
+  }
+
   private double percentFilesRequired(Table table, String col, String value) {
     return percentFilesRequired(table, new String[] {col}, new String[] {value});
   }
@@ -2634,6 +2770,19 @@ public class TestRewriteDataFilesAction extends TestBase {
     @Override
     public boolean matches(RewriteFileGroup argument) {
       return groupIDs.contains(argument.info().globalIndex());
+    }
+  }
+
+  private void dataFilesSortOrderShouldMatchTableSortOrder(Table table) throws IOException {
+    dataFilesShouldHaveSortOrderIdMatching(table, table.sortOrder());
+  }
+
+  private void dataFilesShouldHaveSortOrderIdMatching(Table table, SortOrder sortOrder)
+      throws IOException {
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      assertThat(files)
+          .extracting(fileScanTask -> fileScanTask.file().sortOrderId())
+          .containsOnly(sortOrder.orderId());
     }
   }
 }

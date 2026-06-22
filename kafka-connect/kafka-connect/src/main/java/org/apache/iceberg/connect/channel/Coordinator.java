@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -80,7 +81,9 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private final AtomicLong partialCommitFailures = new AtomicLong();
   private volatile boolean terminated;
+  private final String taskId;
 
   Coordinator(
       Catalog catalog,
@@ -110,6 +113,7 @@ class Coordinator extends Channel {
                 .setNameFormat("iceberg-committer" + "-%d")
                 .build());
     this.commitState = new CommitState(config);
+    this.taskId = config.connectorName() + "-" + config.taskId();
   }
 
   void process() {
@@ -119,7 +123,7 @@ class Coordinator extends Channel {
       Event event =
           new Event(config.connectGroupId(), new StartCommit(commitState.currentCommitId()));
       send(event);
-      LOG.info("Commit {} initiated", commitState.currentCommitId());
+      LOG.info("Coordinator {} initiated commit {}", taskId, commitState.currentCommitId());
     }
 
     consumeAvailable(POLL_DURATION);
@@ -148,8 +152,18 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       doCommit(partialCommit);
-    } catch (Exception e) {
-      LOG.warn("Commit failed, will try again next cycle", e);
+    } catch (RuntimeException e) {
+      if (partialCommit) {
+        partialCommitFailures.incrementAndGet();
+        LOG.warn(
+            "Partial commit {} failed for task {}, will retry",
+            commitState.currentCommitId(),
+            taskId,
+            e);
+      } else {
+        LOG.error("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+        throw e;
+      }
     } finally {
       commitState.endCurrentCommit();
     }
@@ -163,10 +177,9 @@ class Coordinator extends Channel {
         .executeWith(exec)
         .stopOnFailure()
         .run(
-            entry -> {
-              commitToTable(
-                  entry.getKey(), entry.getValue(), controlTopicOffsets(), validThroughTs);
-            });
+            entry ->
+                commitToTable(
+                    entry.getKey(), entry.getValue(), controlTopicOffsets(), validThroughTs));
 
     // we should only get here if all tables committed successfully...
     commitConsumerOffsets();
@@ -179,7 +192,8 @@ class Coordinator extends Channel {
     send(event);
 
     LOG.info(
-        "Commit {} complete, committed to {} table(s), valid-through {}",
+        "Coordinator {} completed commit {}, committed to {} table(s), valid-through {}",
+        taskId,
         commitState.currentCommitId(),
         commitMap.size(),
         validThroughTs);
@@ -256,13 +270,14 @@ class Coordinator extends Channel {
             .collect(Collectors.toList());
 
     if (terminated) {
-      throw new ConnectException("Coordinator is terminated, commit aborted");
+      throw new ConnectException(
+          String.format("Coordinator %s is terminated, commit aborted", taskId));
     }
 
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
-      LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
+      LOG.info(
+          "Coordinator {} found nothing to commit to table {}, skipping", taskId, tableIdentifier);
     } else {
-      String taskId = String.format("%s-%s", config.connectorName(), config.taskId());
       if (deleteFiles.isEmpty()) {
         AppendFiles appendOp =
             table.newAppend().validateWith(offsetValidator(tableIdentifier, committedOffsets));
@@ -303,7 +318,8 @@ class Coordinator extends Channel {
       send(event);
 
       LOG.info(
-          "Commit complete to table {}, snapshot {}, commit ID {}, valid-through {}",
+          "Coordinator {} completed commit to table {}, snapshot {}, commit ID {}, valid-through {}",
+          taskId,
           tableIdentifier,
           snapshotId,
           commitState.currentCommitId(),
@@ -372,12 +388,16 @@ class Coordinator extends Channel {
       return Map.of();
     }
 
-    TypeReference<Map<Integer, Long>> typeRef = new TypeReference<Map<Integer, Long>>() {};
+    TypeReference<Map<Integer, Long>> typeRef = new TypeReference<>() {};
     try {
       return MAPPER.readValue(value, typeRef);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  long partialCommitFailureCount() {
+    return partialCommitFailures.get();
   }
 
   void terminate() {

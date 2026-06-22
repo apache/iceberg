@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -79,6 +78,11 @@ class HashKeyGenerator {
       @Nullable PartitionSpec tableSpec,
       @Nullable RowData overrideRowData) {
     String tableIdent = dynamicRecord.tableIdentifier().toString();
+    Schema effectiveSchema = MoreObjects.firstNonNull(tableSchema, dynamicRecord.schema());
+    Set<String> effectiveEqualityFields =
+        DynamicSinkUtil.resolveEqualityFieldNames(dynamicRecord.equalityFields(), effectiveSchema);
+    DistributionMode effectiveDistributionMode =
+        MoreObjects.firstNonNull(dynamicRecord.distributionMode(), DistributionMode.NONE);
     SelectorKey cacheKey =
         new SelectorKey(
             tableIdent,
@@ -87,19 +91,19 @@ class HashKeyGenerator {
             tableSpec != null ? tableSpec.specId() : null,
             dynamicRecord.schema(),
             dynamicRecord.spec(),
-            dynamicRecord.equalityFields());
+            effectiveEqualityFields,
+            effectiveDistributionMode,
+            Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism));
     KeySelector<RowData, Integer> keySelector =
         keySelectorCache.computeIfAbsent(
             cacheKey,
             k ->
                 getKeySelector(
                     tableIdent,
-                    MoreObjects.firstNonNull(tableSchema, dynamicRecord.schema()),
+                    effectiveSchema,
                     MoreObjects.firstNonNull(tableSpec, dynamicRecord.spec()),
-                    MoreObjects.firstNonNull(
-                        dynamicRecord.distributionMode(), DistributionMode.NONE),
-                    MoreObjects.firstNonNull(
-                        dynamicRecord.equalityFields(), Collections.emptySet()),
+                    effectiveDistributionMode,
+                    effectiveEqualityFields,
                     Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));
     try {
       return keySelector.getKey(
@@ -322,6 +326,8 @@ class HashKeyGenerator {
     private final Schema schema;
     private final PartitionSpec spec;
     private final Set<String> equalityFields;
+    private final DistributionMode distributionMode;
+    private final int writeParallelism;
 
     SelectorKey(
         String tableName,
@@ -330,7 +336,9 @@ class HashKeyGenerator {
         @Nullable Integer tableSpecId,
         Schema schema,
         PartitionSpec spec,
-        Set<String> equalityFields) {
+        Set<String> equalityFields,
+        DistributionMode distributionMode,
+        int writeParallelism) {
       this.tableName = tableName;
       this.branch = branch;
       this.schemaId = tableSchemaId;
@@ -338,6 +346,8 @@ class HashKeyGenerator {
       this.schema = tableSchemaId == null ? schema : null;
       this.spec = tableSpecId == null ? spec : null;
       this.equalityFields = equalityFields;
+      this.distributionMode = distributionMode;
+      this.writeParallelism = writeParallelism;
     }
 
     @Override
@@ -357,12 +367,23 @@ class HashKeyGenerator {
           && Objects.equals(specId, that.specId)
           && Objects.equals(schema, that.schema)
           && Objects.equals(spec, that.spec)
-          && Objects.equals(equalityFields, that.equalityFields);
+          && Objects.equals(equalityFields, that.equalityFields)
+          && distributionMode == that.distributionMode
+          && writeParallelism == that.writeParallelism;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(tableName, branch, schemaId, specId, schema, spec, equalityFields);
+      return Objects.hash(
+          tableName,
+          branch,
+          schemaId,
+          specId,
+          schema,
+          spec,
+          equalityFields,
+          distributionMode,
+          writeParallelism);
     }
 
     @Override
@@ -375,6 +396,8 @@ class HashKeyGenerator {
           .add("schema", schema)
           .add("spec", spec)
           .add("equalityFields", equalityFields)
+          .add("distributionMode", distributionMode)
+          .add("writeParallelism", writeParallelism)
           .toString();
     }
   }

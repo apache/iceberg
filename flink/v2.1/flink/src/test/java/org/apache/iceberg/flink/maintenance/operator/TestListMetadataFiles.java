@@ -23,8 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 class TestListMetadataFiles extends OperatorTestBase {
@@ -83,6 +85,39 @@ class TestListMetadataFiles extends OperatorTestBase {
 
       List<String> tableMetadataFiles = testHarness.extractOutputValues();
       assertThat(tableMetadataFiles).hasSize(0);
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+    }
+  }
+
+  @Test
+  void testMetadataFilesIncludesSnapshotsAddedAfterOpen() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+
+    try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
+        ProcessFunctionTestHarnesses.forProcessFunction(
+            new ListMetadataFiles(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+      testHarness.open();
+
+      // Add more snapshots AFTER the operator has been opened
+      insert(table, 2, "b");
+      insert(table, 3, "c");
+
+      OperatorTestBase.trigger(testHarness);
+
+      List<String> tableMetadataFiles = testHarness.extractOutputValues();
+
+      // Verify that manifest lists from ALL 3 snapshots are present, not just the first one.
+      // Without table.refresh() in processElement, only snapshot 1's files would be emitted.
+      table.refresh();
+      List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+      assertThat(snapshots).hasSize(3);
+      for (Snapshot snapshot : snapshots) {
+        assertThat(tableMetadataFiles).contains(snapshot.manifestListLocation());
+      }
+      // Verify total count matches what 3 snapshots should produce
+      assertThat(tableMetadataFiles).hasSize(24);
 
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }

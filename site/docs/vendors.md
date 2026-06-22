@@ -77,6 +77,14 @@ or any public cloud.
 
 [Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more.
 
+### [Dataddo](https://www.dataddo.com/)
+
+[Dataddo](https://www.dataddo.com/) is a fully managed data integration platform for moving enterprise data across cloud, on-prem, and hybrid environments, with first-class support for open table formats including Apache Iceberg.
+* **Architecture** - Dataddo runs a single control plane that orchestrates data planes on AWS, Azure, GCP, sovereign clouds or on-premises Kubernetes and OpenShift, so sensitive data never leaves your network.
+* **Transport patterns** - Dataddo supports ETL/ELT, CDC, streaming, reverse ETL, and batch delivery from hundreds of fully maintained connectors.
+* **Iceberg support** - Dataddo writes to Apache Iceberg via catalogs such as AWS Glue, REST and others, and automatically detects source schema drift so downstream tables don't silently break.
+See the [Dataddo Platform](https://dataddo.com/platform) for details.
+
 ### [dltHub](https://dlthub.com/)
 
 [dlt](https://dlthub.com/docs/intro) is an open-source Python library for building production-grade extract & load pipelines. It automates the tedious parts of ELT, letting you load any data source into Apache Iceberg with minimal code. dlt eliminates boilerplate and makes data ingestion robust against evolving and unpredictable data sources.
@@ -141,6 +149,10 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 ### [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/)
 [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/) is a single unified data lake that brings together your entire data estate into an open, secure foundation for analytics across the organization. Built into Microsoft Fabric, OneLake delivers two powerful APIs: the Tables API and the Files API. The [OneLake Tables API](https://aka.ms/onelakeircdocs) supports the Apache Iceberg REST Catalog (IRC) specification, making it simple to create, manage, and integrate Iceberg tables with existing tools and workflows. The OneLake Files API offers full Azure Data Lake Storage (ADLS) compatibility, enabling seamless file operations and interoperability with familiar ADLS tools. Together, these APIs make OneLake a truly open and interoperable data lake, delivering flexibility and connectivity for modern analytics and AI-driven pipelines.
 
+### [Oracle](https://oracle.com/)
+
+As a fully-managed Oracle AI Database service, Oracle [Autonomous AI Lakehouse](https://www.oracle.com/autonomous-database/autonomous-ai-lakehouse/) combines the openness of Apache Iceberg with the performance, automation, and security of Oracle Autonomous Database and Oracle Exadata. Available across Oracle Cloud Infrastructure (OCI), Microsoft Azure, Google Cloud, AWS, and on-premises, Oracle AI Database provides a multicloud and hybrid open lakehouse architecture with high-performance access to Iceberg tables through integration with existing catalogs and support for the Apache Iceberg REST Catalog specification. Oracle enables interoperability across engines such as Apache Spark, Trino, and Apache Flink while minimizing data movement and preserving vendor independence. Built-in AI, vector search, graph analytics, and JSON-relational capabilities allow organizations to run advanced analytics and AI workloads directly on Iceberg data with enterprise-grade governance, availability, and serverless scalability.
+
 ### [PuppyGraph](https://puppygraph.com)
 
 PuppyGraph is a cloud-native graph analytics engine that enables users to query one or more relational data stores as a unified graph model. This eliminates the overhead of deploying and maintaining a siloed graph database system, with no ETL required. [PuppyGraph’s native Apache Iceberg integration](https://docs.puppygraph.com/user-manual/getting-started/iceberg) adds native graph capabilities to your existing data lake in an easy and performant way.
@@ -157,6 +169,10 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 
 [Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, based on actual usage patterns. The Ryft engine runs compaction intelligently, adapting to different use cases like streaming, batch jobs, CDC, and more. Ryft also automates compliance, disaster recovery and data lifecycle management for Iceberg tables, to ensure your lakehouse stays secure and compliant. It directly integrates with your existing catalog, storage and query engines, allowing for a very simple deployment.
 
+### [Sail](https://lakesail.com/)
+
+[Sail](https://github.com/lakehq/sail) is an open-source multimodal distributed compute framework, built in Rust, unifying batch, streaming, and AI workloads. For seamless adoption, Sail offers a drop-in replacement for the Spark SQL and DataFrame APIs in both single-host and distributed settings. Learn more about using Sail with Iceberg in the [Sail Iceberg guide](https://docs.lakesail.com/sail/latest/guide/sources/iceberg).
+
 ### [SingleStore](https://singlestore.com/)
 
 SingleStore is a high‑performance, scalable, distributed SQL platform that makes real‑time analytics and transactional processing available at scale. Its native Apache Iceberg integration removes costly ETL steps and powers intelligent, millisecond‑response applications.
@@ -167,7 +183,7 @@ By directly reading and [managing](https://docs.singlestore.com/cloud/load-data/
 ### [Snowflake](https://snowflake.com/)
 
 <!-- markdown-link-check-disable-next-line -->
-[Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) for full DML as well as [externally managed Iceberg Tables with catalog integrations](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-a-catalog-integration) for read-only access.
+[Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. [Snowflake Horizon Catalog](https://docs.snowflake.com/en/user-guide/snowflake-horizon) is the universal catalog built into every Snowflake account, providing governance, metadata, and interoperability for Apache Iceberg across engines and clouds. Snowflake supports [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) with full DDL and DML support and an [Iceberg REST API endpoint](https://docs.snowflake.com/en/user-guide/tables-iceberg-access-using-external-query-engine-snowflake-horizon) that lets external query engines such as Apache Spark, Trino, and Apache Flink read and write those tables directly. For federation, [catalog-linked databases](https://docs.snowflake.com/en/user-guide/tables-iceberg-catalog-linked-database) provide automatic table discovery and synchronization with remote Iceberg REST catalogs, and read and write access through [catalog integrations for externally managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-an-external-catalog).
 
 ### [Stackable](https://stackable.tech)
 

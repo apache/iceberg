@@ -208,7 +208,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         ByteBuffer binary = (ByteBuffer) value;
         outBuffer.put(offset, BINARY_HEADER);
         outBuffer.putInt(offset + 1, binary.remaining());
-        VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, binary);
+        outBuffer.put(offset + 5, binary, binary.position(), binary.remaining());
         return 5 + binary.remaining();
       case STRING:
         if (null == buffer) {
@@ -216,12 +216,12 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         }
         if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
           outBuffer.put(offset, VariantUtil.shortStringHeader(buffer.remaining()));
-          VariantUtil.writeBufferAbsolute(outBuffer, offset + 1, buffer);
+          outBuffer.put(offset + 1, buffer, buffer.position(), buffer.remaining());
           return 1 + buffer.remaining();
         } else {
           outBuffer.put(offset, STRING_HEADER);
           outBuffer.putInt(offset + 1, buffer.remaining());
-          VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
+          outBuffer.put(offset + 5, buffer, buffer.position(), buffer.remaining());
           return 5 + buffer.remaining();
         }
       case TIME:
@@ -238,8 +238,8 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         return 9;
       case UUID:
         outBuffer.put(offset, UUID_HEADER);
-        VariantUtil.writeBufferAbsolute(
-            outBuffer, offset + 1, UUIDUtil.convertToByteBuffer((UUID) value));
+        ByteBuffer uuidBuffer = UUIDUtil.convertToByteBuffer((UUID) value);
+        outBuffer.put(offset + 1, uuidBuffer, uuidBuffer.position(), uuidBuffer.remaining());
         return 17;
     }
 

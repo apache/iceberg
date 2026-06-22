@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -60,6 +61,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -98,6 +100,7 @@ import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
@@ -164,6 +167,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
+  private ExecutorService metricsExecutor = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
@@ -264,21 +268,28 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             PropertyUtil.propertyAsString(
                     mergedProps,
                     RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
-                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
+                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT.name())
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
+    this.closeables.addCloseable(reporter);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (reportingViaRestEnabled) {
+      this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
+      this.closeables.addCloseable(metricsExecutor::shutdown);
+    }
+
     this.namespaceSeparator =
         PropertyUtil.propertyAsString(
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
-            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+            RESTCatalogProperties.NAMESPACE_SEPARATOR_DEFAULT);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -614,7 +625,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     RESTCatalogProperties.ScanPlanningMode effectiveMode =
         effectiveModeConfig != null
             ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
-            : RESTCatalogProperties.ScanPlanningMode.CLIENT;
+            : RESTCatalogProperties.SCAN_PLANNING_MODE_DEFAULT;
 
     if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER) {
       Preconditions.checkState(
@@ -649,7 +660,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
     if (reportingViaRestEnabled && endpoints.contains(Endpoint.V1_REPORT_METRICS)) {
       RESTMetricsReporter restMetricsReporter =
-          new RESTMetricsReporter(restClient, metricsEndpoint, Map::of);
+          new RESTMetricsReporter(restClient, metricsEndpoint, Map::of, metricsExecutor);
       return MetricsReporters.combine(reporter, restMetricsReporter);
     } else {
       return this.reporter;
@@ -670,6 +681,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+    return registerTable(context, ident, metadataFileLocation, false);
+  }
+
+  @Override
+  public Table registerTable(
+      SessionContext context,
+      TableIdentifier ident,
+      String metadataFileLocation,
+      boolean overwrite) {
     Endpoint.check(endpoints, Endpoint.V1_REGISTER_TABLE);
     checkIdentifierIsValid(ident);
 
@@ -682,6 +702,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ImmutableRegisterTableRequest.builder()
             .name(ident.name())
             .metadataLocation(metadataFileLocation)
+            .overwrite(overwrite)
             .build();
 
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -1175,7 +1196,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO newFileIO(
       SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
-      return ioBuilder.apply(context, properties);
+      FileIO fileIO = ioBuilder.apply(context, properties);
+      if (!storageCredentials.isEmpty()
+          && fileIO instanceof SupportsStorageCredentials ioWithCredentials) {
+        ioWithCredentials.setCredentials(
+            storageCredentials.stream()
+                .map(c -> StorageCredential.create(c.prefix(), c.config()))
+                .collect(Collectors.toList()));
+      }
+      return fileIO;
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
       return CatalogUtil.loadFileIO(
@@ -1319,7 +1348,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 queryParams.build(),
                 ConfigResponse.class,
                 RESTUtil.configHeaders(properties),
-                ErrorHandlers.defaultErrorHandler());
+                ErrorHandlers.configErrorHandler());
     configResponse.validate();
     return configResponse;
   }

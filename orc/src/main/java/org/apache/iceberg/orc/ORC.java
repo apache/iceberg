@@ -787,11 +787,17 @@ public class ORC {
 
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
+      Set<Integer> idsToExclude =
+          Sets.difference(
+              Sets.union(constantFieldIds, MetadataColumns.metadataFieldIds()),
+              ImmutableSet.of(
+                  MetadataColumns.ROW_ID.fieldId(),
+                  MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()));
+
       return new OrcIterable<>(
           file,
           conf,
-          TypeUtil.selectNot(
-              schema, Sets.union(constantFieldIds, MetadataColumns.metadataFieldIds())),
+          TypeUtil.selectNot(schema, idsToExclude),
           nameMapping,
           start,
           length,

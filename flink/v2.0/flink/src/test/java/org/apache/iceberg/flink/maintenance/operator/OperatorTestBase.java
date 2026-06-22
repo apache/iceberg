@@ -24,7 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
@@ -32,7 +36,6 @@ import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.execution.SavepointFormatType;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
@@ -79,6 +82,12 @@ public class OperatorTestBase {
           ImmutableMap.of(),
           ImmutableSet.of(SimpleDataUtil.SCHEMA.columns().get(0).fieldId()));
 
+  private static final Schema SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()));
+
   protected static final String UID_SUFFIX = "UID-Dummy";
   protected static final String SLOT_SHARING_GROUP = "SlotSharingGroup";
   protected static final TriggerLockFactory LOCK_FACTORY = new MemoryLockFactory();
@@ -124,10 +133,14 @@ public class OperatorTestBase {
   }
 
   protected static Table createTable() {
-    return createTable(2);
+    return createTable(2, FileFormat.PARQUET);
   }
 
   protected static Table createTable(int formatVersion) {
+    return createPartitionedTable(formatVersion, FileFormat.PARQUET);
+  }
+
+  protected static Table createTable(int formatVersion, FileFormat fileFormat) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -136,8 +149,25 @@ public class OperatorTestBase {
             PartitionSpec.unpartitioned(),
             null,
             ImmutableMap.of(
+                "write.format.default",
+                fileFormat.name(),
                 TableProperties.FORMAT_VERSION,
                 String.valueOf(formatVersion),
+                "flink.max-continuous-empty-commits",
+                "100000"));
+  }
+
+  protected static Table createTableWithTimestampWithoutZone() {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE,
+            PartitionSpec.builderFor(SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE).identity("ts").build(),
+            null,
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION,
+                "2",
                 "flink.max-continuous-empty-commits",
                 "100000"));
   }
@@ -158,7 +188,19 @@ public class OperatorTestBase {
                 "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
   }
 
-  protected static Table createPartitionedTable(int formatVersion) {
+  protected static Table createPartitionedTableWithDelete(int formatVersion) {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_WITH_PRIMARY_KEY,
+            PartitionSpec.builderFor(SCHEMA_WITH_PRIMARY_KEY).identity("data").build(),
+            null,
+            ImmutableMap.of(
+                "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
+  }
+
+  protected static Table createPartitionedTable(int formatVersion, FileFormat fileFormat) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -167,6 +209,8 @@ public class OperatorTestBase {
             PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build(),
             null,
             ImmutableMap.of(
+                "write.format.default",
+                fileFormat.name(),
                 "format-version",
                 String.valueOf(formatVersion),
                 "flink.max-continuous-empty-commits",
@@ -174,23 +218,47 @@ public class OperatorTestBase {
   }
 
   protected static Table createPartitionedTable() {
-    return createPartitionedTable(2);
+    return createPartitionedTable(2, FileFormat.PARQUET);
   }
 
   protected void insert(Table table, Integer id, String data) throws IOException {
-    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+    insert(table, id, data, FileFormat.PARQUET);
+  }
+
+  protected void insert(Table table, Integer id, String data, FileFormat fileFormat)
+      throws IOException {
+    new GenericAppenderHelper(table, fileFormat, warehouseDir)
         .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
     table.refresh();
   }
 
   protected void insert(Table table, List<Record> records) throws IOException {
-    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir).appendToTable(records);
+    insert(table, records, FileFormat.PARQUET);
+  }
+
+  protected void insert(Table table, List<Record> records, FileFormat fileFormat)
+      throws IOException {
+    new GenericAppenderHelper(table, fileFormat, warehouseDir).appendToTable(records);
     table.refresh();
   }
 
   protected void insert(Table table, Integer id, String data, String extra) throws IOException {
     new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
         .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data, extra)));
+    table.refresh();
+  }
+
+  protected void insertWithTimestampWithoutZone(
+      Table table, Integer id, String data, LocalDateTime ts) throws IOException {
+    GenericRecord record = GenericRecord.create(SCHEMA_WITH_TIMESTAMP_WITHOUT_ZONE);
+    record.setField("id", id);
+    record.setField("data", data);
+    record.setField("ts", ts);
+    long tsMicros =
+        TimeUnit.SECONDS.toMicros(ts.toEpochSecond(ZoneOffset.UTC))
+            + TimeUnit.NANOSECONDS.toMicros(ts.getNano());
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(TestHelpers.Row.of(tsMicros), Lists.newArrayList(record));
     table.refresh();
   }
 
@@ -271,7 +339,12 @@ public class OperatorTestBase {
   }
 
   protected void insertPartitioned(Table table, Integer id, String data) throws IOException {
-    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+    insertPartitioned(table, id, data, FileFormat.PARQUET);
+  }
+
+  protected void insertPartitioned(Table table, Integer id, String data, FileFormat fileFormat)
+      throws IOException {
+    new GenericAppenderHelper(table, fileFormat, warehouseDir)
         .appendToTable(
             TestHelpers.Row.of(data), Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
     table.refresh();
@@ -313,11 +386,15 @@ public class OperatorTestBase {
   protected static String closeJobClient(JobClient jobClient, File savepointDir) {
     if (jobClient != null) {
       if (savepointDir != null) {
-        // Stop with savepoint
-        jobClient.stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL);
-        // Wait until the savepoint is created and the job has been stopped
-        Awaitility.await().until(() -> savepointDir.listFiles(File::isDirectory).length == 1);
-        return savepointDir.listFiles(File::isDirectory)[0].getAbsolutePath();
+        // Stop with a savepoint; get() blocks until it is fully written and returns its path, so
+        // that a job restoring from it does not race the savepoint completion
+        try {
+          return jobClient
+              .stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL)
+              .get();
+        } catch (InterruptedException | ExecutionException e) {
+          throw new RuntimeException(e);
+        }
       } else {
         jobClient.cancel();
       }
@@ -352,15 +429,17 @@ public class OperatorTestBase {
   }
 
   protected static void checkSlotSharingGroupsAreSet(StreamExecutionEnvironment env, String name) {
-    String nameToCheck = name != null ? name : StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
-
     env.getTransformations().stream()
         .filter(
             t -> !(t instanceof SinkTransformation) && !(t.getName().equals(IGNORED_OPERATOR_NAME)))
         .forEach(
             t -> {
-              assertThat(t.getSlotSharingGroup()).isPresent();
-              assertThat(t.getSlotSharingGroup().get().getName()).isEqualTo(nameToCheck);
+              if (name == null) {
+                assertThat(t.getSlotSharingGroup()).isNotPresent();
+              } else {
+                assertThat(t.getSlotSharingGroup()).isPresent();
+                assertThat(t.getSlotSharingGroup().get().getName()).isEqualTo(name);
+              }
             });
   }
 
@@ -381,6 +460,19 @@ public class OperatorTestBase {
         new PartitionData(PartitionSpec.unpartitioned().partitionType()),
         Lists.newArrayList(SimpleDataUtil.createRecord(id, oldData)),
         SCHEMA_WITH_PRIMARY_KEY);
+  }
+
+  protected DeleteFile writePosDeleteFile(Table table, String dataFilePath, long pos)
+      throws IOException {
+    File file = File.createTempFile("junit", null, warehouseDir.toFile());
+    assertThat(file.delete()).isTrue();
+    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
+    GenericRecord nested = GenericRecord.create(table.schema());
+    nested.set(0, 1);
+    nested.set(1, "a");
+    posDelete.set(dataFilePath, pos, nested);
+    return FileHelpers.writePosDeleteFile(
+        table, Files.localOutput(file), null, Lists.newArrayList(posDelete), 2);
   }
 
   private DeleteFile writePosDelete(

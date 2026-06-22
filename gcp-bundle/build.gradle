@@ -23,6 +23,13 @@ project(":iceberg-gcp-bundle") {
 
   tasks.jar.dependsOn tasks.shadowJar
 
+  configurations {
+    implementation {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.slf4j'
+    }
+  }
+
   dependencies {
     implementation platform(libs.google.libraries.bom)
     implementation "com.google.cloud:google-cloud-storage"
@@ -42,10 +49,6 @@ project(":iceberg-gcp-bundle") {
       include 'NOTICE'
     }
 
-    dependencies {
-      exclude(dependency('org.slf4j:slf4j-api'))
-    }
-
     // relocate GCP-specific versions
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.gcp.shaded.com.fasterxml.jackson'
     relocate 'com.google.common', 'org.apache.iceberg.gcp.shaded.com.google.common'
@@ -59,4 +62,6 @@ project(":iceberg-gcp-bundle") {
   jar {
     enabled = false
   }
+
+  apply from: "${rootDir}/runtime-deps.gradle"
 }

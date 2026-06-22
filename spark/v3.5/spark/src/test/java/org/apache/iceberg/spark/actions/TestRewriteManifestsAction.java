@@ -51,6 +51,7 @@ import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -58,6 +59,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -193,6 +195,119 @@ public class TestRewriteManifestsAction extends TestBase {
         }
       }
     }
+  }
+
+  @TestTemplate
+  public void testRewriteV3ManifestsPreservesFirstRowId() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            spec,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC")));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    List<Row> rowsBefore = recordsWithLineage();
+    assertThat(rowsBefore)
+        .extracting(r -> r.<Long>getAs(MetadataColumns.ROW_ID.name()))
+        .doesNotContainNull();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter = recordsWithLineage();
+
+    assertThat(rowsAfter).containsExactlyElementsOf(rowsBefore);
+  }
+
+  @TestTemplate
+  public void testRewriteV3PartitionedManifestsPreservesFirstRowId() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            spec,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, "AAAA", "AAAA")));
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(2, "BBBB", "BBBB")));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    List<Row> rowsBefore = recordsWithLineage();
+    assertThat(rowsBefore)
+        .extracting(r -> r.<Long>getAs(MetadataColumns.ROW_ID.name()))
+        .doesNotContainNull();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter = recordsWithLineage();
+
+    assertThat(rowsAfter).containsExactlyElementsOf(rowsBefore);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsAfterV2ToV3Upgrade() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table =
+        TABLES.create(
+            SCHEMA, spec, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"), tableLocation);
+
+    ThreeColumnRecord record1 = new ThreeColumnRecord(1, null, "AAAA");
+    ThreeColumnRecord record2 = new ThreeColumnRecord(2, "CCCC", "CCCC");
+    writeRecords(Lists.newArrayList(record1));
+    writeRecords(Lists.newArrayList(record2));
+    table.refresh();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
+
+    table
+        .updateProperties()
+        .set(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+        .commit();
+
+    SparkActions.get()
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(1);
+
+    List<Row> rowsAfter = recordsWithLineage();
+
+    assertThat(rowsAfter)
+        .extracting(r -> r.<Long>getAs(MetadataColumns.ROW_ID.name()))
+        .doesNotContainNull()
+        .doesNotHaveDuplicates();
+    assertThat(rowsAfter)
+        .extracting(r -> new ThreeColumnRecord(r.getAs("c1"), r.getAs("c2"), r.getAs("c3")))
+        .containsExactlyInAnyOrder(record1, record2);
   }
 
   @TestTemplate
@@ -728,7 +843,9 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     Snapshot snapshot1 = table.currentSnapshot();
-    DataFile file1 = Iterables.getOnlyElement(snapshot1.addedDataFiles(table.io()));
+    DataFile file1 =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot1).build().addedDataFiles());
 
     List<ThreeColumnRecord> records2 = Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC"));
     writeRecords(records2);
@@ -736,7 +853,9 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     Snapshot snapshot2 = table.currentSnapshot();
-    DataFile file2 = Iterables.getOnlyElement(snapshot2.addedDataFiles(table.io()));
+    DataFile file2 =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot2).build().addedDataFiles());
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     assertThat(manifests).as("Should have 2 manifests before rewrite").hasSize(2);
@@ -1131,6 +1250,17 @@ public class TestRewriteManifestsAction extends TestBase {
         .load(tableLocation)
         .as(Encoders.bean(ThreeColumnRecord.class))
         .sort("c1", "c2", "c3")
+        .collectAsList();
+  }
+
+  private List<Row> recordsWithLineage() {
+    return spark
+        .read()
+        .format("iceberg")
+        .load(tableLocation)
+        .selectExpr(
+            MetadataColumns.ROW_ID.name(), MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), "*")
+        .orderBy(MetadataColumns.ROW_ID.name())
         .collectAsList();
   }
 

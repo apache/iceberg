@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import java.util.Map;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
@@ -43,6 +44,34 @@ public class TestCopyOnWriteMerge extends TestMerge {
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.MERGE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteMergeSetsSortOrderIdOnRewrittenDataFiles() {
+    createAndInitTable("id INT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+    createBranchIfNeeded();
+
+    createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
+
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.value "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET dep = 'changed' "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT (id, dep) VALUES (s.value, 'new')",
+        commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("Rewritten data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   @TestTemplate

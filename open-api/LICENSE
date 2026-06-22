@@ -389,7 +389,7 @@ License (from POM): Apache License, Version 2.0 - http://apache.org/licenses/LIC
 
 --------------------------------------------------------------------------------
 
-Group: io.airlift  Name: aircompressor  Version: 0.27
+Group: io.airlift  Name: aircompressor  Version: 2.0.3
 Project URL (from POM): https://github.com/airlift/aircompressor
 License (from POM): Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.html
 
