@@ -1419,7 +1419,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       List<ManifestEntry<DataFile>> entries = Lists.newArrayList();
       boolean manifestAffected = false;
       try (CloseableIterable<ManifestEntry<DataFile>> iter =
-          ManifestFiles.read(manifest, ops().io(), specsById).entries()) {
+          ManifestFiles.read(
+                  manifest,
+                  EncryptingFileIO.combine(ops().io(), ops().encryption()),
+                  specsById,
+                  true,
+                  manifest.formatVersion())
+              .entries()) {
         for (ManifestEntry<DataFile> entry : iter) {
           entries.add(entry.copy());
           if (entry.isLive() && remaining.contains(entry.file().location().toString())) {

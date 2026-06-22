@@ -421,7 +421,7 @@ public class TestSnapshotJson {
             snapshotId,
             parentSnapshotId,
             1L,
-            null,
+            0L,
             new Schema(
                 org.apache.iceberg.types.Types.NestedField.required(
                     1, "id", org.apache.iceberg.types.Types.LongType.get())),
