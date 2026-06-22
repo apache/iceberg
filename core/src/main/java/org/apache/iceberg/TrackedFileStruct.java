@@ -72,13 +72,13 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private int writerFormatVersion = -1;
   private String location = null;
   private FileFormat fileFormat = null;
+  private Tracking tracking = null;
   private long recordCount = -1L;
   private long fileSizeInBytes = -1L;
-  private Integer specId = null;
   private PartitionData partitionData = EMPTY_PARTITION_DATA;
 
   // optional fields
-  private Tracking tracking = null;
+  private Integer specId = null;
   private ContentStats contentStats = null;
   private Integer sortOrderId = null;
   private DeletionVector deletionVector = null;
@@ -102,7 +102,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     super(BASE_TYPE.fields().size());
   }
 
-  /** Constructor that accepts required fields. */
   TrackedFileStruct(
       Tracking tracking,
       FileContent contentType,
@@ -111,7 +110,15 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       FileFormat fileFormat,
       PartitionData partition,
       long recordCount,
-      long fileSizeInBytes) {
+      long fileSizeInBytes,
+      Integer specId,
+      ContentStats contentStats,
+      Integer sortOrderId,
+      DeletionVector deletionVector,
+      ManifestInfo manifestInfo,
+      ByteBuffer keyMetadata,
+      List<Long> splitOffsets,
+      List<Integer> equalityIds) {
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
@@ -123,6 +130,15 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     if (partition != null) {
       this.partitionData = partition;
     }
+
+    this.specId = specId;
+    this.contentStats = contentStats;
+    this.sortOrderId = sortOrderId;
+    this.deletionVector = deletionVector;
+    this.manifestInfo = manifestInfo;
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
+    this.equalityIds = ArrayUtil.toIntArray(equalityIds);
   }
 
   /** Copy constructor. */
