@@ -82,7 +82,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void addOnlyDeleteFilesProducesDeleteOperation() {
-    // v4 requires DVs to be colocated with their data files; this test writes DVs
+    // v4+ requires DVs to be colocated with their data files; this test writes DVs
     // for FILE_A and FILE_B without adding those data files first (an orphan-DV
     // pattern that was allowed in v3 but is invalid in v4).
     assumeThat(formatVersion).isLessThan(4);
@@ -125,7 +125,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testAddRemoveRows() {
-    // v4 requires DVs to be colocated with their data files; fileBDeletes() references
+    // v4+ requires DVs to be colocated with their data files; fileBDeletes() references
     // FILE_B which is not added in this commit (orphan-DV pattern allowed in v3 only).
     assumeThat(formatVersion).isLessThan(4);
     SnapshotUpdate<?> rowDelta =
@@ -196,7 +196,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testValidateDataFilesExistDefaults() {
-    // v4 requires DVs to be colocated with live data files; this test adds a DV for
+    // v4+ requires DVs to be colocated with live data files; this test adds a DV for
     // FILE_A after FILE_A has been overwritten (no live entry exists), an orphan-DV
     // pattern allowed in v3 only.
     assumeThat(formatVersion).isLessThan(4);
@@ -324,7 +324,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testValidateDataFilesExistFromSnapshot() {
-    // v4 requires DVs to be colocated with live data files; this test adds a DV for
+    // v4+ requires DVs to be colocated with live data files; this test adds a DV for
     // FILE_A after FILE_A has been replaced (no live entry exists), an orphan-DV
     // pattern allowed in v3 only.
     assumeThat(formatVersion).isLessThan(4);
@@ -385,10 +385,10 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testFileDeleteAndRowDelete() {
-    // v4 colocates DVs by rewriting the leaf data manifest; the snapshot_id on the
+    // v4+ colocates DVs by rewriting the leaf data manifest; the snapshot_id on the
     // rewritten manifest entries changes from the original snapshot to the rewriting
     // snapshot, so the v3 inheritance-based snapshot-id assertions on these manifests
-    // no longer hold (Phase 10 architectural follow-up: v4-aware validateManifest helpers).
+    // no longer hold (Phase 10 architectural follow-up: v4+-aware validateManifest helpers).
     assumeThat(formatVersion).isLessThan(4);
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
     long initialCommit = latestSnapshot(table, branch).snapshotId();
@@ -439,7 +439,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testValidateFileDeleteAndRowDelete() {
-    // v4 colocates DVs into data manifests; concurrent-DV detection is a known gap
+    // v4+ colocates DVs into data manifests; concurrent-DV detection is a known gap
     // (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
@@ -636,7 +636,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testValidateNoConflictsFromSnapshot() {
-    // v4 colocates DVs by rewriting the leaf data manifest, which reorders the contents
+    // v4+ colocates DVs by rewriting the leaf data manifest, which reorders the contents
     // of the manifest list and changes which DataFile lives in which manifest. The v3
     // path-based assertions no longer hold (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
@@ -698,7 +698,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testOverwriteWithRemoveRows() {
-    // v4 requires DVs to be colocated with their data files; fileBDeletes() references
+    // v4+ requires DVs to be colocated with their data files; fileBDeletes() references
     // FILE_B which is not added in this commit (orphan-DV pattern allowed in v3 only).
     assumeThat(formatVersion).isLessThan(4);
     commit(
@@ -745,7 +745,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testReplacePartitionsWithRemoveRows() {
-    // v4 requires DVs to be colocated with their data files; fileBDeletes() references
+    // v4+ requires DVs to be colocated with their data files; fileBDeletes() references
     // FILE_B which is not added in this commit (orphan-DV pattern allowed in v3 only).
     assumeThat(formatVersion).isLessThan(4);
     commit(
@@ -796,7 +796,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testDeleteByExpressionWithRemoveRows() {
-    // v4 requires DVs to be colocated with their data files; fileBDeletes() references
+    // v4+ requires DVs to be colocated with their data files; fileBDeletes() references
     // FILE_B which is not added in this commit (orphan-DV pattern allowed in v3 only).
     assumeThat(formatVersion).isLessThan(4);
     commit(
@@ -837,7 +837,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testDeleteDataFileWithRemoveRows() {
-    // v4 requires DVs to be colocated with their data files; fileBDeletes() references
+    // v4+ requires DVs to be colocated with their data files; fileBDeletes() references
     // FILE_B which is not added in this commit (orphan-DV pattern allowed in v3 only).
     assumeThat(formatVersion).isLessThan(4);
     commit(
@@ -904,7 +904,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testFastAppendDoesNotRemoveStaleDeleteFiles() {
-    // v4 colocates DVs in data manifests; the assertions on deleteManifests size and
+    // v4+ colocates DVs in data manifests; the assertions on deleteManifests size and
     // contents are v3-specific (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()), branch);
@@ -978,7 +978,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testValidateDataFilesExistWithConflictDetectionFilter() {
-    // v4 colocates DVs in data manifests; deleteManifests is empty and the v3 manifest
+    // v4+ colocates DVs in data manifests; deleteManifests is empty and the v3 manifest
     // count assertion no longer holds (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     // change the spec to be partitioned by data
@@ -1091,10 +1091,10 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testAddDeleteFilesMultipleSpecs() {
-    // v4 colocates DVs by rewriting data manifests; the snapshot summary metrics
+    // v4+ colocates DVs by rewriting data manifests; the snapshot summary metrics
     // (changed-partition-count, total-delete-files, total-position-deletes,
     // CREATED_MANIFESTS_COUNT, etc.) follow a different accounting model than v3's
-    // separate delete manifests (Phase 10 architectural follow-up: v4-aware summary).
+    // separate delete manifests (Phase 10 architectural follow-up: v4+-aware summary).
     assumeThat(formatVersion).isLessThan(4);
     // enable partition summaries
     table.updateProperties().set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "10").commit();
@@ -1214,7 +1214,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testManifestMergingMultipleSpecs() {
-    // v4 colocates DVs by rewriting data manifests; the v3 manifest-count / merging
+    // v4+ colocates DVs by rewriting data manifests; the v3 manifest-count / merging
     // assertions no longer hold (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     // make sure we enable manifest merging
@@ -1345,8 +1345,8 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testConcurrentConflictingRowDelta() {
-    // v4 colocates DVs into data manifests; the existing concurrent-DV validation
-    // (validateAddedDVs) scans delete manifests, which v4 does not produce. Concurrent-DV
+    // v4+ colocates DVs into data manifests; the existing concurrent-DV validation
+    // (validateAddedDVs) scans delete manifests, which v4+ does not produce. Concurrent-DV
     // detection for v4 is a known gap (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     commit(table, table.newAppend().appendFile(FILE_A), branch);
@@ -1383,7 +1383,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testConcurrentConflictingRowDeltaWithoutAppendValidation() {
-    // v4 colocates DVs into data manifests; concurrent-DV detection is a known gap
+    // v4+ colocates DVs into data manifests; concurrent-DV detection is a known gap
     // (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     commit(table, table.newAppend().appendFile(FILE_A), branch);
@@ -1481,7 +1481,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testConcurrentNonConflictingRowDeltaAndRewriteFilesWithSequenceNumber() {
-    // v4 colocates DVs into data manifests; the rewriteFiles/rowDelta interaction goes
+    // v4+ colocates DVs into data manifests; the rewriteFiles/rowDelta interaction goes
     // through a different validation path than v3 (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     // change the spec to be partitioned by data
@@ -1597,7 +1597,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testConcurrentConflictingRowDeltaAndRewriteFilesWithSequenceNumber() {
-    // v4 colocates DVs into data manifests; concurrent-DV detection across
+    // v4+ colocates DVs into data manifests; concurrent-DV detection across
     // rewriteFiles + rowDelta is a known gap (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     // change the spec to be partitioned by data
@@ -1647,7 +1647,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testRowDeltaCaseSensitivity() {
-    // v4 colocates DVs in data manifests; concurrent-DV detection is a known gap
+    // v4+ colocates DVs in data manifests; concurrent-DV detection is a known gap
     // (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A2), branch);
@@ -1709,7 +1709,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testRewrittenDeleteFiles() {
-    // v4 colocates DVs by rewriting data manifests; the snapshot summary metrics
+    // v4+ colocates DVs by rewriting data manifests; the snapshot summary metrics
     // (changed-partition-count, total-delete-files, REPLACED_MANIFESTS_COUNT, etc.)
     // follow a different accounting model than v3 (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
@@ -1949,7 +1949,7 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testConcurrentMergeRewriteSameRemoveRows() {
-    // v4 colocates DVs into data manifests; concurrent-DV detection across
+    // v4+ colocates DVs into data manifests; concurrent-DV detection across
     // rewriteFiles + rowDelta is a known gap (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
     DataFile dataFile = newDataFile("data_bucket=0");
@@ -1991,9 +1991,9 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testConcurrentDVsForSameDataFile() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs into data manifests; the existing concurrent-DV validation
-    // (validateAddedDVs) scans delete manifests, which v4 does not produce.
-    // Concurrent-DV detection for v4 is a known gap (Phase 10 architectural follow-up).
+    // v4+ colocates DVs into data manifests; the existing concurrent-DV validation
+    // (validateAddedDVs) scans delete manifests, which v4+ does not produce.
+    // Concurrent-DV detection for v4+ is a known gap (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
     DataFile dataFile = newDataFile("data_bucket=0");
@@ -2015,9 +2015,9 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testDuplicateDVsAreMerged() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() reads only
+    // v4+ colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() reads only
     // delete manifests, so v4 colocated DVs are not surfaced (Phase 10 architectural
-    // follow-up: v4-aware SnapshotChanges).
+    // follow-up: v4+-aware SnapshotChanges).
     assumeThat(formatVersion).isLessThan(4);
 
     DataFile dataFile = newDataFile("data_bucket=0");
@@ -2048,7 +2048,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testDuplicateDVsAreMergedWithEncryption() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
+    // v4+ colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
     // surface them (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -2080,7 +2080,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testDuplicateDVsMergedMultipleSpecs() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
+    // v4+ colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
     // surface them (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -2168,7 +2168,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testDuplicateDVsAreMergedForMultipleReferenceFiles() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
+    // v4+ colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
     // surface them (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -2227,7 +2227,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testDuplicateDVsAndValidDV() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
+    // v4+ colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
     // surface them (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -2284,7 +2284,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testDuplicateDVsAreMergedAndEqDelete() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
+    // v4+ colocates DVs in data manifests; SnapshotChanges.addedDeleteFiles() does not
     // surface them (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -2336,7 +2336,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testConcurrentDVsInDifferentPartitionsWithFilter() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs into data manifests; concurrent-DV detection across filter
+    // v4+ colocates DVs into data manifests; concurrent-DV detection across filter
     // partitions is a known gap (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -2385,7 +2385,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testConcurrentDVsInSamePartitionWithFilter() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs into data manifests; concurrent-DV detection across same-partition
+    // v4+ colocates DVs into data manifests; concurrent-DV detection across same-partition
     // filter is a known gap (Phase 10 architectural follow-up).
     assumeThat(formatVersion).isLessThan(4);
 
@@ -2417,7 +2417,7 @@ public class TestRowDelta extends TestBase {
   @TestTemplate
   public void testDVValidationPartitionPruningManifestCount() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-    // v4 colocates DVs into data manifests; there are no separate delete manifests to count.
+    // v4+ colocates DVs into data manifests; there are no separate delete manifests to count.
     assumeThat(formatVersion).isLessThan(4);
 
     // disable manifest merging so each commit produces a separate delete manifest
