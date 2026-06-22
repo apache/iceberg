@@ -427,8 +427,6 @@ class TrackedFileAdapters {
 
     private TrackedManifestFile(TrackedFile file) {
       Preconditions.checkArgument(
-          file.tracking() != null, "Cannot create manifest file: no tracking");
-      Preconditions.checkArgument(
           file.tracking().dataSequenceNumber() != null,
           "Cannot create manifest file: no data sequence number");
       Preconditions.checkArgument(
@@ -436,9 +434,9 @@ class TrackedFileAdapters {
       Preconditions.checkArgument(
           file.manifestInfo() != null, "Cannot create manifest file: no manifest info");
       Preconditions.checkArgument(
-          file.contentType() != FileContent.DELETE_MANIFEST || file.tracking().firstRowId() == null,
-          "Delete manifest must not have a first row ID: %s",
-          file.tracking().firstRowId());
+          file.manifestInfo().dv() == null,
+          "Cannot adapt manifest with a deletion vector to ManifestFile: %s",
+          file.location());
       this.file = file;
     }
 
@@ -510,8 +508,8 @@ class TrackedFileAdapters {
       return file.manifestInfo().deletedRowsCount();
     }
 
-    @Override
     // v4 does not store partition summaries on manifests, so return null.
+    @Override
     public List<PartitionFieldSummary> partitions() {
       return null;
     }

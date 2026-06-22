@@ -369,22 +369,38 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testManifestFileAdapterRejectsDeleteManifestWithFirstRowId() {
+  void testManifestFileAdapterRejectsManifestWithDeletionVector() {
     TrackedFileStruct file =
         new TrackedFileStruct(
-            createTracking(),
-            FileContent.DELETE_MANIFEST,
+            requiredOnlyTracking(),
+            FileContent.DATA_MANIFEST,
             WRITER_FORMAT_VERSION,
             MANIFEST_FILE_LOCATION,
             FileFormat.PARQUET,
             NO_PARTITION,
             4L,
             1024L);
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
+    ManifestInfo manifestInfo =
+        ManifestInfoStruct.builder()
+            .addedFilesCount(3)
+            .existingFilesCount(5)
+            .deletedFilesCount(2)
+            .replacedFilesCount(0)
+            .addedRowsCount(300L)
+            .existingRowsCount(500L)
+            .deletedRowsCount(200L)
+            .replacedRowsCount(0L)
+            .minSequenceNumber(7L)
+            .dv(ByteBuffer.wrap(new byte[] {1, 2, 3}))
+            .dvCardinality(4L)
+            .build();
+    file.set(MANIFEST_INFO_ORDINAL, manifestInfo);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Delete manifest must not have a first row ID: %s", FIRST_ROW_ID);
+        .hasMessage(
+            "Cannot adapt manifest with a deletion vector to ManifestFile: %s",
+            MANIFEST_FILE_LOCATION);
   }
 
   @Test
@@ -474,17 +490,6 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for ManifestFile: %s", contentType);
-  }
-
-  @Test
-  void testManifestFileAdapterRejectsNullTracking() {
-    // trackedFile() builds an entry with no tracking; manifest adapters require it.
-    TrackedFileStruct file = trackedFile(FileContent.DATA_MANIFEST);
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
-
-    assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create manifest file: no tracking");
   }
 
   @Test
