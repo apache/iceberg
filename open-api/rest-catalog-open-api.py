@@ -690,7 +690,7 @@ class TruncateToMonth(Action):
 class Sha256Global(Action):
     """
     Applies SHA-256. Deterministic across all queries
-    and engines — the same input always produces the same output.
+    and engines: the same input always produces the same output.
 
     Input-to-bytes encoding by type:
     - string: UTF-8 encoded bytes
