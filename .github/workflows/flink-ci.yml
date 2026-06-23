@@ -73,15 +73,29 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      flink_matrix: ${{ steps.plan.outputs.flink_matrix }}
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        persist-credentials: false
+    - id: plan
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        FULL_CI_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        JVM_MATRIX: ${{ (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '{"jvm":[17]}' || '{"jvm":[17,21]}' }}
+      run: bash .github/scripts/plan-flink-ci.sh
+
   # Test all flink versions with scala 2.12 for general validation.
   flink-scala-2-12-tests:
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       max-parallel: 15
-      matrix:
-        jvm: ${{ fromJson((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '[17]' || '[17,21]') }}
-        flink: ['1.20', '2.0', '2.1']
+      matrix: ${{ fromJson(needs.plan.outputs.flink_matrix) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
