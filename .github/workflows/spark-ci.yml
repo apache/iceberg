@@ -73,27 +73,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      spark_matrix: ${{ steps.plan.outputs.spark_matrix }}
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        persist-credentials: false
+    - id: plan
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        FULL_CI_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        JVM_MATRIX: ${{ (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '{"jvm":[17]}' || '{"jvm":[17,21]}' }}
+      run: bash .github/scripts/plan-spark-ci.sh
+
   spark-tests:
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       # 20 is the Apache infra policy ceiling (https://infra.apache.org/github-actions-policy.html).
       # Keep matrix <= 20 jobs; exceeding it queues a second wave and slows CI.
       max-parallel: 20
-      matrix:
-        jvm: ${{ fromJson((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '[17]' || '[17,21]') }}
-        spark: ['3.5', '4.0', '4.1']
-        scala: ['2.12', '2.13']
-        # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
-        # so they run as concurrent jobs rather than serially in one job.
-        tests: [core, extensions]
-        exclude:
-          # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
-          # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
-          - spark: '4.0'
-            scala: '2.12'
-          - spark: '4.1'
-            scala: '2.12'
+      matrix: ${{ fromJson(needs.plan.outputs.spark_matrix) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
