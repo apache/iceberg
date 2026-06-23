@@ -19,7 +19,8 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
-import org.apache.curator.shaded.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
 
 /**
@@ -62,7 +63,7 @@ class PFOREncoding {
    */
   static ByteBuffer encode(int[] values, int count) {
     ByteBuffer out = ByteBuffer.allocate(estimateEncodedSize(count));
-    int bytesWritten = encode(values, 0, out, out.position(), count);
+    int bytesWritten = encode(values, 0, out, 0, count);
     return out.slice(0, bytesWritten);
   }
 
@@ -79,17 +80,13 @@ class PFOREncoding {
    * @return the number of bytes written to the buffer
    */
   static int encode(int[] values, int valueOffset, ByteBuffer out, int outOffset, int count) {
-    // check the buffer's position and limit are compatible with outOffset and count
+    // outOffset is relative to the buffer's position; check the encoded data fits
+    Preconditions.checkArgument(outOffset >= 0, "Cannot encode at negative offset: %s", outOffset);
     Preconditions.checkArgument(
-        outOffset >= out.position(),
-        "Cannot encode starting at %s to buffer with position %s",
-        outOffset,
-        out.position());
-    Preconditions.checkArgument(
-        estimateEncodedSize(count) <= out.limit() - outOffset,
+        estimateEncodedSize(count) <= out.remaining() - outOffset,
         "Cannot encode %s values to buffer with %s remaining space",
         count,
-        out.remaining());
+        out.remaining() - outOffset);
 
     int bytesWritten = 0;
     int currentOffset = valueOffset;
@@ -115,7 +112,7 @@ class PFOREncoding {
    */
   static int[] decode(ByteBuffer encoded, int count) {
     int[] out = new int[count];
-    decode(encoded, encoded.position(), out, 0, count);
+    decode(encoded, 0, out, 0, count);
     return out;
   }
 
@@ -132,11 +129,7 @@ class PFOREncoding {
    * @return the number of bytes read from the encoded buffer
    */
   static int decode(ByteBuffer encoded, int offset, int[] out, int outOffset, int count) {
-    Preconditions.checkArgument(
-        offset >= encoded.position(),
-        "Cannot decode starting at %s from buffer with position %s",
-        offset,
-        encoded.position());
+    Preconditions.checkArgument(offset >= 0, "Cannot decode at negative offset: %s", offset);
 
     int bytesRead = 0;
     int valuesRead = 0;
@@ -262,19 +255,19 @@ class PFOREncoding {
         out.length,
         outOffset);
 
-    int b1 = data.get(dataOffset) & 0x0F;
-    int b2 = (data.get(dataOffset) >>> 4) & 0x0F;
-    int excCount = data.get(dataOffset + 1) & 0xFF;
-    int base = data.get(dataOffset + 2) & 0xFF;
+    int b1 = ByteBuffers.readByte(data, dataOffset) & 0x0F;
+    int b2 = (ByteBuffers.readByte(data, dataOffset) >>> 4) & 0x0F;
+    int excCount = ByteBuffers.readByte(data, dataOffset + 1);
+    int base = ByteBuffers.readByte(data, dataOffset + 2);
     int bytesRead = 3;
 
     // after reading the header, check that the full chunk is present
     int expectedSize = encodedSize(count, b1, b2, excCount);
     Preconditions.checkArgument(
-        dataOffset + expectedSize <= data.limit(),
+        dataOffset + expectedSize <= data.remaining(),
         "Cannot decode %s values from buffer with %s remaining bytes",
         expectedSize,
-        data.limit() - dataOffset);
+        data.remaining() - dataOffset);
 
     // Read primary array: low b1 bits of each value
     bytesRead += BitPacking.unpackBits(b1, data, dataOffset + bytesRead, out, outOffset, count);
@@ -309,9 +302,9 @@ class PFOREncoding {
   private static int writeHeader(
       ByteBuffer out, int outOffset, int b1, int b2, int excCount, int base) {
     // Header: b1 in low nibble, b2 in high nibble, then e, then m
-    out.put(outOffset, (byte) ((b2 << 4) | (b1 & 0b1111)));
-    out.put(outOffset + 1, (byte) excCount);
-    out.put(outOffset + 2, (byte) base);
+    ByteBuffers.writeByte(out, (b2 << 4) | (b1 & 0b1111), outOffset);
+    ByteBuffers.writeByte(out, excCount, outOffset + 1);
+    ByteBuffers.writeByte(out, base, outOffset + 2);
 
     return 3;
   }
