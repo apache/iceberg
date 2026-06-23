@@ -121,15 +121,13 @@ public class PFOREncodingBenchmark {
   @Threads(1)
   public void encodeDescriptorIceberg(Blackhole blackhole) {
     blackhole.consume(
-        PFOREncoding.encode(
-            descriptorValues, 0, encodeBuffer, encodeBuffer.position(), descriptorValues.length));
+        PFOREncoding.encode(descriptorValues, 0, encodeBuffer, 0, descriptorValues.length));
   }
 
   @Benchmark
   @Threads(1)
   public void decodeDescriptorIceberg(Blackhole blackhole) {
-    PFOREncoding.decode(
-        descriptorEncoded, descriptorEncoded.position(), decodeOutput, 0, descriptorValues.length);
+    PFOREncoding.decode(descriptorEncoded, 0, decodeOutput, 0, descriptorValues.length);
     blackhole.consume(decodeOutput);
   }
 
@@ -140,16 +138,13 @@ public class PFOREncodingBenchmark {
   @Benchmark
   @Threads(1)
   public void encodeUniformIceberg(Blackhole blackhole) {
-    blackhole.consume(
-        PFOREncoding.encode(
-            uniformValues, 0, encodeBuffer, encodeBuffer.position(), uniformValues.length));
+    blackhole.consume(PFOREncoding.encode(uniformValues, 0, encodeBuffer, 0, uniformValues.length));
   }
 
   @Benchmark
   @Threads(1)
   public void decodeUniformIceberg(Blackhole blackhole) {
-    PFOREncoding.decode(
-        uniformEncoded, uniformEncoded.position(), decodeOutput, 0, uniformValues.length);
+    PFOREncoding.decode(uniformEncoded, 0, decodeOutput, 0, uniformValues.length);
     blackhole.consume(decodeOutput);
   }
 

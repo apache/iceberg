@@ -19,7 +19,7 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
-import org.apache.curator.shaded.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Read-only view of a Mumbling compressed bitmap stored in a {@link ByteBuffer}.
@@ -129,8 +129,7 @@ class MumblingBitmap {
    */
   private void decodeDescriptors() {
     this.descriptors = new int[containerCount];
-    int bytesRead =
-        PFOREncoding.decode(data, data.position() + HEADER_SIZE, descriptors, 0, containerCount);
+    int bytesRead = PFOREncoding.decode(data, HEADER_SIZE, descriptors, 0, containerCount);
 
     this.offsets = new int[containerCount + 1];
     int firstContainerOffset = data.position() + HEADER_SIZE + bytesRead;

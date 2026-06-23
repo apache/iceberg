@@ -19,6 +19,7 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.util.ByteBuffers;
 
 /**
  * Bit packing and unpacking for values of 1–7 bits.
@@ -110,7 +111,7 @@ class BitPacking {
   private static int copyAsBytes(
       int[] source, int sourceOffset, ByteBuffer out, int outOffset, int count) {
     for (int i = 0; i < count; i += 1) {
-      out.put(outOffset + i, (byte) source[sourceOffset + i]);
+      ByteBuffers.writeByte(out, source[sourceOffset + i], outOffset + i);
     }
 
     return count;
@@ -129,7 +130,7 @@ class BitPacking {
   private static int copyAsBytes(
       ByteBuffer data, int dataOffset, int[] out, int outOffset, int count) {
     for (int i = 0; i < count; i += 1) {
-      out[outOffset + i] = (data.get(dataOffset + i) & 0xFF);
+      out[outOffset + i] = ByteBuffers.readByte(data, dataOffset + i);
     }
 
     return count;
@@ -158,7 +159,7 @@ class BitPacking {
               values[groupOffset + 5],
               values[groupOffset + 6],
               values[groupOffset + 7]);
-      data.put(outputOffset, (byte) word);
+      ByteBuffers.writeByte(data, word, outputOffset);
     }
 
     int remaining = count % 8;
@@ -175,7 +176,7 @@ class BitPacking {
               remaining > 5 ? values[groupOffset + 5] : 0,
               remaining > 6 ? values[groupOffset + 6] : 0,
               0);
-      data.put(outputOffset, (byte) word);
+      ByteBuffers.writeByte(data, word, outputOffset);
     }
 
     return byteWidth(count);
@@ -209,8 +210,8 @@ class BitPacking {
               values[groupOffset + 5],
               values[groupOffset + 6],
               values[groupOffset + 7]);
-      data.put(outputOffset, (byte) (word >>> 8));
-      data.put(outputOffset + 1, (byte) word);
+      ByteBuffers.writeByte(data, word >>> 8, outputOffset);
+      ByteBuffers.writeByte(data, word, outputOffset + 1);
     }
 
     int remaining = count % 8;
@@ -227,9 +228,9 @@ class BitPacking {
               remaining > 5 ? values[groupOffset + 5] : 0,
               remaining > 6 ? values[groupOffset + 6] : 0,
               0);
-      data.put(outputOffset, (byte) (word >>> 8));
+      ByteBuffers.writeByte(data, word >>> 8, outputOffset);
       if (remaining > 4) {
-        data.put(outputOffset + 1, (byte) word);
+        ByteBuffers.writeByte(data, word, outputOffset + 1);
       }
     }
 
@@ -264,9 +265,9 @@ class BitPacking {
               values[groupOffset + 5],
               values[groupOffset + 6],
               values[groupOffset + 7]);
-      data.put(outputOffset, (byte) (word >>> 16));
-      data.put(outputOffset + 1, (byte) (word >>> 8));
-      data.put(outputOffset + 2, (byte) word);
+      ByteBuffers.writeByte(data, word >>> 16, outputOffset);
+      ByteBuffers.writeByte(data, word >>> 8, outputOffset + 1);
+      ByteBuffers.writeByte(data, word, outputOffset + 2);
     }
 
     int remaining = count % 8;
@@ -285,7 +286,7 @@ class BitPacking {
               0);
       int byteCount = byteWidth(3 * remaining);
       for (int k = 0; k < byteCount; k += 1) {
-        data.put(outputOffset + k, (byte) (word >>> (16 - 8 * k)));
+        ByteBuffers.writeByte(data, word >>> (16 - 8 * k), outputOffset + k);
       }
     }
 
@@ -320,10 +321,10 @@ class BitPacking {
               values[groupOffset + 5],
               values[groupOffset + 6],
               values[groupOffset + 7]);
-      data.put(outputOffset, (byte) (word >>> 24));
-      data.put(outputOffset + 1, (byte) (word >>> 16));
-      data.put(outputOffset + 2, (byte) (word >>> 8));
-      data.put(outputOffset + 3, (byte) word);
+      ByteBuffers.writeByte(data, word >>> 24, outputOffset);
+      ByteBuffers.writeByte(data, word >>> 16, outputOffset + 1);
+      ByteBuffers.writeByte(data, word >>> 8, outputOffset + 2);
+      ByteBuffers.writeByte(data, word, outputOffset + 3);
     }
 
     int remaining = count % 8;
@@ -342,7 +343,7 @@ class BitPacking {
               0);
       int byteCount = byteWidth(4 * remaining);
       for (int k = 0; k < byteCount; k += 1) {
-        data.put(outputOffset + k, (byte) (word >>> (24 - 8 * k)));
+        ByteBuffers.writeByte(data, word >>> (24 - 8 * k), outputOffset + k);
       }
     }
 
@@ -377,11 +378,11 @@ class BitPacking {
               values[groupOffset + 5],
               values[groupOffset + 6],
               values[groupOffset + 7]);
-      data.put(outputOffset, (byte) (word >>> 32));
-      data.put(outputOffset + 1, (byte) (word >>> 24));
-      data.put(outputOffset + 2, (byte) (word >>> 16));
-      data.put(outputOffset + 3, (byte) (word >>> 8));
-      data.put(outputOffset + 4, (byte) word);
+      ByteBuffers.writeByte(data, (int) (word >>> 32), outputOffset);
+      ByteBuffers.writeByte(data, (int) (word >>> 24), outputOffset + 1);
+      ByteBuffers.writeByte(data, (int) (word >>> 16), outputOffset + 2);
+      ByteBuffers.writeByte(data, (int) (word >>> 8), outputOffset + 3);
+      ByteBuffers.writeByte(data, (int) word, outputOffset + 4);
     }
 
     int remaining = count % 8;
@@ -400,7 +401,7 @@ class BitPacking {
               0);
       int byteCount = byteWidth(5 * remaining);
       for (int k = 0; k < byteCount; k += 1) {
-        data.put(outputOffset + k, (byte) (word >>> (32 - 8 * k)));
+        ByteBuffers.writeByte(data, (int) (word >>> (32 - 8 * k)), outputOffset + k);
       }
     }
 
@@ -435,12 +436,12 @@ class BitPacking {
               values[groupOffset + 5],
               values[groupOffset + 6],
               values[groupOffset + 7]);
-      data.put(outputOffset, (byte) (word >>> 40));
-      data.put(outputOffset + 1, (byte) (word >>> 32));
-      data.put(outputOffset + 2, (byte) (word >>> 24));
-      data.put(outputOffset + 3, (byte) (word >>> 16));
-      data.put(outputOffset + 4, (byte) (word >>> 8));
-      data.put(outputOffset + 5, (byte) word);
+      ByteBuffers.writeByte(data, (int) (word >>> 40), outputOffset);
+      ByteBuffers.writeByte(data, (int) (word >>> 32), outputOffset + 1);
+      ByteBuffers.writeByte(data, (int) (word >>> 24), outputOffset + 2);
+      ByteBuffers.writeByte(data, (int) (word >>> 16), outputOffset + 3);
+      ByteBuffers.writeByte(data, (int) (word >>> 8), outputOffset + 4);
+      ByteBuffers.writeByte(data, (int) word, outputOffset + 5);
     }
 
     int remaining = count % 8;
@@ -459,7 +460,7 @@ class BitPacking {
               0);
       int byteCount = byteWidth(6 * remaining);
       for (int k = 0; k < byteCount; k += 1) {
-        data.put(outputOffset + k, (byte) (word >>> (40 - 8 * k)));
+        ByteBuffers.writeByte(data, (int) (word >>> (40 - 8 * k)), outputOffset + k);
       }
     }
 
@@ -494,13 +495,13 @@ class BitPacking {
               values[groupOffset + 5],
               values[groupOffset + 6],
               values[groupOffset + 7]);
-      data.put(outputOffset, (byte) (word >>> 48));
-      data.put(outputOffset + 1, (byte) (word >>> 40));
-      data.put(outputOffset + 2, (byte) (word >>> 32));
-      data.put(outputOffset + 3, (byte) (word >>> 24));
-      data.put(outputOffset + 4, (byte) (word >>> 16));
-      data.put(outputOffset + 5, (byte) (word >>> 8));
-      data.put(outputOffset + 6, (byte) word);
+      ByteBuffers.writeByte(data, (int) (word >>> 48), outputOffset);
+      ByteBuffers.writeByte(data, (int) (word >>> 40), outputOffset + 1);
+      ByteBuffers.writeByte(data, (int) (word >>> 32), outputOffset + 2);
+      ByteBuffers.writeByte(data, (int) (word >>> 24), outputOffset + 3);
+      ByteBuffers.writeByte(data, (int) (word >>> 16), outputOffset + 4);
+      ByteBuffers.writeByte(data, (int) (word >>> 8), outputOffset + 5);
+      ByteBuffers.writeByte(data, (int) word, outputOffset + 6);
     }
 
     int remaining = count % 8;
@@ -519,7 +520,7 @@ class BitPacking {
               0);
       int byteCount = byteWidth(7 * remaining);
       for (int k = 0; k < byteCount; k += 1) {
-        data.put(outputOffset + k, (byte) (word >>> (48 - 8 * k)));
+        ByteBuffers.writeByte(data, (int) (word >>> (48 - 8 * k)), outputOffset + k);
       }
     }
 
@@ -755,7 +756,7 @@ class BitPacking {
   private static long readWord(ByteBuffer data, int offset, int count) {
     long word = 0;
     for (int k = 0; k < count; k += 1) {
-      word = (word << 8) | (data.get(offset + k) & 0xFF);
+      word = (word << 8) | ByteBuffers.readByte(data, offset + k);
     }
 
     return word;

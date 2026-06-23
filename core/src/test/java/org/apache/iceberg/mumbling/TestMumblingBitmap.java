@@ -335,8 +335,7 @@ class TestMumblingBitmap {
     buf.put(5, (byte) ((containers.length >>> 8) & 0xFF));
 
     // write encoded descriptors
-    int descriptorArraySize =
-        PFOREncoding.encode(descriptors, 0, buf, buf.position() + 6, descriptors.length);
+    int descriptorArraySize = PFOREncoding.encode(descriptors, 0, buf, 6, descriptors.length);
 
     // copy container bytes into the array
     int containerOffset = 6 + descriptorArraySize;
