@@ -89,6 +89,12 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   // cached schema
   private transient Schema avroSchema = null;
 
+  // Cached unmodifiable List<Long> view of splitOffsets, allocated lazily on
+  // the first splitOffsets() call and reused thereafter. Invalidated (set to
+  // null) whenever the underlying long[] is reassigned. Marked transient so
+  // it is not part of the wire/serialized state. See #15622.
+  private transient List<Long> splitOffsetsList = null;
+
   // struct type that corresponds to the positions used for internalGet and internalSet
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
@@ -188,6 +194,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
+    this.splitOffsetsList = null;
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
@@ -240,6 +247,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         toCopy.splitOffsets == null
             ? null
             : Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length);
+    this.splitOffsetsList = null;
     this.equalityIds =
         toCopy.equalityIds != null
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
@@ -365,6 +373,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return;
       case 14:
         this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.splitOffsetsList = null;
         return;
       case 15:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
@@ -535,11 +544,19 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   @Override
   public List<Long> splitOffsets() {
-    if (hasWellDefinedOffsets()) {
-      return ArrayUtil.toUnmodifiableLongList(splitOffsets);
+    if (!hasWellDefinedOffsets()) {
+      return null;
     }
 
-    return null;
+    // Cache the unmodifiable view so that repeated callers (manifest
+    // rewriting, format conversion, toString debugging) don't reallocate
+    // a new List<Long> wrapper on every invocation. The cache is
+    // transient and is invalidated wherever splitOffsets is reassigned.
+    // See #15622.
+    if (splitOffsetsList == null) {
+      splitOffsetsList = ArrayUtil.toUnmodifiableLongList(splitOffsets);
+    }
+    return splitOffsetsList;
   }
 
   long[] splitOffsetArray() {

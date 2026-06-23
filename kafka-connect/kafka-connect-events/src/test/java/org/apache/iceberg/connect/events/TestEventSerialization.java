@@ -64,7 +64,11 @@ public class TestEventSerialization {
             ".*avroSchema",
             ".*icebergSchema",
             ".*schema",
-            ".*fromProjectionPos")
+            ".*fromProjectionPos",
+            // Transient lazy cache populated on first splitOffsets() call;
+            // not part of logical equality. See BaseFile#splitOffsetsList,
+            // apache/iceberg#15622.
+            ".*splitOffsetsList")
         .isEqualTo(event);
   }
 
