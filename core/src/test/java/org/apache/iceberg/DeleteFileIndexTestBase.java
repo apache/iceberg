@@ -366,6 +366,80 @@ public abstract class DeleteFileIndexTestBase<
   }
 
   @TestTemplate
+  public void testPositionDeletePathReferenceOverridesPartitionMismatch() {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Position delete whose metadata partition (data_bucket=1) does not match FILE_A's
+    // partition (data_bucket=0), but whose path reference points to FILE_A.
+    // Should this commit be disallowed?
+    DeleteFile posDeleteWrongPartition =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-delete-wrong-partition-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .build();
+
+    table.newRowDelta().addDeletes(posDeleteWrongPartition).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
+    assertThat(task.file().location())
+        .as("Should have the correct data file path")
+        .isEqualTo(FILE_A.location());
+    assertThat(task.deletes())
+        .as("Path reference should override partition mismatch, the delete must be included")
+        .hasSize(1);
+    assertThat(task.deletes().get(0).location())
+        .as("Should have the path-scoped position delete file")
+        .isEqualTo(posDeleteWrongPartition.location());
+  }
+
+  @TestTemplate
+  public void testDeletionVectorPathReferenceOverridesPartitionMismatch() {
+    assumeThat(formatVersion).as("Requires V3 deletion vectors").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // DV whose metadata partition (data_bucket=1) does not match FILE_A's partition
+    // (data_bucket=0), but whose path reference points to FILE_A.
+    // Should this commit be disallowed?
+    DeleteFile dvWrongPartition =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/dv-wrong-partition-" + UUID.randomUUID() + ".puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    table.newRowDelta().addDeletes(dvWrongPartition).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
+    assertThat(task.file().location())
+        .as("Should have the correct data file path")
+        .isEqualTo(FILE_A.location());
+    assertThat(task.deletes())
+        .as("Path reference should override partition mismatch, the DV must be included")
+        .hasSize(1);
+    assertThat(task.deletes().get(0).location())
+        .as("Should have the deletion vector")
+        .isEqualTo(dvWrongPartition.location());
+  }
+
+  @TestTemplate
   public void testPartitionedTableWithPartitionEqDeletes() {
     table.newAppend().appendFile(FILE_A).commit();
 
