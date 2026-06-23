@@ -441,12 +441,12 @@ public class Parquet {
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
                 .withMaxBloomFilterBytes(bloomFilterMaxBytes);
 
-        // Enable adaptive bloom filter sizing (PARQUET-2326) when configured.
+        // Enable adaptive bloom filter sizing (PARQUET-2254) when configured.
         // Without this, parquet-mr allocates the full `bloom-filter-max-bytes`
         // buffer per bloom-enabled column regardless of actual NDV — which
         // produces wasteful padding for low-row-count writes (e.g., streaming
         // microbatches).
-        if (context.bloomFilterAdaptiveEnabled()) {
+        if (context.adaptiveBloomFilterEnabled()) {
           propsBuilder.withAdaptiveBloomFilterEnabled(true);
         }
 
@@ -516,7 +516,7 @@ public class Parquet {
       private final int rowGroupCheckMinRecordCount;
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
-      private final boolean bloomFilterAdaptiveEnabled;
+      private final boolean adaptiveBloomFilterEnabled;
       private final Map<String, String> columnBloomFilterFpp;
       private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
@@ -534,7 +534,7 @@ public class Parquet {
           int rowGroupCheckMinRecordCount,
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
-          boolean bloomFilterAdaptiveEnabled,
+          boolean adaptiveBloomFilterEnabled,
           Map<String, String> columnBloomFilterFpp,
           Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
@@ -550,7 +550,7 @@ public class Parquet {
         this.rowGroupCheckMinRecordCount = rowGroupCheckMinRecordCount;
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
-        this.bloomFilterAdaptiveEnabled = bloomFilterAdaptiveEnabled;
+        this.adaptiveBloomFilterEnabled = adaptiveBloomFilterEnabled;
         this.columnBloomFilterFpp = columnBloomFilterFpp;
         this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
@@ -614,7 +614,7 @@ public class Parquet {
                 config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
         Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
 
-        boolean bloomFilterAdaptiveEnabled =
+        boolean adaptiveBloomFilterEnabled =
             PropertyUtil.propertyAsBoolean(
                 config,
                 PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED,
@@ -646,7 +646,7 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
-            bloomFilterAdaptiveEnabled,
+            adaptiveBloomFilterEnabled,
             columnBloomFilterFpp,
             columnBloomFilterNdv,
             columnBloomFilterEnabled,
@@ -789,8 +789,8 @@ public class Parquet {
         return bloomFilterMaxBytes;
       }
 
-      boolean bloomFilterAdaptiveEnabled() {
-        return bloomFilterAdaptiveEnabled;
+      boolean adaptiveBloomFilterEnabled() {
+        return adaptiveBloomFilterEnabled;
       }
 
       Map<String, String> columnBloomFilterFpp() {

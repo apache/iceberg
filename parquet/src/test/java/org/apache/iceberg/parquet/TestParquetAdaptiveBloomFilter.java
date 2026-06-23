@@ -46,7 +46,7 @@ import org.junit.jupiter.api.io.TempDir;
  * fixed {@code bloom-filter-max-bytes} buffer per bloom-enabled column regardless of actual NDV
  * (the {@code !ndv.isPresent() && !adaptive} branch calls {@code new BlockSplitBloomFilter(
  * maxBloomFilterSize, maxBloomFilterSize)}). For low-row-count writes this produces a file
- * dominated by an empty bloom filter buffer. The adaptive flag (PARQUET-2326) makes parquet-mr pick
+ * dominated by an empty bloom filter buffer. The adaptive flag (PARQUET-2254) makes parquet-mr pick
  * the smallest of N candidate filter sizes that satisfies actual NDV at FPP.
  *
  * <p>These tests use the createWriterFunc code path because that is the path Iceberg uses for Spark
@@ -89,7 +89,7 @@ public class TestParquetAdaptiveBloomFilter {
   }
 
   @Test
-  public void testAdaptiveSizingShrinksFile() throws IOException {
+  public void adaptiveSizingShrinksFile() throws IOException {
     // Without adaptive, parquet-mr writes the full bloom-filter-max-bytes buffer (~4 MiB).
     long sizeWithoutAdaptive = writeAndMeasure(false);
 
@@ -107,7 +107,7 @@ public class TestParquetAdaptiveBloomFilter {
   }
 
   @Test
-  public void testAdaptiveDisabledByDefault() throws IOException {
+  public void adaptiveDisabledByDefault() throws IOException {
     // When the property is not set, behavior should match the legacy (non-adaptive) write path
     // — i.e., the full max-bytes buffer is allocated. This guards backward compatibility.
     long size = writeAndMeasure(false);
