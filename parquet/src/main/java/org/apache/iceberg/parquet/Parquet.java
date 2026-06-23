@@ -439,16 +439,8 @@ public class Parquet {
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
-                .withMaxBloomFilterBytes(bloomFilterMaxBytes);
-
-        // Enable adaptive bloom filter sizing (PARQUET-2254) when configured.
-        // Without this, parquet-mr allocates the full `bloom-filter-max-bytes`
-        // buffer per bloom-enabled column regardless of actual NDV — which
-        // produces wasteful padding for low-row-count writes (e.g., streaming
-        // microbatches).
-        if (context.adaptiveBloomFilterEnabled()) {
-          propsBuilder.withAdaptiveBloomFilterEnabled(true);
-        }
+                .withMaxBloomFilterBytes(bloomFilterMaxBytes)
+                .withAdaptiveBloomFilterEnabled(context.adaptiveBloomFilterEnabled());
 
         setBloomFilterConfig(
             context,
