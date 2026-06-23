@@ -70,6 +70,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.streaming.Offset;
+import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
@@ -480,6 +481,34 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
       assertThat(stream.latestOffset(secondEndOffset, stream.getDefaultReadLimit())).isNull();
       assertThat(((StreamingOffset) secondEndOffset).snapshotId()).isEqualTo(expectedCapSnapshotId);
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
+  public void testLatestOffsetForUnboundedLimitAdvancesToHeadSnapshot() {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    table.refresh();
+    long headSnapshotId = table.currentSnapshot().snapshotId();
+    long headAddedFiles = MicroBatchUtils.addedFilesCount(table, table.currentSnapshot());
+
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(ImmutableMap.of(), "all-available-latest-offset-checkpoint");
+
+    try {
+      Offset startOffset = stream.initialOffset();
+
+      // An unbounded limit (Trigger.AvailableNow / ReadLimit.allAvailable) advances straight to the
+      // latest snapshot and its added-file count without per-file planning. Both planners (sync and
+      // async, parameterized) must agree.
+      StreamingOffset endOffset =
+          (StreamingOffset) stream.latestOffset(startOffset, ReadLimit.allAvailable());
+
+      assertThat(endOffset).isNotNull();
+      assertThat(endOffset.snapshotId()).isEqualTo(headSnapshotId);
+      assertThat(endOffset.position()).isEqualTo(headAddedFiles);
     } finally {
       stream.stop();
     }
