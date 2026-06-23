@@ -453,5 +453,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     assertThat(dataIterator.fileOffset())
         .as("File offset should be 1 because file 0 should be skipped")
         .isEqualTo(1);
+
+    TestHelpers.assertRowData(TestFixtures.SCHEMA, record1, dataIterator.next());
   }
 }
