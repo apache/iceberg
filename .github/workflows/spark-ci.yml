@@ -104,7 +104,7 @@ jobs:
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
-      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
           # Read-only: java-ci's build-checks (17) is the global canonical writer.
           cache-read-only: true
