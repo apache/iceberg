@@ -45,9 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
@@ -67,13 +65,11 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -740,7 +736,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected List<ManifestFile> writeDataManifests(
       Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
-    return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
+    int groupCount = manifestWriterCount(writePoolParallelism, files.size());
+    return ManifestFiles.writeParallel(
+        files, groupCount, writePool(), group -> writeDataFileGroup(group, dataSeq, spec));
   }
 
   // Deletes uncommitted manifests; clears list if clearManifests and any deleted.
@@ -778,7 +776,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected List<ManifestFile> writeDeleteManifests(
       Collection<DeleteFile> files, PartitionSpec spec) {
-    return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
+    int groupCount = manifestWriterCount(writePoolParallelism, files.size());
+    return ManifestFiles.writeParallel(
+        files, groupCount, writePool(), group -> writeDeleteFileGroup(group, spec));
   }
 
   private List<ManifestFile> writeDeleteFileGroup(
@@ -800,47 +800,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  private <F> List<ManifestFile> writeManifests(
-      Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
-    int parallelism = manifestWriterCount(writePoolParallelism, files.size());
-    List<List<F>> groups = divide(files, parallelism);
-
-    // Create a new list pairing each group with its index
-    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayList();
-    for (int i = 0; i < groups.size(); i++) {
-      groupsWithIndex.add(Pair.of(i, groups.get(i)));
-    }
-
-    AtomicReferenceArray<List<ManifestFile>> results = new AtomicReferenceArray<>(groups.size());
-
-    Tasks.foreach(groupsWithIndex)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(writePool())
-        .run(
-            indexedGroup -> {
-              int index = indexedGroup.first();
-              List<F> group = indexedGroup.second();
-              List<ManifestFile> groupResults = writeFunc.apply(group);
-              results.set(index, groupResults);
-            });
-
-    // Collect results in order
-    ImmutableList.Builder<ManifestFile> builder = ImmutableList.builder();
-    for (int i = 0; i < results.length(); i++) {
-      builder.addAll(results.get(i));
-    }
-    return builder.build();
-  }
-
-  private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
-    List<T> list = Lists.newArrayList(collection);
-    int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
-    return Lists.partition(list, groupSize);
-  }
-
   /**
-   * Calculates how many manifest writers can be used to concurrently to handle the given number of
+   * Calculates how many manifest writers can be used concurrently to handle the given number of
    * files without creating too small manifests.
    *
    * @param workerPoolSize the size of the available worker pool

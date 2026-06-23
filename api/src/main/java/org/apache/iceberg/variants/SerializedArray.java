@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 
 class SerializedArray implements VariantArray, SerializedValue {
   private static final int HEADER_SIZE = 1;
@@ -55,7 +56,7 @@ class SerializedArray implements VariantArray, SerializedValue {
     this.value = value;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
-    int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    int numElements = ByteBuffers.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
     this.offsetListOffset = HEADER_SIZE + numElementsSize;
     this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
     this.array = new VariantValue[numElements];
@@ -70,10 +71,10 @@ class SerializedArray implements VariantArray, SerializedValue {
   public VariantValue get(int index) {
     if (null == array[index]) {
       int offset =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * index), offsetSize);
       int next =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
       array[index] =
           VariantValue.from(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));

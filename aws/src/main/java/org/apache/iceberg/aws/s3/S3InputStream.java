@@ -122,6 +122,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     positionStream();
     try {
       int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read());
+      if (bytesRead == -1) {
+        return -1;
+      }
+
       pos += 1;
       next += 1;
       readBytes.increment();
@@ -144,6 +148,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     try {
       int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read(b, off, len));
+      if (bytesRead == -1) {
+        return -1;
+      }
+
       pos += bytesRead;
       next += bytesRead;
       readBytes.increment(bytesRead);

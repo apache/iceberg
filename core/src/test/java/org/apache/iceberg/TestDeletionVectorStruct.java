@@ -88,6 +88,26 @@ class TestDeletionVectorStruct {
   }
 
   @Test
+  void testInternalSetIgnoresUnknownOrdinal() {
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(100L)
+            .sizeInBytes(512L)
+            .cardinality(42L)
+            .build();
+
+    // unknown ordinals from a newer format version are silently ignored
+    dv.internalSet(99, "value from a newer format");
+
+    // every field is unchanged
+    assertThat(dv.location()).isEqualTo("s3://bucket/data/dv.puffin");
+    assertThat(dv.offset()).isEqualTo(100L);
+    assertThat(dv.sizeInBytes()).isEqualTo(512L);
+    assertThat(dv.cardinality()).isEqualTo(42L);
+  }
+
+  @Test
   void testJavaSerializationRoundTrip() throws IOException, ClassNotFoundException {
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
@@ -106,11 +126,11 @@ class TestDeletionVectorStruct {
   }
 
   @Test
-  void testBuilderValidation() {
+  void testBuilderMissingRequiredFields() {
     assertThatThrownBy(
             () -> DeletionVectorStruct.builder().offset(0).sizeInBytes(1).cardinality(1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid location: null");
+        .hasMessage("Missing required value: location");
 
     assertThatThrownBy(
             () ->
@@ -119,26 +139,103 @@ class TestDeletionVectorStruct {
                     .sizeInBytes(1)
                     .cardinality(1)
                     .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: offset");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .cardinality(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: size in bytes");
+
+    assertThatThrownBy(
+            () ->
+                DeletionVectorStruct.builder()
+                    .location("s3://bucket/dv.puffin")
+                    .offset(0)
+                    .sizeInBytes(1)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: cardinality");
+  }
+
+  @Test
+  void testDvEquality() {
+    DeletionVectorStruct dv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct sameDv =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentLocation =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv2.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentOffset =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(1L)
+            .sizeInBytes(128L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentSize =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(8L)
+            .cardinality(42L)
+            .build();
+
+    DeletionVectorStruct dvWithDifferentCardinality =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/dv.puffin")
+            .offset(256L)
+            .sizeInBytes(128L)
+            .cardinality(2L)
+            .build();
+
+    assertThat(dv).isEqualTo(dv);
+    assertThat(dv).isEqualTo(sameDv);
+    assertThat(dv).isNotEqualTo(dvWithDifferentLocation);
+    assertThat(dv).isNotEqualTo(dvWithDifferentOffset);
+    assertThat(dv).isNotEqualTo(dvWithDifferentSize);
+    assertThat(dv).isNotEqualTo(dvWithDifferentCardinality);
+  }
+
+  @Test
+  void testBuilderRejectsInvalidValuesAtSetter() {
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().location(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid location: null");
+
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().offset(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid offset: -1 (must be >= 0)");
 
-    assertThatThrownBy(
-            () ->
-                DeletionVectorStruct.builder()
-                    .location("s3://bucket/dv.puffin")
-                    .offset(0)
-                    .cardinality(1)
-                    .build())
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().sizeInBytes(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid size in bytes: -1 (must be >= 0)");
 
-    assertThatThrownBy(
-            () ->
-                DeletionVectorStruct.builder()
-                    .location("s3://bucket/dv.puffin")
-                    .offset(0)
-                    .sizeInBytes(1)
-                    .build())
+    assertThatThrownBy(() -> DeletionVectorStruct.builder().cardinality(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid cardinality: -1 (must be >= 0)");
   }
