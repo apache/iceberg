@@ -183,6 +183,7 @@ class SparkBatch implements Batch {
 
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
+  // - no projected column has a time type
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
