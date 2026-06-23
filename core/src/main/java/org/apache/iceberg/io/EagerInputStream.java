@@ -18,76 +18,56 @@
  */
 package org.apache.iceberg.io;
 
+import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** A seekable, range-readable stream backed by a byte array fetched in a single remote call. */
-class SingleFetchInputStream extends SeekableInputStream implements RangeReadable {
+class EagerInputStream extends SeekableInputStream implements RangeReadable {
 
   private final byte[] contents;
-  private int position;
-  private boolean closed;
+  private final ByteArrayInputStream delegate;
 
-  SingleFetchInputStream(byte[] contents) {
+  EagerInputStream(byte[] contents) {
     Preconditions.checkNotNull(contents, "contents is null");
     this.contents = contents;
+    this.delegate = new ByteArrayInputStream(contents);
   }
 
   @Override
   public long getPos() throws IOException {
-    return position;
+    return (long) contents.length - delegate.available();
   }
 
   @Override
   public void seek(long newPos) throws IOException {
-    Preconditions.checkState(!closed, "Cannot seek: already closed");
     Preconditions.checkArgument(newPos >= 0, "position is negative: %s", newPos);
-    if (newPos > contents.length) {
+    delegate.reset();
+    if (skip(newPos) != newPos) {
       throw new EOFException(
           "Cannot seek to position " + newPos + ": exceeds stream length " + contents.length);
     }
-    position = (int) newPos;
   }
 
   @Override
   public int read() throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: already closed");
-    if (position >= contents.length) {
-      return -1;
-    }
-    return contents[position++] & 0xFF;
+    return delegate.read();
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: already closed");
-    Preconditions.checkPositionIndexes(off, off + len, b.length);
-    if (len == 0) {
-      return 0;
-    }
-    if (position >= contents.length) {
-      return -1;
-    }
-    int bytesToRead = Math.min(len, contents.length - position);
-    System.arraycopy(contents, position, b, off, bytesToRead);
-    position += bytesToRead;
-    return bytesToRead;
+    return delegate.read(b, off, len);
   }
 
   @Override
   public long skip(long n) throws IOException {
-    if (n <= 0) {
-      return 0;
-    }
-    long bytesToSkip = Math.min(n, (long) contents.length - position);
-    position += (int) bytesToSkip;
-    return bytesToSkip;
+    return delegate.skip(n);
   }
 
   @Override
   public int available() throws IOException {
-    return contents.length - position;
+    return delegate.available();
   }
 
   @Override
@@ -115,7 +95,5 @@ class SingleFetchInputStream extends SeekableInputStream implements RangeReadabl
   }
 
   @Override
-  public void close() throws IOException {
-    closed = true;
-  }
+  public void close() throws IOException {}
 }

@@ -47,17 +47,14 @@ import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.SingleFetchInputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -80,7 +77,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
-  private final long singleFetchThreshold;
 
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
@@ -106,11 +102,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
-    this.singleFetchThreshold =
-        PropertyUtil.propertyAsLong(
-            table.properties(),
-            TableProperties.READ_SINGLE_FETCH_THRESHOLD_BYTES,
-            TableProperties.READ_SINGLE_FETCH_THRESHOLD_BYTES_DEFAULT);
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -191,22 +182,9 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
-      Map<String, InputFile> raw =
+      this.lazyInputFiles =
           fileIO.bulkDecrypt(
               () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
-
-      if (singleFetchThreshold <= 0) {
-        this.lazyInputFiles = raw;
-      } else {
-        Map<String, InputFile> wrapped = Maps.newHashMapWithExpectedSize(raw.size());
-        for (Map.Entry<String, InputFile> entry : raw.entrySet()) {
-          InputFile file = entry.getValue();
-          wrapped.put(
-              entry.getKey(),
-              new SingleFetchInputFile(file, file.getLength(), singleFetchThreshold));
-        }
-        this.lazyInputFiles = wrapped;
-      }
     }
 
     return lazyInputFiles;

@@ -26,13 +26,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * A decorator that collapses multiple object-store requests into one by fetching the entire file on
  * the first call when the file size is at or below the configured threshold.
  */
-public class SingleFetchInputFile implements InputFile {
+public class EagerInputFile implements InputFile {
 
   private final InputFile delegate;
   private final long fileSize;
   private final long threshold;
 
-  public SingleFetchInputFile(InputFile delegate, long fileSize, long threshold) {
+  public EagerInputFile(InputFile delegate, long fileSize, long threshold) {
     Preconditions.checkNotNull(delegate, "delegate is null");
     Preconditions.checkArgument(fileSize >= 0, "fileSize is negative: %s", fileSize);
     this.delegate = delegate;
@@ -67,6 +67,6 @@ public class SingleFetchInputFile implements InputFile {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to fetch file: %s", delegate.location());
     }
-    return new SingleFetchInputStream(bytes);
+    return new EagerInputStream(bytes);
   }
 }
