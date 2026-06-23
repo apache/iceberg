@@ -72,7 +72,41 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      spark: ${{ steps.plan.outputs.spark }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 2
+        persist-credentials: false
+    - id: plan
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+      run: |
+        spark='["3.5","4.0","4.1","4.2"]'
+        if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+          # Narrow to one known Spark version only when every changed file is under
+          # the same spark/v<version>/ directory.
+          changed=$(
+            git diff --no-renames --name-only HEAD^1 HEAD 2>/dev/null |
+              awk -F/ '$1 == "spark" && $2 ~ /^v/ && NF > 2 {print substr($2, 2); next} {print "*"}' |
+              sort -u
+          ) || changed=""
+
+          if [[ -n "${changed}" &&
+              "${changed}" != *$'\n'* &&
+              "${changed}" != "*" &&
+              "${spark}" == *"\"${changed}\""* ]]; then
+            spark="[\"${changed}\"]"
+          fi
+        fi
+        echo "spark=${spark}" >> "${GITHUB_OUTPUT}"
+
   spark-tests:
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -83,7 +117,7 @@ jobs:
         # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
         jvm: [17, 21]
         event_name: ['${{ github.event_name }}']
-        spark: ['3.5', '4.0', '4.1', '4.2']
+        spark: ${{ fromJson(needs.plan.outputs.spark) }}
         scala: ['2.12', '2.13']
         # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
         # so they run as concurrent jobs rather than serially in one job.
@@ -115,14 +149,21 @@ jobs:
           cache-read-only: true
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - name: Run tests
+        env:
+          SPARK_VERSION: ${{ matrix.spark }}
+          SCALA_VERSION: ${{ matrix.scala }}
+          TEST_GROUP: ${{ matrix.tests }}
         run: |
-          if [[ "${{ matrix.tests }}" == "core" ]]; then
-            projects=":iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          if [[ "${TEST_GROUP}" == "core" ]]; then
+            projects=(":iceberg-spark:iceberg-spark-${SPARK_VERSION}_${SCALA_VERSION}:check")
           else
-            projects=":iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check"
+            projects=(
+              ":iceberg-spark:iceberg-spark-extensions-${SPARK_VERSION}_${SCALA_VERSION}:check"
+              ":iceberg-spark:iceberg-spark-runtime-${SPARK_VERSION}_${SCALA_VERSION}:check"
+            )
           fi
-          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DflinkVersions= -DkafkaVersions= \
-            $projects -Pquick=true -x javadoc -DtestParallelism=auto
+          ./gradlew -DsparkVersions="${SPARK_VERSION}" -DscalaVersion="${SCALA_VERSION}" -DflinkVersions= -DkafkaVersions= \
+            "${projects[@]}" -Pquick=true -x javadoc -DtestParallelism=auto
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
