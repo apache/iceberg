@@ -456,4 +456,86 @@ public class TestArrayPoolDataIteratorBatcherRowData {
 
     TestHelpers.assertRowData(TestFixtures.SCHEMA, record1, dataIterator.next());
   }
+
+  @Test
+  void testSeekResumesCorrectlyAfterHeadFilesSkipped() throws IOException {
+    // Setup: [F0(filtered), F1(1 record), F2(2 records)]
+    // F1 has only 1 record so that after reading F1, the checkpoint position (fileOffset=1,
+    // recordOffset=1) falls at a file boundary. Without the fix, fileOffset is incorrectly
+    // reported as 0 instead of 1 after seek(0,0) skips F0. This causes F2's first record to
+    // be reported at (fileOffset=1, recordOffset=1). On restore with seek(1, 1), the iterator
+    // skips only F0 + 1 record from F1, landing at the start of F2 instead of after F2 record0,
+    // resulting in F2 record0 being read again (duplicate).
+    GenericRecord filteredRecord = GenericRecord.create(TestFixtures.SCHEMA);
+    filteredRecord.setField("data", "a");
+    filteredRecord.setField("id", 1L);
+    filteredRecord.setField("dt", "-");
+
+    GenericRecord f1Record0 = GenericRecord.create(TestFixtures.SCHEMA);
+    f1Record0.setField("data", "b");
+    f1Record0.setField("id", 10L);
+    f1Record0.setField("dt", "-");
+
+    GenericRecord f2Record0 = GenericRecord.create(TestFixtures.SCHEMA);
+    f2Record0.setField("data", "d");
+    f2Record0.setField("id", 20L);
+    f2Record0.setField("dt", "-");
+
+    GenericRecord f2Record1 = GenericRecord.create(TestFixtures.SCHEMA);
+    f2Record1.setField("data", "e");
+    f2Record1.setField("id", 21L);
+    f2Record1.setField("dt", "-");
+
+    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.greaterThan("id", 5));
+
+    FileScanTask fileTask0 =
+        ReaderUtil.createFileTask(
+            ImmutableList.of(filteredRecord),
+            File.createTempFile("junit", null, temporaryFolder.toFile()),
+            FILE_FORMAT,
+            TestFixtures.SCHEMA,
+            residuals);
+
+    FileScanTask fileTask1 =
+        ReaderUtil.createFileTask(
+            ImmutableList.of(f1Record0),
+            File.createTempFile("junit", null, temporaryFolder.toFile()),
+            FILE_FORMAT,
+            TestFixtures.SCHEMA,
+            residuals);
+
+    FileScanTask fileTask2 =
+        ReaderUtil.createFileTask(
+            ImmutableList.of(f2Record0, f2Record1),
+            File.createTempFile("junit", null, temporaryFolder.toFile()),
+            FILE_FORMAT,
+            TestFixtures.SCHEMA,
+            residuals);
+
+    CombinedScanTask combinedTask =
+        new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1, fileTask2));
+
+    // First read: consume file 1's record and file 2's first record
+    DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
+    dataIterator.seek(0, 0);
+
+    TestHelpers.assertRowData(TestFixtures.SCHEMA, f1Record0, dataIterator.next());
+    // F1 exhausted, updateCurrentIterator moves to F2
+    TestHelpers.assertRowData(TestFixtures.SCHEMA, f2Record0, dataIterator.next());
+
+    // Capture checkpoint position after reading F2 record0.
+    // With the fix: fileOffset=2, recordOffset=1 (correctly points into F2)
+    // Without fix: fileOffset=1, recordOffset=1 (incorrectly points to "F1 record 1")
+    int checkpointFileOffset = dataIterator.fileOffset();
+    long checkpointRecordOffset = dataIterator.recordOffset();
+
+    // Simulate restore: seek to the checkpoint position
+    DataIterator<RowData> restoredIterator = ReaderUtil.createDataIterator(combinedTask);
+    restoredIterator.seek(checkpointFileOffset, checkpointRecordOffset);
+
+    // After restore, should read only F2 record1 (the unread remainder)
+    assertThat(restoredIterator.hasNext()).isTrue();
+    TestHelpers.assertRowData(TestFixtures.SCHEMA, f2Record1, restoredIterator.next());
+    assertThat(restoredIterator.hasNext()).isFalse();
+  }
 }
