@@ -105,6 +105,9 @@ public class TestSparkValueConverter {
     assertThat(roundTripped)
         .as("Round-trip time conversion should preserve the value")
         .isEqualTo(time);
+  }
+
+  @Test
   public void testConvertToSparkComplexTypesThrow() {
     Types.StructType struct =
         Types.StructType.of(Types.NestedField.required(1, "lat", Types.FloatType.get()));
