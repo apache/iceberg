@@ -167,6 +167,12 @@ public class TestRewriteDataFilesAction extends TestBase {
   private final ScanTaskSetManager manager = ScanTaskSetManager.get();
   private String tableLocation = null;
 
+  // Mirror of the rows written natively via appendRecords, in the {c1, c2, c3} shape that
+  // currentData() returns. Lets tests that only compact (which preserves row content) assert
+  // against the known input via expectedData() instead of paying a second Spark read+sort+collect
+  // just to re-materialize what they wrote. Reset per test in setupTableLocation().
+  private final List<Object[]> writtenRecords = Lists.newArrayList();
+
   @BeforeAll
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
@@ -176,6 +182,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   @BeforeEach
   public void setupTableLocation() {
     this.tableLocation = tableDir.toURI().toString();
+    this.writtenRecords.clear();
   }
 
   private RewriteDataFilesSparkAction basicRewrite(Table table) {
@@ -203,7 +210,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackUnpartitionedTable() {
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     Result result = basicRewrite(table).execute();
@@ -223,7 +230,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackPartitionedTable() {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     Result result = basicRewrite(table).execute();
@@ -243,7 +250,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackWithFilter() {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     Result result =
@@ -269,7 +276,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTablePartitioned(4, 2);
 
     shouldHaveFiles(table, 8);
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     Result result =
@@ -299,7 +306,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.ref("c1")).commit();
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFiles.Result result =
@@ -829,7 +836,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
     long dataSizeBefore = testDataSize(table);
 
@@ -864,7 +871,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "1");
     Table table = createTablePartitioned(4, 2, SCALE, properties);
     shouldHaveFiles(table, 8);
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
     assertThat(oldSequenceNumber).as("Table sequence number should be 0").isZero();
     long dataSizeBefore = testDataSize(table);
@@ -944,7 +951,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(1);
     shouldHaveFiles(table, 1);
 
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     long targetSize = testDataSize(table) / 2;
 
     long dataSizeBefore = testDataSize(table);
@@ -1018,7 +1025,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
 
-    List<Object[]> expectedRecords = currentData();
+    List<Object[]> expectedRecords = expectedData();
     int targetSize = ((int) testDataSize(table) / 3);
     // The test is to see if we can combine parts of files to make files of the correct size
 
@@ -1054,7 +1061,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     table.updateProperties().set(COMMIT_NUM_RETRIES, "10").commit();
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     // Perform a rewrite but only allow 2 files to be compacted at a time
@@ -1081,7 +1088,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     // Perform a rewrite but only allow 2 files to be compacted at a time
@@ -1107,7 +1114,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     // Perform a rewrite but only allow 2 files to be compacted at a time
@@ -1134,7 +1141,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
@@ -1166,7 +1173,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
@@ -1198,7 +1205,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
@@ -1230,7 +1237,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
@@ -1263,7 +1270,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFilesSparkAction realRewrite =
@@ -1303,7 +1310,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFilesSparkAction realRewrite =
@@ -1344,7 +1351,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFilesSparkAction realRewrite =
@@ -1387,7 +1394,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
@@ -1427,7 +1434,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFilesSparkAction rewrite =
         basicRewrite(table)
@@ -1504,7 +1511,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveLastCommitUnsorted(table, "c2");
     int fileSize = averageFileSize(table);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     // Perform a rewrite but only allow 2 files to be compacted at a time
@@ -1533,7 +1540,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.replaceSortOrder().asc("c2").commit();
     shouldHaveLastCommitUnsorted(table, "c2");
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFiles.Result result =
@@ -1566,7 +1573,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.replaceSortOrder().asc("c2").commit();
     shouldHaveLastCommitUnsorted(table, "c2");
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFiles.Result result =
@@ -1599,7 +1606,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFiles.Result result =
@@ -1637,7 +1644,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.replaceSortOrder().asc("c2").apply();
     shouldHaveFiles(table, 20);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFiles.Result result =
@@ -1672,7 +1679,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     table.replaceSortOrder().asc("c2").commit();
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFiles.Result result =
         basicRewrite(table)
@@ -1698,7 +1705,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     long dataSizeBefore = testDataSize(table);
 
     RewriteDataFiles.Result result =
@@ -1736,7 +1743,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
 
     RewriteDataFilesSparkAction action = basicRewrite(table);
     RewriteDataFilesSparkAction spyAction = spy(action);
@@ -1790,7 +1797,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, originalFiles);
 
-    List<Object[]> originalData = currentData();
+    List<Object[]> originalData = expectedData();
     double originalFilesC2 = percentFilesRequired(table, "c2", "foo23");
     double originalFilesC3 = percentFilesRequired(table, "c3", "bar21");
     double originalFilesC2C3 =
@@ -1944,7 +1951,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
 
     long dataSizeBefore = testDataSize(table);
-    long count = currentData().size();
+    long count = expectedData().size();
 
     RewriteDataFiles.Result result =
         basicRewrite(table)
@@ -1967,7 +1974,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
 
     long dataSizeBefore = testDataSize(table);
-    long count = currentData().size();
+    long count = expectedData().size();
 
     RewriteDataFiles.Result result =
         basicRewrite(table)
@@ -2006,7 +2013,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
 
     long dataSizeBefore = testDataSize(table);
-    long count = currentData().size();
+    long count = expectedData().size();
 
     RewriteDataFiles.Result result =
         basicRewrite(table)
@@ -2029,7 +2036,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
 
     long dataSizeBefore = testDataSize(table);
-    long count = currentData().size();
+    long count = expectedData().size();
 
     RewriteDataFiles.Result result =
         basicRewrite(table)
@@ -2184,6 +2191,22 @@ public class TestRewriteDataFilesAction extends TestBase {
             .coalesce(1)
             .sort("c1", "c2", "c3")
             .collectAsList());
+  }
+
+  /**
+   * The rows written natively so far, in the same {c1, c2, c3} shape and (c1, c2, c3) sort order
+   * that {@link #currentData()} produces. Compaction preserves row content, so tests that only
+   * compact can assert against this instead of re-reading the table via Spark just to recover the
+   * data they already wrote. Only valid for tables populated exclusively through the native
+   * writeRecords/createTable path (no row-level deletes, Spark writes, or lineage projections).
+   */
+  private List<Object[]> expectedData() {
+    List<Object[]> rows = Lists.newArrayList(writtenRecords);
+    rows.sort(
+        Comparator.<Object[], Integer>comparing(row -> (Integer) row[0])
+            .thenComparing(row -> (String) row[1])
+            .thenComparing(row -> (String) row[2]));
+    return rows;
   }
 
   protected List<Object[]> currentDataWithLineage() {
@@ -2513,6 +2536,11 @@ public class TestRewriteDataFilesAction extends TestBase {
    * shuffle, sort, and DataFrame conversion per write.
    */
   private void appendRecords(List<Record> records, int files) {
+    for (Record record : records) {
+      writtenRecords.add(
+          new Object[] {record.getField("c1"), record.getField("c2"), record.getField("c3")});
+    }
+
     Table table = TABLES.load(tableLocation);
     PartitionSpec spec = table.spec();
     AppendFiles append = table.newAppend();
