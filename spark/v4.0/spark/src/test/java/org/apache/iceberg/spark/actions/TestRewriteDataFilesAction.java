@@ -2560,15 +2560,15 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   /** Split a list into at most {@code parts} contiguous, non-empty sublists. */
   private static List<List<Record>> split(List<Record> records, int parts) {
-    int n = Math.min(parts, records.size());
-    List<List<Record>> chunks = Lists.newArrayListWithCapacity(Math.max(n, 0));
-    if (n <= 0) {
+    int count = Math.min(parts, records.size());
+    List<List<Record>> chunks = Lists.newArrayListWithCapacity(Math.max(count, 0));
+    if (count <= 0) {
       return chunks;
     }
-    int base = records.size() / n;
-    int remainder = records.size() % n;
+    int base = records.size() / count;
+    int remainder = records.size() % count;
     int start = 0;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < count; i++) {
       int size = base + (i < remainder ? 1 : 0);
       chunks.add(records.subList(start, start + size));
       start += size;
