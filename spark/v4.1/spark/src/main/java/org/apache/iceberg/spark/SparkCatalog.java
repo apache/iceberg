@@ -586,8 +586,7 @@ public class SparkCatalog extends BaseCatalog {
                     tableState.namespace().toArray(new String[0])),
                 tableState.name());
         try {
-          org.apache.iceberg.Table sourceTable =
-              ((org.apache.iceberg.catalog.Catalog) icebergCatalog()).loadTable(sourceId);
+          org.apache.iceberg.Table sourceTable = icebergCatalog().loadTable(sourceId);
           long currentSnapshotId =
               sourceTable.currentSnapshot() == null
                   ? -1
