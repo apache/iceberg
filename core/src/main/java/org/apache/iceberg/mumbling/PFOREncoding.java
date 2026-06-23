@@ -75,7 +75,7 @@ class PFOREncoding {
    * @param values unsigned byte values to encode
    * @param valueOffset starting offset of values to encode
    * @param out buffer to write encoded values to
-   * @param outOffset starting offset in the output bufferß
+   * @param outOffset starting offset in the output buffer
    * @param count number of values to encode
    * @return the number of bytes written to the buffer
    */

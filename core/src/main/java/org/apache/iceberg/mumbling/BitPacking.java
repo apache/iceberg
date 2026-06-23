@@ -120,7 +120,7 @@ class BitPacking {
   /**
    * Copy byte values from a buffer into an int[].
    *
-   * @param data buffer of source values to copyß
+   * @param data buffer of source values to copy
    * @param dataOffset starting offset in the input buffer
    * @param out output array values will be copied to
    * @param outOffset starting offset in the output buffer
