@@ -169,6 +169,8 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       // 3 DATA_FILE (from main) + 1 EQ_DELETE_FILE
       assertThat(countDataFileTasks(commands)).isEqualTo(3);
       assertThat(countEqDeleteTasks(commands)).isEqualTo(1);
+      assertThat(planner(harness).processedStagingSnapshotNum()).isEqualTo(1);
+      assertThat(planner(harness).processedEqDeleteFileNum()).isEqualTo(1);
 
       List<StreamRecord<EqualityConvertPlan>> metadata =
           Lists.newArrayList(harness.getSideOutput(EqualityConvertPlanner.METADATA_STREAM));
@@ -312,6 +314,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       sendTrigger(harness);
       int firstTriggerCount = harness.extractOutputValues().size();
       assertThat(firstTriggerCount).isGreaterThan(0);
+      assertThat(planner(harness).skippedNoOpCycles()).isZero();
 
       // Simulate the committer committing to main with the staging snapshot property
       // (the planner promotes pending only after confirming the commit landed on main).
@@ -319,6 +322,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
       sendTrigger(harness);
       assertThat(harness.extractOutputValues()).hasSize(firstTriggerCount);
+      assertThat(planner(harness).skippedNoOpCycles()).isEqualTo(1);
     }
   }
 
@@ -340,6 +344,8 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(countDataFileTasks(harness.extractOutputValues())).isEqualTo(1);
       assertThat(countEqDeleteTasks(harness.extractOutputValues())).isZero();
       assertThat(harness.getSideOutput(EqualityConvertPlanner.METADATA_STREAM)).hasSize(1);
+      assertThat(planner(harness).skippedNoOpCycles()).isEqualTo(1);
+      assertThat(planner(harness).reindexCount()).isZero();
     }
   }
 
@@ -709,6 +715,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       int firstTriggerCount = harness.extractOutputValues().size();
       // 1 DATA_FILE (main) + 1 EQ_DELETE_FILE
       assertThat(firstTriggerCount).isEqualTo(2);
+      assertThat(planner(harness).reindexCount()).isZero();
+      assertThat(planner(harness).processedStagingSnapshotNum()).isEqualTo(1);
+      assertThat(planner(harness).processedEqDeleteFileNum()).isEqualTo(1);
 
       // External commit: no COMMITTED_STAGING_SNAPSHOT_PROPERTY
       DataFile externalFile =
@@ -729,6 +738,9 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       // External commit triggers re-index: main data files are re-emitted
       assertThat(countDataFileTasks(trigger2Commands)).isGreaterThan(0);
       assertThat(countEqDeleteTasks(trigger2Commands)).isEqualTo(1);
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      assertThat(planner(harness).processedStagingSnapshotNum()).isEqualTo(2);
+      assertThat(planner(harness).processedEqDeleteFileNum()).isEqualTo(2);
     }
   }
 
@@ -1079,6 +1091,11 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
   private static long countEqDeleteTasks(List<ReadCommand> commands) {
     return commands.stream().filter(TestEqualityConvertPlanner::isEqDelete).count();
+  }
+
+  private static EqualityConvertPlanner planner(
+      OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness) {
+    return (EqualityConvertPlanner) harness.getOperator();
   }
 
   private static boolean isEqDelete(ReadCommand cmd) {

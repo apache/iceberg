@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -737,5 +738,25 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   public void close() throws Exception {
     super.close();
     tableLoader.close();
+  }
+
+  @VisibleForTesting
+  long reindexCount() {
+    return reindexCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long skippedNoOpCycles() {
+    return skippedNoOpCyclesCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long processedStagingSnapshotNum() {
+    return processedStagingSnapshotNumCounter.getCount();
+  }
+
+  @VisibleForTesting
+  long processedEqDeleteFileNum() {
+    return processedEqDeleteFileNumCounter.getCount();
   }
 }
