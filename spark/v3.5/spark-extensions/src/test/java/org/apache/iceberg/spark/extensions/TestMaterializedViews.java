@@ -221,6 +221,67 @@ public class TestMaterializedViews extends ExtensionsTestBase {
     assertThat(sql("SHOW TABLES")).anySatisfy(row -> assertThat(row[1]).isEqualTo(customTableName));
   }
 
+  @TestTemplate
+  public void testRefreshMaterializedView() {
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
+
+    // Refresh the materialized view
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    // After refresh, the MV should be fresh and loadable as a table
+    try {
+      assertThat(sparkTableCatalog().loadTable(viewIdentifier()))
+          .isInstanceOf(SparkMaterializedView.class);
+    } catch (NoSuchTableException e) {
+      fail("Refreshed materialized view should be loadable as a table");
+    }
+
+    // Verify the storage table has data
+    View view = loadIcebergView();
+    String storageTableRef =
+        String.format(
+            "%s.%s.%s", catalogName, NAMESPACE, view.currentVersion().storageTable().name());
+    assertThat(sql("SELECT * FROM %s", storageTableRef)).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testRefreshMaterializedViewUpdatesData() {
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, tableName);
+
+    // First refresh
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    // Insert more data
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    // Before second refresh, the MV should be stale
+    try {
+      assertThat(sparkViewCatalog().loadView(viewIdentifier())).isInstanceOf(SparkView.class);
+    } catch (NoSuchViewException e) {
+      fail("Stale materialized view should be loadable as a view");
+    }
+
+    // Second refresh
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    // After refresh, the MV should be fresh again
+    try {
+      assertThat(sparkTableCatalog().loadTable(viewIdentifier()))
+          .isInstanceOf(SparkMaterializedView.class);
+    } catch (NoSuchTableException e) {
+      fail("Refreshed materialized view should be loadable as a table");
+    }
+
+    // Verify the storage table has all 3 rows
+    View view = loadIcebergView();
+    String storageTableRef =
+        String.format(
+            "%s.%s.%s", catalogName, NAMESPACE, view.currentVersion().storageTable().name());
+    assertThat(sql("SELECT * FROM %s", storageTableRef)).hasSize(3);
+  }
+
   private void simulateRefresh() {
     View view = loadIcebergView();
     org.apache.iceberg.catalog.TableIdentifier storageTableId =

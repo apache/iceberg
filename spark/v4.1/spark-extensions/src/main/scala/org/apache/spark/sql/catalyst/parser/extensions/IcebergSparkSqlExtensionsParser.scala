@@ -38,7 +38,9 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.RefreshMaterializedViewStatement
 import org.apache.spark.sql.catalyst.trees.Origin
+import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
@@ -127,6 +129,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
     } else if (isCreateMaterializedView(sqlText)) {
       RewriteViewCommands(SparkSession.active, Option(getMaterializedViewOptions(sqlText)))
         .apply(delegate.parsePlan(getCreateMaterializedViewStatement(sqlText)))
+    } else if (isRefreshMaterializedView(sqlText)) {
+      parseRefreshMaterializedView(sqlText)
     } else {
       RewriteViewCommands(SparkSession.active).apply(delegate.parsePlan(sqlText))
     }
@@ -146,6 +150,23 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
     val storedAsPattern = "(?i)STORED AS\\s*'(\\w+)'\\s*".r
     val storageTableIdentifier = storedAsPattern.findFirstMatchIn(sqlText).map(_.group(1))
     MaterializedViewOptions(storageTableIdentifier)
+  }
+
+  private def isRefreshMaterializedView(sqlText: String): Boolean = {
+    sqlText.toLowerCase.trim.startsWith("refresh materialized view")
+  }
+
+  private def parseRefreshMaterializedView(sqlText: String): LogicalPlan = {
+    val viewName = sqlText.trim
+      .replaceFirst("(?i)REFRESH\\s+MATERIALIZED\\s+VIEW\\s+", "")
+      .trim
+    val spark = SparkSession.active
+    val catalogAndIdent =
+      org.apache.iceberg.spark.Spark3Util.catalogAndIdentifier(spark, viewName)
+    val viewCatalog =
+      catalogAndIdent.catalog().asInstanceOf[ViewCatalog]
+    val ident = catalogAndIdent.identifier()
+    RefreshMaterializedViewStatement(viewCatalog, ident)
   }
 
   private def isIcebergCommand(sqlText: String): Boolean = {
