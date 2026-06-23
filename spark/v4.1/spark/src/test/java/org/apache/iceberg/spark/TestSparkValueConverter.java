@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalTime;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -81,6 +82,26 @@ public class TestSparkValueConverter {
             Types.NestedField.required(0, "id", Types.LongType.get()),
             Types.NestedField.optional(5, "location", Types.StringType.get()));
     assertCorrectNullConversion(schema);
+  }
+
+  @Test
+  public void testSparkTimeConvert() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "start_time", Types.TimeType.get()));
+
+    // microsecond-precision time so the Iceberg (micros) round-trip is lossless
+    LocalTime time = LocalTime.of(10, 20, 30, 123_456_000);
+    Row sparkRow = RowFactory.create(1L, time);
+
+    Record record = (Record) SparkValueConverter.convert(schema, sparkRow);
+    Object roundTripped =
+        SparkValueConverter.convertToSpark(Types.TimeType.get(), record.getField("start_time"));
+
+    assertThat(roundTripped)
+        .as("Round-trip time conversion should preserve the value")
+        .isEqualTo(time);
   }
 
   private void assertCorrectNullConversion(Schema schema) {
