@@ -384,4 +384,50 @@ public class TestIcebergToGlueConverter {
         .as("Columns should match")
         .isEqualTo(expectedTableInput.storageDescriptor().columns());
   }
+
+  @Test
+  public void testSetColumnCommentTruncation() {
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    Schema schema =
+        new Schema(Types.NestedField.required(1, "x", Types.StringType.get(), "a".repeat(256)));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "s3://test", ImmutableMap.of());
+
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    TableInput actualTableInput = actualTableInputBuilder.build();
+
+    assertThat(actualTableInput.storageDescriptor().columns().get(0).comment())
+        .as("Column comment should be truncated")
+        .hasSize(IcebergToGlueConverter.GLUE_COLUMN_COMMENT_MAX_LENGTH);
+  }
+
+  @Test
+  public void testSetColumnCommentTruncationWithExistingTable() {
+    // Actual TableInput
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.StringType.get()));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), "s3://test", ImmutableMap.of());
+
+    // Existing Table
+    Table existingGlueTable =
+        Table.builder()
+            .storageDescriptor(
+                StorageDescriptor.builder()
+                    .columns(
+                        ImmutableList.of(
+                            Column.builder().name("x").comment("a".repeat(256)).build()))
+                    .build())
+            .build();
+
+    IcebergToGlueConverter.setTableInputInformation(
+        actualTableInputBuilder, tableMetadata, existingGlueTable);
+    TableInput actualTableInput = actualTableInputBuilder.build();
+
+    assertThat(actualTableInput.storageDescriptor().columns().get(0).comment())
+        .as("Column comment should be truncated")
+        .hasSize(IcebergToGlueConverter.GLUE_COLUMN_COMMENT_MAX_LENGTH);
+  }
 }
