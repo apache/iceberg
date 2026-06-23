@@ -167,10 +167,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   private final ScanTaskSetManager manager = ScanTaskSetManager.get();
   private String tableLocation = null;
 
-  // Mirror of the rows written natively via appendRecords, in the {c1, c2, c3} shape that
-  // currentData() returns. Lets tests that only compact (which preserves row content) assert
-  // against the known input via expectedData() instead of paying a second Spark read+sort+collect
-  // just to re-materialize what they wrote. Reset per test in setupTableLocation().
+  // Rows written natively so far; lets compaction-only tests assert via expectedData() instead of a
+  // second Spark read to recover what they just wrote. Reset per test in setupTableLocation().
   private final List<Object[]> writtenRecords = Lists.newArrayList();
 
   @BeforeAll
@@ -2194,11 +2192,9 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   /**
-   * The rows written natively so far, in the same {c1, c2, c3} shape and (c1, c2, c3) sort order
-   * that {@link #currentData()} produces. Compaction preserves row content, so tests that only
-   * compact can assert against this instead of re-reading the table via Spark just to recover the
-   * data they already wrote. Only valid for tables populated exclusively through the native
-   * writeRecords/createTable path (no row-level deletes, Spark writes, or lineage projections).
+   * In-memory equivalent of {@link #currentData()} for compaction-only tests, avoiding a second
+   * Spark read. Only valid for tables populated solely via the native writeRecords/createTable path
+   * (no row-level deletes, Spark writes, or lineage projections).
    */
   private List<Object[]> expectedData() {
     List<Object[]> rows = Lists.newArrayList(writtenRecords);
@@ -2480,43 +2476,22 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   /**
-   * Spark-based write, kept for the few tests that depend on the exact data-file ordering and
-   * row-to-file placement that {@code df.repartition(files)} produces (e.g. position deletes that
-   * target a specific file/position). Most writes use the cheaper native {@link #writeRecords(int,
-   * int, int)} path instead.
+   * Spark-based write, kept for the few tests that need the exact row-to-file placement {@code
+   * df.repartition(files)} produces (e.g. position deletes targeting a specific file/position).
+   * Most writes use the cheaper native {@link #writeRecords(int, int, int)} path.
    */
   private void writeRecordsViaSpark(int files, int numRecords, int partitions) {
     List<ThreeColumnRecord> records = Lists.newArrayList();
-    int rowDimension = (int) Math.ceil(Math.sqrt(numRecords));
-    List<Pair<Integer, Integer>> data =
-        IntStream.range(0, rowDimension)
-            .boxed()
-            .flatMap(x -> IntStream.range(0, rowDimension).boxed().map(y -> Pair.of(x, y)))
-            .collect(Collectors.toList());
-    Collections.shuffle(data, new Random(42));
-    if (partitions > 0) {
-      data.forEach(
-          i ->
-              records.add(
-                  new ThreeColumnRecord(
-                      i.first() % partitions, "foo" + i.first(), "bar" + i.second())));
-    } else {
-      data.forEach(
-          i ->
-              records.add(new ThreeColumnRecord(i.first(), "foo" + i.first(), "bar" + i.second())));
+    for (Pair<Integer, Integer> pair : generateShuffledGrid(numRecords)) {
+      int c1 = partitions > 0 ? pair.first() % partitions : pair.first();
+      records.add(new ThreeColumnRecord(c1, "foo" + pair.first(), "bar" + pair.second()));
     }
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).repartition(files);
     writeDF(df);
   }
 
   private List<Record> generateRecords(int numRecords, int partitions) {
-    int rowDimension = (int) Math.ceil(Math.sqrt(numRecords));
-    List<Pair<Integer, Integer>> data =
-        IntStream.range(0, rowDimension)
-            .boxed()
-            .flatMap(x -> IntStream.range(0, rowDimension).boxed().map(y -> Pair.of(x, y)))
-            .collect(Collectors.toList());
-    Collections.shuffle(data, new Random(42));
+    List<Pair<Integer, Integer>> data = generateShuffledGrid(numRecords);
     List<Record> records = Lists.newArrayListWithExpectedSize(data.size());
     for (Pair<Integer, Integer> pair : data) {
       GenericRecord record = GenericRecord.create(SCHEMA);
@@ -2529,11 +2504,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   /**
-   * Append records as Iceberg data files without going through Spark, writing {@code files} data
-   * files per table partition. This mirrors the file layout that {@code df.repartition(files)}
-   * would produce: the suite asserts on file counts and row content, not on the row-to-file
-   * assignment, so a deterministic contiguous split is equivalent while avoiding a Spark job,
-   * shuffle, sort, and DataFrame conversion per write.
+   * Deterministic seed-42 shuffled grid of (first, second) pairs, shared by the native {@link
+   * #generateRecords} and Spark {@link #writeRecordsViaSpark} writers so both produce the same
+   * rows.
+   */
+  private static List<Pair<Integer, Integer>> generateShuffledGrid(int numRecords) {
+    int rowDimension = (int) Math.ceil(Math.sqrt(numRecords));
+    List<Pair<Integer, Integer>> data =
+        IntStream.range(0, rowDimension)
+            .boxed()
+            .flatMap(x -> IntStream.range(0, rowDimension).boxed().map(y -> Pair.of(x, y)))
+            .collect(Collectors.toList());
+    Collections.shuffle(data, new Random(42));
+    return data;
+  }
+
+  /**
+   * Append {@code records} as Iceberg data files without Spark, in {@code files} files per
+   * partition. The suite asserts on file counts and row content (not row-to-file placement), so a
+   * deterministic contiguous split matches {@code df.repartition(files)} while skipping a Spark
+   * job.
    */
   private void appendRecords(List<Record> records, int files) {
     for (Record record : records) {
@@ -2589,7 +2579,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   /** Split a list into at most {@code parts} contiguous, non-empty sublists. */
   private static List<List<Record>> split(List<Record> records, int parts) {
     int count = Math.min(parts, records.size());
-    List<List<Record>> chunks = Lists.newArrayListWithCapacity(Math.max(count, 0));
+    List<List<Record>> chunks = Lists.newArrayListWithCapacity(count);
     if (count <= 0) {
       return chunks;
     }
