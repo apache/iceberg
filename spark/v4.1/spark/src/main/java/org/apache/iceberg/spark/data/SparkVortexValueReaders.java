@@ -30,6 +30,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -46,6 +47,11 @@ public class SparkVortexValueReaders {
 
   public static VortexValueReader<UTF8String> utf8String() {
     return UTF8Reader.INSTANCE;
+  }
+
+  public static VortexValueReader<byte[]> bytes() {
+    // Spark represents BinaryType as byte[], unlike the generic reader which yields a ByteBuffer.
+    return BytesReader.INSTANCE;
   }
 
   public static VortexValueReader<Integer> date() {
@@ -80,6 +86,17 @@ public class SparkVortexValueReaders {
     public UTF8String readNonNull(FieldVector vector, int row) {
       byte[] bytes = ((VarCharVector) vector).get(row);
       return UTF8String.fromString(new String(bytes, StandardCharsets.UTF_8));
+    }
+  }
+
+  static class BytesReader implements VortexValueReader<byte[]> {
+    static final BytesReader INSTANCE = new BytesReader();
+
+    private BytesReader() {}
+
+    @Override
+    public byte[] readNonNull(FieldVector vector, int row) {
+      return ((VarBinaryVector) vector).get(row);
     }
   }
 

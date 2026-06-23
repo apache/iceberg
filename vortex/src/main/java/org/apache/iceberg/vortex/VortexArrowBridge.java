@@ -19,12 +19,17 @@
 package org.apache.iceberg.vortex;
 
 import dev.vortex.arrow.ArrowAllocation;
+import java.util.List;
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 final class VortexArrowBridge {
   private static final RootAllocator ARROW_ALLOCATOR = new RootAllocator(Long.MAX_VALUE);
@@ -52,8 +57,57 @@ final class VortexArrowBridge {
 
       try (ArrowArray arrowArray = ArrowArray.wrap(vortexArray.memoryAddress())) {
         ArrowSchema arrowSchema = ArrowSchema.wrap(vortexSchema.memoryAddress());
-        return Data.importVectorSchemaRoot(arrowAllocator, arrowArray, arrowSchema, null);
+        VectorSchemaRoot imported =
+            Data.importVectorSchemaRoot(arrowAllocator, arrowArray, arrowSchema, null);
+        return normalizeUnsignedLongs(imported, arrowAllocator);
       }
     }
+  }
+
+  /**
+   * Rewrites unsigned 64-bit integer columns as signed ones. Vortex's {@code row_idx} expression
+   * (used to materialize the {@code _pos} metadata column) produces an unsigned int64 column, which
+   * Spark's {@code ArrowColumnVector} cannot read ({@code Int(64, false)} is unsupported). Row
+   * positions always fit in a signed long, so the values are copied verbatim into a signed vector.
+   * The original imported root is left untouched unless an unsigned column is present.
+   */
+  private static VectorSchemaRoot normalizeUnsignedLongs(
+      VectorSchemaRoot imported, BufferAllocator allocator) {
+    boolean hasUnsigned =
+        imported.getFieldVectors().stream().anyMatch(vector -> vector instanceof UInt8Vector);
+    if (!hasUnsigned) {
+      return imported;
+    }
+
+    List<FieldVector> vectors = Lists.newArrayListWithCapacity(imported.getFieldVectors().size());
+    for (FieldVector vector : imported.getFieldVectors()) {
+      if (vector instanceof UInt8Vector) {
+        vectors.add(copyAsSigned((UInt8Vector) vector, allocator));
+        // The unsigned source is replaced by the signed copy and is not part of the returned root,
+        // so release its buffers now. Remaining vectors are moved into the new root unchanged.
+        vector.close();
+      } else {
+        vectors.add(vector);
+      }
+    }
+
+    VectorSchemaRoot result = new VectorSchemaRoot(vectors);
+    result.setRowCount(imported.getRowCount());
+    return result;
+  }
+
+  private static BigIntVector copyAsSigned(UInt8Vector source, BufferAllocator allocator) {
+    int count = source.getValueCount();
+    BigIntVector signed = new BigIntVector(source.getField().getName(), allocator);
+    signed.allocateNew(count);
+    for (int i = 0; i < count; i++) {
+      if (source.isNull(i)) {
+        signed.setNull(i);
+      } else {
+        signed.set(i, source.getValueAsLong(i));
+      }
+    }
+    signed.setValueCount(count);
+    return signed;
   }
 }

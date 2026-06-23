@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -65,6 +66,7 @@ public abstract class DeleteFilter<T> {
   private PositionDeleteIndex deleteRowPositions = null;
   private List<Predicate<T>> isInDeleteSets = null;
   private Predicate<T> eqDeleteRows = null;
+  private boolean posDeletesPushedDown = false;
 
   protected DeleteFilter(
       String filePath,
@@ -258,8 +260,32 @@ public abstract class DeleteFilter<T> {
     return deleteRowPositions;
   }
 
+  /**
+   * Returns the deleted row positions for native pushdown into a format scanner so that deleted
+   * rows are excluded during the scan instead of being read and filtered out afterwards. When a
+   * non-empty index is returned it is marked as handled, and {@link #filter(CloseableIterable)}
+   * will not re-apply position deletes.
+   *
+   * <p>Returns empty when there are no position deletes, or when the {@code _is_deleted} metadata
+   * column is projected: in that case deleted rows must be retained and marked rather than removed,
+   * so they cannot be dropped at the scan level.
+   */
+  public Optional<PositionDeleteIndex> pushablePosDeletes() {
+    if (posDeletes.isEmpty() || hasIsDeletedColumn) {
+      return Optional.empty();
+    }
+
+    PositionDeleteIndex positions = deletedRowPositions();
+    if (positions == null || positions.isEmpty()) {
+      return Optional.empty();
+    }
+
+    this.posDeletesPushedDown = true;
+    return Optional.of(positions);
+  }
+
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
-    if (posDeletes.isEmpty()) {
+    if (posDeletes.isEmpty() || posDeletesPushedDown) {
       return records;
     }
 

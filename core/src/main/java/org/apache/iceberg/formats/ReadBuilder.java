@@ -20,6 +20,7 @@ package org.apache.iceberg.formats;
 
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mapping.NameMapping;
@@ -118,6 +119,31 @@ public interface ReadBuilder<D, S> {
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
   ReadBuilder<D, S> withNameMapping(NameMapping nameMapping);
+
+  /**
+   * Whether this reader applies position deletes supplied through {@link
+   * #positionDeletes(PositionDeleteIndex)} during the scan. Callers must check this before relying
+   * on pushdown: a reader that returns {@code false} ignores pushed deletes, so the deletes still
+   * have to be applied after reading.
+   *
+   * @return true if pushed position deletes are honored by the scan
+   */
+  default boolean supportsPositionDeletes() {
+    return false;
+  }
+
+  /**
+   * Pushes position deletes into the reader so that deleted rows are excluded during scanning,
+   * rather than being read and filtered out afterwards. Positions in the index are relative to the
+   * start of the file. Only meaningful when {@link #supportsPositionDeletes()} returns true; other
+   * readers ignore the index and rely on post-scan filtering.
+   *
+   * @param deletes the deleted row positions for the file being read
+   * @return this for method chaining
+   */
+  default ReadBuilder<D, S> positionDeletes(PositionDeleteIndex deletes) {
+    return this;
+  }
 
   /** Builds the reader. */
   CloseableIterable<D> build();

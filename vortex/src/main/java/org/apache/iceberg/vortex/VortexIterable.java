@@ -29,14 +29,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
@@ -46,6 +47,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +57,8 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   private final InputFile inputFile;
   private final Optional<Expression> filterPredicate;
   private final long[] rowRange;
+  private final byte[] posDeleteBitmap;
+  private final boolean includeRowPosition;
   private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>>
       rowReaderFunc;
   private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>>
@@ -68,6 +72,8 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       List<String> projection,
       Optional<Expression> filterPredicate,
       long[] rowRange,
+      byte[] posDeleteBitmap,
+      boolean includeRowPosition,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>> readerFunction,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>> batchReaderFunction,
       boolean caseSensitive,
@@ -76,6 +82,8 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     this.projection = projection;
     this.filterPredicate = filterPredicate;
     this.rowRange = rowRange;
+    this.posDeleteBitmap = posDeleteBitmap;
+    this.includeRowPosition = includeRowPosition;
     this.rowReaderFunc = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.caseSensitive = caseSensitive;
@@ -128,10 +136,18 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       if (fileColumns.contains(name)) {
         fieldNames.add(name);
         expressions.add(dev.vortex.api.Expression.column(name));
-      } else if (Objects.equals(name, MetadataColumns.ROW_POSITION.name())) {
-        fieldNames.add(name);
-        expressions.add(dev.vortex.api.Expression.rowIdx());
       }
+    }
+
+    // Row position is not a stored column. When requested, materialize it from Vortex's `row_idx`
+    // scan expression packed under the _pos metadata-column name, and append a matching _pos field
+    // to the schema handed to the reader. Both bind by name, so _pos resolves regardless of where
+    // it lands in the projected column order.
+    org.apache.arrow.vector.types.pojo.Schema readerArrowSchema = fileArrowSchema;
+    if (includeRowPosition) {
+      fieldNames.add(MetadataColumns.ROW_POSITION.name());
+      expressions.add(dev.vortex.api.Expression.rowIdx());
+      readerArrowSchema = appendRowPosition(fileArrowSchema);
     }
 
     dev.vortex.api.Expression scanProjection =
@@ -146,6 +162,15 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       optionsBuilder.rowRangeBegin(rowRange[0]).rowRangeEnd(rowRange[1]);
     }
 
+    // Apply position deletes natively: the bitmap holds file-relative row positions of deleted rows
+    // (portable 64-bit Roaring), and Vortex drops them from the scan so they are never
+    // materialized.
+    if (posDeleteBitmap != null) {
+      optionsBuilder
+          .selectionRoaringBitmap(posDeleteBitmap)
+          .selectionMode(ScanOptions.SelectionMode.EXCLUDE_ROARING);
+    }
+
     Scan scan = dataSource.scan(optionsBuilder.build());
     Preconditions.checkNotNull(scan, "scan");
 
@@ -153,12 +178,27 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
         new PartitionBatchIterator(scan, vortexAllocator, allocator);
 
     if (rowReaderFunc != null) {
-      VortexRowReader<T> rowFunction = rowReaderFunc.apply(fileArrowSchema);
+      VortexRowReader<T> rowFunction = rowReaderFunc.apply(readerArrowSchema);
       return new VortexRowIterator<>(batchIterator, rowFunction);
     } else {
-      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(fileArrowSchema);
+      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(readerArrowSchema);
       return new VortexBatchIterator<>(batchIterator, batchTransform);
     }
+  }
+
+  /**
+   * Appends a required {@code _pos} (int64) field to an Arrow schema so readers can bind the
+   * synthetic row-position column produced by the {@code row_idx} scan projection.
+   */
+  private static org.apache.arrow.vector.types.pojo.Schema appendRowPosition(
+      org.apache.arrow.vector.types.pojo.Schema base) {
+    List<Field> fields = Lists.newArrayList(base.getFields());
+    fields.add(
+        new Field(
+            MetadataColumns.ROW_POSITION.name(),
+            new FieldType(false, new ArrowType.Int(Long.SIZE, true), null),
+            null));
+    return new org.apache.arrow.vector.types.pojo.Schema(fields, base.getCustomMetadata());
   }
 
   /** Iterator that pulls Arrow {@link VectorSchemaRoot} batches across Vortex partitions. */

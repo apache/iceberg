@@ -21,7 +21,10 @@ package org.apache.iceberg.vortex;
 import dev.vortex.api.Session;
 import dev.vortex.api.VortexWriter;
 import dev.vortex.jni.NativeRuntime;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -35,12 +38,16 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.vortex.PositionDeleteVortexWriter;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.BaseFormatModel;
 import org.apache.iceberg.formats.ModelWriteBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -48,6 +55,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 public class VortexFormatModel<D, S, R>
     extends BaseFormatModel<D, S, VortexValueWriter<?>, R, Schema> {
@@ -91,6 +99,11 @@ public class VortexFormatModel<D, S, R>
         (icebergSchema, fileSchema, engineSchema, idToConstant) ->
             batchReaderFunction.batchRead(icebergSchema, fileSchema, idToConstant),
         true);
+  }
+
+  public static <D>
+      VortexFormatModel<PositionDelete<D>, Void, VortexRowReader<?>> forPositionDeletes() {
+    return new VortexFormatModel<>(PositionDelete.deleteClass(), Void.class, null, null, false);
   }
 
   private VortexFormatModel(
@@ -206,14 +219,17 @@ public class VortexFormatModel<D, S, R>
 
     @Override
     public FileAppender<D> build() throws IOException {
-      Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(content, "Content type is required");
 
       return switch (content) {
-        case DATA, EQUALITY_DELETES -> buildAppender(schema);
-        case POSITION_DELETES, DATA_MANIFEST, DELETE_MANIFEST ->
+        case DATA, EQUALITY_DELETES -> {
+          Preconditions.checkNotNull(schema, "Schema is required");
+          yield buildAppender(schema);
+        }
+        case POSITION_DELETES -> buildPosDeleteAppender();
+        case DATA_MANIFEST, DELETE_MANIFEST ->
             throw new UnsupportedOperationException(
-                "Position deletes are not yet supported for Vortex format");
+                "Manifest files are not supported for Vortex format");
       };
     }
 
@@ -253,6 +269,42 @@ public class VortexFormatModel<D, S, R>
           writeSchema,
           metricsConfig);
     }
+
+    @SuppressWarnings("unchecked")
+    private FileAppender<D> buildPosDeleteAppender() throws IOException {
+      org.apache.iceberg.Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
+      Schema arrowSchema = VortexSchemas.toArrowSchema(posDeleteSchema);
+      dev.vortex.relocated.org.apache.arrow.vector.types.pojo.Schema vortexSchema =
+          VortexSchemas.toVortexArrowSchema(posDeleteSchema);
+
+      VortexValueWriter<D> valueWriter = (VortexValueWriter<D>) new PositionDeleteVortexWriter<>();
+
+      OutputFile rawOutputFile = outputFile.encryptingOutputFile();
+      String uri = VortexFileUtil.resolveUri(rawOutputFile.location());
+      Map<String, String> properties =
+          Maps.newHashMap(VortexFileUtil.resolveOutputProperties(rawOutputFile));
+      properties.putAll(writerProperties);
+      properties.putAll(metadata);
+
+      // Apply worker-thread setting on this executor JVM before any Vortex native work begins.
+      NativeRuntime.setWorkerThreads(workerThreads);
+      BufferAllocator allocator = VortexArrowBridge.arrowAllocator();
+      dev.vortex.relocated.org.apache.arrow.memory.BufferAllocator vortexAllocator =
+          VortexArrowBridge.vortexAllocator();
+      Session session = Session.create();
+      VortexWriter vortexWriter =
+          VortexWriter.create(session, uri, vortexSchema, properties, vortexAllocator);
+
+      return new VortexFileAppender<>(
+          vortexWriter,
+          valueWriter,
+          arrowSchema,
+          allocator,
+          VortexFileAppender.DEFAULT_BATCH_SIZE,
+          rawOutputFile,
+          posDeleteSchema,
+          metricsConfig);
+    }
   }
 
   private static class ReadBuilderWrapper<R, D, S> implements ReadBuilder<D, S> {
@@ -265,6 +317,7 @@ public class VortexFormatModel<D, S, R>
     private Optional<Expression> filterPredicate = Optional.empty();
     private boolean caseSensitive = true;
     private long[] rowRange;
+    private PositionDeleteIndex posDeletes;
     private int workerThreads = TableProperties.VORTEX_WORKER_THREADS_DEFAULT;
 
     private ReadBuilderWrapper(
@@ -303,6 +356,17 @@ public class VortexFormatModel<D, S, R>
     @Override
     public ReadBuilder<D, S> filter(Expression filter) {
       this.filterPredicate = Optional.ofNullable(filter);
+      return this;
+    }
+
+    @Override
+    public boolean supportsPositionDeletes() {
+      return true;
+    }
+
+    @Override
+    public ReadBuilder<D, S> positionDeletes(PositionDeleteIndex deletes) {
+      this.posDeletes = deletes;
       return this;
     }
 
@@ -361,28 +425,54 @@ public class VortexFormatModel<D, S, R>
       // Compute the columns to scan from the data file. Constants (identity partition values and
       // metadata columns such as _file, _spec_id and _partition) come from idToConstant, and
       // _is_deleted is synthesized by the reader, so none of those are projected from the file.
-      // _pos is also excluded and currently resolves to null: Vortex exposes row positions through
-      // a `row_idx` scan expression that the Java bindings (<= 0.73.0) do not yet surface.
+      // _pos is excluded here too, but when it is requested it is materialized separately from
+      // Vortex's `row_idx` scan expression (see VortexIterable) rather than read from the file.
       Map<Integer, ?> constants = idToConstant == null ? Collections.emptyMap() : idToConstant;
       List<String> projection =
           schema.columns().stream()
               .filter(
                   field ->
-                      (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId())
-                          || !constants.containsKey(field.fieldId())
-                              && !MetadataColumns.isMetadataColumn(field.name()))
+                      !constants.containsKey(field.fieldId())
+                          && !MetadataColumns.isMetadataColumn(field.name()))
               .map(Types.NestedField::name)
               .toList();
+
+      boolean includeRowPosition =
+          schema.findField(MetadataColumns.ROW_POSITION.fieldId()) != null
+              && !constants.containsKey(MetadataColumns.ROW_POSITION.fieldId());
+
+      byte[] posDeleteBitmap = posDeletes == null ? null : toRoaringBitmap(posDeletes);
 
       return new VortexIterable<>(
           inputFile,
           projection,
           filterPredicate,
           rowRange,
+          posDeleteBitmap,
+          includeRowPosition,
           readerFunc,
           batchReaderFunc,
           caseSensitive,
           workerThreads);
+    }
+
+    /**
+     * Serializes the deleted row positions as a portable 64-bit Roaring bitmap, the form Vortex
+     * expects for {@code EXCLUDE_ROARING} row selection (matching {@code
+     * Roaring64NavigableMap.serializePortable}).
+     */
+    private static byte[] toRoaringBitmap(PositionDeleteIndex deletes) {
+      Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+      deletes.forEach(bitmap::addLong);
+      bitmap.runOptimize();
+      try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+          DataOutputStream dataOut = new DataOutputStream(out)) {
+        bitmap.serializePortable(dataOut);
+        dataOut.flush();
+        return out.toByteArray();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
     }
   }
 }
