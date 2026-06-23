@@ -54,6 +54,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -85,6 +86,7 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
+import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -107,6 +109,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
@@ -722,8 +725,10 @@ public class TestRewriteDataFilesAction extends TestBase {
             ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
             tableLocation);
 
-    // data seq = 1, write 4 files in 2 partitions
-    writeRecords(2, 2, 2);
+    // data seq = 1, write 4 files in 2 partitions. Uses the Spark writer because this test depends
+    // on the exact data-file ordering (dataFilesBefore.get(3)) and the row position the position
+    // delete below targets.
+    writeRecordsViaSpark(2, 2, 2);
     List<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, null);
     shouldHaveFiles(table, 4);
 
@@ -741,7 +746,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.updateSpec().addField(Expressions.ref("c3")).commit();
 
     // data seq = 3, write 1 new data files in c1=1 for evolved spec
-    writeRecords(1, 1, 1);
+    writeRecordsViaSpark(1, 1, 1);
     shouldHaveFiles(table, 5);
     List<Object[]> expectedRecords = currentData();
 
@@ -963,12 +968,17 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMixedFiles() {
-    Table table = createTable(1); // 400000
+    // Uses the Spark writer: this test is calibrated to the exact on-disk byte sizes that Spark
+    // produces (see the format-version-specific MAX_FILE_SIZE_BYTES tuning below), so the input
+    // files must be written the same way.
+    Table table = createTable();
+    writeRecordsViaSpark(1, SCALE, 0); // 400000
+    table.refresh();
     shouldHaveFiles(table, 1);
 
     // Add one more small file, and one large file
-    writeRecords(1, SCALE);
-    writeRecords(1, SCALE * 3);
+    writeRecordsViaSpark(1, SCALE, 0);
+    writeRecordsViaSpark(1, SCALE * 3, 0);
     table.refresh();
     shouldHaveFiles(table, 3);
 
@@ -2443,6 +2453,16 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   private void writeRecords(int files, int numRecords, int partitions) {
+    appendRecords(generateRecords(numRecords, partitions), files);
+  }
+
+  /**
+   * Spark-based write, kept for the few tests that depend on the exact data-file ordering and
+   * row-to-file placement that {@code df.repartition(files)} produces (e.g. position deletes that
+   * target a specific file/position). Most writes use the cheaper native {@link #writeRecords(int,
+   * int, int)} path instead.
+   */
+  private void writeRecordsViaSpark(int files, int numRecords, int partitions) {
     List<ThreeColumnRecord> records = Lists.newArrayList();
     int rowDimension = (int) Math.ceil(Math.sqrt(numRecords));
     List<Pair<Integer, Integer>> data =
@@ -2464,6 +2484,96 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).repartition(files);
     writeDF(df);
+  }
+
+  private List<Record> generateRecords(int numRecords, int partitions) {
+    int rowDimension = (int) Math.ceil(Math.sqrt(numRecords));
+    List<Pair<Integer, Integer>> data =
+        IntStream.range(0, rowDimension)
+            .boxed()
+            .flatMap(x -> IntStream.range(0, rowDimension).boxed().map(y -> Pair.of(x, y)))
+            .collect(Collectors.toList());
+    Collections.shuffle(data, new Random(42));
+    List<Record> records = Lists.newArrayListWithExpectedSize(data.size());
+    for (Pair<Integer, Integer> pair : data) {
+      GenericRecord record = GenericRecord.create(SCHEMA);
+      record.setField("c1", partitions > 0 ? pair.first() % partitions : pair.first());
+      record.setField("c2", "foo" + pair.first());
+      record.setField("c3", "bar" + pair.second());
+      records.add(record);
+    }
+    return records;
+  }
+
+  /**
+   * Append records as Iceberg data files without going through Spark, writing {@code files} data
+   * files per table partition. This mirrors the file layout that {@code df.repartition(files)}
+   * would produce: the suite asserts on file counts and row content, not on the row-to-file
+   * assignment, so a deterministic contiguous split is equivalent while avoiding a Spark job,
+   * shuffle, sort, and DataFrame conversion per write.
+   */
+  private void appendRecords(List<Record> records, int files) {
+    Table table = TABLES.load(tableLocation);
+    PartitionSpec spec = table.spec();
+    AppendFiles append = table.newAppend();
+
+    if (spec.isUnpartitioned()) {
+      for (List<Record> chunk : split(records, files)) {
+        append.appendFile(writeDataFileNative(table, null, chunk));
+      }
+    } else {
+      Map<String, PartitionKey> keys = Maps.newLinkedHashMap();
+      Map<String, List<Record>> groups = Maps.newLinkedHashMap();
+      PartitionKey key = new PartitionKey(spec, table.schema());
+      for (Record record : records) {
+        key.partition(record);
+        String path = key.toPath();
+        keys.computeIfAbsent(path, p -> key.copy());
+        groups.computeIfAbsent(path, p -> Lists.newArrayList()).add(record);
+      }
+      groups.forEach(
+          (path, groupRecords) -> {
+            for (List<Record> chunk : split(groupRecords, files)) {
+              append.appendFile(writeDataFileNative(table, keys.get(path), chunk));
+            }
+          });
+    }
+
+    append.commit();
+  }
+
+  private DataFile writeDataFileNative(Table table, StructLike partition, List<Record> records) {
+    OutputFile outputFile =
+        table
+            .io()
+            .newOutputFile(
+                table
+                    .locationProvider()
+                    .newDataLocation(
+                        FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
+    try {
+      return FileHelpers.writeDataFile(table, outputFile, partition, records);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  /** Split a list into at most {@code parts} contiguous, non-empty sublists. */
+  private static List<List<Record>> split(List<Record> records, int parts) {
+    int n = Math.min(parts, records.size());
+    List<List<Record>> chunks = Lists.newArrayListWithCapacity(Math.max(n, 0));
+    if (n <= 0) {
+      return chunks;
+    }
+    int base = records.size() / n;
+    int remainder = records.size() % n;
+    int start = 0;
+    for (int i = 0; i < n; i++) {
+      int size = base + (i < remainder ? 1 : 0);
+      chunks.add(records.subList(start, start + size));
+      start += size;
+    }
+    return chunks;
   }
 
   private void writeDF(Dataset<Row> df) {
