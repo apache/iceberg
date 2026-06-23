@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
@@ -402,33 +403,21 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
     try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
         createHarness(STAGING_BRANCH)) {
       harness.open();
-      sendTrigger(harness);
+      long triggerTs = 100L;
+      sendTrigger(harness, triggerTs);
 
-      List<StreamRecord<ReadCommand>> records = Lists.newArrayList(harness.getRecordOutput());
-      // Verify timestamps are non-decreasing and phases are distinct
-      long prevTs = Long.MIN_VALUE;
-      for (StreamRecord<ReadCommand> record : records) {
-        assertThat(record.getTimestamp()).isGreaterThanOrEqualTo(prevTs);
-        prevTs = record.getTimestamp();
-      }
+      List<Object> output = Lists.newArrayList(harness.getOutput());
+      assertThat(((StreamRecord<ReadCommand>) output.get(0)).getValue().task())
+          .isInstanceOf(FileScanTask.class);
+      assertThat(output.get(1)).isEqualTo(new Watermark(triggerTs));
 
-      // DATA_FILE commands should have different timestamps than EQ_DELETE_FILE commands
-      Set<Long> dataFileTimestamps =
-          records.stream()
-              .filter(r -> r.getValue().task() instanceof FileScanTask)
-              .map(StreamRecord::getTimestamp)
-              .collect(Collectors.toSet());
-      Set<Long> eqDeleteTimestamps =
-          records.stream()
-              .filter(r -> isEqDelete(r.getValue()))
-              .map(StreamRecord::getTimestamp)
-              .collect(Collectors.toSet());
+      assertThat(((StreamRecord<ReadCommand>) output.get(2)).getValue().task())
+          .isInstanceOf(EqualityDeleteFileScanTask.class);
+      assertThat(output.get(3)).isEqualTo(new Watermark(triggerTs + 1));
 
-      // Main data and eq delete should be in different phases
-      for (long eqTs : eqDeleteTimestamps) {
-        boolean hasLowerDataTs = dataFileTimestamps.stream().anyMatch(ts -> ts < eqTs);
-        assertThat(hasLowerDataTs).isTrue();
-      }
+      assertThat(((StreamRecord<ReadCommand>) output.get(4)).getValue().task())
+          .isInstanceOf(FileScanTask.class);
+      assertThat(output.get(5)).isEqualTo(new Watermark(triggerTs + 2));
     }
   }
 
@@ -1036,7 +1025,11 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
 
   private static void sendTrigger(OneInputStreamOperatorTestHarness<Trigger, ?> harness)
       throws Exception {
-    long time = System.currentTimeMillis();
+    sendTrigger(harness, System.currentTimeMillis());
+  }
+
+  private static void sendTrigger(OneInputStreamOperatorTestHarness<Trigger, ?> harness, long time)
+      throws Exception {
     harness.processElement(new StreamRecord<>(Trigger.create(time, 0), time));
   }
 
