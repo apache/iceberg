@@ -95,7 +95,8 @@ public class TestSparkAvroWriter {
     try (FileAppender<InternalRow> writer =
         Avro.write(Files.localOutput(testFile))
             .schema(COMPLEX_SCHEMA)
-            .createWriterFunc(ignored -> new SparkAvroWriter(SparkSchemaUtil.convert(COMPLEX_SCHEMA)))
+            .createWriterFunc(
+                ignored -> new SparkAvroWriter(SparkSchemaUtil.convert(COMPLEX_SCHEMA)))
             .build()) {
       writer.addAll(records);
     }
