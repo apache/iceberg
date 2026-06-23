@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Literal
+from typing import Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -269,8 +269,11 @@ class Summary(BaseModel):
     model_config = ConfigDict(
         extra='allow',
     )
-    __pydantic_extra__: dict[str, str]
     operation: Literal['append', 'replace', 'overwrite', 'delete']
+
+
+Summary.__annotations__['__pydantic_extra__'] = Dict[str, str]
+Summary.model_rebuild(force=True)
 
 
 class Snapshot(BaseModel):
