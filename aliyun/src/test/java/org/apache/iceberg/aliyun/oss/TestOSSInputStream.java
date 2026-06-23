@@ -25,6 +25,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -123,6 +124,18 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
   @Test
   void missingObjectThrowsNotFoundException() throws Exception {
     OSSURI uri = new OSSURI(location("missing.dat"));
+
+    try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri)) {
+      assertThatThrownBy(in::read)
+          .isInstanceOf(NotFoundException.class)
+          .hasMessageContaining(uri.location());
+    }
+  }
+
+  @Test
+  void missingBucketThrowsNotFoundException() throws Exception {
+    OSSURI uri =
+        new OSSURI(String.format("oss://missing-bucket-%s/missing.dat", UUID.randomUUID()));
 
     try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri)) {
       assertThatThrownBy(in::read)
