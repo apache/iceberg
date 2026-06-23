@@ -37,6 +37,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -645,6 +646,37 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
               ImmutableList.of(
                   row(2L, toSparkVariantRow("bar", 30)), row(3L, toSparkVariantRow("baz", 35))));
         });
+  }
+
+  @TestTemplate
+  public void testFilterPushdownOnInitialDefaultColumnAbsentFromFile() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, name STRING) USING iceberg "
+            + "TBLPROPERTIES ('format-version' = '3')",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (1, 'Alice')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateSchema().addColumn("c", Types.StringType.get(), Expressions.lit("US")).commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES (2, 'Bob', 'US')", tableName);
+
+    // the row from the first file reads c as its default 'US'
+    checkFilters(
+        "c = 'US'" /* query predicate */,
+        "isnotnull(c) AND (c = US)" /* Spark post scan filter */,
+        "c IS NOT NULL, c = 'US'" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US")));
+
+    // Spark cannot push upper(c) but still pushes the inferred c IS NOT NULL
+    checkFilters(
+        "upper(c) = 'US'" /* query predicate */,
+        "isnotnull(c) AND (upper(c) = US)" /* Spark post scan filter */,
+        "c IS NOT NULL" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US")));
   }
 
   private void checkOnlyIcebergFilters(

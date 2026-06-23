@@ -41,6 +41,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -53,6 +54,7 @@ public class ParquetMetricsRowGroupFilter {
 
   private final Schema schema;
   private final Expression expr;
+  private final Map<Integer, Object> initialDefaults;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -62,6 +64,12 @@ public class ParquetMetricsRowGroupFilter {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    this.initialDefaults = Maps.newHashMap();
+    for (Types.NestedField field : schema.columns()) {
+      if (field.initialDefault() != null) {
+        initialDefaults.put(field.fieldId(), field.initialDefault());
+      }
+    }
   }
 
   /**
@@ -82,10 +90,21 @@ public class ParquetMetricsRowGroupFilter {
     private Map<Integer, Statistics<?>> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
+    private Map<Integer, Object> missingColumnDefaults = null;
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup) {
       if (rowGroup.getRowCount() <= 0) {
         return ROWS_CANNOT_MATCH;
+      }
+
+      // default columns left after removing the file's columns are absent and read as the default
+      this.missingColumnDefaults = Maps.newHashMap(initialDefaults);
+      if (!missingColumnDefaults.isEmpty()) {
+        for (ColumnDescriptor desc : fileSchema.getColumns()) {
+          if (desc.getPrimitiveType().getId() != null) {
+            missingColumnDefaults.remove(desc.getPrimitiveType().getId().intValue());
+          }
+        }
       }
 
       this.stats = Maps.newHashMap();
@@ -133,18 +152,13 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Boolean predicate(BoundPredicate<T> pred) {
-      // A column that is absent from this file but carries an initial-default reads as the default
-      // for every row, not as null. The per-predicate handlers below assume an absent column is all
-      // nulls (valueCount == null), which would skip the row group and drop the backfilled rows
-      // (e.g. for col = <default> or the IsNotNull engines infer). Evaluate such predicates against
-      // the default value instead. See #16690.
+      // a column absent from the file reads as its initial-default, so evaluate the predicate
+      // against that default
       if (pred.term() instanceof BoundReference) {
-        int id = ((BoundReference<T>) pred.term()).fieldId();
-        if (!valueCounts.containsKey(id)) {
-          Types.NestedField field = schema.findField(id);
-          if (field != null && field.initialDefault() != null) {
-            return pred.test((T) field.initialDefault()) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-          }
+        Object initialDefault =
+            missingColumnDefaults.get(((BoundReference<T>) pred.term()).fieldId());
+        if (initialDefault != null) {
+          return pred.test((T) initialDefault) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
         }
       }
 
