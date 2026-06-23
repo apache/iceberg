@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -427,12 +426,9 @@ class TrackedFileAdapters {
 
     private TrackedManifestFile(TrackedFile file) {
       Preconditions.checkArgument(
-          file.tracking().dataSequenceNumber() != null,
-          "Cannot create manifest file: no data sequence number");
+          file.tracking().dataSequenceNumber() != null, "Invalid data sequence number: null");
       Preconditions.checkArgument(
-          file.tracking().snapshotId() != null, "Cannot create manifest file: no snapshot ID");
-      Preconditions.checkArgument(
-          file.manifestInfo() != null, "Cannot create manifest file: no manifest info");
+          file.tracking().snapshotId() != null, "Invalid snapshot ID: null");
       Preconditions.checkArgument(
           file.manifestInfo().dv() == null,
           "Cannot adapt manifest with a deletion vector to ManifestFile: %s",
@@ -453,14 +449,20 @@ class TrackedFileAdapters {
     @Override
     public int partitionSpecId() {
       throw new UnsupportedOperationException(
-          "Tracked manifests are not bound to a single partition spec");
+          "v4 manifests are not bound to a single partition spec");
     }
 
     @Override
     public ManifestContent content() {
-      return file.contentType() == FileContent.DATA_MANIFEST
-          ? ManifestContent.DATA
-          : ManifestContent.DELETES;
+      switch (file.contentType()) {
+        case DATA_MANIFEST:
+          return ManifestContent.DATA;
+        case DELETE_MANIFEST:
+          return ManifestContent.DELETES;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported content type for manifests: " + file.contentType());
+      }
     }
 
     @Override
@@ -527,23 +529,6 @@ class TrackedFileAdapters {
     @Override
     public ManifestFile copy() {
       return new TrackedManifestFile(file.copy());
-    }
-
-    @Override
-    public boolean equals(Object other) {
-      if (this == other) {
-        return true;
-      } else if (!(other instanceof TrackedManifestFile)) {
-        return false;
-      }
-
-      TrackedManifestFile that = (TrackedManifestFile) other;
-      return Objects.equal(path(), that.path());
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hashCode(path());
     }
   }
 

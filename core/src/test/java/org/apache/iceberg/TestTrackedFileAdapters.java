@@ -45,6 +45,7 @@ class TestTrackedFileAdapters {
   private static final long DATA_SEQUENCE_NUMBER = 10L;
   private static final long FILE_SEQUENCE_NUMBER = 11L;
   private static final long FIRST_ROW_ID = 1000L;
+  private static final long SNAPSHOT_ID = 42L;
   private static final long MANIFEST_RECORD_COUNT = 8L;
   private static final long MANIFEST_FILE_SIZE = 2048L;
 
@@ -61,12 +62,9 @@ class TestTrackedFileAdapters {
           .withSpecId(PARTITIONED_SPEC_ID)
           .build();
   private static final PartitionData PARTITION = partition("books");
-
-  // Passed for manifest test files, where there is no partition tuple.
-  private static final PartitionData NO_PARTITION = null;
+  private static final PartitionData EMPTY_PARTITION = new PartitionData(Types.StructType.of());
 
   // Tracking field ordinals, looked up from the schema so the tests do not hard-code offsets.
-  private static final int STATUS_ORDINAL = ordinalOf(Tracking.schema(), "status");
   private static final int SNAPSHOT_ID_ORDINAL = ordinalOf(Tracking.schema(), "snapshot_id");
   private static final int DATA_SEQUENCE_NUMBER_ORDINAL =
       ordinalOf(Tracking.schema(), "sequence_number");
@@ -83,8 +81,6 @@ class TestTrackedFileAdapters {
   private static final int SPEC_ID_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "spec_id");
   private static final int DELETION_VECTOR_ORDINAL =
       ordinalOf(TRACKED_FILE_SCHEMA, "deletion_vector");
-  private static final int MANIFEST_INFO_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "manifest_info");
-  private static final int KEY_METADATA_ORDINAL = ordinalOf(TRACKED_FILE_SCHEMA, "key_metadata");
 
   @Test
   void testDataFileAdapterDelegation() {
@@ -286,54 +282,50 @@ class TestTrackedFileAdapters {
         .hasMessage("Cannot create DV delete file: no deletion vector");
   }
 
-  @Test
-  void testManifestFileAdapterDelegation() {
-    Tracking tracking = createTracking();
+  @ParameterizedTest
+  @EnumSource(
+      value = FileContent.class,
+      names = {"DATA_MANIFEST", "DELETE_MANIFEST"})
+  void testManifestFileAdapterDelegation(FileContent contentType) {
     ManifestInfo manifestInfo = createManifestInfo();
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, tracking);
-    file.set(MANIFEST_INFO_ORDINAL, manifestInfo);
-    file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {7, 8, 9}));
+    TrackedFile file =
+        manifestBuilder(contentType)
+            .manifestInfo(manifestInfo)
+            .keyMetadata(ByteBuffer.wrap(new byte[] {7, 8, 9}))
+            .build();
+    populateTrackingFields(file);
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
-    assertThat(manifest.path()).isEqualTo(file.location());
-    assertThat(manifest.length()).isEqualTo(file.fileSizeInBytes());
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
-    assertThat(manifest.sequenceNumber()).isEqualTo(tracking.dataSequenceNumber());
+    ManifestContent expectedContent =
+        contentType == FileContent.DATA_MANIFEST ? ManifestContent.DATA : ManifestContent.DELETES;
+    assertThat(manifest.path()).isEqualTo(MANIFEST_FILE_LOCATION);
+    assertThat(manifest.length()).isEqualTo(MANIFEST_FILE_SIZE);
+    assertThat(manifest.content()).isEqualTo(expectedContent);
+    assertThat(manifest.copy().content()).isEqualTo(expectedContent);
+    assertThat(manifest.sequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(manifest.minSequenceNumber()).isEqualTo(manifestInfo.minSequenceNumber());
-    assertThat(manifest.snapshotId()).isEqualTo(tracking.snapshotId());
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(manifest.addedFilesCount()).isEqualTo(manifestInfo.addedFilesCount());
     assertThat(manifest.addedRowsCount()).isEqualTo(manifestInfo.addedRowsCount());
     assertThat(manifest.existingFilesCount()).isEqualTo(manifestInfo.existingFilesCount());
     assertThat(manifest.existingRowsCount()).isEqualTo(manifestInfo.existingRowsCount());
     assertThat(manifest.deletedFilesCount()).isEqualTo(manifestInfo.deletedFilesCount());
     assertThat(manifest.deletedRowsCount()).isEqualTo(manifestInfo.deletedRowsCount());
-    assertThat(manifest.firstRowId()).isEqualTo(tracking.firstRowId());
-    assertThat(manifest.keyMetadata()).isEqualTo(file.keyMetadata());
+    assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(manifest.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {7, 8, 9}));
     assertThat(manifest.partitions()).isNull();
   }
 
   @Test
   void testManifestFileAdapterPartitionSpecIdUnsupported() {
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, requiredOnlyTracking());
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
+    TrackedFile file = manifestFile(FileContent.DATA_MANIFEST, createManifestInfo());
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
     assertThatThrownBy(manifest::partitionSpecId)
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Tracked manifests are not bound to a single partition spec");
-  }
-
-  @Test
-  void testDeleteManifestContentMapsToDeletes() {
-    TrackedFileStruct file = manifestFile(FileContent.DELETE_MANIFEST, requiredOnlyTracking());
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
-
-    ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
-
-    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
-    assertThat(manifest.copy().content()).isEqualTo(ManifestContent.DELETES);
+        .hasMessage("v4 manifests are not bound to a single partition spec");
   }
 
   @Test
@@ -352,8 +344,7 @@ class TestTrackedFileAdapters {
             .dv(ByteBuffer.wrap(new byte[] {1, 2, 3}))
             .dvCardinality(4L)
             .build();
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, requiredOnlyTracking());
-    file.set(MANIFEST_INFO_ORDINAL, manifestInfo);
+    TrackedFile file = manifestFile(FileContent.DATA_MANIFEST, manifestInfo);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
@@ -364,8 +355,11 @@ class TestTrackedFileAdapters {
 
   @Test
   void testManifestFileAdapterReturnsNullForUnsetNullableFields() {
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, requiredOnlyTracking());
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
+    TrackedFile file =
+        manifestBuilder(FileContent.DATA_MANIFEST).manifestInfo(createManifestInfo()).build();
+    // Inheritance fills the data sequence number, which the adapter requires; first row ID and
+    // key metadata stay unset.
+    ((TrackingStruct) file.tracking()).set(DATA_SEQUENCE_NUMBER_ORDINAL, DATA_SEQUENCE_NUMBER);
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -374,21 +368,13 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void testManifestFileAdapterEqualsAndHashCode() {
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, createTracking());
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
-
-    ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
-
-    assertThat(manifest).isEqualTo(manifest.copy());
-    assertThat(manifest).hasSameHashCodeAs(manifest.copy());
-  }
-
-  @Test
   void testManifestFileAdapterCopy() {
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, createTracking());
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
-    file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {7, 8, 9}));
+    TrackedFile file =
+        manifestBuilder(FileContent.DATA_MANIFEST)
+            .manifestInfo(createManifestInfo())
+            .keyMetadata(ByteBuffer.wrap(new byte[] {7, 8, 9}))
+            .build();
+    populateTrackingFields(file);
 
     ManifestFile original = TrackedFileAdapters.asManifestFile(file);
     ManifestFile copy = original.copy();
@@ -426,36 +412,24 @@ class TestTrackedFileAdapters {
 
   @Test
   void testManifestFileAdapterRejectsNullDataSequenceNumber() {
-    TrackingStruct tracking = new TrackingStruct();
-    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, tracking);
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
+    // A freshly built manifest entry has no data sequence number until inheritance fills it.
+    TrackedFile file =
+        manifestBuilder(FileContent.DATA_MANIFEST).manifestInfo(createManifestInfo()).build();
 
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create manifest file: no data sequence number");
+        .hasMessage("Invalid data sequence number: null");
   }
 
   @Test
   void testManifestFileAdapterRejectsNullSnapshotId() {
-    TrackingStruct tracking = new TrackingStruct();
-    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
-    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, DATA_SEQUENCE_NUMBER);
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, tracking);
-    file.set(MANIFEST_INFO_ORDINAL, createManifestInfo());
+    TrackedFile file = manifestFile(FileContent.DATA_MANIFEST, createManifestInfo());
+    // Clear the snapshot ID to exercise the adapter's required-field guard.
+    ((TrackingStruct) file.tracking()).set(SNAPSHOT_ID_ORDINAL, null);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create manifest file: no snapshot ID");
-  }
-
-  @Test
-  void testManifestFileAdapterRejectsNullManifestInfo() {
-    TrackedFileStruct file = manifestFile(FileContent.DATA_MANIFEST, createTracking());
-
-    assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create manifest file: no manifest info");
+        .hasMessage("Invalid snapshot ID: null");
   }
 
   @Test
@@ -574,36 +548,28 @@ class TestTrackedFileAdapters {
     return file;
   }
 
-  private static TrackedFileStruct manifestFile(FileContent contentType, Tracking tracking) {
-    return new TrackedFileStruct(
-        tracking,
-        contentType,
-        WRITER_FORMAT_VERSION,
-        MANIFEST_FILE_LOCATION,
-        FileFormat.PARQUET,
-        NO_PARTITION,
-        MANIFEST_RECORD_COUNT,
-        MANIFEST_FILE_SIZE,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
+  // Builder for a manifest entry with the required non-tracking fields set. Callers add the
+  // manifest info and any optional fields before building.
+  private static TrackedFileBuilder manifestBuilder(FileContent contentType) {
+    TrackedFileBuilder builder =
+        contentType == FileContent.DATA_MANIFEST
+            ? TrackedFileBuilder.dataManifest(SNAPSHOT_ID)
+            : TrackedFileBuilder.deleteManifest(SNAPSHOT_ID);
+    return builder
+        .writerFormatVersion(WRITER_FORMAT_VERSION)
+        .location(MANIFEST_FILE_LOCATION)
+        .fileFormat(FileFormat.PARQUET)
+        .partition(EMPTY_PARTITION)
+        .recordCount(MANIFEST_RECORD_COUNT)
+        .fileSizeInBytes(MANIFEST_FILE_SIZE);
   }
 
-  private static TrackingStruct createTracking() {
-    TrackingStruct tracking = new TrackingStruct();
-    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
-    tracking.set(SNAPSHOT_ID_ORDINAL, 42L);
-    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, DATA_SEQUENCE_NUMBER);
-    tracking.set(FILE_SEQUENCE_NUMBER_ORDINAL, FILE_SEQUENCE_NUMBER);
-    tracking.set(FIRST_ROW_ID_ORDINAL, FIRST_ROW_ID);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
-    return tracking;
+  // Builds a manifest entry and simulates inheritance so the tracking fields the adapter requires
+  // are populated.
+  private static TrackedFile manifestFile(FileContent contentType, ManifestInfo manifestInfo) {
+    TrackedFile file = manifestBuilder(contentType).manifestInfo(manifestInfo).build();
+    populateTrackingFields(file);
+    return file;
   }
 
   private static void populateTrackingFields(TrackedFile file) {
@@ -613,16 +579,6 @@ class TestTrackedFileAdapters {
     tracking.set(FIRST_ROW_ID_ORDINAL, FIRST_ROW_ID);
     tracking.setManifestLocation(MANIFEST_LOCATION);
     tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
-  }
-
-  // Tracking with only the fields a manifest adapter requires, leaving the nullable-by-contract
-  // fields (firstRowId) unset.
-  private static TrackingStruct requiredOnlyTracking() {
-    TrackingStruct tracking = new TrackingStruct();
-    tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
-    tracking.set(SNAPSHOT_ID_ORDINAL, 42L);
-    tracking.set(DATA_SEQUENCE_NUMBER_ORDINAL, DATA_SEQUENCE_NUMBER);
-    return tracking;
   }
 
   private static ManifestInfo createManifestInfo() {
