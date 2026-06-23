@@ -33,11 +33,6 @@ class ManifestLists {
   private ManifestLists() {}
 
   static List<ManifestFile> read(InputFile manifestList) {
-    if (!manifestList.exists()) {
-      throw new NotFoundException(
-          "Failed to read manifest list: file %s does not exist", manifestList.location());
-    }
-
     try (CloseableIterable<ManifestFile> files =
         InternalData.read(FileFormat.AVRO, manifestList)
             .setRootType(GenericManifestFile.class)
@@ -47,7 +42,8 @@ class ManifestLists {
             .build()) {
 
       return Lists.newArrayList(files);
-
+    } catch (NotFoundException e) {
+      throw new NotFoundException(e, "Failed to read manifest list file: %s", s);
     } catch (IOException e) {
       throw new RuntimeIOException(
           e, "Cannot read manifest list file: %s", manifestList.location());
