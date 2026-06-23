@@ -591,6 +591,20 @@ SELECT * FROM prod.db.table.refs;
 | main | BRANCH | 4686954189838128572 | 10 | 20 | 30 |
 | testTag | TAG | 4686954189838128572 | 10 | null | null |
 
+### Table Properties Log
+
+To show the history of table properties:
+
+```sql
+SELECT * FROM prod.db.table.table_properties_log;
+```
+
+| timestamp | file | latest_snapshot_id | properties |
+| -- | -- | -- | -- |
+| 2026-06-17 15:24:33.798 | s3://.../props_log/metadata/00000-059abc2d-e741-4465-ae11-121b8023d380.metadata.json | null | {key1 -> value1, owner -> spark, write.parquet.compression-codec -> zstd} |
+| 2026-06-17 15:25:17.637 | s3://.../props_log/metadata/00001-28f3023b-423f-4b4c-bc18-ef93596baffe.metadata.json | null | {key1 -> value1, owner -> spark, key2 -> value2, write.parquet.compression-codec -> zstd} |
+| 2026-06-17 15:26:09.574 | s3://.../props_log/metadata/00002-6b48f0eb-a243-4146-9890-0400deba828b.metadata.json | 1312307084484665830 | {key1 -> value1, owner -> spark, key2 -> value2, write.parquet.compression-codec -> zstd} |
+
 ### Inspecting with DataFrames
 
 Metadata tables can be loaded using the DataFrameReader API:
