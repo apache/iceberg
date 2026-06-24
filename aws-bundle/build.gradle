@@ -18,6 +18,7 @@
  */
 
 project(":iceberg-aws-bundle") {
+  description = 'Shaded AWS SDK dependency bundle for Apache Iceberg'
 
   apply plugin: 'com.gradleup.shadow'
 

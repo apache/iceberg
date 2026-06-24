@@ -21,6 +21,7 @@ String flinkMajorVersion = '1.20'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
 project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
+  description = "Apache Flink ${flinkMajorVersion} integration for Apache Iceberg"
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -132,6 +133,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 }
 
 project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
+  description = "Shaded runtime bundle for Apache Iceberg and Flink ${flinkMajorVersion}"
   apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar

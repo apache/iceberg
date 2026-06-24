@@ -18,6 +18,7 @@
  */
 
 project(":iceberg-gcp-bundle") {
+  description = 'Shaded Google Cloud SDK dependency bundle for Apache Iceberg'
 
   apply plugin: 'com.gradleup.shadow'
 

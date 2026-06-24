@@ -290,6 +290,7 @@ subprojects {
 }
 
 project(':iceberg-bundled-guava') {
+  description = 'Relocated/shaded Guava dependency for internal use by Apache Iceberg'
   apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -331,6 +332,7 @@ project(':iceberg-bundled-guava') {
 }
 
 project(':iceberg-api') {
+  description = 'Public API interfaces and types for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -367,6 +369,7 @@ project(':iceberg-api') {
 }
 
 project(':iceberg-common') {
+  description = 'Common utility classes shared across Apache Iceberg modules'
   test {
     useJUnitPlatform()
   }
@@ -376,6 +379,7 @@ project(':iceberg-common') {
 }
 
 project(':iceberg-core') {
+  description = 'Core table specification implementation for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -429,6 +433,7 @@ project(':iceberg-core') {
 }
 
 project(':iceberg-data') {
+  description = 'Generic data layer (readers, writers, delete filters) for Apache Iceberg'
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -477,6 +482,7 @@ project(':iceberg-data') {
 }
 
 project(':iceberg-aliyun') {
+  description = 'Alibaba Cloud (Aliyun) object storage support for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -507,6 +513,7 @@ project(':iceberg-aliyun') {
 }
 
 project(':iceberg-aws') {
+  description = 'Amazon Web Services (S3, Glue, DynamoDB, STS) support for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -601,6 +608,7 @@ project(':iceberg-aws') {
 }
 
 project(':iceberg-azure') {
+  description = 'Microsoft Azure (ADLS Gen2, Key Vault) support for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -648,6 +656,7 @@ project(':iceberg-azure') {
 }
 
 project(':iceberg-delta-lake') {
+  description = 'Delta Lake table format integration for Apache Iceberg'
   // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
   // and create some tests involving sql query.
   test {
@@ -726,6 +735,7 @@ project(':iceberg-delta-lake') {
 }
 
 project(':iceberg-bigquery') {
+  description = 'Google BigQuery integration for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -755,6 +765,7 @@ project(':iceberg-bigquery') {
 }
 
 project(':iceberg-gcp') {
+  description = 'Google Cloud Platform (GCS, KMS) support for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -813,6 +824,7 @@ project(':iceberg-gcp') {
 }
 
 project(':iceberg-hive-metastore') {
+  description = 'Hive Metastore catalog and table integration for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -889,6 +901,7 @@ project(':iceberg-hive-metastore') {
 }
 
 project(':iceberg-orc') {
+  description = 'Apache ORC file format support for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -926,6 +939,7 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+  description = 'Apache Parquet file format support for Apache Iceberg'
   apply plugin: 'java-test-fixtures'
 
   test {
@@ -962,6 +976,7 @@ project(':iceberg-parquet') {
 }
 
 project(':iceberg-arrow') {
+  description = 'Apache Arrow vectorized read support for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -1002,6 +1017,7 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-nessie') {
+  description = 'Project Nessie versioned catalog integration for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -1039,6 +1055,7 @@ project(':iceberg-nessie') {
 }
 
 project(':iceberg-dell') {
+  description = 'Dell EMC ECS object storage support for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -1056,6 +1073,7 @@ project(':iceberg-dell') {
 }
 
 project(':iceberg-snowflake') {
+  description = 'Snowflake catalog integration for Apache Iceberg'
   test {
     useJUnitPlatform()
   }
@@ -1076,6 +1094,7 @@ project(':iceberg-snowflake') {
 }
 
 project(':iceberg-open-api') {
+  description = 'REST Catalog API specification and compatibility test kit for Apache Iceberg'
   apply plugin: 'java-test-fixtures'
   apply plugin: 'com.gradleup.shadow'
 
@@ -1237,6 +1256,7 @@ apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
 
 project(':iceberg-bom') {
+  description = 'Bill of materials (BOM) for aligning Apache Iceberg dependency versions'
   apply plugin: 'java-platform'
 
   dependencies {
