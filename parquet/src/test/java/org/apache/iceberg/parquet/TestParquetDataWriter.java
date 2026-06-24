@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -100,6 +101,39 @@ public class TestParquetDataWriter {
   @Test
   public void testDataWriter() throws IOException {
     testDataWriter(SCHEMA, (id, name) -> null);
+  }
+
+  @Test
+  public void testGeospatialWriteIsRejected() {
+    Schema geometrySchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "geom", Types.GeometryType.crs84()));
+    assertThatThrownBy(
+            () ->
+                Parquet.writeData(Files.localOutput(createTempFile(temp)))
+                    .schema(geometrySchema)
+                    .createWriterFunc(GenericParquetWriter::create)
+                    .overwrite()
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .build())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write geometry value to Parquet");
+
+    Schema geographySchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "geog", Types.GeographyType.crs84()));
+    assertThatThrownBy(
+            () ->
+                Parquet.writeData(Files.localOutput(createTempFile(temp)))
+                    .schema(geographySchema)
+                    .createWriterFunc(GenericParquetWriter::create)
+                    .overwrite()
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .build())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot write geography value to Parquet");
   }
 
   private void testDataWriter(Schema schema, VariantShreddingFunction variantShreddingFunc)
