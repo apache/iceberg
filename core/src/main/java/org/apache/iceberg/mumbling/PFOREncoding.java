@@ -192,9 +192,9 @@ class PFOREncoding {
     int requiredSize = encodedSize(count, b1, b2, excCount);
     Preconditions.checkArgument(
         outOffset + requiredSize <= out.remaining(),
-        "Cannot decode %s values from buffer with %s remaining bytes",
+        "Cannot encode %s values (%s bytes) into buffer with %s remaining bytes",
         requiredSize,
-        out.remaining());
+        out.remaining() - outOffset);
 
     // Special case: b1=8 means store original values as raw bytes with b2, e, and m set to 0.
     if (b1 == 8) {
@@ -252,8 +252,8 @@ class PFOREncoding {
         outOffset + count <= out.length,
         "Cannot decode %s values starting at %s into int[%s]: not enough space",
         count,
-        out.length,
-        outOffset);
+        outOffset,
+        out.length);
 
     int b1 = ByteBuffers.readByte(data, dataOffset) & 0x0F;
     int b2 = (ByteBuffers.readByte(data, dataOffset) >>> 4) & 0x0F;
