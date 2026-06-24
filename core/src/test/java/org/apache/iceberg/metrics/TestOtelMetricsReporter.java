@@ -77,9 +77,20 @@ public class TestOtelMetricsReporter {
                         TimerResult.of(TimeUnit.NANOSECONDS, Duration.ofMillis(150), 1))
                     .resultDataFiles(CounterResult.of(Unit.COUNT, 10))
                     .resultDeleteFiles(CounterResult.of(Unit.COUNT, 2))
+                    .totalDataManifests(CounterResult.of(Unit.COUNT, 8))
+                    .totalDeleteManifests(CounterResult.of(Unit.COUNT, 4))
                     .scannedDataManifests(CounterResult.of(Unit.COUNT, 5))
                     .skippedDataManifests(CounterResult.of(Unit.COUNT, 3))
                     .totalFileSizeInBytes(CounterResult.of(Unit.BYTES, 1024000))
+                    .totalDeleteFileSizeInBytes(CounterResult.of(Unit.BYTES, 2048))
+                    .skippedDataFiles(CounterResult.of(Unit.COUNT, 7))
+                    .skippedDeleteFiles(CounterResult.of(Unit.COUNT, 1))
+                    .scannedDeleteManifests(CounterResult.of(Unit.COUNT, 3))
+                    .skippedDeleteManifests(CounterResult.of(Unit.COUNT, 1))
+                    .indexedDeleteFiles(CounterResult.of(Unit.COUNT, 6))
+                    .equalityDeleteFiles(CounterResult.of(Unit.COUNT, 2))
+                    .positionalDeleteFiles(CounterResult.of(Unit.COUNT, 4))
+                    .dvs(CounterResult.of(Unit.COUNT, 9))
                     .build())
             .metadata(ImmutableMap.of())
             .build();
@@ -92,15 +103,37 @@ public class TestOtelMetricsReporter {
     assertMetricExists(metrics, "iceberg.scan.planning.duration");
     assertMetricExists(metrics, "iceberg.scan.result.data_files");
     assertMetricExists(metrics, "iceberg.scan.result.delete_files");
+    assertMetricExists(metrics, "iceberg.scan.data_manifests.total");
+    assertMetricExists(metrics, "iceberg.scan.delete_manifests.total");
     assertMetricExists(metrics, "iceberg.scan.data_manifests.scanned");
     assertMetricExists(metrics, "iceberg.scan.data_manifests.skipped");
     assertMetricExists(metrics, "iceberg.scan.file_size.bytes");
+    assertMetricExists(metrics, "iceberg.scan.delete_file_size.bytes");
+    assertMetricExists(metrics, "iceberg.scan.data_files.skipped");
+    assertMetricExists(metrics, "iceberg.scan.delete_files.skipped");
+    assertMetricExists(metrics, "iceberg.scan.delete_manifests.scanned");
+    assertMetricExists(metrics, "iceberg.scan.delete_manifests.skipped");
+    assertMetricExists(metrics, "iceberg.scan.delete_files.indexed");
+    assertMetricExists(metrics, "iceberg.scan.delete_files.equality");
+    assertMetricExists(metrics, "iceberg.scan.delete_files.positional");
+    assertMetricExists(metrics, "iceberg.scan.dvs");
 
     assertSumValue(metrics, "iceberg.scan.result.data_files", 10);
     assertSumValue(metrics, "iceberg.scan.result.delete_files", 2);
+    assertSumValue(metrics, "iceberg.scan.data_manifests.total", 8);
+    assertSumValue(metrics, "iceberg.scan.delete_manifests.total", 4);
     assertSumValue(metrics, "iceberg.scan.data_manifests.scanned", 5);
     assertSumValue(metrics, "iceberg.scan.data_manifests.skipped", 3);
     assertSumValue(metrics, "iceberg.scan.file_size.bytes", 1024000);
+    assertSumValue(metrics, "iceberg.scan.delete_file_size.bytes", 2048);
+    assertSumValue(metrics, "iceberg.scan.data_files.skipped", 7);
+    assertSumValue(metrics, "iceberg.scan.delete_files.skipped", 1);
+    assertSumValue(metrics, "iceberg.scan.delete_manifests.scanned", 3);
+    assertSumValue(metrics, "iceberg.scan.delete_manifests.skipped", 1);
+    assertSumValue(metrics, "iceberg.scan.delete_files.indexed", 6);
+    assertSumValue(metrics, "iceberg.scan.delete_files.equality", 2);
+    assertSumValue(metrics, "iceberg.scan.delete_files.positional", 4);
+    assertSumValue(metrics, "iceberg.scan.dvs", 9);
   }
 
   @Test
@@ -116,9 +149,33 @@ public class TestOtelMetricsReporter {
                     .totalDuration(TimerResult.of(TimeUnit.NANOSECONDS, Duration.ofMillis(200), 1))
                     .attempts(CounterResult.of(Unit.COUNT, 1))
                     .addedDataFiles(CounterResult.of(Unit.COUNT, 5))
-                    .removedDataFiles(CounterResult.of(Unit.COUNT, 0))
+                    .removedDataFiles(CounterResult.of(Unit.COUNT, 2))
+                    .totalDataFiles(CounterResult.of(Unit.COUNT, 15))
+                    .addedDeleteFiles(CounterResult.of(Unit.COUNT, 3))
+                    .addedEqualityDeleteFiles(CounterResult.of(Unit.COUNT, 1))
+                    .addedPositionalDeleteFiles(CounterResult.of(Unit.COUNT, 2))
+                    .addedDVs(CounterResult.of(Unit.COUNT, 4))
+                    .removedDeleteFiles(CounterResult.of(Unit.COUNT, 1))
+                    .removedEqualityDeleteFiles(CounterResult.of(Unit.COUNT, 0))
+                    .removedPositionalDeleteFiles(CounterResult.of(Unit.COUNT, 1))
+                    .removedDVs(CounterResult.of(Unit.COUNT, 0))
+                    .totalDeleteFiles(CounterResult.of(Unit.COUNT, 8))
                     .addedRecords(CounterResult.of(Unit.COUNT, 1000))
+                    .removedRecords(CounterResult.of(Unit.COUNT, 50))
+                    .totalRecords(CounterResult.of(Unit.COUNT, 5000))
                     .addedFilesSizeInBytes(CounterResult.of(Unit.BYTES, 512000))
+                    .removedFilesSizeInBytes(CounterResult.of(Unit.BYTES, 10000))
+                    .totalFilesSizeInBytes(CounterResult.of(Unit.BYTES, 2000000))
+                    .addedPositionalDeletes(CounterResult.of(Unit.COUNT, 100))
+                    .removedPositionalDeletes(CounterResult.of(Unit.COUNT, 20))
+                    .totalPositionalDeletes(CounterResult.of(Unit.COUNT, 300))
+                    .addedEqualityDeletes(CounterResult.of(Unit.COUNT, 50))
+                    .removedEqualityDeletes(CounterResult.of(Unit.COUNT, 10))
+                    .totalEqualityDeletes(CounterResult.of(Unit.COUNT, 150))
+                    .manifestsCreated(CounterResult.of(Unit.COUNT, 3))
+                    .manifestsReplaced(CounterResult.of(Unit.COUNT, 2))
+                    .manifestsKept(CounterResult.of(Unit.COUNT, 7))
+                    .manifestEntriesProcessed(CounterResult.of(Unit.COUNT, 500))
                     .build())
             .metadata(ImmutableMap.of())
             .build();
@@ -131,13 +188,63 @@ public class TestOtelMetricsReporter {
     assertMetricExists(metrics, "iceberg.commit.duration");
     assertMetricExists(metrics, "iceberg.commit.attempts");
     assertMetricExists(metrics, "iceberg.commit.data_files.added");
+    assertMetricExists(metrics, "iceberg.commit.data_files.removed");
+    assertMetricExists(metrics, "iceberg.commit.data_files.total");
+    assertMetricExists(metrics, "iceberg.commit.delete_files.added");
+    assertMetricExists(metrics, "iceberg.commit.delete_files.equality.added");
+    assertMetricExists(metrics, "iceberg.commit.delete_files.positional.added");
+    assertMetricExists(metrics, "iceberg.commit.dvs.added");
+    assertMetricExists(metrics, "iceberg.commit.delete_files.removed");
+    assertMetricExists(metrics, "iceberg.commit.delete_files.equality.removed");
+    assertMetricExists(metrics, "iceberg.commit.delete_files.positional.removed");
+    assertMetricExists(metrics, "iceberg.commit.dvs.removed");
+    assertMetricExists(metrics, "iceberg.commit.delete_files.total");
     assertMetricExists(metrics, "iceberg.commit.records.added");
+    assertMetricExists(metrics, "iceberg.commit.records.removed");
+    assertMetricExists(metrics, "iceberg.commit.records.total");
     assertMetricExists(metrics, "iceberg.commit.file_size.added_bytes");
+    assertMetricExists(metrics, "iceberg.commit.file_size.removed_bytes");
+    assertMetricExists(metrics, "iceberg.commit.file_size.total_bytes");
+    assertMetricExists(metrics, "iceberg.commit.positional_deletes.added");
+    assertMetricExists(metrics, "iceberg.commit.positional_deletes.removed");
+    assertMetricExists(metrics, "iceberg.commit.positional_deletes.total");
+    assertMetricExists(metrics, "iceberg.commit.equality_deletes.added");
+    assertMetricExists(metrics, "iceberg.commit.equality_deletes.removed");
+    assertMetricExists(metrics, "iceberg.commit.equality_deletes.total");
+    assertMetricExists(metrics, "iceberg.commit.manifests.created");
+    assertMetricExists(metrics, "iceberg.commit.manifests.replaced");
+    assertMetricExists(metrics, "iceberg.commit.manifests.kept");
+    assertMetricExists(metrics, "iceberg.commit.manifest_entries.processed");
 
     assertSumValue(metrics, "iceberg.commit.attempts", 1);
     assertSumValue(metrics, "iceberg.commit.data_files.added", 5);
+    assertSumValue(metrics, "iceberg.commit.data_files.removed", 2);
+    assertSumValue(metrics, "iceberg.commit.data_files.total", 15);
+    assertSumValue(metrics, "iceberg.commit.delete_files.added", 3);
+    assertSumValue(metrics, "iceberg.commit.delete_files.equality.added", 1);
+    assertSumValue(metrics, "iceberg.commit.delete_files.positional.added", 2);
+    assertSumValue(metrics, "iceberg.commit.dvs.added", 4);
+    assertSumValue(metrics, "iceberg.commit.delete_files.removed", 1);
+    assertSumValue(metrics, "iceberg.commit.delete_files.equality.removed", 0);
+    assertSumValue(metrics, "iceberg.commit.delete_files.positional.removed", 1);
+    assertSumValue(metrics, "iceberg.commit.dvs.removed", 0);
+    assertSumValue(metrics, "iceberg.commit.delete_files.total", 8);
     assertSumValue(metrics, "iceberg.commit.records.added", 1000);
+    assertSumValue(metrics, "iceberg.commit.records.removed", 50);
+    assertSumValue(metrics, "iceberg.commit.records.total", 5000);
     assertSumValue(metrics, "iceberg.commit.file_size.added_bytes", 512000);
+    assertSumValue(metrics, "iceberg.commit.file_size.removed_bytes", 10000);
+    assertSumValue(metrics, "iceberg.commit.file_size.total_bytes", 2000000);
+    assertSumValue(metrics, "iceberg.commit.positional_deletes.added", 100);
+    assertSumValue(metrics, "iceberg.commit.positional_deletes.removed", 20);
+    assertSumValue(metrics, "iceberg.commit.positional_deletes.total", 300);
+    assertSumValue(metrics, "iceberg.commit.equality_deletes.added", 50);
+    assertSumValue(metrics, "iceberg.commit.equality_deletes.removed", 10);
+    assertSumValue(metrics, "iceberg.commit.equality_deletes.total", 150);
+    assertSumValue(metrics, "iceberg.commit.manifests.created", 3);
+    assertSumValue(metrics, "iceberg.commit.manifests.replaced", 2);
+    assertSumValue(metrics, "iceberg.commit.manifests.kept", 7);
+    assertSumValue(metrics, "iceberg.commit.manifest_entries.processed", 500);
   }
 
   @Test
@@ -344,6 +451,39 @@ public class TestOtelMetricsReporter {
             .collect(Collectors.toSet());
 
     assertThat(allAttributeKeys).as("empty allowlist emits no attributes").isEmpty();
+  }
+
+  @Test
+  public void testAttributesAllowlistNoneEmitsNoAttributes() {
+    OpenTelemetrySdk openTelemetry =
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+    OtelMetricsReporter customReporter =
+        new OtelMetricsReporter(
+            openTelemetry, ImmutableMap.of("iceberg.otel.metrics.attributes", "none"));
+
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName("test_db.test_table")
+            .snapshotId(96L)
+            .sequenceNumber(1L)
+            .operation("append")
+            .commitMetrics(
+                ImmutableCommitMetricsResult.builder()
+                    .attempts(CounterResult.of(Unit.COUNT, 1))
+                    .build())
+            .metadata(ImmutableMap.of())
+            .build();
+    customReporter.report(commitReport);
+
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    Set<String> allAttributeKeys =
+        metrics.stream()
+            .flatMap(m -> m.getLongSumData().getPoints().stream())
+            .flatMap(p -> p.getAttributes().asMap().keySet().stream())
+            .map(AttributeKey::getKey)
+            .collect(Collectors.toSet());
+
+    assertThat(allAttributeKeys).as("'none' value emits no attributes").isEmpty();
   }
 
   @Test
