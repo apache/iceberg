@@ -68,6 +68,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_PROP = "iceberg.tables";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
+  private static final String TABLES_ROUTER_CLASS_PROP = "iceberg.tables.router-class";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
@@ -169,6 +170,13 @@ public class IcebergSinkConfig extends AbstractConfig {
         false,
         Importance.MEDIUM,
         "Set to true to look up table columns by case-insensitive name, false for case-sensitive");
+    configDef.define(
+        TABLES_ROUTER_CLASS_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "Fully-qualified class name of a RecordRouter implementation. "
+            + "When set, overrides iceberg.tables and iceberg.tables.dynamic-enabled.");
     configDef.define(
         TABLES_EVOLVE_SCHEMA_ENABLED_PROP,
         ConfigDef.Type.BOOLEAN,
@@ -274,6 +282,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private void validate() {
     checkState(!catalogProps().isEmpty(), "Must specify Iceberg catalog properties");
+    if (tablesRouterClass() != null) {
+      // custom router handles its own validation
+      return;
+    }
     if (tables() != null) {
       checkState(!dynamicTablesEnabled(), "Cannot specify both static and dynamic table names");
     } else if (dynamicTablesEnabled()) {
@@ -323,6 +335,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return writeProps;
   }
 
+  public Map<String, String> originalProps() {
+    return originalProps;
+  }
+
   public String catalogName() {
     return getString(CATALOG_NAME_PROP);
   }
@@ -337,6 +353,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String tablesRouteField() {
     return getString(TABLES_ROUTE_FIELD_PROP);
+  }
+
+  public String tablesRouterClass() {
+    return getString(TABLES_ROUTER_CLASS_PROP);
   }
 
   public String tablesDefaultCommitBranch() {
