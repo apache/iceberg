@@ -168,4 +168,12 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
   public static <T> ArrayBatchRecords<T> finishedSplit(String splitId) {
     return new ArrayBatchRecords<>(null, null, null, 0, 0, 0, Collections.singleton(splitId));
   }
+
+  /**
+   * Create an empty ArrayBatchRecords with no records and no finished splits. This is returned when
+   * the reader is woken up (e.g. during shutdown) while waiting for an array-pool entry.
+   */
+  public static <T> ArrayBatchRecords<T> emptyBatch() {
+    return new ArrayBatchRecords<>(null, null, null, 0, 0, 0, Collections.emptySet());
+  }
 }

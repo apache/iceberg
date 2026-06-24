@@ -42,6 +42,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -86,6 +87,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private BigQueryMetastoreClient client;
   private boolean listAllTables;
   private String warehouseLocation;
+  private CloseableGroup closeableGroup;
 
   public BigQueryMetastoreCatalog() {}
 
@@ -138,6 +140,11 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
                 CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.ResolvingFileIO"),
             properties,
             conf);
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @Override
@@ -295,6 +302,13 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
   }
 
   @Override

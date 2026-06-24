@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class VariantUtil {
   private static final int BASIC_TYPE_MASK = 0b11;
@@ -32,78 +31,6 @@ class VariantUtil {
   private static final int BASIC_TYPE_ARRAY = 3;
 
   private VariantUtil() {}
-
-  /** A hacky absolute put for ByteBuffer */
-  static int writeBufferAbsolute(ByteBuffer buffer, int offset, ByteBuffer toCopy) {
-    int originalPosition = buffer.position();
-    buffer.position(offset);
-    ByteBuffer copy = toCopy.duplicate();
-    buffer.put(copy); // duplicate so toCopy is not modified
-    buffer.position(originalPosition);
-    Preconditions.checkArgument(copy.remaining() <= 0, "Not fully written");
-    return toCopy.remaining();
-  }
-
-  static void writeByte(ByteBuffer buffer, int value, int offset) {
-    buffer.put(buffer.position() + offset, (byte) (value & 0xFF));
-  }
-
-  static void writeLittleEndianUnsigned(ByteBuffer buffer, int value, int offset, int size) {
-    int base = buffer.position() + offset;
-    switch (size) {
-      case 4:
-        buffer.putInt(base, value);
-        return;
-      case 3:
-        buffer.putShort(base, (short) (value & 0xFFFF));
-        buffer.put(base + 2, (byte) ((value >> 16) & 0xFF));
-        return;
-      case 2:
-        buffer.putShort(base, (short) (value & 0xFFFF));
-        return;
-      case 1:
-        buffer.put(base, (byte) (value & 0xFF));
-        return;
-    }
-
-    throw new IllegalArgumentException("Invalid size: " + size);
-  }
-
-  static byte readLittleEndianInt8(ByteBuffer buffer, int offset) {
-    return buffer.get(buffer.position() + offset);
-  }
-
-  static short readLittleEndianInt16(ByteBuffer buffer, int offset) {
-    return buffer.getShort(buffer.position() + offset);
-  }
-
-  static int readByte(ByteBuffer buffer, int offset) {
-    return buffer.get(buffer.position() + offset) & 0xFF;
-  }
-
-  static int readLittleEndianUnsigned(ByteBuffer buffer, int offset, int size) {
-    int base = buffer.position() + offset;
-    switch (size) {
-      case 4:
-        return buffer.getInt(base);
-      case 3:
-        return (((int) buffer.getShort(base)) & 0xFFFF) | ((buffer.get(base + 2) & 0xFF) << 16);
-      case 2:
-        return ((int) buffer.getShort(base)) & 0xFFFF;
-      case 1:
-        return buffer.get(base) & 0xFF;
-    }
-
-    throw new IllegalArgumentException("Invalid size: " + size);
-  }
-
-  static int readLittleEndianInt32(ByteBuffer buffer, int offset) {
-    return buffer.getInt(buffer.position() + offset);
-  }
-
-  static long readLittleEndianInt64(ByteBuffer buffer, int offset) {
-    return buffer.getLong(buffer.position() + offset);
-  }
 
   static float readFloat(ByteBuffer buffer, int offset) {
     return buffer.getFloat(buffer.position() + offset);
