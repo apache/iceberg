@@ -56,7 +56,8 @@ class SchemaUpdate implements UpdateSchema {
   private final TableMetadata base;
   private final Schema schema;
   private final Map<Integer, Integer> idToParent;
-  private final List<Integer> deletes = Lists.newArrayList();
+  // perf(auto-perf): Set for O(1) contains() — called 10x per schema apply across all fields
+  private final Set<Integer> deletes = Sets.newHashSet();
   private final Map<Integer, Types.NestedField> updates = Maps.newHashMap();
   private final Multimap<Integer, Integer> parentToAddedIds =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
@@ -532,7 +533,7 @@ class SchemaUpdate implements UpdateSchema {
 
   private static Schema applyChanges(
       Schema schema,
-      List<Integer> deletes,
+      Set<Integer> deletes,
       Map<Integer, Types.NestedField> updates,
       Multimap<Integer, Integer> parentToAddedIds,
       Multimap<Integer, Move> moves,
@@ -588,13 +589,13 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {
-    private final List<Integer> deletes;
+    private final Set<Integer> deletes;
     private final Map<Integer, Types.NestedField> updates;
     private final Multimap<Integer, Integer> parentToAddedIds;
     private final Multimap<Integer, Move> moves;
 
     private ApplyChanges(
-        List<Integer> deletes,
+        Set<Integer> deletes,
         Map<Integer, Types.NestedField> updates,
         Multimap<Integer, Integer> parentToAddedIds,
         Multimap<Integer, Move> moves) {
