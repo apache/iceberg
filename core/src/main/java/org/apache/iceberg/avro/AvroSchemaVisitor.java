@@ -29,7 +29,7 @@ public abstract class AvroSchemaVisitor<T> {
   private static final String VALUE = "value";
 
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
-    switch (schema.getType()) {
+    return switch (schema.getType()) {
       case RECORD -> {
         // check to make sure this hasn't been visited before
         String name = schema.getFullName();
@@ -40,7 +40,7 @@ public abstract class AvroSchemaVisitor<T> {
           Preconditions.checkArgument(
               AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
 
-          return visitor.variant(
+          yield visitor.variant(
               schema,
               visit(schema.getField(METADATA).schema(), visitor),
               visit(schema.getField(VALUE).schema(), visitor));
@@ -57,7 +57,7 @@ public abstract class AvroSchemaVisitor<T> {
           }
 
           visitor.recordLevels.pop();
-          return visitor.record(schema, names, results);
+          yield visitor.record(schema, names, results);
         }
       }
       case UNION -> {
@@ -66,22 +66,18 @@ public abstract class AvroSchemaVisitor<T> {
         for (Schema type : types) {
           options.add(visit(type, visitor));
         }
-        return visitor.union(schema, options);
+        yield visitor.union(schema, options);
       }
       case ARRAY -> {
         if (schema.getLogicalType() instanceof LogicalMap) {
-          return visitor.array(schema, visit(schema.getElementType(), visitor));
+          yield visitor.array(schema, visit(schema.getElementType(), visitor));
         } else {
-          return visitor.array(schema, visitWithName("element", schema.getElementType(), visitor));
+          yield visitor.array(schema, visitWithName("element", schema.getElementType(), visitor));
         }
       }
-      case MAP -> {
-        return visitor.map(schema, visitWithName("value", schema.getValueType(), visitor));
-      }
-      default -> {
-        return visitor.primitive(schema);
-      }
-    }
+      case MAP -> visitor.map(schema, visitWithName("value", schema.getValueType(), visitor));
+      default -> visitor.primitive(schema);
+    };
   }
 
   private final Deque<String> recordLevels = Lists.newLinkedList();

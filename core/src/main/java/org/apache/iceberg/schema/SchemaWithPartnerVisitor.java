@@ -47,7 +47,7 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
 
   public static <P, T> T visit(
       Type type, P partner, SchemaWithPartnerVisitor<P, T> visitor, PartnerAccessors<P> accessors) {
-    switch (type.typeId()) {
+    return switch (type.typeId()) {
       case STRUCT -> {
         Types.StructType struct = type.asNestedType().asStructType();
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
@@ -65,7 +65,7 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
           }
           results.add(visitor.field(field, fieldPartner, result));
         }
-        return visitor.struct(struct, partner, results);
+        yield visitor.struct(struct, partner, results);
       }
       case LIST -> {
         Types.ListType list = type.asNestedType().asListType();
@@ -80,7 +80,7 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
           visitor.afterListElement(elementField, partnerElement);
         }
 
-        return visitor.list(list, partner, elementResult);
+        yield visitor.list(list, partner, elementResult);
       }
       case MAP -> {
         Types.MapType map = type.asNestedType().asMapType();
@@ -105,15 +105,11 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
           visitor.afterMapValue(valueField, valuePartner);
         }
 
-        return visitor.map(map, partner, keyResult, valueResult);
+        yield visitor.map(map, partner, keyResult, valueResult);
       }
-      case VARIANT -> {
-        return visitor.variant(type.asVariantType(), partner);
-      }
-      default -> {
-        return visitor.primitive(type.asPrimitiveType(), partner);
-      }
-    }
+      case VARIANT -> visitor.variant(type.asVariantType(), partner);
+      default -> visitor.primitive(type.asPrimitiveType(), partner);
+    };
   }
 
   public void beforeField(Types.NestedField field, P partnerField) {}

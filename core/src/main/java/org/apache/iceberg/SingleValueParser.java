@@ -52,11 +52,11 @@ public class SingleValueParser {
       return null;
     }
 
-    switch (type.typeId()) {
+    return switch (type.typeId()) {
       case BOOLEAN -> {
         Preconditions.checkArgument(
             defaultValue.isBoolean(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        return defaultValue.booleanValue();
+        yield defaultValue.booleanValue();
       }
       case INTEGER -> {
         Preconditions.checkArgument(
@@ -64,7 +64,7 @@ public class SingleValueParser {
             "Cannot parse default as a %s value: %s",
             type,
             defaultValue);
-        return defaultValue.intValue();
+        yield defaultValue.intValue();
       }
       case LONG -> {
         Preconditions.checkArgument(
@@ -72,7 +72,7 @@ public class SingleValueParser {
             "Cannot parse default as a %s value: %s",
             type,
             defaultValue);
-        return defaultValue.longValue();
+        yield defaultValue.longValue();
       }
       case FLOAT -> {
         Preconditions.checkArgument(
@@ -80,7 +80,7 @@ public class SingleValueParser {
             "Cannot parse default as a %s value: %s",
             type,
             defaultValue);
-        return defaultValue.floatValue();
+        yield defaultValue.floatValue();
       }
       case DOUBLE -> {
         Preconditions.checkArgument(
@@ -88,7 +88,7 @@ public class SingleValueParser {
             "Cannot parse default as a %s value: %s",
             type,
             defaultValue);
-        return defaultValue.doubleValue();
+        yield defaultValue.doubleValue();
       }
       case DECIMAL -> {
         Preconditions.checkArgument(
@@ -105,12 +105,12 @@ public class SingleValueParser {
             "Cannot parse default as a %s value: %s, the scale doesn't match",
             type,
             defaultValue);
-        return retDecimal;
+        yield retDecimal;
       }
       case STRING -> {
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        return defaultValue.textValue();
+        yield defaultValue.textValue();
       }
       case UUID -> {
         Preconditions.checkArgument(
@@ -125,17 +125,17 @@ public class SingleValueParser {
           throw new IllegalArgumentException(
               String.format("Cannot parse default as a %s value: %s", type, defaultValue), e);
         }
-        return uuid;
+        yield uuid;
       }
       case DATE -> {
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        return DateTimeUtil.isoDateToDays(defaultValue.textValue());
+        yield DateTimeUtil.isoDateToDays(defaultValue.textValue());
       }
       case TIME -> {
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        return DateTimeUtil.isoTimeToMicros(defaultValue.textValue());
+        yield DateTimeUtil.isoTimeToMicros(defaultValue.textValue());
       }
       case TIMESTAMP -> {
         Preconditions.checkArgument(
@@ -147,9 +147,9 @@ public class SingleValueParser {
               "Cannot parse default as a %s value: %s, offset must be +00:00",
               type,
               defaultValue);
-          return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
+          yield DateTimeUtil.isoTimestamptzToMicros(timestampTz);
         } else {
-          return DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
+          yield DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
         }
       }
       case TIMESTAMP_NANO -> {
@@ -162,9 +162,9 @@ public class SingleValueParser {
               "Cannot parse default as a %s value: %s, offset must be +00:00",
               type,
               defaultValue);
-          return DateTimeUtil.isoTimestamptzToNanos(timestampTzNano);
+          yield DateTimeUtil.isoTimestamptzToNanos(timestampTzNano);
         } else {
-          return DateTimeUtil.isoTimestampToNanos(defaultValue.textValue());
+          yield DateTimeUtil.isoTimestampToNanos(defaultValue.textValue());
         }
       }
       case FIXED -> {
@@ -180,27 +180,21 @@ public class SingleValueParser {
             defaultLength);
         byte[] fixedBytes =
             BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
-        return ByteBuffer.wrap(fixedBytes);
+        yield ByteBuffer.wrap(fixedBytes);
       }
       case BINARY -> {
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
         byte[] binaryBytes =
             BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
-        return ByteBuffer.wrap(binaryBytes);
+        yield ByteBuffer.wrap(binaryBytes);
       }
-      case LIST -> {
-        return listFromJson(type, defaultValue);
-      }
-      case MAP -> {
-        return mapFromJson(type, defaultValue);
-      }
-      case STRUCT -> {
-        return structFromJson(type, defaultValue);
-      }
+      case LIST -> listFromJson(type, defaultValue);
+      case MAP -> mapFromJson(type, defaultValue);
+      case STRUCT -> structFromJson(type, defaultValue);
       default ->
           throw new UnsupportedOperationException(String.format("Type: %s is not supported", type));
-    }
+    };
   }
 
   private static StructLike structFromJson(Type type, JsonNode defaultValue) {
