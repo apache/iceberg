@@ -167,6 +167,9 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     } else if (atomic instanceof GeometryType) {
       return Types.GeometryType.of(((GeometryType) atomic).crs());
     } else if (atomic instanceof GeographyType) {
+      // Spark only supports the spherical edge-interpolation algorithm, which matches the Iceberg
+      // default, so the Spark algorithm is intentionally not propagated here. Revisit if Spark
+      // starts supporting additional algorithms.
       return Types.GeographyType.of(((GeographyType) atomic).crs());
     } else if (atomic instanceof NullType) {
       return Types.UnknownType.get();

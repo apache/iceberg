@@ -108,19 +108,19 @@ public class TestSparkSchemaUtil {
     assertThat(((GeometryType) sparkGeometry).crs()).isEqualTo("EPSG:3857");
     assertThat(SparkSchemaUtil.convert(sparkGeometry)).isEqualTo(geometry);
 
-    Types.GeographyType geography = Types.GeographyType.of("EPSG:4326");
+    Types.GeographyType geography = Types.GeographyType.of("OGC:CRS84");
     DataType sparkGeography = SparkSchemaUtil.convert(geography);
     assertThat(sparkGeography).isInstanceOf(GeographyType.class);
-    assertThat(((GeographyType) sparkGeography).crs()).isEqualTo("EPSG:4326");
+    assertThat(((GeographyType) sparkGeography).crs()).isEqualTo("OGC:CRS84");
     assertThat(SparkSchemaUtil.convert(sparkGeography)).isEqualTo(geography);
 
     assertThat(SparkSchemaUtil.convert(GeometryType$.MODULE$.apply("EPSG:3857")))
         .isEqualTo(geometry);
-    assertThat(SparkSchemaUtil.convert(GeographyType$.MODULE$.apply("EPSG:4326")))
+    assertThat(SparkSchemaUtil.convert(GeographyType$.MODULE$.apply("OGC:CRS84")))
         .isEqualTo(geography);
 
     Types.GeographyType vincentyGeography =
-        Types.GeographyType.of("EPSG:4326", EdgeAlgorithm.VINCENTY);
+        Types.GeographyType.of("OGC:CRS84", EdgeAlgorithm.VINCENTY);
     assertThatThrownBy(() -> SparkSchemaUtil.convert(vincentyGeography))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Spark does not support geography edge algorithm: vincenty");
@@ -131,7 +131,7 @@ public class TestSparkSchemaUtil {
     Schema schema =
         new Schema(
             optional(1, "geom", Types.GeometryType.of("EPSG:3857")),
-            optional(2, "geog", Types.GeographyType.of("EPSG:4326")),
+            optional(2, "geog", Types.GeographyType.of("OGC:CRS84")),
             optional(3, "id", Types.LongType.get()));
 
     StructType requestedType = SparkSchemaUtil.convert(schema);
