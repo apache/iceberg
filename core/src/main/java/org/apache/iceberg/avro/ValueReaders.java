@@ -133,13 +133,15 @@ public class ValueReaders {
   }
 
   public static ValueReader<byte[]> decimalBytesReader(Schema schema) {
-    return switch (schema.getType()) {
-      case FIXED -> ValueReaders.fixed(schema.getFixedSize());
-      case BYTES -> ValueReaders.bytes();
-      default ->
-          throw new IllegalArgumentException(
-              "Invalid primitive type for decimal: " + schema.getType());
-    };
+    switch (schema.getType()) {
+      case FIXED:
+        return ValueReaders.fixed(schema.getFixedSize());
+      case BYTES:
+        return ValueReaders.bytes();
+      default:
+        throw new IllegalArgumentException(
+            "Invalid primitive type for decimal: " + schema.getType());
+    }
   }
 
   public static ValueReader<Variant> variants() {

@@ -340,22 +340,22 @@ public class PartitionsTable extends BaseMetadataTable {
       }
 
       switch (file.content()) {
-        case DATA -> {
+        case DATA:
           this.dataRecordCount += file.recordCount();
           this.dataFileCount += 1;
           this.dataFileSizeInBytes += file.fileSizeInBytes();
-        }
-        case POSITION_DELETES -> {
+          break;
+        case POSITION_DELETES:
           this.posDeleteRecordCount += file.recordCount();
           this.posDeleteFileCount += 1;
-        }
-        case EQUALITY_DELETES -> {
+          break;
+        case EQUALITY_DELETES:
           this.eqDeleteRecordCount += file.recordCount();
           this.eqDeleteFileCount += 1;
-        }
-        default ->
-            throw new UnsupportedOperationException(
-                "Unsupported file content type: " + file.content());
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
       }
     }
 
