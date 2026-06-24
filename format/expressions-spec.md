@@ -35,7 +35,7 @@ This approach is intended to keep focus on the logical structure of expressions.
 
 This is consistent with Iceberg's conservative approach in other specs. Expressions and predicates are an important part of Iceberg implementation APIs, but have been deliberately limited in specifications. For example, sort orders and partition fields are strictly limited to a small set of transforms over well-defined inputs (source field IDs). This spec is widening what can be expressed, but depends on function calls for complex tasks.
 
-This specification covers the structure of Iceberg expressions and includes appendicies that specify serialization as JSON and a set of portable functions defined by Iceberg specifications.
+This specification covers the structure of Iceberg expressions and includes appendices that specify serialization as JSON and a set of portable functions defined by Iceberg specifications.
 
 [udf-spec]: https://iceberg.apache.org/udf-spec
 
@@ -68,21 +68,21 @@ Field references may be named references (unbound) or ID references (bound). ID 
 
 ID references are used for stored expressions, where the identity of the column is determined when the stored expression is created. For example, column constraints are tied to field IDs so that renaming a column does not invalidate the reference in its stored constraint.
 
-Named references are used when the identity of the column is determined when the expression is evaluated. For example, query filters are resolved each time a query runs so servers-side planning uses unbound named references.
+Named references are used when the identity of the column is determined when the expression is evaluated. For example, query filters are resolved each time a query runs so server-side planning uses unbound named references.
 
 The context in which an expression is used determines the type of references that are valid. Iceberg specifications should document whether ID references, named references, or both are allowed.
 
 
 #### Apply function
 
-An apply expression represents the result of a function applied to (or called on) zero or more values produced by child value expressions.
+An apply expression represents the result of a function applied to (or called on) zero or more values produced by child value expressions or predicates.
 
-Functions are referenced using a catalog and a function identifer (list of strings).
+Functions are referenced using a catalog and a function identifier (list of strings).
 
 * The function identifier consists of 0 or more namespace names followed by the function name. At least one part, the function name, is required.
 * Catalog is optional and is assumed to be the catalog in which the referencing object is stored if it is not present or is null
 
-The catalog name identifies the catalog where the function definition can be loaded or is a reserved name that identifies a set of functions. As in the view and UDF specs, catalog names represent connection configurations that may differ across environments. Omitting catalog names is recommended to avoid depending on consistent environments. For example, if a table has a CHECK constraint that references a UDF without a catalog name (missing or null), the UDF should be loaded from the table’s catalog.
+The catalog name identifies the catalog where the function definition can be loaded or is a reserved name that identifies a set of functions. As in the view and UDF specs, catalog names represent connection configurations that may differ across environments. Omitting catalog names is recommended to avoid depending on consistent environments. For example, if a table has a CHECK constraint that references a UDF without a catalog name (missing or null), the UDF should be loaded from the table's catalog.
 
 The reserved names used to identify sets are:
 
@@ -102,21 +102,21 @@ A value expression's result type is determined when it is bound to a specific in
 
 Function calls may produce different types when function definitions change, and type changes may change the definition that is resolved for a function name. For example, if the input field passed to `identity(int) -> int` is promoted from `int` to `long`, the resolved `identity` function can change to `identity(long) -> long` if it is defined.
 
-If types are incompatible at runtime, implementations binding or evaluating expressions may apply type promotion to align types for predicates and to resolve functions. Implementations may choose when to promote values to accomodate engines that differ in casting behavior. However, implementations must fail rather than insert unsafe casts. 
+If types are incompatible at runtime, implementations binding or evaluating expressions may apply type promotion to align types for predicates and to resolve functions. Implementations may choose when to promote values to accommodate engines that differ in casting behavior. However, implementations must fail rather than insert unsafe casts.
 
 
 ### Predicates
 
 A predicate is a boolean expression that produces true or false.
 
-Predicates can be constants (true or false), tests of a value expression, comparisons of value exprssions, or logical combinations of predicates (AND, OR, NOT).
+Predicates can be constants (true or false), tests of a value expression, comparisons of value expressions, or logical combinations of predicates (AND, OR, NOT).
 
 Value expressions are not valid predicates, even when the expression is expected to return a boolean value. Value expressions must be compared or tested to produce a predicate. For example, `is_empty(str_col)` is not a valid predicate because it may produce `null`, but `is_empty(str_col) = true` is a valid predicate.
 
 
 #### Tests
 
-Tests are predicates that test a single value expression, optionally using a constant or set of constants. Constants must have the same type and must be non-null and non-NaN. Tests are:
+Tests are predicates that test a single value expression, optionally using a constant or set of constants. Constants must all have the same type and must be non-null and non-NaN. Tests are:
 
 | Test                    | Allowed types | Constant type | Description |
 |-------------------------|---------------|---------------|-------------|
@@ -140,7 +140,7 @@ Comparisons are:
 
 | Comparison  | Description |
 |-------------|-------------|
-| `=`         | Is equal |
+| `=`         | Is equal (is not distinct from) |
 | `!=`        | Is not equal |
 | `<`         | Less than |
 | `<=`        | Less than or equal |
@@ -175,7 +175,7 @@ Primitive types are compared using signed comparison, except for the following t
 * `string` uses unsigned byte-wise comparison of the UTF-8 representation; it is not the Unicode Collation Algorithm
 * `uuid` uses unsigned byte-wise comparison of the UUID bytes
 * `decimal` uses signed comparison independent of scale; this is equivalent to comparison of unscaled values because type alignment produces values with the same scale
-* `float` and `double` use IEEE 754 total order for all non-NaN values; see below for NaN comparison rules
+* `float` and `double` use IEEE 754 order for all non-NaN values; see below for NaN comparison rules
 
 For floating point values, comparison with NaN behaves similarly to comparison of values with null. NaN should be specifically handled using `IS NaN` and `IS NOT NaN` tests. However, when value expressions produce a NaN value, the following rules must be applied:
 
@@ -191,7 +191,7 @@ Predicates must use 2-valued boolean logic. Evaluation of all predicates must pr
 
 Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending on context to interpret a null result (`WHERE` vs `CHECK`).
 
-Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation. `AND`, `OR`, and `NOT` do not accept null values and must fail on any null operand.
+Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation. `AND`, `OR`, and `NOT` do not accept null values because predicates cannot produce them.
 
 
 ### Compatibility with REST catalog expressions
@@ -270,7 +270,7 @@ FUNC_REF: NAME
 ID: integer
 NAME: string
 
-VALUE: non-null single value JSON from the table spec
+VALUE: single value JSON from the table spec
 DATA_TYPE: Iceberg type from the spec
 ```
 
