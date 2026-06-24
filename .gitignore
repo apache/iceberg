@@ -82,3 +82,13 @@ derby.log
 
 # claude code
 .claude/
+
+# For GitHub Copilot
+.github/copilot-instructions.md
+.github/agents/
+.github/instructions/
+.github/prompts/
+.github/skills/
+
+# openspec
+openspec/
