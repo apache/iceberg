@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -309,5 +310,95 @@ public abstract class DataTableScanTestBase<
             .collect(Collectors.toList())
             .get(0);
     assertThat(deletes.get(0).manifestLocation()).isEqualTo(deleteManifest.path());
+  }
+
+  @TestTemplate
+  public void testPlanFilesPositionDeletePathReferenceWithPartitionMismatch() {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Position delete whose metadata partition (data_bucket=1) does not match FILE_A's
+    // partition (data_bucket=0), but whose path reference points to FILE_A.
+    DeleteFile posDeleteWrongPartition =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-delete-wrong-partition-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .build();
+
+    table.newRowDelta().addDeletes(posDeleteWrongPartition).commit();
+
+    // Without a partition filter: delete is associated via path reference despite partition
+    // mismatch.
+    List<T> unfiltered = Lists.newArrayList(newScan().planFiles());
+    assertThat(unfiltered).as("Should have one task").hasSize(1);
+    FileScanTask unfilteredTask = (FileScanTask) unfiltered.get(0);
+    assertThat(unfilteredTask.file().location()).isEqualTo(FILE_A.location());
+    assertThat(unfilteredTask.deletes())
+        .as("Delete is associated via path reference without a partition filter")
+        .hasSize(1);
+    assertThat(unfilteredTask.deletes().get(0).location())
+        .isEqualTo(posDeleteWrongPartition.location());
+
+    // With a partition filter targeting data_bucket=0: the delete manifest contains only
+    // data_bucket=1 entries and is pruned, so the path-referenced delete is lost.
+    ScanT filtered =
+        newScan().filter(Expressions.equal(Expressions.bucket("data", BUCKETS_NUMBER), 0));
+    List<T> filteredTasks = Lists.newArrayList(filtered.planFiles());
+    assertThat(filteredTasks).as("Should have one task").hasSize(1);
+    FileScanTask filteredTask = (FileScanTask) filteredTasks.get(0);
+    assertThat(filteredTask.file().location()).isEqualTo(FILE_A.location());
+    assertThat(filteredTask.deletes())
+        .as("Delete is dropped when delete manifest is pruned by partition filter")
+        .hasSize(0);
+  }
+
+  @TestTemplate
+  public void testPlanFilesDeletionVectorPathReferenceWithPartitionMismatch() {
+    assumeThat(formatVersion).as("Requires V3 deletion vectors").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // DV whose metadata partition (data_bucket=1) does not match FILE_A's partition
+    // (data_bucket=0), but whose path reference points to FILE_A.
+    DeleteFile dvWrongPartition =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/dv-wrong-partition-" + UUID.randomUUID() + ".puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    table.newRowDelta().addDeletes(dvWrongPartition).commit();
+
+    // Without a partition filter: DV is associated via path reference despite partition mismatch.
+    List<T> unfiltered = Lists.newArrayList(newScan().planFiles());
+    assertThat(unfiltered).as("Should have one task").hasSize(1);
+    FileScanTask unfilteredTask = (FileScanTask) unfiltered.get(0);
+    assertThat(unfilteredTask.file().location()).isEqualTo(FILE_A.location());
+    assertThat(unfilteredTask.deletes())
+        .as("DV is associated via path reference without a partition filter")
+        .hasSize(1);
+    assertThat(unfilteredTask.deletes().get(0).location()).isEqualTo(dvWrongPartition.location());
+
+    // With a partition filter targeting data_bucket=0: the delete manifest contains only
+    // data_bucket=1 entries and is pruned, so the path-referenced DV is lost.
+    ScanT filtered =
+        newScan().filter(Expressions.equal(Expressions.bucket("data", BUCKETS_NUMBER), 0));
+    List<T> filteredTasks = Lists.newArrayList(filtered.planFiles());
+    assertThat(filteredTasks).as("Should have one task").hasSize(1);
+    FileScanTask filteredTask = (FileScanTask) filteredTasks.get(0);
+    assertThat(filteredTask.file().location()).isEqualTo(FILE_A.location());
+    assertThat(filteredTask.deletes())
+        .as("DV is dropped when delete manifest is pruned by partition filter")
+        .hasSize(0);
   }
 }
