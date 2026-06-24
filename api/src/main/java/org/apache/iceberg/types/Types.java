@@ -59,8 +59,8 @@ public class Types {
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
           .put(VariantType.get().toString(), VariantType.get())
-          .put("geometry", GeometryType.crs84())
-          .put("geography", GeographyType.crs84())
+          .put(GeometryType.NAME, GeometryType.crs84())
+          .put(GeographyType.NAME, GeographyType.crs84())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -572,6 +572,7 @@ public class Types {
 
   public static class GeometryType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
+    private static final String NAME = "geometry";
 
     public static GeometryType crs84() {
       return new GeometryType();
@@ -624,13 +625,14 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("geometry(%s)", crs);
+      return String.format("%s(%s)", NAME, crs);
     }
   }
 
   public static class GeographyType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
     public static final EdgeAlgorithm DEFAULT_ALGORITHM = EdgeAlgorithm.SPHERICAL;
+    private static final String NAME = "geography";
 
     public static GeographyType crs84() {
       return new GeographyType();
@@ -695,7 +697,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("geography(%s, %s)", crs, algorithm);
+      return String.format("%s(%s, %s)", NAME, crs, algorithm);
     }
   }
 
