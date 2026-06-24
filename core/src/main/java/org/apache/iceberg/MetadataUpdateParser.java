@@ -192,62 +192,89 @@ public class MetadataUpdateParser {
     generator.writeStringField(ACTION, updateAction);
 
     switch (updateAction) {
-      case ASSIGN_UUID -> writeAssignUUID((MetadataUpdate.AssignUUID) metadataUpdate, generator);
-      case UPGRADE_FORMAT_VERSION ->
-          writeUpgradeFormatVersion(
-              (MetadataUpdate.UpgradeFormatVersion) metadataUpdate, generator);
-      case ADD_SCHEMA -> writeAddSchema((MetadataUpdate.AddSchema) metadataUpdate, generator);
-      case SET_CURRENT_SCHEMA ->
-          writeSetCurrentSchema((MetadataUpdate.SetCurrentSchema) metadataUpdate, generator);
-      case ADD_PARTITION_SPEC ->
-          writeAddPartitionSpec((MetadataUpdate.AddPartitionSpec) metadataUpdate, generator);
-      case SET_DEFAULT_PARTITION_SPEC ->
-          writeSetDefaultPartitionSpec(
-              (MetadataUpdate.SetDefaultPartitionSpec) metadataUpdate, generator);
-      case ADD_SORT_ORDER ->
-          writeAddSortOrder((MetadataUpdate.AddSortOrder) metadataUpdate, generator);
-      case SET_DEFAULT_SORT_ORDER ->
-          writeSetDefaultSortOrder((MetadataUpdate.SetDefaultSortOrder) metadataUpdate, generator);
-      case SET_STATISTICS ->
-          writeSetStatistics((MetadataUpdate.SetStatistics) metadataUpdate, generator);
-      case REMOVE_STATISTICS ->
-          writeRemoveStatistics((MetadataUpdate.RemoveStatistics) metadataUpdate, generator);
-      case SET_PARTITION_STATISTICS ->
-          writeSetPartitionStatistics(
-              (MetadataUpdate.SetPartitionStatistics) metadataUpdate, generator);
-      case REMOVE_PARTITION_STATISTICS ->
-          writeRemovePartitionStatistics(
-              (MetadataUpdate.RemovePartitionStatistics) metadataUpdate, generator);
-      case ADD_SNAPSHOT -> writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
-      case REMOVE_SNAPSHOTS ->
-          writeRemoveSnapshots((MetadataUpdate.RemoveSnapshots) metadataUpdate, generator);
-      case REMOVE_SNAPSHOT_REF ->
-          writeRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) metadataUpdate, generator);
-      case SET_SNAPSHOT_REF ->
-          writeSetSnapshotRef((MetadataUpdate.SetSnapshotRef) metadataUpdate, generator);
-      case SET_PROPERTIES ->
-          writeSetProperties((MetadataUpdate.SetProperties) metadataUpdate, generator);
-      case REMOVE_PROPERTIES ->
-          writeRemoveProperties((MetadataUpdate.RemoveProperties) metadataUpdate, generator);
-      case SET_LOCATION -> writeSetLocation((MetadataUpdate.SetLocation) metadataUpdate, generator);
-      case ADD_VIEW_VERSION ->
-          writeAddViewVersion((MetadataUpdate.AddViewVersion) metadataUpdate, generator);
-      case SET_CURRENT_VIEW_VERSION ->
-          writeSetCurrentViewVersionId(
-              (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
-      case REMOVE_PARTITION_SPECS ->
-          writeRemovePartitionSpecs(
-              (MetadataUpdate.RemovePartitionSpecs) metadataUpdate, generator);
-      case REMOVE_SCHEMAS ->
-          writeRemoveSchemas((MetadataUpdate.RemoveSchemas) metadataUpdate, generator);
-      case ADD_ENCRYPTION_KEY ->
-          writeAddEncryptionKey((MetadataUpdate.AddEncryptionKey) metadataUpdate, generator);
-      case REMOVE_ENCRYPTION_KEY ->
-          writeRemoveEncryptionKey((MetadataUpdate.RemoveEncryptionKey) metadataUpdate, generator);
-      default ->
-          throw new IllegalArgumentException(
-              String.format(
-                  "Cannot convert metadata update to json. Unrecognized action: %s", updateAction));
+      case ASSIGN_UUID:
+        writeAssignUUID((MetadataUpdate.AssignUUID) metadataUpdate, generator);
+        break;
+      case UPGRADE_FORMAT_VERSION:
+        writeUpgradeFormatVersion((MetadataUpdate.UpgradeFormatVersion) metadataUpdate, generator);
+        break;
+      case ADD_SCHEMA:
+        writeAddSchema((MetadataUpdate.AddSchema) metadataUpdate, generator);
+        break;
+      case SET_CURRENT_SCHEMA:
+        writeSetCurrentSchema((MetadataUpdate.SetCurrentSchema) metadataUpdate, generator);
+        break;
+      case ADD_PARTITION_SPEC:
+        writeAddPartitionSpec((MetadataUpdate.AddPartitionSpec) metadataUpdate, generator);
+        break;
+      case SET_DEFAULT_PARTITION_SPEC:
+        writeSetDefaultPartitionSpec(
+            (MetadataUpdate.SetDefaultPartitionSpec) metadataUpdate, generator);
+        break;
+      case ADD_SORT_ORDER:
+        writeAddSortOrder((MetadataUpdate.AddSortOrder) metadataUpdate, generator);
+        break;
+      case SET_DEFAULT_SORT_ORDER:
+        writeSetDefaultSortOrder((MetadataUpdate.SetDefaultSortOrder) metadataUpdate, generator);
+        break;
+      case SET_STATISTICS:
+        writeSetStatistics((MetadataUpdate.SetStatistics) metadataUpdate, generator);
+        break;
+      case REMOVE_STATISTICS:
+        writeRemoveStatistics((MetadataUpdate.RemoveStatistics) metadataUpdate, generator);
+        break;
+      case SET_PARTITION_STATISTICS:
+        writeSetPartitionStatistics(
+            (MetadataUpdate.SetPartitionStatistics) metadataUpdate, generator);
+        break;
+      case REMOVE_PARTITION_STATISTICS:
+        writeRemovePartitionStatistics(
+            (MetadataUpdate.RemovePartitionStatistics) metadataUpdate, generator);
+        break;
+      case ADD_SNAPSHOT:
+        writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
+        break;
+      case REMOVE_SNAPSHOTS:
+        writeRemoveSnapshots((MetadataUpdate.RemoveSnapshots) metadataUpdate, generator);
+        break;
+      case REMOVE_SNAPSHOT_REF:
+        writeRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) metadataUpdate, generator);
+        break;
+      case SET_SNAPSHOT_REF:
+        writeSetSnapshotRef((MetadataUpdate.SetSnapshotRef) metadataUpdate, generator);
+        break;
+      case SET_PROPERTIES:
+        writeSetProperties((MetadataUpdate.SetProperties) metadataUpdate, generator);
+        break;
+      case REMOVE_PROPERTIES:
+        writeRemoveProperties((MetadataUpdate.RemoveProperties) metadataUpdate, generator);
+        break;
+      case SET_LOCATION:
+        writeSetLocation((MetadataUpdate.SetLocation) metadataUpdate, generator);
+        break;
+      case ADD_VIEW_VERSION:
+        writeAddViewVersion((MetadataUpdate.AddViewVersion) metadataUpdate, generator);
+        break;
+      case SET_CURRENT_VIEW_VERSION:
+        writeSetCurrentViewVersionId(
+            (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
+        break;
+      case REMOVE_PARTITION_SPECS:
+        writeRemovePartitionSpecs((MetadataUpdate.RemovePartitionSpecs) metadataUpdate, generator);
+        break;
+      case REMOVE_SCHEMAS:
+        writeRemoveSchemas((MetadataUpdate.RemoveSchemas) metadataUpdate, generator);
+        break;
+      case ADD_ENCRYPTION_KEY:
+        writeAddEncryptionKey((MetadataUpdate.AddEncryptionKey) metadataUpdate, generator);
+        break;
+      case REMOVE_ENCRYPTION_KEY:
+        writeRemoveEncryptionKey((MetadataUpdate.RemoveEncryptionKey) metadataUpdate, generator);
+        break;
+      default:
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot convert metadata update to json. Unrecognized action: %s", updateAction));
     }
 
     generator.writeEndObject();
@@ -272,36 +299,61 @@ public class MetadataUpdateParser {
         jsonNode.hasNonNull(ACTION), "Cannot parse metadata update. Missing field: action");
     String action = JsonUtil.getString(ACTION, jsonNode).toLowerCase(Locale.ROOT);
 
-    return switch (action) {
-      case ASSIGN_UUID -> readAssignUUID(jsonNode);
-      case UPGRADE_FORMAT_VERSION -> readUpgradeFormatVersion(jsonNode);
-      case ADD_SCHEMA -> readAddSchema(jsonNode);
-      case SET_CURRENT_SCHEMA -> readSetCurrentSchema(jsonNode);
-      case ADD_PARTITION_SPEC -> readAddPartitionSpec(jsonNode);
-      case SET_DEFAULT_PARTITION_SPEC -> readSetDefaultPartitionSpec(jsonNode);
-      case ADD_SORT_ORDER -> readAddSortOrder(jsonNode);
-      case SET_DEFAULT_SORT_ORDER -> readSetDefaultSortOrder(jsonNode);
-      case SET_STATISTICS -> readSetStatistics(jsonNode);
-      case REMOVE_STATISTICS -> readRemoveStatistics(jsonNode);
-      case SET_PARTITION_STATISTICS -> readSetPartitionStatistics(jsonNode);
-      case REMOVE_PARTITION_STATISTICS -> readRemovePartitionStatistics(jsonNode);
-      case ADD_SNAPSHOT -> readAddSnapshot(jsonNode);
-      case REMOVE_SNAPSHOTS -> readRemoveSnapshots(jsonNode);
-      case REMOVE_SNAPSHOT_REF -> readRemoveSnapshotRef(jsonNode);
-      case SET_SNAPSHOT_REF -> readSetSnapshotRef(jsonNode);
-      case SET_PROPERTIES -> readSetProperties(jsonNode);
-      case REMOVE_PROPERTIES -> readRemoveProperties(jsonNode);
-      case SET_LOCATION -> readSetLocation(jsonNode);
-      case ADD_VIEW_VERSION -> readAddViewVersion(jsonNode);
-      case SET_CURRENT_VIEW_VERSION -> readCurrentViewVersionId(jsonNode);
-      case REMOVE_PARTITION_SPECS -> readRemovePartitionSpecs(jsonNode);
-      case REMOVE_SCHEMAS -> readRemoveSchemas(jsonNode);
-      case ADD_ENCRYPTION_KEY -> readAddEncryptionKey(jsonNode);
-      case REMOVE_ENCRYPTION_KEY -> readRemoveEncryptionKey(jsonNode);
-      default ->
-          throw new UnsupportedOperationException(
-              String.format("Cannot convert metadata update action to json: %s", action));
-    };
+    switch (action) {
+      case ASSIGN_UUID:
+        return readAssignUUID(jsonNode);
+      case UPGRADE_FORMAT_VERSION:
+        return readUpgradeFormatVersion(jsonNode);
+      case ADD_SCHEMA:
+        return readAddSchema(jsonNode);
+      case SET_CURRENT_SCHEMA:
+        return readSetCurrentSchema(jsonNode);
+      case ADD_PARTITION_SPEC:
+        return readAddPartitionSpec(jsonNode);
+      case SET_DEFAULT_PARTITION_SPEC:
+        return readSetDefaultPartitionSpec(jsonNode);
+      case ADD_SORT_ORDER:
+        return readAddSortOrder(jsonNode);
+      case SET_DEFAULT_SORT_ORDER:
+        return readSetDefaultSortOrder(jsonNode);
+      case SET_STATISTICS:
+        return readSetStatistics(jsonNode);
+      case REMOVE_STATISTICS:
+        return readRemoveStatistics(jsonNode);
+      case SET_PARTITION_STATISTICS:
+        return readSetPartitionStatistics(jsonNode);
+      case REMOVE_PARTITION_STATISTICS:
+        return readRemovePartitionStatistics(jsonNode);
+      case ADD_SNAPSHOT:
+        return readAddSnapshot(jsonNode);
+      case REMOVE_SNAPSHOTS:
+        return readRemoveSnapshots(jsonNode);
+      case REMOVE_SNAPSHOT_REF:
+        return readRemoveSnapshotRef(jsonNode);
+      case SET_SNAPSHOT_REF:
+        return readSetSnapshotRef(jsonNode);
+      case SET_PROPERTIES:
+        return readSetProperties(jsonNode);
+      case REMOVE_PROPERTIES:
+        return readRemoveProperties(jsonNode);
+      case SET_LOCATION:
+        return readSetLocation(jsonNode);
+      case ADD_VIEW_VERSION:
+        return readAddViewVersion(jsonNode);
+      case SET_CURRENT_VIEW_VERSION:
+        return readCurrentViewVersionId(jsonNode);
+      case REMOVE_PARTITION_SPECS:
+        return readRemovePartitionSpecs(jsonNode);
+      case REMOVE_SCHEMAS:
+        return readRemoveSchemas(jsonNode);
+      case ADD_ENCRYPTION_KEY:
+        return readAddEncryptionKey(jsonNode);
+      case REMOVE_ENCRYPTION_KEY:
+        return readRemoveEncryptionKey(jsonNode);
+      default:
+        throw new UnsupportedOperationException(
+            String.format("Cannot convert metadata update action to json: %s", action));
+    }
   }
 
   private static void writeAssignUUID(MetadataUpdate.AssignUUID update, JsonGenerator gen)

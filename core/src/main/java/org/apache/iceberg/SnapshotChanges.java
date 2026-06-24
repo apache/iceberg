@@ -139,8 +139,12 @@ public class SnapshotChanges {
         iterate(manifestReadTasks)) {
       for (Pair<ManifestEntry.Status, DataFile> pair : changedDataFiles) {
         switch (pair.first()) {
-          case ADDED -> adds.add(pair.second());
-          case DELETED -> deletes.add(pair.second());
+          case ADDED:
+            adds.add(pair.second());
+            break;
+          case DELETED:
+            deletes.add(pair.second());
+            break;
         }
       }
     } catch (IOException e) {
@@ -186,8 +190,12 @@ public class SnapshotChanges {
         iterate(manifestReadTasks)) {
       for (Pair<ManifestEntry.Status, DeleteFile> pair : changedDeleteFiles) {
         switch (pair.first()) {
-          case ADDED -> adds.add(pair.second());
-          case DELETED -> deletes.add(pair.second());
+          case ADDED:
+            adds.add(pair.second());
+            break;
+          case DELETED:
+            deletes.add(pair.second());
+            break;
         }
       }
     } catch (IOException e) {

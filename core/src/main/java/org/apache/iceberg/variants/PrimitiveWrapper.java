@@ -82,108 +82,113 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
 
   @Override
   public int sizeInBytes() {
-    return switch (type()) {
-      case NULL, BOOLEAN_TRUE, BOOLEAN_FALSE -> 1; // 1 header only
-      case INT8 -> 2; // 1 header + 1 value
-      case INT16 -> 3; // 1 header + 2 value
-      case INT32, DATE, FLOAT -> 5; // 1 header + 4 value
-      case INT64, DOUBLE, TIMESTAMPTZ, TIMESTAMPNTZ, TIMESTAMPTZ_NANOS, TIMESTAMPNTZ_NANOS, TIME ->
-          9; // 1 header + 8 value
-      case DECIMAL4 -> 6; // 1 header + 1 scale + 4 unscaled value
-      case DECIMAL8 -> 10; // 1 header + 1 scale + 8 unscaled value
-      case DECIMAL16 -> 18; // 1 header + 1 scale + 16 unscaled value
-      case BINARY -> 5 + ((ByteBuffer) value).remaining(); // 1 header + 4 length + value length
-      case STRING -> {
+    switch (type()) {
+      case NULL:
+      case BOOLEAN_TRUE:
+      case BOOLEAN_FALSE:
+        return 1; // 1 header only
+      case INT8:
+        return 2; // 1 header + 1 value
+      case INT16:
+        return 3; // 1 header + 2 value
+      case INT32:
+      case DATE:
+      case FLOAT:
+        return 5; // 1 header + 4 value
+      case INT64:
+      case DOUBLE:
+      case TIMESTAMPTZ:
+      case TIMESTAMPNTZ:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+      case TIME:
+        return 9; // 1 header + 8 value
+      case DECIMAL4:
+        return 6; // 1 header + 1 scale + 4 unscaled value
+      case DECIMAL8:
+        return 10; // 1 header + 1 scale + 8 unscaled value
+      case DECIMAL16:
+        return 18; // 1 header + 1 scale + 16 unscaled value
+      case BINARY:
+        return 5 + ((ByteBuffer) value).remaining(); // 1 header + 4 length + value length
+      case STRING:
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
         if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
-          yield 1 + buffer.remaining(); // 1 header + value length
+          return 1 + buffer.remaining(); // 1 header + value length
         }
-        yield 5 + buffer.remaining(); // 1 header + 4 length + value length
-      }
-      case UUID -> 1 + 16; // 1 header + 16 length
-      default -> throw new UnsupportedOperationException("Unsupported primitive type: " + type());
-    };
+        return 5 + buffer.remaining(); // 1 header + 4 length + value length
+      case UUID:
+        return 1 + 16; // 1 header + 16 length
+    }
+
+    throw new UnsupportedOperationException("Unsupported primitive type: " + type());
   }
 
   @Override
   public int writeTo(ByteBuffer outBuffer, int offset) {
     Preconditions.checkArgument(
         outBuffer.order() == ByteOrder.LITTLE_ENDIAN, "Invalid byte order: big endian");
-    return switch (type()) {
-      case NULL -> {
+    switch (type()) {
+      case NULL:
         outBuffer.put(offset, NULL_HEADER);
-        yield 1;
-      }
-      case BOOLEAN_TRUE -> {
+        return 1;
+      case BOOLEAN_TRUE:
         outBuffer.put(offset, TRUE_HEADER);
-        yield 1;
-      }
-      case BOOLEAN_FALSE -> {
+        return 1;
+      case BOOLEAN_FALSE:
         outBuffer.put(offset, FALSE_HEADER);
-        yield 1;
-      }
-      case INT8 -> {
+        return 1;
+      case INT8:
         outBuffer.put(offset, INT8_HEADER);
         outBuffer.put(offset + 1, (Byte) value);
-        yield 2;
-      }
-      case INT16 -> {
+        return 2;
+      case INT16:
         outBuffer.put(offset, INT16_HEADER);
         outBuffer.putShort(offset + 1, (Short) value);
-        yield 3;
-      }
-      case INT32 -> {
+        return 3;
+      case INT32:
         outBuffer.put(offset, INT32_HEADER);
         outBuffer.putInt(offset + 1, (Integer) value);
-        yield 5;
-      }
-      case INT64 -> {
+        return 5;
+      case INT64:
         outBuffer.put(offset, INT64_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
-        yield 9;
-      }
-      case FLOAT -> {
+        return 9;
+      case FLOAT:
         outBuffer.put(offset, FLOAT_HEADER);
         outBuffer.putFloat(offset + 1, (Float) value);
-        yield 5;
-      }
-      case DOUBLE -> {
+        return 5;
+      case DOUBLE:
         outBuffer.put(offset, DOUBLE_HEADER);
         outBuffer.putDouble(offset + 1, (Double) value);
-        yield 9;
-      }
-      case DATE -> {
+        return 9;
+      case DATE:
         outBuffer.put(offset, DATE_HEADER);
         outBuffer.putInt(offset + 1, (Integer) value);
-        yield 5;
-      }
-      case TIMESTAMPTZ -> {
+        return 5;
+      case TIMESTAMPTZ:
         outBuffer.put(offset, TIMESTAMPTZ_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
-        yield 9;
-      }
-      case TIMESTAMPNTZ -> {
+        return 9;
+      case TIMESTAMPNTZ:
         outBuffer.put(offset, TIMESTAMPNTZ_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
-        yield 9;
-      }
-      case DECIMAL4 -> {
+        return 9;
+      case DECIMAL4:
         BigDecimal decimal4 = (BigDecimal) value;
         outBuffer.put(offset, DECIMAL4_HEADER);
         outBuffer.put(offset + 1, (byte) decimal4.scale());
         outBuffer.putInt(offset + 2, decimal4.unscaledValue().intValueExact());
-        yield 6;
-      }
-      case DECIMAL8 -> {
+        return 6;
+      case DECIMAL8:
         BigDecimal decimal8 = (BigDecimal) value;
         outBuffer.put(offset, DECIMAL8_HEADER);
         outBuffer.put(offset + 1, (byte) decimal8.scale());
         outBuffer.putLong(offset + 2, decimal8.unscaledValue().longValueExact());
-        yield 10;
-      }
-      case DECIMAL16 -> {
+        return 10;
+      case DECIMAL16:
         BigDecimal decimal16 = (BigDecimal) value;
         byte padding = (byte) (decimal16.signum() < 0 ? 0xFF : 0x00);
         byte[] bytes = decimal16.unscaledValue().toByteArray();
@@ -198,53 +203,47 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
             outBuffer.put(offset + 2 + i, padding);
           }
         }
-        yield 18;
-      }
-      case BINARY -> {
+        return 18;
+      case BINARY:
         ByteBuffer binary = (ByteBuffer) value;
         outBuffer.put(offset, BINARY_HEADER);
         outBuffer.putInt(offset + 1, binary.remaining());
         outBuffer.put(offset + 5, binary, binary.position(), binary.remaining());
-        yield 5 + binary.remaining();
-      }
-      case STRING -> {
+        return 5 + binary.remaining();
+      case STRING:
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
         if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
           outBuffer.put(offset, VariantUtil.shortStringHeader(buffer.remaining()));
           outBuffer.put(offset + 1, buffer, buffer.position(), buffer.remaining());
-          yield 1 + buffer.remaining();
+          return 1 + buffer.remaining();
         } else {
           outBuffer.put(offset, STRING_HEADER);
           outBuffer.putInt(offset + 1, buffer.remaining());
           outBuffer.put(offset + 5, buffer, buffer.position(), buffer.remaining());
-          yield 5 + buffer.remaining();
+          return 5 + buffer.remaining();
         }
-      }
-      case TIME -> {
+      case TIME:
         outBuffer.put(offset, TIME_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
-        yield 9;
-      }
-      case TIMESTAMPTZ_NANOS -> {
+        return 9;
+      case TIMESTAMPTZ_NANOS:
         outBuffer.put(offset, TIMESTAMPTZ_NANOS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
-        yield 9;
-      }
-      case TIMESTAMPNTZ_NANOS -> {
+        return 9;
+      case TIMESTAMPNTZ_NANOS:
         outBuffer.put(offset, TIMESTAMPNTZ_NANOS_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);
-        yield 9;
-      }
-      case UUID -> {
+        return 9;
+      case UUID:
         outBuffer.put(offset, UUID_HEADER);
         ByteBuffer uuidBuffer = UUIDUtil.convertToByteBuffer((UUID) value);
         outBuffer.put(offset + 1, uuidBuffer, uuidBuffer.position(), uuidBuffer.remaining());
-        yield 17;
-      }
-      default -> throw new UnsupportedOperationException("Unsupported primitive type: " + type());
-    };
+        return 17;
+    }
+
+    throw new UnsupportedOperationException("Unsupported primitive type: " + type());
   }
 
   @Override

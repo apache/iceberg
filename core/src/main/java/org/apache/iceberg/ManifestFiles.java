@@ -303,21 +303,20 @@ public class ManifestFiles {
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
-    return switch (formatVersion) {
-      case 1 ->
-          new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
-      case 2 ->
-          new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
-      case 3 ->
-          new ManifestWriter.V3Writer(
-              spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
-      case 4 ->
-          new ManifestWriter.V4Writer(
-              spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
-      default ->
-          throw new UnsupportedOperationException(
-              "Cannot write manifest for table version: " + formatVersion);
-    };
+    switch (formatVersion) {
+      case 1:
+        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
+      case 2:
+        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId, writerProperties);
+      case 3:
+        return new ManifestWriter.V3Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+      case 4:
+        return new ManifestWriter.V4Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+    }
+    throw new UnsupportedOperationException(
+        "Cannot write manifest for table version: " + formatVersion);
   }
 
   /**
@@ -409,15 +408,18 @@ public class ManifestFiles {
       EncryptedOutputFile outputFile,
       Long snapshotId,
       Map<String, String> writerProperties) {
-    return switch (formatVersion) {
-      case 1 -> throw new IllegalArgumentException("Cannot write delete files in a v1 table");
-      case 2 -> new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, writerProperties);
-      case 3 -> new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
-      case 4 -> new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
-      default ->
-          throw new UnsupportedOperationException(
-              "Cannot write manifest for table version: " + formatVersion);
-    };
+    switch (formatVersion) {
+      case 1:
+        throw new IllegalArgumentException("Cannot write delete files in a v1 table");
+      case 2:
+        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, writerProperties);
+      case 3:
+        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, writerProperties);
+      case 4:
+        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, writerProperties);
+    }
+    throw new UnsupportedOperationException(
+        "Cannot write manifest for table version: " + formatVersion);
   }
 
   /**
@@ -456,10 +458,14 @@ public class ManifestFiles {
 
   static ManifestReader<?> open(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    return switch (manifest.content()) {
-      case DATA -> ManifestFiles.read(manifest, io, specsById);
-      case DELETES -> ManifestFiles.readDeleteManifest(manifest, io, specsById);
-    };
+    switch (manifest.content()) {
+      case DATA:
+        return ManifestFiles.read(manifest, io, specsById);
+      case DELETES:
+        return ManifestFiles.readDeleteManifest(manifest, io, specsById);
+    }
+    throw new UnsupportedOperationException(
+        "Cannot read unknown manifest type: " + manifest.content());
   }
 
   static ManifestFile copyAppendManifest(
@@ -537,15 +543,17 @@ public class ManifestFiles {
             entry.status(),
             allowedEntryStatus);
         switch (entry.status()) {
-          case ADDED -> {
+          case ADDED:
             summaryBuilder.addedFile(reader.spec(), entry.file());
             writer.add(entry);
-          }
-          case EXISTING -> writer.existing(entry);
-          case DELETED -> {
+            break;
+          case EXISTING:
+            writer.existing(entry);
+            break;
+          case DELETED:
             summaryBuilder.deletedFile(reader.spec(), entry.file());
             writer.delete(entry);
-          }
+            break;
         }
       }
 

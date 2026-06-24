@@ -316,40 +316,79 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0 ->
-          this.content = value != null ? FileContent.fromId((Integer) value) : FileContent.DATA;
-      case 1 -> this.filePath = value.toString(); // always coerce to String for Serializable
-      case 2 -> this.format = FileFormat.fromString(value.toString());
-      case 3 -> this.partitionSpecId = (value != null) ? (Integer) value : -1;
-      case 4 -> {
+      case 0:
+        this.content = value != null ? FileContent.fromId((Integer) value) : FileContent.DATA;
+        return;
+      case 1:
+        // always coerce to String for Serializable
+        this.filePath = value.toString();
+        return;
+      case 2:
+        this.format = FileFormat.fromString(value.toString());
+        return;
+      case 3:
+        this.partitionSpecId = (value != null) ? (Integer) value : -1;
+        return;
+      case 4:
         // Preserve the constructor-initialized partitionData when the reader returns null
         // (e.g., v4 Parquet manifests for unpartitioned tables omit the partition field).
         if (value != null) {
           this.partitionData = (PartitionData) value;
         }
-      }
-      case 5 -> this.recordCount = (Long) value;
-      case 6 -> this.fileSizeInBytes = (Long) value;
-      case 7 -> this.columnSizes = (Map<Integer, Long>) value;
-      case 8 -> this.valueCounts = (Map<Integer, Long>) value;
-      case 9 -> this.nullValueCounts = (Map<Integer, Long>) value;
-      case 10 -> this.nanValueCounts = (Map<Integer, Long>) value;
-      case 11 ->
-          this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
-      case 12 ->
-          this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
-      case 13 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
-      case 14 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
-      case 15 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
-      case 16 -> this.sortOrderId = (Integer) value;
-      case 17 -> this.firstRowId = (Long) value;
-      case 18 -> this.referencedDataFile = value != null ? value.toString() : null;
-      case 19 -> this.contentOffset = (Long) value;
-      case 20 -> this.contentSizeInBytes = (Long) value;
-      case 21 -> this.fileOrdinal = (long) value;
-      default -> {
+        return;
+      case 5:
+        this.recordCount = (Long) value;
+        return;
+      case 6:
+        this.fileSizeInBytes = (Long) value;
+        return;
+      case 7:
+        this.columnSizes = (Map<Integer, Long>) value;
+        return;
+      case 8:
+        this.valueCounts = (Map<Integer, Long>) value;
+        return;
+      case 9:
+        this.nullValueCounts = (Map<Integer, Long>) value;
+        return;
+      case 10:
+        this.nanValueCounts = (Map<Integer, Long>) value;
+        return;
+      case 11:
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        return;
+      case 12:
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        return;
+      case 13:
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+        return;
+      case 14:
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        return;
+      case 15:
+        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+        return;
+      case 16:
+        this.sortOrderId = (Integer) value;
+        return;
+      case 17:
+        this.firstRowId = (Long) value;
+        return;
+      case 18:
+        this.referencedDataFile = value != null ? value.toString() : null;
+        return;
+      case 19:
+        this.contentOffset = (Long) value;
+        return;
+      case 20:
+        this.contentSizeInBytes = (Long) value;
+        return;
+      case 21:
+        this.fileOrdinal = (long) value;
+        return;
+      default:
         // ignore the object, it must be from a newer version of the format
-      }
     }
   }
 
@@ -359,31 +398,54 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   private Object getByPos(int basePos) {
-    return switch (basePos) {
-      case 0 -> content.id();
-      case 1 -> filePath;
-      case 2 -> format != null ? format.toString() : null;
-      case 3 -> partitionSpecId;
-      case 4 -> partitionData;
-      case 5 -> recordCount;
-      case 6 -> fileSizeInBytes;
-      case 7 -> columnSizes;
-      case 8 -> valueCounts;
-      case 9 -> nullValueCounts;
-      case 10 -> nanValueCounts;
-      case 11 -> lowerBounds;
-      case 12 -> upperBounds;
-      case 13 -> keyMetadata();
-      case 14 -> splitOffsets();
-      case 15 -> equalityFieldIds();
-      case 16 -> sortOrderId;
-      case 17 -> firstRowId;
-      case 18 -> referencedDataFile;
-      case 19 -> contentOffset;
-      case 20 -> contentSizeInBytes;
-      case 21 -> fileOrdinal;
-      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
-    };
+    switch (basePos) {
+      case 0:
+        return content.id();
+      case 1:
+        return filePath;
+      case 2:
+        return format != null ? format.toString() : null;
+      case 3:
+        return partitionSpecId;
+      case 4:
+        return partitionData;
+      case 5:
+        return recordCount;
+      case 6:
+        return fileSizeInBytes;
+      case 7:
+        return columnSizes;
+      case 8:
+        return valueCounts;
+      case 9:
+        return nullValueCounts;
+      case 10:
+        return nanValueCounts;
+      case 11:
+        return lowerBounds;
+      case 12:
+        return upperBounds;
+      case 13:
+        return keyMetadata();
+      case 14:
+        return splitOffsets();
+      case 15:
+        return equalityFieldIds();
+      case 16:
+        return sortOrderId;
+      case 17:
+        return firstRowId;
+      case 18:
+        return referencedDataFile;
+      case 19:
+        return contentOffset;
+      case 20:
+        return contentSizeInBytes;
+      case 21:
+        return fileOrdinal;
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
+    }
   }
 
   @Override

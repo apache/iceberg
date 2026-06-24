@@ -47,8 +47,8 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
 
   public static <P, T> T visit(
       Type type, P partner, SchemaWithPartnerVisitor<P, T> visitor, PartnerAccessors<P> accessors) {
-    return switch (type.typeId()) {
-      case STRUCT -> {
+    switch (type.typeId()) {
+      case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
@@ -65,9 +65,9 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
           }
           results.add(visitor.field(field, fieldPartner, result));
         }
-        yield visitor.struct(struct, partner, results);
-      }
-      case LIST -> {
+        return visitor.struct(struct, partner, results);
+
+      case LIST:
         Types.ListType list = type.asNestedType().asListType();
         T elementResult;
 
@@ -80,9 +80,9 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
           visitor.afterListElement(elementField, partnerElement);
         }
 
-        yield visitor.list(list, partner, elementResult);
-      }
-      case MAP -> {
+        return visitor.list(list, partner, elementResult);
+
+      case MAP:
         Types.MapType map = type.asNestedType().asMapType();
         T keyResult;
         T valueResult;
@@ -105,11 +105,14 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
           visitor.afterMapValue(valueField, valuePartner);
         }
 
-        yield visitor.map(map, partner, keyResult, valueResult);
-      }
-      case VARIANT -> visitor.variant(type.asVariantType(), partner);
-      default -> visitor.primitive(type.asPrimitiveType(), partner);
-    };
+        return visitor.map(map, partner, keyResult, valueResult);
+
+      case VARIANT:
+        return visitor.variant(type.asVariantType(), partner);
+
+      default:
+        return visitor.primitive(type.asPrimitiveType(), partner);
+    }
   }
 
   public void beforeField(Types.NestedField field, P partnerField) {}

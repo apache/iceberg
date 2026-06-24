@@ -37,26 +37,31 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
 
   public static <P, T> T visit(
       P partner, Schema schema, AvroWithPartnerByStructureVisitor<P, T> visitor) {
-    return switch (schema.getType()) {
-      case RECORD -> {
+    switch (schema.getType()) {
+      case RECORD:
         if (schema.getLogicalType() instanceof VariantLogicalType
             || visitor.isVariantType(partner)) {
-          yield visitVariant(partner, schema, visitor);
+          return visitVariant(partner, schema, visitor);
         } else {
-          yield visitRecord(partner, schema, visitor);
+          return visitRecord(partner, schema, visitor);
         }
-      }
-      case UNION -> visitUnion(partner, schema, visitor);
-      case ARRAY -> visitArray(partner, schema, visitor);
-      case MAP -> {
+
+      case UNION:
+        return visitUnion(partner, schema, visitor);
+
+      case ARRAY:
+        return visitArray(partner, schema, visitor);
+
+      case MAP:
         P keyType = visitor.mapKeyType(partner);
         Preconditions.checkArgument(
             visitor.isStringType(keyType), "Invalid map: %s is not a string", keyType);
-        yield visitor.map(
+        return visitor.map(
             partner, schema, visit(visitor.mapValueType(partner), schema.getValueType(), visitor));
-      }
-      default -> visitor.primitive(partner, schema);
-    };
+
+      default:
+        return visitor.primitive(partner, schema);
+    }
   }
 
   // ---------------------------------- Static helpers ---------------------------------------------

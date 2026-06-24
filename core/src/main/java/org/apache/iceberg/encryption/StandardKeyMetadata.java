@@ -144,23 +144,32 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
   @Override
   public void put(int i, Object v) {
     switch (i) {
-      case 0 -> this.encryptionKey = (ByteBuffer) v;
-      case 1 -> this.aadPrefix = (ByteBuffer) v;
-      case 2 -> this.fileLength = (Long) v;
-      default -> {
+      case 0:
+        this.encryptionKey = (ByteBuffer) v;
+        return;
+      case 1:
+        this.aadPrefix = (ByteBuffer) v;
+        return;
+      case 2:
+        this.fileLength = (Long) v;
+        return;
+      default:
         // ignore the object, it must be from a newer version of the format
-      }
     }
   }
 
   @Override
   public Object get(int i) {
-    return switch (i) {
-      case 0 -> encryptionKey;
-      case 1 -> aadPrefix;
-      case 2 -> fileLength;
-      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    };
+    switch (i) {
+      case 0:
+        return encryptionKey;
+      case 1:
+        return aadPrefix;
+      case 2:
+        return fileLength;
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    }
   }
 
   @Override

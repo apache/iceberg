@@ -272,15 +272,17 @@ public class FileMetadata {
       }
 
       switch (content) {
-        case POSITION_DELETES ->
-            Preconditions.checkArgument(
-                sortOrderId == null, "Position delete file should not have sort order");
-        case EQUALITY_DELETES -> {
+        case POSITION_DELETES:
+          Preconditions.checkArgument(
+              sortOrderId == null, "Position delete file should not have sort order");
+          break;
+        case EQUALITY_DELETES:
           if (sortOrderId == null) {
             sortOrderId = SortOrder.unsorted().orderId();
           }
-        }
-        default -> throw new IllegalStateException("Unknown content type " + content);
+          break;
+        default:
+          throw new IllegalStateException("Unknown content type " + content);
       }
 
       return new GenericDeleteFile(

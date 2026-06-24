@@ -212,18 +212,18 @@ class RESTTableScan extends DataTableScan {
     this.scanFileIO =
         !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
 
-    return switch (planStatus) {
-      case COMPLETED -> scanTasksIterable(response.planTasks(), response.fileScanTasks());
-      case SUBMITTED -> {
+    switch (planStatus) {
+      case COMPLETED:
+        return scanTasksIterable(response.planTasks(), response.fileScanTasks());
+      case SUBMITTED:
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
-        yield fetchPlanningResult();
-      }
-      case FAILED ->
-          throw new IllegalStateException(failureMessage(planId, response.errorResponse()));
-      default ->
-          throw new IllegalStateException(
-              String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
-    };
+        return fetchPlanningResult();
+      case FAILED:
+        throw new IllegalStateException(failureMessage(planId, response.errorResponse()));
+      default:
+        throw new IllegalStateException(
+            String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
+    }
   }
 
   private FileIO scanFileIO(List<Credential> storageCredentials) {
@@ -282,21 +282,24 @@ class RESTTableScan extends DataTableScan {
                         parserContext);
 
                 switch (response.planStatus()) {
-                  case COMPLETED -> result.set(response);
-                  case SUBMITTED -> throw new NotCompleteException();
-                  case FAILED ->
-                      throw new IllegalStateException(failureMessage(id, response.errorResponse()));
-                  case CANCELLED ->
-                      throw new IllegalStateException(
-                          String.format(
-                              Locale.ROOT, "Remote scan planning cancelled for planId: %s", id));
-                  default ->
-                      throw new IllegalStateException(
-                          String.format(
-                              Locale.ROOT,
-                              "Invalid planStatus: %s for planId: %s",
-                              response.planStatus(),
-                              id));
+                  case COMPLETED:
+                    result.set(response);
+                    break;
+                  case SUBMITTED:
+                    throw new NotCompleteException();
+                  case FAILED:
+                    throw new IllegalStateException(failureMessage(id, response.errorResponse()));
+                  case CANCELLED:
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT, "Remote scan planning cancelled for planId: %s", id));
+                  default:
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "Invalid planStatus: %s for planId: %s",
+                            response.planStatus(),
+                            id));
                 }
               });
     } catch (NotCompleteException e) {
