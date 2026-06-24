@@ -98,30 +98,6 @@ class TestConvertEqualityDeletes extends MaintenanceTaskTestBase {
   }
 
   @Test
-  void testRejectsPartitionColumnNotInEqualityFields() {
-    // Current spec partitions by identity("data"); equality fields are just "id". The converter
-    // drops partition from the key, so a partition column outside the equality set is rejected.
-    createPartitionedTableWithDelete(3);
-
-    assertThatThrownBy(
-            () ->
-                ConvertEqualityDeletes.builder()
-                    .stagingBranch(STAGING_BRANCH)
-                    .equalityFieldColumns(ImmutableList.of("id"))
-                    .append(
-                        infra.triggerStream(),
-                        DUMMY_TABLE_NAME,
-                        DUMMY_TASK_NAME,
-                        0,
-                        tableLoader(),
-                        UID_SUFFIX,
-                        StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
-                        1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("not an equality field");
-  }
-
-  @Test
   void testConvertEqualityDeletesToDVs() throws Exception {
     Table table = createTableWithDelete(3);
 

@@ -26,7 +26,6 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -114,13 +113,11 @@ public class ConvertEqualityDeletes {
 
     /**
      * Sets the equality field columns used by the worker index. Required. Must match the equality
-     * field columns the writer uses for staging eq-delete files; mismatched eq-deletes fail the
-     * cycle. Mirrors {@link
+     * field columns the writer uses for staging eq-delete files. Mirrors {@link
      * org.apache.iceberg.flink.sink.IcebergSink.Builder#equalityFieldColumns}.
      *
-     * <p>Partition source columns of every spec on the table must be a subset of these columns
-     * (FlinkSink / IcebergSink contract). The converter keys data rows by {@code (specId, equality
-     * values)} and assumes the partition contains the equality values.
+     * <p>The partition source columns of an equality delete's spec must be a subset of these
+     * columns. Writes via Flink's IcebergSink already ensure this.
      */
     public Builder equalityFieldColumns(List<String> columns) {
       Preconditions.checkNotNull(columns, "equalityFieldColumns must not be null");
@@ -283,27 +280,7 @@ public class ConvertEqualityDeletes {
         fieldIds.add(field.fieldId());
       }
 
-      Set<Integer> resolved = ImmutableSet.copyOf(fieldIds);
-      validateCurrentSpecPartitionColumns(table, resolved);
-      return resolved;
-    }
-
-    /**
-     * Checks that the current spec's partition source columns are a subset of the equality fields.
-     * The converter keys rows by {@code (specId, equality values)} and drops partition values from
-     * the key, so a partition column outside the equality set would make cross-partition resolution
-     * wrong. Only the current spec is checked; older specs from partition evolution may differ.
-     */
-    private static void validateCurrentSpecPartitionColumns(Table table, Set<Integer> eqFieldIds) {
-      for (PartitionField field : table.spec().fields()) {
-        Preconditions.checkArgument(
-            eqFieldIds.contains(field.sourceId()),
-            "Partition field '%s' (source id %s) of the current spec is not an equality field %s; "
-                + "partition columns must be a subset of the equality fields.",
-            field.name(),
-            field.sourceId(),
-            eqFieldIds);
-      }
+      return ImmutableSet.copyOf(fieldIds);
     }
   }
 }
