@@ -84,10 +84,11 @@ import org.slf4j.LoggerFactory;
  * iceberg.otel.metrics.attributes=operation
  * }</pre>
  *
- * <p>Or to emit metrics with no attributes at all (single aggregate time series per metric):
+ * <p>Or to emit metrics with no attributes at all (single aggregate time series per metric), use
+ * {@code none} or an empty string:
  *
  * <pre>{@code
- * iceberg.otel.metrics.attributes=
+ * iceberg.otel.metrics.attributes=none
  * }</pre>
  *
  * <p>When the property is not set, the default attribute set above is used.
@@ -105,6 +106,7 @@ public class OtelMetricsReporter implements MetricsReporter {
   static final String ATTR_NAME_TABLE_NAME = "table-name";
   static final String ATTR_NAME_SCHEMA_ID = "schema-id";
   static final String ATTR_NAME_OPERATION = "operation";
+  static final String ATTR_VALUE_NONE = "none";
   private static final Set<String> KNOWN_ATTRIBUTE_NAMES =
       ImmutableSet.of(ATTR_NAME_TABLE_NAME, ATTR_NAME_SCHEMA_ID, ATTR_NAME_OPERATION);
 
@@ -121,17 +123,52 @@ public class OtelMetricsReporter implements MetricsReporter {
   private DoubleHistogram scanPlanningDuration;
   private LongCounter scanResultDataFiles;
   private LongCounter scanResultDeleteFiles;
+  private LongCounter scanTotalDataManifests;
+  private LongCounter scanTotalDeleteManifests;
   private LongCounter scanScannedDataManifests;
   private LongCounter scanSkippedDataManifests;
   private LongCounter scanTotalFileSizeBytes;
+  private LongCounter scanTotalDeleteFileSizeBytes;
+  private LongCounter scanSkippedDataFiles;
+  private LongCounter scanSkippedDeleteFiles;
+  private LongCounter scanScannedDeleteManifests;
+  private LongCounter scanSkippedDeleteManifests;
+  private LongCounter scanIndexedDeleteFiles;
+  private LongCounter scanEqualityDeleteFiles;
+  private LongCounter scanPositionalDeleteFiles;
+  private LongCounter scanDVs;
 
   // Commit metrics instruments
   private DoubleHistogram commitDuration;
   private LongCounter commitAttempts;
   private LongCounter commitAddedDataFiles;
   private LongCounter commitRemovedDataFiles;
+  private LongCounter commitTotalDataFiles;
+  private LongCounter commitAddedDeleteFiles;
+  private LongCounter commitAddedEqualityDeleteFiles;
+  private LongCounter commitAddedPositionalDeleteFiles;
+  private LongCounter commitAddedDVs;
+  private LongCounter commitRemovedDeleteFiles;
+  private LongCounter commitRemovedEqualityDeleteFiles;
+  private LongCounter commitRemovedPositionalDeleteFiles;
+  private LongCounter commitRemovedDVs;
+  private LongCounter commitTotalDeleteFiles;
   private LongCounter commitAddedRecords;
+  private LongCounter commitRemovedRecords;
+  private LongCounter commitTotalRecords;
   private LongCounter commitAddedFileSizeBytes;
+  private LongCounter commitRemovedFileSizeBytes;
+  private LongCounter commitTotalFileSizeBytes;
+  private LongCounter commitAddedPositionalDeletes;
+  private LongCounter commitRemovedPositionalDeletes;
+  private LongCounter commitTotalPositionalDeletes;
+  private LongCounter commitAddedEqualityDeletes;
+  private LongCounter commitRemovedEqualityDeletes;
+  private LongCounter commitTotalEqualityDeletes;
+  private LongCounter commitManifestsCreated;
+  private LongCounter commitManifestsReplaced;
+  private LongCounter commitManifestsKept;
+  private LongCounter commitManifestEntriesProcessed;
 
   /** Required no-arg constructor for dynamic class loading via {@code CatalogUtil}. */
   public OtelMetricsReporter() {}
@@ -173,8 +210,15 @@ public class OtelMetricsReporter implements MetricsReporter {
     if (configured == null) {
       return;
     }
+    String trimmed = configured.trim();
+    if (trimmed.isEmpty() || ATTR_VALUE_NONE.equalsIgnoreCase(trimmed)) {
+      this.includeTableName = false;
+      this.includeSchemaId = false;
+      this.includeOperation = false;
+      return;
+    }
     Set<String> enabled =
-        Arrays.stream(configured.split(","))
+        Arrays.stream(trimmed.split(","))
             .map(String::trim)
             .filter(s -> !s.isEmpty())
             .collect(Collectors.toSet());
@@ -229,6 +273,18 @@ public class OtelMetricsReporter implements MetricsReporter {
             .setDescription("Number of delete files included in scan result")
             .build();
 
+    scanTotalDataManifests =
+        meter
+            .counterBuilder("iceberg.scan.data_manifests.total")
+            .setDescription("Total number of data manifests")
+            .build();
+
+    scanTotalDeleteManifests =
+        meter
+            .counterBuilder("iceberg.scan.delete_manifests.total")
+            .setDescription("Total number of delete manifests")
+            .build();
+
     scanScannedDataManifests =
         meter
             .counterBuilder("iceberg.scan.data_manifests.scanned")
@@ -246,6 +302,61 @@ public class OtelMetricsReporter implements MetricsReporter {
             .counterBuilder("iceberg.scan.file_size.bytes")
             .setDescription("Total file size of data files in scan result")
             .setUnit("By")
+            .build();
+
+    scanTotalDeleteFileSizeBytes =
+        meter
+            .counterBuilder("iceberg.scan.delete_file_size.bytes")
+            .setDescription("Total file size of delete files in scan result")
+            .setUnit("By")
+            .build();
+
+    scanSkippedDataFiles =
+        meter
+            .counterBuilder("iceberg.scan.data_files.skipped")
+            .setDescription("Number of data files skipped during scan")
+            .build();
+
+    scanSkippedDeleteFiles =
+        meter
+            .counterBuilder("iceberg.scan.delete_files.skipped")
+            .setDescription("Number of delete files skipped during scan")
+            .build();
+
+    scanScannedDeleteManifests =
+        meter
+            .counterBuilder("iceberg.scan.delete_manifests.scanned")
+            .setDescription("Number of delete manifests scanned")
+            .build();
+
+    scanSkippedDeleteManifests =
+        meter
+            .counterBuilder("iceberg.scan.delete_manifests.skipped")
+            .setDescription("Number of delete manifests skipped")
+            .build();
+
+    scanIndexedDeleteFiles =
+        meter
+            .counterBuilder("iceberg.scan.delete_files.indexed")
+            .setDescription("Number of indexed delete files")
+            .build();
+
+    scanEqualityDeleteFiles =
+        meter
+            .counterBuilder("iceberg.scan.delete_files.equality")
+            .setDescription("Number of equality delete files")
+            .build();
+
+    scanPositionalDeleteFiles =
+        meter
+            .counterBuilder("iceberg.scan.delete_files.positional")
+            .setDescription("Number of positional delete files")
+            .build();
+
+    scanDVs =
+        meter
+            .counterBuilder("iceberg.scan.dvs")
+            .setDescription("Number of deletion vectors in scan result")
             .build();
 
     commitDuration =
@@ -273,10 +384,82 @@ public class OtelMetricsReporter implements MetricsReporter {
             .setDescription("Number of data files removed by commit")
             .build();
 
+    commitTotalDataFiles =
+        meter
+            .counterBuilder("iceberg.commit.data_files.total")
+            .setDescription("Total number of data files after commit")
+            .build();
+
+    commitAddedDeleteFiles =
+        meter
+            .counterBuilder("iceberg.commit.delete_files.added")
+            .setDescription("Number of delete files added by commit")
+            .build();
+
+    commitAddedEqualityDeleteFiles =
+        meter
+            .counterBuilder("iceberg.commit.delete_files.equality.added")
+            .setDescription("Number of equality delete files added by commit")
+            .build();
+
+    commitAddedPositionalDeleteFiles =
+        meter
+            .counterBuilder("iceberg.commit.delete_files.positional.added")
+            .setDescription("Number of positional delete files added by commit")
+            .build();
+
+    commitAddedDVs =
+        meter
+            .counterBuilder("iceberg.commit.dvs.added")
+            .setDescription("Number of deletion vectors added by commit")
+            .build();
+
+    commitRemovedDeleteFiles =
+        meter
+            .counterBuilder("iceberg.commit.delete_files.removed")
+            .setDescription("Number of delete files removed by commit")
+            .build();
+
+    commitRemovedEqualityDeleteFiles =
+        meter
+            .counterBuilder("iceberg.commit.delete_files.equality.removed")
+            .setDescription("Number of equality delete files removed by commit")
+            .build();
+
+    commitRemovedPositionalDeleteFiles =
+        meter
+            .counterBuilder("iceberg.commit.delete_files.positional.removed")
+            .setDescription("Number of positional delete files removed by commit")
+            .build();
+
+    commitRemovedDVs =
+        meter
+            .counterBuilder("iceberg.commit.dvs.removed")
+            .setDescription("Number of deletion vectors removed by commit")
+            .build();
+
+    commitTotalDeleteFiles =
+        meter
+            .counterBuilder("iceberg.commit.delete_files.total")
+            .setDescription("Total number of delete files after commit")
+            .build();
+
     commitAddedRecords =
         meter
             .counterBuilder("iceberg.commit.records.added")
             .setDescription("Number of records added by commit")
+            .build();
+
+    commitRemovedRecords =
+        meter
+            .counterBuilder("iceberg.commit.records.removed")
+            .setDescription("Number of records removed by commit")
+            .build();
+
+    commitTotalRecords =
+        meter
+            .counterBuilder("iceberg.commit.records.total")
+            .setDescription("Total number of records after commit")
             .build();
 
     commitAddedFileSizeBytes =
@@ -284,6 +467,80 @@ public class OtelMetricsReporter implements MetricsReporter {
             .counterBuilder("iceberg.commit.file_size.added_bytes")
             .setDescription("Total size of data files added by commit")
             .setUnit("By")
+            .build();
+
+    commitRemovedFileSizeBytes =
+        meter
+            .counterBuilder("iceberg.commit.file_size.removed_bytes")
+            .setDescription("Total size of data files removed by commit")
+            .setUnit("By")
+            .build();
+
+    commitTotalFileSizeBytes =
+        meter
+            .counterBuilder("iceberg.commit.file_size.total_bytes")
+            .setDescription("Total size of all data files after commit")
+            .setUnit("By")
+            .build();
+
+    commitAddedPositionalDeletes =
+        meter
+            .counterBuilder("iceberg.commit.positional_deletes.added")
+            .setDescription("Number of positional deletes added by commit")
+            .build();
+
+    commitRemovedPositionalDeletes =
+        meter
+            .counterBuilder("iceberg.commit.positional_deletes.removed")
+            .setDescription("Number of positional deletes removed by commit")
+            .build();
+
+    commitTotalPositionalDeletes =
+        meter
+            .counterBuilder("iceberg.commit.positional_deletes.total")
+            .setDescription("Total number of positional deletes after commit")
+            .build();
+
+    commitAddedEqualityDeletes =
+        meter
+            .counterBuilder("iceberg.commit.equality_deletes.added")
+            .setDescription("Number of equality deletes added by commit")
+            .build();
+
+    commitRemovedEqualityDeletes =
+        meter
+            .counterBuilder("iceberg.commit.equality_deletes.removed")
+            .setDescription("Number of equality deletes removed by commit")
+            .build();
+
+    commitTotalEqualityDeletes =
+        meter
+            .counterBuilder("iceberg.commit.equality_deletes.total")
+            .setDescription("Total number of equality deletes after commit")
+            .build();
+
+    commitManifestsCreated =
+        meter
+            .counterBuilder("iceberg.commit.manifests.created")
+            .setDescription("Number of manifests created by commit")
+            .build();
+
+    commitManifestsReplaced =
+        meter
+            .counterBuilder("iceberg.commit.manifests.replaced")
+            .setDescription("Number of manifests replaced by commit")
+            .build();
+
+    commitManifestsKept =
+        meter
+            .counterBuilder("iceberg.commit.manifests.kept")
+            .setDescription("Number of manifests kept by commit")
+            .build();
+
+    commitManifestEntriesProcessed =
+        meter
+            .counterBuilder("iceberg.commit.manifest_entries.processed")
+            .setDescription("Number of manifest entries processed by commit")
             .build();
   }
 
@@ -309,9 +566,20 @@ public class OtelMetricsReporter implements MetricsReporter {
 
     recordCounter(scanResultDataFiles, metrics.resultDataFiles(), attrs);
     recordCounter(scanResultDeleteFiles, metrics.resultDeleteFiles(), attrs);
+    recordCounter(scanTotalDataManifests, metrics.totalDataManifests(), attrs);
+    recordCounter(scanTotalDeleteManifests, metrics.totalDeleteManifests(), attrs);
     recordCounter(scanScannedDataManifests, metrics.scannedDataManifests(), attrs);
     recordCounter(scanSkippedDataManifests, metrics.skippedDataManifests(), attrs);
     recordCounter(scanTotalFileSizeBytes, metrics.totalFileSizeInBytes(), attrs);
+    recordCounter(scanTotalDeleteFileSizeBytes, metrics.totalDeleteFileSizeInBytes(), attrs);
+    recordCounter(scanSkippedDataFiles, metrics.skippedDataFiles(), attrs);
+    recordCounter(scanSkippedDeleteFiles, metrics.skippedDeleteFiles(), attrs);
+    recordCounter(scanScannedDeleteManifests, metrics.scannedDeleteManifests(), attrs);
+    recordCounter(scanSkippedDeleteManifests, metrics.skippedDeleteManifests(), attrs);
+    recordCounter(scanIndexedDeleteFiles, metrics.indexedDeleteFiles(), attrs);
+    recordCounter(scanEqualityDeleteFiles, metrics.equalityDeleteFiles(), attrs);
+    recordCounter(scanPositionalDeleteFiles, metrics.positionalDeleteFiles(), attrs);
+    recordCounter(scanDVs, metrics.dvs(), attrs);
   }
 
   private void reportCommit(CommitReport report) {
@@ -336,8 +604,32 @@ public class OtelMetricsReporter implements MetricsReporter {
     recordCounter(commitAttempts, metrics.attempts(), attrs);
     recordCounter(commitAddedDataFiles, metrics.addedDataFiles(), attrs);
     recordCounter(commitRemovedDataFiles, metrics.removedDataFiles(), attrs);
+    recordCounter(commitTotalDataFiles, metrics.totalDataFiles(), attrs);
+    recordCounter(commitAddedDeleteFiles, metrics.addedDeleteFiles(), attrs);
+    recordCounter(commitAddedEqualityDeleteFiles, metrics.addedEqualityDeleteFiles(), attrs);
+    recordCounter(commitAddedPositionalDeleteFiles, metrics.addedPositionalDeleteFiles(), attrs);
+    recordCounter(commitAddedDVs, metrics.addedDVs(), attrs);
+    recordCounter(commitRemovedDeleteFiles, metrics.removedDeleteFiles(), attrs);
+    recordCounter(commitRemovedEqualityDeleteFiles, metrics.removedEqualityDeleteFiles(), attrs);
+    recordCounter(commitRemovedPositionalDeleteFiles, metrics.removedPositionalDeleteFiles(), attrs);
+    recordCounter(commitRemovedDVs, metrics.removedDVs(), attrs);
+    recordCounter(commitTotalDeleteFiles, metrics.totalDeleteFiles(), attrs);
     recordCounter(commitAddedRecords, metrics.addedRecords(), attrs);
+    recordCounter(commitRemovedRecords, metrics.removedRecords(), attrs);
+    recordCounter(commitTotalRecords, metrics.totalRecords(), attrs);
     recordCounter(commitAddedFileSizeBytes, metrics.addedFilesSizeInBytes(), attrs);
+    recordCounter(commitRemovedFileSizeBytes, metrics.removedFilesSizeInBytes(), attrs);
+    recordCounter(commitTotalFileSizeBytes, metrics.totalFilesSizeInBytes(), attrs);
+    recordCounter(commitAddedPositionalDeletes, metrics.addedPositionalDeletes(), attrs);
+    recordCounter(commitRemovedPositionalDeletes, metrics.removedPositionalDeletes(), attrs);
+    recordCounter(commitTotalPositionalDeletes, metrics.totalPositionalDeletes(), attrs);
+    recordCounter(commitAddedEqualityDeletes, metrics.addedEqualityDeletes(), attrs);
+    recordCounter(commitRemovedEqualityDeletes, metrics.removedEqualityDeletes(), attrs);
+    recordCounter(commitTotalEqualityDeletes, metrics.totalEqualityDeletes(), attrs);
+    recordCounter(commitManifestsCreated, metrics.manifestsCreated(), attrs);
+    recordCounter(commitManifestsReplaced, metrics.manifestsReplaced(), attrs);
+    recordCounter(commitManifestsKept, metrics.manifestsKept(), attrs);
+    recordCounter(commitManifestEntriesProcessed, metrics.manifestEntriesProcessed(), attrs);
   }
 
   private static void recordCounter(LongCounter counter, CounterResult result, Attributes attrs) {

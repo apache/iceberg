@@ -122,7 +122,7 @@ Sending metrics via REST can be controlled with the `rest-metrics-reporting-enab
 
 ### [`OtelMetricsReporter`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/OtelMetricsReporter.java)
 
-Exports [`ScanReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/ScanReport.java) and [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/CommitReport.java) through the [OpenTelemetry](https://opentelemetry.io/) API as `iceberg.scan.*` and `iceberg.commit.*` metrics. Any OTLP-compatible backend (Prometheus, CloudWatch, Datadog, Grafana Cloud, Honeycomb, etc.) can receive them through a host-owned OpenTelemetry SDK.
+Exports [ScanReport](#scanreport) and [CommitReport](#commitreport) through the [OpenTelemetry](https://opentelemetry.io/) API as `iceberg.scan.*` and `iceberg.commit.*` metrics. Any OTLP-compatible backend (Prometheus, CloudWatch, Datadog, Grafana Cloud, Honeycomb, etc.) can receive them through a host-owned OpenTelemetry SDK.
 
 #### Host responsibilities
 
@@ -134,7 +134,7 @@ The host application is therefore responsible for:
 2. Building and registering an `OpenTelemetrySdk`, either via the [OpenTelemetry Java agent](https://opentelemetry.io/docs/zero-code/java/agent/) (which auto-instruments the SDK at JVM startup) or programmatically with `OpenTelemetrySdk.builder()...buildAndRegisterGlobal()`.
 3. Configuring the exporter's endpoint, credentials, batching, retry, and resource attributes — typically via the [standard OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_HEADERS`, ...).
 
-Because the host owns the SDK, Iceberg has no reporter-specific catalog properties for endpoint, protocol, headers, intervals, or resource attributes. The catalog only needs to know the reporter class:
+Because the host owns the SDK, Iceberg has no reporter-specific catalog properties for endpoint, protocol, headers, intervals, or resource attributes. The catalog only needs to know the reporter class, which can be specified via:
 
 ```
 metrics-reporter-impl=org.apache.iceberg.metrics.OtelMetricsReporter
@@ -167,25 +167,26 @@ To omit `iceberg.table.name` entirely in deployments with a very large number of
 iceberg.otel.metrics.attributes=operation
 ```
 
-To emit metrics with no attributes at all (single aggregate time series per metric):
+To emit metrics with no attributes at all (single aggregate time series per metric), use `none` or an empty string:
 
 ```
-iceberg.otel.metrics.attributes=
+iceberg.otel.metrics.attributes=none
 ```
 
 When the property is not set, the default attribute set above is used.
 
 The snapshot id is deliberately not exposed as a metric attribute because snapshot ids are monotonically increasing and unique per commit; including them would create a new time series for every commit and risk unbounded cardinality in any time-series backend.
 
-#### Packaging the exporter
+#### Getting started
 
-Pick one OTLP exporter (or any other OpenTelemetry exporter for your backend) and add it to the host's runtime classpath alongside the API and SDK. The OTLP/HTTP path works against any OpenTelemetry Collector or backend that accepts OTLP/HTTP; OTLP/gRPC is functionally equivalent over gRPC.
+To use `OtelMetricsReporter`, add the OpenTelemetry API, SDK, and a metric exporter to the runtime classpath and register the SDK before the Iceberg catalog is loaded. Iceberg core compiles against `opentelemetry-api` only; it does not bundle the SDK or any exporter.
 
-Gradle (for a Spark application or any plain JVM app):
+**Dependencies**
+
+Add the API, SDK, and an exporter matching the target backend. For example, with Gradle:
 
 ```groovy
 dependencies {
-  // OpenTelemetry API + SDK
   runtimeOnly "io.opentelemetry:opentelemetry-api:1.61.0"
   runtimeOnly "io.opentelemetry:opentelemetry-sdk:1.61.0"
 
@@ -205,9 +206,9 @@ spark-submit \
 
 For Flink, add the same jars to the `lib/` directory of the Flink distribution. For Trino, OpenTelemetry is part of the platform classpath.
 
-#### Programmatic SDK registration
+**Registering the SDK**
 
-A typical host bootstrap, executed once before the catalog is loaded:
+Register the SDK once at application startup, either programmatically or via the [OpenTelemetry Java agent](https://opentelemetry.io/docs/zero-code/java/agent/). A programmatic example:
 
 ```java
 SdkMeterProvider meterProvider =
@@ -230,17 +231,13 @@ OpenTelemetrySdk.builder()
     .buildAndRegisterGlobal();
 ```
 
-When using the [OpenTelemetry Java agent](https://opentelemetry.io/docs/zero-code/java/agent/), the agent registers the SDK automatically and no programmatic bootstrap is required.
+When using the Java agent, the agent registers the SDK automatically and no programmatic bootstrap is required.
 
-#### Examples: routing metrics to common backends
+**Sending metrics to a backend**
 
-The reporter itself is backend-neutral — what changes between backends is the host-side OpenTelemetry SDK exporter and, optionally, the OpenTelemetry Collector configuration sitting in front of the backend.
+The reporter is backend-neutral. Any OTLP-compatible backend works directly; for backends that do not accept OTLP natively, route through an [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/). Below are common patterns.
 
-**OpenTelemetry Collector**
-
-The most flexible production setup: the host exports OTLP to a local Collector and the Collector forwards to one or more backends, handling auth, batching, retries, and fan-out centrally.
-
-Host side — point the OTLP exporter at the Collector:
+*OpenTelemetry Collector* -- export OTLP to a local Collector and let the Collector forward to one or more backends:
 
 ```java
 OtlpGrpcMetricExporter.builder()
@@ -248,7 +245,7 @@ OtlpGrpcMetricExporter.builder()
     .build();
 ```
 
-Collector side — a minimal `otel-config.yaml`:
+A minimal Collector configuration (`otel-config.yaml`):
 
 ```yaml
 receivers:
@@ -268,17 +265,9 @@ service:
       exporters: [debug]
 ```
 
-Replace the `debug` exporter with any of the [exporters bundled in `otelcol-contrib`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter) (Prometheus, AWS CloudWatch, Datadog, Grafana Cloud, etc.).
+Replace the `debug` exporter with any [Collector exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter) for the target backend (Prometheus, CloudWatch, Datadog, Grafana Cloud, etc.).
 
-**Prometheus**
-
-Two patterns are common, depending on whether Prometheus pulls or the host pushes.
-
-*Pull* — the host exposes a Prometheus-format `/metrics` endpoint via the OpenTelemetry Prometheus exporter, and Prometheus scrapes it. No Collector required:
-
-```groovy
-runtimeOnly "io.opentelemetry:opentelemetry-exporter-prometheus:1.61.0-alpha"
-```
+*Prometheus (pull)* -- expose a `/metrics` endpoint via the OpenTelemetry Prometheus exporter and let Prometheus scrape it:
 
 ```java
 SdkMeterProvider.builder()
@@ -287,21 +276,9 @@ SdkMeterProvider.builder()
     .build();
 ```
 
-*Push (via Collector)* — the host exports OTLP to a Collector, and the Collector converts to Prometheus Remote Write:
+*Prometheus (push via Collector)* -- export OTLP to a Collector configured with the `prometheusremotewrite` exporter.
 
-```yaml
-exporters:
-  prometheusremotewrite:
-    endpoint: "https://prometheus.example/api/v1/write"
-service:
-  pipelines:
-    metrics:
-      exporters: [prometheusremotewrite]
-```
-
-**Amazon CloudWatch**
-
-CloudWatch's OTLP ingestion endpoint requires SigV4 signing, which the OpenTelemetry Java SDK does not provide directly. The standard pattern is to run an OpenTelemetry Collector locally with the [`sigv4auth`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/sigv4authextension) extension; the host exports plain OTLP and the Collector signs the egress:
+*Amazon CloudWatch* -- CloudWatch's OTLP endpoint requires SigV4 signing. Route through a Collector with the [`sigv4auth`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/sigv4authextension) extension:
 
 ```yaml
 extensions:
@@ -320,26 +297,68 @@ service:
       exporters: [otlphttp]
 ```
 
-Use the `otelcol-contrib` distribution rather than the AWS Distro for OpenTelemetry if a macOS binary is required, since the latter ships only Linux and Windows binaries.
-
 #### Emitted metrics
 
-| Metric                                  | Type       | Unit | Source                                |
-|-----------------------------------------|------------|------|----------------------------------------|
-| `iceberg.scan.planning.duration`        | histogram  | ms   | `ScanReport.scanMetrics().totalPlanningDuration()` |
-| `iceberg.scan.result.data_files`        | sum        |      | `ScanReport.scanMetrics().resultDataFiles()` |
-| `iceberg.scan.result.delete_files`      | sum        |      | `ScanReport.scanMetrics().resultDeleteFiles()` |
-| `iceberg.scan.data_manifests.scanned`   | sum        |      | `ScanReport.scanMetrics().scannedDataManifests()` |
-| `iceberg.scan.data_manifests.skipped`   | sum        |      | `ScanReport.scanMetrics().skippedDataManifests()` |
-| `iceberg.scan.file_size.bytes`          | sum        | By   | `ScanReport.scanMetrics().totalFileSizeInBytes()` |
-| `iceberg.commit.duration`               | histogram  | ms   | `CommitReport.commitMetrics().totalDuration()` |
-| `iceberg.commit.attempts`               | sum        |      | `CommitReport.commitMetrics().attempts()` |
-| `iceberg.commit.data_files.added`       | sum        |      | `CommitReport.commitMetrics().addedDataFiles()` |
-| `iceberg.commit.data_files.removed`     | sum        |      | `CommitReport.commitMetrics().removedDataFiles()` |
-| `iceberg.commit.records.added`          | sum        |      | `CommitReport.commitMetrics().addedRecords()` |
-| `iceberg.commit.file_size.added_bytes`  | sum        | By   | `CommitReport.commitMetrics().addedFilesSizeInBytes()` |
+The reporter maps every field from [`ScanMetricsResult`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/ScanMetricsResult.java) and [`CommitMetricsResult`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/CommitMetricsResult.java) to an OpenTelemetry instrument. Fields that are `null` in a given report are silently skipped (no time series is created).
 
-Scan metrics carry `iceberg.table.name` and `iceberg.schema.id` as attributes; commit metrics carry `iceberg.table.name` and `iceberg.operation`. `iceberg.snapshot.id` is not attached as a metric attribute, since snapshot ids are monotonically increasing and unique per commit and would create unbounded cardinality in any time-series backend. Per-snapshot detail is still available through the source `ScanReport`/`CommitReport`.
+**Scan metrics** (from `ScanReport.scanMetrics()`):
+
+| Metric | Type | Unit | Source field |
+|---|---|---|---|
+| `iceberg.scan.planning.duration` | histogram | ms | `totalPlanningDuration()` |
+| `iceberg.scan.result.data_files` | sum | | `resultDataFiles()` |
+| `iceberg.scan.result.delete_files` | sum | | `resultDeleteFiles()` |
+| `iceberg.scan.data_manifests.total` | sum | | `totalDataManifests()` |
+| `iceberg.scan.delete_manifests.total` | sum | | `totalDeleteManifests()` |
+| `iceberg.scan.data_manifests.scanned` | sum | | `scannedDataManifests()` |
+| `iceberg.scan.data_manifests.skipped` | sum | | `skippedDataManifests()` |
+| `iceberg.scan.file_size.bytes` | sum | By | `totalFileSizeInBytes()` |
+| `iceberg.scan.delete_file_size.bytes` | sum | By | `totalDeleteFileSizeInBytes()` |
+| `iceberg.scan.data_files.skipped` | sum | | `skippedDataFiles()` |
+| `iceberg.scan.delete_files.skipped` | sum | | `skippedDeleteFiles()` |
+| `iceberg.scan.delete_manifests.scanned` | sum | | `scannedDeleteManifests()` |
+| `iceberg.scan.delete_manifests.skipped` | sum | | `skippedDeleteManifests()` |
+| `iceberg.scan.delete_files.indexed` | sum | | `indexedDeleteFiles()` |
+| `iceberg.scan.delete_files.equality` | sum | | `equalityDeleteFiles()` |
+| `iceberg.scan.delete_files.positional` | sum | | `positionalDeleteFiles()` |
+| `iceberg.scan.dvs` | sum | | `dvs()` |
+
+**Commit metrics** (from `CommitReport.commitMetrics()`):
+
+| Metric | Type | Unit | Source field |
+|---|---|---|---|
+| `iceberg.commit.duration` | histogram | ms | `totalDuration()` |
+| `iceberg.commit.attempts` | sum | | `attempts()` |
+| `iceberg.commit.data_files.added` | sum | | `addedDataFiles()` |
+| `iceberg.commit.data_files.removed` | sum | | `removedDataFiles()` |
+| `iceberg.commit.data_files.total` | sum | | `totalDataFiles()` |
+| `iceberg.commit.delete_files.added` | sum | | `addedDeleteFiles()` |
+| `iceberg.commit.delete_files.equality.added` | sum | | `addedEqualityDeleteFiles()` |
+| `iceberg.commit.delete_files.positional.added` | sum | | `addedPositionalDeleteFiles()` |
+| `iceberg.commit.dvs.added` | sum | | `addedDVs()` |
+| `iceberg.commit.delete_files.removed` | sum | | `removedDeleteFiles()` |
+| `iceberg.commit.delete_files.equality.removed` | sum | | `removedEqualityDeleteFiles()` |
+| `iceberg.commit.delete_files.positional.removed` | sum | | `removedPositionalDeleteFiles()` |
+| `iceberg.commit.dvs.removed` | sum | | `removedDVs()` |
+| `iceberg.commit.delete_files.total` | sum | | `totalDeleteFiles()` |
+| `iceberg.commit.records.added` | sum | | `addedRecords()` |
+| `iceberg.commit.records.removed` | sum | | `removedRecords()` |
+| `iceberg.commit.records.total` | sum | | `totalRecords()` |
+| `iceberg.commit.file_size.added_bytes` | sum | By | `addedFilesSizeInBytes()` |
+| `iceberg.commit.file_size.removed_bytes` | sum | By | `removedFilesSizeInBytes()` |
+| `iceberg.commit.file_size.total_bytes` | sum | By | `totalFilesSizeInBytes()` |
+| `iceberg.commit.positional_deletes.added` | sum | | `addedPositionalDeletes()` |
+| `iceberg.commit.positional_deletes.removed` | sum | | `removedPositionalDeletes()` |
+| `iceberg.commit.positional_deletes.total` | sum | | `totalPositionalDeletes()` |
+| `iceberg.commit.equality_deletes.added` | sum | | `addedEqualityDeletes()` |
+| `iceberg.commit.equality_deletes.removed` | sum | | `removedEqualityDeletes()` |
+| `iceberg.commit.equality_deletes.total` | sum | | `totalEqualityDeletes()` |
+| `iceberg.commit.manifests.created` | sum | | `manifestsCreated()` |
+| `iceberg.commit.manifests.replaced` | sum | | `manifestsReplaced()` |
+| `iceberg.commit.manifests.kept` | sum | | `manifestsKept()` |
+| `iceberg.commit.manifest_entries.processed` | sum | | `manifestEntriesProcessed()` |
+
+The default attribute set is described in the [Attribute set](#attribute-set) section above.
 
 ## Implementing a custom Metrics Reporter
 
