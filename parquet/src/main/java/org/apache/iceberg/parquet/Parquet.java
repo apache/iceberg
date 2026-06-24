@@ -1626,13 +1626,12 @@ public class Parquet {
         } catch (IOException e) {
           throw new RuntimeIOException(e);
         }
-        Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder
             .useStatsFilter()
             .useDictionaryFilter()
             .useRecordFilter(filterRecords)
             .useBloomFilter()
-            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
+            .withFilter(ParquetFilters.convert(type, filter, caseSensitive));
       } else {
         // turn off filtering
         builder

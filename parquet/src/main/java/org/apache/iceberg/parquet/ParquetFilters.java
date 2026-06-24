@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -29,19 +33,31 @@ import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetFilters {
 
   private ParquetFilters() {}
 
-  static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
+  static FilterCompat.Filter convert(
+      MessageType parquetSchema, Expression expr, boolean caseSensitive) {
+    Schema schema = ParquetSchemaUtil.convert(parquetSchema);
     FilterPredicate pred =
-        ExpressionVisitors.visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
+        ExpressionVisitors.visit(
+            Expressions.rewriteNot(expr),
+            new ConvertFilterToParquet(
+                schema, primitiveTypesById(parquetSchema, schema), caseSensitive));
     // TODO: handle AlwaysFalse.INSTANCE
     if (pred != null && pred != AlwaysTrue.INSTANCE) {
       // FilterCompat will apply LogicalInverseRewriter
@@ -51,12 +67,30 @@ class ParquetFilters {
     }
   }
 
+  private static Map<Integer, PrimitiveType> primitiveTypesById(
+      MessageType parquetSchema, Schema schema) {
+    Map<Integer, PrimitiveType> primitiveTypesById = Maps.newHashMap();
+
+    for (ColumnDescriptor desc : parquetSchema.getColumns()) {
+      PrimitiveType primitiveType = parquetSchema.getType(desc.getPath()).asPrimitiveType();
+      Integer fieldId = schema.aliasToId(String.join(".", desc.getPath()));
+      if (fieldId != null) {
+        primitiveTypesById.put(fieldId, primitiveType);
+      }
+    }
+
+    return primitiveTypesById;
+  }
+
   private static class ConvertFilterToParquet extends ExpressionVisitor<FilterPredicate> {
     private final Schema schema;
+    private final Map<Integer, PrimitiveType> primitiveTypesById;
     private final boolean caseSensitive;
 
-    private ConvertFilterToParquet(Schema schema, boolean caseSensitive) {
+    private ConvertFilterToParquet(
+        Schema schema, Map<Integer, PrimitiveType> primitiveTypesById, boolean caseSensitive) {
       this.schema = schema;
+      this.primitiveTypesById = primitiveTypesById;
       this.caseSensitive = caseSensitive;
     }
 
@@ -150,11 +184,18 @@ class ParquetFilters {
         case DOUBLE:
           return pred(op, FilterApi.doubleColumn(path), getParquetPrimitive(lit));
         case STRING:
-        case UUID:
         case FIXED:
         case BINARY:
-        case DECIMAL:
           return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
+        case UUID:
+          return uuidPred(op, path, lit);
+        case DECIMAL:
+          return decimalPred(
+              op,
+              path,
+              primitiveTypesById.get(ref.fieldId()),
+              (Types.DecimalType) ref.type().asPrimitiveType(),
+              lit);
       }
 
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
@@ -171,6 +212,55 @@ class ParquetFilters {
         return AlwaysFalse.INSTANCE;
       }
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
+    }
+  }
+
+  private static FilterPredicate uuidPred(Operation op, String path, Literal<?> lit) {
+    switch (op) {
+      case IS_NULL:
+      case NOT_NULL:
+      case EQ:
+      case NOT_EQ:
+        return pred(op, FilterApi.binaryColumn(path), getParquetUUID(lit));
+      default:
+        // Parquet UUID ordering is unsigned lexicographic, which does not match UUID.compareTo.
+        return AlwaysTrue.INSTANCE;
+    }
+  }
+
+  private static FilterPredicate decimalPred(
+      Operation op,
+      String path,
+      PrimitiveType primitiveType,
+      Types.DecimalType decimalType,
+      Literal<?> lit) {
+    if (primitiveType == null) {
+      return AlwaysTrue.INSTANCE;
+    }
+
+    BigDecimal decimal = decimalValue(decimalType, lit);
+    if (lit != null && decimal == null) {
+      return AlwaysTrue.INSTANCE;
+    }
+
+    try {
+      switch (primitiveType.getPrimitiveTypeName()) {
+        case INT32:
+          return pred(op, FilterApi.intColumn(path), getDecimalAsInt(decimal));
+        case INT64:
+          return pred(op, FilterApi.longColumn(path), getDecimalAsLong(decimal));
+        case FIXED_LEN_BYTE_ARRAY:
+          return pred(
+              op,
+              FilterApi.binaryColumn(path),
+              getDecimalAsFixed(decimalType, primitiveType.getTypeLength(), decimal));
+        case BINARY:
+          return pred(op, FilterApi.binaryColumn(path), getDecimalAsBinary(decimal));
+        default:
+          return AlwaysTrue.INSTANCE;
+      }
+    } catch (ArithmeticException e) {
+      return AlwaysTrue.INSTANCE;
     }
   }
 
@@ -215,13 +305,69 @@ class ParquetFilters {
     }
   }
 
+  private static Integer getDecimalAsInt(BigDecimal decimal) {
+    if (decimal == null) {
+      return null;
+    }
+
+    return decimal.unscaledValue().intValueExact();
+  }
+
+  private static Long getDecimalAsLong(BigDecimal decimal) {
+    if (decimal == null) {
+      return null;
+    }
+
+    return decimal.unscaledValue().longValueExact();
+  }
+
+  private static Binary getDecimalAsFixed(Types.DecimalType type, int length, BigDecimal decimal) {
+    if (decimal == null) {
+      return null;
+    }
+
+    byte[] bytes =
+        DecimalUtil.toReusedFixLengthBytes(
+            type.precision(), type.scale(), decimal, new byte[length]);
+    return Binary.fromConstantByteArray(bytes);
+  }
+
+  private static Binary getDecimalAsBinary(BigDecimal decimal) {
+    if (decimal == null) {
+      return null;
+    }
+
+    return Binary.fromConstantByteArray(decimal.unscaledValue().toByteArray());
+  }
+
+  private static BigDecimal decimalValue(Types.DecimalType type, Literal<?> lit) {
+    if (lit == null) {
+      return null;
+    }
+
+    BigDecimal decimal = (BigDecimal) lit.value();
+    try {
+      BigDecimal scaled = decimal.setScale(type.scale(), RoundingMode.UNNECESSARY);
+      return scaled.precision() <= type.precision() ? scaled : null;
+    } catch (ArithmeticException e) {
+      return null;
+    }
+  }
+
+  private static Binary getParquetUUID(Literal<?> lit) {
+    if (lit == null) {
+      return null;
+    }
+
+    return Binary.fromConstantByteArray(UUIDUtil.convert((UUID) lit.value()));
+  }
+
   @SuppressWarnings("unchecked")
   private static <C extends Comparable<C>> C getParquetPrimitive(Literal<?> lit) {
     if (lit == null) {
       return null;
     }
 
-    // TODO: this needs to convert to handle BigDecimal and UUID
     Object value = lit.value();
     if (value instanceof Number) {
       return (C) lit.value();
