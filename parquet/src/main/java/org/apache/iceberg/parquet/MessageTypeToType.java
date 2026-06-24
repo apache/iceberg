@@ -259,21 +259,19 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     @Override
     public Optional<Type> visit(LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
-      String crs = geometryType.getCrs();
-      return Optional.of(Types.GeometryType.of(crs != null ? crs : Types.GeometryType.DEFAULT_CRS));
+      // a null crs resolves to the Iceberg default in GeometryType.of
+      return Optional.of(Types.GeometryType.of(geometryType.getCrs()));
     }
 
     @Override
     public Optional<Type> visit(
         LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
-      String crs = geographyType.getCrs();
+      // a null crs / algorithm resolves to the Iceberg default in GeographyType.of
       EdgeInterpolationAlgorithm algorithm = geographyType.getAlgorithm();
       return Optional.of(
           Types.GeographyType.of(
-              crs != null ? crs : Types.GeographyType.DEFAULT_CRS,
-              algorithm != null
-                  ? EdgeAlgorithm.fromName(algorithm.name())
-                  : Types.GeographyType.DEFAULT_ALGORITHM));
+              geographyType.getCrs(),
+              algorithm != null ? EdgeAlgorithm.fromName(algorithm.name()) : null));
     }
   }
 
