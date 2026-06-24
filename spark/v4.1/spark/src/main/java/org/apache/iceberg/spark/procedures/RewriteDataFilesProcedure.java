@@ -29,6 +29,7 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
@@ -200,9 +201,17 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         return binPackAction.sort(buildSortOrder(sortOrderFields, schema));
       }
       return binPackAction;
+    } else if (strategy.equalsIgnoreCase("k-way-merge")) {
+      Preconditions.checkArgument(
+          sortOrderString == null,
+          "Cannot specify sort_order with k-way-merge strategy. "
+              + "K-way merge uses the table's existing sort order.");
+      return action.kWayMerge();
     } else {
       throw new IllegalArgumentException(
-          "unsupported strategy: " + strategy + ". Only binpack or sort is supported");
+          "unsupported strategy: "
+              + strategy
+              + ". Only binpack, sort, or k-way-merge is supported");
     }
   }
 
