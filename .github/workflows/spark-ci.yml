@@ -88,12 +88,18 @@ jobs:
         # so they run as concurrent jobs rather than serially in one job.
         tests: [core, extensions]
         exclude:
-          # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
-          # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
+          # Spark 4.x dropped Scala 2.12, so these combinations never exist.
           - spark: '4.0'
             scala: '2.12'
           - spark: '4.1'
             scala: '2.12'
+          # On PRs (unless labeled `full-ci`), drop Java 21 on older Spark and keep
+          # only the latest (4.1 / 2.13) as the canary. main/tags keep the full matrix;
+          # the guard is a non-matching value off PRs, so it excludes nothing there.
+          - jvm: 21
+            spark: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-ci')) && '3.5' || '' }}
+          - jvm: 21
+            spark: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-ci')) && '4.0' || '' }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
