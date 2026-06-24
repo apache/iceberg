@@ -70,11 +70,13 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableCatalogCapability;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
@@ -117,6 +119,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
+  private static final Set<TableCatalogCapability> CAPABILITIES =
+      ImmutableSet.of(TableCatalogCapability.SUPPORT_COLUMN_DEFAULT_VALUE);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
@@ -186,6 +190,23 @@ public class SparkCatalog extends BaseCatalog {
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return createTable(ident, icebergSchema, transforms, properties);
+  }
+
+  @Override
+  public Table createTable(
+      Identifier ident, Column[] columns, Transform[] transforms, Map<String, String> properties)
+      throws TableAlreadyExistsException {
+    Schema icebergSchema = SparkSchemaUtil.convert(columns);
+    return createTable(ident, icebergSchema, transforms, properties);
+  }
+
+  private Table createTable(
+      Identifier ident,
+      Schema icebergSchema,
+      Transform[] transforms,
+      Map<String, String> properties)
+      throws TableAlreadyExistsException {
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       org.apache.iceberg.Table icebergTable =
@@ -205,6 +226,23 @@ public class SparkCatalog extends BaseCatalog {
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return stageCreate(ident, icebergSchema, transforms, properties);
+  }
+
+  @Override
+  public StagedTable stageCreate(
+      Identifier ident, Column[] columns, Transform[] transforms, Map<String, String> properties)
+      throws TableAlreadyExistsException {
+    Schema icebergSchema = SparkSchemaUtil.convert(columns);
+    return stageCreate(ident, icebergSchema, transforms, properties);
+  }
+
+  private StagedTable stageCreate(
+      Identifier ident,
+      Schema icebergSchema,
+      Transform[] transforms,
+      Map<String, String> properties)
+      throws TableAlreadyExistsException {
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction =
@@ -224,6 +262,23 @@ public class SparkCatalog extends BaseCatalog {
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return stageReplace(ident, icebergSchema, transforms, properties);
+  }
+
+  @Override
+  public StagedTable stageReplace(
+      Identifier ident, Column[] columns, Transform[] transforms, Map<String, String> properties)
+      throws NoSuchTableException {
+    Schema icebergSchema = SparkSchemaUtil.convert(columns);
+    return stageReplace(ident, icebergSchema, transforms, properties);
+  }
+
+  private StagedTable stageReplace(
+      Identifier ident,
+      Schema icebergSchema,
+      Transform[] transforms,
+      Map<String, String> properties)
+      throws NoSuchTableException {
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction =
@@ -242,6 +297,21 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageCreateOrReplace(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    return stageCreateOrReplace(ident, icebergSchema, transforms, properties);
+  }
+
+  @Override
+  public StagedTable stageCreateOrReplace(
+      Identifier ident, Column[] columns, Transform[] transforms, Map<String, String> properties) {
+    Schema icebergSchema = SparkSchemaUtil.convert(columns);
+    return stageCreateOrReplace(ident, icebergSchema, transforms, properties);
+  }
+
+  private StagedTable stageCreateOrReplace(
+      Identifier ident,
+      Schema icebergSchema,
+      Transform[] transforms,
+      Map<String, String> properties) {
     Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
     Transaction transaction =
         builder
@@ -741,6 +811,11 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public Set<TableCatalogCapability> capabilities() {
+    return CAPABILITIES;
   }
 
   private static void commitChanges(
