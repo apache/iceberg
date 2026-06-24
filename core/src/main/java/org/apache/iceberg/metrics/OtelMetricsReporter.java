@@ -254,6 +254,12 @@ public class OtelMetricsReporter implements MetricsReporter {
   }
 
   private void createInstruments() {
+    createScanInstruments();
+    createCommitInstruments();
+    createCommitRecordAndManifestInstruments();
+  }
+
+  private void createScanInstruments() {
     scanPlanningDuration =
         meter
             .histogramBuilder("iceberg.scan.planning.duration")
@@ -358,7 +364,9 @@ public class OtelMetricsReporter implements MetricsReporter {
             .counterBuilder("iceberg.scan.dvs")
             .setDescription("Number of deletion vectors in scan result")
             .build();
+  }
 
+  private void createCommitInstruments() {
     commitDuration =
         meter
             .histogramBuilder("iceberg.commit.duration")
@@ -443,7 +451,9 @@ public class OtelMetricsReporter implements MetricsReporter {
             .counterBuilder("iceberg.commit.delete_files.total")
             .setDescription("Total number of delete files after commit")
             .build();
+  }
 
+  private void createCommitRecordAndManifestInstruments() {
     commitAddedRecords =
         meter
             .counterBuilder("iceberg.commit.records.added")
