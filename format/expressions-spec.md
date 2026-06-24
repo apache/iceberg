@@ -109,39 +109,14 @@ If types are incompatible at runtime, implementations binding or evaluating expr
 
 A predicate is a boolean expression that produces true or false.
 
-Predicates can be constants (true or false), comparisons or tests of value expressions, or logical combinations of predicates (AND, OR, NOT).
-
-If value expression types in a predicate are incompatible, implementations should align types using type promotion. For instance, `int_col > 5.0` should promote int values to float. If the types cannot be aligned according to type promotion rules (for instance, `"goats" > -Infinity`), the predicate cannot be evaluated and implementatinos must fail.
+Predicates can be constants (true or false), tests of a value expression, comparisons of value exprssions, or logical combinations of predicates (AND, OR, NOT).
 
 Value expressions are not valid predicates, even when the expression is expected to return a boolean value. Value expressions must be compared or tested to produce a predicate. For example, `is_empty(str_col)` is not a valid predicate because it may produce `null`, but `is_empty(str_col) = true` is a valid predicate.
 
 
-#### Comparisons
+#### Tests
 
-Comparisons are predicates that compare two value expressions with the same primitive type. Comparisons are:
-
-| Comparison  | Description |
-|-------------|-------------|
-| `=`         | Is equal |
-| `!=`        | Is not equal |
-| `<`         | Less than |
-| `<=`        | Less than or equal |
-| `>`         | Greater than |
-| `>=`        | Greater than or equal |
-
-Primitive types are compared using signed comparison, except for the following types:
-
-* `false` is less than `true` for `boolean`
-* `fixed` and `binary` use unsigned byte-wise comparison
-* `string` uses unsigned byte-wise comparison of the UTF-8 representation; it is not the Unicode Collation Algorithm
-* `uuid` uses unsigned byte-wise comparison of the UUID bytes
-* `float` and `double` use IEEE 754 total order after normalizing NaN to the canonical NaN (sign bit 0, exponent bits all 1, mantissa msb 1 followed by all 0)
-    * `NaN = NaN` is true for any two NaN values
-    * `val < NaN` is true for all non-NaN values
-
-Note type alignment produces `decimal` values with the same scale so that comparison is equivalent to the natural order of the unscaled numeric value.
-
-Tests are predicates that test a single value expression, optionally using a constant or set of constants. Constants must have the same type and must be non-null. Tests are:
+Tests are predicates that test a single value expression, optionally using a constant or set of constants. Constants must have the same type and must be non-null and non-NaN. Tests are:
 
 | Test                    | Allowed types | Constant type | Description |
 |-------------------------|---------------|---------------|-------------|
@@ -155,18 +130,27 @@ Tests are predicates that test a single value expression, optionally using a con
 | `NOT IN (constant set)` | any primitive | same as value | true iff the value is not equal to all constants |
 
 
-#### Boolean logic
+#### Comparisons
 
-Predicates must use 2-valued boolean logic. Evaluation of all predicates must produce `true` or `false`.
+Comparisons are predicates that compare two value expressions with the same primitive type.
 
-Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending on context to interpret a null result (`WHERE` vs `CHECK`).
+If value expression types in a comparison are incompatible, implementations should align types using type promotion. For instance, `int_col > 5.0` should promote int values to float. If the types cannot be aligned according to type promotion rules (for instance, `"goats" > -Infinity`), the predicate cannot be evaluated and implementations must fail.
 
-Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation.
+Comparisons are:
+
+| Comparison  | Description |
+|-------------|-------------|
+| `=`         | Is equal |
+| `!=`        | Is not equal |
+| `<`         | Less than |
+| `<=`        | Less than or equal |
+| `>`         | Greater than |
+| `>=`        | Greater than or equal |
 
 Comparisons must be null-safe. For any two operands a and b:
 
 * `a = b` is true if both are null, or both are non-null and equal; otherwise false
-* `a != b` is the boolean negation of a = b
+* `a != b` is the boolean negation of `a = b`
 * `a < b` and `a > b` are false when either operand is null; otherwise they use the order defined above
 * `a <= b` is `(a = b) OR (a < b)`; `a >= b` is `(a = b) OR (a > b)`; both are true when both operands are null and false when only one operand is null
 
@@ -182,7 +166,32 @@ This table shows examples of these rules after evaluating value expressions to c
 | `null <= null` | `true`  |
 | `34 < null`    | `false` |
 
-Comparisons must handle null values when value expressions evaluate to null. However, value expressions that are the direct child of a comparison must not be a null constant. For example, `x = get_item(map, "key")` is valid although `get_item` may return a null value, but `x = null` must be rejected because `x IS NULL` is the correct unambiguous predicate.
+Value expressions that are the direct child of a comparison must not be either a null or NaN constant. However, comparisons must handle null and NaN values that are the result of evaluating a value expression. For example, `x = get_item(map, "key")` is valid although `get_item` may return a null value, but `x = null` must be rejected because `x IS NULL` is the correct unambiguous predicate. Similarly, `multiply(a, b)` may produce NaN for `a=0.0` and `b=Infinity` and is valid, but `x = NaN` must be rejected because `x IS NaN` is the correct test.
+
+Primitive types are compared using signed comparison, except for the following types:
+
+* `false` is less than `true` for `boolean`
+* `fixed` and `binary` use unsigned byte-wise comparison
+* `string` uses unsigned byte-wise comparison of the UTF-8 representation; it is not the Unicode Collation Algorithm
+* `uuid` uses unsigned byte-wise comparison of the UUID bytes
+* `decimal` uses signed comparison independent of scale; this is equivalent to comparison of unscaled values because type alignment produces values with the same scale
+* `float` and `double` use IEEE 754 total order for all non-NaN values; see below for NaN comparison rules
+
+For floating point values, comparison with NaN behaves similarly to comparison of values with null. NaN should be specifically handled using `IS NaN` and `IS NOT NaN` tests. However, when value expressions produce a NaN value, the following rules must be applied:
+
+* `a = b` is true if both are NaN, or both are non-NaN and equal; false otherwise
+* `a != b` is the boolean negation of `a = b`
+* `a < b` and `a > b` are false when either operand is NaN; otherwise the IEEE 754 total order is used
+* `a <= b` is `(a = b) OR (a < b)`; `a >= b` is `(a = b) OR (a > b)`; both are true when both operands are NaN and false when only one operand is NaN
+
+
+#### Boolean logic
+
+Predicates must use 2-valued boolean logic. Evaluation of all predicates must produce `true` or `false`.
+
+Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending on context to interpret a null result (`WHERE` vs `CHECK`).
+
+Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation. `AND`, `OR`, and `NOT` do not accept null values and must fail on any null operand.
 
 
 ### Compatibility with REST catalog expressions
