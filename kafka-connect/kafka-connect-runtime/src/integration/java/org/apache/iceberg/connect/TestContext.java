@@ -19,10 +19,20 @@
 package org.apache.iceberg.connect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
@@ -34,6 +44,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.testcontainers.containers.ComposeContainer;
+import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.containers.wait.strategy.Wait;
 
 public class TestContext {
@@ -62,7 +73,56 @@ public class TestContext {
         new ComposeContainer(new File("./docker/docker-compose.yml"))
             .withStartupTimeout(Duration.ofMinutes(2))
             .waitingFor("connect", Wait.forHttp("/connectors"));
+    attachContainerLogConsumers(container);
     container.start();
+  }
+
+  private static void attachContainerLogConsumers(ComposeContainer container) {
+    String logDir = System.getProperty("dockerLogDir");
+    if (logDir == null) {
+      return;
+    }
+    Path dir = Paths.get(logDir);
+    try {
+      Files.createDirectories(dir);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    for (String service : List.of("connect", "kafka", "iceberg")) {
+      container.withLogConsumer(service, dockerLogFileConsumer(service, dir));
+    }
+  }
+
+  private static Consumer<OutputFrame> dockerLogFileConsumer(String service, Path dir) {
+    try {
+      BufferedWriter writer =
+          Files.newBufferedWriter(
+              dir.resolve(service + "-container.log"),
+              StandardCharsets.UTF_8,
+              StandardOpenOption.CREATE,
+              StandardOpenOption.TRUNCATE_EXISTING);
+      Runtime.getRuntime()
+          .addShutdownHook(
+              new Thread(
+                  () -> {
+                    try {
+                      writer.flush();
+                      writer.close();
+                    } catch (IOException ignored) {
+                      // best-effort
+                    }
+                  }));
+      return frame -> {
+        try {
+          writer.write(frame.getUtf8String());
+          writer.flush();
+        } catch (IOException ignored) {
+          // best-effort log capture, never fail the test
+        }
+      };
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   public void startConnector(KafkaConnectUtils.Config config) {
