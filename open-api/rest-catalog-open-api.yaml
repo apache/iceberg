@@ -3733,15 +3733,12 @@ components:
       properties:
         table:
           type: object
-          description: |
-            Top-level entity labels (attached to the catalog object as a whole).
+          description: Top-level entity labels (attached to the catalog object as a whole).
           additionalProperties:
             type: string
         columns:
           type: array
-          description: |
-            Column-level labels, keyed by field-id. Empty or omitted for views
-            and namespaces.
+          description: Column-level labels, keyed by field-id. Empty or omitted for views and namespaces.
           items:
             $ref: '#/components/schemas/ColumnLabels'
 
