@@ -226,6 +226,39 @@ public class TestKafkaMetadataTransform {
   }
 
   @Test
+  @DisplayName("config must be per-instance, not leaked via a static field")
+  public void testConfigIsNotSharedAcrossInstances() {
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            null,
+            null,
+            null,
+            VALUE_MAP,
+            OFFSET,
+            TIMESTAMP,
+            TimestampType.CREATE_TIME);
+    try (KafkaMetadataTransform first = new KafkaMetadataTransform();
+        KafkaMetadataTransform second = new KafkaMetadataTransform()) {
+      first.configure(ImmutableMap.of("field_name", "aaa"));
+      // configuring a second, independently-configured instance must not affect the first
+      second.configure(ImmutableMap.of("field_name", "bbb"));
+
+      // the second (last-configured) instance works correctly today: it uses its own "bbb" prefix
+      Map<?, ?> secondValue = (Map<?, ?>) second.apply(record).value();
+      assertThat(secondValue.get("bbb_topic")).isEqualTo(TOPIC);
+      assertThat(secondValue.get("aaa_topic")).isNull();
+
+      // the first instance must also use its own "aaa" prefix, not the second's "bbb"; today this
+      // fails because recordAppender is static and the second configure() overwrote the first's
+      Map<?, ?> firstValue = (Map<?, ?>) first.apply(record).value();
+      assertThat(firstValue.get("aaa_topic")).isEqualTo(TOPIC);
+      assertThat(firstValue.get("bbb_topic")).isNull();
+    }
+  }
+
+  @Test
   @DisplayName("should append kafka metadata to maps as nested")
   public void testAppendToMapsNested() {
     SinkRecord record =
