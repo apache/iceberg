@@ -72,13 +72,13 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private int writerFormatVersion = -1;
   private String location = null;
   private FileFormat fileFormat = null;
+  private Tracking tracking = null;
   private long recordCount = -1L;
   private long fileSizeInBytes = -1L;
-  private Integer specId = null;
   private PartitionData partitionData = EMPTY_PARTITION_DATA;
 
   // optional fields
-  private Tracking tracking = null;
+  private Integer specId = null;
   private ContentStats contentStats = null;
   private Integer sortOrderId = null;
   private DeletionVector deletionVector = null;
@@ -102,7 +102,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     super(BASE_TYPE.fields().size());
   }
 
-  /** Constructor that accepts required fields. */
   TrackedFileStruct(
       Tracking tracking,
       FileContent contentType,
@@ -111,7 +110,15 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       FileFormat fileFormat,
       PartitionData partition,
       long recordCount,
-      long fileSizeInBytes) {
+      long fileSizeInBytes,
+      Integer specId,
+      ContentStats contentStats,
+      Integer sortOrderId,
+      DeletionVector deletionVector,
+      ManifestInfo manifestInfo,
+      ByteBuffer keyMetadata,
+      List<Long> splitOffsets,
+      List<Integer> equalityIds) {
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
@@ -123,6 +130,15 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     if (partition != null) {
       this.partitionData = partition;
     }
+
+    this.specId = specId;
+    this.contentStats = contentStats;
+    this.sortOrderId = sortOrderId;
+    this.deletionVector = deletionVector;
+    this.manifestInfo = manifestInfo;
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
+    this.equalityIds = ArrayUtil.toIntArray(equalityIds);
   }
 
   /** Copy constructor. */
@@ -258,98 +274,51 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case 0:
-        return tracking;
-      case 1:
-        return contentType != null ? contentType.id() : null;
-      case 2:
-        return writerFormatVersion;
-      case 3:
-        return location;
-      case 4:
-        return fileFormat != null ? fileFormat.toString() : null;
-      case 5:
-        return recordCount;
-      case 6:
-        return fileSizeInBytes;
-      case 7:
-        return specId;
-      case 8:
-        return partitionData;
-      case 9:
-        return contentStats;
-      case 10:
-        return sortOrderId;
-      case 11:
-        return deletionVector;
-      case 12:
-        return manifestInfo;
-      case 13:
-        return keyMetadata();
-      case 14:
-        return splitOffsets();
-      case 15:
-        return equalityIds();
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> tracking;
+      case 1 -> contentType != null ? contentType.id() : null;
+      case 2 -> writerFormatVersion;
+      case 3 -> location;
+      case 4 -> fileFormat != null ? fileFormat.toString() : null;
+      case 5 -> recordCount;
+      case 6 -> fileSizeInBytes;
+      case 7 -> specId;
+      case 8 -> partitionData;
+      case 9 -> contentStats;
+      case 10 -> sortOrderId;
+      case 11 -> deletionVector;
+      case 12 -> manifestInfo;
+      case 13 -> keyMetadata();
+      case 14 -> splitOffsets();
+      case 15 -> equalityIds();
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
-        this.tracking = (Tracking) value;
-        break;
-      case 1:
-        this.contentType = FileContent.fromId((Integer) value);
-        break;
-      case 2:
-        this.writerFormatVersion = (int) value;
-        break;
-      case 3:
-        // always coerce to String for Serializable
-        this.location = value.toString();
-        break;
-      case 4:
-        this.fileFormat = FileFormat.fromString(value.toString());
-        break;
-      case 5:
-        this.recordCount = (long) value;
-        break;
-      case 6:
-        this.fileSizeInBytes = (long) value;
-        break;
-      case 7:
-        this.specId = (Integer) value;
-        break;
-      case 8:
-        this.partitionData = (PartitionData) value;
-        break;
-      case 9:
-        this.contentStats = (ContentStats) value;
-        break;
-      case 10:
-        this.sortOrderId = (Integer) value;
-        break;
-      case 11:
-        this.deletionVector = (DeletionVector) value;
-        break;
-      case 12:
-        this.manifestInfo = (ManifestInfo) value;
-        break;
-      case 13:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
-        break;
-      case 14:
-        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
-        break;
-      case 15:
-        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
-        break;
-      default:
+      case 0 -> this.tracking = (Tracking) value;
+      case 1 -> this.contentType = FileContent.fromId((Integer) value);
+      case 2 -> this.writerFormatVersion = (int) value;
+      case 3 ->
+          // always coerce to String for Serializable
+          this.location = value.toString();
+      case 4 -> this.fileFormat = FileFormat.fromString(value.toString());
+      case 5 -> this.recordCount = (long) value;
+      case 6 -> this.fileSizeInBytes = (long) value;
+      case 7 -> this.specId = (Integer) value;
+      case 8 -> this.partitionData = (PartitionData) value;
+      case 9 -> this.contentStats = (ContentStats) value;
+      case 10 -> this.sortOrderId = (Integer) value;
+      case 11 -> this.deletionVector = (DeletionVector) value;
+      case 12 -> this.manifestInfo = (ManifestInfo) value;
+      case 13 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 14 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+      case 15 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 

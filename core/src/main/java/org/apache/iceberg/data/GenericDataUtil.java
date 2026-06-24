@@ -40,27 +40,25 @@ public class GenericDataUtil {
       return null;
     }
 
-    switch (type.typeId()) {
-      case DATE:
-        return DateTimeUtil.dateFromDays((Integer) value);
-      case TIME:
-        return DateTimeUtil.timeFromMicros((Long) value);
-      case TIMESTAMP:
+    return switch (type.typeId()) {
+      case DATE -> DateTimeUtil.dateFromDays((Integer) value);
+      case TIME -> DateTimeUtil.timeFromMicros((Long) value);
+      case TIMESTAMP -> {
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return DateTimeUtil.timestamptzFromMicros((Long) value);
+          yield DateTimeUtil.timestamptzFromMicros((Long) value);
         } else {
-          return DateTimeUtil.timestampFromMicros((Long) value);
+          yield DateTimeUtil.timestampFromMicros((Long) value);
         }
-      case TIMESTAMP_NANO:
+      }
+      case TIMESTAMP_NANO -> {
         if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
-          return DateTimeUtil.timestamptzFromNanos((Long) value);
+          yield DateTimeUtil.timestamptzFromNanos((Long) value);
         } else {
-          return DateTimeUtil.timestampFromNanos((Long) value);
+          yield DateTimeUtil.timestampFromNanos((Long) value);
         }
-      case FIXED:
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-    }
-
-    return value;
+      }
+      case FIXED -> ByteBuffers.toByteArray((ByteBuffer) value);
+      default -> value;
+    };
   }
 }

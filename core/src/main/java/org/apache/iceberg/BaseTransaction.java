@@ -253,21 +253,10 @@ public class BaseTransaction implements Transaction {
         hasLastOpCommitted, "Cannot commit transaction: last operation has not committed");
 
     switch (type) {
-      case CREATE_TABLE:
-        commitCreateTransaction();
-        break;
-
-      case REPLACE_TABLE:
-        commitReplaceTransaction(false);
-        break;
-
-      case CREATE_OR_REPLACE_TABLE:
-        commitReplaceTransaction(true);
-        break;
-
-      case SIMPLE:
-        commitSimpleTransaction();
-        break;
+      case CREATE_TABLE -> commitCreateTransaction();
+      case REPLACE_TABLE -> commitReplaceTransaction(false);
+      case CREATE_OR_REPLACE_TABLE -> commitReplaceTransaction(true);
+      case SIMPLE -> commitSimpleTransaction();
     }
   }
 

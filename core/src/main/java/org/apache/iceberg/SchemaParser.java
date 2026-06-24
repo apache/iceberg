@@ -146,17 +146,10 @@ public class SchemaParser {
     } else {
       Type.NestedType nested = type.asNestedType();
       switch (type.typeId()) {
-        case STRUCT:
-          toJson(nested.asStructType(), generator);
-          break;
-        case LIST:
-          toJson(nested.asListType(), generator);
-          break;
-        case MAP:
-          toJson(nested.asMapType(), generator);
-          break;
-        default:
-          throw new IllegalArgumentException("Cannot write unknown type: " + type);
+        case STRUCT -> toJson(nested.asStructType(), generator);
+        case LIST -> toJson(nested.asListType(), generator);
+        case MAP -> toJson(nested.asMapType(), generator);
+        default -> throw new IllegalArgumentException("Cannot write unknown type: " + type);
       }
     }
   }

@@ -104,17 +104,14 @@ final class PuffinFormat {
   }
 
   static ByteBuffer compress(PuffinCompressionCodec codec, ByteBuffer input) {
-    switch (codec) {
-      case NONE:
-        return input.duplicate();
-      case LZ4:
-        // TODO requires LZ4 frame compressor, e.g.
-        // https://github.com/airlift/aircompressor/pull/142
-        break;
-      case ZSTD:
-        return compress(new ZstdCompressor(), input);
-    }
-    throw new UnsupportedOperationException("Unsupported codec: " + codec);
+    return switch (codec) {
+      case NONE -> input.duplicate();
+      case LZ4 ->
+          // TODO requires LZ4 frame compressor, e.g.
+          // https://github.com/airlift/aircompressor/pull/142
+          throw new UnsupportedOperationException("Unsupported codec: " + codec);
+      case ZSTD -> compress(new ZstdCompressor(), input);
+    };
   }
 
   private static ByteBuffer compress(Compressor compressor, ByteBuffer input) {
@@ -125,20 +122,14 @@ final class PuffinFormat {
   }
 
   static ByteBuffer decompress(PuffinCompressionCodec codec, ByteBuffer input) {
-    switch (codec) {
-      case NONE:
-        return input.duplicate();
-
-      case LZ4:
-        // TODO requires LZ4 frame decompressor, e.g.
-        // https://github.com/airlift/aircompressor/pull/142
-        break;
-
-      case ZSTD:
-        return decompressZstd(input);
-    }
-
-    throw new UnsupportedOperationException("Unsupported codec: " + codec);
+    return switch (codec) {
+      case NONE -> input.duplicate();
+      case LZ4 ->
+          // TODO requires LZ4 frame decompressor, e.g.
+          // https://github.com/airlift/aircompressor/pull/142
+          throw new UnsupportedOperationException("Unsupported codec: " + codec);
+      case ZSTD -> decompressZstd(input);
+    };
   }
 
   private static ByteBuffer decompressZstd(ByteBuffer input) {

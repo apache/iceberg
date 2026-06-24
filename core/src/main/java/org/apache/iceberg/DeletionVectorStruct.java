@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Objects;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -89,43 +90,52 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case 0:
-        return location;
-      case 1:
-        return offset;
-      case 2:
-        return sizeInBytes;
-      case 3:
-        return cardinality;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> location;
+      case 1 -> offset;
+      case 2 -> sizeInBytes;
+      case 3 -> cardinality;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
-        // always coerce to String for Serializable
-        this.location = value.toString();
-        break;
-      case 1:
-        this.offset = (Long) value;
-        break;
-      case 2:
-        this.sizeInBytes = (Long) value;
-        break;
-      case 3:
-        this.cardinality = (Long) value;
-        break;
-      default:
+      case 0 ->
+          // always coerce to String for Serializable
+          this.location = value.toString();
+      case 1 -> this.offset = (Long) value;
+      case 2 -> this.sizeInBytes = (Long) value;
+      case 3 -> this.cardinality = (Long) value;
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 
   static Builder builder() {
     return new Builder();
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof DeletionVectorStruct)) {
+      return false;
+    }
+
+    DeletionVectorStruct that = (DeletionVectorStruct) other;
+    return Objects.equals(location, that.location)
+        && offset == that.offset
+        && sizeInBytes == that.sizeInBytes
+        && cardinality == that.cardinality;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(location, offset, sizeInBytes, cardinality);
   }
 
   @Override

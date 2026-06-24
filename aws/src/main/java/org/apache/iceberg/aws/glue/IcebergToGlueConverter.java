@@ -263,18 +263,22 @@ class IcebergToGlueConverter {
         Optional.ofNullable(existingTable.description()).ifPresent(tableInputBuilder::description);
       }
 
-      Map<String, String> existingColumnMap = null;
+      Map<String, String> existingColumnNameToComment = null;
       if (existingTable != null) {
         List<Column> existingColumns = existingTable.storageDescriptor().columns();
-        existingColumnMap =
+        // First-seen-wins on duplicate names. toColumns writes current-schema columns before
+        // historical-schema columns. Preserve the current-schema comment.
+        existingColumnNameToComment =
             existingColumns.stream()
                 .filter(column -> column.comment() != null)
-                .collect(Collectors.toMap(Column::name, Column::comment));
+                .collect(
+                    Collectors.toMap(
+                        Column::name, Column::comment, (existing, duplicate) -> existing));
       } else {
-        existingColumnMap = Collections.emptyMap();
+        existingColumnNameToComment = Collections.emptyMap();
       }
 
-      List<Column> columns = toColumns(metadata, existingColumnMap);
+      List<Column> columns = toColumns(metadata, existingColumnNameToComment);
 
       tableInputBuilder.storageDescriptor(
           storageDescriptor.location(metadata.location()).columns(columns).build());
@@ -340,19 +344,20 @@ class IcebergToGlueConverter {
   }
 
   private static List<Column> toColumns(
-      TableMetadata metadata, Map<String, String> existingColumnMap) {
+      TableMetadata metadata, Map<String, String> existingColumnNameToComment) {
     List<Column> columns = Lists.newArrayList();
     Set<String> addedNames = Sets.newHashSet();
 
     for (NestedField field : metadata.schema().columns()) {
-      addColumnWithDedupe(columns, addedNames, field, true /* is current */, existingColumnMap);
+      addColumnWithDedupe(
+          columns, addedNames, field, true /* is current */, existingColumnNameToComment);
     }
 
     for (Schema schema : metadata.schemas()) {
       if (schema.schemaId() != metadata.currentSchemaId()) {
         for (NestedField field : schema.columns()) {
           addColumnWithDedupe(
-              columns, addedNames, field, false /* is not current */, existingColumnMap);
+              columns, addedNames, field, false /* is not current */, existingColumnNameToComment);
         }
       }
     }
@@ -365,7 +370,7 @@ class IcebergToGlueConverter {
       Set<String> dedupe,
       NestedField field,
       boolean isCurrent,
-      Map<String, String> existingColumnMap) {
+      Map<String, String> existingColumnNameToComment) {
     if (!dedupe.contains(field.name())) {
       Column.Builder builder =
           Column.builder()
@@ -379,8 +384,9 @@ class IcebergToGlueConverter {
 
       if (field.doc() != null && !field.doc().isEmpty()) {
         builder.comment(field.doc());
-      } else if (existingColumnMap != null && existingColumnMap.containsKey(field.name())) {
-        builder.comment(existingColumnMap.get(field.name()));
+      } else if (existingColumnNameToComment != null
+          && existingColumnNameToComment.containsKey(field.name())) {
+        builder.comment(existingColumnNameToComment.get(field.name()));
       }
 
       columns.add(builder.build());

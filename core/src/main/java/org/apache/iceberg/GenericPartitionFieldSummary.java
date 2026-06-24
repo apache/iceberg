@@ -149,18 +149,13 @@ public class GenericPartitionFieldSummary
     if (fromProjectionPos != null) {
       pos = fromProjectionPos[i];
     }
-    switch (pos) {
-      case 0:
-        return containsNull;
-      case 1:
-        return containsNaN;
-      case 2:
-        return lowerBound();
-      case 3:
-        return upperBound();
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> containsNull;
+      case 1 -> containsNaN;
+      case 2 -> lowerBound();
+      case 3 -> upperBound();
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
@@ -172,20 +167,13 @@ public class GenericPartitionFieldSummary
       pos = fromProjectionPos[i];
     }
     switch (pos) {
-      case 0:
-        this.containsNull = (Boolean) value;
-        return;
-      case 1:
-        this.containsNaN = (Boolean) value;
-        return;
-      case 2:
-        this.lowerBound = ByteBuffers.toByteArray((ByteBuffer) value);
-        return;
-      case 3:
-        this.upperBound = ByteBuffers.toByteArray((ByteBuffer) value);
-        return;
-      default:
+      case 0 -> this.containsNull = (Boolean) value;
+      case 1 -> this.containsNaN = (Boolean) value;
+      case 2 -> this.lowerBound = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 3 -> this.upperBound = ByteBuffers.toByteArray((ByteBuffer) value);
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 

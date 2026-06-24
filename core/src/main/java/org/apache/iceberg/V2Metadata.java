@@ -85,17 +85,15 @@ class V2Metadata {
     }
 
     private Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return wrapped.path();
-        case 1:
-          return wrapped.length();
-        case 2:
-          return wrapped.partitionSpecId();
-        case 3:
+      return switch (pos) {
+        case 0 -> wrapped.path();
+        case 1 -> wrapped.length();
+        case 2 -> wrapped.partitionSpecId();
+        case 3 -> {
           checkContentType(wrapped.content());
-          return wrapped.content().id();
-        case 4:
+          yield wrapped.content().id();
+        }
+        case 4 -> {
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // if the sequence number is being assigned here, then the manifest must be created by
             // the current
@@ -104,11 +102,12 @@ class V2Metadata {
                 commitSnapshotId == wrapped.snapshotId(),
                 "Found unassigned sequence number for a manifest from snapshot: %s",
                 wrapped.snapshotId());
-            return sequenceNumber;
+            yield sequenceNumber;
           } else {
-            return wrapped.sequenceNumber();
+            yield wrapped.sequenceNumber();
           }
-        case 5:
+        }
+        case 5 -> {
           if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // same sanity check as above
             Preconditions.checkState(
@@ -119,31 +118,22 @@ class V2Metadata {
             // number for any file
             // written to the wrapped manifest. replace the unassigned sequence number with the one
             // for this commit
-            return sequenceNumber;
+            yield sequenceNumber;
           } else {
-            return wrapped.minSequenceNumber();
+            yield wrapped.minSequenceNumber();
           }
-        case 6:
-          return wrapped.snapshotId();
-        case 7:
-          return wrapped.addedFilesCount();
-        case 8:
-          return wrapped.existingFilesCount();
-        case 9:
-          return wrapped.deletedFilesCount();
-        case 10:
-          return wrapped.addedRowsCount();
-        case 11:
-          return wrapped.existingRowsCount();
-        case 12:
-          return wrapped.deletedRowsCount();
-        case 13:
-          return wrapped.partitions();
-        case 14:
-          return wrapped.keyMetadata();
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      }
+        }
+        case 6 -> wrapped.snapshotId();
+        case 7 -> wrapped.addedFilesCount();
+        case 8 -> wrapped.existingFilesCount();
+        case 9 -> wrapped.deletedFilesCount();
+        case 10 -> wrapped.addedRowsCount();
+        case 11 -> wrapped.existingRowsCount();
+        case 12 -> wrapped.deletedRowsCount();
+        case 13 -> wrapped.partitions();
+        case 14 -> wrapped.keyMetadata();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
     }
 
     @Override
@@ -312,12 +302,10 @@ class V2Metadata {
     }
 
     private Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return wrapped.status().id();
-        case 1:
-          return wrapped.snapshotId();
-        case 2:
+      return switch (pos) {
+        case 0 -> wrapped.status().id();
+        case 1 -> wrapped.snapshotId();
+        case 2 -> {
           if (wrapped.dataSequenceNumber() == null) {
             // if the entry's data sequence number is null,
             // then it will inherit the sequence number of the current commit.
@@ -333,16 +321,14 @@ class V2Metadata {
                 wrapped.status() == Status.ADDED,
                 "Only entries with status ADDED can have null sequence number");
 
-            return null;
+            yield null;
           }
-          return wrapped.dataSequenceNumber();
-        case 3:
-          return wrapped.fileSequenceNumber();
-        case 4:
-          return fileWrapper.wrap(wrapped.file());
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      }
+          yield wrapped.dataSequenceNumber();
+        }
+        case 3 -> wrapped.fileSequenceNumber();
+        case 4 -> fileWrapper.wrap(wrapped.file());
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
     }
 
     @Override
@@ -427,48 +413,35 @@ class V2Metadata {
     }
 
     private Object get(int pos) {
-      switch (pos) {
-        case 0:
+      return switch (pos) {
+        case 0 -> {
           checkContentType(wrapped.content());
-          return wrapped.content().id();
-        case 1:
-          return wrapped.location();
-        case 2:
-          return wrapped.format() != null ? wrapped.format().toString() : null;
-        case 3:
-          return wrapped.partition();
-        case 4:
-          return wrapped.recordCount();
-        case 5:
-          return wrapped.fileSizeInBytes();
-        case 6:
-          return wrapped.columnSizes();
-        case 7:
-          return wrapped.valueCounts();
-        case 8:
-          return wrapped.nullValueCounts();
-        case 9:
-          return wrapped.nanValueCounts();
-        case 10:
-          return wrapped.lowerBounds();
-        case 11:
-          return wrapped.upperBounds();
-        case 12:
-          return wrapped.keyMetadata();
-        case 13:
-          return wrapped.splitOffsets();
-        case 14:
-          return wrapped.equalityFieldIds();
-        case 15:
-          return wrapped.sortOrderId();
-        case 16:
+          yield wrapped.content().id();
+        }
+        case 1 -> wrapped.location();
+        case 2 -> wrapped.format() != null ? wrapped.format().toString() : null;
+        case 3 -> wrapped.partition();
+        case 4 -> wrapped.recordCount();
+        case 5 -> wrapped.fileSizeInBytes();
+        case 6 -> wrapped.columnSizes();
+        case 7 -> wrapped.valueCounts();
+        case 8 -> wrapped.nullValueCounts();
+        case 9 -> wrapped.nanValueCounts();
+        case 10 -> wrapped.lowerBounds();
+        case 11 -> wrapped.upperBounds();
+        case 12 -> wrapped.keyMetadata();
+        case 13 -> wrapped.splitOffsets();
+        case 14 -> wrapped.equalityFieldIds();
+        case 15 -> wrapped.sortOrderId();
+        case 16 -> {
           if (wrapped instanceof DeleteFile) {
-            return ((DeleteFile) wrapped).referencedDataFile();
+            yield ((DeleteFile) wrapped).referencedDataFile();
           } else {
-            return null;
+            yield null;
           }
-      }
-      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+        }
+        default -> throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+      };
     }
 
     @Override

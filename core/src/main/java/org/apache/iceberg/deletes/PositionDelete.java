@@ -81,32 +81,21 @@ public class PositionDelete<R> implements StructLike {
   @Override
   @SuppressWarnings("unchecked")
   public <T> T get(int colPos, Class<T> javaClass) {
-    switch (colPos) {
-      case 0:
-        return (T) path;
-      case 1:
-        return (T) (Long) pos;
-      case 2:
-        return (T) row;
-      default:
-        throw new IllegalArgumentException("No column at position " + colPos);
-    }
+    return switch (colPos) {
+      case 0 -> (T) path;
+      case 1 -> (T) (Long) pos;
+      case 2 -> (T) row;
+      default -> throw new IllegalArgumentException("No column at position " + colPos);
+    };
   }
 
   @Override
   public <T> void set(int colPos, T value) {
     switch (colPos) {
-      case 0:
-        this.path = (CharSequence) value;
-        break;
-      case 1:
-        this.pos = (Long) value;
-        break;
-      case 2:
-        this.row = (R) value;
-        break;
-      default:
-        throw new IllegalArgumentException("No column at position " + colPos);
+      case 0 -> this.path = (CharSequence) value;
+      case 1 -> this.pos = (Long) value;
+      case 2 -> this.row = (R) value;
+      default -> throw new IllegalArgumentException("No column at position " + colPos);
     }
   }
 }

@@ -285,6 +285,52 @@ public class TestParquet {
   }
 
   @Test
+  public void testGeospatialFooterMetricsSkipParquetBounds() throws IOException {
+    Schema binarySchema = new Schema(optional(1, "geom", Types.BinaryType.get()));
+    Schema geometrySchema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+    Schema geographySchema = new Schema(optional(1, "geom", Types.GeographyType.crs84()));
+
+    File file = createTempFile(temp);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(binarySchema.asStruct());
+    GenericData.Record first = new GenericData.Record(avroSchema);
+    first.put("geom", ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03}));
+    GenericData.Record second = new GenericData.Record(avroSchema);
+    second.put("geom", ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06}));
+
+    write(
+        file, binarySchema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, first, second);
+
+    InputFile inputFile = Files.localInput(file);
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      Metrics geometryMetrics =
+          ParquetMetrics.metrics(
+              geometrySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      Metrics geographyMetrics =
+          ParquetMetrics.metrics(
+              geographySchema,
+              reader.getFooter().getFileMetaData().getSchema(),
+              MetricsConfig.getDefault(),
+              reader.getFooter(),
+              Stream.empty());
+
+      assertThat(geometryMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geometryMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geometryMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geometryMetrics.upperBounds()).doesNotContainKey(1);
+
+      assertThat(geographyMetrics.valueCounts()).containsEntry(1, 2L);
+      assertThat(geographyMetrics.nullValueCounts()).containsEntry(1, 0L);
+      assertThat(geographyMetrics.lowerBounds()).doesNotContainKey(1);
+      assertThat(geographyMetrics.upperBounds()).doesNotContainKey(1);
+    }
+  }
+
+  @Test
   public void testPerColumnDictionaryEncoding() throws Exception {
     Schema schema =
         new Schema(

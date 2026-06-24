@@ -374,10 +374,6 @@ class TestTrackedFileStruct {
   }
 
   static TrackedFileStruct createFullTrackedFile() {
-    TrackingStruct tracking = (TrackingStruct) TrackingBuilder.added(42L).build();
-    tracking.setManifestLocation("s3://bucket/manifest.avro");
-    tracking.set(MANIFEST_POS_ORDINAL, 3L);
-
     DeletionVectorStruct dv =
         DeletionVectorStruct.builder()
             .location("s3://bucket/dv.puffin")
@@ -387,20 +383,24 @@ class TestTrackedFileStruct {
             .build();
 
     TrackedFileStruct file =
-        new TrackedFileStruct(
-            tracking,
-            FileContent.DATA,
-            WRITER_FORMAT_VERSION_V4,
-            "s3://bucket/data/file.parquet",
-            FileFormat.PARQUET,
-            newPartition(7, "music"),
-            100L,
-            1024L);
-    file.set(SPEC_ID_ORDINAL, 0);
-    file.set(SORT_ORDER_ID_ORDINAL, 1);
-    file.set(DELETION_VECTOR_ORDINAL, dv);
-    file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {1, 2, 3}));
-    file.set(SPLIT_OFFSETS_ORDINAL, ImmutableList.of(50L));
+        (TrackedFileStruct)
+            TrackedFileBuilder.data(42L)
+                .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+                .location("s3://bucket/data/file.parquet")
+                .fileFormat(FileFormat.PARQUET)
+                .partition(newPartition(7, "music"))
+                .recordCount(100L)
+                .fileSizeInBytes(1024L)
+                .specId(0)
+                .sortOrderId(1)
+                .deletionVector(dv)
+                .keyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
+                .splitOffsets(ImmutableList.of(50L))
+                .build();
+
+    TrackingStruct tracking = (TrackingStruct) file.tracking();
+    tracking.setManifestLocation("s3://bucket/manifest.avro");
+    tracking.set(MANIFEST_POS_ORDINAL, 3L);
 
     return file;
   }
@@ -460,19 +460,16 @@ class TestTrackedFileStruct {
             .withFieldStats(fieldStatsList)
             .build();
 
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            WRITER_FORMAT_VERSION_V4,
-            "s3://bucket/data/file.parquet",
-            FileFormat.PARQUET,
-            new PartitionData(Types.StructType.of()),
-            100L,
-            1024L);
-    file.set(SPEC_ID_ORDINAL, 0);
-    file.set(CONTENT_STATS_ORDINAL, stats);
-
-    return file;
+    return (TrackedFileStruct)
+        TrackedFileBuilder.data(0L)
+            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .location("s3://bucket/data/file.parquet")
+            .fileFormat(FileFormat.PARQUET)
+            .partition(new PartitionData(Types.StructType.of()))
+            .recordCount(100L)
+            .fileSizeInBytes(1024L)
+            .specId(0)
+            .contentStats(stats)
+            .build();
   }
 }
