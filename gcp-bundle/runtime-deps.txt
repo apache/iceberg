@@ -1,8 +1,8 @@
-com.fasterxml.jackson.core:jackson-annotations:2.18
-com.fasterxml.jackson.core:jackson-core:2.18
-com.fasterxml.jackson.core:jackson-databind:2.18
-com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.18
-com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18
+com.fasterxml.jackson.core:jackson-annotations:2.22
+com.fasterxml.jackson.core:jackson-core:2.22
+com.fasterxml.jackson.core:jackson-databind:2.22
+com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.22
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22
 com.fasterxml.woodstox:woodstox-core:7.0
 com.github.ben-manes.caffeine:caffeine:3.2
 com.google.android:annotations:4.1
