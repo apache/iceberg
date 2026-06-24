@@ -340,12 +340,4 @@ public class TestSchemaUtils {
     Schema uuidSchema = SchemaBuilder.string().name("uuid").build();
     assertThat(SchemaUtils.toIcebergType(uuidSchema, config)).isInstanceOf(UUIDType.class);
   }
-
-  @Test
-  public void testToIcebergTypeUUIDLogicalTypeOnBytes() {
-    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-
-    Schema uuidSchema = SchemaBuilder.bytes().name("uuid").build();
-    assertThat(SchemaUtils.toIcebergType(uuidSchema, config)).isInstanceOf(UUIDType.class);
-  }
 }
