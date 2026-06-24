@@ -615,7 +615,7 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return crs().equals(that.crs());
+      return Objects.equals(crs(), that.crs());
     }
 
     @Override
@@ -687,7 +687,7 @@ public class Types {
 
       GeographyType that = (GeographyType) o;
       // compare the resolved CRS and algorithm so an explicit default is equal to an omitted one
-      return crs().equals(that.crs()) && algorithm() == that.algorithm();
+      return Objects.equals(crs(), that.crs()) && Objects.equals(algorithm(), that.algorithm());
     }
 
     @Override
