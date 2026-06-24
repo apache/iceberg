@@ -89,13 +89,14 @@ class PFOREncoding {
         out.remaining() - outOffset);
 
     int bytesWritten = 0;
-    int currentOffset = valueOffset;
+    int valuesEncoded = 0;
 
-    while (currentOffset < count) {
-      int chunkLength = Math.min(CHUNK_SIZE, count - currentOffset);
+    while (valuesEncoded < count) {
+      int chunkLength = Math.min(CHUNK_SIZE, count - valuesEncoded);
       bytesWritten +=
-          encodeChunk(values, currentOffset, out, outOffset + bytesWritten, chunkLength);
-      currentOffset += chunkLength;
+          encodeChunk(
+              values, valueOffset + valuesEncoded, out, outOffset + bytesWritten, chunkLength);
+      valuesEncoded += chunkLength;
     }
 
     return bytesWritten;
