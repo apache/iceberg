@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
@@ -597,12 +598,18 @@ public class CatalogUtil {
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      deleteFiles(
-          io,
+
+      Set<String> metadataFilesToDelete =
           removedPreviousMetadataFiles.stream()
               .map(TableMetadata.MetadataLogEntry::file)
-              .collect(Collectors.toSet()),
-          "metadata");
+              .collect(Collectors.toCollection(Sets::newHashSet));
+      // delete base's metadata file too if log is empty
+      if (metadata.previousFiles().isEmpty()
+          && !Objects.equals(base.metadataFileLocation(), metadata.metadataFileLocation())) {
+        metadataFilesToDelete.add(base.metadataFileLocation());
+      }
+
+      deleteFiles(io, metadataFilesToDelete, "metadata");
     }
   }
 }

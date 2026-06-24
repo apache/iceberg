@@ -1804,11 +1804,15 @@ public class TableMetadata implements Serializable {
 
       int maxSize =
           Math.max(
-              1,
+              0,
               PropertyUtil.propertyAsInt(
                   properties,
                   TableProperties.METADATA_PREVIOUS_VERSIONS_MAX,
                   TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
+
+      if (maxSize == 0) {
+        return Lists.newArrayList();
+      }
 
       List<MetadataLogEntry> newMetadataLog;
       if (previousFiles.size() >= maxSize) {
