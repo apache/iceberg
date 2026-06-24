@@ -94,4 +94,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
   }
+
+  /** Instantiates an action to drop a partition from matching refs (tags and/or branches). */
+  default DropPartitionFromRefs dropPartitionFromRefs(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement dropPartitionFromRefs");
+  }
 }

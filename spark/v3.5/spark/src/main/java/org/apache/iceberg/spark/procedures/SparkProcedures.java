@@ -64,6 +64,7 @@ public class SparkProcedures {
     mapBuilder.put("compute_table_stats", ComputeTableStatsProcedure::builder);
     mapBuilder.put("compute_partition_stats", ComputePartitionStatsProcedure::builder);
     mapBuilder.put("rewrite_table_path", RewriteTablePathProcedure::builder);
+    mapBuilder.put("drop_partition_from_refs", DropPartitionFromRefsProcedure::builder);
     return mapBuilder.build();
   }
 
