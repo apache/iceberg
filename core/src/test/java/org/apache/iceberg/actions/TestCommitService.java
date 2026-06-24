@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -114,6 +115,53 @@ public class TestCommitService extends TestBase {
       assertThat(commitService.results()).containsExactly(0, 1, 2, 3, 4);
       assertThat(commitService.aborted).containsExactly(5, 6, 7);
     }
+  }
+
+  @TestTemplate
+  public void testCommitsAreSerialized() {
+    // With one group per commit, every offer is immediately committable on the offering thread, so
+    // without serialization the concurrent offers would run commitOrClean at the same time. Assert
+    // that commits never overlap.
+    ConcurrencyTrackingCommitService commitService =
+        new ConcurrencyTrackingCommitService(table, 1, 10000);
+    commitService.start();
+
+    ExecutorService executorService = Executors.newFixedThreadPool(10);
+    int numberOfFileGroups = 100;
+    Tasks.range(numberOfFileGroups).executeWith(executorService).run(commitService::offer);
+    commitService.close();
+
+    assertThat(commitService.maxConcurrentCommits.get())
+        .as("commitOrClean must never run on more than one thread at a time")
+        .isEqualTo(1);
+    Set<Integer> expected = Sets.newHashSet(IntStream.range(0, numberOfFileGroups).iterator());
+    assertThat(Sets.newHashSet(commitService.results())).isEqualTo(expected);
+  }
+
+  private static class ConcurrencyTrackingCommitService extends BaseCommitService<Integer> {
+    private final AtomicInteger activeCommits = new AtomicInteger(0);
+    private final AtomicInteger maxConcurrentCommits = new AtomicInteger(0);
+
+    ConcurrencyTrackingCommitService(Table table, int rewritesPerCommit, int timeoutInMs) {
+      super(table, rewritesPerCommit, timeoutInMs);
+    }
+
+    @Override
+    protected void commitOrClean(Set<Integer> batch) {
+      int active = activeCommits.incrementAndGet();
+      maxConcurrentCommits.accumulateAndGet(active, Math::max);
+      try {
+        // widen the window so any overlapping commit is observed
+        Thread.sleep(5);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      }
+      activeCommits.decrementAndGet();
+    }
+
+    @Override
+    protected void abortFileGroup(Integer group) {}
   }
 
   private static class CustomCommitService extends BaseCommitService<Integer> {
