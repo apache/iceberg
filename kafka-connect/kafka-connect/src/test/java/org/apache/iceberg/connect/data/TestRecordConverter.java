@@ -249,6 +249,7 @@ public class TestRecordConverter {
     assertThat(record.getField("uuid")).isEqualTo(UUID_VAL);
   }
 
+  @Test
   public void testEmptyListAndMapConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SCHEMA);
