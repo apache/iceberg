@@ -611,7 +611,8 @@ public class OtelMetricsReporter implements MetricsReporter {
     recordCounter(commitAddedDVs, metrics.addedDVs(), attrs);
     recordCounter(commitRemovedDeleteFiles, metrics.removedDeleteFiles(), attrs);
     recordCounter(commitRemovedEqualityDeleteFiles, metrics.removedEqualityDeleteFiles(), attrs);
-    recordCounter(commitRemovedPositionalDeleteFiles, metrics.removedPositionalDeleteFiles(), attrs);
+    recordCounter(
+        commitRemovedPositionalDeleteFiles, metrics.removedPositionalDeleteFiles(), attrs);
     recordCounter(commitRemovedDVs, metrics.removedDVs(), attrs);
     recordCounter(commitTotalDeleteFiles, metrics.totalDeleteFiles(), attrs);
     recordCounter(commitAddedRecords, metrics.addedRecords(), attrs);
