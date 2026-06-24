@@ -61,7 +61,7 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
-          # Read-only: small job; restore opportunistically from other jobs' caches but never write.
+          # Read-only: java-ci's build-checks (17) is the global canonical writer.
           cache-read-only: true
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";

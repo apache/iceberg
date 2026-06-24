@@ -28,42 +28,7 @@ on:
     tags:
     - 'apache-iceberg-**'
   pull_request:
-    paths-ignore:
-    - '.github/ISSUE_TEMPLATE/**'
-    - '.github/workflows/api-binary-compatibility.yml'
-    - '.github/workflows/delta-conversion-ci.yml'
-    - '.github/workflows/docs-ci.yml'
-    - '.github/workflows/hive-ci.yml'
-    - '.github/workflows/java-ci.yml'
-    - '.github/workflows/jmh-benchmarks-ci.yml'
-    - '.github/workflows/kafka-connect-ci.yml'
-    - '.github/workflows/cve-scan.yml'
-    - '.github/workflows/labeler.yml'
-    - '.github/workflows/license-check.yml'
-    - '.github/workflows/open-api.yml'
-    - '.github/workflows/pr-title-check.yml'
-    - '.github/workflows/publish-snapshot.yml'
-    - '.github/workflows/recurring-jmh-benchmarks.yml'
-    - '.github/workflows/site-ci.yml'
-    - '.github/workflows/spark-ci.yml'
-    - '.github/workflows/stale.yml'
-    - '.gitignore'
-    - '.asf.yaml'
-    - 'dev/**'
-    - 'docker/**'
-    - 'mr/**'
-    - 'kafka-connect/**'
-    - 'spark/**'
-    - 'docs/**'
-    - 'site/**'
-    - 'open-api/**'
-    - 'format/**'
-    - '.gitattributes'
-    - '**/README.md'
-    - 'CONTRIBUTING.md'
-    - '**/LICENSE'
-    - '**/NOTICE'
-    - 'doap.rdf'
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -73,16 +38,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      run_flink: ${{ steps.plan.outputs.run_flink }}
+      flink_matrix: ${{ steps.plan.outputs.flink_matrix }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - id: plan
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        FULL_CI_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+      run: bash .github/scripts/plan-pr-ci.sh
 
   # Test all flink versions with scala 2.12 for general validation.
   flink-scala-2-12-tests:
+    needs: plan
+    if: needs.plan.outputs.run_flink == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       max-parallel: 15
-      matrix:
-        jvm: [17, 21]
-        flink: ['1.20', '2.0', '2.1']
+      matrix: ${{ fromJson(needs.plan.outputs.flink_matrix) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -98,7 +77,18 @@ jobs:
         # Read-only: java-ci's build-checks (17) is the global canonical writer.
         cache-read-only: true
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc -DtestParallelism=auto
+    - env:
+        FLINK_VERSION: ${{ matrix.flink }}
+      run: |
+        case "${FLINK_VERSION}" in
+          1.20|2.0|2.1) ;;
+          *) echo "Unsupported Flink matrix row: ${FLINK_VERSION}"; exit 1 ;;
+        esac
+
+        ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions="${FLINK_VERSION}" \
+          ":iceberg-flink:iceberg-flink-${FLINK_VERSION}:check" \
+          ":iceberg-flink:iceberg-flink-runtime-${FLINK_VERSION}:check" \
+          -Pquick=true -x javadoc -DtestParallelism=auto
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: failure()
       with:
