@@ -595,12 +595,19 @@ class LoadCredentialsResponse(BaseModel):
     )
 
 
-class Labels(RootModel[dict[str, str]]):
+class ColumnLabels(BaseModel):
+    field_id: int = Field(
+        ..., alias='field-id', description="Field ID from the table's current schema"
+    )
+    labels: dict[str, str] = Field(..., description='Flat key-value labels for this column')
+
+
+class Labels(BaseModel):
     """
     Catalog-specific metadata enrichment returned alongside catalog objects
-    (tables, views, namespaces, columns). Labels are ephemeral API-level
-    annotations — they are NOT part of object state, do not modify underlying
-    metadata files, and do not create commits or snapshots.
+    (tables, views, namespaces). Labels are ephemeral API-level annotations
+    — they are NOT part of object state, do not modify underlying metadata
+    files, and do not create commits or snapshots.
 
     Catalogs MAY populate labels in API responses to provide operational
     context such as ownership, data classification, cost attribution, or
@@ -615,20 +622,22 @@ class Labels(RootModel[dict[str, str]]):
     own label schema. Interoperability comes from bilateral agreements and
     community conventions, not a centralized registry.
 
-    Labels are flat key-value pairs. The subject a label attaches to (table,
-    view, namespace, column) is determined by the field on the response that
-    carries it, not by internal structure on this type.
+    Labels are split into two scopes on the wire: `table` carries flat
+    key-value pairs attached to the entity as a whole (table, view, or
+    namespace); `columns` carries column-level labels keyed by field-id
+    for stability across schema evolution. `columns` is empty or omitted
+    for non-table entities.
 
     """
 
-    root: dict[str, str]
-
-
-class ColumnLabels(BaseModel):
-    field_id: int = Field(
-        ..., alias='field-id', description="Field ID from the table's current schema"
+    table: dict[str, str] | None = Field(
+        None,
+        description='Top-level entity labels (attached to the catalog object as a whole).',
     )
-    labels: Labels
+    columns: list[ColumnLabels] | None = Field(
+        None,
+        description='Column-level labels, keyed by field-id. Empty or omitted for views and namespaces.',
+    )
 
 
 class AsyncPlanningResult(BaseModel):
@@ -1618,11 +1627,6 @@ class LoadTableResult(BaseModel):
         None, alias='storage-credentials'
     )
     labels: Labels | None = None
-    column_labels: list[ColumnLabels] | None = Field(
-        None,
-        alias='column-labels',
-        description='Column-level metadata labels, keyed by field-id for stability across schema evolution',
-    )
 
 
 class ScanTasks(BaseModel):
@@ -1735,11 +1739,6 @@ class LoadViewResult(BaseModel):
     metadata: ViewMetadata
     config: dict[str, str] | None = None
     labels: Labels | None = None
-    column_labels: list[ColumnLabels] | None = Field(
-        None,
-        alias='column-labels',
-        description='Column-level metadata labels, keyed by field-id for stability across schema evolution',
-    )
 
 
 class ScanReport(BaseModel):
