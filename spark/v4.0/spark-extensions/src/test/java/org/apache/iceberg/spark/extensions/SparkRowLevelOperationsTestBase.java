@@ -82,6 +82,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase {
 
+  // Bound the concurrency tests below so they fail fast instead of running until CI or
+  // disk limits are hit when the expected conflict never occurs.
+  protected static final int MAX_OPERATIONS = 20;
+  protected static final int OPERATION_TIMEOUT_MINUTES = 5;
+
   @Parameter(index = 3)
   protected FileFormat fileFormat;
 
