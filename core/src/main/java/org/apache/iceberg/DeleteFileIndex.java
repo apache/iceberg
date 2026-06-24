@@ -561,7 +561,7 @@ class DeleteFileIndex {
       PartitionSpec spec = specsById.get(file.specId());
 
       EqualityDeletes deletes;
-      if (spec.isUnpartitioned()) {
+      if (spec.isUnpartitioned() || file.partition().equals(BaseFile.EMPTY_PARTITION_DATA)) {
         deletes = globalDeletes;
       } else {
         int specId = spec.specId();
