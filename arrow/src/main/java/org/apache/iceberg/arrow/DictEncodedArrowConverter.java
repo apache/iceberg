@@ -25,7 +25,9 @@ import org.apache.arrow.vector.BaseFixedWidthVector;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.DecimalVector;
+import org.apache.arrow.vector.ExtensionTypeVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.TimeMicroVector;
@@ -70,6 +72,10 @@ public class DictEncodedArrowConverter {
         return toVarCharVector(vectorHolder, accessor);
       } else if (Type.TypeID.BINARY.equals(vectorHolder.icebergType().typeId())) {
         return toVarBinaryVector(vectorHolder, accessor);
+      } else if (Type.TypeID.UUID.equals(vectorHolder.icebergType().typeId())) {
+        return toUuidVector(vectorHolder, accessor);
+      } else if (Type.TypeID.FIXED.equals(vectorHolder.icebergType().typeId())) {
+        return toFixedSizeBinaryVector(vectorHolder, accessor);
       } else if (Type.TypeID.TIME.equals(vectorHolder.icebergType().typeId())) {
         return toTimeMicroVector(vectorHolder, accessor);
       }
@@ -204,6 +210,33 @@ public class DictEncodedArrowConverter {
             vectorHolder.vector().getAllocator());
 
     initVector(vector, vectorHolder, idx -> vector.setSafe(idx, accessor.getBinary(idx)));
+    return vector;
+  }
+
+  private static FieldVector toUuidVector(
+      VectorHolder vectorHolder, ArrowVectorAccessor<?, String, ?, ?> accessor) {
+    // UUID maps to the canonical Arrow UUID extension type, whose storage is a
+    // FixedSizeBinaryVector(16). Decode the dictionary into the underlying storage vector; the
+    // extension vector shares its buffers, validity and value count, so the returned vector matches
+    // the UUID extension vector produced by the non-dictionary-encoded read path.
+    FieldVector vector =
+        ArrowSchemaUtil.convert(vectorHolder.icebergField())
+            .createVector(vectorHolder.vector().getAllocator());
+    FixedSizeBinaryVector storage =
+        (FixedSizeBinaryVector) ((ExtensionTypeVector<?>) vector).getUnderlyingVector();
+    initVector(storage, vectorHolder, idx -> storage.set(idx, accessor.getBinary(idx)));
+    return vector;
+  }
+
+  private static FixedSizeBinaryVector toFixedSizeBinaryVector(
+      VectorHolder vectorHolder, ArrowVectorAccessor<?, String, ?, ?> accessor) {
+    FixedSizeBinaryVector vector =
+        new FixedSizeBinaryVector(
+            vectorHolder.vector().getName(),
+            ArrowSchemaUtil.convert(vectorHolder.icebergField()).getFieldType(),
+            vectorHolder.vector().getAllocator());
+
+    initVector(vector, vectorHolder, idx -> vector.set(idx, accessor.getBinary(idx)));
     return vector;
   }
 
