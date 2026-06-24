@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -35,6 +36,18 @@ class TestTrackedFileStruct {
       Types.StructType.of(
           Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
           Types.NestedField.optional(1001, "category", Types.StringType.get()));
+  private static final ColumnFile COLUMN_FILE_1 =
+      ColumnFileStruct.builder()
+          .fieldIds(ImmutableList.of(1, 2))
+          .location("s3://bucket/data/col-1.parquet")
+          .fileSizeInBytes(256L)
+          .build();
+  private static final ColumnFile COLUMN_FILE_2 =
+      ColumnFileStruct.builder()
+          .fieldIds(ImmutableList.of(3))
+          .location("s3://bucket/data/col-2.parquet")
+          .fileSizeInBytes(128L)
+          .build();
 
   // Ordinals looked up from the TrackedFile schema so tests don't hard-code positions.
   private static final List<Types.NestedField> SCHEMA_FIELDS =
@@ -60,6 +73,7 @@ class TestTrackedFileStruct {
   private static final int KEY_METADATA_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.KEY_METADATA);
   private static final int SPLIT_OFFSETS_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.SPLIT_OFFSETS);
   private static final int EQUALITY_IDS_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.EQUALITY_IDS);
+  private static final int COLUMN_FILES_ORDINAL = SCHEMA_FIELDS.indexOf(TrackedFile.COLUMN_FILES);
 
   // Ordinal of MetadataColumns.ROW_POSITION within TrackingStruct's BASE_TYPE,
   // which appends ROW_POSITION after the Tracking schema fields.
@@ -112,6 +126,7 @@ class TestTrackedFileStruct {
     file.set(KEY_METADATA_ORDINAL, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(SPLIT_OFFSETS_ORDINAL, ImmutableList.of(100L, 200L));
     file.set(EQUALITY_IDS_ORDINAL, ImmutableList.of(1, 2, 3));
+    file.set(COLUMN_FILES_ORDINAL, ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2));
 
     assertThat(file.tracking()).isNotNull();
     assertThat(file.tracking().status()).isEqualTo(EntryStatus.ADDED);
@@ -129,6 +144,10 @@ class TestTrackedFileStruct {
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
     assertThat(file.equalityIds()).containsExactly(1, 2, 3);
+    assertThat(file.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, file.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, file.columnFiles().get(1));
+
     // should return EMPTY_PARTITION_DATA
     assertThat(file.partition()).isNotNull();
     assertThat(file.partition().size()).isEqualTo(0);
@@ -215,7 +234,64 @@ class TestTrackedFileStruct {
     assertThat(copy.equalityIds()).isNull();
     assertThat(copy.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
     assertThat(copy.tracking().manifestPos()).isEqualTo(3L);
+    assertThat(copy.tracking().latestColumnFileSnapshotId()).isEqualTo(42L);
     assertThat(copy.partition()).isEqualTo(newPartition(7, "music"));
+    assertThat(copy.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, copy.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, copy.columnFiles().get(1));
+  }
+
+  @Test
+  void testCopyWithOnlyRequiredFields() {
+    TrackedFileStruct file =
+        (TrackedFileStruct)
+            TrackedFileBuilder.data(42L)
+                .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+                .location("s3://bucket/data/file.parquet")
+                .fileFormat(FileFormat.PARQUET)
+                .partition(newPartition(7, "music"))
+                .recordCount(100L)
+                .fileSizeInBytes(1024L)
+                .build();
+
+    TrackedFile copy = file.copy();
+    assertThat(copy).isInstanceOf(TrackedFileStruct.class);
+
+    // required fields are copied
+    assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
+    assertThat(copy.writerFormatVersion()).isEqualTo(WRITER_FORMAT_VERSION_V4);
+    assertThat(copy.location()).isEqualTo("s3://bucket/data/file.parquet");
+    assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
+    assertThat(copy.recordCount()).isEqualTo(100L);
+    assertThat(copy.fileSizeInBytes()).isEqualTo(1024L);
+    assertThat(copy.tracking()).isNotNull();
+    assertThat(copy.tracking().status()).isEqualTo(EntryStatus.ADDED);
+    assertThat(copy.tracking().snapshotId()).isEqualTo(42L);
+    assertThat(copy.tracking().latestColumnFileSnapshotId()).isNull();
+    assertThat(copy.partition()).isEqualTo(newPartition(7, "music"));
+
+    // optional fields are null
+    assertThat(copy.specId()).isNull();
+    assertThat(copy.sortOrderId()).isNull();
+    assertThat(copy.deletionVector()).isNull();
+    assertThat(copy.manifestInfo()).isNull();
+    assertThat(copy.contentStats()).isNull();
+    assertThat(copy.keyMetadata()).isNull();
+    assertThat(copy.splitOffsets()).isNull();
+    assertThat(copy.equalityIds()).isNull();
+    assertThat(copy.columnFiles()).isNull();
+  }
+
+  @Test
+  void testCopyWithNullColumnFile() {
+    TrackedFileStruct file = createFullTrackedFile();
+    file.set(COLUMN_FILES_ORDINAL, Arrays.asList(COLUMN_FILE_1, null, COLUMN_FILE_2));
+
+    TrackedFile copy = file.copy();
+
+    assertThat(copy.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, copy.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, copy.columnFiles().get(1));
   }
 
   @Test
@@ -249,14 +325,18 @@ class TestTrackedFileStruct {
 
     TrackedFile copy = file.copy();
 
-    // keyMetadata should be a deep copy
     assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
+    assertThat(copy.columnFiles()).isNotSameAs(file.columnFiles());
+    assertThat(copy.columnFiles()).hasSize(file.columnFiles().size());
+    for (int i = 0; i < file.columnFiles().size(); ++i) {
+      assertThat(copy.columnFiles().get(i)).isNotSameAs(file.columnFiles().get(i));
+    }
   }
 
   @Test
   void testStructLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
-    assertThat(file.size()).isEqualTo(16);
+    assertThat(file.size()).isEqualTo(17);
   }
 
   @Test
@@ -274,6 +354,13 @@ class TestTrackedFileStruct {
 
     file.set(SORT_ORDER_ID_ORDINAL, 3);
     assertThat(file.get(SORT_ORDER_ID_ORDINAL, Integer.class)).isEqualTo(3);
+
+    file.set(COLUMN_FILES_ORDINAL, ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2));
+    @SuppressWarnings("unchecked")
+    List<ColumnFile> roundTrippedColumnFiles = file.get(COLUMN_FILES_ORDINAL, List.class);
+    assertThat(roundTrippedColumnFiles).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, roundTrippedColumnFiles.get(0));
+    verifyColumnFile(COLUMN_FILE_2, roundTrippedColumnFiles.get(1));
   }
 
   @Test
@@ -317,6 +404,12 @@ class TestTrackedFileStruct {
   }
 
   @Test
+  void testColumnFilesNullWhenNotSet() {
+    TrackedFileStruct file = new TrackedFileStruct();
+    assertThat(file.columnFiles()).isNull();
+  }
+
+  @Test
   void testAllFileContentTypesSupported() {
     for (FileContent content : FileContent.values()) {
       TrackedFileStruct file = new TrackedFileStruct();
@@ -346,7 +439,11 @@ class TestTrackedFileStruct {
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
     assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.tracking().latestColumnFileSnapshotId()).isEqualTo(42L);
     assertThat(deserialized.partition()).isEqualTo(newPartition(7, "music"));
+    assertThat(deserialized.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, deserialized.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, deserialized.columnFiles().get(1));
   }
 
   @Test
@@ -370,7 +467,11 @@ class TestTrackedFileStruct {
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
     assertThat(deserialized.tracking().manifestPos()).isEqualTo(3L);
     assertThat(deserialized.tracking().manifestLocation()).isEqualTo("s3://bucket/manifest.avro");
+    assertThat(deserialized.tracking().latestColumnFileSnapshotId()).isEqualTo(42L);
     assertThat(deserialized.partition()).isEqualTo(newPartition(7, "music"));
+    assertThat(deserialized.columnFiles()).hasSize(2);
+    verifyColumnFile(COLUMN_FILE_1, deserialized.columnFiles().get(0));
+    verifyColumnFile(COLUMN_FILE_2, deserialized.columnFiles().get(1));
   }
 
   static TrackedFileStruct createFullTrackedFile() {
@@ -396,6 +497,7 @@ class TestTrackedFileStruct {
                 .deletionVector(dv)
                 .keyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
                 .splitOffsets(ImmutableList.of(50L))
+                .columnFiles(ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2))
                 .build();
 
     TrackingStruct tracking = (TrackingStruct) file.tracking();
@@ -470,6 +572,13 @@ class TestTrackedFileStruct {
             .fileSizeInBytes(1024L)
             .specId(0)
             .contentStats(stats)
+            .columnFiles(ImmutableList.of(COLUMN_FILE_1, COLUMN_FILE_2))
             .build();
+  }
+
+  private static void verifyColumnFile(ColumnFile expected, ColumnFile actual) {
+    assertThat(actual.fieldIds()).containsExactlyElementsOf(expected.fieldIds());
+    assertThat(actual.location()).isEqualTo(expected.location());
+    assertThat(actual.fileSizeInBytes()).isEqualTo(expected.fileSizeInBytes());
   }
 }
