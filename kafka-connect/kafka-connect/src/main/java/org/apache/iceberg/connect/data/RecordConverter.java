@@ -100,11 +100,19 @@ class RecordConverter {
   private final NameMapping nameMapping;
   private final IcebergSinkConfig config;
   private final Map<Integer, Map<String, NestedField>> structNameMap = Maps.newHashMap();
+  // Parquet stores UUIDs as a 16-byte fixed; other formats keep the UUID logical type. The write
+  // file format is fixed for the converter's lifetime, so resolve this once instead of per value.
+  private final boolean writeUuidAsBytes;
 
   RecordConverter(Table table, IcebergSinkConfig config) {
     this.tableSchema = table.schema();
     this.nameMapping = createNameMapping(table);
     this.config = config;
+    this.writeUuidAsBytes =
+        FileFormat.PARQUET
+            .name()
+            .toLowerCase(Locale.ROOT)
+            .equals(config.writeProps().get(TableProperties.DEFAULT_FILE_FORMAT));
   }
 
   Record convert(Object data) {
@@ -515,10 +523,7 @@ class RecordConverter {
       throw new IllegalArgumentException("Cannot convert to UUID: " + value.getClass().getName());
     }
 
-    if (FileFormat.PARQUET
-        .name()
-        .toLowerCase(Locale.ROOT)
-        .equals(config.writeProps().get(TableProperties.DEFAULT_FILE_FORMAT))) {
+    if (writeUuidAsBytes) {
       return UUIDUtil.convert(uuid);
     } else {
       return uuid;
