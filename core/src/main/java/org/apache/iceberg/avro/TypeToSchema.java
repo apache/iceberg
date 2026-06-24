@@ -213,58 +213,36 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   public Schema primitive(Type.PrimitiveType primitive) {
     Schema primitiveSchema;
     switch (primitive.typeId()) {
-      case UNKNOWN:
-        primitiveSchema = NULL_SCHEMA;
-        break;
-      case BOOLEAN:
-        primitiveSchema = BOOLEAN_SCHEMA;
-        break;
-      case INTEGER:
-        primitiveSchema = INTEGER_SCHEMA;
-        break;
-      case LONG:
-        primitiveSchema = LONG_SCHEMA;
-        break;
-      case FLOAT:
-        primitiveSchema = FLOAT_SCHEMA;
-        break;
-      case DOUBLE:
-        primitiveSchema = DOUBLE_SCHEMA;
-        break;
-      case DATE:
-        primitiveSchema = DATE_SCHEMA;
-        break;
-      case TIME:
-        primitiveSchema = TIME_SCHEMA;
-        break;
-      case TIMESTAMP:
+      case UNKNOWN -> primitiveSchema = NULL_SCHEMA;
+      case BOOLEAN -> primitiveSchema = BOOLEAN_SCHEMA;
+      case INTEGER -> primitiveSchema = INTEGER_SCHEMA;
+      case LONG -> primitiveSchema = LONG_SCHEMA;
+      case FLOAT -> primitiveSchema = FLOAT_SCHEMA;
+      case DOUBLE -> primitiveSchema = DOUBLE_SCHEMA;
+      case DATE -> primitiveSchema = DATE_SCHEMA;
+      case TIME -> primitiveSchema = TIME_SCHEMA;
+      case TIMESTAMP -> {
         if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
           primitiveSchema = TIMESTAMPTZ_SCHEMA;
         } else {
           primitiveSchema = TIMESTAMP_SCHEMA;
         }
-        break;
-      case TIMESTAMP_NANO:
+      }
+      case TIMESTAMP_NANO -> {
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
           primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
         } else {
           primitiveSchema = TIMESTAMP_NANO_SCHEMA;
         }
-        break;
-      case STRING:
-        primitiveSchema = STRING_SCHEMA;
-        break;
-      case UUID:
-        primitiveSchema = UUID_SCHEMA;
-        break;
-      case FIXED:
+      }
+      case STRING -> primitiveSchema = STRING_SCHEMA;
+      case UUID -> primitiveSchema = UUID_SCHEMA;
+      case FIXED -> {
         Types.FixedType fixed = (Types.FixedType) primitive;
         primitiveSchema = Schema.createFixed("fixed_" + fixed.length(), null, null, fixed.length());
-        break;
-      case BINARY:
-        primitiveSchema = BINARY_SCHEMA;
-        break;
-      case DECIMAL:
+      }
+      case BINARY -> primitiveSchema = BINARY_SCHEMA;
+      case DECIMAL -> {
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         primitiveSchema =
             LogicalTypes.decimal(decimal.precision(), decimal.scale())
@@ -274,9 +252,9 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
                         null,
                         null,
                         TypeUtil.decimalRequiredBytes(decimal.precision())));
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported type ID: " + primitive.typeId());
+      }
+      default ->
+          throw new UnsupportedOperationException("Unsupported type ID: " + primitive.typeId());
     }
 
     cacheSchema(primitive, primitiveSchema);

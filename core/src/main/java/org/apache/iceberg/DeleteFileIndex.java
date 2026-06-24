@@ -501,18 +501,16 @@ class DeleteFileIndex {
 
       for (DeleteFile file : files) {
         switch (file.content()) {
-          case POSITION_DELETES:
+          case POSITION_DELETES -> {
             if (ContentFileUtil.isDV(file)) {
               add(dvByPath, file);
             } else {
               add(posDeletesByPath, posDeletesByPartition, file);
             }
-            break;
-          case EQUALITY_DELETES:
-            add(globalDeletes, eqDeletesByPartition, file, fieldLookup);
-            break;
-          default:
-            throw new UnsupportedOperationException("Unsupported content: " + file.content());
+          }
+          case EQUALITY_DELETES -> add(globalDeletes, eqDeletesByPartition, file, fieldLookup);
+          default ->
+              throw new UnsupportedOperationException("Unsupported content: " + file.content());
         }
         ScanMetricsUtil.indexedDeleteFile(scanMetrics, file);
       }

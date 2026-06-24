@@ -291,11 +291,11 @@ public class SnapshotSummary {
     void addedFile(ContentFile<?> file) {
       this.addedSize += ScanTaskUtil.contentSizeInBytes(file);
       switch (file.content()) {
-        case DATA:
+        case DATA -> {
           this.addedFiles += 1;
           this.addedRecords += file.recordCount();
-          break;
-        case POSITION_DELETES:
+        }
+        case POSITION_DELETES -> {
           DeleteFile deleteFile = (DeleteFile) file;
           if (ContentFileUtil.isDV(deleteFile)) {
             this.addedDVs += 1;
@@ -304,26 +304,26 @@ public class SnapshotSummary {
           }
           this.addedDeleteFiles += 1;
           this.addedPosDeletes += file.recordCount();
-          break;
-        case EQUALITY_DELETES:
+        }
+        case EQUALITY_DELETES -> {
           this.addedDeleteFiles += 1;
           this.addedEqDeleteFiles += 1;
           this.addedEqDeletes += file.recordCount();
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported file content type: " + file.content());
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported file content type: " + file.content());
       }
     }
 
     void removedFile(ContentFile<?> file) {
       this.removedSize += ScanTaskUtil.contentSizeInBytes(file);
       switch (file.content()) {
-        case DATA:
+        case DATA -> {
           this.removedFiles += 1;
           this.deletedRecords += file.recordCount();
-          break;
-        case POSITION_DELETES:
+        }
+        case POSITION_DELETES -> {
           DeleteFile deleteFile = (DeleteFile) file;
           if (ContentFileUtil.isDV(deleteFile)) {
             this.removedDVs += 1;
@@ -332,31 +332,31 @@ public class SnapshotSummary {
           }
           this.removedDeleteFiles += 1;
           this.removedPosDeletes += file.recordCount();
-          break;
-        case EQUALITY_DELETES:
+        }
+        case EQUALITY_DELETES -> {
           this.removedDeleteFiles += 1;
           this.removedEqDeleteFiles += 1;
           this.removedEqDeletes += file.recordCount();
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported file content type: " + file.content());
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported file content type: " + file.content());
       }
     }
 
     void addedManifest(ManifestFile manifest) {
       switch (manifest.content()) {
-        case DATA:
+        case DATA -> {
           this.addedFiles += manifest.addedFilesCount();
           this.addedRecords += manifest.addedRowsCount();
           this.removedFiles += manifest.deletedFilesCount();
           this.deletedRecords += manifest.deletedRowsCount();
-          break;
-        case DELETES:
+        }
+        case DELETES -> {
           this.addedDeleteFiles += manifest.addedFilesCount();
           this.removedDeleteFiles += manifest.deletedFilesCount();
           this.trustSizeAndDeleteCounts = false;
-          break;
+        }
       }
     }
 

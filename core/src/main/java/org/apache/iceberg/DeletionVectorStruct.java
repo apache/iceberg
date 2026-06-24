@@ -90,38 +90,27 @@ class DeletionVectorStruct extends SupportsIndexProjection implements DeletionVe
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case 0:
-        return location;
-      case 1:
-        return offset;
-      case 2:
-        return sizeInBytes;
-      case 3:
-        return cardinality;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> location;
+      case 1 -> offset;
+      case 2 -> sizeInBytes;
+      case 3 -> cardinality;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
-        // always coerce to String for Serializable
-        this.location = value.toString();
-        break;
-      case 1:
-        this.offset = (Long) value;
-        break;
-      case 2:
-        this.sizeInBytes = (Long) value;
-        break;
-      case 3:
-        this.cardinality = (Long) value;
-        break;
-      default:
+      case 0 ->
+          // always coerce to String for Serializable
+          this.location = value.toString();
+      case 1 -> this.offset = (Long) value;
+      case 2 -> this.sizeInBytes = (Long) value;
+      case 3 -> this.cardinality = (Long) value;
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 
