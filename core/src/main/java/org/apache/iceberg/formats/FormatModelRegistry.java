@@ -207,11 +207,11 @@ public final class FormatModelRegistry {
         DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
       } catch (NoSuchMethodException | NoClassDefFoundError | ExceptionInInitializerError e) {
         // failing to register a factory is normal and does not require a stack trace
-        String message = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
         LOG.info(
             "Unable to call register for ({}). Check for missing jars on the classpath: {}",
             classToRegister,
-            message);
+            cause.toString());
       }
     }
   }
