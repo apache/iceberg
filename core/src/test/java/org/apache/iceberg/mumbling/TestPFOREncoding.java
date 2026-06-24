@@ -101,6 +101,28 @@ public class TestPFOREncoding {
     assertThat(decodedFromSpec).isEqualTo(values);
   }
 
+  // count is the number of values to encode starting at valueOffset, not an end offset
+  @Test
+  public void testEncodeWithValueOffset() {
+    int[] values = new int[400];
+    for (int i = 0; i < values.length; i += 1) {
+      values[i] = i % 251;
+    }
+
+    int valueOffset = 5;
+    // span a chunk boundary so a count misread as an end offset would drop values
+    int count = 260;
+
+    ByteBuffer out = ByteBuffer.allocate(PFOREncoding.estimateEncodedSize(count));
+    int bytesWritten = PFOREncoding.encode(values, valueOffset, out, 0, count);
+
+    int[] decoded = new int[count];
+    int bytesRead = PFOREncoding.decode(out, 0, decoded, 0, count);
+
+    assertThat(bytesRead).isEqualTo(bytesWritten);
+    assertThat(decoded).isEqualTo(Arrays.copyOfRange(values, valueOffset, valueOffset + count));
+  }
+
   private static byte[] bytes(int... values) {
     byte[] result = new byte[values.length];
     for (int i = 0; i < values.length; i++) {
