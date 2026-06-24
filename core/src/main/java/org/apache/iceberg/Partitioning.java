@@ -238,9 +238,18 @@ public class Partitioning {
    * @return the constructed unified partition type
    */
   public static StructType partitionType(Table table) {
-    Collection<PartitionSpec> specs = table.specs().values();
-    return buildPartitionProjectionType(
-        "table partition", specs, allActiveFieldIds(table.schema(), specs));
+    return partitionType(table.schema(), table.specs().values());
+  }
+
+  /**
+   * Builds a unified partition type from a schema and its specs, unioning every partition field
+   * whose source column is present in the schema.
+   *
+   * @param schema the schema used to determine which partition fields are active
+   * @param specs the partition specs to unify
+   */
+  static StructType partitionType(Schema schema, Collection<PartitionSpec> specs) {
+    return buildPartitionProjectionType("table partition", specs, allActiveFieldIds(schema, specs));
   }
 
   /**
