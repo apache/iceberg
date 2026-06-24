@@ -565,6 +565,22 @@ acceptedBreaks:
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME"
       justification: "Removed deprecated functionality for partition stats"
     - code: "java.method.removed"
+      old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DataFile>\
+        \ org.apache.iceberg.RewriteTablePathUtil::rewriteDataManifest(org.apache.iceberg.ManifestFile,\
+        \ java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO,\
+        \ int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String,\
+        \ java.lang.String) throws java.io.IOException"
+      justification: "Filtering by snapshot ids no longer needed; copy plan derived from\
+        \ live entries in RewriteTablePath"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile>\
+        \ org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile,\
+        \ java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO,\
+        \ int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String,\
+        \ java.lang.String, java.lang.String) throws java.io.IOException"
+      justification: "Filtering by snapshot ids no longer needed; copy plan derived from\
+        \ live entries in RewriteTablePath"
+    - code: "java.method.removed"
       old: "method org.apache.iceberg.Schema org.apache.iceberg.PartitionStatsHandler::schema(org.apache.iceberg.types.Types.StructType,\
         \ int)"
       justification: "Removed deprecated functionality for partition stats"

@@ -317,6 +317,104 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testIncrementalRewriteWithRewriteManifestsAndExpire() throws Exception {
+    String location = newTableLocation();
+    Table sourceTable =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), location);
+
+    // Write 2 initial snapshots
+    List<ThreeColumnRecord> recordsA =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> dfA = spark.createDataFrame(recordsA, ThreeColumnRecord.class).coalesce(1);
+    dfA.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+
+    List<ThreeColumnRecord> recordsB =
+        Lists.newArrayList(new ThreeColumnRecord(2, "BBBBBBBBBB", "BBBB"));
+    Dataset<Row> dfB = spark.createDataFrame(recordsB, ThreeColumnRecord.class).coalesce(1);
+    dfB.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+    sourceTable.refresh();
+
+    // Full replication
+    RewriteTablePath.Result initialResult =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .stagingLocation(stagingLocation())
+            .execute();
+    copyTableFiles(initialResult);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(2);
+
+    // Append new data
+    List<ThreeColumnRecord> recordsC =
+        Lists.newArrayList(new ThreeColumnRecord(3, "CCCCCCCCCC", "CCCC"));
+    Dataset<Row> dfC = spark.createDataFrame(recordsC, ThreeColumnRecord.class).coalesce(1);
+    dfC.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+    sourceTable.refresh();
+
+    // RewriteManifests merges all manifests
+    actions().rewriteManifests(sourceTable).execute();
+    sourceTable.refresh();
+
+    // Expire old snapshots including the one that added file C
+    actions()
+        .expireSnapshots(sourceTable)
+        .retainLast(1)
+        .expireOlderThan(sourceTable.currentSnapshot().timestampMillis() + 1)
+        .execute();
+    sourceTable.refresh();
+
+    // Incremental replication should still copy file C
+    Table targetTable = TABLES.load(targetTableLocation());
+    String startVersion = fileName(currentMetadata(targetTable).metadataFileLocation());
+    RewriteTablePath.Result incrementalResult =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .stagingLocation(stagingLocation())
+            .startVersion(startVersion)
+            .execute();
+    copyTableFiles(incrementalResult);
+
+    List<Object[]> actual = rowsSorted(targetTableLocation(), "c1");
+    List<Object[]> expected = rowsSorted(location, "c1");
+    assertEquals(
+        "Rows should match after incremental copy with expired snapshots", expected, actual);
+  }
+
+  @TestTemplate
+  public void testFullCopyWithRewriteManifestsAndExpire() throws Exception {
+    String location = newTableLocation();
+    Table sourceTable = createTableWithSnapshots(location, 2);
+
+    // RewriteManifests
+    actions().rewriteManifests(sourceTable).execute();
+    sourceTable.refresh();
+
+    // Expire all but the latest snapshot
+    actions()
+        .expireSnapshots(sourceTable)
+        .retainLast(1)
+        .expireOlderThan(sourceTable.currentSnapshot().timestampMillis() + 1)
+        .execute();
+    sourceTable.refresh();
+
+    // Full copy should include all live data files despite expired snapshot IDs
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .stagingLocation(stagingLocation())
+            .execute();
+    copyTableFiles(result);
+
+    List<Object[]> actual = rowsSorted(targetTableLocation(), "c1");
+    List<Object[]> expected = rowsSorted(location, "c1");
+    assertEquals(
+        "All rows should be present after full copy with expired snapshots", expected, actual);
+  }
+
+  @TestTemplate
   public void testTableWith3Snapshots(@TempDir Path location1, @TempDir Path location2)
       throws Exception {
     String location = newTableLocation();
@@ -733,8 +831,9 @@ public class TestRewriteTablePathsAction extends TestBase {
     // the first snapshot
     // from the version file history
     int missingVersionFile = 1;
-    // since first snapshot cannot be found, first data files will also be skipped
-    int missingDataFile = 1;
+    // the first snapshot was expired, but its data file is still live and
+    // included in the copy plan
+    int missingDataFile = 0;
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(sourceTable)

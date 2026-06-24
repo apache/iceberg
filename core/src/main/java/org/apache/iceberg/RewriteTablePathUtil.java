@@ -331,7 +331,6 @@ public class RewriteTablePathUtil {
    * Rewrite a data manifest, replacing path references.
    *
    * @param manifestFile source manifest file to rewrite
-   * @param snapshotIds snapshot ids for filtering returned data manifest entries
    * @param outputFile output file to rewrite manifest file to
    * @param io file io
    * @param format format of the manifest file
@@ -342,7 +341,6 @@ public class RewriteTablePathUtil {
    */
   public static RewriteResult<DataFile> rewriteDataManifest(
       ManifestFile manifestFile,
-      Set<Long> snapshotIds,
       OutputFile outputFile,
       FileIO io,
       int format,
@@ -356,9 +354,7 @@ public class RewriteTablePathUtil {
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
       return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(
-              entry ->
-                  writeDataFileEntry(entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
+          .map(entry -> writeDataFileEntry(entry, spec, sourcePrefix, targetPrefix, writer))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
@@ -367,7 +363,6 @@ public class RewriteTablePathUtil {
    * Rewrite a delete manifest, replacing path references.
    *
    * @param manifestFile source delete manifest to rewrite
-   * @param snapshotIds snapshot ids for filtering returned delete manifest entries
    * @param outputFile output file to rewrite manifest file to
    * @param io file io
    * @param format format of the manifest file
@@ -380,7 +375,6 @@ public class RewriteTablePathUtil {
    */
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
       ManifestFile manifestFile,
-      Set<Long> snapshotIds,
       OutputFile outputFile,
       FileIO io,
       int format,
@@ -399,20 +393,13 @@ public class RewriteTablePathUtil {
           .map(
               entry ->
                   writeDeleteFileEntry(
-                      entry,
-                      snapshotIds,
-                      spec,
-                      sourcePrefix,
-                      targetPrefix,
-                      stagingLocation,
-                      writer))
+                      entry, spec, sourcePrefix, targetPrefix, stagingLocation, writer))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
 
   private static RewriteResult<DataFile> writeDataFileEntry(
       ManifestEntry<DataFile> entry,
-      Set<Long> snapshotIds,
       PartitionSpec spec,
       String sourcePrefix,
       String targetPrefix,
@@ -429,10 +416,7 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
-    // keep the following entries in metadata but exclude them from copyPlan
-    // 1) deleted data files
-    // 2) entries not changed by snapshotIds
-    if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
+    if (entry.isLive()) {
       result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
     }
     return result;
@@ -440,7 +424,6 @@ public class RewriteTablePathUtil {
 
   private static RewriteResult<DeleteFile> writeDeleteFileEntry(
       ManifestEntry<DeleteFile> entry,
-      Set<Long> snapshotIds,
       PartitionSpec spec,
       String sourcePrefix,
       String targetPrefix,
@@ -454,10 +437,7 @@ public class RewriteTablePathUtil {
       case POSITION_DELETES -> {
         DeleteFile posDeleteFile = newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, posDeleteFile);
-        // keep the following entries in metadata but exclude them from copyPlan
-        // 1) deleted position delete files
-        // 2) entries not changed by snapshotIds
-        if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
+        if (entry.isLive()) {
           result
               .copyPlan()
               .add(
@@ -471,11 +451,7 @@ public class RewriteTablePathUtil {
       case EQUALITY_DELETES -> {
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
-        // keep the following entries in metadata but exclude them from copyPlan
-        // 1) deleted equality delete files
-        // 2) entries not changed by snapshotIds
-        if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
-          // No need to rewrite equality delete files as they do not contain absolute file paths.
+        if (entry.isLive()) {
           result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
         }
         return result;
