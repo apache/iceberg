@@ -26,10 +26,12 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
@@ -41,6 +43,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -162,16 +165,49 @@ public class TestRewriteTablePathsAction extends TestBase {
                 .build(),
             location);
 
-    List<ThreeColumnRecord> records =
-        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    if ("append".equals(mode)) {
+      // Append snapshots natively: each snapshot is a single one-row data file, avoiding a Spark
+      // write job per snapshot. This fixture is built for every test (and some tests create up to
+      // 50 snapshots), so the per-job Spark overhead dominates the suite. Commit through a
+      // separate table instance so the returned handle stays unrefreshed, matching the old Spark
+      // path where writes happened outside this object.
+      GenericRecord record = GenericRecord.create(SCHEMA);
+      record.setField("c1", 1);
+      record.setField("c2", "AAAAAAAAAA");
+      record.setField("c3", "AAAA");
+      List<Record> records = Lists.newArrayList(record);
+      Table writeTable = TABLES.load(location);
+      for (int i = 0; i < snapshotNumber; i++) {
+        writeTable.newAppend().appendFile(writeDataFileNative(writeTable, records)).commit();
+      }
+    } else {
+      List<ThreeColumnRecord> records =
+          Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
 
-    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+      Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    for (int i = 0; i < snapshotNumber; i++) {
-      df.select("c1", "c2", "c3").write().format("iceberg").mode(mode).save(location);
+      for (int i = 0; i < snapshotNumber; i++) {
+        df.select("c1", "c2", "c3").write().format("iceberg").mode(mode).save(location);
+      }
     }
 
     return newTable;
+  }
+
+  private DataFile writeDataFileNative(Table table, List<Record> records) {
+    OutputFile outputFile =
+        table
+            .io()
+            .newOutputFile(
+                table
+                    .locationProvider()
+                    .newDataLocation(
+                        FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
+    try {
+      return FileHelpers.writeDataFile(table, outputFile, records);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private void createNameSpaces() {
