@@ -1295,6 +1295,90 @@ class TestIcebergCommitter extends TestBase {
     return testHarness;
   }
 
+  @TestTemplate
+  public void testObserverMetadataInSnapshot() throws Exception {
+    IcebergCommitter committer = getCommitter();
+    assertSnapshotSize(0);
+
+    RowData rowData = SimpleDataUtil.createRowData(1, "hello");
+    DataFile dataFile = writeDataFile("data-observer-1", ImmutableList.of(rowData));
+    WriteResult writeResult = of(dataFile);
+    Map<String, String> observerMetadata = ImmutableMap.of("observer.key", "observer.value");
+
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestWithMetadata(jobId, 1, Lists.newArrayList(writeResult), observerMetadata);
+    committer.commit(Lists.newArrayList(commitRequest));
+
+    assertSnapshotSize(1);
+    Map<String, String> summary = SimpleDataUtil.latestSnapshot(table, branch).summary();
+    assertThat(summary)
+        .containsEntry("observer.key", "observer.value")
+        .containsEntry("flink.test", "org.apache.iceberg.flink.sink.TestIcebergCommitter");
+  }
+
+  @TestTemplate
+  public void testObserverMetadataOverriddenBySnapshotProperties() throws Exception {
+    IcebergCommitter committer = getCommitter();
+    assertSnapshotSize(0);
+
+    RowData rowData = SimpleDataUtil.createRowData(1, "hello");
+    DataFile dataFile = writeDataFile("data-observer-2", ImmutableList.of(rowData));
+    WriteResult writeResult = of(dataFile);
+
+    Map<String, String> observerMetadata =
+        ImmutableMap.of("flink.test", "observer-should-lose", "observer.key", "observer.value");
+
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestWithMetadata(jobId, 1, Lists.newArrayList(writeResult), observerMetadata);
+    committer.commit(Lists.newArrayList(commitRequest));
+
+    assertSnapshotSize(1);
+    Map<String, String> summary = SimpleDataUtil.latestSnapshot(table, branch).summary();
+    assertThat(summary)
+        .containsEntry("flink.test", "org.apache.iceberg.flink.sink.TestIcebergCommitter")
+        .containsEntry("observer.key", "observer.value");
+  }
+
+  @TestTemplate
+  public void testObserverMetadataMergeAcrossSubtasks() throws Exception {
+    WriteObserver minMergeObserver =
+        new WriteObserver() {
+          @Override
+          public void observe(
+              RowData element, org.apache.flink.api.connector.sink2.SinkWriter.Context context) {}
+
+          @Override
+          public String mergeValue(String key, String existing, String incoming) {
+            return String.valueOf(Math.min(Long.parseLong(existing), Long.parseLong(incoming)));
+          }
+        };
+
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<WriteResult>, CommittableMessage<IcebergCommittable>>
+        testHarness =
+            new OneInputStreamOperatorTestHarness<>(
+                new IcebergWriteAggregator(tableLoader, minMergeObserver))) {
+
+      testHarness.open();
+
+      WriteObserverMetadataHolder.set(ImmutableMap.of("watermark", "1000"));
+      WriteResult result1 = WriteResult.builder().addDataFiles(dataFileTest1).build();
+      testHarness.processElement(new StreamRecord<>(new CommittableWithLineage<>(result1, 1, 0)));
+
+      WriteObserverMetadataHolder.set(ImmutableMap.of("watermark", "500"));
+      WriteResult result2 = WriteResult.builder().addDataFiles(dataFileTest2).build();
+      testHarness.processElement(new StreamRecord<>(new CommittableWithLineage<>(result2, 1, 1)));
+
+      testHarness.prepareSnapshotPreBarrier(1);
+
+      List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
+      assertThat(output).hasSize(2);
+      CommittableWithLineage<IcebergCommittable> committable =
+          extractAndAssertCommittableWithLineage(output.get(1));
+      assertThat(committable.getCommittable().observerMetadata()).containsEntry("watermark", "500");
+    }
+  }
+
   // ------------------------------- Utility Methods --------------------------------
 
   private IcebergCommitter getCommitter() {
@@ -1312,13 +1396,23 @@ class TestIcebergCommitter extends TestBase {
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(
       String myJobID, long checkpoint, Collection<WriteResult> writeResults) throws IOException {
+    return buildCommitRequestWithMetadata(myJobID, checkpoint, writeResults, null);
+  }
+
+  private Committer.CommitRequest<IcebergCommittable> buildCommitRequestWithMetadata(
+      String myJobID,
+      long checkpoint,
+      Collection<WriteResult> writeResults,
+      Map<String, String> observerMetadata)
+      throws IOException {
     IcebergCommittable commit =
         new IcebergCommittable(
             buildIcebergWriteAggregator(myJobID, OPERATOR_ID)
                 .writeToManifest(writeResults, checkpoint),
             myJobID,
             OPERATOR_ID,
-            checkpoint);
+            checkpoint,
+            observerMetadata);
 
     CommittableWithLineage committableWithLineage =
         new CommittableWithLineage(commit, checkpoint, 1);

@@ -28,7 +28,7 @@ import org.apache.iceberg.io.WriteResult;
 
 class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicWriteResult> {
 
-  private static final int VERSION = 1;
+  private static final int VERSION = 2;
   private static final WriteResultSerializer WRITE_RESULT_SERIALIZER = new WriteResultSerializer();
 
   @Override
@@ -42,7 +42,10 @@ class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicW
     DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
     writeResult.key().serializeTo(view);
     view.writeInt(writeResult.specId());
+    int innerVersion = WRITE_RESULT_SERIALIZER.getVersion();
     byte[] result = WRITE_RESULT_SERIALIZER.serialize(writeResult.writeResult());
+    view.writeInt(innerVersion);
+    view.writeInt(result.length);
     view.write(result);
     return out.toByteArray();
   }
@@ -50,15 +53,32 @@ class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicW
   @Override
   public DynamicWriteResult deserialize(int version, byte[] serialized) throws IOException {
     if (version == 1) {
-      DataInputDeserializer view = new DataInputDeserializer(serialized);
-      TableKey key = TableKey.deserializeFrom(view);
-      int specId = view.readInt();
-      byte[] resultBuf = new byte[view.available()];
-      view.read(resultBuf);
-      WriteResult writeResult = WRITE_RESULT_SERIALIZER.deserialize(version, resultBuf);
-      return new DynamicWriteResult(key, specId, writeResult);
+      return deserializeV1(serialized);
+    } else if (version == 2) {
+      return deserializeV2(serialized);
     }
-
     throw new IOException("Unrecognized version or corrupt state: " + version);
+  }
+
+  private DynamicWriteResult deserializeV1(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    TableKey key = TableKey.deserializeFrom(view);
+    int specId = view.readInt();
+    byte[] resultBuf = new byte[view.available()];
+    view.read(resultBuf);
+    WriteResult writeResult = WRITE_RESULT_SERIALIZER.deserialize(1, resultBuf);
+    return new DynamicWriteResult(key, specId, writeResult);
+  }
+
+  private DynamicWriteResult deserializeV2(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    TableKey key = TableKey.deserializeFrom(view);
+    int specId = view.readInt();
+    int innerVersion = view.readInt();
+    int resultLen = view.readInt();
+    byte[] resultBuf = new byte[resultLen];
+    view.read(resultBuf);
+    WriteResult writeResult = WRITE_RESULT_SERIALIZER.deserialize(innerVersion, resultBuf);
+    return new DynamicWriteResult(key, specId, writeResult);
   }
 }

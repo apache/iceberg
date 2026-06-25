@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.common.SupportsConcurrentExecutionAttempts;
@@ -174,6 +175,8 @@ public class IcebergSink
   private final transient List<MaintenanceTaskBuilder<?>> maintenanceTasks;
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
+  @Nullable private final WriteObserver writeObserver;
+
   private IcebergSink(
       TableLoader tableLoader,
       Table table,
@@ -188,7 +191,8 @@ public class IcebergSink
       boolean overwriteMode,
       List<MaintenanceTaskBuilder<?>> maintenanceTasks,
       FlinkMaintenanceConfig flinkMaintenanceConfig,
-      Set<String> equalityFieldColumns) {
+      Set<String> equalityFieldColumns,
+      @Nullable WriteObserver writeObserver) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -212,6 +216,7 @@ public class IcebergSink
     this.maintenanceTasks = maintenanceTasks;
     this.flinkMaintenanceConfig = flinkMaintenanceConfig;
     this.equalityFieldColumns = equalityFieldColumns;
+    this.writeObserver = writeObserver;
   }
 
   @Override
@@ -232,7 +237,8 @@ public class IcebergSink
         taskWriterFactory,
         metrics,
         context.getTaskInfo().getIndexOfThisSubtask(),
-        context.getTaskInfo().getAttemptNumber());
+        context.getTaskInfo().getAttemptNumber(),
+        writeObserver);
   }
 
   @Override
@@ -323,7 +329,10 @@ public class IcebergSink
     // parallelism to 1, this can be removed.
     return writeResults
         .global()
-        .transform(preCommitAggregatorUid, typeInformation, new IcebergWriteAggregator(tableLoader))
+        .transform(
+            preCommitAggregatorUid,
+            typeInformation,
+            new IcebergWriteAggregator(tableLoader, writeObserver))
         .uid(preCommitAggregatorUid)
         .setParallelism(1)
         .setMaxParallelism(1)
@@ -354,6 +363,7 @@ public class IcebergSink
     private ReadableConfig readableConfig = new Configuration();
     private List<String> equalityFieldColumns = null;
     private final List<MaintenanceTaskBuilder<?>> maintenanceTasks = Lists.newArrayList();
+    @Nullable private WriteObserver writeObserver;
 
     private Builder() {}
 
@@ -721,6 +731,11 @@ public class IcebergSink
       return this;
     }
 
+    public Builder writeObserver(WriteObserver observer) {
+      this.writeObserver = observer;
+      return this;
+    }
+
     IcebergSink build() {
 
       Preconditions.checkArgument(
@@ -811,7 +826,8 @@ public class IcebergSink
           overwriteMode,
           maintenanceTasks,
           flinkMaintenanceConfig,
-          equalityFieldColumnsSet);
+          equalityFieldColumnsSet,
+          writeObserver);
     }
 
     /**

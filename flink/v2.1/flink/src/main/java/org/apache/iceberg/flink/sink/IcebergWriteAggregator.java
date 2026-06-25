@@ -20,6 +20,8 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -34,6 +36,7 @@ import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +55,8 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   private final Collection<WriteResult> results;
   private final TableLoader tableLoader;
+  @Nullable private final WriteObserver writeObserver;
+  private final Map<String, String> accumulatedObserverMetadata = Maps.newHashMap();
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
 
@@ -59,8 +64,13 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
   private transient Table table;
 
   IcebergWriteAggregator(TableLoader tableLoader) {
+    this(tableLoader, null);
+  }
+
+  IcebergWriteAggregator(TableLoader tableLoader, @Nullable WriteObserver writeObserver) {
     this.results = Sets.newHashSet();
     this.tableLoader = tableLoader;
+    this.writeObserver = writeObserver;
   }
 
   @Override
@@ -106,12 +116,16 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
     this.lastCheckpointId = checkpointId;
 
+    Map<String, String> metadata =
+        accumulatedObserverMetadata.isEmpty() ? null : Maps.newHashMap(accumulatedObserverMetadata);
+
     IcebergCommittable committable =
         new IcebergCommittable(
             writeToManifest(results, checkpointId),
             getContainingTask().getEnvironment().getJobID().toString(),
             getRuntimeContext().getOperatorUniqueID(),
-            checkpointId);
+            checkpointId,
+            metadata);
     CommittableMessage<IcebergCommittable> summary =
         new CommittableSummary<>(0, 1, checkpointId, 1, 1, 0);
     output.collect(new StreamRecord<>(summary));
@@ -120,6 +134,7 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
     output.collect(new StreamRecord<>(message));
     LOG.info("Emitted commit message to downstream committer operator");
     results.clear();
+    accumulatedObserverMetadata.clear();
   }
 
   /**
@@ -150,6 +165,21 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
     if (element.isRecord() && element.getValue() instanceof CommittableWithLineage) {
       results.add(((CommittableWithLineage<WriteResult>) element.getValue()).getCommittable());
+
+      // Read observer metadata set by WriteResultSerializer.deserialize() on this thread.
+      // Merge across parallel writer subtasks using the observer's merge strategy.
+      Map<String, String> metadata = WriteObserverMetadataHolder.getAndClear();
+      if (metadata != null && !metadata.isEmpty()) {
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+          accumulatedObserverMetadata.merge(
+              entry.getKey(),
+              entry.getValue(),
+              (existing, incoming) ->
+                  writeObserver != null
+                      ? writeObserver.mergeValue(entry.getKey(), existing, incoming)
+                      : incoming);
+        }
+      }
     }
   }
 }

@@ -21,8 +21,11 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
+import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Metrics;
@@ -66,6 +69,22 @@ class TestDynamicWriteResultSerializer {
   }
 
   @Test
+  void testV1BackwardCompatibility() throws IOException {
+    DynamicWriteResult dynamicWriteResult =
+        new DynamicWriteResult(TABLE_KEY, 1, WriteResult.builder().addDataFiles(DATA_FILE).build());
+
+    DynamicWriteResultSerializer serializer = new DynamicWriteResultSerializer();
+    DynamicWriteResult copy = serializer.deserialize(1, serializeV1(dynamicWriteResult));
+
+    assertThat(copy.key()).isEqualTo(TABLE_KEY);
+    assertThat(copy.specId()).isEqualTo(1);
+    assertThat(copy.writeResult().dataFiles()).hasSize(1);
+    DataFile dataFile = copy.writeResult().dataFiles()[0];
+    assertThat(dataFile.path()).isEqualTo("/path/to/data-1.parquet");
+    assertThat(dataFile.recordCount()).isEqualTo(42L);
+  }
+
+  @Test
   void testUnsupportedVersion() {
     DynamicWriteResult dynamicWriteResult =
         new DynamicWriteResult(TABLE_KEY, 1, WriteResult.builder().addDataFiles(DATA_FILE).build());
@@ -74,5 +93,14 @@ class TestDynamicWriteResultSerializer {
     assertThatThrownBy(() -> serializer.deserialize(-1, serializer.serialize(dynamicWriteResult)))
         .hasMessage("Unrecognized version or corrupt state: -1")
         .isInstanceOf(IOException.class);
+  }
+
+  private byte[] serializeV1(DynamicWriteResult writeResult) throws IOException {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
+    writeResult.key().serializeTo(view);
+    view.writeInt(writeResult.specId());
+    view.write(InstantiationUtil.serializeObject(writeResult.writeResult()));
+    return out.toByteArray();
   }
 }

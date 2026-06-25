@@ -20,7 +20,10 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
@@ -36,12 +39,23 @@ class IcebergCommittable implements Serializable {
   private final String jobId;
   private final String operatorId;
   private final long checkpointId;
+  private final Map<String, String> observerMetadata;
 
   IcebergCommittable(byte[] manifest, String jobId, String operatorId, long checkpointId) {
+    this(manifest, jobId, operatorId, checkpointId, null);
+  }
+
+  IcebergCommittable(
+      byte[] manifest,
+      String jobId,
+      String operatorId,
+      long checkpointId,
+      @Nullable Map<String, String> observerMetadata) {
     this.manifest = manifest;
     this.jobId = jobId;
     this.operatorId = operatorId;
     this.checkpointId = checkpointId;
+    this.observerMetadata = observerMetadata != null ? observerMetadata : Collections.emptyMap();
   }
 
   byte[] manifest() {
@@ -58,6 +72,10 @@ class IcebergCommittable implements Serializable {
 
   Long checkpointId() {
     return checkpointId;
+  }
+
+  Map<String, String> observerMetadata() {
+    return observerMetadata;
   }
 
   @Override
