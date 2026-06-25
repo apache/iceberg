@@ -180,6 +180,12 @@ public class TestTypes {
         .isEqualTo("geography(OGC:CRS84, spherical)");
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).toString())
         .isEqualTo("geography(srid:4326, spherical)");
+
+    // a default CRS supplied with non-canonical casing serializes in canonical form, matching
+    // equals
+    assertThat(Types.GeometryType.of("ogc:crs84").toString()).isEqualTo("geometry(OGC:CRS84)");
+    assertThat(Types.GeographyType.of("ogc:crs84").toString())
+        .isEqualTo("geography(OGC:CRS84, spherical)");
   }
 
   @Test

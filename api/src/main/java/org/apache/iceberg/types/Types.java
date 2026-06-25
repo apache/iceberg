@@ -625,7 +625,8 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%s(%s)", NAME, crs);
+      // format from the resolved getter so equal types serialize identically and CRS is canonical
+      return String.format("%s(%s)", NAME, crs());
     }
   }
 
@@ -697,7 +698,8 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%s(%s, %s)", NAME, crs, algorithm);
+      // format from the resolved getters so equal types serialize identically and CRS is canonical
+      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
     }
   }
 
