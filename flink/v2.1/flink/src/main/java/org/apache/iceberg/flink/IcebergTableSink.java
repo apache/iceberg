@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
@@ -284,9 +285,9 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       ctor =
           DynConstructors.builder(DynamicTableRecordGenerator.class)
               .loader(IcebergTableSink.class.getClassLoader())
-              .impl(generatorImpl, RowType.class)
+              .impl(generatorImpl, RowType.class, Map.class, Configuration.class)
               .buildChecked();
-      return ctor.newInstance(rowType);
+      return ctor.newInstance(rowType, writeProps, fromReadableConfig());
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format("Class %s does not implement DynamicRecordGeneratorSQL", generatorImpl), e);
@@ -294,5 +295,11 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       throw new RuntimeException(
           String.format("Failed to instantiate DynamicRecordGeneratorSQL %s", generatorImpl), e);
     }
+  }
+
+  private Configuration fromReadableConfig() {
+    return readableConfig instanceof Configuration
+        ? (Configuration) readableConfig
+        : Configuration.fromMap(readableConfig.toMap());
   }
 }

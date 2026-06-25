@@ -19,11 +19,13 @@
 package org.apache.iceberg.flink;
 
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.util.JsonUtil;
 
-class FlinkCreateTableOptions {
+@Internal
+public class FlinkCreateTableOptions {
   private final String catalogName;
   private final String catalogDb;
   private final String catalogTable;
