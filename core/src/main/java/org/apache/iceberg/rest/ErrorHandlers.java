@@ -33,6 +33,8 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NoSuchWarehouseException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.OAuth2BadRequestException;
+import org.apache.iceberg.exceptions.OAuth2NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
@@ -376,15 +378,15 @@ public class ErrorHandlers {
       if (error.type() != null) {
         switch (error.type()) {
           case OAuth2Properties.INVALID_CLIENT_ERROR:
-            throw new NotAuthorizedException(
-                "Not authorized: %s: %s", error.type(), error.message());
+            throw new OAuth2NotAuthorizedException(
+                error.type(), "Not authorized: %s: %s", error.type(), error.message());
           case OAuth2Properties.INVALID_REQUEST_ERROR:
           case OAuth2Properties.INVALID_GRANT_ERROR:
           case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
           case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
           case OAuth2Properties.INVALID_SCOPE_ERROR:
-            throw new BadRequestException(
-                "Malformed request: %s: %s", error.type(), error.message());
+            throw new OAuth2BadRequestException(
+                error.type(), "Malformed request: %s: %s", error.type(), error.message());
         }
       }
       throw createRESTException(error);
