@@ -38,6 +38,7 @@ import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.catalyst.util.ResolveDefaultColumnsUtils$;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.GeographyType;
 import org.apache.spark.sql.types.GeographyType$;
 import org.apache.spark.sql.types.GeometryType;
@@ -102,6 +103,14 @@ public class TestSparkSchemaUtil {
 
   @Test
   public void testGeospatialTypeConversion() {
+    // a default-CRS geometry round-trips through the null <-> OGC:CRS84 normalization
+    Types.GeometryType defaultGeometry = Types.GeometryType.crs84();
+    DataType sparkDefaultGeometry = SparkSchemaUtil.convert(defaultGeometry);
+    assertThat(sparkDefaultGeometry).isInstanceOf(GeometryType.class);
+    assertThat(((GeometryType) sparkDefaultGeometry).crs())
+        .isEqualTo(Types.GeometryType.DEFAULT_CRS);
+    assertThat(SparkSchemaUtil.convert(sparkDefaultGeometry)).isEqualTo(defaultGeometry);
+
     Types.GeometryType geometry = Types.GeometryType.of("EPSG:3857");
     DataType sparkGeometry = SparkSchemaUtil.convert(geometry);
     assertThat(sparkGeometry).isInstanceOf(GeometryType.class);
@@ -138,6 +147,19 @@ public class TestSparkSchemaUtil {
     Schema pruned = SparkSchemaUtil.prune(schema, requestedType);
 
     assertThat(pruned.asStruct()).isEqualTo(schema.asStruct());
+  }
+
+  @Test
+  public void testPruneGeospatialTypeWithIncompatibleRequestedType() {
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.of("EPSG:3857")));
+
+    // requesting a non-geo Spark type for a geometry column must be rejected
+    StructType incompatibleType = new StructType().add("geom", DataTypes.BinaryType, true);
+
+    assertThatThrownBy(() -> SparkSchemaUtil.prune(schema, incompatibleType))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot project")
+        .hasMessageContaining("incompatible type");
   }
 
   @Test
