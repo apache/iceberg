@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.common.SupportsConcurrentExecutionAttempts;
@@ -171,6 +172,8 @@ public class IcebergSink
   // equalityFieldIds instead.
   private final Set<String> equalityFieldColumns;
 
+  @Nullable private final PostCommitHook postCommitHook;
+
   private final transient List<MaintenanceTaskBuilder<?>> maintenanceTasks;
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
@@ -188,7 +191,8 @@ public class IcebergSink
       boolean overwriteMode,
       List<MaintenanceTaskBuilder<?>> maintenanceTasks,
       FlinkMaintenanceConfig flinkMaintenanceConfig,
-      Set<String> equalityFieldColumns) {
+      Set<String> equalityFieldColumns,
+      @Nullable PostCommitHook postCommitHook) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -212,6 +216,7 @@ public class IcebergSink
     this.maintenanceTasks = maintenanceTasks;
     this.flinkMaintenanceConfig = flinkMaintenanceConfig;
     this.equalityFieldColumns = equalityFieldColumns;
+    this.postCommitHook = postCommitHook;
   }
 
   @Override
@@ -247,7 +252,8 @@ public class IcebergSink
         workerPoolSize,
         sinkId,
         metrics,
-        maintenanceEnabled);
+        maintenanceEnabled,
+        postCommitHook);
   }
 
   @Override
@@ -354,6 +360,7 @@ public class IcebergSink
     private ReadableConfig readableConfig = new Configuration();
     private List<String> equalityFieldColumns = null;
     private final List<MaintenanceTaskBuilder<?>> maintenanceTasks = Lists.newArrayList();
+    @Nullable private PostCommitHook postCommitHook;
 
     private Builder() {}
 
@@ -721,6 +728,11 @@ public class IcebergSink
       return this;
     }
 
+    public Builder postCommitHook(PostCommitHook hook) {
+      this.postCommitHook = hook;
+      return this;
+    }
+
     IcebergSink build() {
 
       Preconditions.checkArgument(
@@ -811,7 +823,8 @@ public class IcebergSink
           overwriteMode,
           maintenanceTasks,
           flinkMaintenanceConfig,
-          equalityFieldColumnsSet);
+          equalityFieldColumnsSet,
+          postCommitHook);
     }
 
     /**
