@@ -1,0 +1,113 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: Release - Prepare RC
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.10.0)'
+        required: true
+        type: string
+      rc_number:
+        description: 'RC number override (leave empty for auto-detect)'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry run mode (uncheck for actual release)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iceberg-release
+  cancel-in-progress: false
+
+jobs:
+  prepare-rc:
+    if: github.repository_owner == 'apache'
+    name: Prepare Release Candidate
+    runs-on: ubuntu-24.04
+    environment: maven-publish
+    permissions:
+      contents: write  # push the X.Y.x release branch and the apache-iceberg-X.Y.Z-rcN tag
+      checks: read  # check_github_checks_passed reads check-runs for the release-branch HEAD
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5 # zizmor: ignore[cache-poisoning] -- cache writes are restricted to the default branch by setup-gradle
+
+      - name: Install Subversion
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y subversion jq
+
+      - name: Import GPG key and configure git identity
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.ICEBERG_GPG_PRIVATE_KEY }}
+        run: |
+          if [[ -z "${GPG_PRIVATE_KEY:-}" ]]; then
+            echo "ICEBERG_GPG_PRIVATE_KEY secret is not set; aborting"
+            exit 1
+          fi
+          echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+          KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
+          if [[ -z "${KEY_ID}" ]]; then
+            echo "Could not determine GPG key id from imported key; aborting"
+            exit 1
+          fi
+          echo "GPG_KEY_ID=${KEY_ID}" >> "$GITHUB_ENV"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.signingkey "${KEY_ID}"
+
+      - name: Prepare Release Candidate
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PW }}
+          SVN_USERNAME: ${{ secrets.ICEBERG_SVN_DEV_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.ICEBERG_SVN_DEV_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_RC_NUMBER: ${{ inputs.rc_number }}
+        run: |
+          args=("${INPUT_VERSION}" --key "${GPG_KEY_ID}")
+          if [[ -n "${INPUT_RC_NUMBER}" ]]; then
+            args+=(--rc "${INPUT_RC_NUMBER}")
+          fi
+          ./release/prepare-rc.sh "${args[@]}"
