@@ -42,6 +42,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -187,6 +188,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
             .project(schema)
             .withFileEncryptionKey(FILE_DEK)
             .withAADPrefix(AAD_PREFIX)
+            .withNameMapping(MappingUtil.create(schema))
             .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
