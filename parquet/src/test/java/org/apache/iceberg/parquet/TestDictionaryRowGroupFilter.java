@@ -1267,11 +1267,19 @@ public class TestDictionaryRowGroupFilter {
   @TestTemplate
   public void testTransformFilter() {
     boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal(truncate("id", 2), 12345))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead)
+        .as("Should read: opaque transform term (non-string truncate) evaluates as true")
+        .isTrue();
+
+    shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     assertThat(shouldRead)
-        .as("Should read: filter contains non-reference evaluate as True")
-        .isTrue();
+        .as(
+            "Should not read: string truncate equality is unsatisfiable when the literal is longer than the truncate width")
+        .isFalse();
   }
 
   @TestTemplate
