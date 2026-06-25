@@ -427,7 +427,12 @@ public class FlinkCatalog extends AbstractCatalog {
               + "create table without 'connector'='iceberg' related properties in an iceberg table.");
     }
 
-    Preconditions.checkArgument(table instanceof ResolvedCatalogTable, "table should be resolved");
+    Preconditions.checkArgument(
+        table instanceof ResolvedCatalogTable,
+        "Expected a ResolvedCatalogTable but got: %s. "
+            + "Iceberg Flink catalog only supports resolved catalog tables "
+            + "(Materialized tables and other table kinds are not supported).",
+        table == null ? "null" : table.getClass().getName());
     createIcebergTable(tablePath, (ResolvedCatalogTable) table, ignoreIfExists);
   }
 
