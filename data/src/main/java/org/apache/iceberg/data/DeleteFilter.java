@@ -34,7 +34,6 @@ import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -73,13 +72,19 @@ public abstract class DeleteFilter<T> {
       Schema expectedSchema,
       DeleteCounter counter,
       boolean needRowPosCol) {
-    this(filePath, deletes, tableSchema::findField, expectedSchema, counter, needRowPosCol);
+    this(
+        filePath,
+        deletes,
+        ids -> TypeUtil.project(tableSchema, ids),
+        expectedSchema,
+        counter,
+        needRowPosCol);
   }
 
   protected DeleteFilter(
       String filePath,
       List<DeleteFile> deletes,
-      Function<Integer, Types.NestedField> fieldLookup,
+      Function<Set<Integer>, Schema> missingSchemaResolver,
       Schema expectedSchema,
       DeleteCounter counter,
       boolean needRowPosCol) {
@@ -108,7 +113,7 @@ public abstract class DeleteFilter<T> {
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema =
-        fileProjection(fieldLookup, expectedSchema, posDeletes, eqDeletes, needRowPosCol);
+        fileProjection(missingSchemaResolver, expectedSchema, posDeletes, eqDeletes, needRowPosCol);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasIsDeletedColumn =
         requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
@@ -121,7 +126,7 @@ public abstract class DeleteFilter<T> {
       Schema tableSchema,
       Schema requestedSchema,
       DeleteCounter counter) {
-    this(filePath, deletes, tableSchema::findField, requestedSchema, counter, true);
+    this(filePath, deletes, tableSchema, requestedSchema, counter, true);
   }
 
   protected DeleteFilter(
@@ -280,7 +285,7 @@ public abstract class DeleteFilter<T> {
   }
 
   private static Schema fileProjection(
-      Function<Integer, Types.NestedField> fieldLookup,
+      Function<Set<Integer>, Schema> missingSchemaResolver,
       Schema requestedSchema,
       List<DeleteFile> posDeletes,
       List<DeleteFile> eqDeletes,
@@ -289,46 +294,32 @@ public abstract class DeleteFilter<T> {
       return requestedSchema;
     }
 
-    Set<Integer> requiredIds = Sets.newLinkedHashSet();
-    if (needRowPosCol && !posDeletes.isEmpty()) {
-      requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
-    }
+    Set<Integer> projectedIds = TypeUtil.getProjectedIds(requestedSchema);
 
+    // Collect equality delete field IDs that are not already in the requested schema.
+    // Metadata columns (ROW_POSITION, IS_DELETED) are excluded here and handled separately below.
+    Set<Integer> missingIds = Sets.newLinkedHashSet();
     for (DeleteFile eqDelete : eqDeletes) {
-      requiredIds.addAll(eqDelete.equalityFieldIds());
-    }
-
-    Set<Integer> missingIds =
-        Sets.newLinkedHashSet(
-            Sets.difference(requiredIds, TypeUtil.getProjectedIds(requestedSchema)));
-
-    if (missingIds.isEmpty()) {
-      return requestedSchema;
-    }
-
-    // TODO: support adding nested columns. this will currently fail when finding nested columns to
-    // add
-    List<Types.NestedField> columns = Lists.newArrayList(requestedSchema.columns());
-    for (int fieldId : missingIds) {
-      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()
-          || fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-        continue; // add _pos and _deleted at the end
+      for (int id : eqDelete.equalityFieldIds()) {
+        if (!projectedIds.contains(id)) {
+          missingIds.add(id);
+        }
       }
-
-      Types.NestedField field = fieldLookup.apply(fieldId);
-      Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
-
-      columns.add(field);
     }
 
-    if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
+    Schema result = requestedSchema;
+    if (!missingIds.isEmpty()) {
+      result = TypeUtil.join(result, missingSchemaResolver.apply(missingIds));
+    }
+
+    if (needRowPosCol
+        && !posDeletes.isEmpty()
+        && !projectedIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
+      List<Types.NestedField> columns = Lists.newArrayList(result.columns());
       columns.add(MetadataColumns.ROW_POSITION);
+      return new Schema(columns);
     }
 
-    if (missingIds.contains(MetadataColumns.IS_DELETED.fieldId())) {
-      columns.add(MetadataColumns.IS_DELETED);
-    }
-
-    return new Schema(columns);
+    return result;
   }
 }

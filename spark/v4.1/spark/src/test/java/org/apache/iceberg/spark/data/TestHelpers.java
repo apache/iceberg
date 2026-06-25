@@ -65,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DeleteFileSet;
@@ -895,7 +896,13 @@ public class TestHelpers {
 
     protected CustomizedDeleteFilter(
         boolean hasDeletes, Schema tableSchema, Schema projectedSchema) {
-      super("", List.of(), tableSchema::findField, projectedSchema, new DeleteCounter(), true);
+      super(
+          "",
+          List.of(),
+          ids -> TypeUtil.project(tableSchema, ids),
+          projectedSchema,
+          new DeleteCounter(),
+          true);
       this.hasDeletes = hasDeletes;
     }
 

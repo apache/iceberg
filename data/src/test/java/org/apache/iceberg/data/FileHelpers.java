@@ -113,23 +113,32 @@ public class FileHelpers {
       OutputFile out,
       StructLike partition,
       List<Record> deletes,
-      Schema deleteRowSchema)
+      Schema deleteRowSchema,
+      int[] equalityFieldIds)
       throws IOException {
-    int[] equalityFieldIds =
-        deleteRowSchema.columns().stream().mapToInt(Types.NestedField::fieldId).toArray();
     FileWriterFactory<Record> factory =
         GenericFileWriterFactory.builderFor(table)
             .equalityDeleteRowSchema(deleteRowSchema)
             .equalityFieldIds(equalityFieldIds)
             .build();
-
     EqualityDeleteWriter<Record> writer =
         factory.newEqualityDeleteWriter(encrypt(out), table.spec(), partition);
     try (Closeable toClose = writer) {
       writer.write(deletes);
     }
-
     return writer.toDeleteFile();
+  }
+
+  public static DeleteFile writeDeleteFile(
+      Table table,
+      OutputFile out,
+      StructLike partition,
+      List<Record> deletes,
+      Schema deleteRowSchema)
+      throws IOException {
+    int[] equalityFieldIds =
+        deleteRowSchema.columns().stream().mapToInt(Types.NestedField::fieldId).toArray();
+    return writeDeleteFile(table, out, partition, deletes, deleteRowSchema, equalityFieldIds);
   }
 
   public static DataFile writeDataFile(Table table, OutputFile out, List<Record> rows)

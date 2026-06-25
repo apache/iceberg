@@ -69,6 +69,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
@@ -79,6 +80,7 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -211,6 +213,11 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   protected boolean countDeletes() {
     return true;
+  }
+
+  @Override
+  protected boolean supportsStructFields() {
+    return !vectorized;
   }
 
   @Override
@@ -742,6 +749,65 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     // only 1 of 3 records with status got removed
     StructLikeSet actual = rowSet(tableName, table, "id", "data");
     int expectedRecordCount = records.size() + 2;
+    assertThat(actual).hasSize(expectedRecordCount);
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteWithSchemaEvolutionNestedIdentifier() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+    assumeThat(supportsStructFields())
+        .as("Skipping: vectorized reads do not support struct fields")
+        .isTrue();
+
+    String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
+
+    // write 10 records with the nested struct column populated
+    GenericRecord record = GenericRecord.create(table.schema());
+    Types.StructType innerStructType = table.schema().findType("structData").asStructType();
+    List<Record> optionalRecords = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      GenericRecord inner = GenericRecord.create(innerStructType);
+      inner.setField("structInnerData", "structInnerData_" + i);
+      optionalRecords.add(
+          record.copy(ImmutableMap.of("id", i + 200, "data", "testData", "structData", inner)));
+    }
+    DataFile dataFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(0),
+            optionalRecords);
+    table.newAppend().appendFile(dataFile).commit();
+
+    // write equality deletes that target `structInnerData` (nested inside `structData`)
+    Types.NestedField innerField = table.schema().findField("structData.structInnerData");
+    int innerFieldId = innerField.fieldId();
+    Schema deleteRowSchema = TypeUtil.project(table.schema(), ImmutableSet.of(innerFieldId));
+
+    List<Record> dataDeletes = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      GenericRecord inner = GenericRecord.create(innerStructType);
+      inner.setField("structInnerData", "structInnerData_" + i);
+      GenericRecord outer = GenericRecord.create(deleteRowSchema);
+      outer.setField("structData", inner);
+      dataDeletes.add(outer);
+    }
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            deleteRowSchema,
+            new int[] {innerFieldId});
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    // drop `structData` so the equality delete identifier exists only in the historic schema
+    table.updateSchema().deleteColumn("structData").commit();
+
+    // FieldLookup must fall back to the historic schema to resolve the nested delete field
+    StructLikeSet actual = rowSet(tableName, table, "id");
+    int expectedRecordCount = records.size() + (10 - 3); // 10 written, 3 deleted
     assertThat(actual).hasSize(expectedRecordCount);
   }
 

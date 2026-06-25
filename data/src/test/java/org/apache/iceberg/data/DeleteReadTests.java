@@ -41,8 +41,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -207,6 +209,10 @@ public abstract class DeleteReadTests {
 
   protected boolean countDeletes() {
     return false;
+  }
+
+  protected boolean supportsStructFields() {
+    return true;
   }
 
   /**
@@ -630,6 +636,55 @@ public abstract class DeleteReadTests {
             structDataDelete.copy("structData", structRecord2));
     StructLikeSet expected = rowSetWithoutIds(table, records, 200, 201, 202);
     testEqualityDeletes(equalityDeletes, expected);
+  }
+
+  @TestTemplate
+  public void testEqualityDeletesWithNestedFieldIdentifier() throws IOException {
+    assumeThat(supportsStructFields())
+        .as("Skipping: this format/mode does not support struct fields")
+        .isTrue();
+    // Write records that populate the optional nested struct column (ids 200–209).
+    writeOptionalTestDataFile();
+    Types.NestedField innerField = table.schema().findField("structData.structInnerData");
+
+    // Build the delete schema preserving the struct hierarchy (structData{structInnerData}).
+    Schema deleteRowSchema =
+        TypeUtil.project(table.schema(), ImmutableSet.of(innerField.fieldId()));
+    Types.StructType innerStructType = table.schema().findType("structData").asStructType();
+
+    List<Record> dataDeletes = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      GenericRecord inner = GenericRecord.create(innerStructType);
+      inner.setField("structInnerData", "structInnerData_" + i);
+      GenericRecord outer = GenericRecord.create(deleteRowSchema);
+      outer.setField("structData", inner);
+      dataDeletes.add(outer);
+    }
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            Row.of(0),
+            dataDeletes,
+            deleteRowSchema,
+            new int[] {innerField.fieldId()});
+
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    // Read only the "id" column, and not the nested column used for equality delete.
+    StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 200, 201, 202), "id");
+    StructLikeSet actual = rowSet(tableName, table, "id");
+
+    if (expectPruned()) {
+      assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+    } else {
+      assertThat(selectColumns(actual, "id"))
+          .as("Table should contain expected rows")
+          .isEqualTo(expected);
+    }
+
+    checkDeleteCount(dataDeletes.size());
   }
 
   private void testEqualityDeletes(List<Record> equalityDeletes, StructLikeSet expected)
