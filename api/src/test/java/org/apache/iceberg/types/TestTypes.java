@@ -181,7 +181,7 @@ public class TestTypes {
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).toString())
         .isEqualTo("geography(srid:4326, spherical)");
 
-    // a non-canonical CRS string is passed through verbatim (no case normalization)
+    // the CRS keeps its original casing in toString even though comparison is case-insensitive
     assertThat(Types.GeometryType.of("ogc:crs84").toString()).isEqualTo("geometry(ogc:crs84)");
     assertThat(Types.GeographyType.of("ogc:crs84").toString())
         .isEqualTo("geography(ogc:crs84, spherical)");
@@ -206,9 +206,13 @@ public class TestTypes {
         .isNotEqualTo(Types.GeographyType.of("srid:4326"));
     assertThat(Types.GeographyType.of("srid:4326")).isNotEqualTo(Types.GeographyType.crs84());
 
-    // only the exact default CRS collapses; a different casing is a distinct CRS (not normalized)
-    assertThat(Types.GeometryType.of("ogc:crs84")).isNotEqualTo(Types.GeometryType.crs84());
-    assertThat(Types.GeographyType.of("ogc:crs84")).isNotEqualTo(Types.GeographyType.crs84());
+    // CRS comparison is case-insensitive: any casing of a CRS is equal and hashes the same
+    assertThat(Types.GeometryType.of("ogc:crs84"))
+        .isEqualTo(Types.GeometryType.crs84())
+        .hasSameHashCodeAs(Types.GeometryType.crs84());
+    assertThat(Types.GeographyType.of("ogc:crs84"))
+        .isEqualTo(Types.GeographyType.crs84())
+        .hasSameHashCodeAs(Types.GeographyType.crs84());
   }
 
   @Test

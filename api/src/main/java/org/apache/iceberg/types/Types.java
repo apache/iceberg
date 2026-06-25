@@ -590,7 +590,8 @@ public class Types {
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = crs;
+      // an omitted CRS canonicalizes to the default; a provided value is kept as-is (case preserved)
+      this.crs = crs == null ? DEFAULT_CRS : crs;
     }
 
     @Override
@@ -599,7 +600,7 @@ public class Types {
     }
 
     public String crs() {
-      return crs != null ? crs : DEFAULT_CRS;
+      return crs;
     }
 
     @Override
@@ -611,17 +612,17 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return crs().equals(that.crs());
+      return crs.equalsIgnoreCase(that.crs);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeometryType.class, crs());
+      return Objects.hash(GeometryType.class, crs.toUpperCase(Locale.ROOT));
     }
 
     @Override
     public String toString() {
-      return String.format("%s(%s)", NAME, crs());
+      return String.format("%s(%s)", NAME, crs);
     }
   }
 
@@ -651,8 +652,10 @@ public class Types {
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = crs;
-      this.algorithm = algorithm;
+      // an omitted CRS/algorithm canonicalizes to the default; a provided CRS is kept as-is (case
+      // preserved)
+      this.crs = crs == null ? DEFAULT_CRS : crs;
+      this.algorithm = algorithm == null ? DEFAULT_ALGORITHM : algorithm;
     }
 
     @Override
@@ -661,11 +664,11 @@ public class Types {
     }
 
     public String crs() {
-      return crs != null ? crs : DEFAULT_CRS;
+      return crs;
     }
 
     public EdgeAlgorithm algorithm() {
-      return algorithm != null ? algorithm : DEFAULT_ALGORITHM;
+      return algorithm;
     }
 
     @Override
@@ -677,18 +680,17 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      // compare the resolved CRS and algorithm so an explicit default is equal to an omitted one
-      return crs().equals(that.crs()) && algorithm() == that.algorithm();
+      return crs.equalsIgnoreCase(that.crs) && algorithm == that.algorithm;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeographyType.class, crs(), algorithm());
+      return Objects.hash(GeographyType.class, crs.toUpperCase(Locale.ROOT), algorithm);
     }
 
     @Override
     public String toString() {
-      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
+      return String.format("%s(%s, %s)", NAME, crs, algorithm);
     }
   }
 
