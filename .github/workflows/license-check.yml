@@ -18,10 +18,21 @@
 #
 
 name: "Run License Check"
-on: pull_request
+on:
+  push:
+    branches:
+    - '**'
+    - '!main'
+    - '!0.*'
+    - '!1.*'
+    - '!2.*'
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository == 'apache/iceberg' && github.run_id || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   rat:
@@ -29,6 +40,15 @@ jobs:
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
+        fetch-depth: 0
         persist-credentials: false
+        repository: apache/iceberg
+        ref: main
+    - name: Sync fork branch with upstream main
+      if: github.repository != 'apache/iceberg'
+      run: |
+        git fetch https://github.com/$GITHUB_REPOSITORY.git ${GITHUB_REF#refs/heads/}
+        git -c user.name='Apache Iceberg' -c user.email='iceberg-ci@apache.org' merge --no-commit --progress --squash FETCH_HEAD
+        git -c user.name='Apache Iceberg' -c user.email='iceberg-ci@apache.org' commit -m "Merged commit" --allow-empty
     - run: |
         dev/check-license

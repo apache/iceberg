@@ -21,13 +21,13 @@ name: "Open-API"
 on:
   push:
     branches:
-      - 'main'
-      - '0.*'
-      - '1.*'
-      - '2.*'
+      - '**'
+      - '!main'
+      - '!0.*'
+      - '!1.*'
+      - '!2.*'
     tags:
       - 'apache-iceberg-**'
-  pull_request:
     paths:
       - '.github/workflows/open-api.yml'
       - 'open-api/**'
@@ -36,8 +36,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.repository == 'apache/iceberg' && github.run_id || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   openapi-spec-validator:
@@ -46,7 +46,16 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          fetch-depth: 0
           persist-credentials: false
+          repository: apache/iceberg
+          ref: main
+      - name: Sync fork branch with upstream main
+        if: github.repository != 'apache/iceberg'
+        run: |
+          git fetch https://github.com/$GITHUB_REPOSITORY.git ${GITHUB_REF#refs/heads/}
+          git -c user.name='Apache Iceberg' -c user.email='iceberg-ci@apache.org' merge --no-commit --progress --squash FETCH_HEAD
+          git -c user.name='Apache Iceberg' -c user.email='iceberg-ci@apache.org' commit -m "Merged commit" --allow-empty
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
