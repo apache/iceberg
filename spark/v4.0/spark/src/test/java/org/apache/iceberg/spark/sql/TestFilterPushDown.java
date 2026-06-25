@@ -677,6 +677,15 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         "isnotnull(c) AND (upper(c) = US)" /* Spark post scan filter */,
         "c IS NOT NULL" /* Iceberg scan filters */,
         ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US")));
+
+    checkOnlyIcebergFilters(
+        "c IS NOT NULL" /* query predicate */,
+        "c IS NOT NULL" /* Iceberg scan filters */,
+        ImmutableList.of(row(1L, "Alice", "US"), row(2L, "Bob", "US")));
+
+    // the file without column c reads it as the default 'US', which matches neither predicate
+    assertThat(sql("SELECT * FROM %s WHERE c = 'CA'", tableName)).isEmpty();
+    assertThat(sql("SELECT * FROM %s WHERE c IS NULL", tableName)).isEmpty();
   }
 
   private void checkOnlyIcebergFilters(

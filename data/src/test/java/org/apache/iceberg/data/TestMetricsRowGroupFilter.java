@@ -503,7 +503,7 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
-  public void testColumnInFileWithInitialDefaultIsNotEvaluatedAgainstDefault() {
+  public void testPresentColumnWithoutStatsIsNotEvaluatedAgainstDefault() {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     // no_stats_parquet (id 2) is present in the file but has no stats; it must be filtered on its

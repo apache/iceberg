@@ -54,7 +54,7 @@ public class ParquetMetricsRowGroupFilter {
 
   private final Schema schema;
   private final Expression expr;
-  private final Map<Integer, Object> initialDefaults;
+  private Map<Integer, Object> missingColumnDefaults = null;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -64,12 +64,6 @@ public class ParquetMetricsRowGroupFilter {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
-    this.initialDefaults = Maps.newHashMap();
-    for (Types.NestedField field : schema.columns()) {
-      if (field.initialDefault() != null) {
-        initialDefaults.put(field.fieldId(), field.initialDefault());
-      }
-    }
   }
 
   /**
@@ -80,7 +74,31 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
+    if (missingColumnDefaults == null) {
+      this.missingColumnDefaults = missingColumnDefaults(fileSchema);
+    }
+
     return new MetricsEvalVisitor().eval(fileSchema, rowGroup);
+  }
+
+  private Map<Integer, Object> missingColumnDefaults(MessageType fileSchema) {
+    Map<Integer, Object> defaults = Maps.newHashMap();
+    for (Types.NestedField field : schema.columns()) {
+      if (field.initialDefault() != null) {
+        defaults.put(field.fieldId(), field.initialDefault());
+      }
+    }
+
+    // default columns left after removing the file's columns are absent and read as the default
+    if (!defaults.isEmpty()) {
+      for (ColumnDescriptor desc : fileSchema.getColumns()) {
+        if (desc.getPrimitiveType().getId() != null) {
+          defaults.remove(desc.getPrimitiveType().getId().intValue());
+        }
+      }
+    }
+
+    return defaults;
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -90,21 +108,10 @@ public class ParquetMetricsRowGroupFilter {
     private Map<Integer, Statistics<?>> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
-    private Map<Integer, Object> missingColumnDefaults = null;
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup) {
       if (rowGroup.getRowCount() <= 0) {
         return ROWS_CANNOT_MATCH;
-      }
-
-      // default columns left after removing the file's columns are absent and read as the default
-      this.missingColumnDefaults = Maps.newHashMap(initialDefaults);
-      if (!missingColumnDefaults.isEmpty()) {
-        for (ColumnDescriptor desc : fileSchema.getColumns()) {
-          if (desc.getPrimitiveType().getId() != null) {
-            missingColumnDefaults.remove(desc.getPrimitiveType().getId().intValue());
-          }
-        }
       }
 
       this.stats = Maps.newHashMap();
