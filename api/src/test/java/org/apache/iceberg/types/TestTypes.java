@@ -181,21 +181,17 @@ public class TestTypes {
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).toString())
         .isEqualTo("geography(srid:4326, spherical)");
 
-    // a default CRS supplied with non-canonical casing serializes in canonical form, matching
-    // equals
-    assertThat(Types.GeometryType.of("ogc:crs84").toString()).isEqualTo("geometry(OGC:CRS84)");
+    // a non-canonical CRS string is passed through verbatim (no case normalization)
+    assertThat(Types.GeometryType.of("ogc:crs84").toString()).isEqualTo("geometry(ogc:crs84)");
     assertThat(Types.GeographyType.of("ogc:crs84").toString())
-        .isEqualTo("geography(OGC:CRS84, spherical)");
+        .isEqualTo("geography(ogc:crs84, spherical)");
   }
 
   @Test
   public void testGeospatialTypeDefaultNormalization() {
-    // the default CRS and edge algorithm normalize so that equivalent type specs are equal
+    // an omitted default and an explicit default (exact CRS / spherical algorithm) are equal
     assertThat(Types.GeometryType.of(Types.GeometryType.DEFAULT_CRS))
         .isEqualTo(Types.GeometryType.crs84());
-    assertThat(Types.GeometryType.of("ogc:crs84"))
-        .isEqualTo(Types.GeometryType.crs84())
-        .hasSameHashCodeAs(Types.GeometryType.crs84());
     assertThat(Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS))
         .isEqualTo(Types.GeographyType.crs84());
     assertThat(Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.SPHERICAL))
@@ -209,6 +205,10 @@ public class TestTypes {
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.KARNEY))
         .isNotEqualTo(Types.GeographyType.of("srid:4326"));
     assertThat(Types.GeographyType.of("srid:4326")).isNotEqualTo(Types.GeographyType.crs84());
+
+    // only the exact default CRS collapses; a different casing is a distinct CRS (not normalized)
+    assertThat(Types.GeometryType.of("ogc:crs84")).isNotEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.GeographyType.of("ogc:crs84")).isNotEqualTo(Types.GeographyType.crs84());
   }
 
   @Test

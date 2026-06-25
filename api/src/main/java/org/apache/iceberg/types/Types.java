@@ -585,13 +585,12 @@ public class Types {
     private final String crs;
 
     private GeometryType() {
-      crs = DEFAULT_CRS;
+      crs = null;
     }
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      // canonicalize the default CRS (any casing or omitted) so the stored field is comparable
-      this.crs = crs == null || DEFAULT_CRS.equalsIgnoreCase(crs) ? DEFAULT_CRS : crs;
+      this.crs = crs;
     }
 
     @Override
@@ -600,7 +599,7 @@ public class Types {
     }
 
     public String crs() {
-      return crs;
+      return crs != null ? crs : DEFAULT_CRS;
     }
 
     @Override
@@ -612,17 +611,17 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return Objects.equals(crs, that.crs);
+      return crs().equals(that.crs());
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeometryType.class, crs);
+      return Objects.hash(GeometryType.class, crs());
     }
 
     @Override
     public String toString() {
-      return String.format("%s(%s)", NAME, crs);
+      return String.format("%s(%s)", NAME, crs());
     }
   }
 
@@ -647,16 +646,14 @@ public class Types {
     private final EdgeAlgorithm algorithm;
 
     private GeographyType() {
-      this.crs = DEFAULT_CRS;
-      this.algorithm = DEFAULT_ALGORITHM;
+      this.crs = null;
+      this.algorithm = null;
     }
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      // canonicalize the default CRS and algorithm (any casing or omitted) so the stored fields
-      // are comparable
-      this.crs = crs == null || DEFAULT_CRS.equalsIgnoreCase(crs) ? DEFAULT_CRS : crs;
-      this.algorithm = algorithm != null ? algorithm : DEFAULT_ALGORITHM;
+      this.crs = crs;
+      this.algorithm = algorithm;
     }
 
     @Override
@@ -665,11 +662,11 @@ public class Types {
     }
 
     public String crs() {
-      return crs;
+      return crs != null ? crs : DEFAULT_CRS;
     }
 
     public EdgeAlgorithm algorithm() {
-      return algorithm;
+      return algorithm != null ? algorithm : DEFAULT_ALGORITHM;
     }
 
     @Override
@@ -681,17 +678,18 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
+      // compare the resolved CRS and algorithm so an explicit default is equal to an omitted one
+      return crs().equals(that.crs()) && algorithm() == that.algorithm();
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeographyType.class, crs, algorithm);
+      return Objects.hash(GeographyType.class, crs(), algorithm());
     }
 
     @Override
     public String toString() {
-      return String.format("%s(%s, %s)", NAME, crs, algorithm);
+      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
     }
   }
 
