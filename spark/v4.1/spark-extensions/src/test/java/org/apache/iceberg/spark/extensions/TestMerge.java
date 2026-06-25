@@ -3001,6 +3001,58 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
   }
 
+  @TestTemplate
+  public void testMergePreservesNullableStructWithRequiredChildren() {
+    // Regression test for https://github.com/apache/iceberg/issues/16246
+    // A nullable struct with non-nullable children should not have its children
+    // silently nullified when a MERGE updates a different column.
+    // Uses multiple rows: matched row updated, unmatched rows untouched, NULL struct preserved.
+    createAndInitTable(
+        "id INT, status STRING, info STRUCT<type:STRING NOT NULL, attr:STRING NOT NULL>",
+        "{ \"id\": 1, \"status\": \"active\", \"info\": { \"type\": \"A\", \"attr\": \"val1\" } }\n"
+            + "{ \"id\": 2, \"status\": \"active\", \"info\": { \"type\": \"B\", \"attr\": \"val2\" } }\n"
+            + "{ \"id\": 3, \"status\": \"pending\", \"info\": null }");
+    createOrReplaceView("source", "{ \"id\": 1, \"status\": \"inactive\" }");
+
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET t.status = s.status",
+        commitTarget());
+
+    assertEquals(
+        "Matched row should be updated; unmatched rows and NULL struct must be preserved",
+        ImmutableList.of(
+            row(1, "inactive", row("A", "val1")),
+            row(2, "active", row("B", "val2")),
+            row(3, "pending", null)),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testMergePreservesNullStructWhenUpdatingOtherColumns() {
+    // Verify that a row with a NULL struct and a row with a non-null struct both
+    // survive a MERGE that updates only the matched row's non-struct column.
+    createAndInitTable(
+        "id INT, status STRING, info STRUCT<type:STRING NOT NULL, attr:STRING NOT NULL>",
+        "{ \"id\": 1, \"status\": \"active\", \"info\": null }\n"
+            + "{ \"id\": 2, \"status\": \"active\", \"info\": { \"type\": \"X\", \"attr\": \"x1\" } }");
+    createOrReplaceView("source", "{ \"id\": 2, \"status\": \"done\" }");
+
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET t.status = s.status",
+        commitTarget());
+
+    assertEquals(
+        "NULL struct must remain NULL; non-null struct children must be preserved",
+        ImmutableList.of(row(1, "active", null), row(2, "done", row("X", "x1"))),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {
     // disable runtime filtering for easier validation
     withSQLConf(
