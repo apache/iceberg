@@ -590,7 +590,8 @@ public class Types {
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = crs != null ? crs : DEFAULT_CRS;
+      // canonicalize the default CRS (any casing or omitted) so the stored field is comparable
+      this.crs = crs == null || DEFAULT_CRS.equalsIgnoreCase(crs) ? DEFAULT_CRS : crs;
     }
 
     @Override
@@ -599,10 +600,6 @@ public class Types {
     }
 
     public String crs() {
-      if (DEFAULT_CRS.equalsIgnoreCase(crs)) {
-        return DEFAULT_CRS;
-      }
-
       return crs;
     }
 
@@ -615,18 +612,17 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return Objects.equals(crs(), that.crs());
+      return Objects.equals(crs, that.crs);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeometryType.class, crs());
+      return Objects.hash(GeometryType.class, crs);
     }
 
     @Override
     public String toString() {
-      // format from the resolved getter so equal types serialize identically and CRS is canonical
-      return String.format("%s(%s)", NAME, crs());
+      return String.format("%s(%s)", NAME, crs);
     }
   }
 
@@ -657,7 +653,9 @@ public class Types {
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      this.crs = crs != null ? crs : DEFAULT_CRS;
+      // canonicalize the default CRS and algorithm (any casing or omitted) so the stored fields
+      // are comparable
+      this.crs = crs == null || DEFAULT_CRS.equalsIgnoreCase(crs) ? DEFAULT_CRS : crs;
       this.algorithm = algorithm != null ? algorithm : DEFAULT_ALGORITHM;
     }
 
@@ -667,10 +665,6 @@ public class Types {
     }
 
     public String crs() {
-      if (DEFAULT_CRS.equalsIgnoreCase(crs)) {
-        return DEFAULT_CRS;
-      }
-
       return crs;
     }
 
@@ -687,19 +681,17 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      // compare the resolved CRS and algorithm so an explicit default is equal to an omitted one
-      return Objects.equals(crs(), that.crs()) && Objects.equals(algorithm(), that.algorithm());
+      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeographyType.class, crs(), algorithm());
+      return Objects.hash(GeographyType.class, crs, algorithm);
     }
 
     @Override
     public String toString() {
-      // format from the resolved getters so equal types serialize identically and CRS is canonical
-      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
+      return String.format("%s(%s, %s)", NAME, crs, algorithm);
     }
   }
 
