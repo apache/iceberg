@@ -246,6 +246,19 @@ public class RESTCatalog
     return delegate.registerTable(ident, metadataFileLocation, overwrite);
   }
 
+  /**
+   * Unregister a table from the catalog without removing its data or metadata files.
+   *
+   * <p>This is the opposite of {@link #registerTable(TableIdentifier, String)}. The underlying data
+   * and metadata files are left in place so that the table can be registered in another catalog.
+   *
+   * @param ident a table identifier
+   * @return the last metadata location for the unregistered table
+   */
+  public String unregisterTable(TableIdentifier ident) {
+    return sessionCatalog.unregisterTable(context, ident);
+  }
+
   @Override
   public void createNamespace(Namespace ns, Map<String, String> props) {
     nsDelegate.createNamespace(ns, props);

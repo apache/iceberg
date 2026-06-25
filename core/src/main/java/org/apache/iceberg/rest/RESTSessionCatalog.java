@@ -97,6 +97,7 @@ import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
+import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -738,6 +739,38 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     return new BaseTable(
         ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
+  }
+
+  /**
+   * Unregister a table from the catalog without removing its data or metadata files.
+   *
+   * <p>This is the opposite of {@link #registerTable(SessionContext, TableIdentifier, String)}. On
+   * success, the table no longer exists in the catalog and the returned metadata location can be
+   * used to register the table in another catalog.
+   *
+   * @param context session context
+   * @param identifier a table identifier
+   * @return the last metadata location for the unregistered table
+   */
+  public String unregisterTable(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_UNREGISTER_TABLE);
+    checkIdentifierIsValid(identifier);
+
+    try {
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      UnregisterTableResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .post(
+                  paths.unregister(identifier),
+                  null,
+                  UnregisterTableResponse.class,
+                  mutationHeaders,
+                  ErrorHandlers.tableErrorHandler());
+      return response.metadataLocation();
+    } finally {
+      invalidateTable(context, identifier);
+    }
   }
 
   @Override
