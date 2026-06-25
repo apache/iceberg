@@ -36,6 +36,7 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
@@ -49,6 +50,11 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
+
+  /** Is bulk delete enabled on hadoop runtimes with API support: {@value}. */
+  public static final String BULK_DELETE_ENABLED = "iceberg.hadoop.bulk.delete.enabled";
+
+  public static final boolean DEFAULT_BULK_DELETE_ENABLED = false;
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
@@ -56,6 +62,11 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
+
+  /**
+   * Flag to indicate that bulk delete is should be used. Null until the configuration is evaluated.
+   */
+  private Boolean useBulkDelete;
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -182,8 +193,25 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     }
   }
 
+  /**
+   * Is HadoopFileIO configured to use the Hadoop bulk delete API?
+   *
+   * @return true if the Bulkdeleter should be used.
+   */
+  @VisibleForTesting
+  boolean useHadoopBulkDelete() {
+    if (useBulkDelete == null) {
+      useBulkDelete = conf().getBoolean(BULK_DELETE_ENABLED, DEFAULT_BULK_DELETE_ENABLED);
+    }
+    return useBulkDelete;
+  }
+
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    if (useHadoopBulkDelete()) {
+      HadoopBulkDelete.deleteFiles(pathsToDelete, executorService(), getConf());
+      return;
+    }
     AtomicInteger failureCount = new AtomicInteger(0);
     Tasks.foreach(pathsToDelete)
         .executeWith(executorService())
@@ -196,7 +224,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
               failureCount.incrementAndGet();
             })
         .run(this::deleteFile);
-
     if (failureCount.get() != 0) {
       throw new BulkDeletionFailureException(failureCount.get());
     }
