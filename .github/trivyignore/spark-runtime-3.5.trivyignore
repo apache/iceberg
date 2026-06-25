@@ -23,5 +23,3 @@
 # fixed version instead of ignoring the finding.
 #
 # jackson-databind CVEs that are only fixed in jackson >= 2.18.8.
-CVE-2026-54512
-CVE-2026-54513
