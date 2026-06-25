@@ -35,7 +35,6 @@ import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogMaterializedTable;
 import org.apache.flink.table.catalog.CatalogTable;
-import org.apache.flink.table.catalog.CommonCatalogOptions;
 import org.apache.flink.table.catalog.IntervalFreshness;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
@@ -231,19 +230,15 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 .column("id", DataTypes.BIGINT())
                 .build());
 
-    // `type` option is filtered out by Flink
-    // https://github.com/apache/flink/blob/edc3d68736de73665440f4313ddcfd9142d8d42b/flink-table/flink-table-common/src/main/java/org/apache/flink/table/factories/FactoryUtil.java#L378
-    Map<String, String> filteredOptions = Maps.newHashMap(config);
-    filteredOptions.remove(CommonCatalogOptions.CATALOG_TYPE.key());
-
-    String srcCatalogProps =
-        FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", filteredOptions);
+    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl");
     Map<String, String> options = catalogTable.getOptions();
     assertThat(options)
         .containsEntry(
             FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
             FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
         .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .doesNotContain("extra-catalog-prop", "extra-value");
   }
 
   @TestTemplate
