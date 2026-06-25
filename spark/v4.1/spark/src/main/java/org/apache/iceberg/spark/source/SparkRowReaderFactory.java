@@ -30,7 +30,15 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkRowReaderFactory implements PartitionReaderFactory {
 
-  SparkRowReaderFactory() {}
+  private final boolean orderingEnabled;
+
+  SparkRowReaderFactory() {
+    this(false);
+  }
+
+  SparkRowReaderFactory(boolean orderingEnabled) {
+    this.orderingEnabled = orderingEnabled;
+  }
 
   @Override
   public PartitionReader<InternalRow> createReader(InputPartition inputPartition) {
@@ -42,6 +50,7 @@ class SparkRowReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
+      // TODO: use MergingSortedRowDataReader when orderingEnabled and tasks > 1
       return new RowDataReader(partition);
 
     } else if (partition.allTasksOfType(ChangelogScanTask.class)) {
