@@ -45,7 +45,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       Types.StructType.of(
           TrackedFile.TRACKING,
           TrackedFile.CONTENT_TYPE,
-          TrackedFile.WRITER_FORMAT_VERSION,
+          TrackedFile.FORMAT_VERSION,
           TrackedFile.LOCATION,
           TrackedFile.FILE_FORMAT,
           TrackedFile.RECORD_COUNT,
@@ -69,7 +69,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.EQUALITY_IDS);
 
   private FileContent contentType = null;
-  private int writerFormatVersion = -1;
+  private int formatVersion = -1;
   private String location = null;
   private FileFormat fileFormat = null;
   private Tracking tracking = null;
@@ -105,7 +105,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   TrackedFileStruct(
       Tracking tracking,
       FileContent contentType,
-      int writerFormatVersion,
+      int formatVersion,
       String location,
       FileFormat fileFormat,
       PartitionData partition,
@@ -122,7 +122,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
-    this.writerFormatVersion = writerFormatVersion;
+    this.formatVersion = formatVersion;
     this.location = location;
     this.fileFormat = fileFormat;
     this.recordCount = recordCount;
@@ -145,7 +145,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private TrackedFileStruct(TrackedFileStruct toCopy, boolean withStats, Set<Integer> statsIds) {
     super(toCopy);
     this.contentType = toCopy.contentType;
-    this.writerFormatVersion = toCopy.writerFormatVersion;
+    this.formatVersion = toCopy.formatVersion;
     this.location = toCopy.location;
     this.fileFormat = toCopy.fileFormat;
     this.recordCount = toCopy.recordCount;
@@ -189,8 +189,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
-  public int writerFormatVersion() {
-    return writerFormatVersion;
+  public int formatVersion() {
+    return formatVersion;
   }
 
   @Override
@@ -277,7 +277,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return switch (pos) {
       case 0 -> tracking;
       case 1 -> contentType != null ? contentType.id() : null;
-      case 2 -> writerFormatVersion;
+      case 2 -> formatVersion;
       case 3 -> location;
       case 4 -> fileFormat != null ? fileFormat.toString() : null;
       case 5 -> recordCount;
@@ -300,7 +300,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     switch (pos) {
       case 0 -> this.tracking = (Tracking) value;
       case 1 -> this.contentType = FileContent.fromId((Integer) value);
-      case 2 -> this.writerFormatVersion = (int) value;
+      case 2 -> this.formatVersion = (int) value;
       case 3 ->
           // always coerce to String for Serializable
           this.location = value.toString();
@@ -326,7 +326,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("content", contentType != null ? contentType.lowerCaseName() : null)
-        .add("writer_format_version", writerFormatVersion)
+        .add("format_version", formatVersion)
         .add("location", location)
         .add("file_format", fileFormat)
         .add("record_count", recordCount)

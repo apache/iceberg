@@ -48,10 +48,14 @@ public enum DeleteGranularity {
 
   @Override
   public String toString() {
-    return switch (this) {
-      case FILE -> "file";
-      case PARTITION -> "partition";
-    };
+    switch (this) {
+      case FILE:
+        return "file";
+      case PARTITION:
+        return "partition";
+      default:
+        throw new IllegalArgumentException("Unknown delete granularity: " + this);
+    }
   }
 
   public static DeleteGranularity fromString(String valueAsString) {

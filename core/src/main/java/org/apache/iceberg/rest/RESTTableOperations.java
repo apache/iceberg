@@ -160,7 +160,7 @@ class RESTTableOperations implements TableOperations {
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
     switch (updateType) {
-      case CREATE -> {
+      case CREATE:
         Preconditions.checkState(
             base == null, "Invalid base metadata for create transaction, expected null: %s", base);
         updates =
@@ -170,8 +170,9 @@ class RESTTableOperations implements TableOperations {
                 .build();
         requirements = UpdateRequirements.forCreateTable(updates);
         errorHandler = ErrorHandlers.createTableErrorHandler();
-      }
-      case REPLACE -> {
+        break;
+
+      case REPLACE:
         Preconditions.checkState(base != null, "Invalid base metadata: null");
         updates =
             ImmutableList.<MetadataUpdate>builder()
@@ -181,16 +182,18 @@ class RESTTableOperations implements TableOperations {
         // use the original replace base metadata because the transaction will refresh
         requirements = UpdateRequirements.forReplaceTable(replaceBase, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
-      }
-      case SIMPLE -> {
+        break;
+
+      case SIMPLE:
         Preconditions.checkState(base != null, "Invalid base metadata: null");
         updates = metadata.changes();
         requirements = UpdateRequirements.forUpdateTable(base, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
-      }
-      default ->
-          throw new UnsupportedOperationException(
-              String.format("Update type %s is not supported", updateType));
+        break;
+
+      default:
+        throw new UnsupportedOperationException(
+            String.format("Update type %s is not supported", updateType));
     }
 
     UpdateTableRequest request = new UpdateTableRequest(requirements, updates);

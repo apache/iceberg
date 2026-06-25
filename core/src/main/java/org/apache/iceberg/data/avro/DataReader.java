@@ -127,50 +127,67 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     public ValueReader<?> primitive(Type.PrimitiveType ignored, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        return switch (logicalType.getName()) {
-          case "date" -> GenericReaders.dates();
-          case "time-micros" -> GenericReaders.times();
-          case "timestamp-micros" -> {
+        switch (logicalType.getName()) {
+          case "date":
+            return GenericReaders.dates();
+
+          case "time-micros":
+            return GenericReaders.times();
+
+          case "timestamp-micros":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              yield GenericReaders.timestamptz();
+              return GenericReaders.timestamptz();
             }
-            yield GenericReaders.timestamps();
-          }
-          case "timestamp-nanos" -> {
+            return GenericReaders.timestamps();
+
+          case "timestamp-nanos":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              yield GenericReaders.timestamptzNanos();
+              return GenericReaders.timestamptzNanos();
             }
-            yield GenericReaders.timestampNanos();
-          }
-          case "timestamp-millis" -> {
+            return GenericReaders.timestampNanos();
+
+          case "timestamp-millis":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              yield GenericReaders.timestamptzMillis();
+              return GenericReaders.timestamptzMillis();
             }
-            yield GenericReaders.timestampMillis();
-          }
-          case "decimal" ->
-              ValueReaders.decimal(
-                  ValueReaders.decimalBytesReader(primitive),
-                  ((LogicalTypes.Decimal) logicalType).getScale());
-          case "uuid" -> ValueReaders.uuids();
-          default -> throw new IllegalArgumentException("Unknown logical type: " + logicalType);
-        };
+            return GenericReaders.timestampMillis();
+
+          case "decimal":
+            return ValueReaders.decimal(
+                ValueReaders.decimalBytesReader(primitive),
+                ((LogicalTypes.Decimal) logicalType).getScale());
+
+          case "uuid":
+            return ValueReaders.uuids();
+
+          default:
+            throw new IllegalArgumentException("Unknown logical type: " + logicalType);
+        }
       }
 
-      return switch (primitive.getType()) {
-        case NULL -> ValueReaders.nulls();
-        case BOOLEAN -> ValueReaders.booleans();
-        case INT -> ValueReaders.ints();
-        case LONG -> ValueReaders.longs();
-        case FLOAT -> ValueReaders.floats();
-        case DOUBLE -> ValueReaders.doubles();
-        case STRING ->
-            // might want to use a binary-backed container like Utf8
-            ValueReaders.strings();
-        case FIXED -> ValueReaders.fixed(primitive.getFixedSize());
-        case BYTES -> ValueReaders.byteBuffers();
-        default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
-      };
+      switch (primitive.getType()) {
+        case NULL:
+          return ValueReaders.nulls();
+        case BOOLEAN:
+          return ValueReaders.booleans();
+        case INT:
+          return ValueReaders.ints();
+        case LONG:
+          return ValueReaders.longs();
+        case FLOAT:
+          return ValueReaders.floats();
+        case DOUBLE:
+          return ValueReaders.doubles();
+        case STRING:
+          // might want to use a binary-backed container like Utf8
+          return ValueReaders.strings();
+        case FIXED:
+          return ValueReaders.fixed(primitive.getFixedSize());
+        case BYTES:
+          return ValueReaders.byteBuffers();
+        default:
+          throw new IllegalArgumentException("Unsupported type: " + primitive);
+      }
     }
   }
 }

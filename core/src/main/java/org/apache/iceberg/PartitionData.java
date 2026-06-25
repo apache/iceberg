@@ -203,16 +203,21 @@ public class PartitionData
       } else {
         Types.NestedField field = fields.get(i);
         switch (field.type().typeId()) {
-          case STRUCT, LIST, MAP ->
-              throw new IllegalArgumentException("Unsupported type in partition data: " + type);
-          case BINARY, FIXED -> {
+          case STRUCT:
+          case LIST:
+          case MAP:
+            throw new IllegalArgumentException("Unsupported type in partition data: " + type);
+          case BINARY:
+          case FIXED:
             byte[] buffer = (byte[]) data[i];
             copy[i] = Arrays.copyOf(buffer, buffer.length);
-          }
-          case STRING -> copy[i] = data[i].toString();
-          default ->
-              // no need to copy the object
-              copy[i] = data[i];
+            break;
+          case STRING:
+            copy[i] = data[i].toString();
+            break;
+          default:
+            // no need to copy the object
+            copy[i] = data[i];
         }
       }
     }

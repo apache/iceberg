@@ -70,10 +70,14 @@ public class ClusteredPositionDeleteWriter<T>
   @Override
   protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(
       PartitionSpec spec, StructLike partition) {
-    return switch (granularity) {
-      case FILE -> new FileScopedPositionDeleteWriter<>(() -> newRollingWriter(spec, partition));
-      case PARTITION -> newRollingWriter(spec, partition);
-    };
+    switch (granularity) {
+      case FILE:
+        return new FileScopedPositionDeleteWriter<>(() -> newRollingWriter(spec, partition));
+      case PARTITION:
+        return newRollingWriter(spec, partition);
+      default:
+        throw new UnsupportedOperationException("Unsupported delete granularity: " + granularity);
+    }
   }
 
   private RollingPositionDeleteWriter<T> newRollingWriter(
