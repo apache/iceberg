@@ -62,15 +62,15 @@ public class MicroBatches {
     ManifestGroup manifestGroup =
         new ManifestGroup(io, ImmutableList.of(manifestFile))
             .specsById(specsById)
-            .caseSensitive(caseSensitive);
+            .caseSensitive(caseSensitive)
+            // ignore deleted so iterator yields only files existing in the snapshot's table state
+            .ignoreDeleted();
     if (!scanAllFiles) {
       manifestGroup =
-          manifestGroup
-              .filterManifestEntries(
-                  entry ->
-                      entry.snapshotId() == snapshot.snapshotId()
-                          && entry.status() == ManifestEntry.Status.ADDED)
-              .ignoreDeleted();
+          manifestGroup.filterManifestEntries(
+              entry ->
+                  entry.snapshotId() == snapshot.snapshotId()
+                      && entry.status() == ManifestEntry.Status.ADDED);
     }
 
     return manifestGroup.planFiles();

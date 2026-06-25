@@ -273,16 +273,20 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       }
       Snapshot lastValidSnapshot = table().snapshot(startOffset.snapshotId());
       Snapshot nextValidSnapshot;
+      boolean advanced = false;
       do {
         nextValidSnapshot = nextValidSnapshot(lastValidSnapshot);
         if (nextValidSnapshot != null) {
           lastValidSnapshot = nextValidSnapshot;
+          advanced = true;
         }
       } while (nextValidSnapshot != null);
+      // If we never advanced past the start snapshot, preserve the start offset's scanAllFiles
+      boolean scanAllFiles = !advanced && startOffset.shouldScanAllFiles();
       return new StreamingOffset(
           lastValidSnapshot.snapshotId(),
-          MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
-          false);
+          MicroBatchUtils.endPositionFor(table(), lastValidSnapshot, scanAllFiles),
+          scanAllFiles);
     }
 
     return computeLimitedOffset(limit);
@@ -432,7 +436,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       addMicroBatchToQueue(
           currentSnapshot,
           fromOffset.position(),
-          MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
+          MicroBatchUtils.endPositionFor(table(), currentSnapshot, fromOffset.shouldScanAllFiles()),
           fromOffset.shouldScanAllFiles());
     }
     if (toOffset != null) {

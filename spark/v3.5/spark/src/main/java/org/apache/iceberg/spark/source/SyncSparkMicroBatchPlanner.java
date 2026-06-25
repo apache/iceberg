@@ -42,6 +42,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
   private final boolean caseSensitive;
   private final long fromTimestamp;
+  private final String fromSnapshot;
   private final StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SyncSparkMicroBatchPlanner(
@@ -49,6 +50,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     super(table, readConf);
     this.caseSensitive = readConf().caseSensitive();
     this.fromTimestamp = readConf().streamFromTimestamp();
+    this.fromSnapshot = readConf().streamFromSnapshot();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
   }
 
@@ -57,7 +59,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
         StreamingOffset.START_OFFSET.equals(startOffset)
-            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp)
+            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, fromSnapshot)
             : startOffset;
 
     StreamingOffset currentOffset = null;
@@ -82,7 +84,8 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
       validateCurrentSnapshotExists(snapshot, currentOffset);
 
-      if (!shouldProcess(snapshot)) {
+      // skip non-append snapshots unless scanning all files in initial snapshot
+      if (!currentOffset.shouldScanAllFiles() && !shouldProcess(snapshot)) {
         LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table().name());
         continue;
       }
@@ -91,7 +94,9 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
       if (currentOffset.snapshotId() == endOffset.snapshotId()) {
         endFileIndex = endOffset.position();
       } else {
-        endFileIndex = MicroBatchUtils.addedFilesCount(table(), currentSnapshot);
+        endFileIndex =
+            MicroBatchUtils.endPositionFor(
+                table(), currentSnapshot, currentOffset.shouldScanAllFiles());
       }
 
       MicroBatch latestMicroBatch =
@@ -126,7 +131,8 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     StreamingOffset startingOffset = startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp);
+      startingOffset =
+          MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, fromSnapshot);
     }
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
