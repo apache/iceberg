@@ -40,6 +40,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.SupportsReferencedBy;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -85,6 +86,8 @@ import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -115,7 +118,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements SparkSupportsReferencedBy {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -128,6 +132,7 @@ public class SparkCatalog extends BaseCatalog {
   private Catalog icebergCatalog = null;
   private SupportsNamespaces asNamespaceCatalog = null;
   private ViewCatalog asViewCatalog = null;
+  private SupportsReferencedBy asSupportsReferencedBy = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
 
@@ -159,17 +164,47 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return load(ident, null /* no time travel */);
+    return loadTable(ident, List.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, List<TableIdentifier> referencedBy)
+      throws NoSuchTableException {
+    try {
+      return load(ident, null /* no time travel */, referencedBy);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return load(ident, TimeTravel.version(version));
+    return loadTable(ident, version, List.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, List<TableIdentifier> referencedBy)
+      throws NoSuchTableException {
+    try {
+      return load(ident, TimeTravel.version(version), referencedBy);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
   }
 
   @Override
   public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    return load(ident, TimeTravel.timestampMicros(timestampMicros));
+    return loadTable(ident, timestampMicros, List.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestampMicros, List<TableIdentifier> referencedBy)
+      throws NoSuchTableException {
+    try {
+      return load(ident, TimeTravel.timestampMicros(timestampMicros), referencedBy);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
   }
 
   @Override
@@ -512,9 +547,26 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, List.of());
+  }
+
+  @Override
+  public View loadView(Identifier ident, List<TableIdentifier> referencedBy)
+      throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+        org.apache.iceberg.view.View view;
+        if (referencedBy != null && !referencedBy.isEmpty() && asSupportsReferencedBy != null) {
+          view = asSupportsReferencedBy.loadView(buildIdentifier(ident), referencedBy);
+        } else {
+          if (referencedBy != null && !referencedBy.isEmpty()) {
+            LOG.warn(
+                "Catalog {} does not support referenced-by view loading, ignoring context for view {}",
+                asViewCatalog.name(),
+                ident);
+          }
+          view = asViewCatalog.loadView(buildIdentifier(ident));
+        }
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
@@ -731,6 +783,10 @@ public class SparkCatalog extends BaseCatalog {
       this.asViewCatalog = (ViewCatalog) catalog;
     }
 
+    if (catalog instanceof SupportsReferencedBy) {
+      this.asSupportsReferencedBy = (SupportsReferencedBy) catalog;
+    }
+
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
     EnvironmentContext.put(
         EnvironmentContext.ENGINE_VERSION, sparkSession.sparkContext().version());
@@ -796,13 +852,14 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
+  private Table load(Identifier ident, TimeTravel timeTravel, List<TableIdentifier> referencedBy)
+      throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      org.apache.iceberg.Table table = loadIcebergTable(buildIdentifier(ident), referencedBy);
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -815,7 +872,7 @@ public class SparkCatalog extends BaseCatalog {
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent);
+        table = loadIcebergTable(namespaceAsIdent, referencedBy);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier
@@ -848,6 +905,22 @@ public class SparkCatalog extends BaseCatalog {
       // throw an exception for the original identifier
       throw new NoSuchTableException(ident);
     }
+  }
+
+  private org.apache.iceberg.Table loadIcebergTable(
+      TableIdentifier ident, List<TableIdentifier> referencedBy) {
+    if (!referencedBy.isEmpty() && asSupportsReferencedBy != null) {
+      return asSupportsReferencedBy.loadTable(ident, referencedBy);
+    }
+
+    if (!referencedBy.isEmpty()) {
+      LOG.warn(
+          "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
+          icebergCatalog.name(),
+          ident);
+    }
+
+    return icebergCatalog.loadTable(ident);
   }
 
   private Pair<String, List<String>> parseLocationString(String location) {

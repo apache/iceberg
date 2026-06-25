@@ -93,7 +93,7 @@ public class OAuth2RefreshCredentialsHandler
     return httpClient()
         .get(
             credentialsEndpoint,
-            null != planId ? Map.of("planId", planId) : null,
+            credentialsQueryParams(),
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());
@@ -127,6 +127,10 @@ public class OAuth2RefreshCredentialsHandler
     }
 
     return client;
+  }
+
+  private Map<String, String> credentialsQueryParams() {
+    return RESTUtil.credentialsQueryParams(planId, properties);
   }
 
   @Override

@@ -21,14 +21,18 @@ package org.apache.iceberg.rest;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.UUIDUtil;
 
@@ -385,5 +389,60 @@ public class RESTUtil {
    */
   public static Map<String, String> idempotencyHeaders() {
     return ImmutableMap.of(IDEMPOTENCY_KEY_HEADER, UUIDUtil.generateUuidV7().toString());
+  }
+
+  /**
+   * Builds query parameters for credential endpoints, including planId and referenced-by if
+   * present.
+   *
+   * @param planId the scan plan ID, or null if not set
+   * @param properties configuration properties that may contain a referenced-by value
+   * @return a map of query parameters, or null if no parameters are needed
+   */
+  public static Map<String, String> credentialsQueryParams(
+      String planId, Map<String, String> properties) {
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (planId != null) {
+      queryParams.put(RESTCatalogProperties.PLAN_ID_QUERY_PARAMETER, planId);
+    }
+
+    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
+    if (referencedBy != null) {
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+    }
+
+    return queryParams.isEmpty() ? null : queryParams;
+  }
+
+  /**
+   * Encode a view identifier chain as a referenced-by query parameter.
+   *
+   * <p>The returned value is the wire-form: each level and the view name are URL-encoded, joined by
+   * the (URL-encoded) namespace separator, and entries are joined by a literal comma matching the
+   * {@code referenced-by} OpenAPI definition. The HTTP layer must pass this value through verbatim
+   * (no further URL-encoding) so the comma chain delimiter and {@code %1F} separators survive on
+   * the wire.
+   *
+   * @param referencedBy ordered list of view identifiers from outermost to innermost
+   * @param namespaceSeparator the URL-encoded namespace separator (e.g. {@code %1F})
+   * @return a map with the referenced-by query parameter, or an empty map if no chain is present
+   */
+  public static Map<String, String> referencedByToQueryParam(
+      List<TableIdentifier> referencedBy, String namespaceSeparator) {
+    if (referencedBy == null || referencedBy.isEmpty()) {
+      return Map.of();
+    }
+
+    List<String> entries =
+        referencedBy.stream()
+            .map(
+                ident ->
+                    encodeNamespace(ident.namespace(), namespaceSeparator)
+                        + namespaceSeparator
+                        + encodeString(ident.name()))
+            .collect(Collectors.toList());
+
+    return ImmutableMap.of(
+        RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, Joiner.on(",").join(entries));
   }
 }

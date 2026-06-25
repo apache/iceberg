@@ -66,8 +66,26 @@ public interface HTTPRequest {
 
     try {
       URIBuilder builder = new URIBuilder(fullPath);
-      queryParameters().forEach(builder::addParameter);
-      return builder.build();
+      String referencedBy = null;
+      for (Map.Entry<String, String> entry : queryParameters().entrySet()) {
+        if (RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER.equals(entry.getKey())) {
+          // URIBuilder.addParameter would re-encode the comma chain delimiter, breaking the spec
+          // wire form. Append this value verbatim instead.
+          referencedBy = entry.getValue();
+        } else {
+          builder.addParameter(entry.getKey(), entry.getValue());
+        }
+      }
+      URI uri = builder.build();
+      if (referencedBy != null) {
+        String suffix =
+            (uri.getRawQuery() == null ? "?" : "&")
+                + RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER
+                + "="
+                + referencedBy;
+        uri = new URI(uri.toString() + suffix);
+      }
+      return uri;
     } catch (URISyntaxException e) {
       throw new RESTException(
           "Failed to create request URI from base %s, params %s", fullPath, queryParameters());

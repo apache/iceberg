@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
+import org.apache.spark.sql.catalyst.plans.logical.views.UnResolvedRelationFromView
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
@@ -37,6 +38,7 @@ import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.MetadataBuilder
 
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
@@ -61,6 +63,33 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         .loadView(catalog, ident)
         .map(_ => ResolvedV2View(catalog.asViewCatalog, ident))
         .getOrElse(u)
+
+    case u @ UnResolvedRelationFromView(
+          tableParts @ CatalogAndIdentifier(catalog, tableIdent),
+          viewChain,
+          options,
+          isStreaming,
+          timeTravelVersion,
+          timeTravelTimestamp) =>
+      val referencedBy = ViewUtil.buildReferencedByChain(viewChain, catalog.name())
+      try {
+        val table =
+          ViewUtil.loadTable(
+            catalog,
+            tableIdent,
+            referencedBy,
+            timeTravelVersion,
+            timeTravelTimestamp)
+        DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+      } catch {
+        case _: NoSuchTableException =>
+          // The target might be a view, not a table. Try loading as a view
+          // and recursively resolve with the accumulated chain.
+          ViewUtil
+            .loadView(catalog, tableIdent, referencedBy)
+            .map(view => createViewRelation(tableParts, view, viewChain))
+            .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
+      }
 
     case c @ CreateIcebergView(
           ResolvedIdentifier(_, _),
@@ -102,12 +131,19 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     }
   }
 
-  private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
+  private def createViewRelation(
+      nameParts: Seq[String],
+      view: View,
+      existingChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
 
     // Apply any necessary rewrites to preserve correct resolution
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
-    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace);
+
+    val viewChain =
+      ViewUtil.buildViewChain(nameParts, viewCatalogAndNamespace, existingChain, isCatalog)
+
+    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, viewChain)
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
@@ -136,11 +172,13 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def rewriteIdentifiers(
       plan: LogicalPlan,
-      catalogAndNamespace: Seq[String]): LogicalPlan = {
+      catalogAndNamespace: Seq[String],
+      viewChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
     // Rewrite unresolved functions and relations
     qualifyTableIdentifiers(
       qualifyFunctionIdentifiers(CTESubstitution.apply(plan), catalogAndNamespace),
-      catalogAndNamespace)
+      catalogAndNamespace,
+      viewChain)
   }
 
   private def qualifyFunctionIdentifiers(
@@ -161,17 +199,31 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
    */
   private def qualifyTableIdentifiers(
       child: LogicalPlan,
-      catalogAndNamespace: Seq[String]): LogicalPlan =
+      catalogAndNamespace: Seq[String],
+      viewChain: Seq[Seq[String]]): LogicalPlan = {
     child transform {
-      case u @ UnresolvedRelation(Seq(table), _, _) =>
-        u.copy(multipartIdentifier = catalogAndNamespace :+ table)
-      case u @ UnresolvedRelation(parts, _, _) if !isCatalog(parts.head) =>
-        u.copy(multipartIdentifier = catalogAndNamespace.head +: parts)
+      case UnresolvedRelation(parts, options, isStreaming) =>
+        val qualifiedTableId = ViewUtil.qualifyParts(parts, catalogAndNamespace, isCatalog)
+        UnResolvedRelationFromView(qualifiedTableId, viewChain, options, isStreaming)
+      case RelationTimeTravel(
+            UnresolvedRelation(parts, options, isStreaming),
+            timestampOpt,
+            versionOpt) =>
+        val qualifiedTableId = ViewUtil.qualifyParts(parts, catalogAndNamespace, isCatalog)
+        UnResolvedRelationFromView(
+          qualifiedTableId,
+          viewChain,
+          options,
+          isStreaming,
+          timeTravelVersion = versionOpt,
+          timeTravelTimestamp = timestampOpt)
       case other =>
         other.transformExpressions { case subquery: SubqueryExpression =>
-          subquery.withNewPlan(qualifyTableIdentifiers(subquery.plan, catalogAndNamespace))
+          subquery.withNewPlan(
+            qualifyTableIdentifiers(subquery.plan, catalogAndNamespace, viewChain))
         }
     }
+  }
 
   private def isCatalog(name: String): Boolean = {
     catalogManager.isCatalogRegistered(name)

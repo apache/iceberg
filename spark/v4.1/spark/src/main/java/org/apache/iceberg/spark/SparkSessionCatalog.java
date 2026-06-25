@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
@@ -54,6 +56,8 @@ import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -63,7 +67,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension {
+    extends BaseCatalog implements CatalogExtension, SparkSupportsReferencedBy {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkSessionCatalog.class);
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
@@ -143,7 +148,22 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return loadTable(ident, List.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, List<TableIdentifier> referencedBy)
+      throws NoSuchTableException {
     try {
+      if (!referencedBy.isEmpty() && icebergCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) icebergCatalog).loadTable(ident, referencedBy);
+      }
+      if (!referencedBy.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
+            icebergCatalog.name(),
+            ident);
+      }
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident);
@@ -152,7 +172,22 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTable(ident, version, List.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, List<TableIdentifier> referencedBy)
+      throws NoSuchTableException {
     try {
+      if (!referencedBy.isEmpty() && icebergCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) icebergCatalog).loadTable(ident, version, referencedBy);
+      }
+      if (!referencedBy.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
+            icebergCatalog.name(),
+            ident);
+      }
       return icebergCatalog.loadTable(ident, version);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, version);
@@ -161,7 +196,23 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    return loadTable(ident, timestamp, List.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp, List<TableIdentifier> referencedBy)
+      throws NoSuchTableException {
     try {
+      if (!referencedBy.isEmpty() && icebergCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) icebergCatalog)
+            .loadTable(ident, timestamp, referencedBy);
+      }
+      if (!referencedBy.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support referenced-by table loading, ignoring context for table {}",
+            icebergCatalog.name(),
+            ident);
+      }
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
@@ -447,7 +498,24 @@ public class SparkSessionCatalog<
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, List.of());
+  }
+
+  @Override
+  public View loadView(Identifier ident, List<TableIdentifier> referencedBy)
+      throws NoSuchViewException {
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      if (referencedBy != null
+          && !referencedBy.isEmpty()
+          && asViewCatalog instanceof SparkSupportsReferencedBy) {
+        return ((SparkSupportsReferencedBy) asViewCatalog).loadView(ident, referencedBy);
+      }
+      if (referencedBy != null && !referencedBy.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support referenced-by view loading, ignoring context for view {}",
+            asViewCatalog.name(),
+            ident);
+      }
       return asViewCatalog.loadView(ident);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
       return getSessionCatalog().loadView(ident);
