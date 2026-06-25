@@ -1123,7 +1123,7 @@ class RemoteSignResult(BaseModel):
 class RemoteSigningConfig(BaseModel):
     """
     Configuration for the remote signer client.
-    When present, clients MUST use this structure instead of the deprecated `signer.uri` and
+    When present, clients SHOULD use this structure instead of the deprecated `signer.uri` and
     `signer.endpoint` properties in the `config` map.
 
     """
@@ -1592,14 +1592,14 @@ class LoadTableResult(BaseModel):
     ## Remote Signing
 
     If remote signing for a specific storage provider is enabled, the server SHOULD use the
-    `remote-signing` field to communicate all signer client settings. When the `remote-signing`
-    field is present, clients MUST use it instead of the deprecated `signer.uri` and
-    `signer.endpoint` config properties.
+    `remote-signing-config` field to communicate all signer client settings. When the
+    `remote-signing-config` field is present, clients SHOULD use it instead of the deprecated
+    `signer.uri` and `signer.endpoint` config properties.
 
     For backward compatibility, the following `config` properties are still supported but
-    **DEPRECATED** in favor of the `remote-signing` field:
-     - `signer.endpoint`: **DEPRECATED**. The remote signer endpoint. Use `remote-signing.endpoint-path` instead.
-     - `signer.uri`: **DEPRECATED**. The base URI of the signing service. Use `remote-signing.base-uri` instead.
+    **DEPRECATED** in favor of the `remote-signing-config` field:
+     - `signer.endpoint`: **DEPRECATED**. The remote signer endpoint. Use `remote-signing-config.endpoint-path` instead.
+     - `signer.uri`: **DEPRECATED**. The base URI of the signing service. Use `remote-signing-config.base-uri` instead.
 
     """
 
@@ -1613,7 +1613,9 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
-    remote_signing: RemoteSigningConfig | None = Field(None, alias='remote-signing')
+    remote_signing_config: RemoteSigningConfig | None = Field(
+        None, alias='remote-signing-config'
+    )
 
 
 class ScanTasks(BaseModel):
