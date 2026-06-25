@@ -1489,7 +1489,7 @@ public class Parquet {
         if (nameMapping != null) {
           mapping = nameMapping;
         } else {
-          mapping = null;
+          mapping = NameMapping.empty();
         }
 
         Function<MessageType, VectorizedReader<?>> batchedFunc =
