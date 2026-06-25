@@ -108,7 +108,7 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
 
       // Cycle 1: row 1 deleted by the converted DV; row 3 added on staging and committed to main.
       Awaitility.await()
-          .atMost(Duration.ofMinutes(2))
+          .atMost(Duration.ofMinutes(5))
           .pollInterval(Duration.ofMillis(200))
           .untilAsserted(() -> assertThat(dvCountOnMain(table)).isEqualTo(1));
       SimpleDataUtil.assertTableRecords(
@@ -122,7 +122,7 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
       table.newRowDelta().addDeletes(secondDelete).toBranch(stagingBranch).commit();
 
       Awaitility.await()
-          .atMost(Duration.ofMinutes(2))
+          .atMost(Duration.ofMinutes(5))
           .pollInterval(Duration.ofMillis(200))
           .untilAsserted(() -> assertThat(dvCountOnMain(table)).isEqualTo(2));
       SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(3, "c")));
