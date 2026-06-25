@@ -3632,6 +3632,287 @@ components:
           additionalProperties:
             type: string
 
+    ReadRestrictions:
+      type: object
+      description: >
+          Read restrictions for a table, including column projections and row filter expressions.
+
+          A client MUST enforce the restrictions defined in this object when reading data
+          from the table.
+
+          These restrictions apply only to the authenticated principal, user, or account
+          associated with the request. They MUST NOT be interpreted as global policy and
+          MUST NOT be applied beyond the entity identified by the Authentication header
+          (or other applicable authentication mechanism).
+
+          If both properties are absent or empty, the ReadRestrictions object imposes no
+          restrictions and is equivalent to the field being absent from the response.
+          A server MUST NOT return an action for a column whose type is not listed in
+          that action's "Applicable to" set.
+          For all actions, if the input column value is NULL, the output MUST be NULL.
+      properties:
+        required-column-projections:
+          description: >
+            A list of columns that require specific actions to be applied when reading.
+
+            If this property is absent, a reader MAY access all columns of the table as-is
+            without any mandatory transformations.
+
+            If this property is present, each listed column MUST have its specified
+            action applied. Columns not listed in required-column-projections
+            are not subject to any read restrictions.
+
+            When this list is present:
+
+            1. For each column listed in required-column-projections, the reader MUST apply
+              the specified action before returning values for that column.
+
+            2. The reader MUST replace all output references to the column with the result
+              of the action, presenting the result under the original column name. For
+              example, if the action for column cc is mask-alphanum, the reader MUST
+              return the masked value as cc in the query output.
+
+            3. Columns not listed in required-column-projections MAY be projected normally
+              by the reader without any mandatory transformations.
+
+            4. A column MUST appear at most once in required-column-projections.
+
+            5. If a projected column's action cannot be evaluated by the reader
+              (including unrecognized action types), the reader MUST fail rather than
+              ignore or skip the action.
+
+            6. Each action defines the output type for its column. The output type matches
+              the input column type for all predefined actions.
+
+          type: array
+          items:
+            $ref: '#/components/schemas/Action'
+        required-row-filter:
+          description: >
+            An expression that filters rows in the table that the authenticated principal does not have access to.
+
+            1. A reader MUST discard any row for which the filter evaluates to false or null, and
+              no information derived from discarded rows MAY be included in the query result.
+
+            2. Row filters MUST be evaluated against the original, untransformed column values.
+              Required projections MUST be applied only after row filters are applied.
+
+            3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.
+
+            4. If this property is absent, null, or always true then no mandatory filtering is required.
+          $ref: '#/components/schemas/Expression'
+
+    Action:
+      discriminator:
+        propertyName: action
+        mapping:
+          mask-alphanum: '#/components/schemas/MaskAlphanum'
+          mask-to-fixed-value: '#/components/schemas/MaskToFixedValue'
+          replace-with-null: '#/components/schemas/ReplaceWithNull'
+          show-first-4: '#/components/schemas/ShowFirst4'
+          show-last-4: '#/components/schemas/ShowLast4'
+          truncate-to-year: '#/components/schemas/TruncateToYear'
+          truncate-to-month: '#/components/schemas/TruncateToMonth'
+          sha-256-global: '#/components/schemas/Sha256Global'
+          sha-256-query-local: '#/components/schemas/Sha256QueryLocal'
+      type: object
+      required:
+        - action
+        - field-id
+      properties:
+        action:
+          type: string
+        field-id:
+          type: integer
+          description: field id of the column being projected.
+
+    MaskAlphanum:
+      description: >
+        Redacts the column value Unicode code point by code point using the following rules:
+
+        - Digits (U+0030–U+0039, 0-9) are replaced with 'n'
+        - The following punctuation characters are kept as-is:
+            U+0028 '('  LEFT PARENTHESIS
+            U+0029 ')'  RIGHT PARENTHESIS
+            U+002C ','  COMMA
+            U+002E '.'  FULL STOP
+            U+002D '-'  HYPHEN-MINUS
+            U+0040 '@'  COMMERCIAL AT
+        - All other Unicode characters (including letters, whitespace, and any punctuation
+          not listed above) are replaced with 'x'
+
+        For example: "prashant010696@gmail.com" → "xxxxxxxxnnnnnn@xxxxx.xxx"
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-alphanum"
+
+    MaskToFixedValue:
+      description: >
+        Replaces the column value with a predefined type-specific default that conceals
+        the original data while preserving type compatibility. Engines MUST use exactly
+        the values listed below to ensure consistency across implementations.
+
+        Default values by type:
+        - boolean: false
+        - int: 999999999
+        - long: 999999999
+        - float: 0.0
+        - double: 0.0
+        - decimal(p, s): 0 (zero with s digits after the decimal point, e.g. 0.00 for decimal(p,2))
+        - string: "XXXXXXXX"
+        - date: 9999-12-31
+        - time: 00:00:00
+        - timestamp: 9999-12-31T00:00:00
+        - timestamptz: 9999-12-31T00:00:00+00:00
+        - timestamp_ns: 2261-12-31T00:00:00.000000000
+        - timestamptz_ns: 2261-12-31T00:00:00.000000000+00:00
+        - uuid: 00000000-0000-0000-0000-000000000000
+        - fixed(n): n zero bytes
+        - binary: empty byte sequence
+        - variant: {"masked": true}
+        - geometry: POINT EMPTY
+        - geography: POINT EMPTY
+        - list: empty list []
+        - map: empty map {}
+        - struct: struct with each field set to its type-specific default (applied recursively)
+
+        Note: nanosecond-precision timestamps (timestamp_ns, timestamptz_ns) cannot represent
+        9999-12-31 because nanoseconds from epoch overflows a 64-bit signed integer past
+        approximately 2262-04-11; 2261-12-31 is used as the closest clean far-future sentinel.
+
+        Applicable to: all data types
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-to-fixed-value"
+
+    ReplaceWithNull:
+      description: >
+        Replaces the entire column value with NULL.
+
+        Applicable to: all nullable types
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "replace-with-null"
+
+    ShowFirst4:
+      description: >
+        Preserves the first 4 Unicode code points of the column value and redacts the remainder
+        using mask-alphanum rules (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "prashant010696@gmail.com" → "prasxxxxnnnnnn@xxxxx.xxx"
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-first-4"
+
+    ShowLast4:
+      description: >
+        Redacts all Unicode code points except the last 4 using mask-alphanum rules
+        (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "4111-1111-1111-4444" → "nnnn-nnnn-nnnn-4444"
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-last-4"
+
+    TruncateToYear:
+      description: >
+        Truncates the column value to year precision, setting month, day, and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 → 2024-01-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-year"
+
+    TruncateToMonth:
+      description: >
+        Truncates the column value to year and month precision, setting day and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 → 2024-07-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-month"
+
+    Sha256Global:
+      description: |
+        Applies SHA-256 as specified in NIST FIPS 180-4. Deterministic across all queries
+        and engines — the same input always produces the same output.
+
+        Input-to-bytes encoding by type:
+        - string: UTF-8 encoded bytes
+        - int: 4 bytes, little-endian
+        - long: 8 bytes, little-endian
+        - binary: raw bytes as-is
+
+        Output encoding by type:
+        - string: 64-character lowercase hexadecimal string
+        - int: first 4 bytes of the digest, read as a signed two's complement little-endian int
+        - long: first 8 bytes of the digest, read as a signed two's complement little-endian long
+        - binary: the full 32-byte raw SHA-256 digest
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-global"
+
+    Sha256QueryLocal:
+      description: |
+        Applies SHA-256 with a per-query random salt, making the output non-deterministic
+        across queries while remaining consistent within a single query.
+
+        The engine MUST generate a cryptographically random salt of at least 16 bytes for each query and apply it as:
+          SHA-256(salt_bytes || canonical_bytes)
+        where canonical_bytes follows the same encoding rules as sha-256-global.
+
+        Output encoding follows the same rules as sha-256-global.
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-query-local"
+
     LoadCredentialsResponse:
       type: object
       required:
@@ -3701,6 +3982,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        read-restrictions:
+          $ref: '#/components/schemas/ReadRestrictions'
 
     ScanTasks:
       type: object
