@@ -42,8 +42,7 @@ class ParquetFilters {
   static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
     FilterPredicate pred =
         ExpressionVisitors.visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
-    // TODO: handle AlwaysFalse.INSTANCE
-    if (pred != null && pred != AlwaysTrue.INSTANCE) {
+    if (pred != null && pred != AlwaysTrue.INSTANCE && pred != AlwaysFalse.INSTANCE) {
       // FilterCompat will apply LogicalInverseRewriter
       return FilterCompat.get(pred);
     } else {
