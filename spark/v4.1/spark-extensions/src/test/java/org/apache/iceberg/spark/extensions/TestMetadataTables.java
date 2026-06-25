@@ -623,6 +623,62 @@ public class TestMetadataTables extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testTablePropertiesLog() throws Exception {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='%s')",
+        tableName, formatVersion);
+    List<SimpleRecord> recordA = Lists.newArrayList(new SimpleRecord(1, "a"));
+    spark.createDataset(recordA, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+    TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
+    List<TableMetadata.MetadataLogEntry> metadataLogEntries =
+        Lists.newArrayList(tableMetadata.previousFiles());
+
+    List<Object[]> propertiesLogs =
+        sql("SELECT * FROM %s.table_properties_log ORDER BY timestamp", tableName);
+    assertEquals(
+        "Result should match the table property history",
+        ImmutableList.of(
+            row(
+                DateTimeUtils.toJavaTimestamp(metadataLogEntries.get(0).timestampMillis() * 1000),
+                metadataLogEntries.get(0).file(),
+                null,
+                tableMetadata.properties()),
+            row(
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+                tableMetadata.metadataFileLocation(),
+                snapshotId1,
+                tableMetadata.properties())),
+        propertiesLogs);
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('key'='value')", tableName);
+    List<SimpleRecord> recordB = Lists.newArrayList(new SimpleRecord(2, "b"));
+    spark.createDataset(recordB, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+    TableMetadata currentMetadata = ((HasTableOperations) table).operations().current();
+
+    // test filtering
+    List<Object[]> propertiesLogsFilters =
+        sql(
+            "SELECT * FROM %s.table_properties_log WHERE latest_snapshot_id = %s",
+            tableName, snapshotId2);
+    assertThat(propertiesLogsFilters).as("table_properties_log should return 1 row").hasSize(1);
+    assertEquals(
+        "Result should match the latest metadata entry",
+        ImmutableList.of(
+            row(
+                DateTimeUtils.toJavaTimestamp(currentMetadata.lastUpdatedMillis() * 1000),
+                currentMetadata.metadataFileLocation(),
+                currentMetadata.currentSnapshot().snapshotId(),
+                currentMetadata.properties())),
+        propertiesLogsFilters);
+  }
+
+  @TestTemplate
   public void testFilesTableTimeTravelWithSchemaEvolution() throws Exception {
     // Create table and insert data
     sql(
