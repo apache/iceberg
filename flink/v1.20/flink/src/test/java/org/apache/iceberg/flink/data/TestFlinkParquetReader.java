@@ -46,6 +46,7 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -217,6 +218,7 @@ public class TestFlinkParquetReader extends DataTestBase {
     try (CloseableIterable<RowData> reader =
         Parquet.read(Files.localInput(testFile))
             .project(schema)
+            .withNameMapping(MappingUtil.create(schema))
             .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
             .build()) {
       Iterator<RowData> rows = reader.iterator();
