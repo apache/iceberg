@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -537,6 +539,13 @@ public class SparkSessionCatalog<
     } else {
       throw new UnsupportedOperationException(
           "Renaming a view is not supported by catalog: " + catalogName);
+    }
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (icebergCatalog instanceof Closeable) {
+      ((Closeable) icebergCatalog).close();
     }
   }
 }
