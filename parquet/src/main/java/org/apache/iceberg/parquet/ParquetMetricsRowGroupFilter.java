@@ -54,7 +54,7 @@ public class ParquetMetricsRowGroupFilter {
 
   private final Schema schema;
   private final Expression expr;
-  private Map<Integer, Object> missingColumnDefaults = null;
+  private Map<Integer, Object> defaultsForMissingColumns = null;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -74,14 +74,14 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
-    if (missingColumnDefaults == null) {
-      this.missingColumnDefaults = missingColumnDefaults(fileSchema);
+    if (defaultsForMissingColumns == null) {
+      this.defaultsForMissingColumns = defaultsForMissingColumns(fileSchema);
     }
 
     return new MetricsEvalVisitor().eval(fileSchema, rowGroup);
   }
 
-  private Map<Integer, Object> missingColumnDefaults(MessageType fileSchema) {
+  private Map<Integer, Object> defaultsForMissingColumns(MessageType fileSchema) {
     Map<Integer, Object> defaults = Maps.newHashMap();
     for (Types.NestedField field : schema.columns()) {
       if (field.initialDefault() != null) {
@@ -163,7 +163,7 @@ public class ParquetMetricsRowGroupFilter {
       // against that default
       if (pred.term() instanceof BoundReference) {
         Object initialDefault =
-            missingColumnDefaults.get(((BoundReference<T>) pred.term()).fieldId());
+            defaultsForMissingColumns.get(((BoundReference<T>) pred.term()).fieldId());
         if (initialDefault != null) {
           return pred.test((T) initialDefault) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
         }
