@@ -19,12 +19,15 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.atIndex;
 
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -81,5 +84,42 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
         .contains(numRows, atIndex(1))
         .as("Should have the right datafile count in the procedure result")
         .contains(originalFileCount, atIndex(2));
+  }
+
+  @TestTemplate
+  public void testRegisterTableAlreadyExistsFails() throws Exception {
+    sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.register_table('%s', '%s')",
+                    catalogName, targetName, metadataJson))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Table already exists");
+  }
+
+  @TestTemplate
+  public void testRegisterTableWithOverwriteNotSupported() throws Exception {
+    sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.register_table('%s', '%s', true)",
+                    catalogName, targetName, metadataJson))
+        // RESTException is for RESTCatalog; UnsupportedOperationException is for HiveCatalog and
+        // HadoopCatalog.
+        .isInstanceOfAny(UnsupportedOperationException.class, RESTException.class)
+        .hasMessageContaining("Registering tables with overwrite is not supported");
   }
 }
