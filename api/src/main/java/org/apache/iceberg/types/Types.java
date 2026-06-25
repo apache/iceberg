@@ -585,7 +585,7 @@ public class Types {
     private final String crs;
 
     private GeometryType() {
-      crs = null;
+      this(null);
     }
 
     private GeometryType(String crs) {
@@ -646,8 +646,7 @@ public class Types {
     private final EdgeAlgorithm algorithm;
 
     private GeographyType() {
-      this.crs = null;
-      this.algorithm = null;
+      this(null, null);
     }
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
