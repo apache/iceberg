@@ -878,22 +878,26 @@ public class Types {
       this.name = name;
       this.type = type;
       this.doc = doc;
-      this.initialDefault = castDefault(initialDefault, type);
-      this.writeDefault = castDefault(writeDefault, type);
+      this.initialDefault = initDefault(isOptional, initialDefault, type);
+      this.writeDefault = initDefault(isOptional, writeDefault, type);
     }
 
-    private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
-      if (type.isNestedType() && defaultValue != null) {
+    private static Literal<?> initDefault(boolean isOptional, Literal<?> defaultValue, Type type) {
+      if (defaultValue == null) {
+        return null;
+      } else if (defaultValue.equals(Literal.ofNull())) {
+        Preconditions.checkArgument(
+            isOptional, "Cannot use null default for required field (%s)", type);
+        return defaultValue;
+      } else if (type.isNestedType()) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
-      } else if (defaultValue != null) {
+      } else {
         Literal<?> typedDefault = defaultValue.to(type);
         Preconditions.checkArgument(
             typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
         return typedDefault;
       }
-
-      return null;
     }
 
     public boolean isOptional() {

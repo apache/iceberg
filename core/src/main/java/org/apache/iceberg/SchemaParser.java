@@ -93,12 +93,12 @@ public class SchemaParser {
         generator.writeStringField(DOC, field.doc());
       }
 
-      if (field.initialDefault() != null) {
+      if (field.initialDefaultLiteral() != null) {
         generator.writeFieldName(INITIAL_DEFAULT);
         SingleValueParser.toJson(field.type(), field.initialDefault(), generator);
       }
 
-      if (field.writeDefault() != null) {
+      if (field.writeDefaultLiteral() != null) {
         generator.writeFieldName(WRITE_DEFAULT);
         SingleValueParser.toJson(field.type(), field.writeDefault(), generator);
       }
@@ -198,6 +198,10 @@ public class SchemaParser {
   private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
     if (json.has(defaultField)) {
       Object value = SingleValueParser.fromJson(type, json.get(defaultField));
+      if (value == null) {
+        return Literal.ofNull();
+      }
+
       if (type instanceof Types.TimestampNanoType) {
         // Call Expressions.nanos instead of Expressions.lit to prevent overflow
         // https://github.com/apache/iceberg/issues/13160

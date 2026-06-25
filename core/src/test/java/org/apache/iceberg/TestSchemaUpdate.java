@@ -285,6 +285,51 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateColumnDefaultToNull() {
+    Schema schema =
+        new Schema(
+            optional("data")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.of(5))
+                .withWriteDefault(Literal.of(5))
+                .build());
+
+    Schema expected =
+        new Schema(
+            optional("data")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.of(5))
+                .withWriteDefault(Literal.ofNull())
+                .build());
+
+    Schema updated =
+        new SchemaUpdate(schema, 1).updateColumnDefault("data", Literal.ofNull()).apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+    assertThat(updated.findField("data").writeDefaultLiteral()).isEqualTo(Literal.ofNull());
+    assertThat(updated.findField("data").initialDefault()).isEqualTo(5);
+  }
+
+  @Test
+  public void testUpdateRequiredColumnDefaultToNullThrows() {
+    Schema schema =
+        new Schema(
+            required("data")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.of(5))
+                .withWriteDefault(Literal.of(5))
+                .build());
+
+    assertThatThrownBy(
+            () -> new SchemaUpdate(schema, 1).updateColumnDefault("data", Literal.ofNull()).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot use null default for required field");
+  }
+
+  @Test
   public void testUpdateTypesCaseInsensitive() {
     Types.StructType expected =
         Types.StructType.of(
