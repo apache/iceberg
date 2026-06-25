@@ -25,6 +25,7 @@ import java.io.File;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nonnull;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
@@ -162,7 +163,8 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             100,
             new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
             0,
-            0);
+            0,
+            DynamicTaskWriterFactoryProvider.DEFAULT);
     DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
 
     dynamicWriter.write(record1, null);
@@ -188,7 +190,8 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             100,
             new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
             0,
-            0);
+            0,
+            DynamicTaskWriterFactoryProvider.DEFAULT);
     DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
 
     dynamicWriter.write(record1, null);
@@ -214,7 +217,8 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             100,
             new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
             0,
-            0);
+            0,
+            DynamicTaskWriterFactoryProvider.DEFAULT);
     DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
 
     dynamicWriter.write(record1, null);
@@ -243,7 +247,8 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             100,
             new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
             0,
-            0);
+            0,
+            DynamicTaskWriterFactoryProvider.DEFAULT);
     DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
 
     dynamicWriter.write(record1, null);
@@ -326,18 +331,68 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     assertThat(firstFile.getName()).isNotEqualTo(secondFile.getName());
   }
 
+  @Test
+  void testCustomTaskWriterFactoryProvider() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+    Table table2 = catalog.createTable(TABLE2, SimpleDataUtil.SCHEMA);
+
+    AtomicInteger providerInvocations = new AtomicInteger();
+    DynamicTaskWriterFactoryProvider countingProvider =
+        (table,
+            flinkSchema,
+            targetFileSizeBytes,
+            format,
+            writeProperties,
+            equalityFieldIds,
+            upsertMode,
+            schema,
+            spec) -> {
+          providerInvocations.incrementAndGet();
+          return DynamicTaskWriterFactoryProvider.DEFAULT.create(
+              table,
+              flinkSchema,
+              targetFileSizeBytes,
+              format,
+              writeProperties,
+              equalityFieldIds,
+              upsertMode,
+              schema,
+              spec);
+        };
+
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog, Map.of(), countingProvider);
+
+    dynamicWriter.write(getDynamicRecordInternal(table1), null);
+    dynamicWriter.write(getDynamicRecordInternal(table2), null);
+    Collection<DynamicWriteResult> writeResults = dynamicWriter.prepareCommit();
+
+    assertThat(providerInvocations).hasValue(2);
+    assertThat(writeResults).hasSize(2);
+    assertThat(getNumDataFiles(table1)).isEqualTo(1);
+    assertThat(getNumDataFiles(table2)).isEqualTo(1);
+
+    dynamicWriter.close();
+  }
+
   private static @Nonnull DynamicWriter createDynamicWriter(
       Catalog catalog, Map<String, String> properties) {
-    DynamicWriter dynamicWriter =
-        new DynamicWriter(
-            catalog,
-            properties,
-            new Configuration(),
-            100,
-            new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
-            0,
-            0);
-    return dynamicWriter;
+    return createDynamicWriter(catalog, properties, DynamicTaskWriterFactoryProvider.DEFAULT);
+  }
+
+  private static @Nonnull DynamicWriter createDynamicWriter(
+      Catalog catalog,
+      Map<String, String> properties,
+      DynamicTaskWriterFactoryProvider taskWriterFactoryProvider) {
+    return new DynamicWriter(
+        catalog,
+        properties,
+        new Configuration(),
+        100,
+        new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
+        0,
+        0,
+        taskWriterFactoryProvider);
   }
 
   private static @Nonnull DynamicWriter createDynamicWriter(Catalog catalog) {

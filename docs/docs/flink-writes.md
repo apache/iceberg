@@ -552,6 +552,7 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `dropUnusedColumns(boolean enabled)`                 | When enabled, drops all columns from the current table schema which are not contained in the input schema (see the caveats above on dropping columns).                  |
 | `shuffleSinkSlotSharingGroup(String ssg)`            | Name of the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the shuffle sink. Register the group with its resource spec on the `StreamExecutionEnvironment` via `env.registerSlotSharingGroup(...)`. |
 | `generatorSlotSharingGroup(String ssg)`              | Name of the [slot sharing group](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/finegrained_resource/) for the generator (and forward sink chained to it). Register the group with its resource spec on the `StreamExecutionEnvironment` via `env.registerSlotSharingGroup(...)`. |
+| `taskWriterFactoryProvider(DynamicTaskWriterFactoryProvider provider)` | Supply a custom `TaskWriterFactory<RowData>` per write target in place of the default `RowDataTaskWriterFactory`. Useful for throughput-oriented writers that exploit known data pattern, audit/metric layering, custom file naming/layout/properties. |
 
 ### Distribution Modes
 
