@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -310,7 +311,9 @@ class SchemaUtils {
         return DateType.get();
       } else if (value instanceof LocalTime) {
         return TimeType.get();
-      } else if (value instanceof java.util.Date || value instanceof OffsetDateTime) {
+      } else if (value instanceof java.util.Date
+          || value instanceof OffsetDateTime
+          || value instanceof ZonedDateTime) {
         return TimestampType.withZone();
       } else if (value instanceof LocalDateTime) {
         return TimestampType.withoutZone();
