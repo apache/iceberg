@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.common.SupportsConcurrentExecutionAttempts;
@@ -171,6 +172,8 @@ public class IcebergSink
   // equalityFieldIds instead.
   private final Set<String> equalityFieldColumns;
 
+  @Nullable private final OutputFileFactoryProvider outputFileFactoryProvider;
+
   private final transient List<MaintenanceTaskBuilder<?>> maintenanceTasks;
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
@@ -188,7 +191,8 @@ public class IcebergSink
       boolean overwriteMode,
       List<MaintenanceTaskBuilder<?>> maintenanceTasks,
       FlinkMaintenanceConfig flinkMaintenanceConfig,
-      Set<String> equalityFieldColumns) {
+      Set<String> equalityFieldColumns,
+      @Nullable OutputFileFactoryProvider outputFileFactoryProvider) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -212,6 +216,7 @@ public class IcebergSink
     this.maintenanceTasks = maintenanceTasks;
     this.flinkMaintenanceConfig = flinkMaintenanceConfig;
     this.equalityFieldColumns = equalityFieldColumns;
+    this.outputFileFactoryProvider = outputFileFactoryProvider;
   }
 
   @Override
@@ -224,7 +229,10 @@ public class IcebergSink
             dataFileFormat,
             writeProperties,
             equalityFieldIds,
-            upsertMode);
+            upsertMode,
+            table.schema(),
+            table.spec(),
+            outputFileFactoryProvider);
     IcebergStreamWriterMetrics metrics =
         new IcebergStreamWriterMetrics(context.metricGroup(), table.name());
     return new IcebergSinkWriter(
@@ -354,6 +362,7 @@ public class IcebergSink
     private ReadableConfig readableConfig = new Configuration();
     private List<String> equalityFieldColumns = null;
     private final List<MaintenanceTaskBuilder<?>> maintenanceTasks = Lists.newArrayList();
+    @Nullable private OutputFileFactoryProvider outputFileFactoryProvider;
 
     private Builder() {}
 
@@ -721,6 +730,18 @@ public class IcebergSink
       return this;
     }
 
+    /**
+     * Sets a custom {@link OutputFileFactoryProvider} to control how output files are created.
+     *
+     * <p>When set, the provided factory replaces the default {@link
+     * org.apache.iceberg.io.OutputFileFactory} in the writer pipeline. When not set (null), the
+     * default factory is used.
+     */
+    public Builder outputFileFactoryProvider(OutputFileFactoryProvider provider) {
+      this.outputFileFactoryProvider = provider;
+      return this;
+    }
+
     IcebergSink build() {
 
       Preconditions.checkArgument(
@@ -811,7 +832,8 @@ public class IcebergSink
           overwriteMode,
           maintenanceTasks,
           flinkMaintenanceConfig,
-          equalityFieldColumnsSet);
+          equalityFieldColumnsSet,
+          outputFileFactoryProvider);
     }
 
     /**

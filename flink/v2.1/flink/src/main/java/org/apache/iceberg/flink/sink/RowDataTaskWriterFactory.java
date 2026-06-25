@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -44,7 +44,7 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
-  private final Supplier<Table> tableSupplier;
+  private final SerializableSupplier<Table> tableSupplier;
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -53,6 +53,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Set<Integer> equalityFieldIds;
   private final boolean upsert;
   private final FileWriterFactory<RowData> fileWriterFactory;
+  @Nullable private final OutputFileFactoryProvider outputFileFactoryProvider;
   private boolean useDv;
 
   private transient OutputFileFactory outputFileFactory;
@@ -105,7 +106,32 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       boolean upsert,
       Schema schema,
       PartitionSpec spec) {
+    this(
+        tableSupplier,
+        flinkSchema,
+        targetFileSizeBytes,
+        format,
+        writeProperties,
+        equalityFieldIds,
+        upsert,
+        schema,
+        spec,
+        null);
+  }
+
+  public RowDataTaskWriterFactory(
+      SerializableSupplier<Table> tableSupplier,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      Map<String, String> writeProperties,
+      Collection<Integer> equalityFieldIds,
+      boolean upsert,
+      Schema schema,
+      PartitionSpec spec,
+      @Nullable OutputFileFactoryProvider outputFileFactoryProvider) {
     this.tableSupplier = tableSupplier;
+    this.outputFileFactoryProvider = outputFileFactoryProvider;
 
     Table table;
     if (tableSupplier instanceof CachingTableSupplier) {
@@ -174,12 +200,19 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     refreshTable();
     this.useDv = TableUtil.formatVersion(table) > 2;
 
-    this.outputFileFactory =
-        OutputFileFactory.builderFor(table, taskId, attemptId)
-            .format(format)
-            .ioSupplier(() -> tableSupplier.get().io())
-            .defaultSpec(spec)
-            .build();
+    if (outputFileFactoryProvider != null) {
+      this.outputFileFactory =
+          Preconditions.checkNotNull(
+              outputFileFactoryProvider.create(tableSupplier, taskId, attemptId, format, spec),
+              "OutputFileFactoryProvider must not return null");
+    } else {
+      this.outputFileFactory =
+          OutputFileFactory.builderFor(table, taskId, attemptId)
+              .format(format)
+              .ioSupplier(() -> tableSupplier.get().io())
+              .defaultSpec(spec)
+              .build();
+    }
   }
 
   @Override
