@@ -60,6 +60,11 @@ public class GenericManifestFile extends SupportsIndexProjection
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
   private Long firstRowId = null;
+  // v4: total number of entries persisted at the root-manifest content_entry level (field id 103).
+  // Null for pre-v4 manifest list entries where the count is not directly tracked at the manifest
+  // reference level. Set via setRecordCount(...) by the v4 writer (post-construction in
+  // ManifestWriter.toManifestFile) and by RootManifestReader when projecting a content_entry row.
+  private Long recordCount = null;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public GenericManifestFile(Schema avroSchema) {
@@ -172,6 +177,7 @@ public class GenericManifestFile extends SupportsIndexProjection
             ? null
             : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.firstRowId = toCopy.firstRowId;
+    this.recordCount = toCopy.recordCount;
   }
 
   /** Constructor for Java serialization. */
@@ -270,6 +276,18 @@ public class GenericManifestFile extends SupportsIndexProjection
   @Override
   public Long firstRowId() {
     return firstRowId;
+  }
+
+  @Override
+  public Long recordCount() {
+    return recordCount;
+  }
+
+  // Package-private setter used by the v4 manifest writer (ManifestWriter.toManifestFile) and by
+  // RootManifestReader to populate the per-leaf record count. The interface exposes it as a
+  // read-only default method.
+  void setRecordCount(long newRecordCount) {
+    this.recordCount = newRecordCount;
   }
 
   @Override
