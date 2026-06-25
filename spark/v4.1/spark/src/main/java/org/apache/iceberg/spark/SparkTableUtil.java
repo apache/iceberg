@@ -66,6 +66,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -378,6 +379,8 @@ public class SparkTableUtil {
           "Table %s does not exist", sourceTableIdentWithDB);
     }
 
+    ensureNameMappingPresent(targetTable);
+
     try {
       PartitionSpec spec =
           findCompatibleSpec(targetTable, spark, sourceTableIdentWithDB.unquotedString());
@@ -425,6 +428,19 @@ public class SparkTableUtil {
       SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable, String stagingDir) {
     importSparkTable(
         spark, sourceTableIdent, targetTable, stagingDir, Collections.emptyMap(), false, 1);
+  }
+
+  /**
+   * Auto-set the default name mapping on the target table if it is not already set, so that
+   * imported files without Iceberg field IDs resolve fields by name rather than by unsafe position.
+   * Mirrors {@code AddFilesProcedure#ensureNameMappingPresent}.
+   */
+  private static void ensureNameMappingPresent(Table table) {
+    if (table.properties().get(TableProperties.DEFAULT_NAME_MAPPING) == null) {
+      NameMapping mapping = MappingUtil.create(table.schema());
+      String mappingJson = NameMappingParser.toJson(mapping);
+      table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson).commit();
+    }
   }
 
   private static void importUnpartitionedSparkTable(
