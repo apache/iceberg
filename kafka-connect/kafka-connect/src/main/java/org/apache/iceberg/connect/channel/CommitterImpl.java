@@ -201,7 +201,17 @@ public class CommitterImpl implements Committer {
           String.format("Coordinator unexpectedly terminated on committer %s", taskId));
     }
     if (worker != null) {
-      worker.process();
+      try {
+        worker.process();
+      } catch (Exception e) {
+        LOG.error(
+            "Worker {}-{} failed during control event processing, stopping worker.",
+            config.connectorName(),
+            config.taskId(),
+            e);
+        stopWorker();
+        throw e;
+      }
     }
   }
 

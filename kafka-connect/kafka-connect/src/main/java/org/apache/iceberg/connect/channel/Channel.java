@@ -51,7 +51,7 @@ abstract class Channel {
   private final Consumer<String, byte[]> consumer;
   private final SinkTaskContext context;
   private final Admin admin;
-  private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
+  private final Map<Integer, Long> controlTopicOffsets = Maps.newConcurrentMap();
   private final String producerId;
 
   Channel(
@@ -151,11 +151,15 @@ abstract class Channel {
     consumer.commitSync(offsetsToCommit);
   }
 
-  void start() {
+  protected void initializeConsumer() {
     consumer.subscribe(ImmutableList.of(controlTopic));
 
     // initial poll with longer duration so the consumer will initialize...
     consumeAvailable(Duration.ofSeconds(1));
+  }
+
+  void start() {
+    initializeConsumer();
   }
 
   void stop() {
@@ -163,5 +167,13 @@ abstract class Channel {
     producer.close();
     consumer.close();
     admin.close();
+  }
+
+  /**
+   * Wakeup the consumer. This is the only thread-safe method on KafkaConsumer and can be called
+   * from any thread to interrupt a blocking poll().
+   */
+  protected void wakeupConsumer() {
+    consumer.wakeup();
   }
 }
