@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -60,7 +61,7 @@ abstract class BaseCommitService<T> implements Closeable {
   private final int rewritesPerCommit;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final long timeoutInMS;
-  private int succeededCommits = 0;
+  private final AtomicInteger succeededCommits = new AtomicInteger(0);
 
   /**
    * Constructs a {@link BaseCommitService}
@@ -228,7 +229,7 @@ abstract class BaseCommitService<T> implements Closeable {
       try {
         commitOrClean(batch);
         committedRewrites.addAll(batch);
-        succeededCommits++;
+        succeededCommits.incrementAndGet();
       } catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
       }
@@ -237,7 +238,7 @@ abstract class BaseCommitService<T> implements Closeable {
   }
 
   public int succeededCommits() {
-    return succeededCommits;
+    return succeededCommits.get();
   }
 
   @VisibleForTesting
