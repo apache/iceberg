@@ -661,17 +661,41 @@ For more details on using S3 Dual-stack, please refer [Using dual-stack endpoint
 
 ### S3 Custom MetricPublisher
 
-A custom `MetricPublisher` implementation can be plugged into the S3 client by setting the `s3.metrics-publisher-impl` catalog property to the fully qualified class name of a class that implements `software.amazon.awssdk.metrics.MetricPublisher`.
+A custom [`MetricPublisher`](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/metrics/MetricPublisher.html) can be plugged into the S3 client by implementing the `org.apache.iceberg.aws.s3.S3MetricPublisherProvider` interface and setting the `s3.metrics-publisher-impl` catalog property to the fully qualified class name of the implementation.
 
-The class will be instantiated via a static `create(Map<String, String>)` factory method if available, otherwise via a no-arg constructor.
+The provider class must have a no-arg constructor. Iceberg will instantiate it, call `initialize(Map<String, String>)` with all catalog properties, and then call `metricPublisher()` to obtain the publisher instance. This allows wrapping any SDK MetricPublisher (CloudWatchMetricPublisher, LoggingMetricPublisher, EmfMetricLoggingPublisher, or a custom implementation) with appropriate configuration.
 
-For example, to use a custom MetricPublisher with Spark 3.5, you can start the Spark SQL shell with:
+Example provider implementation:
+```java
+import java.util.Map;
+import org.apache.iceberg.aws.s3.S3MetricPublisherProvider;
+import software.amazon.awssdk.metrics.MetricPublisher;
+import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
+
+public class MyCloudWatchProvider implements S3MetricPublisherProvider {
+  private MetricPublisher publisher;
+
+  @Override
+  public void initialize(Map<String, String> properties) {
+    publisher = CloudWatchMetricPublisher.builder()
+        .namespace(properties.getOrDefault("s3.metrics.namespace", "Iceberg"))
+        .build();
+  }
+
+  @Override
+  public MetricPublisher metricPublisher() {
+    return publisher;
+  }
+}
+```
+
+For example, to use a custom MetricPublisher provider with Spark 3.5, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
-    --conf spark.sql.catalog.my_catalog.s3.metrics-publisher-impl=org.example.MyMetricPublisher
+    --conf spark.sql.catalog.my_catalog.s3.metrics-publisher-impl=org.example.MyCloudWatchProvider
 ```
 
 !!! note

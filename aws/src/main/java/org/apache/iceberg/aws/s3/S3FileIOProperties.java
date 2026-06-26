@@ -30,6 +30,7 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -1220,10 +1221,10 @@ public class S3FileIOProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(s3FileIOProperties::applyMetricsPublisherConfiguration)
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyMetricsPublisherConfigurations)
    * </pre>
    */
-  public <T extends S3BaseClientBuilder<T, ?>> void applyMetricsPublisherConfiguration(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyMetricsPublisherConfigurations(T builder) {
     if (metricsPublisherImpl != null) {
       ClientOverrideConfiguration.Builder configBuilder =
           null != builder.overrideConfiguration()
@@ -1235,37 +1236,34 @@ public class S3FileIOProperties implements Serializable {
   }
 
   private MetricPublisher loadMetricPublisher() {
-    // Phase 1: look up the factory. A NoSuchMethodException here means the class does not
-    // declare `create(Map)` — fall back to the no-arg constructor path. Any OTHER exception
-    // from a factory that DOES exist (e.g. the factory itself throws) should surface via the
-    // wrapping IllegalArgumentException in phase 2 so users can distinguish "wrong signature"
-    // from "misconfigured factory".
-    DynMethods.StaticMethod factory = null;
+    DynConstructors.Ctor<S3MetricPublisherProvider> ctor;
     try {
-      factory =
-          DynMethods.builder("create")
-              .hiddenImpl(metricsPublisherImpl, Map.class)
-              .buildStaticChecked();
+      ctor =
+          DynConstructors.builder(S3MetricPublisherProvider.class)
+              .loader(S3FileIOProperties.class.getClassLoader())
+              .hiddenImpl(metricsPublisherImpl)
+              .buildChecked();
     } catch (NoSuchMethodException e) {
-      // Expected when the implementation doesn't provide a create(Map) factory — fall through.
-    }
-
-    // Phase 2: invoke whichever path we found. Exceptions here are real failures and are
-    // surfaced with the precise path that failed so the user can diagnose.
-    try {
-      if (factory != null) {
-        return (MetricPublisher) factory.invoke(allProperties);
-      }
-      return Class.forName(metricsPublisherImpl)
-          .asSubclass(MetricPublisher.class)
-          .getDeclaredConstructor()
-          .newInstance();
-    } catch (Exception e) {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot create MetricPublisher from class %s via %s",
-              metricsPublisherImpl, factory != null ? "create(Map)" : "no-arg constructor"),
+              "Cannot initialize S3MetricPublisherProvider, missing no-arg constructor: %s",
+              metricsPublisherImpl),
           e);
     }
+
+    S3MetricPublisherProvider provider;
+    try {
+      provider = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize S3MetricPublisherProvider, "
+                  + "%s does not implement S3MetricPublisherProvider.",
+              metricsPublisherImpl),
+          e);
+    }
+
+    provider.initialize(allProperties);
+    return provider.metricPublisher();
   }
 }

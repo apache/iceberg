@@ -591,152 +591,123 @@ public class TestS3FileIOProperties {
   }
 
   @Test
-  public void testApplyMetricsPublisherConfigurationWithFactoryMethod() {
+  public void testApplyMetricsPublisherConfigurationsWithProvider() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
-        S3FileIOProperties.METRICS_PUBLISHER_IMPL, FactoryMetricPublisher.class.getName());
+        S3FileIOProperties.METRICS_PUBLISHER_IMPL, TestMetricPublisherProvider.class.getName());
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
 
     S3ClientBuilder builder = S3Client.builder();
-    s3FileIOProperties.applyMetricsPublisherConfiguration(builder);
+    s3FileIOProperties.applyMetricsPublisherConfigurations(builder);
 
     assertThat(builder.overrideConfiguration()).isNotNull();
     assertThat(builder.overrideConfiguration().metricPublishers()).hasSize(1);
     assertThat(builder.overrideConfiguration().metricPublishers().get(0))
-        .isInstanceOf(FactoryMetricPublisher.class);
+        .isInstanceOf(TestMetricPublisher.class);
   }
 
   @Test
-  public void testApplyMetricsPublisherConfigurationWithNoArgConstructor() {
+  public void testApplyMetricsPublisherConfigurationsWithInitializedProvider() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.METRICS_PUBLISHER_IMPL, NoArgMetricPublisher.class.getName());
+    properties.put(
+        S3FileIOProperties.METRICS_PUBLISHER_IMPL,
+        InitializableMetricPublisherProvider.class.getName());
+    properties.put("s3.metrics.custom-key", "custom-value");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
 
     S3ClientBuilder builder = S3Client.builder();
-    s3FileIOProperties.applyMetricsPublisherConfiguration(builder);
+    s3FileIOProperties.applyMetricsPublisherConfigurations(builder);
 
     assertThat(builder.overrideConfiguration()).isNotNull();
     assertThat(builder.overrideConfiguration().metricPublishers()).hasSize(1);
     assertThat(builder.overrideConfiguration().metricPublishers().get(0))
-        .isInstanceOf(NoArgMetricPublisher.class);
+        .isInstanceOf(TestMetricPublisher.class);
   }
 
   @Test
-  public void testApplyMetricsPublisherConfigurationDisabled() {
+  public void testApplyMetricsPublisherConfigurationsDisabled() {
     Map<String, String> properties = Maps.newHashMap();
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
 
     S3ClientBuilder builder = S3Client.builder();
-    s3FileIOProperties.applyMetricsPublisherConfiguration(builder);
+    s3FileIOProperties.applyMetricsPublisherConfigurations(builder);
 
     assertThat(s3FileIOProperties.metricsPublisherImpl()).isNull();
   }
 
   @Test
-  public void testApplyMetricsPublisherConfigurationInvalidClass() {
+  public void testApplyMetricsPublisherConfigurationsInvalidClass() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(S3FileIOProperties.METRICS_PUBLISHER_IMPL, "com.invalid.NonExistentClass");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
 
     S3ClientBuilder builder = S3Client.builder();
-    assertThatThrownBy(() -> s3FileIOProperties.applyMetricsPublisherConfiguration(builder))
+    assertThatThrownBy(() -> s3FileIOProperties.applyMetricsPublisherConfigurations(builder))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot create MetricPublisher from class");
+        .hasMessageContaining("Cannot initialize S3MetricPublisherProvider")
+        .hasMessageContaining("missing no-arg constructor");
   }
 
   @Test
-  public void testApplyMetricsPublisherConfigurationFactoryThrows() {
-    // The implementation provides a static create(Map) factory that throws. The error message
-    // must identify the factory path so the user can diagnose a bad implementation rather than
-    // being misled into thinking they need to add a no-arg constructor.
+  public void testApplyMetricsPublisherConfigurationsNotAProvider() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(
-        S3FileIOProperties.METRICS_PUBLISHER_IMPL, ThrowingFactoryMetricPublisher.class.getName());
+    properties.put(S3FileIOProperties.METRICS_PUBLISHER_IMPL, String.class.getName());
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
 
     S3ClientBuilder builder = S3Client.builder();
-    assertThatThrownBy(() -> s3FileIOProperties.applyMetricsPublisherConfiguration(builder))
+    assertThatThrownBy(() -> s3FileIOProperties.applyMetricsPublisherConfigurations(builder))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("via create(Map)")
-        .hasMessageContaining(ThrowingFactoryMetricPublisher.class.getName());
+        .hasMessageContaining("does not implement S3MetricPublisherProvider");
   }
 
   @Test
-  public void testApplyMetricsPublisherConfigurationNoArgConstructorThrows() {
-    // The implementation does not declare create(Map) but its no-arg constructor throws.
-    // The error message must identify the no-arg constructor path.
+  public void testApplyMetricsPublisherConfigurationsPreservesExistingOverrideConfig() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
-        S3FileIOProperties.METRICS_PUBLISHER_IMPL, ThrowingNoArgMetricPublisher.class.getName());
-    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
-
-    S3ClientBuilder builder = S3Client.builder();
-    assertThatThrownBy(() -> s3FileIOProperties.applyMetricsPublisherConfiguration(builder))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("via no-arg constructor")
-        .hasMessageContaining(ThrowingNoArgMetricPublisher.class.getName());
-  }
-
-  @Test
-  public void testApplyMetricsPublisherPreservesExistingOverrideConfig() {
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.METRICS_PUBLISHER_IMPL, NoArgMetricPublisher.class.getName());
+        S3FileIOProperties.METRICS_PUBLISHER_IMPL, TestMetricPublisherProvider.class.getName());
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
 
     S3ClientBuilder builder = S3Client.builder();
     s3FileIOProperties.applyRetryConfigurations(builder);
-    s3FileIOProperties.applyMetricsPublisherConfiguration(builder);
+    s3FileIOProperties.applyMetricsPublisherConfigurations(builder);
 
     ClientOverrideConfiguration config = builder.overrideConfiguration();
     assertThat(config).isNotNull();
     assertThat(config.retryPolicy()).isPresent();
     assertThat(config.metricPublishers()).hasSize(1);
-    assertThat(config.metricPublishers().get(0)).isInstanceOf(NoArgMetricPublisher.class);
+    assertThat(config.metricPublishers().get(0)).isInstanceOf(TestMetricPublisher.class);
   }
 
-  public static class FactoryMetricPublisher implements MetricPublisher {
-    public static FactoryMetricPublisher create(Map<String, String> properties) {
-      return new FactoryMetricPublisher();
+  public static class TestMetricPublisher implements MetricPublisher {
+    @Override
+    public void publish(MetricCollection metricCollection) {}
+
+    @Override
+    public void close() {}
+  }
+
+  public static class TestMetricPublisherProvider implements S3MetricPublisherProvider {
+    @Override
+    public MetricPublisher metricPublisher() {
+      return new TestMetricPublisher();
+    }
+  }
+
+  public static class InitializableMetricPublisherProvider implements S3MetricPublisherProvider {
+    private Map<String, String> props;
+
+    @Override
+    public void initialize(Map<String, String> properties) {
+      this.props = properties;
     }
 
     @Override
-    public void publish(MetricCollection metricCollection) {}
-
-    @Override
-    public void close() {}
-  }
-
-  public static class NoArgMetricPublisher implements MetricPublisher {
-    public NoArgMetricPublisher() {}
-
-    @Override
-    public void publish(MetricCollection metricCollection) {}
-
-    @Override
-    public void close() {}
-  }
-
-  public static class ThrowingFactoryMetricPublisher implements MetricPublisher {
-    public static ThrowingFactoryMetricPublisher create(Map<String, String> properties) {
-      throw new IllegalStateException("factory boom");
+    public MetricPublisher metricPublisher() {
+      // Verify properties were passed through
+      if (props == null || !props.containsKey("s3.metrics.custom-key")) {
+        throw new IllegalStateException("Properties not initialized correctly");
+      }
+      return new TestMetricPublisher();
     }
-
-    @Override
-    public void publish(MetricCollection metricCollection) {}
-
-    @Override
-    public void close() {}
-  }
-
-  public static class ThrowingNoArgMetricPublisher implements MetricPublisher {
-    public ThrowingNoArgMetricPublisher() {
-      throw new IllegalStateException("ctor boom");
-    }
-
-    @Override
-    public void publish(MetricCollection metricCollection) {}
-
-    @Override
-    public void close() {}
   }
 }
