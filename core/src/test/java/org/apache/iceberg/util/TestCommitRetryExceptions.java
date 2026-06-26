@@ -75,7 +75,49 @@ class TestCommitRetryExceptions {
     CommitFailedException original =
         new CommitFailedException(
             new RetryableValidationException("stale values"),
-            "Commit failed: Validation failed, please retry: stale values");
+            "Commit failed: %s stale values",
+            CommitRetryExceptions.RETRYABLE_VALIDATION_FAILURE_PREFIX);
+
+    CommitFailedException wrapped =
+        CommitRetryExceptions.retryExhaustedException(
+            original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
+
+    assertThat(wrapped).isSameAs(original);
+  }
+
+  @Test
+  void retryExhaustedExceptionPreservesRestRetryableValidationMessages() {
+    CommitFailedException original =
+        new CommitFailedException(
+            "Commit failed: %s stale values",
+            CommitRetryExceptions.RETRYABLE_VALIDATION_FAILURE_PREFIX);
+
+    CommitFailedException wrapped =
+        CommitRetryExceptions.retryExhaustedException(
+            original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
+
+    assertThat(wrapped).isSameAs(original);
+  }
+
+  @Test
+  void retryExhaustedExceptionKeepsRequirementFailureAsPrimaryError() {
+    CommitFailedException original =
+        new CommitFailedException(
+            "Requirement failed: last assigned field id changed: expected id 2 != 3");
+
+    CommitFailedException wrapped =
+        CommitRetryExceptions.retryExhaustedException(
+            original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
+
+    assertThat(wrapped).isSameAs(original);
+  }
+
+  @Test
+  void retryExhaustedExceptionKeepsRestRequirementFailureAsPrimaryError() {
+    String message =
+        "Commit failed: Requirement failed: last assigned field id changed: expected id %d != %d";
+    CommitFailedException original =
+        new CommitFailedException(message, 2, 3);
 
     CommitFailedException wrapped =
         CommitRetryExceptions.retryExhaustedException(

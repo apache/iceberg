@@ -302,9 +302,7 @@ public class TestReplaceTransaction extends TestBase {
     // keep failing to trigger eventual transaction failure
     ((TestTables.TestTableOperations) ((BaseTransaction) replace).ops()).failCommits(100);
 
-    assertThatThrownBy(replace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    InternalTestHelpers.assertCommitRetryExhausted(replace::commitTransaction);
 
     assertThat(version()).isEqualTo(1);
 
