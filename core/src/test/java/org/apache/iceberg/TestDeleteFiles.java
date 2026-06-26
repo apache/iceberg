@@ -738,6 +738,20 @@ public class TestDeleteFiles extends TestBase {
         statuses(Status.DELETED, Status.DELETED));
   }
 
+  @TestTemplate
+  public void testFilterManifestsWithLimitedIOPool() {
+    TestTables.TrackingFileIO io = new TestTables.TrackingFileIO(FILE_IO);
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations("limited-test", tableDir, io);
+    Table testTable =
+        TestTables.create(
+            tableDir, "limited-test", SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+    commit(testTable, testTable.newFastAppend().appendFile(FILE_A), branch);
+    Snapshot deleteSnap = commit(testTable, testTable.newDelete().deleteFile(FILE_A), branch);
+    assertThat(deleteSnap.summary()).containsEntry(SnapshotSummary.DELETED_FILES_PROP, "1");
+    assertThat(io.getPeakCount()).isEqualTo(1);
+  }
+
   private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
