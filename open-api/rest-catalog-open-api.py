@@ -122,6 +122,21 @@ class PrimitiveType(RootModel[str]):
     root: str = Field(..., examples=[['long', 'string', 'fixed[16]', 'decimal(10,2)']])
 
 
+class CollationMetric(BaseModel):
+    id: int = Field(
+        ...,
+        description='Field id (allocated from the table column ID space) whose content_stats struct holds the collation-aware bounds for this collation and version',
+    )
+    collation: str = Field(
+        ...,
+        description='Provider-qualified collation the bounds are produced for, e.g. icu.en_US-ci',
+    )
+    version: str = Field(
+        ...,
+        description='Collation implementation version the bounds were selected under',
+    )
+
+
 class ExpressionType(RootModel[str]):
     root: str = Field(
         ...,
@@ -1390,6 +1405,15 @@ class StructField(BaseModel):
     doc: str | None = None
     initial_default: PrimitiveTypeValue | None = Field(None, alias='initial-default')
     write_default: PrimitiveTypeValue | None = Field(None, alias='write-default')
+    collation: str | None = Field(
+        None,
+        description='Provider-qualified collation for a string field, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
+    collation_metrics: list[CollationMetric] | None = Field(
+        None,
+        alias='collation-metrics',
+        description='Collation metric fields declaring where collation-aware bounds for this field are stored in content_stats',
+    )
 
 
 class StructType(BaseModel):
@@ -1402,15 +1426,30 @@ class ListType(BaseModel):
     element_id: int = Field(..., alias='element-id')
     element: Type
     element_required: bool = Field(..., alias='element-required')
+    element_collation: str | None = Field(
+        None,
+        alias='element-collation',
+        description='Provider-qualified collation for a string element, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
 
 
 class MapType(BaseModel):
     type: Literal['map']
     key_id: int = Field(..., alias='key-id')
     key: Type
+    key_collation: str | None = Field(
+        None,
+        alias='key-collation',
+        description='Provider-qualified collation for a string key, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
     value_id: int = Field(..., alias='value-id')
     value: Type
     value_required: bool = Field(..., alias='value-required')
+    value_collation: str | None = Field(
+        None,
+        alias='value-collation',
+        description='Provider-qualified collation for a string value, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
 
 
 class AndOrExpression(BaseModel):
