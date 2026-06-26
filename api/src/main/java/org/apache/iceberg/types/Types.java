@@ -632,7 +632,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%s(%s)", NAME, crs);
+      return String.format("%s(%s)", NAME, crs());
     }
   }
 
@@ -709,7 +709,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%s(%s, %s)", NAME, crs, algorithm);
+      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
     }
   }
 
