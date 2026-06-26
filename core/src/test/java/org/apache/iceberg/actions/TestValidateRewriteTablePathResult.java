@@ -21,11 +21,11 @@ package org.apache.iceberg.actions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.actions.ValidateRewriteTablePath.ValidateScope;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -155,7 +155,7 @@ public class TestValidateRewriteTablePathResult {
 
   @Test
   public void handlesLargeMissingFileLists() {
-    List<String> largeList = new ArrayList<>(1000);
+    List<String> largeList = Lists.newArrayListWithExpectedSize(1000);
     for (int i = 0; i < 1000; i++) {
       largeList.add("file.parquet");
     }
@@ -187,6 +187,7 @@ public class TestValidateRewriteTablePathResult {
   @Test
   public void validateScopeThrowsOnNoneValue() {
     assertThatThrownBy(() -> ValidateScope.fromString("none"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid validateRewriteTablePath scope");
   }
 }
