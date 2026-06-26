@@ -311,6 +311,25 @@ class TestRESTSigV4AuthSession {
   }
 
   @Test
+  void closeWithAssumeRoleCredentialsProvider() {
+    AwsProperties properties =
+        new AwsProperties(
+            Map.of(
+                AwsProperties.REST_SIGNER_REGION,
+                "us-west-2",
+                AwsProperties.REST_ACCESS_KEY_ID,
+                "id",
+                AwsProperties.REST_SECRET_ACCESS_KEY,
+                "secret",
+                AwsProperties.CLIENT_ASSUME_ROLE_ARN,
+                "arn:aws:iam::123456789012:role/myRoleToAssume"));
+    AuthSession delegate = Mockito.mock(AuthSession.class);
+    RESTSigV4AuthSession session = new RESTSigV4AuthSession(signer, delegate, properties);
+    session.close();
+    Mockito.verify(delegate).close();
+  }
+
+  @Test
   void closeWithCloseableCredentialsProvider() {
     AuthSession delegate = Mockito.mock(AuthSession.class);
     CloseableAwsCredentialsProvider credentialsProvider =

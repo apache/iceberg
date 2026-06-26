@@ -25,8 +25,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 public class TestAwsProperties {
 
@@ -42,5 +46,32 @@ public class TestAwsProperties {
         .isEqualTo(awsPropertiesWithProps.glueCatalogId());
     assertThat(deSerializedAwsPropertiesWithProps.dynamoDbTableName())
         .isEqualTo(awsPropertiesWithProps.dynamoDbTableName());
+  }
+
+  @Test
+  public void testRestCredentialsProviderWithStaticCredentials() {
+    AwsProperties properties =
+        new AwsProperties(
+            ImmutableMap.of(
+                AwsProperties.REST_ACCESS_KEY_ID, "id",
+                AwsProperties.REST_SECRET_ACCESS_KEY, "secret"));
+    assertThat(properties.restCredentialsProvider()).isInstanceOf(StaticCredentialsProvider.class);
+  }
+
+  @Test
+  public void testRestCredentialsProviderWithAssumeRole() {
+    AwsProperties properties =
+        new AwsProperties(
+            ImmutableMap.of(
+                AwsProperties.REST_SIGNER_REGION, "us-west-2",
+                AwsProperties.REST_ACCESS_KEY_ID, "id",
+                AwsProperties.REST_SECRET_ACCESS_KEY, "secret",
+                AwsProperties.CLIENT_ASSUME_ROLE_ARN,
+                    "arn:aws:iam::123456789012:role/myRoleToAssume"));
+    AwsCredentialsProvider provider = properties.restCredentialsProvider();
+    assertThat(provider)
+        .isNotInstanceOf(StaticCredentialsProvider.class)
+        .isInstanceOf(SdkAutoCloseable.class);
+    ((SdkAutoCloseable) provider).close();
   }
 }

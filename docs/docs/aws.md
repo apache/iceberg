@@ -682,6 +682,11 @@ This client factory has the following configurable catalog properties:
 
 By using this client factory, an STS client is initialized with the default credential and region to assume the specified role.
 The Glue, S3 and DynamoDB clients are then initialized with the assume-role credential and region to access resources.
+
+When `client.assume-role.arn` is set and the REST catalog is configured with SigV4 authentication (`rest.auth.type=sigv4`),
+REST catalog requests are also signed with credentials of the assumed role, so that catalog requests and data access
+are performed with the same role.
+
 Here is an example to start Spark shell with this client factory:
 
 ```shell
