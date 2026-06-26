@@ -201,6 +201,27 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testHistoricalSchemaDoesNotShadowCurrentAfterColumnDelete() {
+    // Regression: TableMetadataCache previously iterated all historical schemas and returned
+    // the first SAME match. After deleteColumn, the historical (pre-delete) schema would
+    // structurally match a re-issued full input schema and the sink would write with the
+    // historical schema's field IDs — silent data corruption against the evolved current
+    // schema. The cache must resolve against the current schema only.
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA2);
+    table.updateSchema().deleteColumn("extra").commit();
+    table.refresh();
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    cache.update(tableIdentifier, table);
+
+    TableMetadataCache.ResolvedSchemaInfo info = cache.schema(tableIdentifier, SCHEMA2);
+    assertThat(info).isEqualTo(TableMetadataCache.NOT_FOUND);
+  }
+
+  @Test
   void testCaseSensitiveCachingDoesNotMatch() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");

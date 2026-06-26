@@ -124,6 +124,7 @@ class TableMetadataCache {
             true,
             table.refs().keySet(),
             table.schemas(),
+            table.schema().schemaId(),
             table.specs(),
             inputSchemasPerTableCacheMaximumSize));
   }
@@ -156,21 +157,21 @@ class TableMetadataCache {
         return lastResult;
       }
 
-      for (Map.Entry<Integer, Schema> tableSchema : cached.tableSchemas.entrySet()) {
+      // Resolve only against the current schema. A historical schema may match the input
+      // structurally (CompareSchemasVisitor ignores field IDs), but writing with its field
+      // IDs against the evolved current schema causes silent data corruption on read.
+      Schema currentSchema = cached.tableSchemas.get(cached.currentSchemaId);
+      if (currentSchema != null) {
         CompareSchemasVisitor.Result result =
-            CompareSchemasVisitor.visit(
-                input, tableSchema.getValue(), caseSensitive, dropUnusedColumns);
+            CompareSchemasVisitor.visit(input, currentSchema, caseSensitive, dropUnusedColumns);
         if (result == CompareSchemasVisitor.Result.SAME) {
           ResolvedSchemaInfo newResult =
               new ResolvedSchemaInfo(
-                  tableSchema.getValue(),
-                  CompareSchemasVisitor.Result.SAME,
-                  DataConverter.identity());
+                  currentSchema, CompareSchemasVisitor.Result.SAME, DataConverter.identity());
           cached.inputSchemas.put(input, newResult);
           return newResult;
-        } else if (compatible == null
-            && result == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
-          compatible = tableSchema.getValue();
+        } else if (result == CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED) {
+          compatible = currentSchema;
         }
       }
     }
@@ -221,7 +222,7 @@ class TableMetadataCache {
     } catch (NoSuchTableException | NoSuchNamespaceException e) {
       LOG.debug("Table or namespace doesn't exist {}", identifier, e);
       tableCache.put(
-          identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, null, 1));
+          identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, -1, null, 1));
       return Tuple2.of(false, e);
     }
   }
@@ -256,6 +257,7 @@ class TableMetadataCache {
     private final boolean tableExists;
     private final Set<String> branches;
     private final Map<Integer, Schema> tableSchemas;
+    private final int currentSchemaId;
     private final Map<Integer, PartitionSpec> specs;
     private final Map<Schema, ResolvedSchemaInfo> inputSchemas;
 
@@ -264,12 +266,14 @@ class TableMetadataCache {
         boolean tableExists,
         Set<String> branches,
         Map<Integer, Schema> tableSchemas,
+        int currentSchemaId,
         Map<Integer, PartitionSpec> specs,
         int inputSchemaCacheMaximumSize) {
       this.createdTimestampMillis = createdTimestampMillis;
       this.tableExists = tableExists;
       this.branches = branches;
       this.tableSchemas = tableSchemas;
+      this.currentSchemaId = currentSchemaId;
       this.specs = specs;
       this.inputSchemas =
           new LRUCache<>(inputSchemaCacheMaximumSize, CacheItem::inputSchemaEvictionListener);
