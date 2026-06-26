@@ -131,14 +131,16 @@ class CommitState implements CommitStateMXBean {
   }
 
   void recordGroupFailure(UUID commitId) {
-    groupRetryCount.compute(commitId, (id, count) -> {
-      if (count == null) {
-        return new AtomicInteger(1);
-      } else {
-        count.incrementAndGet();
-        return count;
-      }
-    });
+    groupRetryCount.compute(
+        commitId,
+        (id, count) -> {
+          if (count == null) {
+            return new AtomicInteger(1);
+          } else {
+            count.incrementAndGet();
+            return count;
+          }
+        });
   }
 
   void recordGroupSuccess(UUID commitId) {
@@ -146,7 +148,8 @@ class CommitState implements CommitStateMXBean {
   }
 
   boolean isRetryAllowed(UUID commitId) {
-    return groupRetryCount.getOrDefault(commitId, new AtomicInteger(0)).get() <= config.commitStaleMaxBlockingRetries();
+    return groupRetryCount.getOrDefault(commitId, new AtomicInteger(0)).get()
+        <= config.commitStaleMaxBlockingRetries();
   }
 
   int getRetryCount(UUID commitId) {

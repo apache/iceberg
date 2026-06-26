@@ -181,17 +181,9 @@ class Coordinator extends Channel {
     } catch (RuntimeException e) {
       if (partialCommit) {
         partialCommitFailures.incrementAndGet();
-        LOG.warn(
-            "Partial commit {} failed for task {}",
-            commitState.currentCommitId(),
-            taskId,
-            e);
+        LOG.warn("Partial commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
       } else {
-        LOG.warn(
-            "Commit {} failed for task {}",
-            commitState.currentCommitId(),
-            taskId,
-            e);
+        LOG.warn("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
       }
     } catch (Exception e) {
       LOG.warn("Commit failed, will try again next cycle", e);
@@ -352,12 +344,12 @@ class Coordinator extends Channel {
       send(event);
 
       LOG.info(
-        "Coordinator {} completed commit {} complete, committed to {} table(s) in {} batch(es), valid-through {}",
-        taskId,
-        commitState.currentCommitId(),
-        tableCount,
-        commitMaps.size(),
-        validThroughTs);
+          "Coordinator {} completed commit {} complete, committed to {} table(s) in {} batch(es), valid-through {}",
+          taskId,
+          commitState.currentCommitId(),
+          tableCount,
+          commitMaps.size(),
+          validThroughTs);
 
     } else {
       // Advance consumer offsets to the minimum uncommitted envelope offset per partition.
