@@ -116,8 +116,7 @@ class TestCommitRetryExceptions {
   void retryExhaustedExceptionKeepsRestRequirementFailureAsPrimaryError() {
     String message =
         "Commit failed: Requirement failed: last assigned field id changed: expected id %d != %d";
-    CommitFailedException original =
-        new CommitFailedException(message, 2, 3);
+    CommitFailedException original = new CommitFailedException(message, 2, 3);
 
     CommitFailedException wrapped =
         CommitRetryExceptions.retryExhaustedException(
