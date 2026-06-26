@@ -279,6 +279,48 @@ public class TestLocalScan {
   }
 
   @TestTemplate
+  public void testFilterByInPredicate() throws IOException {
+    File location = new File(tempDir, "junit" + System.nanoTime());
+
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+            location.toString());
+
+    AppendFiles append = table.newAppend();
+    Path path = new Path(location.toString(), format.addExtension("file-1"));
+    List<Record> records = Lists.newArrayList();
+    records.add(genericRecord.copy(ImmutableMap.of("id", 1L, "data", "v1")));
+    records.add(genericRecord.copy(ImmutableMap.of("id", 2L, "data", "v3")));
+    Record record = genericRecord.copy();
+    record.setField("id", 3L);
+    record.setField("data", null);
+    records.add(record);
+
+    writeFile(location.toString(), format.addExtension("file-1"), records);
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withRecordCount(records.size())
+            .withInputFile(HadoopInputFile.fromPath(path, CONF))
+            .build();
+    append.appendFile(file);
+    append.commit();
+
+    List<Record> filterResults =
+        Lists.newArrayList(
+            IcebergGenerics.read(table).where(Expressions.in("data", "v3", "v5")).build());
+
+    List<Record> expected =
+        ImmutableList.of(genericRecord.copy(ImmutableMap.of("id", 2L, "data", "v3")));
+    assertThat(filterResults)
+        .as("Should produce correct number of records")
+        .hasSameSizeAs(expected);
+    assertThat(filterResults).as("Filtered record set should match").isEqualTo(expected);
+  }
+
+  @TestTemplate
   public void testFullScan() {
     Iterable<Record> results = IcebergGenerics.read(sharedTable).build();
 
