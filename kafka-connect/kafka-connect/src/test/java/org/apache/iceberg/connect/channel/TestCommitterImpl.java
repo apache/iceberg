@@ -32,6 +32,7 @@ import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -40,6 +41,8 @@ import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -164,5 +167,51 @@ public class TestCommitterImpl {
     assertThatThrownBy(() -> committer.save(Collections.emptyList()))
         .isInstanceOf(NotRunningException.class)
         .hasMessageContaining("Coordinator unexpectedly terminated");
+  }
+
+  @Test
+  public void testCloseStopsCoordinatorWhenLeaderLookupFails()
+      throws NoSuchFieldException, IllegalAccessException {
+    CommitterImpl committer = new CommitterImpl();
+    setField(committer, "taskId", "demo1-foo-0");
+
+    Field initializedField = CommitterImpl.class.getDeclaredField("isInitialized");
+    initializedField.setAccessible(true);
+    ((AtomicBoolean) initializedField.get(committer)).set(true);
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.connectGroupId()).thenReturn("demo1-foo-iceberg");
+    setField(committer, "config", config);
+
+    KafkaClientFactory clientFactory = mock(KafkaClientFactory.class);
+    when(clientFactory.createAdmin()).thenReturn(mock(Admin.class));
+    setField(committer, "clientFactory", clientFactory);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    setField(committer, "context", context);
+
+    CoordinatorThread coordinatorThread = mock(CoordinatorThread.class);
+    setField(committer, "coordinatorThread", coordinatorThread);
+
+    try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
+      mockKafkaUtils
+          .when(() -> KafkaUtils.consumerGroupDescription(any(), any()))
+          .thenThrow(new ConnectException("Cannot retrieve members for consumer group"));
+
+      assertThatThrownBy(
+              () -> committer.close(ImmutableList.of(new TopicPartition("demo1-foo", 0))))
+          .isInstanceOf(ConnectException.class)
+          .hasMessageContaining("Cannot retrieve members for consumer group");
+
+      verify(coordinatorThread).terminate();
+      mockKafkaUtils.verify(() -> KafkaUtils.seekToLastCommittedOffsets(context));
+    }
+  }
+
+  private static void setField(Object target, String fieldName, Object value)
+      throws NoSuchFieldException, IllegalAccessException {
+    Field field = target.getClass().getDeclaredField(fieldName);
+    field.setAccessible(true);
+    field.set(target, value);
   }
 }
