@@ -690,7 +690,7 @@ class TruncateToMonth(Action):
 class Sha256Global(Action):
     """
     Applies SHA-256. Deterministic across all queries
-    and engines: the same input always produces the same output.
+    and readers: the same input always produces the same output.
 
     Input-to-bytes encoding by type:
     - string: UTF-8 encoded bytes
@@ -719,9 +719,9 @@ class Sha256QueryLocal(Action):
     across queries while remaining consistent within a single query. The definition
     of a query is left to the implementation.
 
-    The engine must generate a cryptographically random salt of at least 16 bytes for each query.
+    The reader must generate a cryptographically random salt of at least 16 bytes for each query.
 
-    For each column value, the engine must encode the value to bytes using
+    For each column value, the reader must encode the value to bytes using
     sha-256-global's input rules, prepend the per-query salt, and compute
     SHA-256 over the result.
 
@@ -1677,7 +1677,7 @@ class ReadRestrictions(BaseModel):
     """
     Read restrictions for a table.
     A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
-    If a projection targets a field, that action governs every value reachable through it; other projections in the same object that target a descendant of that field have no effect.
+    If a projection targets a nested-typed field (struct, list, or map), other projections in the same ReadRestrictions must not target any descendant field-id (struct subfields, list elements, or map keys/values) at any depth. This avoids ambiguity about which action governs a given leaf value.
     An empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions and is equivalent to the field being absent from the response.
 
     """
@@ -1698,7 +1698,7 @@ class ReadRestrictions(BaseModel):
     ) = Field(
         None,
         alias='required-column-projections',
-        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original column name. For\n  example, if the action for column \'cc\' is mask-alphanum, the reader must\n  return the masked value as \'cc\' in the query output.\n\n3. A column must appear at most once in required-column-projections.\n',
+        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A column must appear at most once in required-column-projections.\n',
     )
     required_row_filter: Expression | None = Field(
         None,

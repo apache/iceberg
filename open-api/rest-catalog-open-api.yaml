@@ -3653,9 +3653,11 @@ components:
           or an action), it must fail the query and must not silently return raw,
           partial, or empty results.
 
-          If a projection targets a field, that action governs every value reachable
-          through it; other projections in the same object that target a descendant
-          of that field have no effect.
+          If a projection targets a nested-typed field (struct, list, or map),
+          other projections in the same ReadRestrictions must not target any
+          descendant field-id (struct subfields, list elements, or map keys/values)
+          at any depth. This avoids ambiguity about which action governs a given
+          leaf value.
 
           An empty ReadRestrictions object (no required-column-projections and no
           required-row-filter) imposes no restrictions and is equivalent to the
@@ -3688,9 +3690,9 @@ components:
               returning values for that column.
 
             2. The reader must replace all output references to the column with the result
-              of the action, presenting the result under the original column name. For
-              example, if the action for column 'cc' is mask-alphanum, the reader must
-              return the masked value as 'cc' in the query output.
+              of the action, presenting the result under the original field-id. For
+              example, if the action for field-id `9` is mask-alphanum, the reader must
+              return the masked value as field-id `9` in the query output.
 
             3. A column must appear at most once in required-column-projections.
           type: array
@@ -3888,7 +3890,7 @@ components:
     Sha256Global:
       description: |
         Applies SHA-256. Deterministic across all queries
-        and engines: the same input always produces the same output.
+        and readers: the same input always produces the same output.
 
         Input-to-bytes encoding by type:
         - string: UTF-8 encoded bytes
@@ -3918,9 +3920,9 @@ components:
         across queries while remaining consistent within a single query. The definition
         of a query is left to the implementation.
 
-        The engine must generate a cryptographically random salt of at least 16 bytes for each query.
+        The reader must generate a cryptographically random salt of at least 16 bytes for each query.
 
-        For each column value, the engine must encode the value to bytes using
+        For each column value, the reader must encode the value to bytes using
         sha-256-global's input rules, prepend the per-query salt, and compute
         SHA-256 over the result.
 
