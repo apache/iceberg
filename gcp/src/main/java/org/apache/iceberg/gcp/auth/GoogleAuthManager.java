@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -66,7 +67,7 @@ public class GoogleAuthManager implements AuthManager {
   private final String name;
 
   private GoogleCredentials credentials;
-  private boolean initialized = false;
+  private volatile boolean initialized = false;
 
   public GoogleAuthManager(String managerName) {
     this.name = managerName;
@@ -81,44 +82,68 @@ public class GoogleAuthManager implements AuthManager {
       return;
     }
 
-    String credentialsPath = properties.get(GCP_CREDENTIALS_PATH_PROPERTY);
-    String credentialsJson = properties.get(GCP_CREDENTIALS_JSON_PROPERTY);
-    boolean useCredentialsPath = credentialsPath != null && !credentialsPath.isEmpty();
-    boolean useCredentialsJson = credentialsJson != null && !credentialsJson.isEmpty();
-    if (useCredentialsPath && useCredentialsJson) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot specify both %s and %s",
-              GCP_CREDENTIALS_PATH_PROPERTY, GCP_CREDENTIALS_JSON_PROPERTY));
-    }
+    synchronized (this) {
+      if (initialized) {
+        return;
+      }
 
-    String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
+      String credentialsPath = properties.get(GCP_CREDENTIALS_PATH_PROPERTY);
+      String credentialsJson = properties.get(GCP_CREDENTIALS_JSON_PROPERTY);
+      boolean useCredentialsPath = credentialsPath != null && !credentialsPath.isEmpty();
+      boolean useCredentialsJson = credentialsJson != null && !credentialsJson.isEmpty();
+      if (useCredentialsPath && useCredentialsJson) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot specify both %s and %s",
+                GCP_CREDENTIALS_PATH_PROPERTY, GCP_CREDENTIALS_JSON_PROPERTY));
+      }
+
+      String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
+
+      try {
+        this.credentials =
+            loadCredentials(
+                useCredentialsPath,
+                credentialsPath,
+                useCredentialsJson,
+                credentialsJson,
+                scopesString);
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to load Google credentials", e);
+      }
+
+      this.initialized = true;
+    }
+  }
+
+  @VisibleForTesting
+  GoogleCredentials loadCredentials(
+      boolean useCredentialsPath,
+      String credentialsPath,
+      boolean useCredentialsJson,
+      String credentialsJson,
+      String scopesString)
+      throws IOException {
     List<String> scopes =
         Strings.isNullOrEmpty(scopesString)
             ? ImmutableList.of()
             : ImmutableList.copyOf(SPLITTER.splitToList(scopesString));
 
-    try {
-      if (useCredentialsPath) {
-        LOG.info("Using Google credentials from path: {}", credentialsPath);
-        try (FileInputStream credentialsStream = new FileInputStream(credentialsPath)) {
-          this.credentials = GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
-        }
-      } else if (useCredentialsJson) {
-        LOG.info("Using Google credentials from json");
-        try (InputStream credentialsStream =
-            new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8))) {
-          this.credentials = GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
-        }
-      } else {
-        LOG.info("Using Application Default Credentials with scopes: {}", scopesString);
-        this.credentials = GoogleCredentials.getApplicationDefault().createScoped(scopes);
+    if (useCredentialsPath) {
+      LOG.info("Using Google credentials from path: {}", credentialsPath);
+      try (FileInputStream credentialsStream = new FileInputStream(credentialsPath)) {
+        return GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
       }
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to load Google credentials", e);
+    } else if (useCredentialsJson) {
+      LOG.info("Using Google credentials from json");
+      try (InputStream credentialsStream =
+          new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8))) {
+        return GoogleCredentials.fromStream(credentialsStream).createScoped(scopes);
+      }
+    } else {
+      LOG.info("Using Application Default Credentials with scopes: {}", scopesString);
+      return GoogleCredentials.getApplicationDefault().createScoped(scopes);
     }
-
-    this.initialized = true;
   }
 
   /**
