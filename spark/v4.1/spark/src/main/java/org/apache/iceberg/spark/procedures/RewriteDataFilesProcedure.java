@@ -27,6 +27,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Hilbert;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -158,6 +159,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   private RewriteDataFilesSparkAction checkAndApplyStrategy(
       RewriteDataFilesSparkAction action, String strategy, String sortOrderString, Schema schema) {
     List<Zorder> zOrderTerms = Lists.newArrayList();
+    List<Hilbert> hilbertTerms = Lists.newArrayList();
     List<ExtendedParser.RawOrderField> sortOrderFields = Lists.newArrayList();
     if (sortOrderString != null) {
       ExtendedParser.parseSortOrder(spark(), sortOrderString)
@@ -165,15 +167,23 @@ class RewriteDataFilesProcedure extends BaseProcedure {
               field -> {
                 if (field.term() instanceof Zorder) {
                   zOrderTerms.add((Zorder) field.term());
+                } else if (field.term() instanceof Hilbert) {
+                  hilbertTerms.add((Hilbert) field.term());
                 } else {
                   sortOrderFields.add(field);
                 }
               });
 
-      if (!zOrderTerms.isEmpty() && !sortOrderFields.isEmpty()) {
+      if (!zOrderTerms.isEmpty() && !hilbertTerms.isEmpty()) {
+        throw new IllegalArgumentException(
+            "Cannot mix Zorder and Hilbert sort expressions: " + sortOrderString);
+      }
+
+      if ((!zOrderTerms.isEmpty() || !hilbertTerms.isEmpty()) && !sortOrderFields.isEmpty()) {
         // TODO: we need to allow this in future when SparkAction has handling for this.
         throw new IllegalArgumentException(
-            "Cannot mix identity sort columns and a Zorder sort expression: " + sortOrderString);
+            "Cannot mix identity sort columns and a Zorder or Hilbert sort expression: "
+                + sortOrderString);
       }
     }
 
@@ -186,6 +196,12 @@ class RewriteDataFilesProcedure extends BaseProcedure {
                 .flatMap(zOrder -> zOrder.refs().stream().map(NamedReference::name))
                 .toArray(String[]::new);
         return action.zOrder(columnNames);
+      } else if (!hilbertTerms.isEmpty()) {
+        String[] columnNames =
+            hilbertTerms.stream()
+                .flatMap(hilbert -> hilbert.refs().stream().map(NamedReference::name))
+                .toArray(String[]::new);
+        return action.hilbert(columnNames);
       } else if (!sortOrderFields.isEmpty()) {
         return action.sort(buildSortOrder(sortOrderFields, schema));
       } else {
