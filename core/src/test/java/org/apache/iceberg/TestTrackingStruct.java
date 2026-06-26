@@ -211,6 +211,63 @@ class TestTrackingStruct {
     assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
+  @Test
+  public void testFirstRowIdIsNullInitially() {
+    TrackingStruct source = (TrackingStruct) TrackingBuilder.added(5L).build();
+    source.set(DATA_SEQUENCE_NUMBER_ORDINAL, 10L);
+    source.set(FILE_SEQUENCE_NUMBER_ORDINAL, 11L);
+
+    assertThat(source.firstRowId()).isNull();
+
+    TrackingStruct existing = (TrackingStruct) TrackingBuilder.from(source, 20L).build();
+
+    assertThat(existing.firstRowId()).isNull();
+  }
+
+  @Test
+  public void testSettingFirstRowId() {
+    TrackingStruct source = (TrackingStruct) TrackingBuilder.added(5L).build();
+    source.set(DATA_SEQUENCE_NUMBER_ORDINAL, 10L);
+    source.set(FILE_SEQUENCE_NUMBER_ORDINAL, 11L);
+
+    TrackingStruct existing = (TrackingStruct) TrackingBuilder.from(source, 20L).build();
+    existing.setFirstRowId(150L);
+
+    assertThat(existing.firstRowId()).isEqualTo(150L);
+  }
+
+  @Test
+  public void testSettingFirstRowIdForAddedEntry() {
+    TrackingStruct added = (TrackingStruct) TrackingBuilder.added(5L).build();
+
+    assertThatThrownBy(() -> added.setFirstRowId(12L))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot set first row id on ADDED entry");
+  }
+
+  @Test
+  public void testRejectSettingFirstRowIdIfAlreadySet() {
+    TrackingStruct source = (TrackingStruct) TrackingBuilder.added(5L).build();
+    source.set(DATA_SEQUENCE_NUMBER_ORDINAL, 10L);
+    source.set(FILE_SEQUENCE_NUMBER_ORDINAL, 11L);
+
+    TrackingStruct existing = (TrackingStruct) TrackingBuilder.from(source, 20L).build();
+    existing.setFirstRowId(0L);
+
+    assertThatThrownBy(() -> existing.setFirstRowId(200L))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("First row ID is already set");
+  }
+
+  @Test
+  public void testInvalidFirstRowId() {
+    TrackingStruct tracking = (TrackingStruct) TrackingBuilder.added(5L).build();
+
+    assertThatThrownBy(() -> tracking.setFirstRowId(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid first row ID: -1 (must be >= 0)");
+  }
+
   private static Tracking createManifestTracking(long snapshotId, long sequenceNumber) {
     TrackingStruct tracking = new TrackingStruct(Tracking.schema());
     tracking.set(STATUS_ORDINAL, EntryStatus.ADDED.id());
