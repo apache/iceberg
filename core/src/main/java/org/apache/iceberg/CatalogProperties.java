@@ -49,21 +49,26 @@ public class CatalogProperties {
   public static final boolean CACHE_CASE_SENSITIVE_DEFAULT = true;
 
   /**
-   * Controls the duration for which entries in the catalog are cached.
+   * Controls Iceberg cache behavior
    *
-   * <p>Behavior of specific values of cache.expiration-interval-ms:
+   * <p>Cache expiration is controlled by two configurable policies that can work independently or
+   * together:
    *
    * <ul>
-   *   <li>Zero - Caching and cache expiration are both disabled
-   *   <li>Negative Values - Cache expiration is turned off and entries expire only on refresh etc
-   *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
-   *       milliseconds
+   *   <li>{@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} - Controls expire-after-access
+   *       expiration policy
+   *   <li>{@link CatalogProperties#CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS} - Controls
+   *       expire-after-write expiration policy
    * </ul>
    */
   public static final String CACHE_EXPIRATION_INTERVAL_MS = "cache.expiration-interval-ms";
 
   public static final long CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(30);
   public static final long CACHE_EXPIRATION_INTERVAL_MS_OFF = -1;
+
+  public static final String CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS =
+      "cache.expiration.expire-after-write-interval-ms";
+  public static final long CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT = -1;
 
   /**
    * Controls whether to use caching during manifest reads or not.

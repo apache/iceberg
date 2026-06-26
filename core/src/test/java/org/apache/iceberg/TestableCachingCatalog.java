@@ -34,15 +34,40 @@ public class TestableCachingCatalog extends CachingCatalog {
   public static TestableCachingCatalog wrap(
       Catalog catalog, Duration expirationInterval, Ticker ticker) {
     return new TestableCachingCatalog(
-        catalog, true /* caseSensitive */, expirationInterval, ticker);
+        catalog,
+        true /* caseSensitive */,
+        expirationInterval,
+        Duration.ofMillis(
+            CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT),
+        ticker);
+  }
+
+  public static TestableCachingCatalog wrap(
+      Catalog catalog,
+      Duration expirationInterval,
+      Duration expireAfterWriteInterval,
+      Ticker ticker) {
+    return new TestableCachingCatalog(
+        catalog, true /* caseSensitive */, expirationInterval, expireAfterWriteInterval, ticker);
   }
 
   private final Duration cacheExpirationInterval;
+  private final Duration expireAfterWriteInterval;
 
   TestableCachingCatalog(
-      Catalog catalog, boolean caseSensitive, Duration expirationInterval, Ticker ticker) {
-    super(catalog, caseSensitive, expirationInterval.toMillis(), ticker);
+      Catalog catalog,
+      boolean caseSensitive,
+      Duration expirationInterval,
+      Duration expireAfterWriteInterval,
+      Ticker ticker) {
+    super(
+        catalog,
+        caseSensitive,
+        expirationInterval.toMillis(),
+        expireAfterWriteInterval.toMillis(),
+        ticker);
     this.cacheExpirationInterval = expirationInterval;
+    this.expireAfterWriteInterval = expireAfterWriteInterval;
   }
 
   public Cache<TableIdentifier, Table> cache() {
