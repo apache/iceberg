@@ -65,8 +65,9 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
         && startSnapshotId == that.startSnapshotId
         && Objects.equals(endSnapshotId, that.endSnapshotId)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filtersDesc().equals(that.filtersDesc())
-        && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
+        && filtersDescForEqualsAndHashCode().equals(that.filtersDescForEqualsAndHashCode())
+        && runtimeFiltersDescForEqualsAndHashCode()
+            .equals(that.runtimeFiltersDescForEqualsAndHashCode());
   }
 
   @Override
@@ -77,8 +78,8 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
         startSnapshotId,
         endSnapshotId,
         readSchema(),
-        filtersDesc(),
-        runtimeFiltersDesc());
+        filtersDescForEqualsAndHashCode(),
+        runtimeFiltersDescForEqualsAndHashCode());
   }
 
   @Override

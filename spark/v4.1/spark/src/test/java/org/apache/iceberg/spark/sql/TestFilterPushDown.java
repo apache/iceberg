@@ -97,6 +97,29 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testNoFilterPushdownForComplexExpression() {
+    sql(
+        "CREATE TABLE %s (id INT, salary INT, dep STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (dep)",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (10, 50, 'd1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 25, 'd2')", tableName);
+    sql("INSERT INTO %s VALUES (3, 300, 'd3')", tableName);
+    sql("INSERT INTO %s VALUES (4, 400, 'd4')", tableName);
+    sql("INSERT INTO %s VALUES (5, 500, 'd5')", tableName);
+    sql("INSERT INTO %s VALUES (6, 600, null)", tableName);
+
+    checkFilters(
+        "log10(ifnull(id, 10)) = 1" /* query predicate */,
+        "LOG10(cast(coalesce(id, 10) as double)) = 1.0",
+        "" /* no Iceberg scan filters should be pushed */,
+        ImmutableList.of(row(10, 50, "d1")));
+  }
+
+  @TestTemplate
   public void testFilterPushdownWithIdentityTransform() {
     sql(
         "CREATE TABLE %s (id INT, salary INT, dep STRING)"
