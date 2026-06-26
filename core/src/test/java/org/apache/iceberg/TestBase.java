@@ -603,6 +603,10 @@ public class TestBase {
   }
 
   void validateBranchFiles(Table tbl, String ref, DataFile... expectedFiles) {
+    validateBranchFiles(tbl, ref, Arrays.asList(expectedFiles));
+  }
+
+  void validateBranchFiles(Table tbl, String ref, Collection<DataFile> expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DataFile file : expectedFiles) {
       expectedFilePaths.add(file.location());
@@ -745,6 +749,10 @@ public class TestBase {
 
   protected DataFile newDataFile(String partitionPath) {
     return newDataFileBuilder(table).withPartitionPath(partitionPath).build();
+  }
+
+  protected static DataFile newDataFile(Table tbl, String partitionPath) {
+    return newDataFileBuilder(tbl).withPartitionPath(partitionPath).build();
   }
 
   private static DataFiles.Builder newDataFileBuilder(Table table) {
