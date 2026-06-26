@@ -695,7 +695,7 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      return crs.equalsIgnoreCase(that.crs) && algorithm == that.algorithm;
+      return crs.equalsIgnoreCase(that.crs) && Objects.equals(algorithm, that.algorithm);
     }
 
     @Override
