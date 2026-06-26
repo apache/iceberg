@@ -111,4 +111,7 @@ public class FlinkWriteOptions {
 
   public static final ConfigOption<Integer> VARIANT_INFERENCE_BUFFER_SIZE =
       ConfigOptions.key("variant-inference-buffer-size").intType().noDefaultValue();
+
+  public static final ConfigOption<String> PARQUET_FORMAT_VERSION =
+      ConfigOptions.key("parquet-format-version").stringType().noDefaultValue();
 }

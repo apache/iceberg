@@ -160,6 +160,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | compression-strategy                    | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write                                                                       |
 | write-parallelism                       | Upstream operator parallelism              | Overrides the writer parallelism                                                                                                                |
 | uid-suffix                              | As per table property                      | Overrides the uid suffix used in the underlying IcebergSink for this table                                                                      |
+| parquet-format-version                  | Table write.parquet.format-version         | Overrides this table's Parquet writer format version for this write (v1 or v2)                                                                  |
 | shred-variants                          | Table write.parquet.shred-variants         | Overrides this table's shred variants for this write |
 | variant-inference-buffer-size           | Table write.parquet.variant-inference-buffer-size | Overrides this table's variant inference buffer size for this write |
 

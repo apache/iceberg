@@ -280,4 +280,13 @@ public class FlinkWriteConf {
         .defaultValue(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT)
         .parse();
   }
+
+  public String parquetFormatVersion() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.PARQUET_FORMAT_VERSION.key())
+        .tableProperty(TableProperties.PARQUET_FORMAT_VERSION)
+        .defaultValue(TableProperties.PARQUET_FORMAT_VERSION_DEFAULT)
+        .parse();
+  }
 }

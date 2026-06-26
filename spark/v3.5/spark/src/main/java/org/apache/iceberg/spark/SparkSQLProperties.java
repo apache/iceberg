@@ -117,4 +117,6 @@ public class SparkSQLProperties {
   // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).
   public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =
       "spark.sql.iceberg.read.adaptive-split-size.parallelism";
+
+  public static final String PARQUET_FORMAT_VERSION = "spark.sql.iceberg.parquet-format-version";
 }

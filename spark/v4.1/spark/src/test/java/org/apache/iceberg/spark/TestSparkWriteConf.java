@@ -29,11 +29,13 @@ import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MERGE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.PARQUET_SHRED_VARIANTS;
 import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
@@ -350,6 +352,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
+                    PARQUET_FORMAT_VERSION,
+                    "v1",
+                    DELETE_PARQUET_FORMAT_VERSION,
+                    "v1",
                     PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION_LEVEL,
@@ -474,6 +480,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
+                    PARQUET_FORMAT_VERSION,
+                    "v1",
+                    DELETE_PARQUET_FORMAT_VERSION,
+                    "v1",
                     PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION_LEVEL,
@@ -547,6 +557,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
+                    PARQUET_FORMAT_VERSION,
+                    "v1",
+                    DELETE_PARQUET_FORMAT_VERSION,
+                    "v1",
                     PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION_LEVEL,
@@ -781,5 +795,30 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     Map<String, String> writeProperties = writeConf.writeProperties();
     assertThat(writeProperties).containsEntry(PARQUET_SHRED_VARIANTS, "true");
     assertThat(writeProperties).containsEntry(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200");
+  }
+
+  @TestTemplate
+  public void testWritePropertiesIncludeParquetFormatVersion() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.PARQUET_FORMAT_VERSION, "v2").commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    Map<String, String> writeProperties = writeConf.writeProperties();
+    assertThat(writeProperties).containsEntry(PARQUET_FORMAT_VERSION, "v2");
+    assertThat(writeProperties).containsEntry(TableProperties.DELETE_PARQUET_FORMAT_VERSION, "v2");
+  }
+
+  @TestTemplate
+  public void testParquetFormatVersionWriteOptionOverridesTableProperty() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.PARQUET_FORMAT_VERSION, "v1").commit();
+
+    SparkWriteConf writeConf =
+        new SparkWriteConf(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                ImmutableMap.of(SparkWriteOptions.PARQUET_FORMAT_VERSION, "v2")));
+    assertThat(writeConf.writeProperties()).containsEntry(PARQUET_FORMAT_VERSION, "v2");
   }
 }

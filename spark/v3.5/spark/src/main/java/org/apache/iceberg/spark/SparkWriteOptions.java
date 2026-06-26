@@ -86,4 +86,6 @@ public class SparkWriteOptions {
 
   // Overrides the delete granularity
   public static final String DELETE_GRANULARITY = "delete-granularity";
+
+  public static final String PARQUET_FORMAT_VERSION = "parquet-format-version";
 }
