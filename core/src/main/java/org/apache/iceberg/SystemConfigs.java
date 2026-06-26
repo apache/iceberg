@@ -80,21 +80,6 @@ public class SystemConfigs {
           8,
           Integer::parseUnsignedInt);
 
-  /**
-   * @deprecated will be removed in 1.12.0; use name mapping instead
-   */
-  @Deprecated
-  public static final ConfigEntry<Boolean> NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED =
-      new ConfigEntry<>(
-          "iceberg.netflix.unsafe-parquet-id-fallback.enabled",
-          "ICEBERG_NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED",
-          true,
-          s -> {
-            LOG.warn(
-                "Fallback ID assignment in Parquet is UNSAFE and will be removed in 1.12.0. Use name mapping instead.");
-            return Boolean.parseBoolean(s);
-          });
-
   public static class ConfigEntry<T> {
     private final String propertyKey;
     private final String envKey;
