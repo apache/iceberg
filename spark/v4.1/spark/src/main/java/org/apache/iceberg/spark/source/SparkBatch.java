@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
@@ -90,6 +91,7 @@ class SparkBatch implements Batch {
         sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
     String projectionString = SchemaParser.toJson(projection);
     String[][] locations = computePreferredLocations();
+    Map<String, String> parquetReadProperties = readConf.parquetReadProperties();
 
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
 
@@ -103,7 +105,8 @@ class SparkBatch implements Batch {
               projectionString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              parquetReadProperties);
     }
 
     return partitions;

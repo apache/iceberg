@@ -49,12 +49,14 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -77,6 +79,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final Map<String, String> parquetReadProperties;
 
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
@@ -90,6 +93,24 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table,
+        fileIO,
+        taskGroup,
+        expectedSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors,
+        ImmutableMap.of());
+  }
+
+  BaseReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<TaskT> taskGroup,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors,
+      Map<String, String> parquetReadProperties) {
     this.table = table;
     this.fileIO = EncryptingFileIO.combine(fileIO, table().encryption());
     this.taskGroup = taskGroup;
@@ -102,6 +123,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
+    this.parquetReadProperties = parquetReadProperties;
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -122,6 +144,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected NameMapping nameMapping() {
     return nameMapping;
+  }
+
+  protected Map<String, String> parquetReadProperties() {
+    return parquetReadProperties;
   }
 
   protected Table table() {
@@ -230,17 +256,20 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     @Override
     protected DeleteLoader newDeleteLoader() {
+      Map<String, String> readProperties = parquetReadProperties();
       if (cacheDeleteFilesOnExecutors) {
-        return new CachingDeleteLoader(this::loadInputFile);
+        return new CachingDeleteLoader(this::loadInputFile, readProperties);
       }
-      return new BaseDeleteLoader(this::loadInputFile);
+      return new BaseDeleteLoader(
+          this::loadInputFile, ThreadPools.getDeleteWorkerPool(), readProperties);
     }
 
     private class CachingDeleteLoader extends BaseDeleteLoader {
       private final SparkExecutorCache cache;
 
-      CachingDeleteLoader(Function<DeleteFile, InputFile> loadInputFile) {
-        super(loadInputFile);
+      CachingDeleteLoader(
+          Function<DeleteFile, InputFile> loadInputFile, Map<String, String> readProperties) {
+        super(loadInputFile, ThreadPools.getDeleteWorkerPool(), readProperties);
         this.cache = SparkExecutorCache.getOrCreate();
       }
 

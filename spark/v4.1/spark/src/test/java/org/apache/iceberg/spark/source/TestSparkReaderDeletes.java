@@ -86,6 +86,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -240,6 +241,49 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             });
 
     return set;
+  }
+
+  @TestTemplate
+  public void testParquetDeletesWithVectoredIoDisabled() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    spark
+        .sparkContext()
+        .hadoopConfiguration()
+        .set(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, "false");
+    try {
+      List<Pair<CharSequence, Long>> deletes =
+          Lists.newArrayList(
+              Pair.of(dataFile.location(), 0L), // id = 29
+              Pair.of(dataFile.location(), 3L), // id = 89
+              Pair.of(dataFile.location(), 6L) // id = 122
+              );
+
+      Pair<DeleteFile, CharSequenceSet> posDeletes =
+          FileHelpers.writeDeleteFile(
+              table,
+              Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+              TestHelpers.Row.of(0),
+              deletes,
+              formatVersion);
+
+      table
+          .newRowDelta()
+          .addDeletes(posDeletes.first())
+          .validateDataFilesExist(posDeletes.second())
+          .commit();
+
+      StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
+      StructLikeSet actual = rowSet(tableName, table, "*");
+
+      assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+      checkDeleteCount(3L);
+    } finally {
+      spark
+          .sparkContext()
+          .hadoopConfiguration()
+          .unset(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED);
+    }
   }
 
   @TestTemplate

@@ -19,12 +19,14 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
+import java.util.Map;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -41,6 +43,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final Map<String, String> parquetReadProperties;
 
   private transient Schema expectedSchema = null;
 
@@ -53,7 +56,8 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       String expectedSchemaString,
       boolean caseSensitive,
       String[] preferredLocations,
-      boolean cacheDeleteFilesOnExecutors) {
+      boolean cacheDeleteFilesOnExecutors,
+      Map<String, String> parquetReadProperties) {
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
@@ -63,6 +67,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
+    this.parquetReadProperties = ImmutableMap.copyOf(parquetReadProperties);
   }
 
   @Override
@@ -102,6 +107,10 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
 
   public boolean cacheDeleteFilesOnExecutors() {
     return cacheDeleteFilesOnExecutors;
+  }
+
+  public Map<String, String> parquetReadProperties() {
+    return parquetReadProperties;
   }
 
   public Schema expectedSchema() {
