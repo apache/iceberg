@@ -80,7 +80,7 @@ import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
-import org.apache.iceberg.util.CommitRetry;
+import org.apache.iceberg.util.CommitRetryExceptions;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -718,7 +718,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   public static void configureResponseFromException(
       Exception exc, ErrorResponse.Builder errorBuilder) {
     String errorType = exc.getClass().getSimpleName();
-    if (CommitRetry.isRetryableValidationCommitFailure(exc)) {
+    if (CommitRetryExceptions.isRetryableValidationCommitFailure(exc)) {
       errorType = RetryableValidationException.class.getSimpleName();
     }
 

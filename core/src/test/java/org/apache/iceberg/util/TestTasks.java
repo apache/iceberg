@@ -94,6 +94,15 @@ public class TestTasks {
   }
 
   @Test
+  public void retryExhaustedHandlerCannotBeNull() {
+    Throwable thrown = catchThrowable(() -> Tasks.foreach(1).onRetryExhausted(null));
+
+    assertThat(thrown)
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Handler cannot be null");
+  }
+
+  @Test
   public void retryExhaustedReportsTimeout() {
     RuntimeException wrapped = new RuntimeException("wrapped");
     AtomicReference<Tasks.RetryExhaustionReason> capturedReason = new AtomicReference<>();

@@ -34,7 +34,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.CommitRetry;
+import org.apache.iceberg.util.CommitRetryExceptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 
@@ -101,7 +101,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
                 base.properties(), COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .onRetryExhausted(CommitRetry::retryExhaustedException)
+        .onRetryExhausted(CommitRetryExceptions::retryExhaustedException)
         .run(taskOps -> taskOps.commit(base, internalApply()));
   }
 

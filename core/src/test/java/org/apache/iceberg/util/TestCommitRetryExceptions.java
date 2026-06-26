@@ -25,14 +25,15 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.junit.jupiter.api.Test;
 
-class TestCommitRetry {
+class TestCommitRetryExceptions {
 
   @Test
   void retryExhaustedExceptionRecommendsNumRetriesForAttemptLimit() {
     CommitFailedException original = new CommitFailedException("failed");
 
     CommitFailedException wrapped =
-        CommitRetry.retryExhaustedException(original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
+        CommitRetryExceptions.retryExhaustedException(
+            original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
 
     assertThat(wrapped).isInstanceOf(CommitFailedException.class);
     assertThat(wrapped).hasMessageContaining(TableProperties.COMMIT_NUM_RETRIES);
@@ -45,7 +46,8 @@ class TestCommitRetry {
     CommitFailedException original = new CommitFailedException("failed");
 
     CommitFailedException wrapped =
-        CommitRetry.retryExhaustedException(original, Tasks.RetryExhaustionReason.TIMEOUT);
+        CommitRetryExceptions.retryExhaustedException(
+            original, Tasks.RetryExhaustionReason.TIMEOUT);
 
     assertThat(wrapped).isInstanceOf(CommitFailedException.class);
     assertThat(wrapped).hasMessageContaining(TableProperties.COMMIT_TOTAL_RETRY_TIME_MS);
@@ -58,7 +60,7 @@ class TestCommitRetry {
     CommitFailedException original = new CommitFailedException("failed");
 
     CommitFailedException wrapped =
-        CommitRetry.retryExhaustedException(
+        CommitRetryExceptions.retryExhaustedException(
             original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT_AND_TIMEOUT);
 
     assertThat(wrapped).isInstanceOf(CommitFailedException.class);
@@ -76,7 +78,8 @@ class TestCommitRetry {
             "Commit failed: Validation failed, please retry: stale values");
 
     CommitFailedException wrapped =
-        CommitRetry.retryExhaustedException(original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
+        CommitRetryExceptions.retryExhaustedException(
+            original, Tasks.RetryExhaustionReason.ATTEMPT_LIMIT);
 
     assertThat(wrapped).isSameAs(original);
   }
