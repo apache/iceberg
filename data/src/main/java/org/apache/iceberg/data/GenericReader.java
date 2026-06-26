@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -34,6 +35,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PartitionUtil;
 
@@ -43,6 +46,7 @@ class GenericReader implements Serializable {
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
+  private final NameMapping nameMapping;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
     this.io = scan.table().io();
@@ -50,6 +54,8 @@ class GenericReader implements Serializable {
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
+    String mappingJson = scan.table().properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    this.nameMapping = mappingJson != null ? NameMappingParser.fromJson(mappingJson) : null;
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
@@ -93,6 +99,9 @@ class GenericReader implements Serializable {
         FormatModelRegistry.readBuilder(task.file().format(), Record.class, input);
     if (reuseContainers) {
       builder = builder.reuseContainers();
+    }
+    if (nameMapping != null) {
+      builder = builder.withNameMapping(nameMapping);
     }
 
     return builder
