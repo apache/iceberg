@@ -600,6 +600,13 @@ public class Types {
       return TypeID.GEOMETRY;
     }
 
+    /**
+     * Returns this type's CRS, preserving the casing it was created with.
+     *
+     * <p>CRS values are compared case-insensitively, so two {@code geometry} types whose CRS differ
+     * only in case (e.g. {@code OGC:CRS84} vs {@code ogc:crs84}) are equal. Each value keeps its
+     * original casing in {@link #toString()} and in serialized metadata.
+     */
     public String crs() {
       return crs;
     }
@@ -664,6 +671,13 @@ public class Types {
       return TypeID.GEOGRAPHY;
     }
 
+    /**
+     * Returns this type's CRS, preserving the casing it was created with.
+     *
+     * <p>CRS values are compared case-insensitively, so two {@code geography} types whose CRS
+     * differ only in case (e.g. {@code OGC:CRS84} vs {@code ogc:crs84}) are equal. Each value keeps
+     * its original casing in {@link #toString()} and in serialized metadata.
+     */
     public String crs() {
       return crs;
     }
