@@ -31,6 +31,7 @@ import org.apache.flink.table.types.logical.DoubleType;
 import org.apache.flink.table.types.logical.FloatType;
 import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.RowType;
@@ -45,6 +46,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 class FlinkTypeToType extends FlinkTypeVisitor<Type> {
+
+  private static final String GEOGRAPHY_TYPE_ROOT = "GEOGRAPHY";
 
   private final RowType root;
   private int nextId;
@@ -149,6 +152,15 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
       return Types.TimestampNanoType.withZone();
     }
     return Types.TimestampType.withZone();
+  }
+
+  @Override
+  public Type visit(LogicalType other) {
+    if (GEOGRAPHY_TYPE_ROOT.equals(other.getTypeRoot().name())) {
+      return Types.GeographyType.crs84();
+    }
+
+    return super.visit(other);
   }
 
   @Override

@@ -234,7 +234,7 @@ class ParquetMetrics {
       FieldMetrics<?> fieldMetrics = metricsById.get(fieldId);
       if (null == fieldMetrics) {
         return null;
-      } else if (truncateLength <= 0) {
+      } else if (truncateLength <= 0 || isGeospatial(icebergType.typeId())) {
         return new FieldMetrics<>(
             fieldMetrics.id(),
             fieldMetrics.valueCount(),

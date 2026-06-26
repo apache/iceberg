@@ -39,11 +39,15 @@ import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
+  private static final String FLINK_GEOGRAPHY_TYPE =
+      "org.apache.flink.table.types.logical.GeographyType";
+
   TypeToFlinkType() {}
 
   @Override
@@ -138,9 +142,34 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return new DecimalType(decimal.precision(), decimal.scale());
+      case GEOGRAPHY:
+        return geographyType((Types.GeographyType) primitive);
       default:
         throw new UnsupportedOperationException(
             "Cannot convert unknown type to Flink: " + primitive);
+    }
+  }
+
+  private static LogicalType geographyType(Types.GeographyType geography) {
+    if (!Types.GeographyType.DEFAULT_CRS.equalsIgnoreCase(geography.crs())
+        || geography.algorithm() != EdgeAlgorithm.SPHERICAL) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot convert Iceberg geography type %s to Flink: only OGC:CRS84 with spherical"
+                  + " edges is supported",
+              geography));
+    }
+
+    try {
+      Class<?> geographyType = Class.forName(FLINK_GEOGRAPHY_TYPE);
+      return (LogicalType) geographyType.getConstructor(boolean.class).newInstance(true);
+    } catch (ClassNotFoundException e) {
+      throw new UnsupportedOperationException(
+          "Cannot convert Iceberg geography to Flink: current Flink runtime does not provide"
+              + " GeographyType",
+          e);
+    } catch (ReflectiveOperationException e) {
+      throw new UnsupportedOperationException("Cannot instantiate Flink GeographyType", e);
     }
   }
 }

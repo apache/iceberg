@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -314,6 +315,12 @@ public class FlinkParquetReaders {
 
       @Override
       public Optional<ParquetValueReader<?>> visit(
+          LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyLogicalType) {
+        return Optional.of(new GeographyDataReader(desc));
+      }
+
+      @Override
+      public Optional<ParquetValueReader<?>> visit(
           LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
         return Optional.of(new ParquetValueReaders.ByteArrayReader(desc));
       }
@@ -471,6 +478,41 @@ public class FlinkParquetReaders {
             buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
       } else {
         return StringData.fromBytes(binary.getBytes());
+      }
+    }
+  }
+
+  private static class GeographyDataReader extends ParquetValueReaders.PrimitiveReader<Object> {
+    GeographyDataReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Object read(Object ignored) {
+      return GeographyDataUtil.fromBytes(column.nextBinary().getBytes());
+    }
+  }
+
+  private static class GeographyDataUtil {
+    private static final String GEOGRAPHY_DATA_CLASS = "org.apache.flink.table.data.GeographyData";
+    private static final Method FROM_BYTES = loadFromBytesMethod();
+
+    private GeographyDataUtil() {}
+
+    private static Object fromBytes(byte[] bytes) {
+      try {
+        return FROM_BYTES.invoke(null, bytes);
+      } catch (ReflectiveOperationException e) {
+        throw new UnsupportedOperationException(
+            "Cannot deserialize Parquet WKB to Flink GeographyData", e);
+      }
+    }
+
+    private static Method loadFromBytesMethod() {
+      try {
+        return Class.forName(GEOGRAPHY_DATA_CLASS).getMethod("fromBytes", byte[].class);
+      } catch (ReflectiveOperationException e) {
+        throw new UnsupportedOperationException("Flink GeographyData is not available", e);
       }
     }
   }

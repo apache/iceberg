@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Collections;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.UniqueConstraint;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.BinaryType;
 import org.apache.flink.table.types.logical.CharType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
@@ -38,6 +40,7 @@ import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -326,6 +329,42 @@ public class TestFlinkSchemaUtil {
     checkSchema(flinkSchema, icebergSchema);
   }
 
+  @TestTemplate
+  public void testGeographyField() {
+    LogicalType geographyType = geographyType();
+    assumeThat(geographyType)
+        .as("Flink GeographyType is not available in this Flink version")
+        .isNotNull();
+
+    DataType geographyDataType = TypeConversions.fromLogicalToDataType(geographyType);
+    DataType requiredGeographyDataType =
+        TypeConversions.fromLogicalToDataType(geographyType.copy(false));
+
+    ResolvedSchema flinkSchema =
+        ResolvedSchema.of(
+            Column.physical("location", geographyDataType),
+            Column.physical("required_location", requiredGeographyDataType),
+            Column.physical("locations", DataTypes.ARRAY(geographyDataType)),
+            Column.physical(
+                "nested",
+                DataTypes.ROW(DataTypes.FIELD("location", geographyDataType, "location field"))));
+
+    Schema icebergSchema =
+        new Schema(
+            Types.NestedField.optional(0, "location", Types.GeographyType.crs84()),
+            Types.NestedField.required(1, "required_location", Types.GeographyType.crs84()),
+            Types.NestedField.optional(
+                2, "locations", Types.ListType.ofOptional(4, Types.GeographyType.crs84())),
+            Types.NestedField.optional(
+                3,
+                "nested",
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        5, "location", Types.GeographyType.crs84(), "location field"))));
+
+    checkSchema(flinkSchema, icebergSchema);
+  }
+
   private void checkSchema(ResolvedSchema flinkSchema, Schema icebergSchema) {
     if (isTableSchema) {
       assertThat(FlinkSchemaUtil.convert(TableSchema.fromResolvedSchema(flinkSchema)).asStruct())
@@ -345,6 +384,17 @@ public class TestFlinkSchemaUtil {
                       FlinkSchemaUtil.toResolvedSchema(FlinkSchemaUtil.convert(icebergSchema)))
                   .asStruct())
           .isEqualTo(icebergSchema.asStruct());
+    }
+  }
+
+  private static LogicalType geographyType() {
+    try {
+      Class<?> geographyType = Class.forName("org.apache.flink.table.types.logical.GeographyType");
+      return (LogicalType) geographyType.getConstructor().newInstance();
+    } catch (ClassNotFoundException e) {
+      return null;
+    } catch (ReflectiveOperationException e) {
+      throw new RuntimeException("Cannot instantiate Flink GeographyType", e);
     }
   }
 

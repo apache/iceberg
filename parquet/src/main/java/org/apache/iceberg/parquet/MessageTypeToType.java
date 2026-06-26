@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.TimestampType;
@@ -253,6 +254,21 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     @Override
     public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
       return Optional.of(Types.BinaryType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      return Optional.of(Types.GeometryType.of(geometryType.getCrs()));
+    }
+
+    @Override
+    public Optional<Type> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      return Optional.of(
+          Types.GeographyType.of(
+              geographyType.getCrs(),
+              EdgeAlgorithm.fromName(geographyType.getAlgorithm().name())));
     }
   }
 

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -312,6 +313,12 @@ public class FlinkParquetWriters {
     }
 
     @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation ignored) {
+      return Optional.of(geographies(desc));
+    }
+
+    @Override
     public Optional<ParquetValueWriter<?>> visit(UUIDLogicalTypeAnnotation uuid) {
       return Optional.of(byteArrays(desc));
     }
@@ -369,6 +376,10 @@ public class FlinkParquetWriters {
 
   private static ParquetValueWriter<byte[]> byteArrays(ColumnDescriptor desc) {
     return new ByteArrayWriter(desc);
+  }
+
+  private static ParquetValueWriter<Object> geographies(ColumnDescriptor desc) {
+    return new GeographyDataWriter(desc);
   }
 
   private static class StringDataWriter extends ParquetValueWriters.PrimitiveWriter<StringData> {
@@ -508,6 +519,46 @@ public class FlinkParquetWriters {
     @Override
     public void write(int repetitionLevel, byte[] bytes) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(bytes));
+    }
+  }
+
+  private static class GeographyDataWriter extends ParquetValueWriters.PrimitiveWriter<Object> {
+    private GeographyDataWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Object value) {
+      column.writeBinary(
+          repetitionLevel, Binary.fromReusedByteArray(GeographyDataUtil.toBytes(value)));
+    }
+  }
+
+  private static class GeographyDataUtil {
+    private static final String GEOGRAPHY_DATA_CLASS = "org.apache.flink.table.data.GeographyData";
+    private static final Method TO_BYTES = loadToBytesMethod();
+
+    private GeographyDataUtil() {}
+
+    private static byte[] toBytes(Object value) {
+      if (value instanceof byte[]) {
+        return (byte[]) value;
+      }
+
+      try {
+        return (byte[]) TO_BYTES.invoke(value);
+      } catch (ReflectiveOperationException e) {
+        throw new UnsupportedOperationException(
+            "Cannot serialize Flink GeographyData to Parquet WKB", e);
+      }
+    }
+
+    private static Method loadToBytesMethod() {
+      try {
+        return Class.forName(GEOGRAPHY_DATA_CLASS).getMethod("toBytes");
+      } catch (ReflectiveOperationException e) {
+        throw new UnsupportedOperationException("Flink GeographyData is not available", e);
+      }
     }
   }
 

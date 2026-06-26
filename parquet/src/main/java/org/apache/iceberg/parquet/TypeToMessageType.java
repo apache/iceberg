@@ -30,12 +30,15 @@ import java.util.function.BiFunction;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.FixedType;
+import org.apache.iceberg.types.Types.GeographyType;
+import org.apache.iceberg.types.Types.GeometryType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -43,6 +46,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.variants.Variant;
+import org.apache.parquet.column.schema.EdgeInterpolationAlgorithm;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
@@ -279,10 +283,27 @@ public class TypeToMessageType {
             .as(LogicalTypeAnnotation.uuidType())
             .id(id)
             .named(name);
+      case GEOMETRY:
+        GeometryType geometry = (GeometryType) primitive;
+        return Types.primitive(BINARY, repetition)
+            .as(LogicalTypeAnnotation.geometryType(geometry.crs()))
+            .id(id)
+            .named(name);
+      case GEOGRAPHY:
+        GeographyType geography = (GeographyType) primitive;
+        return Types.primitive(BINARY, repetition)
+            .as(LogicalTypeAnnotation.geographyType(geography.crs(), algorithm(geography)))
+            .id(id)
+            .named(name);
 
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);
     }
+  }
+
+  private static EdgeInterpolationAlgorithm algorithm(GeographyType geography) {
+    EdgeAlgorithm algorithm = geography.algorithm();
+    return EdgeInterpolationAlgorithm.valueOf(algorithm.name());
   }
 
   private static LogicalTypeAnnotation decimalAnnotation(int precision, int scale) {
