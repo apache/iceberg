@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -64,6 +65,66 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
         () -> {
           SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
           assertThat(conf.splitParallelism()).isEqualTo(42);
+        });
+  }
+
+  @TestTemplate
+  public void testSplitSizeSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "42"),
+        () -> {
+          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+          assertThat(conf.splitSizeOption()).isEqualTo(42L);
+          assertThat(conf.splitSize()).isEqualTo(42L);
+        });
+  }
+
+  @TestTemplate
+  public void testSplitSizeTableScopedSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String tableScopedSplitSize = SparkSQLProperties.SPLIT_SIZE + "." + table.name();
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "42", tableScopedSplitSize, "24"),
+        () -> {
+          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+          assertThat(conf.splitSizeOption()).isEqualTo(24L);
+          assertThat(conf.splitSize()).isEqualTo(24L);
+        });
+  }
+
+  @TestTemplate
+  public void testSplitSizeCamelCaseTableScopedSessionConfPreservesTableName() {
+    String quotedTableName = tableName("`table-name`");
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", quotedTableName);
+
+    try {
+      Table table = validationCatalog.loadTable(TableIdentifier.of("default", "table-name"));
+      String tableScopedSplitSize = "spark.sql.iceberg.splitSize." + table.name();
+      withSQLConf(
+          ImmutableMap.of(tableScopedSplitSize, "24"),
+          () -> {
+            SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+            assertThat(conf.splitSizeOption()).isEqualTo(24L);
+            assertThat(conf.splitSize()).isEqualTo(24L);
+          });
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", quotedTableName);
+    }
+  }
+
+  @TestTemplate
+  public void testSplitSizeReadOptionOverridesTableScopedSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String tableScopedSplitSize = SparkSQLProperties.SPLIT_SIZE + "." + table.name();
+    withSQLConf(
+        ImmutableMap.of(tableScopedSplitSize, "24"),
+        () -> {
+          CaseInsensitiveStringMap options =
+              new CaseInsensitiveStringMap(ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, "42"));
+          SparkReadConf conf = new SparkReadConf(spark, table, options);
+          assertThat(conf.splitSizeOption()).isEqualTo(42L);
+          assertThat(conf.splitSize()).isEqualTo(42L);
         });
   }
 
