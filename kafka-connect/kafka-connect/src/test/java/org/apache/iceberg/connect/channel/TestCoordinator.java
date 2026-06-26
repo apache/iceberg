@@ -56,7 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -133,6 +132,8 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testCommitError() {
+    when(config.commitStaleMaxBlockingRetries()).thenReturn(0);
+
     // this spec isn't registered with the table
     PartitionSpec badPartitionSpec =
         PartitionSpec.builderFor(SCHEMA).withSpecId(1).identity("id").build();
@@ -155,6 +156,8 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testCommitFailedExceptionPropagates() {
+    when(config.commitStaleMaxBlockingRetries()).thenReturn(0);
+
     Table spiedTable = spy(table);
     AppendFiles spiedAppend = spy(table.newAppend());
     doThrow(new CommitFailedException("Glue detected concurrent update"))
@@ -246,6 +249,7 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testPartialCommitFailureMetric() {
+    when(config.commitStaleMaxBlockingRetries()).thenReturn(1);
     when(config.commitIntervalMs()).thenReturn(0);
     when(config.commitTimeoutMs()).thenReturn(0);
 
@@ -332,6 +336,8 @@ public class TestCoordinator extends ChannelTestBase {
 
   @Test
   public void testCoordinatorCommittedOffsetValidation() {
+    when(config.commitStaleMaxBlockingRetries()).thenReturn(0);
+
     // This test demonstrates that the Coordinator's validateAndCommit method
     // prevents commits when another independent commit has updated the offsets
     // during the commit process
@@ -468,8 +474,8 @@ public class TestCoordinator extends ChannelTestBase {
 
   @ParameterizedTest
   @ValueSource(ints = {0, 3})
-  public void testStaleGroupBlocksThenThrowsConnectException(int maxRetries) {
-    // For maxRetries=0: process() should throw ConnectException on the very first commit attempt.
+  public void testStaleGroupBlocksThenThrowsException(int maxRetries) {
+    // For maxRetries=0: process() should throws on the very first commit attempt.
     // For maxRetries=3: process() blocks (no exception) for 3 cycles, then throws on cycle 4.
     when(config.commitStaleMaxBlockingRetries()).thenReturn(maxRetries);
     when(config.commitIntervalMs()).thenReturn(0);
@@ -563,8 +569,8 @@ public class TestCoordinator extends ChannelTestBase {
 
     // On the next process() the stale group has exceeded its retry budget — must throw.
     assertThatThrownBy(coordinator::process)
-        .isInstanceOf(ConnectException.class)
-        .hasMessageContaining("Connector stopping");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find partition spec");
   }
 
   @Test
@@ -636,8 +642,8 @@ public class TestCoordinator extends ChannelTestBase {
     // Second process(): stale group immediately exceeds retry budget (maxRetries=0).
     // ConnectException must propagate out of process().
     assertThatThrownBy(coordinator::process)
-        .isInstanceOf(ConnectException.class)
-        .hasMessageContaining("Connector stopping");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find partition spec");
 
     // The connector must not have sent a CommitComplete — it is stopping.
     boolean hasCommitComplete =
@@ -722,8 +728,8 @@ public class TestCoordinator extends ChannelTestBase {
     // Second process(): tbl's current group commits successfully, then tbl2's stale group
     // exhausts retries (maxRetries=0) and throws ConnectException.
     assertThatThrownBy(coordinator::process)
-        .isInstanceOf(ConnectException.class)
-        .hasMessageContaining("Connector stopping");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find partition spec");
 
     // db.tbl must have 1 snapshot — committed before the exception was thrown.
     table.refresh();
@@ -851,8 +857,8 @@ public class TestCoordinator extends ChannelTestBase {
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, offset++, "key", finalReadyBytes));
 
     assertThatThrownBy(coordinator::process)
-        .isInstanceOf(ConnectException.class)
-        .hasMessageContaining("Connector stopping");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find partition spec");
 
     // db.tbl has 4 snapshots: 3 from blocking cycles + 1 from the final cycle
     // (good table commits in parallel before the bad table's exception propagates).

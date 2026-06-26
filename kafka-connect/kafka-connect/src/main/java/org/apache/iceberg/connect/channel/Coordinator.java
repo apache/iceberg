@@ -174,16 +174,17 @@ class Coordinator extends Channel {
   private void commit(boolean partialCommit) {
     try {
       doCommit(partialCommit);
-    } catch (ConnectException e) {
-      // Deliberate failure (e.g., stale group retries exhausted) — must propagate
-      // to stop the connector. CoordinatorThread catches this and terminates.
-      throw e;
     } catch (RuntimeException e) {
       if (partialCommit) {
-        partialCommitFailures.incrementAndGet();
         LOG.warn("Partial commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
       } else {
         LOG.warn("Commit {} failed for task {}", commitState.currentCommitId(), taskId, e);
+      }
+
+      // Deliberate failure (e.g., stale group retries exhausted) — must propagate
+      // to stop the connector. CoordinatorThread catches this and terminates.
+      if (commitState.fatalFailure() != null) {
+        throw e;
       }
     } catch (Exception e) {
       LOG.warn("Commit failed, will try again next cycle", e);
@@ -203,7 +204,8 @@ class Coordinator extends Channel {
     }
 
     Map<Integer, Long> ctlOffsets = controlTopicOffsets();
-    CommitCycleResult result = runTableCommits(commitGroups, ctlOffsets, validThroughTs);
+    CommitCycleResult result =
+        runTableCommits(commitGroups, ctlOffsets, validThroughTs, partialCommit);
     finalizeCommitCycle(commitGroups, result, validThroughTs);
   }
 
@@ -227,7 +229,8 @@ class Coordinator extends Channel {
   private CommitCycleResult runTableCommits(
       Map<TableReference, List<CommitState.CommitGroup>> commitGroups,
       Map<Integer, Long> ctlOffsets,
-      OffsetDateTime validThroughTs) {
+      OffsetDateTime validThroughTs,
+      boolean partialCommit) {
     // Track successfully committed envelopes for selective removal.
     // Synchronized because table commits run in parallel via the exec thread pool.
     List<Envelope> committedEnvelopes = Collections.synchronizedList(Lists.newArrayList());
@@ -237,7 +240,7 @@ class Coordinator extends Channel {
     // If a group fails for a table, remaining groups for that table are skipped
     // to preserve sequence number ordering. Other tables are unaffected.
     // Capture exception from parallel table commits so cleanup always runs.
-    // Without this, a ConnectException from one table's exhausted retries would
+    // Without this, an exception from one table's exhausted retries would
     // skip removeEnvelopes(), leaving successfully committed envelopes in the buffer
     // indefinitely (memory leak + wasted retry work on subsequent cycles).
     RuntimeException taskException = null;
@@ -276,33 +279,32 @@ class Coordinator extends Channel {
                         isCurrentGroup ? validThroughTs : null);
                     committedEnvelopes.addAll(group.envelopes());
                     commitState.recordGroupSuccess(group.commitId());
-                  } catch (Exception e) {
+                  } catch (RuntimeException e) {
                     commitState.recordGroupFailure(group.commitId());
+                    // A failure during a partial (timeout-driven) commit counts toward the
+                    // observability metric. It also counts toward the per-group retry budget
+                    if (partialCommit) {
+                      partialCommitFailures.incrementAndGet();
+                    }
                     int remaining = groups.size() - i - 1;
 
-                    if (!isCurrentGroup && !commitState.isRetryAllowed(group.commitId())) {
-                      // Stale group exceeded max blocking retries - fail the connector.
-                      throw new ConnectException(
-                          "Stale group "
-                              + group.commitId()
-                              + " for table "
-                              + tableRef.identifier()
-                              + " failed after "
-                              + commitState.getRetryCount(group.commitId())
-                              + " retries. Connector stopping.",
+                    if (commitState.isRetryAllowed(group.commitId())) {
+                      // Within budget: skip this table's remaining groups to preserve sequence
+                      // number ordering, then retry next cycle.
+                      LOG.warn(
+                          "Commit failed for table {} group {} ({}, attempt {}), "
+                              + "skipping {} remaining group(s) for this table",
+                          tableRef.identifier(),
+                          group.commitId(),
+                          isCurrentGroup ? "current" : "stale",
+                          commitState.getRetryCount(group.commitId()),
+                          remaining,
                           e);
+                    } else {
+                      // Retry budget exhausted: record fatal failure to propagate the original
+                      // exception to stop the connector.
+                      commitState.recordFatalFailure(e);
                     }
-
-                    // Blocking: skip remaining groups to preserve ordering.
-                    LOG.warn(
-                        "Commit failed for table {} group {} ({}, attempt {}), "
-                            + "skipping {} remaining group(s) for this table",
-                        tableRef.identifier(),
-                        group.commitId(),
-                        isCurrentGroup ? "current" : "stale",
-                        commitState.getRetryCount(group.commitId()),
-                        remaining,
-                        e);
                     break;
                   }
                 }
@@ -344,11 +346,11 @@ class Coordinator extends Channel {
       send(event);
 
       LOG.info(
-          "Coordinator {} completed commit {} complete, committed to {} table(s) in {} batch(es), valid-through {}",
+          "Coordinator {} completed commit {}, committed to {} table(s) in {} batch(es), valid-through {}",
           taskId,
           commitState.currentCommitId(),
-          tableCount,
-          commitMaps.size(),
+          commitGroups.size(),
+          commitGroups.values().stream().mapToInt(List::size).sum(),
           validThroughTs);
 
     } else {
@@ -369,6 +371,10 @@ class Coordinator extends Channel {
     }
 
     // Re-throw after cleanup so the commit() wrapper can log it.
+    RuntimeException fatal = commitState.fatalFailure();
+    if (fatal != null) {
+      throw fatal;
+    }
     if (result.taskException() != null) {
       throw result.taskException();
     }

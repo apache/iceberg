@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.DataComplete;
@@ -47,8 +48,7 @@ class CommitState implements CommitStateMXBean {
   private final List<DataComplete> readyBuffer = Lists.newArrayList();
   private int receivedPartitionCount = 0;
   private final Map<UUID, AtomicInteger> groupRetryCount = new ConcurrentHashMap<>();
-  private final Map<UUID, Long> groupFirstSeenMs = new ConcurrentHashMap<>();
-  private long evictedStaleEventCount;
+  private final AtomicReference<RuntimeException> fatalFailure = new AtomicReference<>();
   private long startTime;
   private UUID currentCommitId;
   private final IcebergSinkConfig config;
@@ -108,6 +108,7 @@ class CommitState implements CommitStateMXBean {
     readyBuffer.clear();
     receivedPartitionCount = 0;
     currentCommitId = null;
+    fatalFailure.set(null);
   }
 
   void clearResponses() {
@@ -154,6 +155,20 @@ class CommitState implements CommitStateMXBean {
 
   int getRetryCount(UUID commitId) {
     return groupRetryCount.getOrDefault(commitId, new AtomicInteger(0)).get();
+  }
+
+  /**
+   * Records the original exception from a group whose retry budget is exhausted. The coordinator
+   * rethrows it after the commit cycle finishes, stopping the connector with the true root cause.
+   * The first fatal failure in a cycle wins. Written from parallel table-commit threads, hence the
+   * atomic holder; cleared each cycle by {@link #endCurrentCommit}.
+   */
+  void recordFatalFailure(RuntimeException exception) {
+    fatalFailure.compareAndSet(null, exception);
+  }
+
+  RuntimeException fatalFailure() {
+    return fatalFailure.get();
   }
 
   boolean isBufferEmpty() {
