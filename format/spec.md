@@ -54,6 +54,7 @@ Version 3 of the Iceberg spec extends data types and existing metadata structure
 * Row Lineage tracking
 * Binary deletion vectors
 * Table encryption keys
+* Collations for string types
 
 The full set of changes are listed in [Appendix E](#version-3).
 
@@ -275,7 +276,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
 | [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [1]                                              |
 | [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
-|                  | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
+|                  | **`string`**       | Arbitrary-length character sequences; may carry a [collation](#collations) | Encoded with UTF-8 [3]                           |
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
@@ -344,6 +345,33 @@ For example, a struct column `point` with fields `x` (default 0) and `y` (defaul
 | `{}`            | `0`               | `0`               | `{"y": -1}`  | `{"x": 0, "y": -1}` |
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
+
+#### Collations
+
+A `string` field may carry a **collation**, an attribute that changes how the field's values are compared and ordered without changing how they are stored. Collations enable case-insensitive, accent-insensitive, and locale-aware comparison and sorting. A collation only affects comparison: the stored value is returned unchanged (a value written as `'appLE'` is read back as `'appLE'`).
+
+A field's collation is stored as a `collation` attribute on the field (see [Appendix C](#appendix-c-json-serialization)). The attribute is allowed only on `string` fields. If a field has no `collation` attribute, comparison defaults to UTF-8 byte order, which is the behavior of all prior versions.
+
+A collation is identified by a provider-qualified name of the form `<provider>.<name>`, for example `icu.en_US-ci`. The provider names the library that defines the collation (`icu` for collations defined by the [Unicode Collation Algorithm](https://unicode.org/reports/tr10/) over [CLDR](https://cldr.unicode.org/) locale data; other providers may define engine-specific collations such as case-folding variants). The name selects a locale and optional modifiers for case sensitivity (`ci`/`cs`), accent sensitivity (`ai`/`as`), trimming, and case folding. The reserved name `utf8` denotes UTF-8 byte-order comparison.
+
+The schema stores the collation **name without a version**, so any engine that supports the collation can read the table. UCA, DUCET, CLDR, and ICU collation orders are [not stable across versions](https://unicode.org/reports/tr10/#Non-Goals), so collation-aware metrics carry the implementation version they were produced under (see below) and a reader uses them only when it can produce the same order.
+
+##### Collation Bounds
+
+Because a collation can reorder values (for example `'a' < 'B'` under a case-insensitive collation, but `'a' > 'B'` in byte order), the byte-order `lower_bounds` and `upper_bounds` cannot be used to evaluate predicates on a collated column. Collation-aware bounds are stored separately in `data_file.collation_bounds`, a map from column id to a list of `collation_bound` structs:
+
+| Field id, name | Type | Description |
+|----------------|------|-------------|
+| **`151 collation`** | `string` | Collation the bounds were produced for, e.g. `icu.en_US-ci` |
+| **`152 version`** | `string` | Collation implementation version the bounds were selected under |
+| **`153 lower_bound`** | `binary` | Minimum value under the collation order, serialized as the original value (Appendix D) |
+| **`154 upper_bound`** | `binary` | Maximum value under the collation order, serialized as the original value (Appendix D) |
+
+Bounds store the **original values** that are the minimum and maximum under the collation order, not collation sort keys (sort keys are not stable across implementation versions). The same single-value serialization and truncation rules as `lower_bounds`/`upper_bounds` apply, except that when truncating an upper bound, the appended successor must be the next value **in collation order**. A column may have more than one entry, one per collation version, so a file can serve readers pinned to different versions during an upgrade.
+
+**Writers** must continue to write the byte-order `lower_bounds`/`upper_bounds` for collated columns (so collation-unaware readers stay correct). A writer should additionally write `collation_bounds` when it supports the column's collation, tagging each entry with the collation and the exact implementation version used. A writer that does not support the collation or version must not write `collation_bounds` for that column.
+
+**Readers** may use a `collation_bounds` entry to prune a file only when both the entry's `collation` and `version` match the collation the reader resolves for the column; otherwise the entry must be ignored. A reader must not use the byte-order `lower_bounds`/`upper_bounds` to prune comparison, equality, or prefix predicates on a collated column. When no usable collation bounds are available, the file must be scanned. A collation-unaware reader ignores the `collation` attribute and the `collation_bounds` field and reads the column as a UTF-8 byte-order string.
 
 #### Schema Evolution
 
@@ -737,6 +765,7 @@ The `data_file` struct consists of the following fields:
     |            | _optional_ | _optional_ | **`143  referenced_data_file`**   | `string`                                                                    | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [4] |
     |            |            | _optional_ | **`144  content_offset`**         | `long`                                                                      | The offset in the file where the content starts [5] |
     |            |            | _optional_ | **`145  content_size_in_bytes`**  | `long`                                                                      | The length of a referenced content stored in the file; required if `content_offset` is present [5] |
+    |            |            | _optional_ | **`147  collation_bounds`**       | `map<148: int, 149: list<150: struct<...>>>`                                | Map from column id to collation-aware lower/upper bounds for a collated string column, one entry per collation version present [6]. See [Collations](#collations) |
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
@@ -749,7 +778,8 @@ Notes:
 3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
 4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
-6. The following field ids are reserved on `data_file`: 141.
+6. `collation_bounds` stores collation-aware bounds for collated string columns (see [Collations](#collations)). Each entry's `lower_bound` and `upper_bound` are the column's minimum and maximum **under the collation order**, serialized as the original values using the single-value serialization of Appendix D (not collation sort keys). Each entry is tagged with the collation and the collation implementation version used to select the bounds. The byte-order `lower_bounds` and `upper_bounds` must still be written for collated columns so that collation-unaware readers remain correct.
+7. The following field ids are reserved on `data_file`: 141.
 
 ##### Field-level Metrics and Statistics
 
@@ -1680,7 +1710,7 @@ Types are serialized according to this table:
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
 |**`decimal(P, S)`**|`JSON string: "decimal(<P>,<S>)"`|`"decimal(9,2)"`,<br />`"decimal(9, 2)"`|
-|**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
+|**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"collation": <collation name string>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
@@ -1938,6 +1968,14 @@ Row-level delete changes:
 * Existing position delete files are valid in tables that have been upgraded from v2
     * These position delete files must be merged into the DV for a data file when one is created
     * Position delete files that contain deletes for more than one data file need to be kept in table metadata until all deletes are replaced by DVs
+
+Collation changes:
+
+* String fields may carry a `collation` attribute that defines case-insensitive, accent-insensitive, or locale-aware comparison and ordering (see [Collations](#collations))
+* `collation_bounds` was added to `data_file` to store collation-aware lower/upper bounds as original values, tagged with the collation and its implementation version
+    * Writers must still write byte-order `lower_bounds`/`upper_bounds` for collated columns so collation-unaware readers remain correct
+    * Readers must not prune comparison, equality, or prefix predicates on a collated column using byte-order bounds, and may use a `collation_bounds` entry only when its collation and version match
+* Collation-unaware readers ignore the `collation` attribute and `collation_bounds`, reading collated columns as UTF-8 byte-order strings
 
 Row lineage changes:
 
