@@ -43,6 +43,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
@@ -515,6 +516,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
             deleteFile.location(),
             deleteFieldIds,
             eqFieldIds);
+        validateDeleteSpecPartitionColumns(stagingSnapshot, deleteFile);
         eqDeleteFiles.add(deleteFile);
       } else if (ContentFileUtil.isDV(deleteFile)) {
         stagingDVFiles.add(deleteFile);
@@ -529,6 +531,24 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
     }
 
     return new StagingInputs(newDataFiles, stagingDVFiles, eqDeleteFiles);
+  }
+
+  private void validateDeleteSpecPartitionColumns(Snapshot stagingSnapshot, DeleteFile deleteFile) {
+    PartitionSpec spec = table.specs().get(deleteFile.specId());
+    for (PartitionField field : spec.fields()) {
+      Preconditions.checkState(
+          eqFieldIds.contains(field.sourceId()),
+          "Staging snapshot %s on branch '%s' contains an equality delete file %s under spec %s, "
+              + "which partitions by field '%s' (source id %s) that is not an equality field %s. "
+              + "Partition columns must be a subset of the equality fields.",
+          stagingSnapshot.snapshotId(),
+          stagingBranch,
+          deleteFile.location(),
+          spec.specId(),
+          field.name(),
+          field.sourceId(),
+          eqFieldIds);
+    }
   }
 
   /** Files added by one staging snapshot, classified for cycle emission. */

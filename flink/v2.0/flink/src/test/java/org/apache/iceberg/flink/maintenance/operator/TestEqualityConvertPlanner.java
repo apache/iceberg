@@ -111,6 +111,33 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
+  void failsWhenStagingEqDeleteSpecPartitionsByNonEqualityColumn() throws Exception {
+    Table table = createPartitionedTableWithDelete(3);
+    insertPartitioned(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeIdOnlyPartitionedEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH, Lists.newArrayList(1))) {
+      harness.open();
+      sendTrigger(harness);
+
+      List<StreamRecord<Exception>> errOutput =
+          Lists.newArrayList(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM));
+
+      assertThat(errOutput).hasSize(1);
+      assertThat(errOutput.get(0).getValue())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("Partition columns must be a subset of the equality fields.");
+    }
+  }
+
+  @Test
   void doesNotDuplicateNewDataFilesWhenStagingEqualsTarget() throws Exception {
     // When stagingBranch == targetBranch, the writer commits new data files directly to main.
     // Bootstrap scans the main snapshot (which already includes those files) and indexes them.
@@ -1061,6 +1088,19 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
         new PartitionData(PartitionSpec.unpartitioned().partitionType()),
         Lists.newArrayList(record),
         idOnly);
+  }
+
+  private DeleteFile writeIdOnlyPartitionedEqualityDelete(Table table, int id, String data)
+      throws IOException {
+    File file = File.createTempFile("junit", null, tempDir.toFile());
+    assertThat(file.delete()).isTrue();
+    Schema idOnly = table.schema().select("id");
+    Record record = GenericRecord.create(idOnly);
+    record.setField("id", id);
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, data);
+    return FileHelpers.writeDeleteFile(
+        table, Files.localOutput(file), partition, Lists.newArrayList(record), idOnly);
   }
 
   private DeleteFile writeStagingDV(Table table, String dataFilePath, long position)
