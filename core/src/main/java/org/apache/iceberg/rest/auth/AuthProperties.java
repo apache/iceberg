@@ -34,8 +34,12 @@ public final class AuthProperties {
       "org.apache.iceberg.rest.auth.NoopAuthManager";
   public static final String AUTH_MANAGER_IMPL_BASIC =
       "org.apache.iceberg.rest.auth.BasicAuthManager";
-  public static final String AUTH_MANAGER_IMPL_OAUTH2 =
+  static final String AUTH_MANAGER_IMPL_OAUTH2_LEGACY =
       "org.apache.iceberg.rest.auth.OAuth2Manager";
+  static final String AUTH_MANAGER_IMPL_OAUTH2_NEW =
+      "org.apache.iceberg.rest.auth.oauth2.OAuth2Manager";
+  public static final String AUTH_MANAGER_IMPL_OAUTH2 =
+      AUTH_MANAGER_IMPL_OAUTH2_LEGACY; // TODO switch to new manager
   public static final String AUTH_MANAGER_IMPL_SIGV4 =
       "org.apache.iceberg.aws.RESTSigV4AuthManager";
   public static final String AUTH_MANAGER_IMPL_GOOGLE =

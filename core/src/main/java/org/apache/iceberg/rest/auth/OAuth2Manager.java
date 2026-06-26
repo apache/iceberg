@@ -40,6 +40,11 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * @deprecated will be removed in 1.14.0, use {@link
+ *     org.apache.iceberg.rest.auth.oauth2.OAuth2Manager} instead.
+ */
+@Deprecated
 public class OAuth2Manager implements AuthManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(OAuth2Manager.class);
