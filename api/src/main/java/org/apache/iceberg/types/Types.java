@@ -620,11 +620,13 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
+      // CRS is compared case-insensitively
       return crs.equalsIgnoreCase(that.crs);
     }
 
     @Override
     public int hashCode() {
+      // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
       return Objects.hash(GeometryType.class, crs.toUpperCase(Locale.ROOT));
     }
 
@@ -695,11 +697,13 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
+      // CRS is compared case-insensitively
       return crs.equalsIgnoreCase(that.crs) && Objects.equals(algorithm, that.algorithm);
     }
 
     @Override
     public int hashCode() {
+      // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
       return Objects.hash(GeographyType.class, crs.toUpperCase(Locale.ROOT), algorithm);
     }
 
