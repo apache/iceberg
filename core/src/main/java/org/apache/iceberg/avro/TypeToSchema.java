@@ -21,7 +21,10 @@ package org.apache.iceberg.avro;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -46,20 +49,45 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema TIMESTAMPTZ_SCHEMA =
       LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema TIMESTAMP_NANO_SCHEMA =
-      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema TIMESTAMPTZ_NANO_SCHEMA =
-      LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
   private static final Schema UUID_SCHEMA =
       LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
+  // Logical types available in Avro 1.12 only; evaluate lazily to keep compat with Avro 1.11
+  private static Schema timestampNanoSchema;
+  private static Schema timestampTzNanoSchema;
+
+  private static void initializeTimestampNanoSchema() {
+    timestampNanoSchema =
+        LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+  }
+
+  private static void initializeTimestampTzNanoSchema() {
+    timestampTzNanoSchema =
+        LogicalTypes.timestampNanos().addToSchema(Schema.create(Schema.Type.LONG));
+  }
+
   static {
     TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
     TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
-    TIMESTAMP_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
-    TIMESTAMPTZ_NANO_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+
+    final Optional<String> runtimeAvroVersion =
+        Optional.ofNullable(Schema.Parser.class.getPackage().getImplementationVersion());
+
+    // NanoTimestamp and UUID logical types are only supported in Avro 1.12 and above;
+    // Gate initialization to avoid runtime errors for users on earlier Avro versions
+    if (runtimeAvroVersion
+        .map(semVer -> Pattern.compile("^\\d+\\.(\\d+)").matcher(semVer))
+        .filter(Matcher::find)
+        .filter(matcher -> Integer.parseInt(matcher.group(1)) < 12)
+        .isEmpty()) {
+      initializeTimestampNanoSchema();
+      initializeTimestampTzNanoSchema();
+
+      timestampNanoSchema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
+      timestampTzNanoSchema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
+    }
   }
 
   private final Deque<Integer> fieldIds = Lists.newLinkedList();
@@ -246,9 +274,9 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
+          primitiveSchema = timestampTzNanoSchema;
         } else {
-          primitiveSchema = TIMESTAMP_NANO_SCHEMA;
+          primitiveSchema = timestampNanoSchema;
         }
         break;
       case STRING:
