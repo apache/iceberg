@@ -53,6 +53,7 @@ public class SchemaParser {
   private static final String ID = "id";
   private static final String INITIAL_DEFAULT = "initial-default";
   private static final String WRITE_DEFAULT = "write-default";
+  private static final String COLLATION = "collation";
   private static final String ELEMENT_ID = "element-id";
   private static final String KEY_ID = "key-id";
   private static final String VALUE_ID = "value-id";
@@ -101,6 +102,10 @@ public class SchemaParser {
       if (field.writeDefault() != null) {
         generator.writeFieldName(WRITE_DEFAULT);
         SingleValueParser.toJson(field.type(), field.writeDefault(), generator);
+      }
+
+      if (field.collation() != null) {
+        generator.writeStringField(COLLATION, field.collation());
       }
 
       generator.writeEndObject();
@@ -239,6 +244,7 @@ public class SchemaParser {
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
+      String collation = JsonUtil.getStringOrNull(COLLATION, field);
       fields.add(
           fieldBuilder(isRequired, name)
               .withId(id)
@@ -246,6 +252,7 @@ public class SchemaParser {
               .withDoc(doc)
               .withInitialDefault(initialDefault)
               .withWriteDefault(writeDefault)
+              .withCollation(collation)
               .build());
     }
 
