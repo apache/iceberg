@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.Table;
 
@@ -243,7 +244,7 @@ public interface ValidateRewriteTablePath
 
     public static ValidateScope fromString(String value) {
       try {
-        return ValidateScope.valueOf(value.toUpperCase());
+        return ValidateScope.valueOf(value.toUpperCase(Locale.ROOT));
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(
             String.format(
