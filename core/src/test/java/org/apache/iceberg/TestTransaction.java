@@ -250,6 +250,9 @@ public class TestTransaction extends TestBase {
 
     assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Commit failed after exhausting retries")
+        .hasMessageContaining(TableProperties.COMMIT_NUM_RETRIES)
+        .cause()
         .hasMessage("Injected failure");
   }
 
@@ -284,6 +287,9 @@ public class TestTransaction extends TestBase {
     tableWithBulkIO.ops().failCommits(1);
     assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Commit failed after exhausting retries")
+        .hasMessageContaining(TableProperties.COMMIT_NUM_RETRIES)
+        .cause()
         .hasMessage("Injected failure");
 
     // ensure both files are deleted on transaction failure
