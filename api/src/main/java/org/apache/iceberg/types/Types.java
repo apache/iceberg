@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -883,7 +884,14 @@ public class Types {
     }
 
     private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
-      if (type.isNestedType() && defaultValue != null) {
+      if (type.isStructType() && defaultValue != null) {
+        Preconditions.checkArgument(
+            isEmptyStructDefault(defaultValue),
+            "Invalid default value for %s: %s (must be null or empty struct)",
+            type,
+            defaultValue);
+        return defaultValue;
+      } else if (type.isNestedType() && defaultValue != null) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
@@ -894,6 +902,11 @@ public class Types {
       }
 
       return null;
+    }
+
+    private static boolean isEmptyStructDefault(Literal<?> defaultValue) {
+      Object value = defaultValue.value();
+      return value instanceof StructLike structLike && structLike.size() == 0;
     }
 
     public boolean isOptional() {

@@ -2446,9 +2446,9 @@ components:
         doc:
           type: string
         initial-default:
-          $ref: "#/components/schemas/PrimitiveTypeValue"
+          $ref: "#/components/schemas/DefaultValue"
         write-default:
-          $ref: "#/components/schemas/PrimitiveTypeValue"
+          $ref: "#/components/schemas/DefaultValue"
 
     StructType:
       type: object
@@ -4941,6 +4941,23 @@ components:
         - $ref: '#/components/schemas/TimestampTzNanoTypeValue'
         - $ref: '#/components/schemas/FixedTypeValue'
         - $ref: '#/components/schemas/BinaryTypeValue'
+
+    DefaultValue:
+      description:
+        A schema field default value. Primitive fields use primitive type values. Struct fields
+        use an empty object (`{}`) to represent a non-null default that applies nested field
+        defaults.
+      oneOf:
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - $ref: '#/components/schemas/StructDefaultValue'
+
+    StructDefaultValue:
+      type: object
+      maxProperties: 0
+      description:
+        Empty object marker for a non-null struct default. Nested field defaults are stored on the
+        struct's fields.
+      example: {}
 
     FileFormat:
       type: string

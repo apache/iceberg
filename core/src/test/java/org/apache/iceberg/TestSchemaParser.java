@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -154,5 +155,47 @@ public class TestSchemaParser extends DataTestBase {
         .isEqualTo(defaultValue.value());
     assertThat(serialized.findField("col_with_default").writeDefault())
         .isEqualTo(defaultValue.value());
+  }
+
+  @Test
+  public void testStructDefaultValues() {
+    String schemaJson =
+        "{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+            + "{\"id\":1,\"name\":\"col\",\"required\":false,"
+            + "\"type\":{\"type\":\"struct\",\"fields\":["
+            + "{\"id\":2,\"name\":\"a\",\"required\":false,\"type\":\"string\","
+            + "\"initial-default\":\"test\",\"write-default\":\"test\"},"
+            + "{\"id\":3,\"name\":\"b\",\"required\":false,\"type\":\"int\"}]},"
+            + "\"initial-default\":{},\"write-default\":{}},"
+            + "{\"id\":4,\"name\":\"col2\",\"required\":false,\"type\":\"int\","
+            + "\"initial-default\":34,\"write-default\":35}]}";
+
+    Schema schema = SchemaParser.fromJson(schemaJson);
+    Types.NestedField col = schema.findField("col");
+    Types.StructType colType = col.type().asStructType();
+
+    assertThat(col.initialDefault()).isInstanceOf(StructLike.class);
+    assertThat(col.writeDefault()).isInstanceOf(StructLike.class);
+    assertThat(colType.field("a").initialDefault()).isEqualTo("test");
+    assertThat(colType.field("a").writeDefault()).isEqualTo("test");
+    assertThat(schema.findField("col2").initialDefault()).isEqualTo(34);
+    assertThat(schema.findField("col2").writeDefault()).isEqualTo(35);
+
+    String serializedJson = SchemaParser.toJson(schema);
+    assertThat(serializedJson).contains("\"initial-default\":{}");
+    assertThat(serializedJson).contains("\"write-default\":{}");
+    assertThat(SchemaParser.fromJson(serializedJson).sameSchema(schema)).isTrue();
+  }
+
+  @Test
+  public void testInvalidPrimitiveDefaultValue() {
+    String schemaJson =
+        "{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+            + "{\"id\":1,\"name\":\"col\",\"required\":false,\"type\":\"int\","
+            + "\"initial-default\":\"not-an-int\"}]}";
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(schemaJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse default as a int value: \"not-an-int\"");
   }
 }
