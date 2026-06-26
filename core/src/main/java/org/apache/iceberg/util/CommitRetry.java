@@ -42,7 +42,6 @@ public class CommitRetry {
         && cause.getCause() instanceof RetryableValidationException;
   }
 
-  @SuppressWarnings("StatementSwitchToExpressionSwitch")
   private static String retryExhaustionMessage(Tasks.RetryExhaustionReason reason) {
     switch (reason) {
       case ATTEMPT_LIMIT:
