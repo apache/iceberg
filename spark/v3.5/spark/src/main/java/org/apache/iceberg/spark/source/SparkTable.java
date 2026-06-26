@@ -62,6 +62,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -426,6 +427,10 @@ public class SparkTable
     if (writeBranch != null) {
       deleteFiles.toBranch(writeBranch);
     }
+
+    new SparkWriteConf(sparkSession(), icebergTable, Maps.newHashMap())
+        .extraSnapshotMetadata()
+        .forEach(deleteFiles::set);
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
       CommitMetadata.commitProperties().forEach(deleteFiles::set);

@@ -52,6 +52,7 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.spark.TimeTravel.AsOfTimestamp;
 import org.apache.iceberg.spark.TimeTravel.AsOfVersion;
@@ -282,6 +283,8 @@ public class SparkTable extends BaseSparkTable
     if (writeBranch != null) {
       deleteFiles.toBranch(writeBranch);
     }
+
+    new SparkWriteConf(spark(), table()).extraSnapshotMetadata().forEach(deleteFiles::set);
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
       CommitMetadata.commitProperties().forEach(deleteFiles::set);
