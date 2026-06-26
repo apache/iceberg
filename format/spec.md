@@ -729,7 +729,7 @@ The `data_file` struct consists of the following fields:
     | _optional_ | _optional_ |            | ~~**`111  distinct_counts`**~~    | `map<123: int, 124: long>`                                                  | **Deprecated. Do not write.** |
     | _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
     | _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
-    | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption |
+    | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Per-file encryption key metadata. See [Standard Key Metadata](#standard-key-metadata) for the interoperable format used by the standard encryption scheme. |
     | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
     |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
     | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [3]. |
@@ -1019,7 +1019,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
     | _optional_ | _required_ | _required_ | **`513 existing_rows_count`**       | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
     | _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**        | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
     | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>` **(see below)**  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
-    | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Implementation-specific key metadata for encryption |
+    | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Per-manifest encryption key metadata. See [Standard Key Metadata](#standard-key-metadata) for the interoperable format used by the standard encryption scheme. |
     |            |            | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment) |
 
 `field_summary` is a struct with the following fields:
@@ -1213,7 +1213,7 @@ Statistics files metadata within `statistics` table metadata field is a struct w
     | _required_ | _required_ | **`statistics-path`**           | `string`              | Path of the statistics file. See [Puffin file format](puffin-spec.md). |
     | _required_ | _required_ | **`file-size-in-bytes`**        | `long`                | Size of the statistics file. |
     | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long`                | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
-    | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded implementation-specific key metadata for encryption. |
+    | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded per-file encryption key metadata. See [Standard Key Metadata](#standard-key-metadata) for the interoperable format used by the standard encryption scheme. |
     | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
 Blob metadata is a struct with the following fields:
@@ -1302,6 +1302,55 @@ Keys used for table encryption can be tracked in table metadata as a list named 
 Notes:
 
 1. The format of encrypted key metadata is determined by the table's encryption scheme and can be a wrapped format specific to the table's KMS provider.
+
+#### Standard Key Metadata
+
+The `key_metadata` field in manifest entries stores per-file encryption key material as a binary blob. To enable cross-implementation interoperability, the standard encryption scheme defines the following binary format for this field:
+
+```
+VersionByte Payload
+```
+
+where:
+
+* `VersionByte` is a single byte indicating the key metadata schema version. Currently, the only valid version is `0x01`.
+* `Payload` is an Avro binary-encoded record (not a container file — only the raw binary encoding of the fields) using the schema for the given version.
+
+The Avro schema for version 1 is a record with the following fields, in order:
+
+| Field name | Avro type | Required | Description |
+|---|---|---|---|
+| **`encryption_key`** | `bytes` | _required_ | The data encryption key (DEK) for this file. Must be 16, 24, or 32 bytes (corresponding to AES-128, AES-192, or AES-256). |
+| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for encryption integrity protection. For [AES GCM Stream](gcm-stream-spec.md) files, the prefix is combined with a block index to form the per-block AAD. For [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/), the prefix is passed as the AAD prefix parameter, which is combined with a per-file random `aad_file_unique` to form the full file AAD. |
+| **`file_length`** | `long` | _optional_ | The encrypted file length in bytes. Required for [AES GCM Stream](gcm-stream-spec.md) encrypted files to detect truncation attacks (see [AES GCM Stream file length](gcm-stream-spec.md#file-length)). Not set for Parquet encrypted files. |
+
+The usage of the `encryption_key` and `aad_prefix` fields depends on the file format:
+
+* **AES GCM Stream files**:
+  - Manifest lists
+  - Manifests
+  - Avro data files
+  - Puffin files
+
+  The `encryption_key` is used directly as the AES-GCM key. The `aad_prefix` is combined with a 4-byte little-endian block index to form the AAD for each cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data). The `file_length` field stores the encrypted file length for truncation detection.
+
+* **Parquet encrypted files**: The `encryption_key` and `aad_prefix` are provided to Parquet readers and writers, which delegate encryption to the [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/) format.
+
+##### Encryption Key Hierarchy
+
+The standard encryption scheme uses a two-tier key hierarchy tracked in the table metadata `encryption-keys` list:
+
+1. **Key Encryption Keys (KEKs):** Entries where `encrypted-by-id` equals the table's encryption key ID (configured via `encryption.key-id`). The `encrypted-key-metadata` contains the KEK wrapped by the KMS and is opaque to Iceberg — its format is determined by the KMS provider. KEK entries must include a `KEY_TIMESTAMP` property recording the creation time in milliseconds since epoch; this timestamp is used as the AAD when encrypting manifest list key metadata.
+
+2. **Manifest List Keys:** Entries where `encrypted-by-id` references a KEK. The `encrypted-key-metadata` contains the Standard Key Metadata (defined above) encrypted with AES GCM using the referenced unwrapped KEK. The ciphertext format is:
+
+    ```
+    Nonce Ciphertext Tag
+    ```
+
+where `Nonce` is 12 bytes, `Ciphertext` is the encrypted Standard Key Metadata payload, and `Tag` is the 16-byte GCM authentication tag. The AAD for this encryption is the KEK's `KEY_TIMESTAMP` property value encoded as UTF-8 bytes.
+
+The snapshot field `key-id` references the encryption key entry used to encrypt that snapshot's manifest list key metadata.
 
 ### Commit Conflict Resolution and Retry
 
