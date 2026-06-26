@@ -590,7 +590,8 @@ public class Types {
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      // an omitted CRS canonicalizes to the default; a provided value is kept as-is (case preserved)
+      // an omitted CRS canonicalizes to the default; a provided value is kept as-is (case
+      // preserved)
       this.crs = crs == null ? DEFAULT_CRS : crs;
     }
 
