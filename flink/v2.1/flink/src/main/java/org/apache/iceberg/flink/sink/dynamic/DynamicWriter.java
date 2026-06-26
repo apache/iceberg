@@ -23,7 +23,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
@@ -44,6 +47,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +69,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   private final int subTaskId;
   private final int attemptId;
   private final Catalog catalog;
+  private final ExecutorService flushExecutor;
 
   DynamicWriter(
       Catalog catalog,
@@ -81,6 +87,9 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     this.attemptId = attemptId;
     this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
     this.writers = Maps.newHashMap();
+    this.flushExecutor =
+        ThreadPools.newFixedThreadPool(
+            "iceberg-dynamic-writer-flush-" + subTaskId, cacheMaximumSize);
 
     LOG.debug("DynamicIcebergSinkWriter created for subtask {} attemptId {}", subTaskId, attemptId);
   }
@@ -159,6 +168,8 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     for (TaskWriter<RowData> writer : writers.values()) {
       writer.close();
     }
+
+    flushExecutor.shutdownNow();
   }
 
   @Override
@@ -172,32 +183,38 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   @Override
   public Collection<DynamicWriteResult> prepareCommit() throws IOException {
-    List<DynamicWriteResult> result = Lists.newArrayList();
-    for (Map.Entry<WriteTarget, TaskWriter<RowData>> entry : writers.entrySet()) {
-      long startNano = System.nanoTime();
-      WriteResult writeResult = entry.getValue().complete();
-      WriteTarget writeTarget = entry.getKey();
-      metrics.updateFlushResult(writeTarget.tableName(), writeResult);
-      metrics.flushDuration(
-          writeTarget.tableName(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
-      LOG.debug(
-          "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
-          writeTarget.tableName(),
-          subTaskId,
-          attemptId,
-          writeResult.dataFiles().length,
-          writeResult.deleteFiles().length);
-
-      result.add(
-          new DynamicWriteResult(
-              new TableKey(writeTarget.tableName(), writeTarget.branch()),
-              writeTarget.specId(),
-              writeResult));
-    }
-
+    List<Map.Entry<WriteTarget, TaskWriter<RowData>>> pending =
+        Lists.newArrayList(writers.entrySet());
     writers.clear();
 
-    return result;
+    Queue<DynamicWriteResult> results = new ConcurrentLinkedQueue<>();
+    Tasks.foreach(pending)
+        .throwFailureWhenFinished()
+        .noRetry()
+        .executeWith(flushExecutor)
+        .run(entry -> results.add(flush(entry.getKey(), entry.getValue())), IOException.class);
+
+    return Lists.newArrayList(results);
+  }
+
+  private DynamicWriteResult flush(WriteTarget writeTarget, TaskWriter<RowData> writer)
+      throws IOException {
+    long startNano = System.nanoTime();
+    WriteResult writeResult = writer.complete();
+    metrics.updateFlushResult(writeTarget.tableName(), writeResult);
+    metrics.flushDuration(
+        writeTarget.tableName(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
+    LOG.debug(
+        "Iceberg writer for table {} subtask {} attempt {} flushed {} data files and {} delete files",
+        writeTarget.tableName(),
+        subTaskId,
+        attemptId,
+        writeResult.dataFiles().length,
+        writeResult.deleteFiles().length);
+    return new DynamicWriteResult(
+        new TableKey(writeTarget.tableName(), writeTarget.branch()),
+        writeTarget.specId(),
+        writeResult);
   }
 
   private static Set<Integer> getEqualityFields(Table table, Set<Integer> equalityFieldIds) {

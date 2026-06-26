@@ -37,7 +37,7 @@ class DynamicWriterMetrics {
 
   DynamicWriterMetrics(SinkWriterMetricGroup mainMetricsGroup) {
     this.mainMetricsGroup = mainMetricsGroup;
-    this.metrics = Maps.newHashMap();
+    this.metrics = Maps.newConcurrentMap();
   }
 
   SinkWriterMetricGroup mainMetricsGroup() {
