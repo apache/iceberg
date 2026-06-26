@@ -373,7 +373,7 @@ public class SparkCatalog extends BaseCatalog {
   public TableSummary[] listTableSummaries(String[] namespace) {
     // Build summaries directly from the catalog listings to avoid loading every table, which the
     // default TableCatalog.listTableSummaries implementation would do. Iceberg tables are always
-    // reported as EXTERNAL (see SparkTable#properties), and views are reported as VIEW.
+    // reported as EXTERNAL (see BaseSparkTable#properties), and views are reported as VIEW.
     List<TableSummary> summaries = Lists.newArrayList();
 
     // Collect views first. Most catalogs return only tables from listTables, but HiveCatalog with
