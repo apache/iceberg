@@ -23,21 +23,35 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.DataComplete;
+import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.Payload;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestCommitState {
+
+  private IcebergSinkConfig mockConfig() {
+    IcebergSinkConfig cfg = mock(IcebergSinkConfig.class);
+    when(cfg.commitStaleMaxBlockingRetries()).thenReturn(3);
+    return cfg;
+  }
+
   @Test
   public void testIsCommitReady() {
     TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
 
-    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    CommitState commitState = new CommitState(mockConfig());
     commitState.startNewCommit();
 
     DataComplete payload1 = mock(DataComplete.class);
@@ -129,7 +143,7 @@ public class TestCommitState {
     when(tp3.timestamp()).thenReturn(ts3);
     when(payload2.assignments()).thenReturn(ImmutableList.of(tp3));
 
-    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    CommitState commitState = new CommitState(mockConfig());
     commitState.startNewCommit();
 
     commitState.addReady(wrapInEnvelope(payload1));
@@ -148,6 +162,155 @@ public class TestCommitState {
 
     assertThat(commitState.validThroughTs(false)).isNull();
     assertThat(commitState.validThroughTs(true)).isNull();
+  }
+
+  @Test
+  public void testTableCommitGroupsSingleCommitId() {
+    CommitState commitState = new CommitState(mockConfig());
+    commitState.startNewCommit();
+    UUID cid = commitState.currentCommitId();
+
+    commitState.addResponse(createDataWrittenEnvelope(cid));
+    commitState.addResponse(createDataWrittenEnvelope(cid));
+
+    Map<TableReference, List<CommitState.CommitGroup>> groups = commitState.tableCommitGroups();
+    assertThat(groups).hasSize(1);
+    List<CommitState.CommitGroup> tableGroups = groups.values().iterator().next();
+    assertThat(tableGroups).hasSize(1);
+    assertThat(tableGroups.get(0).commitId()).isEqualTo(cid);
+    assertThat(tableGroups.get(0).envelopes()).hasSize(2);
+  }
+
+  @Test
+  public void testTableCommitGroupsMultipleCommitIds() {
+    CommitState commitState = new CommitState(mockConfig());
+
+    // Cycle 1: stale events from a failed commit
+    UUID staleId = UUID.randomUUID();
+    commitState.addResponse(createDataWrittenEnvelope(staleId));
+
+    // Cycle 2: current events
+    commitState.startNewCommit();
+    UUID currentId = commitState.currentCommitId();
+    commitState.addResponse(createDataWrittenEnvelope(currentId));
+
+    Map<TableReference, List<CommitState.CommitGroup>> groups = commitState.tableCommitGroups();
+    assertThat(groups).hasSize(1);
+    List<CommitState.CommitGroup> tableGroups = groups.values().iterator().next();
+    assertThat(tableGroups).hasSize(2);
+    // Stale group first (insertion order)
+    assertThat(tableGroups.get(0).commitId()).isEqualTo(staleId);
+    assertThat(tableGroups.get(1).commitId()).isEqualTo(currentId);
+  }
+
+  @Test
+  public void testTableCommitGroupsPreservesInsertionOrder() {
+    CommitState commitState = new CommitState(mockConfig());
+
+    UUID idA = UUID.randomUUID();
+    UUID idB = UUID.randomUUID();
+
+    // Interleaved: A, B, A — groups should be ordered [A, B] by first-seen
+    commitState.addResponse(createDataWrittenEnvelope(idA));
+    commitState.addResponse(createDataWrittenEnvelope(idB));
+    commitState.addResponse(createDataWrittenEnvelope(idA));
+
+    commitState.startNewCommit();
+
+    Map<TableReference, List<CommitState.CommitGroup>> groups = commitState.tableCommitGroups();
+    List<CommitState.CommitGroup> tableGroups = groups.values().iterator().next();
+    assertThat(tableGroups).hasSize(2);
+    assertThat(tableGroups.get(0).commitId()).isEqualTo(idA);
+    assertThat(tableGroups.get(0).envelopes()).hasSize(2);
+    assertThat(tableGroups.get(1).commitId()).isEqualTo(idB);
+    assertThat(tableGroups.get(1).envelopes()).hasSize(1);
+  }
+
+  @Test
+  public void testStartNewCommitDoesNotClearBuffer() {
+    CommitState commitState = new CommitState(mockConfig());
+
+    // Add stale events before starting a new commit
+    UUID staleId = UUID.randomUUID();
+    commitState.addResponse(createDataWrittenEnvelope(staleId));
+
+    // Starting a new commit must NOT clear stale events — they are retained for
+    // per-group sequential commit in doCommit().
+    commitState.startNewCommit();
+    assertThat(commitState.tableCommitGroups()).isNotEmpty();
+    List<CommitState.CommitGroup> tableGroups =
+        commitState.tableCommitGroups().values().iterator().next();
+    assertThat(tableGroups.get(0).commitId()).isEqualTo(staleId);
+  }
+
+  @Test
+  public void testRemoveEnvelopesSelectiveRemoval() {
+    CommitState commitState = new CommitState(mockConfig());
+
+    Envelope stale1 = createDataWrittenEnvelope(UUID.randomUUID());
+    Envelope stale2 = createDataWrittenEnvelope(UUID.randomUUID());
+    commitState.addResponse(stale1);
+    commitState.addResponse(stale2);
+
+    commitState.startNewCommit();
+    Envelope current = createDataWrittenEnvelope(commitState.currentCommitId());
+    commitState.addResponse(current);
+
+    // Remove only the stale envelopes
+    commitState.removeEnvelopes(ImmutableList.of(stale1, stale2));
+
+    // Only current envelope remains
+    Map<TableReference, List<CommitState.CommitGroup>> groups = commitState.tableCommitGroups();
+    assertThat(groups).hasSize(1);
+    List<CommitState.CommitGroup> tableGroups = groups.values().iterator().next();
+    assertThat(tableGroups).hasSize(1);
+    assertThat(tableGroups.get(0).commitId()).isEqualTo(commitState.currentCommitId());
+  }
+
+  @Test
+  public void testIsBufferEmpty() {
+    CommitState commitState = new CommitState(mockConfig());
+    assertThat(commitState.isBufferEmpty()).isTrue();
+
+    commitState.addResponse(createDataWrittenEnvelope(UUID.randomUUID()));
+    assertThat(commitState.isBufferEmpty()).isFalse();
+
+    commitState.clearResponses();
+    assertThat(commitState.isBufferEmpty()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 3})
+  public void testStaleGroupBlocksForNRetriesThenStopsBlocking(int maxRetries) {
+    // With maxRetries=N, the group blocks for N attempts (failures 1..N).
+    // On attempt N+1, isRetryAllowed returns false -> ConnectException path.
+    // retries=0: fail immediately (1st attempt). retries=3: pass 3 times, fail on 4th.
+    IcebergSinkConfig cfg = mock(IcebergSinkConfig.class);
+    when(cfg.commitStaleMaxBlockingRetries()).thenReturn(maxRetries);
+    CommitState commitState = new CommitState(cfg);
+
+    UUID staleId = UUID.randomUUID();
+    commitState.addResponse(createDataWrittenEnvelope(staleId));
+    commitState.startNewCommit();
+
+    // Group blocks for exactly maxRetries failures.
+    for (int i = 0; i < maxRetries; i++) {
+      commitState.recordGroupFailure(staleId);
+      assertThat(commitState.isRetryAllowed(staleId)).isTrue();
+    }
+
+    // The (maxRetries + 1)-th failure exhausts the budget.
+    commitState.recordGroupFailure(staleId);
+    assertThat(commitState.isRetryAllowed(staleId)).isFalse();
+    assertThat(commitState.getRetryCount(staleId)).isEqualTo(maxRetries + 1);
+  }
+
+  private Envelope createDataWrittenEnvelope(UUID commitId) {
+    TableReference tableRef = TableReference.of("catalog", TableIdentifier.of("db", "tbl"));
+    DataWritten payload = mock(DataWritten.class);
+    when(payload.commitId()).thenReturn(commitId);
+    when(payload.tableReference()).thenReturn(tableRef);
+    return wrapInEnvelope(payload);
   }
 
   private Envelope wrapInEnvelope(Payload payload) {
