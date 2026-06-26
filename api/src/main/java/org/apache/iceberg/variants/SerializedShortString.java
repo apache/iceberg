@@ -47,6 +47,10 @@ class SerializedShortString implements VariantPrimitive<String>, SerializedValue
   private SerializedShortString(ByteBuffer value, int header) {
     this.value = value;
     this.length = ((header & LENGTH_MASK) >> LENGTH_SHIFT);
+    Preconditions.checkArgument(
+        HEADER_SIZE + length <= value.remaining(),
+        "Invalid variant short string: length %s exceeds buffer",
+        length);
   }
 
   @Override
