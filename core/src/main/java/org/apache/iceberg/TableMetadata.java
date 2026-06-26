@@ -1570,10 +1570,10 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder removeEncryptionKey(String keyId) {
-      boolean removed = encryptionKeys.removeIf(key -> key.keyId().equals(keyId));
-      keysById.remove(keyId);
+      EncryptedKey removedKey = keysById.remove(keyId);
 
-      if (removed) {
+      if (removedKey != null) {
+        encryptionKeys.remove(removedKey);
         changes.add(new MetadataUpdate.RemoveEncryptionKey(keyId));
       }
 
