@@ -2776,15 +2776,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .containsExactly(snapshotBeforeReplace, snapshotAfterReplace);
   }
 
-  @Test
-  public void testConcurrentReplaceTransactions() {
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  public void testConcurrentReplaceTransactions(int formatVersion) {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
 
-    Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
+    Transaction transaction =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withProperty("format-version", String.valueOf(formatVersion))
+            .createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
     transaction.commitTransaction();
 
@@ -2812,6 +2817,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
+    // All three successfully committed snapshots should be present
+    assertThat(afterSecondReplace.snapshots()).hasSize(3);
     assertThat(afterSecondReplace.schema().asStruct())
         .as("Table schema should match the original schema")
         .isEqualTo(original.schema().asStruct());
@@ -2903,8 +2910,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testConcurrentReplaceTransactionSchemaConflict() {
-    assumeThat(supportsServerSideRetry()).as("Schema conflicts are detected server-side").isTrue();
-
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -2927,18 +2932,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table afterFirstReplace = catalog.loadTable(TABLE);
     assertThat(afterFirstReplace.schema().asStruct())
-        .as("Table schema should match the original schema")
+        .as("Table schema should match the new schema")
         .isEqualTo(REPLACE_SCHEMA.asStruct());
 
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    // even though the new schema is identical, the assertion that the last assigned id has not
-    // changed will fail
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageStartingWith(
-            "Commit failed: Requirement failed: last assigned field id changed");
+    // Both replaces use the same schema, so field IDs match after refresh — succeeds
+    secondReplace.commitTransaction();
+    Table afterSecondReplace = catalog.loadTable(TABLE);
+    assertThat(afterSecondReplace.schema().asStruct())
+        .as("Table schema should match the new schema")
+        .isEqualTo(REPLACE_SCHEMA.asStruct());
   }
 
   @Test
@@ -3023,7 +3028,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testConcurrentReplaceTransactionPartitionSpecConflict() {
-    assumeThat(supportsServerSideRetry()).as("Spec conflicts are detected server-side").isTrue();
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3053,12 +3057,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertUUIDsMatch(original, afterFirstReplace);
     assertFiles(afterFirstReplace, FILE_B);
 
-    // even though the new spec is identical, the assertion that the last assigned id has not
-    // changed will fail
-    assertThatThrownBy(secondReplace::commitTransaction)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageStartingWith(
-            "Commit failed: Requirement failed: last assigned partition id changed");
+    // Both replaces use the same spec, so the refresh succeeds
+    secondReplace.commitTransaction();
+    assertThat(catalog.loadTable(TABLE).spec().fields())
+        .as("Table spec should match the new spec")
+        .isEqualTo(TABLE_SPEC.fields());
   }
 
   @Test
@@ -3140,6 +3143,87 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isEqualTo(TABLE_WRITE_ORDER.fields());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
+  }
+
+  @Test
+  public void testConcurrentReplaceTransactionFieldIdConflict() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    catalog.buildTable(TABLE, OTHER_SCHEMA).create();
+
+    // Two schemas with completely different column names. Both buildReplacement calls assign
+    // the same fresh IDs (starting from lastColumnId=1) to different columns.
+    Schema schemaA =
+        new Schema(
+            required(10, "col_a1", Types.IntegerType.get()),
+            required(11, "col_a2", Types.StringType.get()));
+    Schema schemaB =
+        new Schema(
+            required(20, "col_b1", Types.IntegerType.get()),
+            required(21, "col_b2", Types.StringType.get()));
+
+    Transaction replaceA = catalog.buildTable(TABLE, schemaA).replaceTransaction();
+    replaceA.newFastAppend().appendFile(FILE_A).commit();
+
+    Transaction replaceB = catalog.buildTable(TABLE, schemaB).replaceTransaction();
+    replaceB.newFastAppend().appendFile(FILE_B).commit();
+    replaceB.commitTransaction();
+
+    // A's field IDs conflict with B's — same IDs, different columns
+    assertThatThrownBy(replaceA::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Cannot commit replace transaction");
+  }
+
+  @Test
+  public void testConcurrentReplaceTransactionFieldIdsPreserved() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    // Create a table with OTHER_SCHEMA = {1: some_id}
+    catalog.buildTable(TABLE, OTHER_SCHEMA).create();
+
+    Table original = catalog.loadTable(TABLE);
+    assertThat(original.schema().columns()).hasSize(1);
+    assertThat(original.schema().findField("some_id").fieldId()).isEqualTo(1);
+
+    // Start a replace with SCHEMA = {id, data} — this gets fresh IDs {2: id, 3: data}
+    Transaction replace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
+    replace.newFastAppend().appendFile(FILE_A).commit();
+
+    // Capture the field IDs that the replace transaction's schema was assigned
+    Table replaceView = replace.table();
+    int idFieldId = replaceView.schema().findField("id").fieldId();
+    int dataFieldId = replaceView.schema().findField("data").fieldId();
+
+    // Concurrently, another replace changes the schema to something different
+    Transaction concurrentReplace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
+    concurrentReplace.commitTransaction();
+
+    // The concurrent replace changed the table schema and lastColumnId.
+    // Concurrent replace with the same schema — field IDs will match after refresh
+    replace.commitTransaction();
+
+    Table afterReplace = catalog.loadTable(TABLE);
+
+    // Field IDs must match what the replace transaction originally assigned, because
+    // files added during the transaction reference those IDs
+    assertThat(afterReplace.schema().findField("id").fieldId())
+        .as("id field ID must be preserved after refresh")
+        .isEqualTo(idFieldId);
+    assertThat(afterReplace.schema().findField("data").fieldId())
+        .as("data field ID must be preserved after refresh")
+        .isEqualTo(dataFieldId);
+
+    assertUUIDsMatch(original, afterReplace);
+    assertFiles(afterReplace, FILE_A);
   }
 
   @ParameterizedTest
