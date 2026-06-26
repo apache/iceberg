@@ -30,11 +30,9 @@ RUN  set -xeu && \
 # Working directory for the application
 WORKDIR /usr/lib/iceberg-rest
 
-# Copy the JAR file directly to the target location
+# Copy runtime files directly to the target location
 COPY --chown=iceberg:iceberg open-api/build/libs/iceberg-open-api-test-fixtures-runtime-*.jar /usr/lib/iceberg-rest/iceberg-rest-adapter.jar
-
-# Copy logging configuration (slf4j simple reads this from the classpath)
-COPY --chown=iceberg:iceberg docker/iceberg-rest-fixture/simplelogger.properties /usr/lib/iceberg-rest/simplelogger.properties
+COPY --chown=iceberg:iceberg docker/iceberg-rest-fixture/entrypoint.sh /usr/lib/iceberg-rest/entrypoint.sh
 
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog
 ENV CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db
@@ -50,4 +48,4 @@ HEALTHCHECK --retries=10 --interval=1s \
 EXPOSE $REST_PORT
 USER iceberg:iceberg
 ENV LANG=en_US.UTF-8
-CMD ["sh", "-c", "java -Dorg.slf4j.simpleLogger.defaultLogLevel=${LOG_LEVEL:-INFO} -jar iceberg-rest-adapter.jar"]
+CMD ["sh", "/usr/lib/iceberg-rest/entrypoint.sh"]
