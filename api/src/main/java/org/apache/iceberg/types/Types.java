@@ -570,13 +570,7 @@ public class Types {
     }
   }
 
-  /**
-   * A geometry type, optionally parameterized by a CRS (default {@code OGC:CRS84}).
-   *
-   * <p>CRS values are compared case-insensitively, so two geometry types whose CRS differ only in
-   * case (e.g. {@code OGC:CRS84} vs {@code ogc:crs84}) are equal. Each value keeps its original
-   * casing in {@link #toString()} and in serialized metadata.
-   */
+  /** A geometry type, optionally parameterized by a CRS. The default CRS is {@code OGC:CRS84}. */
   public static class GeometryType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
     private static final String NAME = "geometry";
@@ -611,6 +605,10 @@ public class Types {
       return crs;
     }
 
+    /**
+     * Two geometry types are equal when their CRS match case-insensitively, so {@code OGC:CRS84}
+     * and {@code ogc:crs84} are equal.
+     */
     @Override
     public boolean equals(Object o) {
       if (this == o) {
@@ -620,7 +618,6 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      // CRS is compared case-insensitively
       return crs.equalsIgnoreCase(that.crs);
     }
 
@@ -637,12 +634,8 @@ public class Types {
   }
 
   /**
-   * A geography type, optionally parameterized by a CRS (default {@code OGC:CRS84}) and an
-   * edge-interpolation algorithm (default {@code spherical}).
-   *
-   * <p>CRS values are compared case-insensitively, so two geography types whose CRS differ only in
-   * case (e.g. {@code OGC:CRS84} vs {@code ogc:crs84}) are equal. Each value keeps its original
-   * casing in {@link #toString()} and in serialized metadata.
+   * A geography type, optionally parameterized by a CRS and an edge-interpolation algorithm. The
+   * default CRS is {@code OGC:CRS84} and the default algorithm is {@code spherical}.
    */
   public static class GeographyType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
@@ -689,6 +682,10 @@ public class Types {
       return algorithm;
     }
 
+    /**
+     * Two geography types are equal when their edge algorithms are equal and their CRS match
+     * case-insensitively, so {@code OGC:CRS84} and {@code ogc:crs84} are equal.
+     */
     @Override
     public boolean equals(Object o) {
       if (this == o) {
@@ -698,7 +695,6 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      // CRS is compared case-insensitively
       return crs.equalsIgnoreCase(that.crs) && Objects.equals(algorithm, that.algorithm);
     }
 
