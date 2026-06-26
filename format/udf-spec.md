@@ -228,7 +228,6 @@ RETURN x + 1.0;
   "definitions": [
     {
       "definition-id": "int",
-      "specific-name": "add_one_int",
       "parameters": [
         {
           "name": "x", "type": "int", "doc": "Input integer"
@@ -260,7 +259,6 @@ RETURN x + 1.0;
     },
     {
       "definition-id": "float",
-      "specific-name": "add_one_float",
       "parameters": [
         {
           "name": "x", "type": "float", "doc": "Input float"
