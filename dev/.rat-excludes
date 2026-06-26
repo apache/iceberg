@@ -29,4 +29,5 @@ sitemap.xml
 .python-version
 **/*_index.md
 **/.venv/**
+**/_delta_log/_last_checkpoint
 **/runtime-deps.txt

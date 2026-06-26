@@ -670,6 +670,8 @@ project(':iceberg-delta-lake') {
     compileOnly libs.immutables.value
 
     compileOnly "io.delta:delta-standalone_${scalaVersion}:${libs.versions.delta.standalone.get()}"
+    compileOnly libs.delta.kernel.api
+    compileOnly libs.delta.kernel.defaults
 
     compileOnly(libs.hadoop3.common) {
       exclude group: 'org.apache.avro', module: 'avro'
