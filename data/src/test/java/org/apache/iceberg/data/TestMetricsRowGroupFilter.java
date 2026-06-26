@@ -474,12 +474,6 @@ public class TestMetricsRowGroupFilter {
 
   @TestTemplate
   public void testColumnNotInFileWithInitialDefault() {
-    // A column added by schema evolution with an initial-default is absent from this older file, so
-    // it reads as the default ('US') for every row -- not as null. The row-group filter must
-    // therefore evaluate predicates against the default instead of assuming all-null, otherwise it
-    // would skip the row group and drop the backfilled rows (e.g. for col = <default> or the
-    // IsNotNull engines infer). See #16690. ORC throws on reading initial-default columns, so this
-    // is Parquet-only.
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     Schema schemaWithDefault =
@@ -491,7 +485,6 @@ public class TestMetricsRowGroupFilter {
                 .withInitialDefault(Literal.of("US"))
                 .build());
 
-    // predicates that match the default keep the row group
     Expression[] canMatch =
         new Expression[] {equal("country", "US"), notNull("country"), notEqual("country", "CA")};
     for (Expression expr : canMatch) {
@@ -500,13 +493,41 @@ public class TestMetricsRowGroupFilter {
           .isTrue();
     }
 
-    // predicates that cannot match the default skip the row group
     Expression[] cannotMatch =
         new Expression[] {equal("country", "CA"), isNull("country"), notEqual("country", "US")};
     for (Expression expr : cannotMatch) {
       assertThat(shouldReadWithSchema(schemaWithDefault, expr))
           .as("Should skip: default 'US' cannot satisfy: " + expr)
           .isFalse();
+    }
+  }
+
+  @TestTemplate
+  public void testPresentColumnWithoutStatsIsNotEvaluatedAgainstDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    // no_stats_parquet (id 2) is present in the file but has no stats; it must be filtered on its
+    // real values
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("no_stats_parquet")
+                .withId(2)
+                .ofType(StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+
+    Expression[] mustReadBecausePresent =
+        new Expression[] {
+          equal("no_stats_parquet", "CA"),
+          isNull("no_stats_parquet"),
+          notEqual("no_stats_parquet", "US"),
+          lessThan("no_stats_parquet", "A")
+        };
+    for (Expression expr : mustReadBecausePresent) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should read: present column must use stats, not the default: " + expr)
+          .isTrue();
     }
   }
 
