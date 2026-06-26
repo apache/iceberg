@@ -36,6 +36,7 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,9 +46,15 @@ public class Tasks {
 
   private Tasks() {}
 
+  /** Reason retry attempts were exhausted for a retryable exception. */
   public enum RetryExhaustionReason {
+    /** The retry attempt limit was reached before the total retry timeout. */
     ATTEMPT_LIMIT,
+
+    /** The total retry timeout was reached before the retry attempt limit. */
     TIMEOUT,
+
+    /** Both the retry attempt limit and total retry timeout were reached on the final attempt. */
     ATTEMPT_LIMIT_AND_TIMEOUT
   }
 
@@ -189,9 +196,18 @@ public class Tasks {
       return this;
     }
 
+    /**
+     * Converts a retryable exception when retry attempts or total retry time are exhausted.
+     *
+     * <p>The handler is called only after the exception matches the retry policy and no more
+     * retries are allowed.
+     *
+     * @param handler function that receives the last retryable exception and exhaustion reason
+     * @return this builder
+     */
     public Builder<I> onRetryExhausted(
         BiFunction<Exception, RetryExhaustionReason, RuntimeException> handler) {
-      this.retryExhaustedHandler = handler;
+      this.retryExhaustedHandler = Preconditions.checkNotNull(handler, "Handler cannot be null");
       return this;
     }
 

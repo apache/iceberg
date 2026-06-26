@@ -24,8 +24,9 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 
-public class CommitRetry {
-  private CommitRetry() {}
+/** Internal helper for converting exhausted commit retries into user-facing commit exceptions. */
+public class CommitRetryExceptions {
+  private CommitRetryExceptions() {}
 
   public static CommitFailedException retryExhaustedException(
       Exception cause, Tasks.RetryExhaustionReason reason) {
