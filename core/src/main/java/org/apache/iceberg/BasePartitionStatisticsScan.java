@@ -99,8 +99,12 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
     Preconditions.checkNotNull(
         fileFormat != null, "Unable to determine format of file: %s", statsFile.get().path());
 
+    // Pass the filter as a best-effort row-group skipping hint. The hint is bound case-sensitively
+    // by the format reader, so only use it for case-sensitive scans; the Evaluator below always
+    // applies the filter for exact, case-correct results.
+    Expression filterHint = caseSensitive ? filter : Expressions.alwaysTrue();
     CloseableIterable<PartitionStatistics> result =
-        InternalData.read(fileFormat, table.io().newInputFile(statsFile.get().path()))
+        InternalData.read(fileFormat, table.io().newInputFile(statsFile.get().path()), filterHint)
             .project(readSchema)
             .setRootType(BasePartitionStatistics.class)
             .build();
