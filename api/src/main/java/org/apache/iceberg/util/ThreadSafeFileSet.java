@@ -28,14 +28,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * A thread-safe set implementation for Iceberg {@link ContentFile} objects.
  *
  * <p>This class provides a concurrent alternative to {@link DataFileSet} and {@link DeleteFileSet}
- * for scenarios where files must be collected from multiple worker threads. The standard
- * {@link WrapperSet} implementations use {@link java.util.LinkedHashSet} internally, which is
+ * for scenarios where files must be collected from multiple worker threads. The standard {@link
+ * WrapperSet} implementations use {@link java.util.LinkedHashSet} internally, which is
  * <strong>not</strong> thread-safe and can corrupt when mutated concurrently (see Iceberg issue
  * #16978).
  *
  * <p>Unlike {@link WrapperSet}, this implementation does <strong>not</strong> preserve insertion
- * order. If order is required, collect files in a thread-safe structure and copy to a
- * {@link DataFileSet} or {@link DeleteFileSet} on the main thread after parallel work completes.
+ * order. If order is required, collect files in a thread-safe structure and copy to a {@link
+ * DataFileSet} or {@link DeleteFileSet} on the main thread after parallel work completes.
  *
  * @param <F> the file type, typically {@link org.apache.iceberg.DataFile} or {@link
  *     org.apache.iceberg.DeleteFile}
