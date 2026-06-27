@@ -31,10 +31,13 @@ import org.junit.jupiter.api.Test;
 
 class TestTrackedFileStruct {
   private static final int FORMAT_VERSION_V4 = 4;
-  private static final Types.StructType PARTITION_TYPE =
-      Types.StructType.of(
-          Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
-          Types.NestedField.optional(1001, "category", Types.StringType.get()));
+  private static final Schema TABLE_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "category", Types.StringType.get()));
+  private static final PartitionSpec PARTITION_SPEC =
+      PartitionSpec.builderFor(TABLE_SCHEMA).bucket("id", 16).identity("category").build();
+  private static final Types.StructType PARTITION_TYPE = PARTITION_SPEC.partitionType();
 
   // Ordinals looked up from the TrackedFile schema so tests don't hard-code positions.
   private static final List<Types.NestedField> SCHEMA_FIELDS =
@@ -388,10 +391,9 @@ class TestTrackedFileStruct {
                 .formatVersion(FORMAT_VERSION_V4)
                 .location("s3://bucket/data/file.parquet")
                 .fileFormat(FileFormat.PARQUET)
-                .partition(newPartition(7, "music"))
+                .partition(PARTITION_SPEC, newPartition(7, "music"))
                 .recordCount(100L)
                 .fileSizeInBytes(1024L)
-                .specId(0)
                 .sortOrderId(1)
                 .deletionVector(dv)
                 .keyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
@@ -465,10 +467,8 @@ class TestTrackedFileStruct {
             .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/data/file.parquet")
             .fileFormat(FileFormat.PARQUET)
-            .partition(new PartitionData(Types.StructType.of()))
             .recordCount(100L)
             .fileSizeInBytes(1024L)
-            .specId(0)
             .contentStats(stats)
             .build();
   }

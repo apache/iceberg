@@ -36,9 +36,12 @@ public class TestTrackedFileBuilder {
   private static final Schema TABLE_SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
-  private static final Types.StructType PARTITION_TYPE =
-      PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build().partitionType();
+  private static final PartitionSpec PARTITION_SPEC =
+      PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build();
+  private static final Types.StructType PARTITION_TYPE = PARTITION_SPEC.partitionType();
   private static final PartitionData PARTITION_DATA = new PartitionData(PARTITION_TYPE);
+  private static final PartitionData EMPTY_PARTITION_DATA =
+      new PartitionData(Types.StructType.of());
   private static final ManifestInfo MANIFEST_INFO =
       ManifestInfoStruct.builder()
           .addedFilesCount(10)
@@ -91,8 +94,7 @@ public class TestTrackedFileBuilder {
         Arguments.of("location", "Missing required field: location"),
         Arguments.of("fileFormat", "Missing required field: file format"),
         Arguments.of("recordCount", "Missing required field: record count"),
-        Arguments.of("fileSizeInBytes", "Missing required field: file size in bytes"),
-        Arguments.of("partition", "Missing required field: partition data"));
+        Arguments.of("fileSizeInBytes", "Missing required field: file size in bytes"));
   }
 
   @ParameterizedTest
@@ -139,7 +141,7 @@ public class TestTrackedFileBuilder {
       builder.fileSizeInBytes(12345L);
     }
     if (!"partition".equals(missingField)) {
-      builder.partition(PARTITION_DATA);
+      builder.partition(PARTITION_SPEC, PARTITION_DATA);
     }
     return builder;
   }
@@ -155,7 +157,7 @@ public class TestTrackedFileBuilder {
                     .fileFormat(FileFormat.AVRO)
                     .recordCount(420L)
                     .fileSizeInBytes(556L)
-                    .partition(PARTITION_DATA)
+                    .partition(PARTITION_SPEC, PARTITION_DATA)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing required field: manifest info");
@@ -171,7 +173,7 @@ public class TestTrackedFileBuilder {
                     .fileFormat(FileFormat.PARQUET)
                     .recordCount(2000L)
                     .fileSizeInBytes(12345L)
-                    .partition(PARTITION_DATA)
+                    .partition(PARTITION_SPEC, PARTITION_DATA)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing required field: equality IDs");
@@ -182,11 +184,15 @@ public class TestTrackedFileBuilder {
         Arguments.of(TrackedFileBuilder.data(10L), FileContent.DATA),
         Arguments.of(TrackedFileBuilder.dataManifest(10L), FileContent.DATA_MANIFEST),
         Arguments.of(TrackedFileBuilder.deleteManifest(10L), FileContent.DELETE_MANIFEST),
-        Arguments.of(TrackedFileBuilder.from(sourceData(12L), 20L), FileContent.DATA),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDataManifest(21L), 25L), FileContent.DATA_MANIFEST),
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceData(12L), 7L), 20L),
+            FileContent.DATA),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDeleteManifest(12L), 20L), FileContent.DELETE_MANIFEST));
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceDataManifest(21L), 7L), 25L),
+            FileContent.DATA_MANIFEST),
+        Arguments.of(
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceDeleteManifest(12L), 7L), 20L),
+            FileContent.DELETE_MANIFEST));
   }
 
   @ParameterizedTest
@@ -195,9 +201,7 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     assertThatThrownBy(() -> builder.equalityIds(ImmutableList.of(1)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Equality IDs can only be added to EQUALITY_DELETES entries, but entry type is: "
-                + contentType);
+        .hasMessage("Cannot add equality IDs for file with content: " + contentType);
   }
 
   private static Stream<Arguments> nonDataBuilders() {
@@ -206,11 +210,14 @@ public class TestTrackedFileBuilder {
         Arguments.of(TrackedFileBuilder.dataManifest(10L), FileContent.DATA_MANIFEST),
         Arguments.of(TrackedFileBuilder.deleteManifest(10L), FileContent.DELETE_MANIFEST),
         Arguments.of(
-            TrackedFileBuilder.from(sourceEqualityDelete(12L), 20L), FileContent.EQUALITY_DELETES),
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceEqualityDelete(12L), 7L), 20L),
+            FileContent.EQUALITY_DELETES),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDataManifest(21L), 25L), FileContent.DATA_MANIFEST),
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceDataManifest(21L), 7L), 25L),
+            FileContent.DATA_MANIFEST),
         Arguments.of(
-            TrackedFileBuilder.from(sourceDeleteManifest(12L), 20L), FileContent.DELETE_MANIFEST));
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceDeleteManifest(12L), 7L), 20L),
+            FileContent.DELETE_MANIFEST));
   }
 
   @ParameterizedTest
@@ -219,8 +226,7 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     assertThatThrownBy(() -> builder.deletionVector(DELETION_VECTOR))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Deletion vector can only be added to DATA entries, but entry type is: " + contentType);
+        .hasMessage("Cannot add deletion vector for file with content: %s", contentType);
   }
 
   @ParameterizedTest
@@ -229,8 +235,7 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     assertThatThrownBy(() -> builder.sortOrderId(1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Sort order ID cannot be added to manifest entries, but entry type is: " + contentType);
+        .hasMessage("Cannot set sort order for manifest files");
   }
 
   @ParameterizedTest
@@ -239,17 +244,19 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     assertThatThrownBy(() -> builder.splitOffsets(SPLIT_OFFSETS))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Split offsets cannot be added to manifest entries, but entry type is: " + contentType);
+        .hasMessage("Cannot set split offsets for manifest files");
   }
 
   private static Stream<Arguments> nonManifestBuilders() {
     return Stream.of(
         Arguments.of(TrackedFileBuilder.data(10L), FileContent.DATA),
         Arguments.of(TrackedFileBuilder.equalityDelete(10L), FileContent.EQUALITY_DELETES),
-        Arguments.of(TrackedFileBuilder.from(sourceData(12L), 20L), FileContent.DATA),
         Arguments.of(
-            TrackedFileBuilder.from(sourceEqualityDelete(12L), 20L), FileContent.EQUALITY_DELETES));
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceData(12L), 7L), 20L),
+            FileContent.DATA),
+        Arguments.of(
+            TrackedFileBuilder.from(entryWithInheritedSeqNums(sourceEqualityDelete(12L), 7L), 20L),
+            FileContent.EQUALITY_DELETES));
   }
 
   @ParameterizedTest
@@ -258,8 +265,7 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     assertThatThrownBy(() -> builder.manifestInfo(MANIFEST_INFO))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Manifest info can only be added to manifests, but entry type is: " + contentType);
+        .hasMessage("Cannot add manifest info for file with content: " + contentType);
   }
 
   @ParameterizedTest
@@ -268,9 +274,7 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     assertThatThrownBy(() -> builder.deletedPositions(DELETED_POSITIONS))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Deleted positions can only be added to manifest entries, but entry type is: "
-                + contentType);
+        .hasMessage("Cannot add deleted positions for file with content: " + contentType);
   }
 
   @ParameterizedTest
@@ -279,9 +283,7 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     assertThatThrownBy(() -> builder.replacedPositions(REPLACED_POSITIONS))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Replaced positions can only be added to manifest entries, but entry type is: "
-                + contentType);
+        .hasMessage("Cannot add replaced positions for file with content: " + contentType);
   }
 
   @Test
@@ -294,7 +296,11 @@ public class TestTrackedFileBuilder {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file format: null");
 
-    assertThatThrownBy(() -> TrackedFileBuilder.data(30L).partition(null))
+    assertThatThrownBy(() -> TrackedFileBuilder.data(30L).partition(null, PARTITION_DATA))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid spec: null");
+
+    assertThatThrownBy(() -> TrackedFileBuilder.data(30L).partition(PARTITION_SPEC, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid partition: null");
 
@@ -352,6 +358,33 @@ public class TestTrackedFileBuilder {
   }
 
   @Test
+  public void unpartitionedSpecWithNonNullPartitionFails() {
+    assertThatThrownBy(
+            () ->
+                TrackedFileBuilder.data(30L)
+                    .partition(PartitionSpec.unpartitioned(), PARTITION_DATA))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid partition: must be null for unpartitioned spec");
+  }
+
+  @Test
+  public void unpartitionedSpecWithNullPartitionSucceeds() {
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+    TrackedFile trackedFile =
+        TrackedFileBuilder.data(50L)
+            .formatVersion(FORMAT_VERSION_V4)
+            .location("s3://bucket/data/file.parquet")
+            .fileFormat(FileFormat.PARQUET)
+            .recordCount(2000L)
+            .fileSizeInBytes(12345L)
+            .partition(unpartitioned, null)
+            .build();
+
+    assertThat(trackedFile.specId()).isEqualTo(unpartitioned.specId());
+    assertThat(trackedFile.partition()).isEqualTo(EMPTY_PARTITION_DATA);
+  }
+
+  @Test
   public void invalidNegativeInputs() {
     assertThatThrownBy(() -> TrackedFileBuilder.dataManifest(40L).formatVersion(-1))
         .isInstanceOf(IllegalArgumentException.class)
@@ -364,10 +397,6 @@ public class TestTrackedFileBuilder {
     assertThatThrownBy(() -> TrackedFileBuilder.dataManifest(40L).fileSizeInBytes(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file size in bytes: -1 (must be >= 0)");
-
-    assertThatThrownBy(() -> TrackedFileBuilder.dataManifest(40L).specId(-1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid spec ID: -1 (must be >= 0)");
 
     assertThatThrownBy(() -> TrackedFileBuilder.data(40L).sortOrderId(-1))
         .isInstanceOf(IllegalArgumentException.class)
@@ -383,7 +412,6 @@ public class TestTrackedFileBuilder {
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
             .fileSizeInBytes(12345L)
-            .partition(PARTITION_DATA)
             .build();
 
     assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
@@ -392,7 +420,7 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(trackedFile.recordCount()).isEqualTo(2000L);
     assertThat(trackedFile.fileSizeInBytes()).isEqualTo(12345L);
-    assertThat(trackedFile.partition()).isSameAs(PARTITION_DATA);
+    assertThat(trackedFile.partition()).isEqualTo(EMPTY_PARTITION_DATA);
 
     assertThat(trackedFile.tracking().status()).isEqualTo(EntryStatus.ADDED);
     assertThat(trackedFile.tracking().snapshotId()).isEqualTo(50L);
@@ -417,8 +445,7 @@ public class TestTrackedFileBuilder {
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
             .fileSizeInBytes(12345L)
-            .specId(7)
-            .partition(PARTITION_DATA)
+            .partition(PARTITION_SPEC, PARTITION_DATA)
             .contentStats(CONTENT_STATS)
             .sortOrderId(3)
             .deletionVector(DELETION_VECTOR)
@@ -432,8 +459,8 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(trackedFile.recordCount()).isEqualTo(2000L);
     assertThat(trackedFile.fileSizeInBytes()).isEqualTo(12345L);
-    assertThat(trackedFile.specId()).isEqualTo(7);
-    assertThat(trackedFile.partition()).isSameAs(PARTITION_DATA);
+    assertThat(trackedFile.specId()).isEqualTo(PARTITION_SPEC.specId());
+    assertThat(trackedFile.partition()).isEqualTo(PARTITION_DATA);
     assertThat(trackedFile.contentStats()).isSameAs(CONTENT_STATS);
     assertThat(trackedFile.sortOrderId()).isEqualTo(3);
     assertThat(trackedFile.deletionVector()).isSameAs(DELETION_VECTOR);
@@ -458,7 +485,6 @@ public class TestTrackedFileBuilder {
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
             .fileSizeInBytes(12345L)
-            .partition(PARTITION_DATA)
             .equalityIds(ImmutableList.of(1))
             .build();
 
@@ -468,7 +494,7 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(trackedFile.recordCount()).isEqualTo(2000L);
     assertThat(trackedFile.fileSizeInBytes()).isEqualTo(12345L);
-    assertThat(trackedFile.partition()).isSameAs(PARTITION_DATA);
+    assertThat(trackedFile.partition()).isEqualTo(EMPTY_PARTITION_DATA);
     assertThat(trackedFile.equalityIds()).containsExactly(1);
 
     assertThat(trackedFile.tracking().status()).isEqualTo(EntryStatus.ADDED);
@@ -492,8 +518,7 @@ public class TestTrackedFileBuilder {
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
             .fileSizeInBytes(12345L)
-            .specId(7)
-            .partition(PARTITION_DATA)
+            .partition(PARTITION_SPEC, PARTITION_DATA)
             .contentStats(CONTENT_STATS)
             .keyMetadata(KEY_METADATA)
             .splitOffsets(SPLIT_OFFSETS)
@@ -507,8 +532,8 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(trackedFile.recordCount()).isEqualTo(2000L);
     assertThat(trackedFile.fileSizeInBytes()).isEqualTo(12345L);
-    assertThat(trackedFile.specId()).isEqualTo(7);
-    assertThat(trackedFile.partition()).isSameAs(PARTITION_DATA);
+    assertThat(trackedFile.specId()).isEqualTo(PARTITION_SPEC.specId());
+    assertThat(trackedFile.partition()).isEqualTo(PARTITION_DATA);
     assertThat(trackedFile.contentStats()).isSameAs(CONTENT_STATS);
     assertThat(trackedFile.keyMetadata()).isEqualTo(KEY_METADATA);
     assertThat(trackedFile.splitOffsets()).isEqualTo(SPLIT_OFFSETS);
@@ -540,7 +565,6 @@ public class TestTrackedFileBuilder {
             .fileFormat(FileFormat.AVRO)
             .recordCount(420L)
             .fileSizeInBytes(556L)
-            .partition(PARTITION_DATA)
             .manifestInfo(MANIFEST_INFO)
             .build();
 
@@ -550,7 +574,7 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.AVRO);
     assertThat(trackedFile.recordCount()).isEqualTo(420L);
     assertThat(trackedFile.fileSizeInBytes()).isEqualTo(556L);
-    assertThat(trackedFile.partition()).isSameAs(PARTITION_DATA);
+    assertThat(trackedFile.partition()).isEqualTo(EMPTY_PARTITION_DATA);
     assertThat(trackedFile.manifestInfo()).isSameAs(MANIFEST_INFO);
 
     assertThat(trackedFile.tracking().status()).isEqualTo(EntryStatus.ADDED);
@@ -575,8 +599,7 @@ public class TestTrackedFileBuilder {
             .fileFormat(FileFormat.AVRO)
             .recordCount(420L)
             .fileSizeInBytes(556L)
-            .specId(7)
-            .partition(PARTITION_DATA)
+            .partition(PARTITION_SPEC, PARTITION_DATA)
             .contentStats(CONTENT_STATS)
             .keyMetadata(KEY_METADATA)
             .manifestInfo(MANIFEST_INFO)
@@ -588,8 +611,8 @@ public class TestTrackedFileBuilder {
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.AVRO);
     assertThat(trackedFile.recordCount()).isEqualTo(420L);
     assertThat(trackedFile.fileSizeInBytes()).isEqualTo(556L);
-    assertThat(trackedFile.specId()).isEqualTo(7);
-    assertThat(trackedFile.partition()).isSameAs(PARTITION_DATA);
+    assertThat(trackedFile.specId()).isEqualTo(PARTITION_SPEC.specId());
+    assertThat(trackedFile.partition()).isEqualTo(PARTITION_DATA);
     assertThat(trackedFile.contentStats()).isSameAs(CONTENT_STATS);
     assertThat(trackedFile.keyMetadata()).isEqualTo(KEY_METADATA);
     assertThat(trackedFile.manifestInfo()).isSameAs(MANIFEST_INFO);
@@ -698,7 +721,7 @@ public class TestTrackedFileBuilder {
   }
 
   @Test
-  public void addingSameDeletionVectorFails() {
+  public void addingInvalidDeletionVectorFails() {
     TrackedFile source = entryWithInheritedSeqNums(sourceData(10L), 45L);
 
     DeletionVector dv =
@@ -709,16 +732,28 @@ public class TestTrackedFileBuilder {
             .cardinality(40L)
             .build();
 
-    DeletionVector dvCopy = dv.copy();
+    DeletionVector sameDVWithDifferentCardinality =
+        DeletionVectorStruct.builder()
+            .location("s3://bucket/data/new_dv.puffin")
+            .offset(5L)
+            .sizeInBytes(256L)
+            .cardinality(50L)
+            .build();
 
     TrackedFile trackedFile = TrackedFileBuilder.from(source, 20L).deletionVector(dv).build();
 
     assertThatThrownBy(() -> TrackedFileBuilder.from(trackedFile, 30L).deletionVector(dv))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("The same deletion vector already added");
-    assertThatThrownBy(() -> TrackedFileBuilder.from(trackedFile, 30L).deletionVector(dvCopy))
+        .hasMessage(
+            "Invalid DV update, cardinality must increase: existing=%s, new=%s",
+            dv.cardinality(), dv.cardinality());
+
+    assertThatThrownBy(
+            () ->
+                TrackedFileBuilder.from(trackedFile, 30L)
+                    .deletionVector(sameDVWithDifferentCardinality))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("The same deletion vector already added");
+        .hasMessage("Invalid DV update: same location and offset");
   }
 
   private static Stream<Arguments> nonManifestSources() {
@@ -764,8 +799,7 @@ public class TestTrackedFileBuilder {
 
     assertThatThrownBy(() -> TrackedFileBuilder.replaced(source, 20L))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Manifest entries cannot transition to REPLACED, but entry type is: " + contentType);
+        .hasMessage("Cannot transition manifest files to REPLACED");
   }
 
   private static TrackedFile sourceData(long snapshotId) {
@@ -775,8 +809,7 @@ public class TestTrackedFileBuilder {
         .fileFormat(FileFormat.PARQUET)
         .recordCount(2000L)
         .fileSizeInBytes(12345L)
-        .partition(PARTITION_DATA)
-        .specId(7)
+        .partition(PARTITION_SPEC, PARTITION_DATA)
         .contentStats(CONTENT_STATS)
         .sortOrderId(3)
         .deletionVector(DELETION_VECTOR)
@@ -792,7 +825,7 @@ public class TestTrackedFileBuilder {
         .fileFormat(FileFormat.PARQUET)
         .recordCount(2000L)
         .fileSizeInBytes(12345L)
-        .partition(PARTITION_DATA)
+        .partition(PARTITION_SPEC, PARTITION_DATA)
         .equalityIds(ImmutableList.of(1))
         .build();
   }
@@ -804,7 +837,7 @@ public class TestTrackedFileBuilder {
         .fileFormat(FileFormat.PARQUET)
         .recordCount(420L)
         .fileSizeInBytes(556L)
-        .partition(PARTITION_DATA)
+        .partition(PARTITION_SPEC, PARTITION_DATA)
         .manifestInfo(MANIFEST_INFO)
         .build();
   }
@@ -816,7 +849,7 @@ public class TestTrackedFileBuilder {
         .fileFormat(FileFormat.PARQUET)
         .recordCount(100L)
         .fileSizeInBytes(543L)
-        .partition(PARTITION_DATA)
+        .partition(PARTITION_SPEC, PARTITION_DATA)
         .manifestInfo(MANIFEST_INFO)
         .build();
   }
