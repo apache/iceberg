@@ -86,26 +86,3 @@ configure(jmhProjects) {
 
   tasks.jmh.finalizedBy tasks.jmhReport
 }
-
-project(':iceberg-core') {
-  dependencies {
-    // Aliyun OSS
-    jmhImplementation project(':iceberg-aliyun')
-    jmhImplementation libs.aliyun.sdk.oss
-    jmhImplementation libs.jaxb.api
-    jmhImplementation libs.activation
-    jmhImplementation libs.jaxb.runtime
-    // AWS S3
-    jmhImplementation project(':iceberg-aws')
-    jmhImplementation platform(libs.awssdk.bom)
-    jmhImplementation 'software.amazon.awssdk:s3'
-    jmhImplementation 'software.amazon.awssdk:kms'
-    jmhImplementation 'software.amazon.awssdk:glue'
-    jmhImplementation 'software.amazon.awssdk:dynamodb'
-    jmhImplementation 'software.amazon.awssdk:lakeformation'
-    jmhImplementation 'software.amazon.awssdk:url-connection-client'
-    jmhImplementation 'software.amazon.awssdk:apache-client'
-    jmhImplementation 'software.amazon.awssdk:auth'
-    jmhImplementation 'software.amazon.awssdk:sts'
-  }
-}

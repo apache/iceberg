@@ -59,28 +59,35 @@ import org.openjdk.jmh.annotations.Warmup;
  * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=FileIOBenchmark
  * }</pre>
  *
- * <p>To run with OSSFileIO:
+ * <p>To run with a cloud FileIO, first build the fat JAR:
  *
  * <pre>{@code
- * ./gradlew :iceberg-core:jmh \
- *   -Dio-impl=org.apache.iceberg.aliyun.oss.OSSFileIO \
- *   -Dbenchmark.base.path=oss://bucket/benchmark-tmp/ \
- *   -Doss.endpoint=https://oss-cn-hangzhou.aliyuncs.com \
- *   -Dclient.access-key-id=xxx \
- *   -Dclient.access-key-secret=xxx \
- *   -PjmhIncludeRegex=FileIOBenchmark
+ * ./gradlew :iceberg-core:jmhJar
  * }</pre>
  *
- * <p>To run with S3FileIO:
+ * <p>Then run with the corresponding module JARs on the classpath.
+ *
+ * <p>For OSSFileIO, add iceberg-aliyun and its dependencies (aliyun-sdk-oss, jaxb-api,
+ * jaxb-runtime, activation):
  *
  * <pre>{@code
- * ./gradlew :iceberg-core:jmh \
- *   -Dio-impl=org.apache.iceberg.aws.s3.S3FileIO \
- *   -Dbenchmark.base.path=s3://bucket/benchmark-tmp/ \
- *   -Ds3.endpoint=https://s3.amazonaws.com \
- *   -Ds3.access-key-id=xxx \
- *   -Ds3.secret-access-key=xxx \
- *   -PjmhIncludeRegex=FileIOBenchmark
+ * java -cp "core/build/libs/iceberg-core-*-jmh.jar:aliyun-libs/*" \
+ *   org.openjdk.jmh.Main FileIOBenchmark \
+ *   -jvmArgs "-Dio-impl=org.apache.iceberg.aliyun.oss.OSSFileIO
+ *     -Dbenchmark.base.path=oss://bucket/benchmark-tmp/
+ *     -Doss.endpoint=https://oss-cn-hangzhou.aliyuncs.com
+ *     -Dclient.access-key-id=xxx -Dclient.access-key-secret=xxx"
+ * }</pre>
+ *
+ * <p>For S3FileIO, add iceberg-aws and the AWS SDK (s3, sts, auth, apache-client, etc.):
+ *
+ * <pre>{@code
+ * java -cp "core/build/libs/iceberg-core-*-jmh.jar:aws-libs/*" \
+ *   org.openjdk.jmh.Main FileIOBenchmark \
+ *   -jvmArgs "-Dio-impl=org.apache.iceberg.aws.s3.S3FileIO
+ *     -Dbenchmark.base.path=s3://bucket/benchmark-tmp/
+ *     -Ds3.endpoint=https://s3.amazonaws.com
+ *     -Ds3.access-key-id=xxx -Ds3.secret-access-key=xxx"
  * }</pre>
  */
 @Fork(1)
@@ -188,7 +195,7 @@ public class FileIOBenchmark {
   public void sequentialWrite() {
     String path = runDir + "/write-seq-" + writeCounter.getAndIncrement();
     OutputFile outputFile = fileIO.newOutputFile(path);
-    try (PositionOutputStream out = outputFile.create()) {
+    try (PositionOutputStream out = outputFile.createOrOverwrite()) {
       long remaining = fileSizeKB * 1024L;
       while (remaining > 0) {
         int toWrite = (int) Math.min(writeBuffer.length, remaining);
@@ -282,7 +289,7 @@ public class FileIOBenchmark {
 
   private void writeTestFile(String path, long size) {
     OutputFile outputFile = fileIO.newOutputFile(path);
-    try (PositionOutputStream out = outputFile.create()) {
+    try (PositionOutputStream out = outputFile.createOrOverwrite()) {
       long remaining = size;
       while (remaining > 0) {
         int toWrite = (int) Math.min(writeBuffer.length, remaining);
