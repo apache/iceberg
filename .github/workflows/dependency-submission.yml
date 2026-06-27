@@ -1,0 +1,77 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# Submits the resolved Gradle dependency graph to GitHub's Dependency
+# Submission API, populating the repo Dependency graph and Dependabot alerts.
+#
+# Push trigger is limited to the default branch so 'contents: write' is never
+# granted to fork PRs; Dependabot only consumes the default branch's graph
+# anyway.
+
+name: "Gradle Dependency Submission"
+
+on:
+  push:
+    branches:
+    - 'main'
+  schedule:
+    # Daily refresh so newly-disclosed CVEs surface even when main is quiet.
+    # Off-peak minute to avoid the top-of-hour GHA scheduler stampede.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dependency-submission:
+    # Skip on forks: Submission API rejects writes from non-canonical repos.
+    if: github.repository_owner == 'apache'
+    runs-on: ubuntu-24.04
+    # Safety net for the daily cron; full graph normally completes well under 30m.
+    timeout-minutes: 30
+    permissions:
+      # Required to upload the snapshot via the Dependency Submission API.
+      contents: write
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+      with:
+        distribution: zulu
+        java-version: 17
+    - name: Generate and submit Gradle dependency graph
+      uses: gradle/actions/dependency-submission@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+      with:
+        # Read-only: java-ci's build-checks is the canonical cache writer.
+        cache-read-only: true
+        # Submit only; skip the redundant 30-day workflow-artifact upload.
+        dependency-graph: generate-and-submit
+        # buildSrc is build-time tooling, never shipped.
+        dependency-graph-exclude-projects: ':buildSrc'
+        # Test classpaths aren't shipped; excluding them trims Dependabot noise.
+        dependency-graph-exclude-configurations: '.*[Tt]est(Compile|Runtime)Classpath'
+        # '-DallModules' expands to all known Spark/Flink/Kafka versions
+        # in settings.gradle.
+        additional-arguments: "-DallModules"
