@@ -32,6 +32,8 @@ import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
 import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.MapType;
@@ -162,6 +164,13 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
+    } else if (atomic instanceof GeometryType) {
+      return Types.GeometryType.of(((GeometryType) atomic).crs());
+    } else if (atomic instanceof GeographyType) {
+      // Spark only supports the spherical edge-interpolation algorithm, which matches the Iceberg
+      // default, so the Spark algorithm is intentionally not propagated here. Revisit if Spark
+      // starts supporting additional algorithms.
+      return Types.GeographyType.of(((GeographyType) atomic).crs());
     } else if (atomic instanceof NullType) {
       return Types.UnknownType.get();
     }

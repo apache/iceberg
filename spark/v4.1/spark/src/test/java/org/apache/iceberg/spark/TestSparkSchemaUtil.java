@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -29,12 +30,19 @@ import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.catalyst.util.ResolveDefaultColumnsUtils$;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeographyType$;
+import org.apache.spark.sql.types.GeometryType;
+import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -91,6 +99,67 @@ public class TestSparkSchemaUtil {
             .isFalse();
       }
     }
+  }
+
+  @Test
+  public void testGeospatialTypeConversion() {
+    // a default-CRS geometry round-trips through the null <-> OGC:CRS84 normalization
+    Types.GeometryType defaultGeometry = Types.GeometryType.crs84();
+    DataType sparkDefaultGeometry = SparkSchemaUtil.convert(defaultGeometry);
+    assertThat(sparkDefaultGeometry).isInstanceOf(GeometryType.class);
+    assertThat(((GeometryType) sparkDefaultGeometry).crs())
+        .isEqualTo(Types.GeometryType.DEFAULT_CRS);
+    assertThat(SparkSchemaUtil.convert(sparkDefaultGeometry)).isEqualTo(defaultGeometry);
+
+    Types.GeometryType geometry = Types.GeometryType.of("EPSG:3857");
+    DataType sparkGeometry = SparkSchemaUtil.convert(geometry);
+    assertThat(sparkGeometry).isInstanceOf(GeometryType.class);
+    assertThat(((GeometryType) sparkGeometry).crs()).isEqualTo("EPSG:3857");
+    assertThat(SparkSchemaUtil.convert(sparkGeometry)).isEqualTo(geometry);
+
+    Types.GeographyType geography = Types.GeographyType.of("OGC:CRS84");
+    DataType sparkGeography = SparkSchemaUtil.convert(geography);
+    assertThat(sparkGeography).isInstanceOf(GeographyType.class);
+    assertThat(((GeographyType) sparkGeography).crs()).isEqualTo("OGC:CRS84");
+    assertThat(SparkSchemaUtil.convert(sparkGeography)).isEqualTo(geography);
+
+    assertThat(SparkSchemaUtil.convert(GeometryType$.MODULE$.apply("EPSG:3857")))
+        .isEqualTo(geometry);
+    assertThat(SparkSchemaUtil.convert(GeographyType$.MODULE$.apply("OGC:CRS84")))
+        .isEqualTo(geography);
+
+    Types.GeographyType vincentyGeography =
+        Types.GeographyType.of("OGC:CRS84", EdgeAlgorithm.VINCENTY);
+    assertThatThrownBy(() -> SparkSchemaUtil.convert(vincentyGeography))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Spark does not support geography edge algorithm: vincenty");
+  }
+
+  @Test
+  public void testPruneGeospatialTypes() {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.of("EPSG:3857")),
+            optional(2, "geog", Types.GeographyType.of("OGC:CRS84")),
+            optional(3, "id", Types.LongType.get()));
+
+    StructType requestedType = SparkSchemaUtil.convert(schema);
+    Schema pruned = SparkSchemaUtil.prune(schema, requestedType);
+
+    assertThat(pruned.asStruct()).isEqualTo(schema.asStruct());
+  }
+
+  @Test
+  public void testPruneGeospatialTypeWithIncompatibleRequestedType() {
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.of("EPSG:3857")));
+
+    // requesting a non-geo Spark type for a geometry column must be rejected
+    StructType incompatibleType = new StructType().add("geom", DataTypes.BinaryType, true);
+
+    assertThatThrownBy(() -> SparkSchemaUtil.prune(schema, incompatibleType))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot project")
+        .hasMessageContaining("incompatible type");
   }
 
   @Test
