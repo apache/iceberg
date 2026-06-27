@@ -73,16 +73,29 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      flink_matrix: ${{ steps.plan.outputs.flink_matrix }}
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        persist-credentials: false
+    - id: plan
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        FULL_CI_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        JVM_MATRIX: ${{ (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '{"jvm":[17]}' || '{"jvm":[17,21]}' }}
+      run: bash .github/scripts/plan-flink-ci.sh
 
   # Test all flink versions with scala 2.12 for general validation.
   flink-scala-2-12-tests:
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       max-parallel: 15
-      matrix:
-        jvm: [17, 21]
-        flink: ['1.20', '2.0', '2.1']
+      matrix: ${{ fromJson(needs.plan.outputs.flink_matrix) }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -98,7 +111,13 @@ jobs:
         # Read-only: java-ci's build-checks (17) is the global canonical writer.
         cache-read-only: true
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc -DtestParallelism=auto
+    - env:
+        FLINK_VERSION: ${{ matrix.flink }}
+      run: >-
+        ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions="${FLINK_VERSION}"
+        ":iceberg-flink:iceberg-flink-${FLINK_VERSION}:check"
+        ":iceberg-flink:iceberg-flink-runtime-${FLINK_VERSION}:check"
+        -Pquick=true -x javadoc -DtestParallelism=auto
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: failure()
       with:

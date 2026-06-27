@@ -73,13 +73,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-
   kafka-connect-tests:
     runs-on: ubuntu-24.04
     strategy:
       max-parallel: 15
       matrix:
-        jvm: [17, 21]
+        jvm: ${{ fromJson((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '[17]' || '[17,21]') }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
