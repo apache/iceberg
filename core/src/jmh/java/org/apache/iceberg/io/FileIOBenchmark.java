@@ -32,9 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.LocalFileSystem;
-import org.apache.iceberg.hadoop.HadoopConfigurable;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -65,7 +63,7 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <pre>{@code
  * ./gradlew :iceberg-core:jmh \
- *   -Dbenchmark.fileIOClass=org.apache.iceberg.aliyun.oss.OSSFileIO \
+ *   -Dio-impl=org.apache.iceberg.aliyun.oss.OSSFileIO \
  *   -Dbenchmark.base.path=oss://bucket/benchmark-tmp/ \
  *   -Doss.endpoint=https://oss-cn-hangzhou.aliyuncs.com \
  *   -Dclient.access-key-id=xxx \
@@ -77,7 +75,7 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <pre>{@code
  * ./gradlew :iceberg-core:jmh \
- *   -Dbenchmark.fileIOClass=org.apache.iceberg.aws.s3.S3FileIO \
+ *   -Dio-impl=org.apache.iceberg.aws.s3.S3FileIO \
  *   -Dbenchmark.base.path=s3://bucket/benchmark-tmp/ \
  *   -Ds3.endpoint=https://s3.amazonaws.com \
  *   -Ds3.access-key-id=xxx \
@@ -100,7 +98,7 @@ public class FileIOBenchmark {
   };
 
   @Param("org.apache.iceberg.hadoop.HadoopFileIO")
-  private String fileIOClass;
+  private String ioImpl;
 
   @Param({"1", "64", "1024", "16384", "131072"})
   private int fileSizeKB;
@@ -109,6 +107,7 @@ public class FileIOBenchmark {
   private int bufferSizeKB;
 
   private FileIO fileIO;
+  private String basePath;
   private String runDir;
   private List<String> createdFiles;
   private byte[] writeBuffer;
@@ -119,15 +118,15 @@ public class FileIOBenchmark {
 
   @Setup(Level.Trial)
   public void before() {
-    // allow system properties to override @Param values (e.g. -Dbenchmark.fileIOClass=...)
-    String fileIOOverride = System.getProperty("benchmark.fileIOClass");
-    if (fileIOOverride != null && !fileIOOverride.isEmpty()) {
-      fileIOClass = fileIOOverride;
+    // allow system properties to override @Param values (e.g. -Dio-impl=...)
+    String ioImplOverride = System.getProperty("io-impl");
+    if (ioImplOverride != null && !ioImplOverride.isEmpty()) {
+      ioImpl = ioImplOverride;
     }
 
     Map<String, String> properties = loadProperties();
 
-    String basePath = properties.remove("benchmark.base.path");
+    basePath = properties.remove("benchmark.base.path");
     if (basePath == null || basePath.isEmpty()) {
       // default to local temp directory for HadoopFileIO
       try {
@@ -141,28 +140,16 @@ public class FileIOBenchmark {
       basePath = basePath.substring(0, basePath.length() - 1);
     }
 
-    if (HadoopFileIO.class.getName().equals(fileIOClass)) {
-      Configuration conf = new Configuration();
-      conf.set("fs.file.impl", LocalFileSystem.class.getName());
-      conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
-      fileIO = new HadoopFileIO(conf);
-    } else {
-      try {
-        fileIO =
-            Class.forName(fileIOClass)
-                .asSubclass(FileIO.class)
-                .getDeclaredConstructor()
-                .newInstance();
-      } catch (ReflectiveOperationException e) {
-        throw new RuntimeException("Failed to create FileIO instance: " + fileIOClass, e);
-      }
-
-      if (fileIO instanceof HadoopConfigurable) {
-        ((HadoopConfigurable) fileIO).setConf(new Configuration());
-      }
-
-      fileIO.initialize(properties);
+    // Pre-register default Hadoop filesystem implementations to work around
+    // service loader conflicts in fat JARs, then merge all collected properties
+    // into Configuration so that HadoopFileIO can pick up fs.* settings (e.g. fs.s3a.*)
+    Configuration conf = new Configuration();
+    conf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");
+    conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
+    for (Map.Entry<String, String> entry : properties.entrySet()) {
+      conf.set(entry.getKey(), entry.getValue());
     }
+    fileIO = CatalogUtil.loadFileIO(ioImpl, properties, conf);
 
     runDir = basePath + "/bench-" + UUID.randomUUID();
     createdFiles = Lists.newArrayList();
@@ -188,29 +175,9 @@ public class FileIOBenchmark {
     }
 
     try {
-      // Try batch delete first if supported (e.g. native S3).
-      // Falls through to single-file cleanup on failure or if unsupported.
-      boolean batchDeleted = false;
-      if (fileIO instanceof SupportsPrefixOperations) {
-        try {
-          ((SupportsPrefixOperations) fileIO).deletePrefix(runDir);
-          batchDeleted = true;
-        } catch (Exception e) {
-          // Batch delete may fail on S3-compatible stores (e.g. Alibaba Cloud OSS),
-          // fall through to single-file deletion below.
-        }
-      }
-
-      if (!batchDeleted) {
-        // Single-file deletion: used when batch delete is unavailable or failed.
-        for (String path : createdFiles) {
-          try {
-            fileIO.deleteFile(path);
-          } catch (Exception ignored) {
-            // best-effort cleanup
-          }
-        }
-      }
+      CatalogUtil.deleteFiles(fileIO, createdFiles, "benchmark", false);
+      fileIO.deleteFile(runDir);
+      fileIO.deleteFile(basePath);
     } finally {
       fileIO.close();
     }
