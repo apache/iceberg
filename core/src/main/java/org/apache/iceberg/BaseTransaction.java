@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.CommitRetryExceptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -310,6 +311,7 @@ public class BaseTransaction implements Transaction {
                   props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .onRetryExhausted(CommitRetryExceptions::retryExhaustedException)
           .run(
               underlyingOps -> {
                 try {
@@ -365,6 +367,7 @@ public class BaseTransaction implements Transaction {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .onRetryExhausted(CommitRetryExceptions::retryExhaustedException)
           .run(
               underlyingOps -> {
                 applyUpdates(underlyingOps);
