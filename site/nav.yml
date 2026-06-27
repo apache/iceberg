@@ -21,6 +21,7 @@ nav:
     - Spark: spark-quickstart.md
     - Flink: flink-quickstart.md
     - Hive: hive-quickstart.md
+  - Catalogs: catalogs.md
   - Docs:
     - Java:
       # First entry determines the default landing page for the Docs tab.
