@@ -50,7 +50,7 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestV4ManifestReader {
   private static final long SNAPSHOT_ID = 42L;
-  private static final int WRITER_FORMAT_VERSION_V4 = 4;
+  private static final int FORMAT_VERSION_V4 = 4;
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -104,7 +104,7 @@ public class TestV4ManifestReader {
     TrackedFile actual = read.get(0);
 
     assertThat(actual.contentType()).isEqualTo(file.contentType());
-    assertThat(actual.writerFormatVersion()).isEqualTo(file.writerFormatVersion());
+    assertThat(actual.formatVersion()).isEqualTo(file.formatVersion());
     assertThat(actual.location()).isEqualTo(file.location());
     assertThat(actual.fileFormat()).isEqualTo(file.fileFormat());
     assertThat(actual.recordCount()).isEqualTo(file.recordCount());
@@ -133,7 +133,7 @@ public class TestV4ManifestReader {
   public void testEqualityDeleteRoundTrip() {
     TrackedFile delete =
         TrackedFileBuilder.equalityDelete(SNAPSHOT_ID)
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/eq-delete.parquet")
             .fileFormat(FileFormat.PARQUET)
             .recordCount(10L)
@@ -259,7 +259,7 @@ public class TestV4ManifestReader {
   public void testPartitionFilterCountsSkippedDeleteFiles() {
     TrackedFile delete =
         TrackedFileBuilder.equalityDelete(SNAPSHOT_ID)
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("delete.parquet")
             .fileFormat(FileFormat.PARQUET)
             .recordCount(100L)
@@ -304,7 +304,7 @@ public class TestV4ManifestReader {
             .build();
     TrackedFile manifestRef =
         TrackedFileBuilder.dataManifest(SNAPSHOT_ID)
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("leaf.parquet")
             .fileFormat(FileFormat.PARQUET)
             .recordCount(1L)
@@ -440,7 +440,7 @@ public class TestV4ManifestReader {
 
   private static TrackedFileBuilder dataFileBuilder(String location, PartitionData partition) {
     return TrackedFileBuilder.data(SNAPSHOT_ID)
-        .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+        .formatVersion(FORMAT_VERSION_V4)
         .location(location)
         .fileFormat(FileFormat.PARQUET)
         .recordCount(100L)
@@ -454,7 +454,7 @@ public class TestV4ManifestReader {
     return new TrackedFileStruct(
         tracking,
         FileContent.DATA,
-        WRITER_FORMAT_VERSION_V4,
+        FORMAT_VERSION_V4,
         location,
         FileFormat.PARQUET,
         EMPTY_PARTITION_DATA,
@@ -475,7 +475,6 @@ public class TestV4ManifestReader {
     partition.set(0, id);
     return partition;
   }
-
 
   private static PartitionData unionPartition(Types.StructType unionType, Integer id, String data) {
     PartitionData partition = new PartitionData(unionType);
