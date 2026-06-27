@@ -34,7 +34,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class TestTrackedFileAdapters {
 
-  private static final int WRITER_FORMAT_VERSION = 4;
+  private static final int FORMAT_VERSION_V4 = 4;
   private static final String MANIFEST_LOCATION = "s3://bucket/table/manifest.parquet";
   private static final String DATA_FILE_LOCATION = "s3://bucket/data/file.parquet";
   private static final String DV_LOCATION = "s3://bucket/puffin/dv-file.bin";
@@ -86,7 +86,7 @@ class TestTrackedFileAdapters {
   void testDataFileAdapterDelegation() {
     TrackedFile file =
         TrackedFileBuilder.data(42L)
-            .writerFormatVersion(WRITER_FORMAT_VERSION)
+            .formatVersion(FORMAT_VERSION_V4)
             .location(DATA_FILE_LOCATION)
             .fileFormat(FileFormat.PARQUET)
             .partition(PARTITION)
@@ -146,7 +146,7 @@ class TestTrackedFileAdapters {
   void testEqualityDeleteFileAdapterDelegation() {
     TrackedFile file =
         TrackedFileBuilder.equalityDelete(42L)
-            .writerFormatVersion(WRITER_FORMAT_VERSION)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/eq-delete.avro")
             .fileFormat(FileFormat.AVRO)
             .partition(PARTITION)
@@ -216,7 +216,7 @@ class TestTrackedFileAdapters {
 
     TrackedFile file =
         TrackedFileBuilder.data(42L)
-            .writerFormatVersion(WRITER_FORMAT_VERSION)
+            .formatVersion(FORMAT_VERSION_V4)
             .location(DATA_FILE_LOCATION)
             .fileFormat(FileFormat.PARQUET)
             .partition(PARTITION)

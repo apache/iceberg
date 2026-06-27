@@ -27,7 +27,7 @@ class TrackedFileBuilder {
   private final FileContent contentType;
 
   // Required fields
-  private Integer writerFormatVersion = null;
+  private Integer formatVersion = null;
   private String location = null;
   private FileFormat fileFormat = null;
   private Long recordCount = null;
@@ -129,7 +129,7 @@ class TrackedFileBuilder {
     return new TrackedFileStruct(
         tracking,
         source.contentType(),
-        source.writerFormatVersion(),
+        source.formatVersion(),
         source.location(),
         source.fileFormat(),
         (PartitionData) source.partition(),
@@ -153,7 +153,7 @@ class TrackedFileBuilder {
   private TrackedFileBuilder(TrackedFile source, long snapshotId) {
     this.contentType = source.contentType();
     this.snapshotId = snapshotId;
-    this.writerFormatVersion = source.writerFormatVersion();
+    this.formatVersion = source.formatVersion();
     this.location = source.location();
     this.fileFormat = source.fileFormat();
     this.recordCount = source.recordCount();
@@ -170,12 +170,10 @@ class TrackedFileBuilder {
     this.sourceTracking = source.tracking();
   }
 
-  TrackedFileBuilder writerFormatVersion(int newWriterFormatVersion) {
+  TrackedFileBuilder formatVersion(int newFormatVersion) {
     Preconditions.checkArgument(
-        newWriterFormatVersion >= 0,
-        "Invalid writer format version: %s (must be >= 0)",
-        newWriterFormatVersion);
-    this.writerFormatVersion = newWriterFormatVersion;
+        newFormatVersion >= 0, "Invalid format version: %s (must be >= 0)", newFormatVersion);
+    this.formatVersion = newFormatVersion;
     return this;
   }
 
@@ -311,8 +309,7 @@ class TrackedFileBuilder {
   }
 
   TrackedFile build() {
-    Preconditions.checkArgument(
-        writerFormatVersion != null, "Missing required field: writer format version");
+    Preconditions.checkArgument(formatVersion != null, "Missing required field: format version");
     Preconditions.checkArgument(location != null, "Missing required field: location");
     Preconditions.checkArgument(fileFormat != null, "Missing required field: file format");
     Preconditions.checkArgument(recordCount != null, "Missing required field: record count");
@@ -346,7 +343,7 @@ class TrackedFileBuilder {
     return new TrackedFileStruct(
         trackingBuilder.build(),
         contentType,
-        writerFormatVersion,
+        formatVersion,
         location,
         fileFormat,
         partitionData,

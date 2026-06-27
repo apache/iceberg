@@ -32,7 +32,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTrackedFileBuilder {
-  private static final int WRITER_FORMAT_VERSION_V4 = 4;
+  private static final int FORMAT_VERSION_V4 = 4;
   private static final Schema TABLE_SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
@@ -87,7 +87,7 @@ public class TestTrackedFileBuilder {
 
   private static Stream<Arguments> missingRequiredFieldCases() {
     return Stream.of(
-        Arguments.of("writerFormatVersion", "Missing required field: writer format version"),
+        Arguments.of("formatVersion", "Missing required field: format version"),
         Arguments.of("location", "Missing required field: location"),
         Arguments.of("fileFormat", "Missing required field: file format"),
         Arguments.of("recordCount", "Missing required field: record count"),
@@ -123,8 +123,8 @@ public class TestTrackedFileBuilder {
 
   private TrackedFileBuilder builderWithMissingRequiredField(
       TrackedFileBuilder builder, String missingField) {
-    if (!"writerFormatVersion".equals(missingField)) {
-      builder.writerFormatVersion(WRITER_FORMAT_VERSION_V4);
+    if (!"formatVersion".equals(missingField)) {
+      builder.formatVersion(FORMAT_VERSION_V4);
     }
     if (!"location".equals(missingField)) {
       builder.location("s3://bucket/data/file");
@@ -150,7 +150,7 @@ public class TestTrackedFileBuilder {
     assertThatThrownBy(
             () ->
                 builder
-                    .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+                    .formatVersion(FORMAT_VERSION_V4)
                     .location("s3://bucket/data/manifest.avro")
                     .fileFormat(FileFormat.AVRO)
                     .recordCount(420L)
@@ -166,7 +166,7 @@ public class TestTrackedFileBuilder {
     assertThatThrownBy(
             () ->
                 TrackedFileBuilder.equalityDelete(50L)
-                    .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+                    .formatVersion(FORMAT_VERSION_V4)
                     .location("s3://bucket/data/eq_delete.parquet")
                     .fileFormat(FileFormat.PARQUET)
                     .recordCount(2000L)
@@ -353,9 +353,9 @@ public class TestTrackedFileBuilder {
 
   @Test
   public void invalidNegativeInputs() {
-    assertThatThrownBy(() -> TrackedFileBuilder.dataManifest(40L).writerFormatVersion(-1))
+    assertThatThrownBy(() -> TrackedFileBuilder.dataManifest(40L).formatVersion(-1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid writer format version: -1 (must be >= 0)");
+        .hasMessage("Invalid format version: -1 (must be >= 0)");
 
     assertThatThrownBy(() -> TrackedFileBuilder.dataManifest(40L).recordCount(-1))
         .isInstanceOf(IllegalArgumentException.class)
@@ -378,7 +378,7 @@ public class TestTrackedFileBuilder {
   public void buildDataFileWithRequiredFieldsOnly() {
     TrackedFile trackedFile =
         TrackedFileBuilder.data(50L)
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/data/file.parquet")
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
@@ -386,7 +386,7 @@ public class TestTrackedFileBuilder {
             .partition(PARTITION_DATA)
             .build();
 
-    assertThat(trackedFile.writerFormatVersion()).isEqualTo(WRITER_FORMAT_VERSION_V4);
+    assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(trackedFile.contentType()).isEqualTo(FileContent.DATA);
     assertThat(trackedFile.location()).isEqualTo("s3://bucket/data/file.parquet");
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
@@ -412,7 +412,7 @@ public class TestTrackedFileBuilder {
   public void buildDataFileWithAllFields() {
     TrackedFile trackedFile =
         TrackedFileBuilder.data(50L)
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/data/file.parquet")
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
@@ -426,7 +426,7 @@ public class TestTrackedFileBuilder {
             .splitOffsets(SPLIT_OFFSETS)
             .build();
 
-    assertThat(trackedFile.writerFormatVersion()).isEqualTo(WRITER_FORMAT_VERSION_V4);
+    assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(trackedFile.contentType()).isEqualTo(FileContent.DATA);
     assertThat(trackedFile.location()).isEqualTo("s3://bucket/data/file.parquet");
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
@@ -453,7 +453,7 @@ public class TestTrackedFileBuilder {
   public void buildEqualityDeleteFileWithRequiredFieldsOnly() {
     TrackedFile trackedFile =
         TrackedFileBuilder.equalityDelete(50L)
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/data/eq_delete.parquet")
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
@@ -462,7 +462,7 @@ public class TestTrackedFileBuilder {
             .equalityIds(ImmutableList.of(1))
             .build();
 
-    assertThat(trackedFile.writerFormatVersion()).isEqualTo(WRITER_FORMAT_VERSION_V4);
+    assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(trackedFile.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(trackedFile.location()).isEqualTo("s3://bucket/data/eq_delete.parquet");
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
@@ -487,7 +487,7 @@ public class TestTrackedFileBuilder {
   public void buildEqualityDeleteFileWithAllFields() {
     TrackedFile trackedFile =
         TrackedFileBuilder.equalityDelete(50L)
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/data/eq_delete.parquet")
             .fileFormat(FileFormat.PARQUET)
             .recordCount(2000L)
@@ -501,7 +501,7 @@ public class TestTrackedFileBuilder {
             .equalityIds(ImmutableList.of(1, 2))
             .build();
 
-    assertThat(trackedFile.writerFormatVersion()).isEqualTo(WRITER_FORMAT_VERSION_V4);
+    assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(trackedFile.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(trackedFile.location()).isEqualTo("s3://bucket/data/eq_delete.parquet");
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.PARQUET);
@@ -535,7 +535,7 @@ public class TestTrackedFileBuilder {
       TrackedFileBuilder builder, FileContent contentType) {
     TrackedFile trackedFile =
         builder
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/data/manifest.avro")
             .fileFormat(FileFormat.AVRO)
             .recordCount(420L)
@@ -544,7 +544,7 @@ public class TestTrackedFileBuilder {
             .manifestInfo(MANIFEST_INFO)
             .build();
 
-    assertThat(trackedFile.writerFormatVersion()).isEqualTo(WRITER_FORMAT_VERSION_V4);
+    assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(trackedFile.contentType()).isEqualTo(contentType);
     assertThat(trackedFile.location()).isEqualTo("s3://bucket/data/manifest.avro");
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.AVRO);
@@ -570,7 +570,7 @@ public class TestTrackedFileBuilder {
   public void buildManifestWithAllFields(TrackedFileBuilder builder, FileContent contentType) {
     TrackedFile trackedFile =
         builder
-            .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+            .formatVersion(FORMAT_VERSION_V4)
             .location("s3://bucket/data/manifest.avro")
             .fileFormat(FileFormat.AVRO)
             .recordCount(420L)
@@ -582,7 +582,7 @@ public class TestTrackedFileBuilder {
             .manifestInfo(MANIFEST_INFO)
             .build();
 
-    assertThat(trackedFile.writerFormatVersion()).isEqualTo(WRITER_FORMAT_VERSION_V4);
+    assertThat(trackedFile.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(trackedFile.contentType()).isEqualTo(contentType);
     assertThat(trackedFile.location()).isEqualTo("s3://bucket/data/manifest.avro");
     assertThat(trackedFile.fileFormat()).isEqualTo(FileFormat.AVRO);
@@ -770,7 +770,7 @@ public class TestTrackedFileBuilder {
 
   private static TrackedFile sourceData(long snapshotId) {
     return TrackedFileBuilder.data(snapshotId)
-        .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+        .formatVersion(FORMAT_VERSION_V4)
         .location("s3://bucket/data/file.parquet")
         .fileFormat(FileFormat.PARQUET)
         .recordCount(2000L)
@@ -787,7 +787,7 @@ public class TestTrackedFileBuilder {
 
   private static TrackedFile sourceEqualityDelete(long snapshotId) {
     return TrackedFileBuilder.equalityDelete(snapshotId)
-        .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+        .formatVersion(FORMAT_VERSION_V4)
         .location("s3://bucket/data/eq_delete.parquet")
         .fileFormat(FileFormat.PARQUET)
         .recordCount(2000L)
@@ -799,7 +799,7 @@ public class TestTrackedFileBuilder {
 
   private static TrackedFile sourceDataManifest(long snapshotId) {
     return TrackedFileBuilder.dataManifest(snapshotId)
-        .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+        .formatVersion(FORMAT_VERSION_V4)
         .location("s3://bucket/data/data_manifest.parquet")
         .fileFormat(FileFormat.PARQUET)
         .recordCount(420L)
@@ -811,7 +811,7 @@ public class TestTrackedFileBuilder {
 
   private static TrackedFile sourceDeleteManifest(long snapshotId) {
     return TrackedFileBuilder.deleteManifest(snapshotId)
-        .writerFormatVersion(WRITER_FORMAT_VERSION_V4)
+        .formatVersion(FORMAT_VERSION_V4)
         .location("s3://bucket/data/delete_manifest.parquet")
         .fileFormat(FileFormat.PARQUET)
         .recordCount(100L)
@@ -835,7 +835,7 @@ public class TestTrackedFileBuilder {
    * here, because based on the entry's status it is either carried over or not.
    */
   private static void verifyFieldsAreFromSource(TrackedFile entry, TrackedFile source) {
-    assertThat(entry.writerFormatVersion()).isEqualTo(source.writerFormatVersion());
+    assertThat(entry.formatVersion()).isEqualTo(source.formatVersion());
     assertThat(entry.location()).isEqualTo(source.location());
     assertThat(entry.fileFormat()).isEqualTo(source.fileFormat());
     assertThat(entry.recordCount()).isEqualTo(source.recordCount());
