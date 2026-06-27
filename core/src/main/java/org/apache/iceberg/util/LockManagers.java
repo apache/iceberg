@@ -241,10 +241,16 @@ public class LockManagers {
         Tasks.foreach(entityId)
             .retry(Integer.MAX_VALUE - 1)
             .onlyRetryOn(IllegalStateException.class)
+            .throwRetryExhaustedException()
             .throwFailureWhenFinished()
             .exponentialBackoff(acquireIntervalMs(), acquireIntervalMs(), acquireTimeoutMs(), 1)
             .run(id -> acquireOnce(id, ownerId));
         return true;
+      } catch (Tasks.RetryExhaustedException e) {
+        if (e.getCause() instanceof IllegalStateException) {
+          return false;
+        }
+        throw e;
       } catch (IllegalStateException e) {
         return false;
       }

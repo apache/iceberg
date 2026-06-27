@@ -73,6 +73,7 @@ import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -490,6 +491,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                 base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
                 2.0 /* exponential */)
             .onlyRetryOn(CommitFailedException.class)
+            .throwRetryExhaustedException()
             .countAttempts(commitMetrics().attempts())
             .run(
                 taskOps -> {
@@ -524,6 +526,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       } catch (CommitStateUnknownException commitStateUnknownException) {
         throw commitStateUnknownException;
+      } catch (RetryExhaustedException e) {
+        cleanAll();
+        throw toCommitFailedException(e);
       } catch (RuntimeException e) {
         if (!strictCleanup || e instanceof CleanableFailure) {
           Exceptions.suppressAndThrow(e, this::cleanAll);
@@ -882,6 +887,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
     }
+  }
+
+  private CommitFailedException toCommitFailedException(RetryExhaustedException ex) {
+    int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    return CommitRetry.toCommitFailedException(ex, numRetries, totalTimeoutMs);
   }
 
   private static void updateTotal(

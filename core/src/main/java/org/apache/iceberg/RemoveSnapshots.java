@@ -53,6 +53,7 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -358,19 +359,27 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public void commit() {
-    Tasks.foreach(ops)
-        .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(
-            item -> {
-              TableMetadata updated = internalApply();
-              ops.commit(base, updated);
-            });
+    int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    try {
+      Tasks.foreach(ops)
+          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
+          .run(
+              item -> {
+                TableMetadata updated = internalApply();
+                ops.commit(base, updated);
+              });
+    } catch (RetryExhaustedException e) {
+      throw CommitRetry.toCommitFailedException(e, numRetries, totalTimeoutMs);
+    }
     LOG.info(
         "Committed snapshot changes and prepare to clean up files at level={}",
         cleanupLevel.name());

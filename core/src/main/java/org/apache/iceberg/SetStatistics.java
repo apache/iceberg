@@ -33,6 +33,7 @@ import java.util.Optional;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 
 public class SetStatistics implements UpdateStatistics {
 
@@ -62,21 +63,31 @@ public class SetStatistics implements UpdateStatistics {
 
   @Override
   public void commit() {
-    Tasks.foreach(ops)
-        .retry(ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            ops.current().propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            ops.current().propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            ops.current()
-                .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(
-            taskOps -> {
-              TableMetadata base = taskOps.refresh();
-              TableMetadata updated = internalApply(base);
-              taskOps.commit(base, updated);
-            });
+    int numRetries = ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        ops.current().propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    try {
+      Tasks.foreach(ops)
+          .retry(ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              ops.current()
+                  .propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              ops.current()
+                  .propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              ops.current()
+                  .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
+          .run(
+              taskOps -> {
+                TableMetadata base = taskOps.refresh();
+                TableMetadata updated = internalApply(base);
+                taskOps.commit(base, updated);
+              });
+    } catch (RetryExhaustedException e) {
+      throw CommitRetry.toCommitFailedException(e, numRetries, totalTimeoutMs);
+    }
   }
 
   private TableMetadata internalApply(TableMetadata base) {

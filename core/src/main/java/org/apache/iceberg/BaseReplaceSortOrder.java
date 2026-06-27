@@ -30,6 +30,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 
 public class BaseReplaceSortOrder implements ReplaceSortOrder {
   private final TableOperations ops;
@@ -49,21 +50,29 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
 
   @Override
   public void commit() {
-    Tasks.foreach(ops)
-        .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(
-            taskOps -> {
-              this.base = ops.refresh();
-              SortOrder newOrder = apply();
-              TableMetadata updated = base.replaceSortOrder(newOrder);
-              taskOps.commit(base, updated);
-            });
+    int numRetries = base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    try {
+      Tasks.foreach(ops)
+          .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+          .exponentialBackoff(
+              base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
+          .run(
+              taskOps -> {
+                this.base = ops.refresh();
+                SortOrder newOrder = apply();
+                TableMetadata updated = base.replaceSortOrder(newOrder);
+                taskOps.commit(base, updated);
+              });
+    } catch (RetryExhaustedException e) {
+      throw CommitRetry.toCommitFailedException(e, numRetries, totalTimeoutMs);
+    }
   }
 
   @Override

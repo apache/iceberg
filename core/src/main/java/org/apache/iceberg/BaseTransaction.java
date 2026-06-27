@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Tasks.RetryExhaustedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -310,6 +311,7 @@ public class BaseTransaction implements Transaction {
                   props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
           .run(
               underlyingOps -> {
                 try {
@@ -331,6 +333,10 @@ public class BaseTransaction implements Transaction {
 
     } catch (CommitStateUnknownException e) {
       throw e;
+
+    } catch (RetryExhaustedException e) {
+      cleanAllUpdates();
+      throw toCommitFailedException(e, props);
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
@@ -365,6 +371,7 @@ public class BaseTransaction implements Transaction {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
+          .throwRetryExhaustedException()
           .run(
               underlyingOps -> {
                 applyUpdates(underlyingOps);
@@ -375,6 +382,8 @@ public class BaseTransaction implements Transaction {
     } catch (CommitStateUnknownException e) {
       throw e;
 
+    } catch (RetryExhaustedException e) {
+      throw toCommitFailedException(e, base.properties());
     } catch (PendingUpdateFailedException e) {
       cleanUp();
       throw e.wrapped();
@@ -775,5 +784,15 @@ public class BaseTransaction implements Transaction {
     public CommitFailedException wrapped() {
       return wrapped;
     }
+  }
+
+  private static CommitFailedException toCommitFailedException(
+      RetryExhaustedException ex, Map<String, String> properties) {
+    int numRetries =
+        PropertyUtil.propertyAsInt(properties, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT);
+    int totalTimeoutMs =
+        PropertyUtil.propertyAsInt(
+            properties, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT);
+    return CommitRetry.toCommitFailedException(ex, numRetries, totalTimeoutMs);
   }
 }
