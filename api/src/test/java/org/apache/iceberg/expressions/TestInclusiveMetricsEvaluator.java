@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -71,7 +72,8 @@ public class TestInclusiveMetricsEvaluator {
           optional(11, "all_nans_v1_stats", Types.FloatType.get()),
           optional(12, "nan_and_null_only", Types.DoubleType.get()),
           optional(13, "no_nan_stats", Types.DoubleType.get()),
-          optional(14, "some_empty", Types.StringType.get()));
+          optional(14, "some_empty", Types.StringType.get()),
+          optional(15, "uuid", Types.UUIDType.get()));
 
   private static final Schema NESTED_SCHEMA =
       new Schema(
@@ -91,6 +93,38 @@ public class TestInclusiveMetricsEvaluator {
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
 
+  // UUIDs that demonstrate the difference between Java's natural order and byte-order comparison
+  // UUID_MIN has all zeros in MSB, all ones in LSB: 00000000-0000-0000-ffff-ffffffffffff
+  // UUID_MAX has all ones in MSB, all zeros in LSB: ffffffff-ffff-ffff-0000-000000000000
+  // With byte-order comparison (correct): UUID_MIN < UUID_MAX (0x00... < 0xFF...)
+  // With Java's natural order (incorrect): UUID_MIN > UUID_MAX (MSB 0 > MSB -1 as signed long)
+  private static final UUID UUID_MIN_VALUE =
+      UUID.fromString("00000000-0000-0000-ffff-ffffffffffff");
+  private static final UUID UUID_MAX_VALUE =
+      UUID.fromString("ffffffff-ffff-ffff-0000-000000000000");
+
+  // Legacy file with "inverted" bounds (min > max in unsigned order)
+  // Used for testing backward compatibility with files written using signed UUID comparator
+  // File contains UUIDs from 0x80... to 0x40... (in signed order)
+  // This represents actual values: 0x80..., 0x00..., 0x20..., 0x40...
+  private static final UUID LEGACY_SIGNED_MIN =
+      UUID.fromString("80000000-0000-0000-0000-000000000001"); // a small value in signed order
+  private static final UUID LEGACY_SIGNED_MAX =
+      UUID.fromString("40000000-0000-0000-0000-000000000001"); // a large value in signed order
+
+  private static final DataFile LEGACY_UUID_FILE =
+      new TestDataFile(
+          "legacy_uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(15, 50L),
+          ImmutableMap.of(15, 0L),
+          null,
+          // lower bound: 0x80... (smallest in signed comparison)
+          ImmutableMap.of(15, toByteBuffer(Types.UUIDType.get(), LEGACY_SIGNED_MIN)),
+          // upper bound: 0x40... (largest in signed comparison)
+          ImmutableMap.of(15, toByteBuffer(Types.UUIDType.get(), LEGACY_SIGNED_MAX)));
+
   private static final DataFile FILE =
       new TestDataFile(
           "file.avro",
@@ -109,6 +143,7 @@ public class TestInclusiveMetricsEvaluator {
               .put(12, 50L)
               .put(13, 50L)
               .put(14, 50L)
+              .put(15, 50L)
               .buildOrThrow(),
           // null value counts
           ImmutableMap.<Integer, Long>builder()
@@ -119,6 +154,7 @@ public class TestInclusiveMetricsEvaluator {
               .put(11, 0L)
               .put(12, 1L)
               .put(14, 0L)
+              .put(15, 0L)
               .buildOrThrow(),
           // nan value counts
           ImmutableMap.of(
@@ -130,13 +166,15 @@ public class TestInclusiveMetricsEvaluator {
               1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
               11, toByteBuffer(Types.FloatType.get(), Float.NaN),
               12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-              14, toByteBuffer(Types.StringType.get(), "")),
+              14, toByteBuffer(Types.StringType.get(), ""),
+              15, toByteBuffer(Types.UUIDType.get(), UUID_MIN_VALUE)),
           // upper bounds
           ImmutableMap.of(
               1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
               11, toByteBuffer(Types.FloatType.get(), Float.NaN),
               12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-              14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室")));
+              14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室"),
+              15, toByteBuffer(Types.UUIDType.get(), UUID_MAX_VALUE)));
 
   private static final DataFile FILE_2 =
       new TestDataFile(
@@ -1137,5 +1175,288 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead)
         .as("Should read: file has NaN values which match NOT IN predicate")
         .isTrue();
+  }
+
+  @Test
+  public void testUuidEq() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", belowMin)).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid below lower bound").isFalse();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", UUID_MIN_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to lower bound").isTrue();
+
+    UUID between = UUID.fromString("7fffffff-ffff-ffff-7fff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", between)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", UUID_MAX_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to upper bound").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", aboveMax)).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid above upper bound").isFalse();
+  }
+
+  @Test
+  public void testUuidLt() {
+    // With RFC comparison, belowMin is below the lower bound so no rows can be < belowMin.
+    // With signed comparison, UUID_MIN_VALUE.compareTo(belowMin) = -1 (lower < lit),
+    // so rows might match. We try both comparators and return true if either matches.
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, lessThan("uuid", belowMin)).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: signed UUID fallback finds matches with inverted bounds")
+        .isTrue();
+
+    // UUID_MIN_VALUE is the lower bound, so no rows can be < UUID_MIN_VALUE.
+    // Both RFC and signed comparators agree on this since we're comparing the value to itself.
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, lessThan("uuid", UUID_MIN_VALUE)).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not read: uuid range below lower bound (UUID_MIN is not < UUID_MIN)")
+        .isFalse();
+
+    UUID justAboveMin = UUID.fromString("00000000-0000-0001-0000-000000000000");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, lessThan("uuid", justAboveMin)).eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, lessThan("uuid", UUID_MAX_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, lessThan("uuid", aboveMax)).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+  }
+
+  @Test
+  public void testUuidLtEq() {
+    // With RFC comparison, belowMin is below the lower bound so no rows can be <= belowMin.
+    // However, we also try signed comparison for backward compatibility, and with signed comparison
+    // the bounds are inverted, so rows might match.
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, lessThanOrEqual("uuid", belowMin)).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: signed UUID fallback may find matches with inverted bounds")
+        .isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, lessThanOrEqual("uuid", UUID_MIN_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, lessThanOrEqual("uuid", UUID_MAX_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, lessThanOrEqual("uuid", aboveMax)).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+  }
+
+  @Test
+  public void testUuidGt() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThan("uuid", belowMin)).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThan("uuid", UUID_MIN_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
+
+    UUID justBelowMax = UUID.fromString("ffffffff-ffff-fffe-ffff-ffffffffffff");
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThan("uuid", justBelowMax)).eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    // UUID_MAX_VALUE is the upper bound, so no rows can be > UUID_MAX_VALUE.
+    // Both RFC and signed comparators agree on this since we're comparing the value to itself.
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThan("uuid", UUID_MAX_VALUE)).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not read: uuid range above upper bound (UUID_MAX is not > UUID_MAX)")
+        .isFalse();
+
+    // With RFC comparison, aboveMax is above the upper bound so no rows can be > aboveMax.
+    // With signed comparison, UUID_MAX_VALUE.compareTo(aboveMax) = 1 (upper > lit),
+    // so rows might match. We try both comparators and return true if either matches.
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, greaterThan("uuid", aboveMax)).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: signed UUID fallback finds matches with inverted bounds")
+        .isTrue();
+  }
+
+  @Test
+  public void testUuidGtEq() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThanOrEqual("uuid", belowMin)).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThanOrEqual("uuid", UUID_MIN_VALUE))
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThanOrEqual("uuid", UUID_MAX_VALUE))
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    // With RFC comparison, aboveMax is above the upper bound so no rows can be >= aboveMax.
+    // With signed comparison, UUID_MAX_VALUE.compareTo(aboveMax) = 1 (upper > lit),
+    // so rows might match. We try both comparators and return true if either matches.
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThanOrEqual("uuid", aboveMax)).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: signed UUID fallback finds matches with inverted bounds")
+        .isTrue();
+  }
+
+  @Test
+  public void testUuidIn() {
+    UUID belowMin1 = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    UUID belowMin2 = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, in("uuid", belowMin1, belowMin2)).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuids below lower bound").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, in("uuid", belowMin1, UUID_MIN_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to lower bound").isTrue();
+
+    UUID middle1 = UUID.fromString("7fffffff-ffff-ffff-0000-000000000000");
+    UUID middle2 = UUID.fromString("7fffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("uuid", middle1, middle2)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuids between lower and upper bounds").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, in("uuid", UUID_MAX_VALUE, aboveMax)).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to upper bound").isTrue();
+
+    UUID aboveMax2 = UUID.fromString("ffffffff-ffff-ffff-ffff-fffffffffffe");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("uuid", aboveMax, aboveMax2)).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuids above upper bound").isFalse();
+  }
+
+  @Test
+  public void testUuidNotEq() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notEqual("uuid", belowMin)).eval(FILE);
+    assertThat(shouldRead).as("Should read: notEqual always reads").isTrue();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notEqual("uuid", UUID_MIN_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: notEqual always reads").isTrue();
+
+    UUID middle = UUID.fromString("7fffffff-ffff-ffff-7fff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notEqual("uuid", middle)).eval(FILE);
+    assertThat(shouldRead).as("Should read: notEqual always reads").isTrue();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notEqual("uuid", UUID_MAX_VALUE)).eval(FILE);
+    assertThat(shouldRead).as("Should read: notEqual always reads").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notEqual("uuid", aboveMax)).eval(FILE);
+    assertThat(shouldRead).as("Should read: notEqual always reads").isTrue();
+  }
+
+  @Test
+  public void testUuidNotIn() {
+    UUID belowMin1 = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    UUID belowMin2 = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notIn("uuid", belowMin1, belowMin2)).eval(FILE);
+    assertThat(shouldRead).as("Should read: notIn always reads").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notIn("uuid", UUID_MIN_VALUE, UUID_MAX_VALUE))
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: notIn always reads").isTrue();
+
+    UUID middle1 = UUID.fromString("7fffffff-ffff-ffff-0000-000000000000");
+    UUID middle2 = UUID.fromString("7fffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("uuid", middle1, middle2)).eval(FILE);
+    assertThat(shouldRead).as("Should read: notIn always reads").isTrue();
+  }
+
+  // Tests for legacy UUID file compatibility (files written with signed UUID comparator).
+  // These tests simulate files where min/max bounds were computed using Java's signed comparison.
+  //
+  // Java's UUID.compareTo() compares MSB first, then LSB, both as SIGNED longs:
+  //   - UUIDs starting with 0x00-0x7F have positive MSB (as signed long)
+  //   - UUIDs starting with 0x80-0xFF have negative MSB (as signed long)
+  //
+  // For a file containing UUIDs 0x00..., 0x40..., 0x80...:
+  //   - Unsigned (RFC) order: 0x00... < 0x40... < 0x80...
+  //   - Signed (Java) order:  0x80... < 0x00... < 0x40...
+  //
+  // With signed comparator, the file has min=0x80..., max=0x40... (inverted bounds).
+  //
+  // Querying for 0x20... (which exists in the file):
+  //   - RFC unsigned: 0x20... < 0x80... (lower bound), so incorrectly skipped
+  //   - Legacy signed: 0x80... < 0x20... < 0x40..., so correctly included
+
+  @Test
+  public void testLegacyUuidFileEq() {
+    // 0x20... is between 0x80... and 0x40... in signed order (within the file's actual range).
+    // RFC unsigned fails (0x20... < 0x80...), but legacy signed succeeds.
+    UUID queryUuid = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", queryUuid)).eval(LEGACY_UUID_FILE);
+    assertThat(shouldRead)
+        .as("Should read: legacy fallback should find UUID in signed-ordered bounds")
+        .isTrue();
+  }
+
+  @Test
+  public void testLegacyUuidFileLt() {
+    // In signed order, 0x80... < 0x30..., so the file's min satisfies uuid < 0x30...
+    UUID queryUuid = UUID.fromString("30000000-0000-0000-0000-000000000001");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, lessThan("uuid", queryUuid)).eval(LEGACY_UUID_FILE);
+    assertThat(shouldRead)
+        .as("Should read: legacy fallback should find UUIDs less than query in signed order")
+        .isTrue();
+  }
+
+  @Test
+  public void testLegacyUuidFileGt() {
+    // In signed order, 0x40... > 0x20..., so the file's max satisfies uuid > 0x20...
+    UUID queryUuid = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, greaterThan("uuid", queryUuid))
+            .eval(LEGACY_UUID_FILE);
+    assertThat(shouldRead)
+        .as("Should read: legacy fallback should find UUIDs greater than query in signed order")
+        .isTrue();
+  }
+
+  @Test
+  public void testLegacyUuidFileIn() {
+    // 0x20... and 0x30... are between 0x80... and 0x40... in signed order.
+    // RFC unsigned filters them out (both < 0x80...), but legacy signed includes them.
+    UUID uuid1 = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    UUID uuid2 = UUID.fromString("30000000-0000-0000-0000-000000000001");
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, in("uuid", uuid1, uuid2)).eval(LEGACY_UUID_FILE);
+    assertThat(shouldRead)
+        .as("Should read: legacy fallback should find UUIDs in signed-ordered bounds")
+        .isTrue();
+  }
+
+  @Test
+  public void testNonUuidPredicateNoLegacyFallback() {
+    // Non-UUID predicates should not trigger legacy fallback (no performance impact).
+    boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("id", 50)).eval(FILE);
+    assertThat(shouldRead).as("Should read: id 50 is in range [30, 79]").isTrue();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("id", 100)).eval(FILE);
+    assertThat(shouldRead).as("Should not read: id 100 is above range [30, 79]").isFalse();
   }
 }

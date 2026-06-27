@@ -219,6 +219,10 @@ public class SparkTable extends BaseSparkTable
   private boolean canDeleteUsingMetadata(Expression deleteExpr, String scanBranch) {
     boolean caseSensitive = SparkUtil.caseSensitive(spark());
 
+    if (ExpressionUtil.hasBoundUUIDBoundsPredicate(schema, deleteExpr, caseSensitive)) {
+      return false;
+    }
+
     if (ExpressionUtil.selectsPartitions(deleteExpr, table(), caseSensitive)) {
       return true;
     }

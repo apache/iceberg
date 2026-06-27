@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
@@ -199,7 +200,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -223,7 +224,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -247,7 +248,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -276,7 +277,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -305,7 +306,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when Min == X == Max
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -341,7 +342,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when X < Min or Max < X because it is not in the range
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -378,7 +379,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -418,7 +419,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
-      if (isNestedColumn(id)) {
+      if (isNestedColumn(id) || isUuidColumn(ref)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -540,6 +541,10 @@ public class StrictMetricsEvaluator {
 
     private boolean isNestedColumn(int id) {
       return struct.field(id) == null;
+    }
+
+    private boolean isUuidColumn(BoundReference<?> ref) {
+      return ref.type().typeId() == Type.TypeID.UUID;
     }
 
     private boolean canContainNulls(Integer id) {
