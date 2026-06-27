@@ -566,6 +566,7 @@ project(':iceberg-aws') {
     testImplementation libs.jetty.servlet
     testImplementation libs.jetty.compression.server
     testImplementation libs.jetty.compression.gzip
+    testImplementation libs.junit.pioneer
     testImplementation libs.mockito.junit.jupiter
   }
 
