@@ -26,9 +26,10 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
@@ -42,6 +43,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestManifestFilterManagerConcurrency extends TestBase {
 
+  @Parameter(index = 0)
+  private int formatVersion;
+
+  @Parameter(index = 1)
+  private String branch;
+
+  @Parameters(name = "formatVersion = {0}, branch = {1}")
+  protected static List<Object> parameters() {
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(
+            v ->
+                Stream.of(
+                    new Object[] {v, SnapshotRef.MAIN_BRANCH}, new Object[] {v, "testBranch"}))
+        .collect(Collectors.toList());
+  }
+
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
@@ -53,7 +70,7 @@ public class TestManifestFilterManagerConcurrency extends TestBase {
   private static final int MANIFEST_COUNT = 32;
   private static final int FILES_PER_MANIFEST = 4;
 
-  @Test
+  @TestTemplate
   public void testParallelOverwriteDoesNotCorruptDeleteFiles() {
     // Create a table with many manifests to ensure parallel processing
     table = create(SCHEMA, SPEC);
@@ -94,10 +111,10 @@ public class TestManifestFilterManagerConcurrency extends TestBase {
 
     // Verify the overwrite succeeded and all old files were deleted
     assertThat(table.currentSnapshot().addedDataFiles(table.io())).isEmpty();
-    assertThat(table.currentSnapshot().deletedDataFiles(table.io())).isEmpty();
+    assertThat(table.currentSnapshot().removedDataFiles(table.io())).isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testParallelDeleteByExpressionCollectsAllFiles() {
     table = create(SCHEMA, SPEC);
 
@@ -122,7 +139,7 @@ public class TestManifestFilterManagerConcurrency extends TestBase {
     }
 
     // Delete files by partition expression that matches all partitions
-    DeleteFiles delete = table.newDelete().deleteByRowFilter(Expressions.alwaysTrue());
+    DeleteFiles delete = table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue());
 
     assertThatNoException().isThrownBy(() -> commit(table, delete, branch));
 
