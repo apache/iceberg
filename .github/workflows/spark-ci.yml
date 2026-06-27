@@ -81,7 +81,7 @@ jobs:
       # Keep matrix <= 20 jobs; exceeding it queues a second wave and slows CI.
       max-parallel: 20
       matrix:
-        jvm: [17, 21]
+        jvm: ${{ fromJson((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci') == false) && '[17]' || '[17,21]') }}
         spark: ['3.5', '4.0', '4.1']
         scala: ['2.12', '2.13']
         # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
@@ -110,14 +110,21 @@ jobs:
           cache-read-only: true
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - name: Run tests
+        env:
+          SPARK_VERSION: ${{ matrix.spark }}
+          SCALA_VERSION: ${{ matrix.scala }}
+          TEST_GROUP: ${{ matrix.tests }}
         run: |
-          if [[ "${{ matrix.tests }}" == "core" ]]; then
-            projects=":iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check"
+          if [[ "${TEST_GROUP}" == "core" ]]; then
+            projects=(":iceberg-spark:iceberg-spark-${SPARK_VERSION}_${SCALA_VERSION}:check")
           else
-            projects=":iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check"
+            projects=(
+              ":iceberg-spark:iceberg-spark-extensions-${SPARK_VERSION}_${SCALA_VERSION}:check"
+              ":iceberg-spark:iceberg-spark-runtime-${SPARK_VERSION}_${SCALA_VERSION}:check"
+            )
           fi
-          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DflinkVersions= -DkafkaVersions= \
-            $projects -Pquick=true -x javadoc -DtestParallelism=auto
+          ./gradlew -DsparkVersions="${SPARK_VERSION}" -DscalaVersion="${SCALA_VERSION}" -DflinkVersions= -DkafkaVersions= \
+            "${projects[@]}" -Pquick=true -x javadoc -DtestParallelism=auto
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
