@@ -23,9 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import javax.annotation.Nonnull;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -40,6 +42,7 @@ import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -49,14 +52,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.spark.TimeTravel.AsOfTimestamp;
 import org.apache.iceberg.spark.TimeTravel.AsOfVersion;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.catalog.SupportsAtomicPartitionManagement;
 import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
@@ -70,7 +80,14 @@ import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +97,11 @@ import org.slf4j.LoggerFactory;
  * <p>Note the table state (e.g. schema, snapshot) is pinned upon loading and must not change.
  */
 public class SparkTable extends BaseSparkTable
-    implements SupportsRead, SupportsWrite, SupportsDeleteV2, SupportsRowLevelOperations {
+    implements SupportsRead,
+        SupportsWrite,
+        SupportsDeleteV2,
+        SupportsRowLevelOperations,
+        SupportsAtomicPartitionManagement {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -288,6 +309,205 @@ public class SparkTable extends BaseSparkTable
     }
 
     deleteFiles.commit();
+  }
+
+  // Iceberg has no per-partition metastore state, partitions are derived from data file metadata
+  // in manifests. Only DROP PARTITION is supported here: partitionSchema exposes the partition
+  // fields from the current PartitionSpec (e.g. ts_day, id_bucket) and DROP PARTITION maps to a
+  // snapshot-level delete with a transform-aware row filter, so the user always names a whole
+  // physical partition.
+
+  @Override
+  public StructType partitionSchema() {
+    List<StructField> fields = Lists.newArrayList();
+    for (PartitionField field : table().spec().fields()) {
+      if (field.transform().equals(Transforms.alwaysNull())) {
+        continue;
+      }
+      Types.NestedField sourceField = table().schema().findField(field.sourceId());
+      DataType sparkType;
+      if (isTimeTransform(field.transform())) {
+        // Time transforms (year/month/day/hour) are surfaced as their human-readable string
+        // forms (e.g. "2024", "2024-02", "2024-02-15", "2024-02-15-11") so users can write a
+        // partition value that mirrors the on-disk partition path.
+        sparkType = DataTypes.StringType;
+      } else {
+        Type resultType = field.transform().getResultType(sourceField.type());
+        sparkType = SparkSchemaUtil.convert(resultType);
+      }
+      fields.add(
+          new StructField(field.name(), sparkType, sourceField.isOptional(), Metadata.empty()));
+    }
+    return new StructType(fields.toArray(new StructField[0]));
+  }
+
+  private static boolean isTimeTransform(Transform<?, ?> transform) {
+    String name = transform.toString();
+    return "year".equals(name) || "month".equals(name) || "day".equals(name) || "hour".equals(name);
+  }
+
+  @Override
+  public boolean partitionExists(InternalRow ident) {
+    return partitionHasFiles(partitionRowFilter(ident));
+  }
+
+  @Override
+  public boolean dropPartition(InternalRow ident) {
+    Expression filter = partitionRowFilter(ident);
+    if (!partitionHasFiles(filter)) {
+      return false;
+    }
+    table().newDelete().deleteFromRowFilter(filter).commit();
+    return true;
+  }
+
+  @Override
+  public boolean dropPartitions(InternalRow[] idents) {
+    if (idents.length == 0) {
+      return false;
+    }
+    Expression filter = Expressions.alwaysFalse();
+    for (InternalRow ident : idents) {
+      filter = Expressions.or(filter, partitionRowFilter(ident));
+    }
+    if (!partitionHasFiles(filter)) {
+      return false;
+    }
+    table().newDelete().deleteFromRowFilter(filter).commit();
+    return true;
+  }
+
+  @Override
+  public void createPartition(InternalRow ident, Map<String, String> properties) {
+    throw new UnsupportedOperationException(
+        "Iceberg does not support creating partitions explicitly; they are derived from data files");
+  }
+
+  @Override
+  public void createPartitions(InternalRow[] idents, Map<String, String>[] properties) {
+    throw new UnsupportedOperationException(
+        "Iceberg does not support creating partitions explicitly; they are derived from data files");
+  }
+
+  @Override
+  public void replacePartitionMetadata(InternalRow ident, Map<String, String> properties) {
+    throw new UnsupportedOperationException("Iceberg does not support per-partition metadata");
+  }
+
+  @Override
+  public Map<String, String> loadPartitionMetadata(InternalRow ident) {
+    throw new UnsupportedOperationException("Iceberg does not support per-partition metadata");
+  }
+
+  @Override
+  public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
+    throw new UnsupportedOperationException(
+        "Listing partition identifiers is not implemented for Iceberg tables");
+  }
+
+  private Expression partitionRowFilter(InternalRow ident) {
+    StructType partitionSchema = partitionSchema();
+    Preconditions.checkArgument(
+        ident.numFields() == partitionSchema.length(),
+        "Partition row width %s does not match partition schema width %s",
+        ident.numFields(),
+        partitionSchema.length());
+
+    Map<String, PartitionField> partFieldsByName = Maps.newLinkedHashMap();
+    for (PartitionField field : table().spec().fields()) {
+      if (!field.transform().equals(Transforms.alwaysNull())) {
+        partFieldsByName.put(field.name(), field);
+      }
+    }
+
+    Expression filter = Expressions.alwaysTrue();
+    StructField[] fields = partitionSchema.fields();
+    for (int i = 0; i < fields.length; i++) {
+      StructField field = fields[i];
+      PartitionField partField = partFieldsByName.get(field.name());
+      String sourceName = table().schema().findColumnName(partField.sourceId());
+      Object value = ident.isNullAt(i) ? null : ident.get(i, field.dataType());
+      Object javaValue = catalystToJava(value);
+      filter = Expressions.and(filter, partitionFieldPredicate(partField, sourceName, javaValue));
+    }
+    return filter;
+  }
+
+  private static Expression partitionFieldPredicate(
+      PartitionField partField, String sourceName, Object value) {
+    Transform<?, ?> transform = partField.transform();
+    String transformName = transform.toString();
+    if ("identity".equals(transformName)) {
+      return (value == null)
+          ? Expressions.isNull(sourceName)
+          : Expressions.equal(sourceName, value);
+    }
+    UnboundTerm<Object> term = constructTerm(sourceName, transformName);
+    Object termValue = (value == null) ? null : parseHumanDateIfNeeded(value, transformName);
+
+    return (termValue == null) ? Expressions.isNull(term) : Expressions.equal(term, termValue);
+  }
+
+  private static Object parseHumanDateIfNeeded(@Nonnull Object value, String transformName) {
+    Object termValue = value;
+    if ("year".equals(transformName)) {
+      termValue = Transforms.parseHumanYear(value.toString());
+    } else if ("month".equals(transformName)) {
+      termValue = Transforms.parseHumanMonth(value.toString());
+    } else if ("day".equals(transformName)) {
+      termValue = Transforms.parseHumanDay(value.toString());
+    } else if ("hour".equals(transformName)) {
+      termValue = Transforms.parseHumanHour(value.toString());
+    }
+
+    return termValue;
+  }
+
+  private static UnboundTerm<Object> constructTerm(String sourceName, String transformName) {
+    UnboundTerm<Object> term;
+    if ("year".equals(transformName)) {
+      term = Expressions.year(sourceName);
+    } else if ("month".equals(transformName)) {
+      term = Expressions.month(sourceName);
+    } else if ("day".equals(transformName)) {
+      term = Expressions.day(sourceName);
+    } else if ("hour".equals(transformName)) {
+      term = Expressions.hour(sourceName);
+    } else if (transformName.startsWith("bucket[") && transformName.endsWith("]")) {
+      int numBuckets = parseTransformArg(transformName, "bucket[");
+      term = Expressions.bucket(sourceName, numBuckets);
+    } else if (transformName.startsWith("truncate[") && transformName.endsWith("]")) {
+      int width = parseTransformArg(transformName, "truncate[");
+      term = Expressions.truncate(sourceName, width);
+    } else {
+      throw new UnsupportedOperationException(
+          "Unsupported partition transform for DROP PARTITION: " + transformName);
+    }
+
+    return term;
+  }
+
+  private static int parseTransformArg(String transformName, String prefix) {
+    return Integer.parseInt(transformName.substring(prefix.length(), transformName.length() - 1));
+  }
+
+  private static Object catalystToJava(Object value) {
+    if (value instanceof UTF8String) {
+      return value.toString();
+    } else if (value instanceof Decimal) {
+      return ((Decimal) value).toJavaBigDecimal();
+    }
+    return value;
+  }
+
+  private boolean partitionHasFiles(Expression filter) {
+    try (CloseableIterable<FileScanTask> tasks =
+        table().newScan().filter(filter).ignoreResiduals().planFiles()) {
+      return tasks.iterator().hasNext();
+    } catch (IOException e) {
+      LOG.warn("Failed to close file scan iterable while checking partition existence", e);
+      return true;
+    }
   }
 
   @Override

@@ -121,4 +121,60 @@ public class TestTimeTransforms {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageMatching("Unsupported type: date");
   }
+
+  @Test
+  public void testParseHumanYearRoundTrip() {
+    for (int ordinal : new int[] {0, 54, -10, 130}) {
+      assertThat(Transforms.parseHumanYear(TransformUtil.humanYear(ordinal))).isEqualTo(ordinal);
+    }
+    assertThat(Transforms.parseHumanYear("2024")).isEqualTo(54);
+    assertThat(Transforms.parseHumanYear("1970")).isZero();
+    assertThat(Transforms.parseHumanYear("1960")).isEqualTo(-10);
+  }
+
+  @Test
+  public void testParseHumanMonthRoundTrip() {
+    for (int ordinal : new int[] {0, 648, -1, -13, 1500}) {
+      assertThat(Transforms.parseHumanMonth(TransformUtil.humanMonth(ordinal))).isEqualTo(ordinal);
+    }
+    assertThat(Transforms.parseHumanMonth("2024-01")).isEqualTo(648);
+    assertThat(Transforms.parseHumanMonth("1970-01")).isZero();
+    assertThat(Transforms.parseHumanMonth("1969-12")).isEqualTo(-1);
+  }
+
+  @Test
+  public void testParseHumanDayRoundTrip() {
+    for (int ordinal : new int[] {0, 19768, -1, -365, 30000}) {
+      assertThat(Transforms.parseHumanDay(TransformUtil.humanDay(ordinal))).isEqualTo(ordinal);
+    }
+    assertThat(Transforms.parseHumanDay("2024-02-15")).isEqualTo(19768);
+    assertThat(Transforms.parseHumanDay("1970-01-01")).isZero();
+    assertThat(Transforms.parseHumanDay("1969-12-31")).isEqualTo(-1);
+  }
+
+  @Test
+  public void testParseHumanHourRoundTrip() {
+    for (int ordinal : new int[] {0, 473699, -1, -24, 500_000}) {
+      assertThat(Transforms.parseHumanHour(TransformUtil.humanHour(ordinal))).isEqualTo(ordinal);
+    }
+    assertThat(Transforms.parseHumanHour("2024-01-15-11")).isEqualTo(473699);
+    assertThat(Transforms.parseHumanHour("1970-01-01-00")).isZero();
+    assertThat(Transforms.parseHumanHour("1969-12-31-23")).isEqualTo(-1);
+  }
+
+  @Test
+  public void testParseHumanRejectsMalformedInput() {
+    assertThatThrownBy(() -> Transforms.parseHumanYear("not-a-year"))
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessage("For input string: \"not-a-year\"");
+    assertThatThrownBy(() -> Transforms.parseHumanMonth("2024/01"))
+        .isInstanceOf(java.time.format.DateTimeParseException.class)
+        .hasMessage("Text '2024/01' could not be parsed at index 4");
+    assertThatThrownBy(() -> Transforms.parseHumanDay("2024-02"))
+        .isInstanceOf(java.time.format.DateTimeParseException.class)
+        .hasMessage("Text '2024-02' could not be parsed at index 7");
+    assertThatThrownBy(() -> Transforms.parseHumanHour("2024-02-15"))
+        .isInstanceOf(java.time.format.DateTimeParseException.class)
+        .hasMessage("Text '2024-02-15' could not be parsed at index 10");
+  }
 }
