@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -49,6 +51,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadSafeFileSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +74,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   private final Map<Integer, PartitionSpec> specsById;
   private final PartitionSet deleteFilePartitions;
-  private final Set<F> deleteFiles = newFileSet();
+  // Thread-safe set for collecting deleted files during parallel manifest filtering.
+  // Uses ConcurrentHashMap-backed set to prevent the concurrent mutation corruption
+  // described in issue #16978. The set is still populated single-threaded after
+  // all parallel filtering completes, but the thread-safe backing provides defense
+  // in depth against future concurrent access patterns.
+  private final Set<F> deleteFiles = newThreadSafeFileSet();
   private final Set<String> manifestsWithDeletes = Sets.newHashSet();
   private final PartitionSet dropPartitions;
   private final CharSequenceSet deletePaths = CharSequenceSet.empty();
@@ -93,8 +101,11 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
 
   // tracking where files were deleted to validate retries quickly
-  private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
-      Maps.newConcurrentMap();
+  // Thread-safe map for collecting per-manifest deleted files during parallel filtering.
+  // ConcurrentHashMap is used because worker threads write to this map from filterManifest()
+  // while the main thread reads from it after all tasks complete (see issue #16978).
+  private final ConcurrentMap<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
+      new ConcurrentHashMap<>();
 
   private final Supplier<ExecutorService> workerPoolSupplier;
 
@@ -113,6 +124,24 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   protected abstract ManifestReader<F> newManifestReader(ManifestFile manifest);
 
   protected abstract Set<F> newFileSet();
+
+  /**
+   * Creates a thread-safe set for collecting files in concurrent contexts.
+   *
+   * <p>This is used for the {@code deleteFiles} collection in ManifestFilterManager because worker
+   * threads may read this set during parallel manifest filtering (e.g., {@code
+   * manifestHasDeletedFiles} checks {@code deleteFiles.contains(file)}). While the current fix
+   * removes concurrent writes to this set, using a thread-safe backing collection provides defense in
+   * depth against future regressions (see issue #16978).
+   *
+   * <p>The default implementation returns a {@link ThreadSafeFileSet}. Subclasses may override this
+   * if they require different thread-safe semantics.
+   *
+   * @return a new thread-safe set for collecting files
+   */
+  protected Set<F> newThreadSafeFileSet() {
+    return ThreadSafeFileSet.create();
+  }
 
   protected void failAnyDelete() {
     this.failAnyDelete = true;
@@ -217,6 +246,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     boolean trustManifestReferences = canTrustManifestReferences(manifests);
     ManifestFile[] filtered = new ManifestFile[manifests.size()];
+
+    // Collect deleted files per-manifest during parallel filtering.
+    // Using a concurrent map allows worker threads to safely append their
+    // local results without mutating shared mutable state (see issue #16978).
+    ConcurrentMap<ManifestFile, List<F>> concurrentDeletedFiles = new ConcurrentHashMap<>();
+
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
         .stopOnFailure()
@@ -227,11 +262,56 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               ManifestFile manifest =
                   filterManifest(tableSchema, manifests.get(index), trustManifestReferences);
               filtered[index] = manifest;
+
+              // After filtering, safely copy the per-manifest deleted files into
+              // the concurrent collection. This replaces the old pattern of
+              // directly mutating the shared deleteFiles set from worker threads.
+              Iterable<F> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
+              if (manifestDeletes != null) {
+                List<F> files = Lists.newArrayList(manifestDeletes);
+                if (!files.isEmpty()) {
+                  concurrentDeletedFiles.put(manifest, files);
+                }
+              }
             });
+
+    // Merge all per-manifest deleted files into the shared deleteFiles set
+    // after all parallel filtering is complete. This single-threaded merge
+    // prevents the concurrent HashMap/LinkedHashSet corruption that caused
+    // ClassCastException during parallel manifest filtering (issue #16978).
+    mergeDeletedFiles(concurrentDeletedFiles);
 
     validateRequiredDeletes(filtered);
 
     return Arrays.asList(filtered);
+  }
+
+  /**
+   * Merges per-manifest deleted files into the shared {@code deleteFiles} set.
+   *
+   * <p>This method must be called after all parallel manifest filtering has
+   * completed. It is not safe to call while worker threads are still
+   * processing manifests because {@code deleteFiles} is backed by a
+   * non-thread-safe LinkedHashSet.
+   *
+   * @param concurrentDeletedFiles map from filtered manifest to its deleted files
+   */
+  private void mergeDeletedFiles(ConcurrentMap<ManifestFile, List<F>> concurrentDeletedFiles) {
+    int totalDeleted = 0;
+    for (List<F> manifestDeletes : concurrentDeletedFiles.values()) {
+      for (F file : manifestDeletes) {
+        if (deleteFiles.add(file)) {
+          totalDeleted += 1;
+        }
+      }
+    }
+
+    if (totalDeleted > 0) {
+      LOG.debug(
+          "Merged {} deleted files from {} manifests into deleteFiles",
+          totalDeleted,
+          concurrentDeletedFiles.size());
+    }
   }
 
   // Use the current set of referenced manifests as a source of truth when it's a subset of all
@@ -535,7 +615,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                       F fileCopy = file.copyWithoutStats();
                       // add the file here in case it was deleted using an expression. The
                       // DeleteManifestFilterManager will then remove its matching DV
-                      deleteFiles.add(fileCopy);
+                      // NOTE: deleted files are merged into deleteFiles after all parallel
+                      // filtering completes to avoid concurrent mutation races (see
+                      // mergeDeletedFiles)
 
                       if (deletedFiles.contains(file)) {
                         LOG.warn(
