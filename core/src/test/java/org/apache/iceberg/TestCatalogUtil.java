@@ -108,8 +108,8 @@ public class TestCatalogUtil {
                 CatalogUtil.loadCatalog(
                     TestCatalogNoInterface.class.getName(), name, options, hadoopConf))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot initialize Catalog")
-        .hasMessageContaining("does not implement Catalog");
+        .hasMessage(
+            "Cannot use org.apache.iceberg.TestCatalogUtil$TestCatalogNoInterface as an implementation of org.apache.iceberg.catalog.Catalog");
   }
 
   @Test
@@ -214,8 +214,8 @@ public class TestCatalogUtil {
             () ->
                 CatalogUtil.loadFileIO(TestFileIONotImpl.class.getName(), Maps.newHashMap(), null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot initialize FileIO")
-        .hasMessageContaining("does not implement FileIO");
+        .hasMessage(
+            "Cannot use org.apache.iceberg.TestCatalogUtil$TestFileIONotImpl as an implementation of org.apache.iceberg.io.FileIO");
   }
 
   @Test
@@ -263,7 +263,8 @@ public class TestCatalogUtil {
                         CatalogProperties.METRICS_REPORTER_IMPL,
                         TestFileIONotImpl.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("does not implement MetricsReporter");
+        .hasMessage(
+            "Cannot use org.apache.iceberg.TestCatalogUtil$TestFileIONotImpl as an implementation of org.apache.iceberg.metrics.MetricsReporter");
   }
 
   @Test

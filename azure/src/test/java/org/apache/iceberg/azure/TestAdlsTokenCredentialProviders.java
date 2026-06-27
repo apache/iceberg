@@ -97,7 +97,8 @@ public class TestAdlsTokenCredentialProviders {
         ImmutableMap.of(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "java.lang.String");
     assertThatIllegalArgumentException()
         .isThrownBy(() -> AdlsTokenCredentialProviders.from(properties))
-        .withMessageContaining("java.lang.String does not implement AdlsTokenCredentialProvider");
+        .withMessage(
+            "Cannot use java.lang.String as an implementation of org.apache.iceberg.azure.AdlsTokenCredentialProvider");
   }
 
   @Test
