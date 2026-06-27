@@ -23,8 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.LongConsumer;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.Resources;
 import org.junit.jupiter.api.Test;
@@ -74,6 +77,41 @@ public class TestBitmapPositionDeleteIndex {
   }
 
   @Test
+  public void testCreateReturnsEmptyMutableIndexWithoutProvenance() {
+    PositionDeleteIndex index = PositionDeleteIndex.create();
+    assertThat(index.isEmpty()).isTrue();
+    assertThat(index.cardinality()).isZero();
+    assertThat(index.deleteFiles()).isEmpty();
+
+    index.delete(5L);
+    index.delete(10L, 15L);
+    assertThat(index.isDeleted(5L)).isTrue();
+    assertThat(index.isDeleted(10L)).isTrue();
+    assertThat(index.isDeleted(14L)).isTrue();
+    assertThat(index.isDeleted(15L)).isFalse();
+    assertThat(index.cardinality()).isEqualTo(6L);
+  }
+
+  @Test
+  public void testCreateWithDeleteFileRecordsProvenance() {
+    DeleteFile source = mockDV(/* contentSize */ 0L, /* cardinality */ 0L);
+    PositionDeleteIndex index = PositionDeleteIndex.create(source);
+    assertThat(index.isEmpty()).isTrue();
+    assertThat(index.deleteFiles()).containsExactly(source);
+
+    index.delete(42L);
+    assertThat(index.isDeleted(42L)).isTrue();
+    assertThat(index.deleteFiles()).containsExactly(source);
+  }
+
+  @Test
+  public void testCreateWithNullDeleteFileHasNoProvenance() {
+    PositionDeleteIndex index = PositionDeleteIndex.create(null);
+    assertThat(index.isEmpty()).isTrue();
+    assertThat(index.deleteFiles()).isEmpty();
+  }
+
+  @Test
   public void testMergeBitmapIndexWithNonEmpty() {
     long pos1 = 10L; // Container 0 (high bits = 0)
     long pos2 = 1L << 33; // Container 1 (high bits = 1)
@@ -93,6 +131,63 @@ public class TestBitmapPositionDeleteIndex {
     // output must be sorted in ascending order across containers
     List<Long> positions = collect(index1);
     assertThat(positions).containsExactly(pos1, pos2, pos3, pos4);
+  }
+
+  @Test
+  public void testMergeNonBitmapSourcePropagatesPositionsAndDeleteFiles() {
+    DeleteFile sourceFile = Mockito.mock(DeleteFile.class);
+    long pos1 = 10L; // Container 0
+    long pos2 = 1L << 33; // Container 1
+    long pos3 = pos2 + 1; // Container 1, consecutive run with pos2
+
+    BitmapPositionDeleteIndex target = new BitmapPositionDeleteIndex();
+    target.delete(5L);
+    PositionDeleteIndex nonBitmapSource =
+        new PositionDeleteIndex() {
+          @Override
+          public void delete(long position) {
+            throw new UnsupportedOperationException("test source is read-only");
+          }
+
+          @Override
+          public void delete(long posStart, long posEnd) {
+            throw new UnsupportedOperationException("test source is read-only");
+          }
+
+          @Override
+          public boolean isDeleted(long position) {
+            return position == pos1 || position == pos2 || position == pos3;
+          }
+
+          @Override
+          public boolean isEmpty() {
+            return false;
+          }
+
+          @Override
+          public void forEach(LongConsumer consumer) {
+            consumer.accept(pos1);
+            consumer.accept(pos2);
+            consumer.accept(pos3);
+          }
+
+          @Override
+          public long cardinality() {
+            return 3L;
+          }
+
+          @Override
+          public Collection<DeleteFile> deleteFiles() {
+            return ImmutableList.of(sourceFile);
+          }
+        };
+
+    target.merge(nonBitmapSource);
+
+    assertThat(collect(target)).containsExactly(5L, pos1, pos2, pos3);
+    assertThat(target.deleteFiles())
+        .as("non-bitmap merge should copy source deleteFiles into target")
+        .containsExactly(sourceFile);
   }
 
   @Test

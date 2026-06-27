@@ -78,7 +78,7 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
     if (that instanceof BitmapPositionDeleteIndex) {
       merge((BitmapPositionDeleteIndex) that);
     } else {
-      that.forEach(this::delete);
+      PositionDeleteRangeConsumer.forEach(that, this);
       deleteFiles.addAll(that.deleteFiles());
     }
   }

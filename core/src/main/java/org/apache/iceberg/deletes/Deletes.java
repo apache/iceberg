@@ -21,6 +21,7 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.PrimitiveIterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -31,20 +32,23 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.PeekingIterator;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.CharSequenceUtil;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class Deletes {
 
-  private static final Schema POSITION_DELETE_SCHEMA =
-      new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
+  private static final Schema POSITION_DELETE_SCHEMA = DeleteSchemaUtil.pathPosSchema();
 
   private static final Accessor<StructLike> FILENAME_ACCESSOR =
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_PATH.fieldId());
@@ -137,6 +141,8 @@ public class Deletes {
    *
    * <p>This method builds a position delete index for each referenced data file and does not filter
    * deletes. This can be useful when the entire delete file content is needed (e.g. caching).
+   * Adjacent same-path runs are coalesced via {@link PositionDeleteRangeConsumer#forEach(Iterable,
+   * PositionDeleteIndex)}.
    *
    * @param posDeletes position deletes
    * @param file the source delete file for the deletes
@@ -147,18 +153,41 @@ public class Deletes {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
-      for (T delete : deletes) {
-        CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
-        long position = (long) POSITION_ACCESSOR.get(delete);
+      PeekingIterator<T> records = Iterators.peekingIterator(deletes.iterator());
+      while (records.hasNext()) {
+        CharSequence path = (CharSequence) FILENAME_ACCESSOR.get(records.peek());
         PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
-        index.delete(position);
+            indexes.computeIfAbsent(path, key -> new BitmapPositionDeleteIndex(file));
+        PositionDeleteRangeConsumer.forEach(drainPositionsForPath(records, path), index);
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
     }
 
     return indexes;
+  }
+
+  /**
+   * Drains positions from {@code records} while the next record's {@code file_path} matches {@code
+   * path}. The returned iterator consumes {@code records} on traversal and stops as soon as a
+   * record with a different path is peeked; subsequent calls resume from that record. Returning a
+   * primitive iterator keeps positions unboxed all the way into the consumer's slice buffer.
+   */
+  private static <T extends StructLike> PrimitiveIterator.OfLong drainPositionsForPath(
+      PeekingIterator<T> records, CharSequence path) {
+    return new PrimitiveIterator.OfLong() {
+      @Override
+      public boolean hasNext() {
+        return records.hasNext()
+            && !CharSequenceUtil.unequalPaths(
+                path, (CharSequence) FILENAME_ACCESSOR.get(records.peek()));
+      }
+
+      @Override
+      public long nextLong() {
+        return (long) POSITION_ACCESSOR.get(records.next());
+      }
+    };
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
@@ -183,7 +212,7 @@ public class Deletes {
       CloseableIterable<Long> posDeletes, List<DeleteFile> files) {
     try (CloseableIterable<Long> deletes = posDeletes) {
       PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex(files);
-      deletes.forEach(positionDeleteIndex::delete);
+      PositionDeleteRangeConsumer.forEach(deletes, positionDeleteIndex);
       return positionDeleteIndex;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);

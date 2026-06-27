@@ -20,6 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -36,6 +37,7 @@ import org.apache.iceberg.deletes.PositionDeleteIndexUtil;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.PositionDeleteIndexReader;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -203,14 +205,32 @@ public class BaseDeleteLoader implements DeleteLoader {
   }
 
   private CharSequenceMap<PositionDeleteIndex> readPosDeletes(DeleteFile deleteFile) {
+    Optional<PositionDeleteIndexReader> fastReader = fastReaderFor(deleteFile);
+    if (fastReader.isPresent()) {
+      LOG.trace("Reading position delete file {} via {}", deleteFile.location(), fastReader.get());
+      return fastReader.get().readAll(loadInputFile.apply(deleteFile), deleteFile);
+    }
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA);
     return Deletes.toPositionIndexes(deletes, deleteFile);
   }
 
   private PositionDeleteIndex readPosDeletes(DeleteFile deleteFile, CharSequence filePath) {
+    Optional<PositionDeleteIndexReader> fastReader = fastReaderFor(deleteFile);
+    if (fastReader.isPresent()) {
+      LOG.trace(
+          "Reading position delete file {} for {} via {}",
+          deleteFile.location(),
+          filePath,
+          fastReader.get());
+      return fastReader.get().read(loadInputFile.apply(deleteFile), filePath, deleteFile);
+    }
     Expression filter = Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath);
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA, filter);
     return Deletes.toPositionIndex(filePath, deletes, deleteFile);
+  }
+
+  private static Optional<PositionDeleteIndexReader> fastReaderFor(DeleteFile deleteFile) {
+    return FormatModelRegistry.positionDeleteIndexReader(deleteFile.format());
   }
 
   private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, Schema projection) {

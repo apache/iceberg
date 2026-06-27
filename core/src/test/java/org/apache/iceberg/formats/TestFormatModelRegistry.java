@@ -21,9 +21,12 @@ package org.apache.iceberg.formats;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +36,7 @@ class TestFormatModelRegistry {
   @BeforeEach
   void clearRegistry() {
     FormatModelRegistry.models().clear();
+    FormatModelRegistry.positionDeleteIndexReaders().clear();
   }
 
   @Test
@@ -84,6 +88,62 @@ class TestFormatModelRegistry {
             () -> FormatModelRegistry.register(new DummyParquetFormatModel(Object.class, null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register class");
+  }
+
+  @Test
+  void positionDeleteIndexReaderLookupReturnsEmptyWhenUnregistered() {
+    assertThat(FormatModelRegistry.positionDeleteIndexReader(FileFormat.PARQUET)).isEmpty();
+    assertThat(FormatModelRegistry.positionDeleteIndexReader(FileFormat.AVRO)).isEmpty();
+  }
+
+  @Test
+  void registerPositionDeleteIndexReaderSucceedsOncePerFormat() {
+    PositionDeleteIndexReader reader = new DummyPositionDeleteIndexReader();
+    FormatModelRegistry.registerPositionDeleteIndexReader(FileFormat.PARQUET, reader);
+
+    assertThat(FormatModelRegistry.positionDeleteIndexReader(FileFormat.PARQUET))
+        .as("registered reader should be returned")
+        .containsSame(reader);
+    assertThat(FormatModelRegistry.positionDeleteIndexReader(FileFormat.AVRO))
+        .as("readers are scoped per format; AVRO should remain unregistered")
+        .isEmpty();
+  }
+
+  @Test
+  void registerPositionDeleteIndexReaderRejectsDuplicateRegistration() {
+    PositionDeleteIndexReader first = new DummyPositionDeleteIndexReader();
+    PositionDeleteIndexReader second = new DummyPositionDeleteIndexReader();
+    FormatModelRegistry.registerPositionDeleteIndexReader(FileFormat.PARQUET, first);
+
+    assertThatThrownBy(
+            () -> FormatModelRegistry.registerPositionDeleteIndexReader(FileFormat.PARQUET, second))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("already registered");
+  }
+
+  @Test
+  void registerPositionDeleteIndexReaderRejectsNullArguments() {
+    PositionDeleteIndexReader reader = new DummyPositionDeleteIndexReader();
+    assertThatThrownBy(() -> FormatModelRegistry.registerPositionDeleteIndexReader(null, reader))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid file format");
+    assertThatThrownBy(
+            () -> FormatModelRegistry.registerPositionDeleteIndexReader(FileFormat.PARQUET, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid position delete index reader");
+  }
+
+  private static final class DummyPositionDeleteIndexReader implements PositionDeleteIndexReader {
+    @Override
+    public PositionDeleteIndex read(
+        InputFile file, CharSequence dataLocation, DeleteFile deleteFile) {
+      return PositionDeleteIndex.empty();
+    }
+
+    @Override
+    public CharSequenceMap<PositionDeleteIndex> readAll(InputFile file, DeleteFile deleteFile) {
+      return CharSequenceMap.create();
+    }
   }
 
   private static class DummyParquetFormatModel implements FormatModel<Object, Object> {
