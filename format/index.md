@@ -26,21 +26,47 @@ Indexes enable query engines to locate relevant rows without scanning entire dat
 They can accelerate point lookups, range predicates, and other retrieval patterns
 while preserving Iceberg's table format, snapshot isolation, and interoperability.
 
-This specification defines:
-
-- A portable metadata format for indexes
-- A catalog-managed index object independent from table metadata
-- A common storage architecture for index data
-- A framework for defining new index types and transform functions
-
 Indexes are optional. Engines may choose to create, maintain, consume, or ignore them.
 
 ## Goals
 
-- Define a common metadata format for indexes
-- Allow indexes to evolve independently from table metadata
+- Define a portable metadata format for indexes
+- Provide a common storage architecture for index data
+- Allow indexes to evolve independently from table metadata as catalog-managed objects
 - Enable index sharing across engines
-- Provide a foundation for future index types
+- Provide a framework for defining new index types and transform functions
+
+## Overview
+
+Indexes are stored as a collection of files with some Iceberg table like semantics. At a high level they consist of a tracking file (similar to a root manifest file) which contains listings for a defined set of leaf files (similar to data files.) Leaf files store an ordered set of rows containing at least a key and the path of a Iceberg Table data file and the position within that file where the row where that key is stored. The organization of leaf files is defined by an Indexing Transform which varies based on the type of index. This structure is recorded in an Index metadata.json file which contains a set of snapshots, each of which points to a single tracking file mapping to the complete state of an Iceberg table at a given Iceberg table snapshot.
+
+Like Iceberg tables, views, and functions:
+
+- Metadata and data files are immutable
+- Updates create new metadata files
+- Catalogs perform atomic metadata swaps
+
+Index data is stored separately from metadata.
+
+Each index snapshot references a tracking file which describes the leaf files belonging to the snapshot.
+
+```text
+Index Metadata
+    |
+    +-- Index Snapshot
+            |
+            +-- Tracking File
+                    |
+                    +-- Leaf Data Files
+```
+
+Transform functions derive a transform value from the key columns and determine how index entries are organized within
+the leaf files.
+- The transform value space is divided into non-overlapping ranges.
+- Each leaf file stores entries for a single range.
+- The tracking file stores range bounds for each leaf file.
+
+This structure enables efficient planning while keeping the data layout flexible for different index implementations.
 
 ## Definitions
 
@@ -72,7 +98,7 @@ stored in the index.
 The transform function determines the physical organization of the indexed data and therefore influences which query
 patterns can efficiently leverage the index.
 
-The following index types are reserved for future specifications:
+The following transform functions are defined in this specification:
 
 | Transform |
 |-----------|
@@ -80,7 +106,7 @@ The following index types are reserved for future specifications:
 | HASH      |
 | HILBERT   |
 
-The following transform functions are reserved for future specifications:
+The following transform function is reserved for future specifications:
 
 | Transform |
 |-----------|
@@ -109,38 +135,6 @@ An index snapshot is an immutable version of the index data generated from a spe
 
 Each index snapshot references a complete set of index files and contains all data from the referenced table snapshot.
 
-## Overview
-
-Indexes are stored as independent catalog objects.
-
-Like Iceberg tables, views, and functions:
-
-- Metadata and data files are immutable
-- Updates create new metadata files
-- Catalogs perform atomic metadata swaps
-
-Index data is stored separately from metadata.
-
-Each index snapshot references a tracking file which describes the leaf files belonging to the snapshot.
-
-```text
-Index Metadata
-    |
-    +-- Index Snapshot
-            |
-            +-- Tracking File
-                    |
-                    +-- Leaf Data Files
-```
-
-Transform functions derive a transform value from the key columns and determine how index entries are organized within
-the leaf files.
-- The transform value space is divided into non-overlapping ranges.
-- Each leaf file stores entries for a single range.
-- The tracking file stores range bounds for each leaf file.
-
-This structure enables efficient planning while keeping the data layout flexible for different index implementations.
-
 ## Index Metadata
 
 The index metadata file stores the index definition and snapshot history.
@@ -157,9 +151,8 @@ The index metadata file stores the index definition and snapshot history.
 | required    | transform-function  | string                   | Physical organization transform                 |
 | required    | key-column-ids      | list<int>                | Indexed columns                                 |
 | optional    | included-column-ids | list<int>                | Included columns                                |
-| required    | file-format         | string                   | Leaf file format                                |
 | optional    | properties          | map<string,string>       | Index properties applicable for every snapshot  |
-| required    | snapshots           | list<index-snapshot>     | Known index snapshots                           |
+| required    | snapshots           | list<index-snapshot>     | Index snapshots                                 |
 
 ## Index Snapshot
 
@@ -172,7 +165,7 @@ Each index snapshot corresponds to one version of the index data.
 | required    | timestamp-ms             | long               | Snapshot creation timestamp                                         |
 | required    | tracking-file            | string             | Tracking file location                                              |
 | optional    | properties               | map<string,string> | Snapshot properties specific to this snapshot                       |
-| optional    | key_metadata             | binary             | Implementation-specific key metadata, for tracking file encryption. |
+| optional    | key-metadata             | binary             | Implementation-specific key metadata, for tracking file encryption. |
 
 ## Tracking File
 
@@ -182,10 +175,6 @@ It contains summary metadata about all leaf files belonging to the index snapsho
 without scanning every leaf file.
 
 The tracking file may be stored using any supported metadata file format.
-
-### Tracking File Entry
-
-Each entry describes a single leaf file.
 
 ### Tracking File Entry
 
@@ -199,7 +188,7 @@ without opening every leaf file.
 |----------|--------------------|---------|--------------|--------------------------------------------------------------------------------------------------------------|
 | 100      | location           | string  | required     | Location of the referenced file.                                                                             |
 | 101      | file_format        | string  | required     | File format name, such as parquet, avro, or orc.                                                             |
-| 103      | record_count       | long    | required     | Number of records contained in the referenced file or aggregated under the referenced tracking file.         |
+| 103      | record_count       | long    | required     | Number of records contained in the referenced leaf file.                                                     |
 | 104      | file_size_in_bytes | long    | required     | Total file size in bytes.                                                                                    |
 | 146      | content_stats      | struct  | optional     | Statistics used for planning and pruning, including transform-key statistics and optional column statistics. |
 | 131      | key_metadata       | binary  | optional     | Implementation-specific key metadata, used for leaf file encryption.                                         |
