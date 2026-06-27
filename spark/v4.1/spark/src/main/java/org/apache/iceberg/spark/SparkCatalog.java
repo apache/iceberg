@@ -483,6 +483,14 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public boolean dropNamespace(String[] namespace, boolean cascade)
       throws NoSuchNamespaceException {
+    if (cascade) {
+      for (String[] ns : listNamespaces(namespace)) {
+        dropNamespace(ns, true);
+      }
+      Arrays.stream(listViews(namespace)).forEach(this::dropView);
+      Arrays.stream(listTables(namespace)).forEach(this::dropTable);
+    }
+
     if (asNamespaceCatalog != null) {
       try {
         return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));
