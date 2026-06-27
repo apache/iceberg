@@ -33,8 +33,11 @@ import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.parser.HybridParameterContext
+import org.apache.spark.sql.catalyst.parser.NamedParameterContext
 import org.apache.spark.sql.catalyst.parser.ParameterContext
 import org.apache.spark.sql.catalyst.parser.ParserInterface
+import org.apache.spark.sql.catalyst.parser.PositionalParameterContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -121,29 +124,43 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
 
   /**
    * Parse a string to a LogicalPlan, binding the given parameters.
-   *
-   * Iceberg DDL grammars do not accept parameter markers (`?` / `:name`), so the
-   * parameterContext is only forwarded to the delegate on the non-Iceberg path.
    */
   override def parsePlanWithParameters(
       sqlText: String,
       parameterContext: ParameterContext): LogicalPlan =
-    parsePlanWithDelegate(sqlText) { sql =>
+    parsePlanWithDelegate(sqlText, Option(parameterContext)) { sql =>
       delegate.parsePlanWithParameters(sql, parameterContext)
     }
 
-  /**
-   * Dispatch parsing: Iceberg commands are parsed by the extensions parser, everything else is
-   * handed to the wrapped Spark parser via `delegateParse`.
-   */
-  private def parsePlanWithDelegate(sqlText: String)(
+  private def parsePlanWithDelegate(
+      sqlText: String,
+      parameterContext: Option[ParameterContext] = None)(
       delegateParse: String => LogicalPlan): LogicalPlan = {
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
+      parameterContext.foreach(checkNoParameterMarkers(sqlText, _))
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }
         .asInstanceOf[LogicalPlan]
     } else {
       RewriteViewCommands(SparkSession.active).apply(delegateParse(sqlText))
+    }
+  }
+
+  private def checkNoParameterMarkers(sqlText: String, parameterContext: ParameterContext): Unit = {
+    val hasParameters = parameterContext match {
+      case NamedParameterContext(params) => params.nonEmpty
+      case PositionalParameterContext(params) => params.nonEmpty
+      case HybridParameterContext(args, _) => args.nonEmpty
+    }
+
+    // Iceberg grammars have no parameter markers (`?` / `:name`) to bind, so a non-empty context
+    // is a caller bug; fail fast rather than silently dropping it.
+    if (hasParameters) {
+      throw new IcebergParseException(
+        Some(sqlText),
+        "Iceberg SQL extensions do not support parameter markers (`?` / `:name`)",
+        Origin(),
+        Origin())
     }
   }
 
