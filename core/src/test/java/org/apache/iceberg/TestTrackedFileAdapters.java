@@ -412,7 +412,6 @@ class TestTrackedFileAdapters {
 
   @Test
   void testManifestFileAdapterRejectsNullDataSequenceNumber() {
-    // A freshly built manifest entry has no data sequence number until inheritance fills it.
     TrackedFile file =
         manifestBuilder(FileContent.DATA_MANIFEST).manifestInfo(createManifestInfo()).build();
 
@@ -424,7 +423,6 @@ class TestTrackedFileAdapters {
   @Test
   void testManifestFileAdapterRejectsNullSnapshotId() {
     TrackedFile file = manifestFile(FileContent.DATA_MANIFEST, createManifestInfo());
-    // Clear the snapshot ID to exercise the adapter's required-field guard.
     ((TrackingStruct) file.tracking()).set(SNAPSHOT_ID_ORDINAL, null);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asManifestFile(file))
