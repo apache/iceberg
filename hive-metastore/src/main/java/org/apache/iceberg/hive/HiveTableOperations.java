@@ -47,7 +47,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -245,18 +244,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     String newMetadataLocation;
     EncryptionManager encrManager = encryption();
-    if (encrManager instanceof StandardEncryptionManager) {
-      // Add new encryption keys to the metadata
-      TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
-      for (Map.Entry<String, EncryptedKey> entry :
-          EncryptionUtil.encryptionKeys(encrManager).entrySet()) {
-        builder.addEncryptionKey(entry.getValue());
-      }
-
-      tableMetadata = builder.build();
-    } else {
-      tableMetadata = metadata;
-    }
+    tableMetadata = EncryptionUtil.addEmKeysToMetadata(metadata, encrManager);
 
     newMetadataLocation = writeNewMetadataIfRequired(newTable, tableMetadata);
 
