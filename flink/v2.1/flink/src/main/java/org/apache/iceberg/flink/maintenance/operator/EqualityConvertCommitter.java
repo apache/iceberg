@@ -71,7 +71,8 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
 
   private static final Logger LOG = LoggerFactory.getLogger(EqualityConvertCommitter.class);
 
-  static final String COMMITTED_STAGING_SNAPSHOT_PROPERTY = "equality-convert-staging-snapshot";
+  public static final String COMMITTED_STAGING_SNAPSHOT_PROPERTY =
+      "equality-convert-staging-snapshot";
 
   private static final String ADDED_DV_NUM_METRIC = "addedDvNum";
   private static final String COMMIT_DURATION_MS_METRIC = "commitDurationMs";

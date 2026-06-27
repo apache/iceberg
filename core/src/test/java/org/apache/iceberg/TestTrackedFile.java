@@ -47,7 +47,7 @@ public class TestTrackedFile {
         .containsExactly(
             "tracking",
             "content_type",
-            "writer_format_version",
+            "format_version",
             "location",
             "file_format",
             "record_count",
