@@ -43,6 +43,7 @@ import org.apache.spark.sql.types.NullType$;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType$;
+import org.apache.spark.sql.types.TimeType$;
 import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
 import org.apache.spark.sql.types.VariantType$;
@@ -128,7 +129,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case DATE:
         return DateType$.MODULE$;
       case TIME:
-        throw new UnsupportedOperationException("Spark does not support time fields");
+        return TimeType$.MODULE$.apply();
       case TIMESTAMP:
         Types.TimestampType ts = (Types.TimestampType) primitive;
         if (ts.shouldAdjustToUTC()) {

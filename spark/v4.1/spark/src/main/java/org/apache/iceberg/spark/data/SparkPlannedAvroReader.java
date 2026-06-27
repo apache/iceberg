@@ -150,6 +150,11 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
             // Spark uses the same representation
             return ValueReaders.longs();
 
+          case "time-micros":
+            // Iceberg stores time as microseconds, but Spark stores it as nanoseconds
+            ValueReader<Long> timeMicros = ValueReaders.longs();
+            return (ValueReader<Long>) (decoder, ignored) -> timeMicros.read(decoder, null) * 1000L;
+
           case "decimal":
             return SparkValueReaders.decimal(
                 ValueReaders.decimalBytesReader(primitive),
