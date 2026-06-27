@@ -74,12 +74,26 @@ public class TestHelpers {
   private TestHelpers() {}
 
   public static final int MAX_FORMAT_VERSION = 4;
+
+  // The highest format version covered by the default version-parameterized test ranges below.
+  // While a new format version is being incubated, this lags MAX_FORMAT_VERSION so that the
+  // existing parameterized test suite is not pinned to an incomplete code path. Bump this to
+  // MAX_FORMAT_VERSION when the incubating version's read/write code paths cover every feature
+  // exercised by the parameterized suite.
+  public static final int DEFAULT_MAX_TEST_FORMAT_VERSION = 3;
+
   public static final List<Integer> ALL_VERSIONS =
-      IntStream.rangeClosed(1, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+      IntStream.rangeClosed(1, DEFAULT_MAX_TEST_FORMAT_VERSION)
+          .boxed()
+          .collect(Collectors.toUnmodifiableList());
   public static final List<Integer> V2_AND_ABOVE =
-      IntStream.rangeClosed(2, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+      IntStream.rangeClosed(2, DEFAULT_MAX_TEST_FORMAT_VERSION)
+          .boxed()
+          .collect(Collectors.toUnmodifiableList());
   public static final List<Integer> V3_AND_ABOVE =
-      IntStream.rangeClosed(3, MAX_FORMAT_VERSION).boxed().collect(Collectors.toUnmodifiableList());
+      IntStream.rangeClosed(3, DEFAULT_MAX_TEST_FORMAT_VERSION)
+          .boxed()
+          .collect(Collectors.toUnmodifiableList());
 
   /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
   public static long waitUntilAfter(long timestampMillis) {
