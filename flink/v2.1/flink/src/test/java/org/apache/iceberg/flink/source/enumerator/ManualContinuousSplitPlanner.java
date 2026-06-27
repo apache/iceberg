@@ -22,8 +22,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import javax.annotation.Nullable;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -33,6 +35,7 @@ class ManualContinuousSplitPlanner implements ContinuousSplitPlanner {
   private final NavigableMap<Long, List<IcebergSourceSplit>> splits;
   private long latestSnapshotId;
   private int remainingFailures;
+  @Nullable private ScanReport scanReport;
 
   ManualContinuousSplitPlanner(ScanContext scanContext, int expectedFailures) {
     this.maxPlanningSnapshotCount = scanContext.maxPlanningSnapshotCount();
@@ -79,7 +82,8 @@ class ManualContinuousSplitPlanner implements ContinuousSplitPlanner {
             discoveredSplits,
             lastPosition,
             // use the snapshot Id as snapshot timestamp.
-            IcebergEnumeratorPosition.of(toSnapshotIdInclusive, toSnapshotIdInclusive));
+            IcebergEnumeratorPosition.of(toSnapshotIdInclusive, toSnapshotIdInclusive),
+            scanReport);
     return result;
   }
 
@@ -90,6 +94,11 @@ class ManualContinuousSplitPlanner implements ContinuousSplitPlanner {
   public synchronized void addSplits(List<IcebergSourceSplit> newSplits) {
     latestSnapshotId += 1;
     splits.put(latestSnapshotId, newSplits);
+  }
+
+  /** Set a ScanReport to be included in future enumeration results. */
+  public synchronized void setScanReport(@Nullable ScanReport report) {
+    this.scanReport = report;
   }
 
   @Override

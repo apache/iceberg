@@ -19,13 +19,16 @@
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.util.Collection;
+import javax.annotation.Nullable;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class ContinuousEnumerationResult {
   private final Collection<IcebergSourceSplit> splits;
   private final IcebergEnumeratorPosition fromPosition;
   private final IcebergEnumeratorPosition toPosition;
+  @Nullable private final ScanReport scanReport;
 
   /**
    * @param splits should never be null. But it can be an empty collection
@@ -36,11 +39,20 @@ class ContinuousEnumerationResult {
       Collection<IcebergSourceSplit> splits,
       IcebergEnumeratorPosition fromPosition,
       IcebergEnumeratorPosition toPosition) {
+    this(splits, fromPosition, toPosition, null);
+  }
+
+  ContinuousEnumerationResult(
+      Collection<IcebergSourceSplit> splits,
+      IcebergEnumeratorPosition fromPosition,
+      IcebergEnumeratorPosition toPosition,
+      @Nullable ScanReport scanReport) {
     Preconditions.checkArgument(splits != null, "Invalid to splits collection: null");
     Preconditions.checkArgument(toPosition != null, "Invalid end position: null");
     this.splits = splits;
     this.fromPosition = fromPosition;
     this.toPosition = toPosition;
+    this.scanReport = scanReport;
   }
 
   public Collection<IcebergSourceSplit> splits() {
@@ -53,5 +65,10 @@ class ContinuousEnumerationResult {
 
   public IcebergEnumeratorPosition toPosition() {
     return toPosition;
+  }
+
+  @Nullable
+  public ScanReport scanReport() {
+    return scanReport;
   }
 }

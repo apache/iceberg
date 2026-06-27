@@ -18,17 +18,39 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.events.IncrementalScanEvent;
 import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.metrics.ScanMetricsResult;
+import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends BaseScan<ThisT, T, G> implements IncrementalScan<ThisT, T, G> {
 
+  private ScanMetrics scanMetrics;
+
   protected BaseIncrementalScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
+  }
+
+  protected ScanMetrics scanMetrics() {
+    if (scanMetrics == null) {
+      this.scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
+    }
+
+    return scanMetrics;
   }
 
   protected abstract CloseableIterable<T> doPlanFiles(
@@ -123,7 +145,34 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
               true /* from snapshot ID inclusive */));
     }
 
-    return doPlanFiles(fromSnapshotIdExclusive, toSnapshotIdInclusive);
+    List<Integer> projectedFieldIds = Lists.newArrayList(TypeUtil.getProjectedIds(schema()));
+    List<String> projectedFieldNames =
+        projectedFieldIds.stream().map(schema()::findColumnName).collect(Collectors.toList());
+
+    Timer.Timed planningDuration = scanMetrics().totalPlanningDuration().start();
+
+    return CloseableIterable.whenComplete(
+        doPlanFiles(fromSnapshotIdExclusive, toSnapshotIdInclusive),
+        () -> {
+          planningDuration.stop();
+          Map<String, String> metadata = Maps.newHashMap(context().options());
+          metadata.putAll(EnvironmentContext.get());
+          context()
+              .metricsReporter()
+              .report(
+                  ImmutableScanReport.builder()
+                      .schemaId(schema().schemaId())
+                      .tableName(table().name())
+                      .snapshotId(toSnapshotIdInclusive)
+                      .filter(
+                          ExpressionUtil.sanitize(
+                              schema().asStruct(), filter(), context().caseSensitive()))
+                      .projectedFieldIds(projectedFieldIds)
+                      .projectedFieldNames(projectedFieldNames)
+                      .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
+                      .metadata(metadata)
+                      .build());
+        });
   }
 
   private boolean scanCurrentLineage() {
