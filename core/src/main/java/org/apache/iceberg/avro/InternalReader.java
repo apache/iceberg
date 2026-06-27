@@ -178,13 +178,14 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
             return ValueReaders.longs();
 
           case "timestamp-millis":
-            // adjust to microseconds
+          case "local-timestamp-millis":
             ValueReader<Long> longs = ValueReaders.longs();
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
           case "timestamp-nanos":
-            // both are handled in memory as long values, using the type to track units
+          case "local-timestamp-micros":
+          case "local-timestamp-nanos":
             return ValueReaders.longs();
 
           case "decimal":
