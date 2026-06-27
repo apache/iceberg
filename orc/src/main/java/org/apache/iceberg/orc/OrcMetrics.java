@@ -21,6 +21,9 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -267,9 +270,7 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp minValue = tColStats.getMinimumUTC();
       min =
-          Optional.ofNullable(minValue)
-              .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
-              .orElse(null);
+          Optional.ofNullable(minValue).map(v -> timestampBound(type, v.toInstant())).orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       min = booleanStats.getFalseCount() <= 0;
@@ -322,15 +323,22 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp maxValue = tColStats.getMaximumUTC();
       max =
-          Optional.ofNullable(maxValue)
-              .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
-              .orElse(null);
+          Optional.ofNullable(maxValue).map(v -> timestampBound(type, v.toInstant())).orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       max = booleanStats.getTrueCount() > 0;
     }
     return Optional.ofNullable(
         Conversions.toByteBuffer(type, truncateIfNeeded(Bound.UPPER, type, max, metricsMode)));
+  }
+
+  private static long timestampBound(Type type, Instant instant) {
+    // timestamp_ns columns store bounds as nanoseconds from epoch, while timestamp columns store
+    // microseconds (see Conversions for TIMESTAMP and TIMESTAMP_NANO).
+    if (type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      return ChronoUnit.NANOS.between(DateTimeUtil.EPOCH, instant.atOffset(ZoneOffset.UTC));
+    }
+    return DateTimeUtil.microsFromInstant(instant);
   }
 
   private static Object replaceNaN(double value, double replacement) {
