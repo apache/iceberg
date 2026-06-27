@@ -1390,6 +1390,10 @@ class StructField(BaseModel):
     doc: str | None = None
     initial_default: PrimitiveTypeValue | None = Field(None, alias='initial-default')
     write_default: PrimitiveTypeValue | None = Field(None, alias='write-default')
+    collation: str | None = Field(
+        None,
+        description='Provider-qualified collation for a string field, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
 
 
 class StructType(BaseModel):
