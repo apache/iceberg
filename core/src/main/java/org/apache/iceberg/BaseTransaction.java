@@ -73,6 +73,7 @@ public class BaseTransaction implements Transaction {
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private final TransactionType type;
   private TableMetadata base;
+  private final TableMetadata stagedReplacement;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
   private final MetricsReporter reporter;
@@ -91,6 +92,7 @@ public class BaseTransaction implements Transaction {
     this.tableName = tableName;
     this.ops = ops;
     this.transactionTable = new TransactionTable();
+    this.stagedReplacement = start;
     this.current = start;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
@@ -320,10 +322,16 @@ public class BaseTransaction implements Transaction {
                   }
                 }
 
-                // because this is a replace table, it will always completely replace the table
-                // metadata. even if it was just updated.
+                // If the table changed while this transaction was open (usually a concurrent
+                // commit), rebuild the replacement on the latest metadata so that commit's changes
+                // are not silently dropped. If the latest metadata is null the table no longer
+                // exists, so there is nothing to rebuild on and the staged replacement is committed
+                // as a new table.
                 if (base != underlyingOps.current()) {
                   this.base = underlyingOps.current(); // just refreshed
+                  if (base != null) {
+                    rebaseReplaceOnto(base);
+                  }
                 }
 
                 underlyingOps.commit(base, current);
@@ -345,6 +353,31 @@ public class BaseTransaction implements Transaction {
       // retries are not
       // a concern, it is safe to delete all the deleted files from individual operations
       deleteUncommittedFiles(deletedFiles);
+    }
+  }
+
+  /**
+   * Re-applies this replace transaction on top of the latest table metadata.
+   *
+   * <p>A replace replaces the current schema, spec, and data, but it keeps the table's history
+   * rather than dropping and recreating the table. If it simply committed the metadata staged when
+   * the transaction opened, any commit that landed in the meantime would be lost. Instead, the
+   * staged replacement (schema, spec, sort order, location, and properties) is rebuilt on the
+   * refreshed metadata, which retains the other commit's snapshots, and the staged updates are
+   * replayed so their new snapshots get sequence numbers that follow the refreshed metadata.
+   */
+  private void rebaseReplaceOnto(TableMetadata refreshed) {
+    this.current =
+        refreshed.buildReplacementPreservingIds(
+            stagedReplacement.schema(),
+            stagedReplacement.spec(),
+            stagedReplacement.sortOrder(),
+            stagedReplacement.location(),
+            stagedReplacement.properties());
+    // Updates are replayed against the transaction's own ops, which return the rebuilt metadata, so
+    // they re-apply cleanly without seeing a stale base.
+    for (PendingUpdate update : updates) {
+      update.commit();
     }
   }
 
