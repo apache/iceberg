@@ -82,7 +82,7 @@ jobs:
       max-parallel: 20
       matrix:
         jvm: [17, 21]
-        spark: ['3.5', '4.0', '4.1']
+        spark: ['3.5', '4.0', '4.1', '4.2']
         scala: ['2.12', '2.13']
         # Split iceberg-spark (core) from iceberg-spark-extensions/-runtime
         # so they run as concurrent jobs rather than serially in one job.
@@ -93,6 +93,8 @@ jobs:
           - spark: '4.0'
             scala: '2.12'
           - spark: '4.1'
+            scala: '2.12'
+          - spark: '4.2'
             scala: '2.12'
     env:
       SPARK_LOCAL_IP: localhost
