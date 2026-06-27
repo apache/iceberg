@@ -342,7 +342,8 @@ public class RewriteDataFilesSparkAction
     // stop commit service
     commitService.close();
 
-    int totalCommits = Math.min(plan.totalGroupCount(), maxCommits);
+    int totalCommits =
+        IntMath.divide(plan.totalGroupCount(), groupsPerCommit, RoundingMode.CEILING);
     int failedCommits = totalCommits - commitService.succeededCommits();
     if (failedCommits > 0 && failedCommits <= maxFailedCommits) {
       LOG.warn(
