@@ -45,6 +45,7 @@ import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.FunctionNotExistException;
+import org.apache.flink.table.catalog.exceptions.ProcedureNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
@@ -52,6 +53,7 @@ import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
+import org.apache.flink.table.procedures.Procedure;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
@@ -70,6 +72,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.procedure.ProcedureUtil;
 import org.apache.iceberg.flink.util.FlinkAlterTableUtil;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
@@ -875,5 +878,15 @@ public class FlinkCatalog extends AbstractCatalog {
   public CatalogColumnStatistics getPartitionColumnStatistics(
       ObjectPath tablePath, CatalogPartitionSpec partitionSpec) throws CatalogException {
     return CatalogColumnStatistics.UNKNOWN;
+  }
+
+  @Override
+  public Procedure getProcedure(ObjectPath procedurePath)
+      throws ProcedureNotExistException, CatalogException {
+    if (!Catalog.SYSTEM_DATABASE_NAME.equals(procedurePath.getDatabaseName())) {
+      throw new ProcedureNotExistException(icebergCatalog.name(), procedurePath);
+    }
+
+    return ProcedureUtil.getProcedure(procedurePath.getObjectName(), icebergCatalog);
   }
 }
