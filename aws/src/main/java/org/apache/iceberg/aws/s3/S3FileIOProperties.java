@@ -30,6 +30,7 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,6 +50,7 @@ import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
+import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -506,6 +508,14 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT = true;
 
+  /**
+   * Configure a custom {@link MetricPublisher} implementation for the S3 client.
+   *
+   * <p>The class must implement {@link MetricPublisher}. It will be instantiated via a static
+   * {@code create(Map)} factory method if available, otherwise via a no-arg constructor.
+   */
+  public static final String METRICS_PUBLISHER_IMPL = "s3.metrics-publisher-impl";
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -547,6 +557,7 @@ public class S3FileIOProperties implements Serializable {
   private long s3RetryMaxWaitMs;
 
   private boolean s3DirectoryBucketListPrefixAsDirectory;
+  private final String metricsPublisherImpl;
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -590,6 +601,7 @@ public class S3FileIOProperties implements Serializable {
     this.s3AnalyticsacceleratorProperties = Maps.newHashMap();
     this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
     this.s3CrtMaxConcurrency = S3_CRT_MAX_CONCURRENCY_DEFAULT;
+    this.metricsPublisherImpl = null;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -715,6 +727,7 @@ public class S3FileIOProperties implements Serializable {
     this.s3CrtMaxConcurrency =
         PropertyUtil.propertyAsInt(
             properties, S3_CRT_MAX_CONCURRENCY, S3_CRT_MAX_CONCURRENCY_DEFAULT);
+    this.metricsPublisherImpl = properties.get(METRICS_PUBLISHER_IMPL);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -1196,5 +1209,61 @@ public class S3FileIOProperties implements Serializable {
 
   public Map<String, String> properties() {
     return allProperties;
+  }
+
+  public String metricsPublisherImpl() {
+    return metricsPublisherImpl;
+  }
+
+  /**
+   * Configure a custom {@link MetricPublisher} for an S3 client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyMetricsPublisherConfigurations)
+   * </pre>
+   */
+  public <T extends S3BaseClientBuilder<T, ?>> void applyMetricsPublisherConfigurations(T builder) {
+    if (metricsPublisherImpl != null) {
+      ClientOverrideConfiguration.Builder configBuilder =
+          null != builder.overrideConfiguration()
+              ? builder.overrideConfiguration().toBuilder()
+              : ClientOverrideConfiguration.builder();
+      builder.overrideConfiguration(
+          configBuilder.addMetricPublisher(loadMetricPublisher()).build());
+    }
+  }
+
+  private MetricPublisher loadMetricPublisher() {
+    DynConstructors.Ctor<S3MetricPublisherProvider> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(S3MetricPublisherProvider.class)
+              .loader(S3FileIOProperties.class.getClassLoader())
+              .hiddenImpl(metricsPublisherImpl)
+              .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize S3MetricPublisherProvider, missing no-arg constructor: %s",
+              metricsPublisherImpl),
+          e);
+    }
+
+    S3MetricPublisherProvider provider;
+    try {
+      provider = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize S3MetricPublisherProvider, "
+                  + "%s does not implement S3MetricPublisherProvider.",
+              metricsPublisherImpl),
+          e);
+    }
+
+    provider.initialize(allProperties);
+    return provider.metricPublisher();
   }
 }
