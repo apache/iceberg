@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.actions;
 
+import static org.apache.iceberg.TestBase.SPEC;
 import static org.apache.iceberg.actions.BinPackRewriteFilePlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
 import static org.apache.iceberg.actions.RewriteDataFiles.REWRITE_JOB_ORDER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,7 +81,7 @@ class TestBinPackRewriteFilePlanner {
 
   @BeforeEach
   public void setupTable() throws Exception {
-    this.table = TestTables.create(tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, 3);
+    this.table = TestTables.create(tableDir, "test", TestBase.SCHEMA, SPEC, 3);
   }
 
   @AfterEach
@@ -292,7 +293,78 @@ class TestBinPackRewriteFilePlanner {
                 BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD,
                 BinPackRewriteFilePlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER,
-                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE));
+                BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE,
+                BinPackRewriteFilePlanner.REWRITE_PARTITION_SPEC_MISMATCH));
+  }
+
+  @Test
+  void testPartitionSpecMismatchFilteringDisabledByDefault() {
+    addFiles();
+    table
+        .updateSpec()
+        .removeField("data_bucket")
+        .addField(Expressions.truncate("data", 3))
+        .commit();
+    table
+        .newAppend()
+        .appendFile(newDataFileWithCurrentSpec("data_trunc_3=foo", 10))
+        .appendFile(newDataFileWithCurrentSpec("data_trunc_3=foo", 20))
+        .appendFile(newDataFileWithCurrentSpec("data_trunc_3=bar", 30))
+        .commit();
+    table.refresh();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES,
+            "0",
+            BinPackRewriteFilePlanner.MIN_INPUT_FILES,
+            "1"));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    assertThat(plan.totalGroupCount())
+        .as("all old and new spec files are filtered by default")
+        .isZero();
+  }
+
+  @Test
+  void testPartitionSpecMismatchFilteringEnabled() {
+    // add 6 files with old spec.
+    addFiles();
+    table
+        .updateSpec()
+        .removeField("data_bucket")
+        .addField(Expressions.truncate("data", 3))
+        .commit();
+    // add 3 new files with new spec.
+    table
+        .newAppend()
+        .appendFile(newDataFileWithCurrentSpec("data_trunc_3=foo", 10))
+        .appendFile(newDataFileWithCurrentSpec("data_trunc_3=foo", 20))
+        .appendFile(newDataFileWithCurrentSpec("data_trunc_3=bar", 30))
+        .appendFile(newDataFileWithCurrentSpec("data_trunc_3=bar", 20))
+        .commit();
+    table.refresh();
+    BinPackRewriteFilePlanner oldSpecPlanner = new BinPackRewriteFilePlanner(table);
+    oldSpecPlanner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES,
+            "0",
+            BinPackRewriteFilePlanner.MIN_INPUT_FILES,
+            "1",
+            BinPackRewriteFilePlanner.REWRITE_PARTITION_SPEC_MISMATCH,
+            "true"));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> oldSpecPlan =
+        oldSpecPlanner.plan();
+    List<RewriteFileGroup> groups = Lists.newArrayList(oldSpecPlan.groups().iterator());
+    assertThat(countTotalFilesInAllGroups(groups))
+        .as("All 6 old partition files must be present")
+        .isEqualTo(6);
+    assertThat(groups.get(0).outputSpecId())
+        .as("Output spec id must be the current spec id of the table")
+        .isEqualTo(table.spec().specId());
   }
 
   @Test
@@ -594,11 +666,24 @@ class TestBinPackRewriteFilePlanner {
   }
 
   private static DataFile newDataFile(String partitionPath, long fileSize) {
-    return DataFiles.builder(TestBase.SPEC)
+    return DataFiles.builder(SPEC)
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(fileSize)
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
         .build();
+  }
+
+  private DataFile newDataFileWithCurrentSpec(String partitionPath, long fileSize) {
+    return DataFiles.builder(table.spec())
+        .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(fileSize)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  private long countTotalFilesInAllGroups(List<RewriteFileGroup> allGroups) {
+    return allGroups.stream().mapToLong(RewriteGroupBase::inputFileNum).sum();
   }
 }
