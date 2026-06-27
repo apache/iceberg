@@ -172,6 +172,19 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     return catalog;
   }
 
+  @Test
+  public void newTableSetsCurrentHmsLastAccessTime() throws TException {
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "create_time_tbl");
+
+    int beforeSeconds = (int) (System.currentTimeMillis() / 1000);
+    catalog.createTable(tableIdent, getTestSchema());
+    int afterSeconds = (int) (System.currentTimeMillis() / 1000);
+
+    org.apache.hadoop.hive.metastore.api.Table hmsTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, "create_time_tbl");
+    assertThat(hmsTable.getLastAccessTime()).isBetween(beforeSeconds, afterSeconds);
+  }
+
   private Schema getTestSchema() {
     return new Schema(
         required(1, "id", Types.IntegerType.get(), "unique ID"),
