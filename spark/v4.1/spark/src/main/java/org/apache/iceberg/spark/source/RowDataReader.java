@@ -51,6 +51,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
         partition.io(),
         partition.taskGroup(),
         partition.projection(),
+        partition.readSchema(),
         partition.isCaseSensitive(),
         partition.cacheDeleteFilesOnExecutors());
   }
@@ -60,13 +61,32 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
       FileIO fileIO,
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema expectedSchema,
+      org.apache.spark.sql.types.StructType engineReadSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
 
-    super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    super(
+        table,
+        fileIO,
+        taskGroup,
+        expectedSchema,
+        engineReadSchema,
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+  }
+
+  RowDataReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<FileScanTask> taskGroup,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
+    this(
+        table, fileIO, taskGroup, expectedSchema, null, caseSensitive, cacheDeleteFilesOnExecutors);
   }
 
   @Override
