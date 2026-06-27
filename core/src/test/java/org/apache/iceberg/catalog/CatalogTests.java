@@ -2824,6 +2824,36 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testConcurrentReplaceTransactionsV3() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Transaction transaction =
+        catalog.buildTable(TABLE, SCHEMA).withProperty("format-version", "3").createTransaction();
+    transaction.newFastAppend().appendFile(FILE_A).commit();
+    transaction.commitTransaction();
+
+    Table original = catalog.loadTable(TABLE);
+    assertFiles(original, FILE_A);
+
+    // start two concurrent replace transactions
+    Transaction secondReplace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
+    secondReplace.newFastAppend().appendFile(FILE_C).commit();
+
+    Transaction firstReplace = catalog.buildTable(TABLE, SCHEMA).replaceTransaction();
+    firstReplace.newFastAppend().appendFile(FILE_B).commit();
+    firstReplace.commitTransaction();
+
+    // the second replace should also succeed, but it fails for REST because the snapshot's
+    // first-row-id (set from the original base's next-row-id) is now behind the table's
+    // next-row-id after the first replace advanced it
+    secondReplace.commitTransaction();
+  }
+
+  @Test
   public void testConcurrentReplaceTransactionSchema() {
     C catalog = catalog();
 
