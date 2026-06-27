@@ -149,11 +149,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   private TrackedFile prepare(TrackedFile trackedFile) {
     Tracking tracking = trackedFile.tracking();
-    Preconditions.checkState(
-        tracking != null,
-        "Invalid tracked file: tracking is required but was missing in manifest %s",
-        file.location());
-
     // manifestLocation is not stored in the manifest; the reader fills it from the file location.
     // manifestPos is filled from ROW_POSITION while reading the tracking struct.
     if (tracking instanceof TrackingStruct) {
@@ -206,16 +201,14 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   /**
-   * Builds the tracking field with {@link MetadataColumns#ROW_POSITION} appended so the reader
-   * populates the manifest position of each entry.
+   * Builds the tracking field from the read schema, which includes {@code ROW_POSITION} so the
+   * reader populates the manifest position of each entry.
    */
   private static Types.NestedField trackingWithRowPosition() {
-    List<Types.NestedField> trackingFields = Lists.newArrayList(Tracking.schema().fields());
-    trackingFields.add(MetadataColumns.ROW_POSITION);
     return Types.NestedField.required(
         TrackedFile.TRACKING.fieldId(),
         TrackedFile.TRACKING.name(),
-        Types.StructType.of(trackingFields),
+        TrackingStruct.BASE_TYPE,
         TrackedFile.TRACKING.doc());
   }
 
