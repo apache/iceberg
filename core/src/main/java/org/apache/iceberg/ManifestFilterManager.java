@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -82,7 +84,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private long minSequenceNumber = 0;
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
-  private int duplicateDeleteCount = 0;
+  private final AtomicInteger duplicateDeleteCount = new AtomicInteger(0);
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
   // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
@@ -217,6 +219,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     boolean trustManifestReferences = canTrustManifestReferences(manifests);
     ManifestFile[] filtered = new ManifestFile[manifests.size()];
+    // collect files deleted by expression match across parallel workers, then merge below
+    Queue<F> expressionDeletedFiles = new ConcurrentLinkedQueue<>();
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
         .stopOnFailure()
@@ -225,9 +229,17 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
         .run(
             index -> {
               ManifestFile manifest =
-                  filterManifest(tableSchema, manifests.get(index), trustManifestReferences);
+                  filterManifest(
+                      tableSchema,
+                      manifests.get(index),
+                      trustManifestReferences,
+                      expressionDeletedFiles);
               filtered[index] = manifest;
             });
+
+    // merge files deleted by expression into deleteFiles on the single calling thread,
+    // avoiding any concurrent access to the non-thread-safe deleteFiles set
+    expressionDeletedFiles.forEach(deleteFiles::add);
 
     validateRequiredDeletes(filtered);
 
@@ -264,7 +276,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       }
     }
 
-    summaryBuilder.incrementDuplicateDeletes(duplicateDeleteCount);
+    summaryBuilder.incrementDuplicateDeletes(duplicateDeleteCount.get());
 
     return summaryBuilder;
   }
@@ -366,7 +378,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * @return a ManifestReader that is a filtered version of the input manifest.
    */
   private ManifestFile filterManifest(
-      Schema tableSchema, ManifestFile manifest, boolean trustManifestReferences) {
+      Schema tableSchema,
+      ManifestFile manifest,
+      boolean trustManifestReferences,
+      Queue<F> expressionDeletedFiles) {
     ManifestFile cached = filteredManifests.get(manifest);
     if (cached != null) {
       return cached;
@@ -385,7 +400,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
       if (manifestHasDeletedFiles(evaluator, manifest, reader)) {
-        ManifestFile filtered = filterManifestWithDeletedFiles(evaluator, manifest, reader);
+        ManifestFile filtered =
+            filterManifestWithDeletedFiles(evaluator, manifest, reader, expressionDeletedFiles);
         replacedManifestsCount.incrementAndGet();
         return filtered;
       } else {
@@ -496,7 +512,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
   private ManifestFile filterManifestWithDeletedFiles(
-      PartitionAndMetricsEvaluator evaluator, ManifestFile manifest, ManifestReader<F> reader) {
+      PartitionAndMetricsEvaluator evaluator,
+      ManifestFile manifest,
+      ManifestReader<F> reader,
+      Queue<F> expressionDeletedFiles) {
     boolean isDelete = reader.isDeleteManifestReader();
     // when this point is reached, there is at least one file that will be deleted in the
     // manifest. produce a copy of the manifest with all deleted files removed.
@@ -533,16 +552,17 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                     if (allRowsMatch) {
                       writer.delete(entry);
                       F fileCopy = file.copyWithoutStats();
-                      // add the file here in case it was deleted using an expression. The
-                      // DeleteManifestFilterManager will then remove its matching DV
-                      deleteFiles.add(fileCopy);
+                      // add the file to the queue so the calling thread can later merge it into
+                      // deleteFiles. DeleteManifestFilterManager uses deleteFiles to find and
+                      // remove matching Deletion Vectors for expression-matched deletions.
+                      expressionDeletedFiles.add(fileCopy);
 
                       if (deletedFiles.contains(file)) {
                         LOG.warn(
                             "Deleting a duplicate path from manifest {}: {}",
                             manifest.path(),
                             file.location());
-                        duplicateDeleteCount += 1;
+                        duplicateDeleteCount.incrementAndGet();
                       } else {
                         // only add the file to deletes if it is a new delete
                         // this keeps the snapshot summary accurate for non-duplicate data

@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -736,6 +738,32 @@ public class TestDeleteFiles extends TestBase {
         ids(deleteSnap.snapshotId(), deleteSnap.snapshotId()),
         files(dv1, dv2),
         statuses(Status.DELETED, Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testConcurrentManifestFilteringWithExpression() {
+    // append each file in a separate commit so each gets its own manifest,
+    // ensuring all 4 manifests are processed concurrently by the worker pool
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    commit(table, table.newAppend().appendFile(FILE_B), branch);
+    commit(table, table.newAppend().appendFile(FILE_C), branch);
+    commit(table, table.newAppend().appendFile(FILE_D), branch);
+
+    ExecutorService pool = Executors.newFixedThreadPool(4);
+    try {
+      commit(
+          table,
+          table
+              .newOverwrite()
+              .overwriteByRowFilter(Expressions.alwaysTrue())
+              .scanManifestsWith(pool),
+          branch);
+    } finally {
+      pool.shutdown();
+    }
+
+    assertThat(latestSnapshot(table, branch).summary())
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "4");
   }
 
   private static ByteBuffer longToBuffer(long value) {
