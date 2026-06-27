@@ -66,10 +66,21 @@ public class SparkReadOptions {
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
   public static final boolean STREAMING_SKIP_DELETE_SNAPSHOTS_DEFAULT = false;
 
-  // skip snapshots of type overwrite while reading stream out of iceberg table
+  /**
+   * Skip snapshots of type overwrite while reading stream out of iceberg table.
+   *
+   * @deprecated and will be removed in a future release; use {@link #STREAMING_OVERWRITE_MODE} with
+   *     value "skip" instead.
+   */
+  @Deprecated
   public static final String STREAMING_SKIP_OVERWRITE_SNAPSHOTS =
       "streaming-skip-overwrite-snapshots";
+
   public static final boolean STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT = false;
+
+  // Configures how to handle overwrite snapshots during streaming reads
+  public static final String STREAMING_OVERWRITE_MODE = "streaming-overwrite-mode";
+  public static final String STREAMING_OVERWRITE_MODE_DEFAULT = "fail";
 
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "locality";
