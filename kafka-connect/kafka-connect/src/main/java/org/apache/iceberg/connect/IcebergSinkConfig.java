@@ -28,6 +28,7 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.connect.data.RecordRouter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -66,6 +67,7 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
   private static final String TABLES_PROP = "iceberg.tables";
+  private static final String TABLES_ROUTE_WITH_PROP = "iceberg.tables.route-with";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
@@ -121,6 +123,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.HIGH,
         "Comma-delimited list of destination tables");
+    configDef.define(
+        TABLES_ROUTE_WITH_PROP,
+        ConfigDef.Type.CLASS,
+        null,
+        Importance.MEDIUM,
+        "Routing mechanism for the tables: FIELD_VALUE, FIELD_REGEX, TOPIC_NAME, TOPIC_REGEX");
     configDef.define(
         TABLES_DYNAMIC_PROP,
         ConfigDef.Type.BOOLEAN,
@@ -332,7 +340,12 @@ public class IcebergSinkConfig extends AbstractConfig {
   }
 
   public boolean dynamicTablesEnabled() {
-    return getBoolean(TABLES_DYNAMIC_PROP);
+    return getBoolean(TABLES_DYNAMIC_PROP)
+        || RecordRouter.DynamicRecordRouter.class.equals(tablesRouteWith());
+  }
+
+  public <T extends RecordRouter> Class<T> tablesRouteWith() {
+    return (Class<T>) getClass(TABLES_ROUTE_WITH_PROP);
   }
 
   public String tablesRouteField() {
