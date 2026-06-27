@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -237,12 +238,19 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
         throw new NoSuchTableException("Table does not exist: %s", identifier);
       }
 
-      TableMetadata metadata;
       tableProperties.putAll(tableOverrideProperties());
+      UnaryOperator<TableMetadata> replacement =
+          base ->
+              base.buildReplacement(
+                  schema,
+                  spec,
+                  sortOrder,
+                  location != null ? location : base.location(),
+                  tableProperties);
+
+      TableMetadata metadata;
       if (ops.current() != null) {
-        String baseLocation = location != null ? location : ops.current().location();
-        metadata =
-            ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, tableProperties);
+        metadata = replacement.apply(ops.current());
       } else {
         String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
         metadata =
@@ -251,10 +259,10 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
 
       if (orCreate) {
         return Transactions.createOrReplaceTableTransaction(
-            identifier.toString(), ops, metadata, metricsReporter());
+            identifier.toString(), ops, metadata, replacement, metricsReporter());
       } else {
         return Transactions.replaceTableTransaction(
-            identifier.toString(), ops, metadata, metricsReporter());
+            identifier.toString(), ops, metadata, replacement, metricsReporter());
       }
     }
 
