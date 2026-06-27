@@ -20,6 +20,8 @@ package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -157,6 +159,12 @@ public class RandomUtil {
         BigDecimal bigDecimal = new BigDecimal(unscaled, type.scale());
         return negate(choice) ? bigDecimal.negate() : bigDecimal;
 
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // geometry and geography values are stored as WKB
+        return wkbPoint(
+            (random.nextDouble() * 360.0) - 180.0, (random.nextDouble() * 180.0) - 90.0);
+
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);
@@ -202,10 +210,25 @@ public class RandomUtil {
         byte[] uuidBytes = new byte[16];
         random.nextBytes(uuidBytes);
         return uuidBytes;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // a small set of distinct points so the WKB column stays dictionary encodable
+        return wkbPoint(value, value);
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);
     }
+  }
+
+  /** Encodes a point as little-endian WKB, the on-disk representation for geo values. */
+  private static byte[] wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1) // byte order: little endian
+        .putInt(1) // WKB geometry type: Point
+        .putDouble(xCoord)
+        .putDouble(yCoord)
+        .array();
   }
 
   private static final long FIFTY_YEARS_IN_MICROS =

@@ -20,10 +20,10 @@ package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -104,36 +104,71 @@ public class TestParquetDataWriter {
   }
 
   @Test
-  public void testGeospatialWriteIsRejected() {
-    Schema geometrySchema =
+  public void testGeospatialRoundTrip() throws IOException {
+    Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional(2, "geom", Types.GeometryType.crs84()));
-    assertThatThrownBy(
-            () ->
-                Parquet.writeData(Files.localOutput(createTempFile(temp)))
-                    .schema(geometrySchema)
-                    .createWriterFunc(GenericParquetWriter::create)
-                    .overwrite()
-                    .withSpec(PartitionSpec.unpartitioned())
-                    .build())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot write geometry value to Parquet");
+            Types.NestedField.optional(2, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.optional(3, "geog", Types.GeographyType.crs84()));
 
-    Schema geographySchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.LongType.get()),
-            Types.NestedField.optional(2, "geog", Types.GeographyType.crs84()));
-    assertThatThrownBy(
-            () ->
-                Parquet.writeData(Files.localOutput(createTempFile(temp)))
-                    .schema(geographySchema)
-                    .createWriterFunc(GenericParquetWriter::create)
-                    .overwrite()
-                    .withSpec(PartitionSpec.unpartitioned())
-                    .build())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot write geography value to Parquet");
+    GenericRecord record = GenericRecord.create(schema);
+    List<Record> geoRecords =
+        ImmutableList.of(
+            record.copy(
+                ImmutableMap.of("id", 1L, "geom", wkbPoint(30, 10), "geog", wkbPoint(-5, 40))),
+            // geog is left null
+            record.copy(ImmutableMap.of("id", 2L, "geom", wkbPoint(0, 0))),
+            // both geo columns are left null
+            record.copy(ImmutableMap.of("id", 3L)));
+
+    OutputFile file = Files.localOutput(createTempFile(temp));
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
+    try (dataWriter) {
+      for (Record geoRecord : geoRecords) {
+        dataWriter.write(geoRecord);
+      }
+    }
+
+    assertThat(dataWriter.toDataFile().recordCount()).isEqualTo(geoRecords.size());
+
+    List<Record> writtenRecords;
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      writtenRecords = Lists.newArrayList(reader);
+    }
+
+    assertThat(writtenRecords).hasSameSizeAs(geoRecords);
+    for (int i = 0; i < geoRecords.size(); i++) {
+      assertThat(writtenRecords.get(i).getField("id")).isEqualTo(geoRecords.get(i).getField("id"));
+      assertThat(writtenRecords.get(i).getField("geom"))
+          .as("geometry WKB should round-trip unchanged")
+          .isEqualTo(geoRecords.get(i).getField("geom"));
+      assertThat(writtenRecords.get(i).getField("geog"))
+          .as("geography WKB should round-trip unchanged")
+          .isEqualTo(geoRecords.get(i).getField("geog"));
+    }
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    // little-endian WKB encoding of a point
+    byte[] wkb =
+        ByteBuffer.allocate(21)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 1) // byte order: little endian
+            .putInt(1) // WKB geometry type: Point
+            .putDouble(xCoord)
+            .putDouble(yCoord)
+            .array();
+    return ByteBuffer.wrap(wkb);
   }
 
   private void testDataWriter(Schema schema, VariantShreddingFunction variantShreddingFunc)
