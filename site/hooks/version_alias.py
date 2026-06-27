@@ -16,36 +16,66 @@
 # under the License.
 
 """
-MkDocs hook: version URL alias.
+MkDocs hook: latest URL alias.
 
-Creates a symlink so that /docs/<icebergVersion>/ resolves to /docs/latest/.
-This allows version-specific URLs (e.g. /docs/1.11.0/) to work without
-duplicating the navigation entry for the latest version.
+The canonical built directory is /docs/<icebergVersion>/.
+This hook adds a source alias during config processing so links to
+docs/latest/*.md resolve, then copies the rendered output to /docs/latest/.
+
+A real output copy (not a symlink) is required because `mkdocs gh-deploy`
+invokes ghp-import with its default `followlinks=False`, which silently drops
+symlinked directories from the published `asf-site` branch.
 """
 
 import logging
+import shutil
 from pathlib import Path
 
 log = logging.getLogger("mkdocs.hooks.version_alias")
 
 
-def on_post_build(config):
-    version = config["extra"].get("icebergVersion")
+def on_config(config):
+    version = config.get("extra", {}).get("icebergVersion")
     if not version:
+        log.warning("extra.icebergVersion is not set; skipping docs/latest alias")
+        return config
+
+    docs_dir = Path(config["docs_dir"])
+    version_dir = docs_dir / "docs" / version
+    latest_dir = docs_dir / "docs" / "latest"
+
+    if not version_dir.exists():
+        log.warning("docs/%s not found in docs source; skipping latest alias", version)
+        return config
+
+    if latest_dir.is_symlink() or latest_dir.is_file():
+        latest_dir.unlink()
+    elif latest_dir.is_dir():
+        shutil.rmtree(latest_dir)
+
+    latest_dir.symlink_to(version)
+    log.info("Created latest source alias: docs/latest -> docs/%s", version)
+    return config
+
+
+def on_post_build(config):
+    version = config.get("extra", {}).get("icebergVersion")
+    if not version:
+        log.warning("extra.icebergVersion is not set; skipping docs/latest alias")
         return
 
     site_dir = Path(config["site_dir"])
+    version_dir = site_dir / "docs" / version
     latest_dir = site_dir / "docs" / "latest"
-    version_link = site_dir / "docs" / version
 
-    if not latest_dir.exists():
-        log.warning("docs/latest not found in site output; skipping version alias")
+    if not version_dir.exists():
+        log.warning("docs/%s not found in site output; skipping latest alias", version)
         return
 
-    # Remove stale symlink if the version changed between rebuilds
-    if version_link.is_symlink():
-        version_link.unlink()
+    if latest_dir.is_symlink() or latest_dir.is_file():
+        latest_dir.unlink()
+    elif latest_dir.is_dir():
+        shutil.rmtree(latest_dir)
 
-    if not version_link.exists():
-        version_link.symlink_to("latest")
-        log.info("Created version alias: docs/%s -> docs/latest", version)
+    shutil.copytree(version_dir, latest_dir, symlinks=False)
+    log.info("Created latest alias: docs/latest (copy of docs/%s)", version)
