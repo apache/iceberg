@@ -554,7 +554,7 @@ class TestTrackedFileAdapters {
             ? TrackedFileBuilder.dataManifest(SNAPSHOT_ID)
             : TrackedFileBuilder.deleteManifest(SNAPSHOT_ID);
     return builder
-        .writerFormatVersion(WRITER_FORMAT_VERSION)
+        .formatVersion(FORMAT_VERSION_V4)
         .location(MANIFEST_FILE_LOCATION)
         .fileFormat(FileFormat.PARQUET)
         .partition(EMPTY_PARTITION)
