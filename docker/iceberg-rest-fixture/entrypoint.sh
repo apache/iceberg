@@ -20,8 +20,7 @@
 
 set -eu
 
-REST_SERVER_MAIN="org.apache.iceberg.rest.RESTCatalogServer"
-CLASSPATH="${REST_SERVER_HOME}/libs/*"
+CLASSPATH="libs/*"
 
 if [ -n "${LOG_CONFIG_DIR:-}" ]; then
   CLASSPATH="${LOG_CONFIG_DIR}:${CLASSPATH}"
@@ -33,4 +32,4 @@ if [ -n "${LOG_LEVEL:-}" ]; then
   set -- "$@" "-Dorg.slf4j.simpleLogger.defaultLogLevel=${LOG_LEVEL}"
 fi
 
-exec "$@" -cp "$CLASSPATH" "$REST_SERVER_MAIN"
+exec "$@" -cp "$CLASSPATH" org.apache.iceberg.rest.RESTCatalogServer
