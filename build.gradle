@@ -812,6 +812,30 @@ project(':iceberg-gcp') {
   }
 }
 
+project(':iceberg-hashicorp') {
+    apply plugin: 'com.gradleup.shadow'
+
+    build.dependsOn shadowJar
+
+    test {
+        useJUnitPlatform()
+    }
+
+    dependencies {
+        implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+        implementation project(':iceberg-core')
+        implementation libs.httpcomponents.httpclient5
+        implementation libs.jackson.databind
+
+        testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+        testImplementation libs.esotericsoftware.kryo
+        testImplementation libs.jackson.databind
+        testImplementation libs.testcontainers
+        testImplementation libs.testcontainers.junit.jupiter
+        testImplementation libs.testcontainers.vault
+    }
+}
+
 project(':iceberg-hive-metastore') {
   test {
     useJUnitPlatform()
