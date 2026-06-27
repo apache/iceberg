@@ -28,11 +28,12 @@ RUN  set -xeu && \
      rm -rf /var/lib/apt/lists/*
 
 # Working directory for the application
-WORKDIR /usr/lib/iceberg-rest
+ENV REST_SERVER_HOME=/usr/lib/iceberg-rest
+WORKDIR $REST_SERVER_HOME
 
 # Copy REST server libs and LICENSE/NOTICE
-COPY --chown=iceberg:iceberg open-api/build/iceberg-rest-server/ /usr/lib/iceberg-rest/
-COPY --chown=iceberg:iceberg docker/iceberg-rest-fixture/entrypoint.sh /usr/lib/iceberg-rest/entrypoint.sh
+COPY --chown=iceberg:iceberg open-api/build/iceberg-rest-server/ ./
+COPY --chown=iceberg:iceberg docker/iceberg-rest-fixture/entrypoint.sh ./entrypoint.sh
 
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog
 ENV CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db
