@@ -24,7 +24,10 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
+/**
+ * Adapts {@link TrackedFile} entries to the {@link DataFile}, {@link DeleteFile}, and {@link
+ * ManifestFile} APIs.
+ */
 class TrackedFileAdapters {
 
   private TrackedFileAdapters() {}
@@ -51,6 +54,15 @@ class TrackedFileAdapters {
         "Invalid content type for equality delete file: %s",
         file.contentType());
     return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
+  }
+
+  static ManifestFile asManifestFile(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA_MANIFEST
+            || file.contentType() == FileContent.DELETE_MANIFEST,
+        "Invalid content type for ManifestFile: %s",
+        file.contentType());
+    return new TrackedManifestFile(file);
   }
 
   /** Shared base for all tracked file adapters. */
@@ -402,6 +414,121 @@ class TrackedFileAdapters {
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
       return copy();
+    }
+  }
+
+  /**
+   * Adapts a TrackedFile DATA_MANIFEST or DELETE_MANIFEST entry to the {@link ManifestFile}
+   * interface.
+   */
+  private static class TrackedManifestFile implements ManifestFile {
+    private final TrackedFile file;
+
+    private TrackedManifestFile(TrackedFile file) {
+      Preconditions.checkArgument(
+          file.tracking().dataSequenceNumber() != null, "Invalid data sequence number: null");
+      Preconditions.checkArgument(
+          file.tracking().snapshotId() != null, "Invalid snapshot ID: null");
+      Preconditions.checkArgument(
+          file.manifestInfo().dv() == null,
+          "Cannot adapt manifest with a deletion vector to ManifestFile: %s",
+          file.location());
+      this.file = file;
+    }
+
+    @Override
+    public String path() {
+      return file.location();
+    }
+
+    @Override
+    public long length() {
+      return file.fileSizeInBytes();
+    }
+
+    @Override
+    public int partitionSpecId() {
+      throw new UnsupportedOperationException(
+          "v4 manifests are not bound to a single partition spec");
+    }
+
+    @Override
+    public ManifestContent content() {
+      switch (file.contentType()) {
+        case DATA_MANIFEST:
+          return ManifestContent.DATA;
+        case DELETE_MANIFEST:
+          return ManifestContent.DELETES;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported content type for manifests: " + file.contentType());
+      }
+    }
+
+    @Override
+    public long sequenceNumber() {
+      return file.tracking().dataSequenceNumber();
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return file.manifestInfo().minSequenceNumber();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return file.tracking().snapshotId();
+    }
+
+    @Override
+    public Integer addedFilesCount() {
+      return file.manifestInfo().addedFilesCount();
+    }
+
+    @Override
+    public Long addedRowsCount() {
+      return file.manifestInfo().addedRowsCount();
+    }
+
+    @Override
+    public Integer existingFilesCount() {
+      return file.manifestInfo().existingFilesCount();
+    }
+
+    @Override
+    public Long existingRowsCount() {
+      return file.manifestInfo().existingRowsCount();
+    }
+
+    @Override
+    public Integer deletedFilesCount() {
+      return file.manifestInfo().deletedFilesCount();
+    }
+
+    @Override
+    public Long deletedRowsCount() {
+      return file.manifestInfo().deletedRowsCount();
+    }
+
+    // v4 does not store partition summaries on manifests, so return null.
+    @Override
+    public List<PartitionFieldSummary> partitions() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return file.keyMetadata();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return file.tracking().firstRowId();
+    }
+
+    @Override
+    public ManifestFile copy() {
+      return new TrackedManifestFile(file.copy());
     }
   }
 
