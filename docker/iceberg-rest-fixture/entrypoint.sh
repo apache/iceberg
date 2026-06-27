@@ -20,6 +20,7 @@
 
 set -eu
 
+# The staged runtime puts all REST server jars under libs/; Java expands this wildcard.
 CLASSPATH="libs/*"
 
 if [ -n "${LOG_CONFIG_DIR:-}" ]; then
