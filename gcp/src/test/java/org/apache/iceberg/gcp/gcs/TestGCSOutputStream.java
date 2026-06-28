@@ -21,12 +21,16 @@ package org.apache.iceberg.gcp.gcs;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo.ObjectCustomContextPayload;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
+import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -44,15 +48,33 @@ public class TestGCSOutputStream {
 
   @Test
   public void testWrite() {
-    // Run tests for both byte and array write paths
+    Map<String, String> blankContexts = ImmutableMap.of();
+    Map<String, String> multipleContexts =
+        ImmutableMap.of(
+            "env", "prod",
+            "analytics-id", "123456");
+
     Stream.of(true, false)
         .forEach(
             arrayWrite -> {
-              // Test small file write
-              writeAndVerify(storage, randomBlobId(), randomData(1024), arrayWrite);
+              // Test small file write with no contexts
+              writeAndVerify(storage, randomBlobId(), randomData(1024), arrayWrite, blankContexts);
 
-              // Test large file
-              writeAndVerify(storage, randomBlobId(), randomData(10 * 1024 * 1024), arrayWrite);
+              // Test large file write with no contexts
+              writeAndVerify(
+                  storage, randomBlobId(), randomData(10 * 1024 * 1024), arrayWrite, blankContexts);
+
+              // Test small file write with context
+              writeAndVerify(
+                  storage, randomBlobId(), randomData(1024), arrayWrite, multipleContexts);
+
+              // Test large file write with context
+              writeAndVerify(
+                  storage,
+                  randomBlobId(),
+                  randomData(10 * 1024 * 1024),
+                  arrayWrite,
+                  multipleContexts);
             });
   }
 
@@ -64,9 +86,11 @@ public class TestGCSOutputStream {
     stream.close();
   }
 
-  private void writeAndVerify(Storage client, BlobId uri, byte[] data, boolean arrayWrite) {
+  private void writeAndVerify(
+      Storage client, BlobId uri, byte[] data, boolean arrayWrite, Map<String, String> contexts) {
     try (GCSOutputStream stream =
-        new GCSOutputStream(client, uri, properties, MetricsContext.nullMetrics())) {
+        new GCSOutputStream(
+            client, uri, propertiesWithContexts(contexts), MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertThat(stream.getPos()).isEqualTo(data.length);
@@ -82,6 +106,46 @@ public class TestGCSOutputStream {
 
     byte[] actual = readGCSData(uri);
     assertThat(actual).isEqualTo(data);
+    verifyContexts(uri, contexts);
+  }
+
+  /** Builds a {@link GCPProperties} with the given context entries added under the write prefix. */
+  private GCPProperties propertiesWithContexts(Map<String, String> contexts) {
+    if (contexts == null || contexts.isEmpty()) {
+      return properties;
+    }
+
+    Map<String, String> props =
+        contexts.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    e -> GCPProperties.GCS_WRITE_OBJECT_CONTEXT_PREFIX + e.getKey(),
+                    Map.Entry::getValue));
+    return new GCPProperties(props);
+  }
+
+  /** Asserts that every entry in {@code contexts} is present on the committed GCS object. */
+  private void verifyContexts(BlobId blobId, Map<String, String> contexts) {
+    if (contexts == null || contexts.isEmpty()) {
+      return;
+    }
+
+    Map<String, ObjectCustomContextPayload> customContexts =
+        storage.get(blobId).asBlobInfo().getContexts().getCustom();
+
+    assertThat(customContexts).as("GCS object should have custom contexts attached").isNotNull();
+
+    Map<String, String> actualContextValues =
+        customContexts.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().getValue() // Extract the string value from the payload
+                    ));
+
+    assertThat(actualContextValues)
+        .as("GCS object metadata should contain the configured contexts")
+        .containsAllEntriesOf(contexts);
   }
 
   private byte[] readGCSData(BlobId blobId) {
