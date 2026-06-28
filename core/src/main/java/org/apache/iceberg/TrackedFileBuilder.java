@@ -23,8 +23,8 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class TrackedFileBuilder {
-  private final long snapshotId;
   private final FileContent contentType;
+  private final TrackingBuilder trackingBuilder;
 
   // Required fields
   private Integer formatVersion = null;
@@ -44,8 +44,7 @@ class TrackedFileBuilder {
   private List<Long> splitOffsets = null;
   private List<Integer> equalityIds = null;
 
-  // tracking-related fields
-  private Tracking sourceTracking = null;
+  // tracking-related deferred mutators applied at build() time
   private boolean dvUpdated = false;
   private ByteBuffer deletedPositions = null;
   private ByteBuffer replacedPositions = null;
@@ -98,6 +97,18 @@ class TrackedFileBuilder {
   }
 
   /**
+   * Creates a builder with an externally-constructed TrackingBuilder. Use for content_entry rows
+   * whose tracking values come from outside the writer (v4 manifest references, projections from
+   * legacy ManifestEntry).
+   */
+  static TrackedFileBuilder explicitTracking(
+      FileContent contentType, TrackingBuilder trackingBuilder) {
+    Preconditions.checkArgument(contentType != null, "Invalid content type: null");
+    Preconditions.checkArgument(trackingBuilder != null, "Invalid tracking builder: null");
+    return new TrackedFileBuilder(contentType, trackingBuilder);
+  }
+
+  /**
    * Returns a DELETED tracked file derived from {@code source}.
    *
    * @param source source tracked file
@@ -147,12 +158,11 @@ class TrackedFileBuilder {
 
   private TrackedFileBuilder(FileContent contentType, long snapshotId) {
     this.contentType = contentType;
-    this.snapshotId = snapshotId;
+    this.trackingBuilder = TrackingBuilder.added(snapshotId);
   }
 
   private TrackedFileBuilder(TrackedFile source, long snapshotId) {
     this.contentType = source.contentType();
-    this.snapshotId = snapshotId;
     this.formatVersion = source.formatVersion();
     this.location = source.location();
     this.fileFormat = source.fileFormat();
@@ -167,7 +177,12 @@ class TrackedFileBuilder {
     this.keyMetadata = source.keyMetadata();
     this.splitOffsets = source.splitOffsets();
     this.equalityIds = source.equalityIds();
-    this.sourceTracking = source.tracking();
+    this.trackingBuilder = TrackingBuilder.from(source.tracking(), snapshotId);
+  }
+
+  private TrackedFileBuilder(FileContent contentType, TrackingBuilder trackingBuilder) {
+    this.contentType = contentType;
+    this.trackingBuilder = trackingBuilder;
   }
 
   TrackedFileBuilder formatVersion(int newFormatVersion) {
@@ -315,18 +330,16 @@ class TrackedFileBuilder {
     Preconditions.checkArgument(recordCount != null, "Missing required field: record count");
     Preconditions.checkArgument(
         fileSizeInBytes != null, "Missing required field: file size in bytes");
-    Preconditions.checkArgument(partitionData != null, "Missing required field: partition data");
+    Preconditions.checkArgument(
+        partitionData != null || isLeafManifest(contentType),
+        "Partition is required for content type %s",
+        contentType);
     Preconditions.checkArgument(
         !isLeafManifest(contentType) || manifestInfo != null,
         "Missing required field: manifest info");
     Preconditions.checkArgument(
         contentType != FileContent.EQUALITY_DELETES || equalityIds != null,
         "Missing required field: equality IDs");
-
-    TrackingBuilder trackingBuilder =
-        sourceTracking == null
-            ? TrackingBuilder.added(snapshotId)
-            : TrackingBuilder.from(sourceTracking, snapshotId);
 
     if (dvUpdated) {
       trackingBuilder.dvUpdated();
@@ -340,8 +353,10 @@ class TrackedFileBuilder {
       trackingBuilder.replacedPositions(replacedPositions);
     }
 
+    Tracking trackingResult = trackingBuilder.build();
+
     return new TrackedFileStruct(
-        trackingBuilder.build(),
+        trackingResult,
         contentType,
         formatVersion,
         location,
